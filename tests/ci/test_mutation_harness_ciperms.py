@@ -234,7 +234,7 @@ class TestRunTests:
 
         monkeypatch.setattr(harness.subprocess, "run", fake_run)
 
-        result = harness._run_tests("tests/does_not_matter.py::test_x", (target,))
+        result = harness._run_tests("tests/does_not_matter.py::test_x", tmp_path)
 
         assert result.returncode == 1
         assert not pycache.exists()
@@ -267,14 +267,14 @@ class TestMainExitCodes:
             )
             for i, (_actual, expected) in enumerate(outcomes)
         ]
-        monkeypatch.setattr(harness, "build_mutations", lambda: mutations)
+        monkeypatch.setattr(harness, "build_mutations", lambda _root=None: mutations)
         pairs = iter(
             zip(mutations, [actual for actual, _expected in outcomes], strict=True)
         )
         monkeypatch.setattr(
             harness,
             "apply_mutation",
-            lambda _m: harness.Result(*next(pairs)),
+            lambda _m, _root=None: harness.Result(*next(pairs)),
         )
         return harness.main()
 

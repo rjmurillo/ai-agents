@@ -93,10 +93,24 @@ def test_template_without_routing_guidance_fails_check() -> None:
 
 
 def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
-    """The template's WebSearch/WebFetch line must scope to non-GitHub URLs."""
+    """The template's WebSearch/WebFetch tool line must scope to non-GitHub URLs.
+
+    If the analyst has no web_fetch/WebFetch tool at all, the restriction is
+    satisfied by absence (a stronger guarantee than annotation).
+    """
     template = REPO_ROOT / "templates" / "agents" / "analyst.shared.md"
     assert template.is_file()
     body = template.read_text(encoding="utf-8")
+    # Check frontmatter tools sections only (before the closing ---)
+    parts = body.split("---", 2)
+    frontmatter = parts[1] if len(parts) >= 3 else ""
+    has_webfetch_tool = any(
+        marker in frontmatter.lower()
+        for marker in ("web_fetch", "webfetch", "websearch")
+    )
+    if not has_webfetch_tool:
+        # No web tool present: the restriction is satisfied by absence.
+        return
     assert "non-GitHub URLs only" in body, (
         "templates/agents/analyst.shared.md: the WebSearch/WebFetch tool line must "
         "include '(non-GitHub URLs only)' to clearly scope what web_fetch is for."

@@ -356,10 +356,10 @@ def _above_base_message(base_ref: str, *, label: str, baseline: int, base: int, 
     ``baseline 334, base 331, count 334``, and so does a branch that added
     three violations and widened the allowance to cover them. Telling either
     author which one they are needs the fork point, and two endpoint reads
-    cannot supply it. The base ref also arrives via ``git fetch --depth=1``
-    (``.github/workflows/pytest.yml``), so its history is not guaranteed to be
-    there to read. Naming a cause anyway is the defect issue #4066 was filed
-    for, so this states what was measured and carries both remedies.
+    cannot supply it. This function is handed a ref name and three counts, so
+    no fetch depth would let it read a fork point. Naming a cause anyway is the
+    defect issue #4066 was filed for, so this states what was measured and
+    carries both remedies.
 
     The count is worth stating on its own: when it is one the base ref already
     allows, nothing in this tree added a violation, and that much IS measured.

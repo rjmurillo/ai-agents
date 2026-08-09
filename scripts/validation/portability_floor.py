@@ -28,13 +28,14 @@ from scripts.validation.portability_git import (
 
 Sections = dict[str, dict[str, int]]
 
-COUNTED_SECTIONS = ("files", "marker_files")
+COUNTED_SECTIONS = ("files", "marker_files", "drift_files")
 """Every baseline section that records a count somebody can regress.
 
 `files` counts violations, where lower is better. `marker_files` counts
-suppressed references, where the value must stay exact. Both are debt records,
-so both need the same protection; guarding only the first leaves a writable
-hole in the same artifact.
+suppressed references, where the value must stay exact. `drift_files` counts
+marker path-drift findings per file (issue #4116), where a higher count than
+baseline is a regression. All are debt records, so all need the same protection;
+guarding only some leaves a writable hole in the same artifact.
 """
 
 

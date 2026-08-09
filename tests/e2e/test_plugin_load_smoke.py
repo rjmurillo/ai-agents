@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- always-on unit tests and opt-in e2e smokes must
 # coexist in one file (same plugin contract, one source of truth per issue #3148).
-"""End-to-end plugin-load smoke for the shipped CLI plugins (issue #2736).
+"""End-to-end plugin and agent-contract smoke for the shipped CLIs.
 
 PR #2735 was green on unit tests, schema checks, and generated-file checks, yet a
 broken skill front-matter field (``argument-hint must be a string``) could still
@@ -23,6 +23,10 @@ the shipped plugin directory, and assert the plugin loads.
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
+  - Analyst contract (issue #3918): load the project analyst in each real CLI
+    and assert its exact reviewed read-only tool set. Each probe also loads an
+    execution agent that must expose shell and edit tools, so the test cannot
+    pass when the CLI stops reporting tool availability.
 
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
 per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
@@ -73,27 +77,24 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
-    copilot_auth_failed,
-    copilot_auth_failure_headline,
     copilot_command,
-    copilot_transient_failure,
-    copilot_transient_failure_headline,
+    copilot_run_blocked,
+    copilot_run_blocked_headline,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
 
 
-def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
-    """Skip the test (not fail) when Copilot auth is absent or rejected.
+def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip when an external or credential condition blocks Copilot.
 
-    In the pre-push context no valid Copilot token is expected, so an auth gate
-    is an infrastructure condition, not a branch defect. Skipping lets the push
-    proceed. The nightly workflow provisions a real token and uses
+    A rate limit, transport failure, or auth gate is not a branch defect.
+    Skipping lets the pre-push proceed. The nightly workflow uses
     assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
-    when the secret is missing or revoked (issues #4483, #3275).
+    when the real CLI cannot run (issues #4504, #4483, #3275).
     """
-    if copilot_auth_failed(result):
-        pytest.skip(copilot_auth_failure_headline(result))
+    if copilot_run_blocked(result):
+        pytest.skip(copilot_run_blocked_headline(result))
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -107,6 +108,43 @@ EXPECTED_SKILLS = frozenset({"build", "plan", "ship", "test", "review", "spec", 
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+_CLAUDE_ANALYST_TOOLS = frozenset(
+    {
+        "Glob",
+        "Grep",
+        "Read",
+        "mcp__context7__get_library_docs",
+        "mcp__context7__resolve_library_id",
+        "mcp__deepwiki__read_wiki_contents",
+        "mcp__deepwiki__read_wiki_structure",
+        "mcp__serena__find_declaration",
+        "mcp__serena__find_implementations",
+        "mcp__serena__find_referencing_symbols",
+        "mcp__serena__find_symbol",
+        "mcp__serena__get_diagnostics_for_file",
+        "mcp__serena__get_symbols_overview",
+        "mcp__serena__initial_instructions",
+        "mcp__serena__list_memories",
+        "mcp__serena__read_memory",
+    }
+)
+_COPILOT_ANALYST_TOOLS = frozenset(
+    {
+        "cognitionai/deepwiki/*",
+        "context7/*",
+        "read",
+        "search",
+        "serena/find_declaration",
+        "serena/find_implementations",
+        "serena/find_referencing_symbols",
+        "serena/find_symbol",
+        "serena/get_diagnostics_for_file",
+        "serena/get_symbols_overview",
+        "serena/initial_instructions",
+        "serena/list_memories",
+        "serena/read_memory",
+    }
+)
 
 # The skill-loader warning class issue #2736 must catch before merge. Copilot
 # CLI emits this on stderr when a skill's front matter has a non-string
@@ -156,6 +194,139 @@ def _run_cli(
         check=False,
         env=_clean_env(),
     )
+
+
+def _json_events(run: subprocess.CompletedProcess[str]) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for line in run.stdout.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            pytest.fail(f"CLI emitted non-JSON event: {exc}. line={line[-600:]!r}")
+        assert isinstance(event, dict), f"CLI event must be an object: {event!r}"
+        events.append(event)
+    return events
+
+
+def _claude_init_tools(agent: str) -> set[str]:
+    run = _run_cli(
+        [
+            resolve_executable("claude"),
+            "-p",
+            "--agent",
+            agent,
+            "--setting-sources",
+            "project",
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--allowedTools",
+            "Bash",
+            "--permission-mode",
+            "dontAsk",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "Reply exactly READY.",
+        ],
+        cwd=REPO_ROOT,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    assert run.returncode == 0, (
+        f"claude agent probe failed for {agent} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    init_events = [
+        event
+        for event in _json_events(run)
+        if event.get("type") == "system" and event.get("subtype") == "init"
+    ]
+    assert len(init_events) == 1, f"expected one Claude init event, got {init_events!r}"
+    tools = init_events[0].get("tools")
+    assert isinstance(tools, list) and all(isinstance(tool, str) for tool in tools)
+    return set(tools)
+
+
+def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) -> set[str]:
+    for event in events:
+        if event.get("type") != "session.custom_agents_updated":
+            continue
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        agents = data.get("agents")
+        if not isinstance(agents, list):
+            continue
+        for record in agents:
+            if not isinstance(record, dict):
+                continue
+            if record.get("id") != agent or record.get("source") != "project":
+                continue
+            tools = record.get("tools")
+            assert isinstance(tools, list) and all(isinstance(tool, str) for tool in tools)
+            return set(tools)
+    pytest.fail(f"Copilot did not report project agent {agent!r}")
+
+
+def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
+    run = _run_cli(
+        copilot_command(
+            "--agent",
+            agent,
+            "--no-ask-user",
+            "--allow-all-tools",
+            "--output-format",
+            "json",
+            "--prompt",
+            prompt,
+        ),
+        cwd=REPO_ROOT,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    _skip_on_copilot_block(run)
+    assert run.returncode == 0, (
+        f"copilot agent probe failed for {agent} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    return _json_events(run)
+
+
+def _copilot_tool_names(events: list[dict[str, object]]) -> list[str]:
+    names: list[str] = []
+    for event in events:
+        if event.get("type") != "tool.execution_start":
+            continue
+        data = event.get("data")
+        if isinstance(data, dict) and isinstance(data.get("toolName"), str):
+            names.append(data["toolName"])
+    return names
+
+
+def _copilot_assistant_text(events: list[dict[str, object]]) -> str:
+    messages: list[str] = []
+    for event in events:
+        if event.get("type") != "assistant.message":
+            continue
+        data = event.get("data")
+        if isinstance(data, dict) and isinstance(data.get("content"), str):
+            messages.append(data["content"])
+    return "\n".join(messages)
+
+
+def _copilot_tool_result_text(events: list[dict[str, object]]) -> str:
+    results: list[str] = []
+    for event in events:
+        if event.get("type") != "tool.execution_complete":
+            continue
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        result = data.get("result")
+        if isinstance(result, dict) and isinstance(result.get("content"), str):
+            results.append(result["content"])
+    return "\n".join(results)
 
 
 def _is_from_plugin_dir(record: dict[str, object], plugin_dir: Path | None) -> bool:
@@ -273,10 +444,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(
             f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
-    if copilot_transient_failure(fired):
-        pytest.skip(copilot_transient_failure_headline(fired))
-    if copilot_auth_failed(fired):
-        _skip_on_auth_failure(fired)
+    _skip_on_copilot_block(fired)
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
         f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
@@ -304,10 +472,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     except subprocess.TimeoutExpired:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
 
-    if copilot_transient_failure(run):
-        pytest.skip(copilot_transient_failure_headline(run))
-    if copilot_auth_failed(run):
-        _skip_on_auth_failure(run)
+    _skip_on_copilot_block(run)
     assert run.returncode == 0, (
         f"copilot skill list failed (rc={run.returncode}). "
         f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
@@ -384,6 +549,7 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
         pytest.skip(
             f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
+    _skip_on_copilot_block(run)
     assert not marker.is_file(), (
         "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
         "--plugin-dir, so a fired marker cannot distinguish load from no-load and the smoke's "
@@ -462,6 +628,75 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"claude did not report expected plugin skills: missing={sorted(missing)}. "
         f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
     )
+
+
+@pytest.mark.smoke
+@requires_claude
+def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Claude loads only reviewed analyst tools while implementer exposes writes."""
+    analyst_tools = _claude_init_tools("analyst")
+    implementer_tools = _claude_init_tools("implementer")
+
+    assert {"Glob", "Grep", "Read"} <= analyst_tools
+    assert not analyst_tools - _CLAUDE_ANALYST_TOOLS, (
+        f"Claude exposed unreviewed analyst tools: "
+        f"{sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
+    )
+    assert {"Bash", "Edit", "Write"} <= implementer_tools, (
+        "negative control failed: Claude did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove inheritance is restricted"
+    )
+
+
+@pytest.mark.smoke
+@requires_copilot
+def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Copilot resolves only reviewed analyst tools, with an execution control."""
+    analyst_shell_events = _run_copilot_agent(
+        "analyst",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
+        ),
+    )
+    analyst_github_events = _run_copilot_agent(
+        "analyst",
+        (
+            "Use github/issue_read to read issue 3918 in rjmurillo/ai-agents. "
+            "Do not use a substitute. If unavailable reply exactly GITHUB_UNAVAILABLE."
+        ),
+    )
+    implementer_events = _run_copilot_agent(
+        "implementer",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. Then reply exactly READY."
+        ),
+    )
+    analyst_tools = {
+        tool.casefold()
+        for tool in _copilot_project_agent_tools(analyst_shell_events, "analyst")
+    }
+    implementer_tools = {
+        tool.casefold()
+        for tool in _copilot_project_agent_tools(implementer_events, "implementer")
+    }
+
+    assert analyst_tools == _COPILOT_ANALYST_TOOLS
+    assert {"edit", "shell"} <= implementer_tools, (
+        "negative control failed: Copilot did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove its manifest was loaded"
+    )
+    assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(analyst_shell_events))
+    assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(analyst_shell_events)
+    assert not any(
+        "github" in tool.casefold() for tool in _copilot_tool_names(analyst_github_events)
+    )
+    assert "GITHUB_UNAVAILABLE" in _copilot_assistant_text(analyst_github_events)
+    assert "bash" in _copilot_tool_names(implementer_events), (
+        "negative control failed: implementer did not execute the shell command"
+    )
+    assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
 
 
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
@@ -680,50 +915,61 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-# Unit tests for _skip_on_auth_failure (issues #4483, #3275).
-# These run without RUN_CLI_E2E and without the real CLI, so they cover the
-# skip-vs-fail decision in bare CI. Mutation coverage: breaking copilot_auth_failed
-# to always return False causes the absent/rejected tests to fail. Breaking
-# _skip_on_auth_failure to call pytest.fail instead of pytest.skip causes
-# test_skip_on_auth_failure_raises_skip_for_* to fail.
-def _make_auth_result(rc: int, stderr: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(["copilot"], rc, stdout="", stderr=stderr)
+@pytest.mark.parametrize("blocked_phase", ["probe", "skill-list"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_plugin_smoke_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """Both real Copilot calls skip before plugin assertions on external blocks."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="[]", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
 
+    def fake_run_cli(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return success
+        return blocked if blocked_phase == "skill-list" else success
 
-def test_skip_on_auth_failure_raises_skip_for_absent_token() -> None:
-    """_skip_on_auth_failure raises Skipped (not Failed) for a missing token."""
-    result = _make_auth_result(
-        1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
+    def fake_run_plugin(
+        plugin_dir: Path, **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        if blocked_phase == "probe":
+            return blocked
+        (plugin_dir.parent / "probe_marker.txt").write_text("MARKER", encoding="utf-8")
+        return success
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake_run_cli)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        fake_run_plugin,
     )
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_auth_failure(result)
+        test_copilot_plugin_loads_expected_skills(tmp_path)
 
 
-def test_skip_on_auth_failure_raises_skip_for_rejected_token() -> None:
-    """_skip_on_auth_failure raises Skipped (not Failed) for a rejected/revoked token."""
-    result = _make_auth_result(
+def test_empty_plugin_negative_control_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    blocked = subprocess.CompletedProcess(
+        ["copilot"],
         1,
-        "Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+        stdout="",
+        stderr="API rate limit exceeded for user ID 12345.",
     )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: blocked,
+    )
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_auth_failure(result)
-
-
-def test_skip_on_auth_failure_is_noop_on_success() -> None:
-    """_skip_on_auth_failure does not raise for a successful CLI run (cosmetic survivor)."""
-    result = _make_auth_result(0, "")
-    _skip_on_auth_failure(result)  # must not raise
-
-
-def test_skip_on_auth_failure_skip_message_is_non_empty() -> None:
-    """The skip reason names the cause so skipped runs are diagnosable."""
-    result = _make_auth_result(
-        1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
-    )
-    with pytest.raises(pytest.skip.Exception) as exc_info:
-        _skip_on_auth_failure(result)
-    assert str(exc_info.value)  # skip message must not be blank
+        test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)
