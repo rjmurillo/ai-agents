@@ -151,7 +151,7 @@ jobs:
         run: python3 scripts/ci/verify_codeql_sarif_structure.py
 
   aggregate-results:
-    name: Aggregate Results
+    name: CodeQL Integration Results
     needs: [test-install-and-config, test-scan-language, test-scan-json-output]
     if: always()
     # Aggregate job can use ARM since it doesn't run CodeQL CLI

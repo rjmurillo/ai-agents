@@ -42,6 +42,17 @@ def aggregate_job(workflow: dict) -> dict:
 
 
 class TestAggregateCancelSkip:
+    def test_required_aggregate_context_is_unique(self) -> None:
+        locations = []
+        workflows_dir = REPO_ROOT / ".github" / "workflows"
+        for path in sorted(workflows_dir.glob("*.y*ml")):
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            for job_id, job in (data.get("jobs") or {}).items():
+                if isinstance(job, dict) and job.get("name") == "Aggregate Results":
+                    locations.append((path.name, job_id))
+
+        assert locations == [("ai-pr-quality-gate.yml", "aggregate")]
+
     def test_aggregate_job_gate_skips_on_cancellation(self, aggregate_job: dict) -> None:
         """The aggregate job must skip when the workflow is being cancelled.
 

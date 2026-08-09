@@ -167,7 +167,7 @@ jobs:
 # Aggregate results and post comment
 
   aggregate:
-    name: Aggregate Results
+    name: Session Protocol Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
