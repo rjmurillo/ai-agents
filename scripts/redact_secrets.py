@@ -177,7 +177,7 @@ def redact_ci_sink(
     out, authorization_count = _AUTHORIZATION_WRAPPER.subn(r"\1***", out)
     reasons.extend(["authorization-header"] * authorization_count)
     out, url_count = re.subn(
-        r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@\s]+@",
+        r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+(?::[^@\s]*)?@",
         r"\1******@",
         out,
     )

@@ -146,6 +146,16 @@ class TestCiSinkWrappers:
             assert f"{scheme}://******@example.com/path" == result.text
             assert "url-credential" in result.reasons
 
+    def test_url_token_only_userinfo_is_redacted(self):
+        credential = "opaque-token~"
+        value = f"https://{credential}@example.com/repo.git"
+
+        result = redact_ci_sink(value)
+
+        assert credential not in result.text
+        assert result.text == "https://******@example.com/repo.git"
+        assert result.reasons == ("url-credential",)
+
     @pytest.mark.parametrize("scheme", ["Basic", "Token", "Bearer"])
     @pytest.mark.parametrize(
         ("prefix", "suffix"),

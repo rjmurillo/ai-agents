@@ -162,6 +162,54 @@ def test_run_gh_requests_and_honors_rest_rate_limit_headers(
     assert result == CommandResult('{"number":7}', "", 0)
 
 
+def test_rate_limit_reset_is_ignored_when_resource_quota_remains(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(_mod.time, "time", lambda: 1000.0)
+
+    delay, source = _mod._retry_delay(
+        "X-RateLimit-Remaining: 42\nX-RateLimit-Reset: 5000",
+        60.0,
+    )
+
+    assert delay == 60.0
+    assert source == "exponential backoff"
+
+
+def test_pr_diff_uses_header_exposing_rest_transport(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        return _mod.subprocess.CompletedProcess(
+            command,
+            0,
+            "HTTP/2.0 200 OK\nContent-Type: text/plain\n\ndiff --git a/file b/file\n+change\n",
+            "",
+        )
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+
+    result = _mod.run_gh(["pr", "diff", "7", "--repo", "owner/repo"])
+
+    assert calls == [
+        [
+            "gh",
+            "api",
+            "repos/owner/repo/pulls/7",
+            "--method",
+            "GET",
+            "--header",
+            "Accept: application/vnd.github.v3.diff",
+            "--include",
+        ]
+    ]
+    assert result.stdout.startswith("diff --git")
+
+
 def test_run_gh_exhausts_bounded_rate_limit_retries(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -1501,6 +1549,13 @@ def test_successful_metadata_json_is_parsed_before_sink_redaction(
 
     def fake_subprocess_run(command: list[str], **kwargs):
         del kwargs
+        if "Accept: application/vnd.github.v3.diff" in command:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                "HTTP/2.0 200 OK\nContent-Type: text/plain\n\ndiff --git a/file b/file\n+change\n",
+                "",
+            )
         if command[1:2] == ["api"]:
             return _mod.subprocess.CompletedProcess(
                 command,
@@ -1510,13 +1565,6 @@ def test_successful_metadata_json_is_parsed_before_sink_redaction(
                     "Credential-like body",
                     f"DB_PASSWORD={credential}\nbody retained",
                 ),
-                "",
-            )
-        if command[1:3] == ["pr", "diff"]:
-            return _mod.subprocess.CompletedProcess(
-                command,
-                0,
-                "diff --git a/file b/file\n+change\n",
                 "",
             )
         raise AssertionError(f"unexpected command: {command}")

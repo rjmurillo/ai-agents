@@ -61,6 +61,10 @@ RATE_LIMIT_RESET_HEADER = re.compile(
     r"\bX-RateLimit-Reset:\s*(\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
+RATE_LIMIT_REMAINING_HEADER = re.compile(
+    r"\bX-RateLimit-Remaining:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
 SECRET_ENVIRONMENT_VARIABLES = (
     "GH_TOKEN",
     "GITHUB_TOKEN",
@@ -125,7 +129,8 @@ def _retry_delay(refusal: str, fallback: float) -> tuple[float, str]:
         return max(0.0, float(retry_after.group(1))), "Retry-After"
 
     reset = RATE_LIMIT_RESET_HEADER.search(refusal)
-    if reset:
+    remaining = RATE_LIMIT_REMAINING_HEADER.search(refusal)
+    if reset and (remaining is None or float(remaining.group(1)) == 0):
         wait = max(0.0, float(reset.group(1)) - time.time() + 1.0)
         return wait, "X-RateLimit-Reset"
 
@@ -153,11 +158,23 @@ def _new_context_retry_deadline() -> float:
 
 
 def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
-    include_response_headers = arguments[:1] == ["api"] and not any(
-        argument in {"--include", "-i"} for argument in arguments
+    command_arguments = arguments
+    if arguments[:2] == ["pr", "diff"] and "--repo" in arguments:
+        repository_index = arguments.index("--repo") + 1
+        if repository_index < len(arguments) and "--name-only" not in arguments:
+            command_arguments = [
+                "api",
+                f"repos/{arguments[repository_index]}/pulls/{arguments[2]}",
+                "--method",
+                "GET",
+                "--header",
+                "Accept: application/vnd.github.v3.diff",
+            ]
+    include_response_headers = command_arguments[:1] == ["api"] and not any(
+        argument in {"--include", "-i"} for argument in command_arguments
     )
     command_arguments = [
-        *arguments,
+        *command_arguments,
         *(["--include"] if include_response_headers else []),
     ]
     try:
