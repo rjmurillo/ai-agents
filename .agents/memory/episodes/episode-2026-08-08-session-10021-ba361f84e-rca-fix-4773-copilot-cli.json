@@ -108,7 +108,56 @@
         "e005",
         "e006",
         "e007",
-        "e008"
+        "e008",
+        "e010",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR 4784 review feedback for malformed verdict process coverage and stale memory citations.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR 4784 Session Protocol manual-dispatch feedback.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed an unsafe refs/pull checkout fallback after security review.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T15:38:32+00:00",
+      "type": "commit",
+      "content": "Commit: 85c970bd5b83ba3f870801d13ebd91522619ccd7",
+      "caused_by": [
+        "e009"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
@@ -119,8 +168,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 36
+    "commits": 2,
+    "files_changed": 37
   },
   "lessons": []
 }

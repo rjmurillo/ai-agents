@@ -1,35 +1,26 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli.json
-qaCommit: 55804e1c8716458330ddf28470cc87d4e1148270
+qaCommit: 85c970bd5b83ba3f870801d13ebd91522619ccd7
 ---
 
-# AI quality gate validation
+# PR 4784 review feedback validation
 
 Issue: #4777
 
 ## Result
 
-The required security review now fails closed when it does not produce a valid
-result. Unknown, malformed, or inconsistent verdict inputs stay blocking.
-Recognized non-security infrastructure failures may return `WARN`, never
-`PASS`.
+Review feedback is fixed and verified. Malformed per-agent verdicts now have a
+process-level regression test. Manual Session Protocol dispatch now passes the
+PR number to session detection without checking out `refs/pull/*/head`.
 
 ## Evidence
 
-- Full suite: 25,058 passed, 36 skipped, 2 warnings.
-- Focused suite: 172 passed.
-- Verdict matrix: 196 combinations, 0 invariant violations.
-- Total reviewer outage replay: `DID_NOT_RUN`, final gate exit 1.
-- Negative control: restoring the old security downgrade changed the result to
-  `WARN` and failed the regression test.
-- `pre_pr.py`: 50 validations passed.
-- Security scan: 4 changed Python files, 0 findings.
-- GPT-5.6 Sol reviews: recursive rounds ended with `NO_FINDINGS`.
-- Security review: approved with no blocking findings.
-- Required contexts: `AI Quality Gate Results` and
-  `Session Protocol Results` each have one workflow owner and both are active
-  ruleset requirements.
-- Session aggregation rejects prerequisite failure, missing or mismatched
-  artifacts, invalid verdicts, malformed counts, forged deletion verdicts, and
-  symlinked session paths.
+- Targeted tests: `uv run --frozen pytest tests/ci/test_agent_review_check_verdict.py tests/ci/test_detect_session_logs.py tests/ci/test_validate_session_protocol_wiring.py -q`, 84 passed.
+- Ruff: `uv run --frozen ruff check scripts/ci/agent_review_check_verdict.py tests/ci/test_agent_review_check_verdict.py tests/ci/test_detect_session_logs.py`, all checks passed.
+- Negative control 1: removing `UNKNOWN` from the normalized verdict block made `tests/ci/test_agent_review_check_verdict.py::TestMain::test_malformed_verdict_exits_nonzero_as_a_process` fail with return code 0 instead of 1.
+- Negative control 2: removing `inputs.pr_number` from the workflow PR number env made `tests/ci/test_detect_session_logs.py::TestWorkflowWiring::test_manual_dispatch_supplies_pr_number_to_session_detection` fail.
+- Restored controls: both new regression tests passed after restoring the fix, 2 passed.
+- Origin main comparison: the same two new node ids collected 0 tests and exited 4 on `origin/main`, proving the controls are new branch coverage rather than inherited failures.
+- Security review: initial review blocked the `refs/pull/{pr_number}/head` checkout fallback. The fallback was removed. Re-review returned PASS with no blocking findings.
+- Memory index: `uv run --frozen python scripts/update_memory_index_tokens.py`; uniqueness check printed `152 152`; conflict-marker scan found no markers.

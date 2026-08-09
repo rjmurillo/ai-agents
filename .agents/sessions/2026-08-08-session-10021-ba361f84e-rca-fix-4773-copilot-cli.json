@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and origin/main merged through 55804e1c8; final session, QA, and episode artifacts staged for this commit."
+        "Evidence": "PR 4784 review feedback fixes committed through 85c970bd5b83ba3f870801d13ebd91522619ccd7."
       },
       "validationPassed": {
         "level": "MUST",
@@ -155,9 +155,21 @@
     {
       "action": "Hardened Session Protocol Results through recursive adversarial review.",
       "result": "Prerequisite failures, incomplete or corrupt artifacts, forged SKIPPED verdicts, and symlink session paths now fail closed."
+    },
+    {
+      "action": "Addressed PR 4784 review feedback for malformed verdict process coverage and stale memory citations.",
+      "result": "Added a subprocess regression test for malformed verdicts, corrected the blocking verdict contract text, and updated the Serena memory citation to scripts/ci/agent_review_check_verdict.py:49 and 52-55."
+    },
+    {
+      "action": "Addressed PR 4784 Session Protocol manual-dispatch feedback.",
+      "result": "Added a required workflow_dispatch pr_number input and passed github.event.pull_request.number || inputs.pr_number into detect_session_logs.py and comment posting."
+    },
+    {
+      "action": "Removed an unsafe refs/pull checkout fallback after security review.",
+      "result": "Manual dispatch now uses github.ref for checkout fallback, avoiding execution of arbitrary pull-request head code through a numeric input."
     }
   ],
-  "endingCommit": "55804e1c8716458330ddf28470cc87d4e1148270",
+  "endingCommit": "85c970bd5b83ba3f870801d13ebd91522619ccd7",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."
