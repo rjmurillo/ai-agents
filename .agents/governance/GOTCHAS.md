@@ -916,7 +916,7 @@ and the failure reproduces on a detached worktree at `origin/main`.
 edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755; neither remedy proposed there has shipped, so
-`strict_required_status_checks_policy` is still false and ruleset 11104075 has
+`strict_required_status_checks_policy` is true, and ruleset 11104075 still has
 no `merge_queue` rule.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
