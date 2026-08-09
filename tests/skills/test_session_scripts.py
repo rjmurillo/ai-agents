@@ -338,26 +338,30 @@ class TestCompleteSessionLog:
 
     def test_run_markdown_lint_no_files(self):
         mod = self._import()
-        # Both staged and unstaged return empty
-        procs = [
-            make_proc(stdout="", returncode=0),  # staged
-            make_proc(stdout="", returncode=0),  # unstaged
-        ]
-        with patch("subprocess.run", side_effect=procs):
+        with patch.object(mod, "_changed_markdown_files", return_value=set()):
             success, output = mod._run_markdown_lint()
-        assert success is True
-        assert "No markdown files" in output
 
-    def test_run_markdown_lint_with_files_success(self):
-        mod = self._import()
-        procs = [
-            make_proc(stdout="README.md", returncode=0),  # staged diff
-            make_proc(stdout="", returncode=0),            # unstaged diff
-            make_proc(returncode=0),                       # markdownlint
-        ]
-        with patch("subprocess.run", side_effect=procs):
-            success, output = mod._run_markdown_lint()
         assert success is True
+        assert output == "NOT LINTED: no changed markdown files"
+
+    def test_run_markdown_lint_with_files_success(self, tmp_path):
+        mod = self._import()
+        pre_pr = tmp_path / "scripts" / "validation" / "pre_pr.py"
+        pre_pr.parent.mkdir(parents=True)
+        pre_pr.write_text("", encoding="utf-8")
+        lint_result = make_proc(
+            stdout="[INFO] Markdown linting checked 1 of 1 target(s)",
+        )
+
+        with (
+            patch.object(mod, "_changed_markdown_files", return_value={"README.md"}),
+            patch.object(mod, "_get_repo_root", return_value=str(tmp_path)),
+            patch("subprocess.run", return_value=lint_result),
+        ):
+            success, output = mod._run_markdown_lint()
+
+        assert success is True
+        assert output == "pre_pr.py --markdown-lint-only: 1 of 1 files linted"
 
     def test_validate_path_containment_inside(self, tmp_path):
         mod = self._import()
