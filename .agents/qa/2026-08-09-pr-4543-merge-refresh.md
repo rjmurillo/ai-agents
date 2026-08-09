@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10006.json
-qaCommit: 1803af61e296fe41d0d401f9361620e98845c3c9
+qaCommit: 66b6244a7b0319a60b5305fbb92a52c051a4bebc
 ---
 # PR 4543 merge refresh QA
 

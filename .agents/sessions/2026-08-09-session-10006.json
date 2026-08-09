@@ -140,6 +140,6 @@
       "result": "31 targeted tests passed, Ruff passed, pre-PR validation passed, and independent Sol Critical/High review found no findings."
     }
   ],
-  "endingCommit": "1803af61e296fe41d0d401f9361620e98845c3c9",
+  "endingCommit": "66b6244a7b0319a60b5305fbb92a52c051a4bebc",
   "nextSteps": []
 }
