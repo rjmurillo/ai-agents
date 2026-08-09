@@ -104,3 +104,38 @@ def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
         "templates/agents/analyst.shared.md: the WebSearch/WebFetch tool line must "
         "include '(non-GitHub URLs only)' to clearly scope what web_fetch is for."
     )
+
+
+# --- Actions URL routing controls ---
+
+
+@pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_analyst_surface_routes_actions_urls(surface: Path) -> None:
+    """Each surface must map Actions URLs to get_workflow_run or get_job_logs."""
+    body = surface.read_text(encoding="utf-8")
+    assert "get_workflow_run" in body, (
+        f"{surface.relative_to(REPO_ROOT)}: must declare get_workflow_run "
+        f"for /actions/runs/<ID> URLs"
+    )
+    assert "get_job_logs" in body, (
+        f"{surface.relative_to(REPO_ROOT)}: must declare get_job_logs "
+        f"for job log retrieval"
+    )
+
+
+@pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_analyst_surface_has_url_classification_table(surface: Path) -> None:
+    """Each surface must have a URL-to-tool classification table."""
+    body = surface.read_text(encoding="utf-8")
+    # Check for the routing table with at least PR and Actions entries
+    assert "/pull/" in body and "/actions/" in body, (
+        f"{surface.relative_to(REPO_ROOT)}: must include URL classification "
+        f"table with /pull/ and /actions/ patterns"
+    )
+
+
+def test_actions_url_without_routing_fails() -> None:
+    """Negative control: text with GitHub tools but no Actions mapping fails."""
+    body = "Use pull_request_read for PRs. The analyst has no web access."
+    assert "get_workflow_run" not in body
+    assert "/actions/" not in body

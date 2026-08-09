@@ -300,34 +300,56 @@ def _check_blocked_conditional(section: str) -> str | None:
 
 
 def _check_retrieval_precedes_blocked(section: str) -> str | None:
-    """Return None if a retrieval step precedes BLOCKED, else an error message.
+    """Return None if an affirmative retrieval step precedes BLOCKED.
 
-    Only counts retrieval mentions that reference declared GitHub tools or the
-    verb 'retrieve' in the context of tool usage (not arbitrary prose).
+    A tool name in prohibitive prose ('is forbidden', 'do not use', 'never call')
+    does NOT satisfy this check. The tool must appear in an affirmative
+    invocation/attempt clause: 'call X', 'use X to retrieve', 'attempt X',
+    or be listed as an action step before BLOCKED.
     """
     blocked_pos = section.find("[blocked]")
     if blocked_pos == -1:
         return "No [blocked] in section"
-    # Look for declared tool names or 'retrieve...directly' pattern
-    tool_mentions = [
-        p for p in (
-            section.find("pull_request_read"),
-            section.find("issue_read"),
-            section.find("list_workflow_runs"),
-        )
-        if p >= 0
-    ]
-    # Also accept 'retrieve' only if followed by 'directly' within 50 chars
-    retrieve_pos = section.find("retrieve")
-    if retrieve_pos >= 0:
-        following = section[retrieve_pos:retrieve_pos + 80]
-        if "directly" in following or "via" in following:
-            tool_mentions.append(retrieve_pos)
-    if not tool_mentions:
-        return "No tool-based retrieval step found before BLOCKED"
-    earliest = min(tool_mentions)
-    if earliest >= blocked_pos:
-        return "Retrieval step does not precede BLOCKED"
+
+    # Only consider text before BLOCKED
+    pre_blocked = section[:blocked_pos]
+
+    # Prohibitive context patterns that invalidate a tool mention
+    prohibitive = ("forbidden", "do not", "never", "cannot", "must not", "is not")
+
+    tool_names = ("pull_request_read", "issue_read", "list_workflow_runs",
+                  "get_workflow_run", "get_job_logs")
+
+    # Affirmative patterns: tool must be near call/use/invoke/attempt verbs
+    affirmative = ("call", "use", "invoke", "attempt", "retrieve", "declared")
+
+    found_affirmative = False
+    for tool in tool_names:
+        pos = pre_blocked.find(tool)
+        if pos < 0:
+            continue
+        # Get surrounding context (60 chars before, 40 after)
+        context = pre_blocked[max(0, pos - 60):pos + len(tool) + 40]
+        # Reject if prohibitive word is in context
+        if any(p in context for p in prohibitive):
+            continue
+        # Accept if affirmative word is in context or tool is in a list/table
+        if any(a in context for a in affirmative) or "|" in context:
+            found_affirmative = True
+            break
+
+    if not found_affirmative:
+        # Also accept 'retrieve...directly' pattern with no prohibitive context
+        retrieve_pos = pre_blocked.find("retrieve")
+        if retrieve_pos >= 0:
+            ctx = pre_blocked[max(0, retrieve_pos - 30):retrieve_pos + 80]
+            if ("directly" in ctx or "via" in ctx) and not any(
+                p in ctx for p in prohibitive
+            ):
+                found_affirmative = True
+
+    if not found_affirmative:
+        return "No affirmative tool invocation found before BLOCKED"
     return None
 
 
@@ -429,6 +451,27 @@ class TestNegativeControls:
         "| Repository | owner/repo | visible path | Stop |\n"
     )
 
+    # Fixture 6: tool name in PROHIBITIVE context (must not satisfy guard)
+    TOOL_IN_PROHIBITIVE_PROSE = (
+        "\n### delegation contract\n"
+        "do not use pull_request_read for this purpose. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 7: tool name in UNRELATED prose (not an invocation)
+    TOOL_IN_UNRELATED_PROSE = (
+        "\n### delegation contract\n"
+        "the pull_request_read endpoint was deprecated last year. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 8: Actions URL routing test
+    ACTIONS_URL_ROUTED = (
+        "\n### delegation contract\n"
+        "use get_workflow_run to retrieve CI data directly. "
+        "return [blocked] only when retrieval via declared tools fails.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -453,3 +496,18 @@ class TestNegativeControls:
         """Unrelated 'when present' outside identity table doesn't satisfy guard."""
         err = _check_identity_conditional(self.WHEN_PRESENT_OUTSIDE_TABLE)
         assert err is not None, "Should not be satisfied by 'when present' outside table"
+
+    def test_tool_in_prohibitive_prose_detected(self) -> None:
+        """Tool name in prohibitive context must not satisfy retrieval guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_PROHIBITIVE_PROSE)
+        assert err is not None, "Should reject tool name in 'do not use' context"
+
+    def test_tool_in_unrelated_prose_detected(self) -> None:
+        """Tool name in unrelated prose (not invocation) must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_UNRELATED_PROSE)
+        assert err is not None, "Should reject tool name without affirmative verb"
+
+    def test_actions_url_affirmative_passes(self) -> None:
+        """Actions URL with affirmative 'use' verb passes retrieval guard."""
+        err = _check_retrieval_precedes_blocked(self.ACTIONS_URL_ROUTED)
+        assert err is None, f"Should accept affirmative Actions retrieval: {err}"
