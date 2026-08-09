@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import sys
+from importlib import import_module
 from pathlib import Path
 from typing import cast
 
@@ -69,23 +70,25 @@ def validate_session_end(repo_root: Path) -> bool:
         print("[WARNING] Session validation skipped: no base ref resolved")
         return True
 
-    exit_code, stdout, _ = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only",
-         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
-        timeout=30,
-    )
-    if exit_code != 0:
-        print("[WARNING] Session validation skipped: git diff failed")
+    changed_log_paths = _changed_session_log_paths(repo_root, base_ref)
+    if changed_log_paths is None:
         return True
-
-    changed_logs = [
-        repo_root / p for p in stdout.splitlines()
-        if p.startswith(".agents/sessions/") and p.endswith(".json")
-        and (repo_root / p).is_file()
-    ]
-    if not changed_logs:
+    if not changed_log_paths:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
+    validation_modes = _committed_session_validation_modes(changed_log_paths, repo_root)
+    if validation_modes is None:
+        print(
+            "[WARNING] Session validation could not classify changed logs; using full mode",
+            file=sys.stderr,
+        )
+        validation_modes = {path: "full" for path in changed_log_paths}
+
+    _, validation_head, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        timeout=30,
+    )
+    validation_head = validation_head.strip() or "INVALID_HEAD"
 
     python_script = repo_root / "scripts" / "validate_session_json.py"
     if not python_script.exists():
@@ -94,10 +97,17 @@ def validate_session_end(repo_root: Path) -> bool:
         )
 
     failed = False
-    for log_path in changed_logs:
+    for relative_log_path in changed_log_paths:
+        log_path = repo_root / relative_log_path
         print(f"Validating session log: {log_path.name}")
+        command = _session_validation_command(
+            python_script,
+            log_path,
+            validation_head,
+            validation_modes.get(relative_log_path, "full"),
+        )
         exit_code, stdout, stderr = _run_subprocess(
-            [sys.executable, str(python_script), str(log_path)]
+            command
         )
         output = (stdout or "") + (stderr or "")
         if output.strip():
@@ -106,6 +116,53 @@ def validate_session_end(repo_root: Path) -> bool:
         if exit_code != 0:
             failed = True
     return not failed
+
+
+def _changed_session_log_paths(repo_root: Path, base_ref: str) -> list[str] | None:
+    exit_code, stdout, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only",
+         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        timeout=30,
+    )
+    if exit_code != 0:
+        print("[WARNING] Session validation skipped: git diff failed")
+        return None
+    return [
+        p for p in stdout.splitlines()
+        if p.startswith(".agents/sessions/") and p.endswith(".json")
+        and (repo_root / p).is_file()
+    ]
+
+
+def _session_validation_command(
+    python_script: Path,
+    log_path: Path,
+    validation_head: str,
+    mode: str,
+) -> list[str]:
+    command = [
+        sys.executable,
+        str(python_script),
+        str(log_path),
+        "--validation-head",
+        validation_head,
+    ]
+    if mode == "creation":
+        command.append("--creation-mode")
+    elif mode == "existing":
+        command.append("--existing-log")
+    return command
+
+
+def _committed_session_validation_modes(
+    paths: list[str],
+    repo_root: Path,
+) -> dict[str, str] | None:
+    session_scope = import_module("scripts.validation.session_scope")
+    return cast(
+        "dict[str, str] | None",
+        session_scope.committed_session_validation_modes(paths, repo_root),
+    )
 
 
 def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None = None) -> bool:

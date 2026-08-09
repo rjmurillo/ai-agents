@@ -121,23 +121,24 @@ def _emit_output(name: str) -> None:
             handle.write(f"artifact-name={name}\n")
 
 
-def validate(session_file: str) -> tuple[int, str]:
+def validate(session_file: str, validation_head: str = "") -> tuple[int, str]:
     """Run the validator. Returns (exit_code, findings)."""
     if Path(session_file).suffix != ".json":
         return 1, "\n".join(_MARKDOWN_UNSUPPORTED)
     mode_args, error = _validation_mode_args(session_file)
     if error is not None or mode_args is None:
         return 1, error or "ERROR: could not determine validation mode"
-    completed = _run(
-        [
-            sys.executable,
-            "./scripts/validate_session_json.py",
-            session_file,
-            *mode_args,
-            "--json-output",
-            str(_SUMMARY),
-        ]
-    )
+    command = [
+        sys.executable,
+        "./scripts/validate_session_json.py",
+        session_file,
+        *mode_args,
+        "--json-output",
+        str(_SUMMARY),
+    ]
+    if validation_head:
+        command.extend(["--validation-head", validation_head])
+    completed = _run(command)
     return completed.returncode, completed.stdout + completed.stderr
 
 
@@ -168,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         _write_results(name, "SKIPPED", 0, findings)
         return 0
 
-    exit_code, findings = validate(session_file)
+    exit_code, findings = validate(
+        session_file,
+        validation_head=os.environ.get("PR_HEAD_SHA", ""),
+    )
     verdict = "COMPLIANT" if exit_code == 0 else "NON_COMPLIANT"
     must_failures = must_failure_count(exit_code)
 

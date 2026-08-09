@@ -493,7 +493,7 @@ When the session involves specification artifacts (requirements, designs, tasks)
 **Run validation:**
 
 ```bash
-python3 scripts/validation/traceability.py --strict
+uv run --frozen python scripts/validation/traceability.py --strict
 ```
 
 **Metrics to capture:**
@@ -1033,7 +1033,7 @@ For each learning batch (recommend 3-5 learnings per batch):
 
 ### Validation
 
-[PASS] `python3 scripts/validation/memory_index.py --ci`
+[PASS] `uv run --frozen python scripts/validation/memory_index.py --ci`
 ````
 
 #### Step 3: Recursive Evaluation
@@ -1075,7 +1075,7 @@ Stop recursive extraction when ALL criteria are met:
 - [ ] All learnings either persisted or rejected as duplicates
 - [ ] Meta-learning evaluation yields no insights
 - [ ] Extracted learnings count documented in session log
-- [ ] Validation script passes: `python3 scripts/validation/memory_index.py --ci`
+- [ ] Validation script passes: `uv run --frozen python scripts/validation/memory_index.py --ci`
 
 **Infinite Loop Prevention:**
 
@@ -1110,7 +1110,7 @@ Use this prompt when delegating to skillbook:
    - If too vague <70%: REJECT with refinement guidance
 4. Update relevant domain indexes (skills-{domain}-index.md)
 5. Assign skill IDs following convention: Skill-{Category}-{NNN}
-6. Run validation: `python3 scripts/validation/memory_index.py --ci`
+6. Run validation: `uv run --frozen python scripts/validation/memory_index.py --ci`
 7. Return skill IDs, file paths, and validation status
 
 **Termination**: Process this batch, then I will evaluate for additional learnings
@@ -1159,7 +1159,7 @@ After Phase 5 completes, document in retrospective artifact:
 
 ### Validation
 
-[PASS] `python3 scripts/validation/memory_index.py --ci`
+[PASS] `uv run --frozen python scripts/validation/memory_index.py --ci`
 ````
 
 ### Quality Gates

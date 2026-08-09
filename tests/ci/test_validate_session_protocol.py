@@ -260,6 +260,22 @@ class TestValidate:
         assert "refusing to guess creation-mode" in findings
         assert called == []
 
+    def test_pr_head_extends_validation_past_recorded_ending_commit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[list[str]] = []
+        head = "c" * 40
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            seen.append(argv)
+            return _completed()
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+
+        mod.validate("s/x.json", validation_head=head)
+
+        assert seen[0][-2:] == ["--validation-head", head]
+
     def test_findings_merge_both_streams(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mod, "_run", lambda argv: _completed(1, stdout="out\n", stderr="err\n"))
         _, findings = mod.validate("s/x.json")
