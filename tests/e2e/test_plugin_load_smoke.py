@@ -275,6 +275,7 @@ def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
         copilot_command(
             "--agent",
             agent,
+            "--enable-all-github-mcp-tools",
             "--no-ask-user",
             "--allow-all-tools",
             "--output-format",
