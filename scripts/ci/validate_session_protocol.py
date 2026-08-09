@@ -18,6 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.ci.session_artifact_name import artifact_name
+
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
 _RESULT_MD = Path("validation-result.md")
@@ -51,12 +53,6 @@ def escapes_workspace(session_file: str) -> bool:
     root = Path.cwd().resolve()
     candidate = (root / session_file).resolve()
     return candidate != root and root not in candidate.parents
-
-
-def artifact_name(session_file: str) -> str:
-    """Return a name unique across directories, not just across file stems."""
-    path = Path(session_file)
-    return f"{path.parent.name}-{path.stem}"
 
 
 def must_failure_count(exit_code: int) -> int:

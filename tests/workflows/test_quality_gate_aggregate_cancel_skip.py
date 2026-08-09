@@ -99,6 +99,8 @@ class TestAggregateCancelSkip:
         assert names.index("Checkout repository") < names.index(
             "Check if aggregation needed"
         )
+        checkout = next(step for step in steps if step.get("name") == "Checkout repository")
+        assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha }}"
 
     def test_session_prerequisite_outputs_are_wired(self) -> None:
         session_workflow = yaml.safe_load(
