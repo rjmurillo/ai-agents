@@ -14,13 +14,10 @@ contributor discipline, a thing you remember to do.
 
 ## First-principles position
 
-Contributors keep re-deriving it because the repository is configured so that no
-PR is ever required to be current before merging, and there is nothing to make
-it current automatically:
+Contributors keep re-deriving it because nothing makes a branch current
+automatically, and there is still no merge queue to test the combined result:
 
 ```
-gh api repos/rjmurillo/ai-agents/rules/branches/main
-  -> "strict_required_status_checks_policy": false
 grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
@@ -36,6 +33,55 @@ a branch's whole tree against a baseline integer that main lowers whenever main
 clears violations. So **every merge invalidates every other open PR**, and a
 drain of N PRs is not N independent units of work. It is a queue that re-dirties
 itself behind you.
+
+### The strict policy flipped on, which sharpens this rather than fixing it
+
+This memory originally recorded
+`"strict_required_status_checks_policy": false`, and reasoned that no PR was
+ever *required* to be current. That is no longer the configuration. Measured
+2026-08-08:
+
+```
+gh api repos/rjmurillo/ai-agents/rules/branches/main \
+  --jq '[.[] | select(.type=="required_status_checks")
+         | .parameters.strict_required_status_checks_policy]'
+  -> [true]
+```
+
+This was a deliberate remedy, not configuration drift. Issue #3755, "Merge
+race: a pull request behind main can merge on a check that never saw main's
+content", argued that `strict_required_status_checks_policy = False` on ruleset
+11104075 let a green check describe a tree that no longer existed, and
+documented two PRs four minutes apart whose gate and prose met for the first
+time on main. It closed 2026-08-05. Enabling strict is the fix it asked for, so
+read the flip as that issue landing rather than as a setting someone toggled.
+
+Read the reversal carefully, because it inverts the operational conclusion
+without touching the root cause. Under `false`, a stale branch *could* still
+merge, so staleness cost you a spurious red and a re-measure. Under `true`,
+GitHub refuses the merge outright until the branch is current, so the
+invalidation is no longer advisory: after each landing, every other open PR is
+hard-blocked until someone refreshes it.
+
+The drain is therefore strictly serial. Measured the same day: four PRs landed
+(#4614, #4572, #4755, #4741) and the open count ended at 60, with every
+remaining PR pushed back to `BEHIND` by the landings.
+
+Do not read that as "64 minus four equals 60". Reconstructing open-PR state
+from the API puts 65 open immediately before the first landing, and five PRs
+left the queue in that window, because #4683 was closed unmerged at 14:57:16Z
+alongside the four merges. Queue size is not a landing ledger, so measure the
+count and the landings separately rather than deriving one from the other.
+
+An armed auto-merge does not rescue the serialization, because auto-merge never
+updates a branch: it stays armed and waits indefinitely while the PR sits
+`BEHIND`. Observed on #4766, whose `autoMergeRequest.enabledAt` of
+`2026-08-08T18:38:05Z` survived both a later landing that knocked it back and
+two subsequent branch refreshes. Refreshing the branch is the step a human
+still has to take; re-arming is not.
+
+The merge-queue caveat below is unchanged and is now the binding constraint,
+not the staleness itself.
 
 ## Evidence
 
@@ -209,6 +255,19 @@ uv run --frozen pytest -q -p no:randomly \
 
 This is independent evidence for the merge queue recorded above. A queue tests
 the combined tree before the merge, which is exactly the check that was missing.
+
+Run it from a clean worktree at `origin/main`, not from a branch checkout, or
+the branch's own content contaminates the answer:
+
+```bash
+git fetch origin main
+git worktree add "$HOME/src/scratch/worktrees/mainverify" origin/main --detach
+```
+
+Applied 2026-08-08 after landing #4614, #4572, #4755, and #4741: `181 passed
+in 11.98s` against `e7018e4b7`, so that sweep composed cleanly. The check is
+worth running even on a small sweep, since the 2026-08-03 breakage came from
+four PRs that never opened the file that broke.
 
 It also compounds with the pre-push hook: the red surfaced to me as a blocked
 push with no statement that the failures were pre-existing, so every agent

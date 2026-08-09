@@ -27,14 +27,13 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `false` | Being behind main does NOT block. Do not merge main into a branch to unblock it. |
+| `strict_required_status_checks_policy` | `true` | Being behind main DOES block. Refresh the branch against main to unblock it. |
 | `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. This is the dominant real cause. |
 | `required_approving_review_count` | `0` | No human approval needed. |
 | `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
 
-Every open PR in the repo is behind main at any given moment, so "behind main"
-can never discriminate between a blocked PR and a mergeable one. It is a
-detector that cannot fail, which means it has not been run.
+The ruleset now makes branch freshness a merge gate. When a PR is behind main,
+refresh the branch before diagnosing missing contexts or unresolved threads.
 
 ## The diagnosis that works
 
