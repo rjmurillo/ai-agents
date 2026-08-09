@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: 146d5aca1838673f5f4d37cb9ab9e8d924bd5e7b
+qaCommit: 7730a57eb6f6539a97cfc91cf52c19af6792d909
 ---
 # PR 4651 Fail Closed Agent Machinery QA Report
 
@@ -91,6 +91,29 @@ Real output:
 collected 80 items / 59 deselected / 21 selected
 21 passed, 59 deselected in 0.17s
 ```
+
+
+### Review thread fix: markdownlint companions
+
+Reviewer finding: `build/scripts/generate_hooks_events.py` copied only `markdownlint-cli2.yaml` and `push_guard_base.py`, while `invoke_markdownlint_guard.py` also requires `_markdownlint_verifier.py` and `markdownlint-safe-config.yaml` at runtime.
+
+Evidence: I read `build/scripts/generate_hooks_events.py` and confirmed `_COMPANIONS_BY_OWNER` lacked those two runtime files. I updated the companion tuple and the regression test.
+
+Commands:
+
+```bash
+uv run --frozen pytest tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_generate_hooks.py tests/test_hook_dispatch.py -q
+uv run --frozen pytest tests/build_scripts/test_copilot_dispatcher_artifact.py tests/build_scripts/test_hook_contract_knowledge.py tests/e2e/test_cli_hook_e2e.py -q
+```
+
+Real output:
+
+```text
+397 passed, 1 skipped in 11.66s
+43 passed, 2 skipped in 0.47s
+```
+
+Fix commit: `7730a57eb6f6539a97cfc91cf52c19af6792d909`.
 
 ## Verdict
 

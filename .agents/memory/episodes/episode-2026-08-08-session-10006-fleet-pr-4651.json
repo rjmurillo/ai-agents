@@ -271,16 +271,42 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-09T14:05:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Copilot review thread PRRT_kwDOQoWRls6Xmxhm by adding markdownlint verifier and safe config to the generator companion list; hook generator and artifact tests passed on 7730a57eb6f6539a97cfc91cf52c19af6792d909.",
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-09T13:58:11+00:00",
+      "type": "commit",
+      "content": "Commit: 7730a57eb6f6539a97cfc91cf52c19af6792d909",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e021"
+      ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     }
   ],
   "metrics": {
-    "duration_minutes": 1062,
+    "duration_minutes": 1302,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 3
   },
   "lessons": []
