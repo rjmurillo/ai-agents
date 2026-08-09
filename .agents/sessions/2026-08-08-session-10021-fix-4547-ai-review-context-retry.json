@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Recorded the review-driven corrections and retry-budget lessons in the work log and DevOps evidence."
+        "Evidence": "## Retrospective: learnings captured from review-driven corrections and retry-budget validation."
       }
     }
   },
