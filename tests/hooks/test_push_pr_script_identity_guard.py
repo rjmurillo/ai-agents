@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one matrix verifies the same policy on both harnesses.
 """Runtime contract tests for the issue #4764 script identity gate."""
 
 from __future__ import annotations

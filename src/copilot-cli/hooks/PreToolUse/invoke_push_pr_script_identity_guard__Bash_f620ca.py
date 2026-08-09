@@ -368,6 +368,10 @@ def _shim_dispatch():
 def _original_main(stdin_bytes):
     # original script body begins below
     #!/usr/bin/env python3
+    # Standalone hook must carry its parser and policy into one generated shim.
+    # taste-lint: ignore file-size, splitting would break cross-harness parity.
+    # Parser branches preserve distinct lexical states and fail-closed reasons.
+    # taste-lint: ignore complexity, flattening would merge security decisions.
     """Deny noncanonical push-pr Python entrypoints (issue #4764).
 
     Exit codes:
