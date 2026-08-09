@@ -80,7 +80,20 @@ discards any authored commits you had not pushed *before* the merge, which the
 merge commit and nothing else.
 
 Confirm before resetting that the merge commit is the tip and that it authored
-nothing: `git diff --name-only HEAD^1 HEAD` lists only what main brought.
+nothing by comparing its tree to Git's automatic merge tree:
+
+```bash
+git rev-parse --verify -q HEAD^2 >/dev/null
+automatic_tree="$(git merge-tree --write-tree HEAD^1 HEAD^2)"
+actual_tree="$(git rev-parse HEAD^{tree})"
+test "$actual_tree" = "$automatic_tree" \
+  || { echo "merge commit differs from automatic merge tree"; exit 1; }
+```
+
+Do not use `git diff --name-only HEAD^1 HEAD` for this proof. A manual conflict
+resolution or extra staged edit can replace a blob while leaving the same path
+in the name list. Name-set equality proves which paths changed, not what their
+contents became.
 
 ## The other three bypasses, and why they do not save you
 
