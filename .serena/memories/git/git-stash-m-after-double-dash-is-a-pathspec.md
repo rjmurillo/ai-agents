@@ -49,7 +49,10 @@ changes it.
 
 ```bash
 before=$(git rev-parse --quiet --verify refs/stash || echo none)
-git stash push -m "$MSG" -- "$@" || echo "stash failed"
+if ! git stash push -m "$MSG" -- "$@"; then
+  echo "stash failed, do not checkout"
+  exit 1
+fi
 after=$(git rev-parse --quiet --verify refs/stash || echo none)
 [ "$before" = "$after" ] && echo "NOTHING WAS STASHED, do not checkout" && exit 1
 ```
