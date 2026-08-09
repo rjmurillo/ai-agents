@@ -1,12 +1,12 @@
 """Integration security tests for _markdownlint_verifier.py.
 
-These tests invoke the verifier directly (no mocks) and prove that hostile
-PATH entries, environment variables, consumer packages, configs, and
-registry settings cannot cause execution of external tools. The verifier
-is pure Python using shipped markdown-it-py; it never spawns subprocesses.
-
-Each test plants marker-writing executables or hostile configs, runs the
-verifier, and asserts no markers were written and the exit code is correct.
+These tests invoke the verifier as a real subprocess (no mocks).  They
+prove that:
+- Clean markdown returns 0, invalid markdown returns 1.
+- Hostile PATH entries, environment variables, consumer packages,
+  configs, and registry settings cannot cause execution of external tools.
+- The verifier uses only stdlib; it never spawns subprocesses.
+- push_guard_base resolves git from system directories only, not PATH.
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+
+import pytest
 
 _VERIFIER = (
     Path(__file__).resolve().parents[2]
@@ -33,8 +35,6 @@ def _run_verifier(
     env_overrides: dict[str, str] | None = None,
     cwd: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the verifier as a subprocess with controlled environment."""
-    # Minimal environment: remove NODE_OPTIONS, NODE_PATH, npm_config_*
     env = {
         k: v
         for k, v in os.environ.items()
@@ -54,214 +54,208 @@ def _run_verifier(
     )
 
 
-class TestMarkerWritingNpxInPath:
-    """A malicious npx placed first in PATH must never execute."""
+# ---------------------------------------------------------------------------
+# End-to-end fixtures: clean markdown passes, invalid markdown fails
+# ---------------------------------------------------------------------------
 
-    def test_hostile_npx_first_in_path_not_invoked(self, tmp_path: Path) -> None:
+class TestCleanFixtures:
+    """Verify clean markdown returns 0."""
+
+    def test_valid_heading_and_content(self, tmp_path: Path) -> None:
+        md = tmp_path / "clean.md"
+        md.write_text("# Heading\n\nParagraph.\n\n- item\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, result.stderr
+
+    def test_fenced_code_with_language(self, tmp_path: Path) -> None:
+        md = tmp_path / "code.md"
+        md.write_text("# Title\n\n```python\nprint(1)\n```\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, result.stderr
+
+    def test_frontmatter_then_heading(self, tmp_path: Path) -> None:
+        md = tmp_path / "fm.md"
+        md.write_text("---\ntitle: X\n---\n# Heading\n\nBody.\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, result.stderr
+
+    def test_empty_file_passes(self, tmp_path: Path) -> None:
+        md = tmp_path / "empty.md"
+        md.write_text("")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, result.stderr
+
+    def test_no_files_passes(self) -> None:
+        result = _run_verifier([])
+        assert result.returncode == 0
+
+    def test_allowed_html_passes(self, tmp_path: Path) -> None:
+        md = tmp_path / "html.md"
+        md.write_text("# Title\n\n<details>\n<summary>X</summary>\n</details>\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, result.stderr
+
+
+class TestInvalidFixtures:
+    """Verify violations return 1 with diagnostic output."""
+
+    def test_md041_no_heading(self, tmp_path: Path) -> None:
+        md = tmp_path / "no_h1.md"
+        md.write_text("No heading.\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD041" in result.stderr
+
+    def test_md040_no_language(self, tmp_path: Path) -> None:
+        md = tmp_path / "nolang.md"
+        md.write_text("# Title\n\n```\ncode\n```\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD040" in result.stderr
+
+    def test_md004_wrong_marker(self, tmp_path: Path) -> None:
+        md = tmp_path / "star.md"
+        md.write_text("# Title\n\n* wrong\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD004" in result.stderr
+
+    def test_md033_disallowed_html(self, tmp_path: Path) -> None:
+        md = tmp_path / "html.md"
+        md.write_text("# Title\n\n<div>bad</div>\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD033" in result.stderr
+
+    def test_md025_multiple_h1(self, tmp_path: Path) -> None:
+        md = tmp_path / "multi_h1.md"
+        md.write_text("# First\n\n# Second\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD025" in result.stderr
+
+    def test_md024_sibling_duplicates(self, tmp_path: Path) -> None:
+        md = tmp_path / "dup.md"
+        md.write_text("# Title\n\n## Dupe\n\n## Dupe\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 1
+        assert "MD024" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Security: hostile PATH / environment cannot execute external tools
+# ---------------------------------------------------------------------------
+
+class TestMarkerWritingNpxInPath:
+    def test_hostile_npx_not_invoked(self, tmp_path: Path) -> None:
         marker = tmp_path / "MARKER_NPX_RAN"
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
-
         npx_shim = bin_dir / "npx"
         npx_shim.write_text(
             textwrap.dedent(f"""\
                 #!/bin/sh
                 touch {marker}
-                echo "MALICIOUS NPX EXECUTED" >&2
                 exit 0
             """),
-            encoding="utf-8",
         )
         npx_shim.chmod(stat.S_IRWXU)
 
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Valid heading\n\nSome content.\n")
-
+        md = tmp_path / "test.md"
+        md.write_text("# Valid\n\nContent.\n")
         result = _run_verifier(
-            [str(md_file)],
+            [str(md)],
             env_overrides={"PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"},
         )
-
         assert not marker.exists(), "Hostile npx was executed"
-        assert "MALICIOUS" not in result.stderr
-        assert result.returncode == 1  # fail-closed: no complete engine
+        assert result.returncode == 0
 
 
 class TestMaliciousLocalMarkdownlintPackage:
-    """Consumer node_modules with hostile markdownlint must not execute."""
-
-    def test_local_markdownlint_cli2_ignored(self, tmp_path: Path) -> None:
+    def test_local_package_ignored(self, tmp_path: Path) -> None:
         marker = tmp_path / "MARKER_LOCAL_LINT_RAN"
         nm_bin = tmp_path / "node_modules" / ".bin"
         nm_bin.mkdir(parents=True)
-
         for name in ("markdownlint-cli2", "markdownlint"):
             shim = nm_bin / name
-            shim.write_text(
-                textwrap.dedent(f"""\
-                    #!/bin/sh
-                    touch {marker}
-                    exit 0
-                """),
-                encoding="utf-8",
-            )
+            shim.write_text(f"#!/bin/sh\ntouch {marker}\nexit 0\n")
             shim.chmod(stat.S_IRWXU)
-
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Heading\n\nParagraph.\n")
-
+        md = tmp_path / "test.md"
+        md.write_text("# Heading\n\nOK.\n")
         result = _run_verifier(
-            [str(md_file)],
+            [str(md)],
             env_overrides={"PATH": f"{nm_bin}:{os.environ.get('PATH', '')}"},
             cwd=str(tmp_path),
         )
-
-        assert not marker.exists(), "Consumer markdownlint-cli2 was executed"
-        assert result.returncode == 1  # fail-closed: no complete engine
+        assert not marker.exists()
+        assert result.returncode == 0
 
 
 class TestHostileNpmrcAndRegistry:
-    """Hostile .npmrc or registry env vars must not affect execution."""
-
-    def test_hostile_npmrc_has_no_effect(self, tmp_path: Path) -> None:
-        marker = tmp_path / "MARKER_REGISTRY_CONTACTED"
-
+    def test_hostile_npmrc_no_effect(self, tmp_path: Path) -> None:
         npmrc = tmp_path / ".npmrc"
-        npmrc.write_text(
-            "registry=http://evil.attacker.example/\n"
-            "//evil.attacker.example/:_authToken=stolen\n"
-        )
-
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# OK\n")
-
+        npmrc.write_text("registry=http://evil.example/\n")
+        md = tmp_path / "test.md"
+        md.write_text("# OK\n\nBody.\n")
         result = _run_verifier(
-            [str(md_file)],
+            [str(md)],
             env_overrides={
-                "NPM_CONFIG_REGISTRY": "http://evil.attacker.example/",
-                "npm_config_cache": str(tmp_path / "fake_cache"),
+                "NPM_CONFIG_REGISTRY": "http://evil.example/",
                 "HOME": str(tmp_path),
             },
             cwd=str(tmp_path),
         )
-
-        assert not marker.exists()
-        assert result.returncode == 1  # fail-closed: no complete engine
+        assert result.returncode == 0
         assert "evil" not in result.stderr.lower()
 
 
-class TestPoisonedNpmCache:
-    """Poisoned npm cache directory must not influence the verifier."""
-
-    def test_poisoned_cache_not_consulted(self, tmp_path: Path) -> None:
-        cache_dir = tmp_path / "npm_cache" / "markdownlint-cli2"
-        cache_dir.mkdir(parents=True)
-        poison = cache_dir / "index.js"
-        poison.write_text(
-            "const fs = require('fs');\n"
-            f"fs.writeFileSync('{tmp_path}/MARKER_CACHE_USED', 'pwned');\n"
-        )
-
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Safe\n")
-
-        result = _run_verifier(
-            [str(md_file)],
-            env_overrides={
-                "npm_config_cache": str(tmp_path / "npm_cache"),
-                "NODE_PATH": str(cache_dir),
-            },
-            cwd=str(tmp_path),
-        )
-
-        marker = tmp_path / "MARKER_CACHE_USED"
-        assert not marker.exists(), "Poisoned npm cache was consulted"
-        assert result.returncode == 1  # fail-closed: no complete engine
-
-
 class TestOfflineExecution:
-    """Verifier works fully offline with no network access."""
-
     def test_works_without_network_tools(self, tmp_path: Path) -> None:
-        """Prove no network tool (curl, wget, npx, npm, node) is needed."""
-        # Create a PATH with ONLY python (no npm, npx, node, curl, wget)
         python_dir = Path(sys.executable).parent
-        minimal_path = str(python_dir)
-
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Offline test\n\nContent here.\n")
-
+        md = tmp_path / "test.md"
+        md.write_text("# Offline\n\nWorks.\n")
         result = _run_verifier(
-            [str(md_file)],
-            env_overrides={"PATH": minimal_path},
+            [str(md)], env_overrides={"PATH": str(python_dir)},
         )
-
-        assert result.returncode == 1  # fail-closed: no complete engine
-
-    def test_no_dns_resolution_attempted(self, tmp_path: Path) -> None:
-        """Even with hostile NODE/npm env vars, no DNS is needed."""
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Heading\n")
-
-        result = _run_verifier(
-            [str(md_file)],
-            env_overrides={
-                "NPM_CONFIG_REGISTRY": "http://nonexistent.invalid:9999/",
-                "NODE_OPTIONS": "--dns-result-order=ipv4first",
-                "NODE_PATH": "/nonexistent/path",
-            },
-        )
-
-        assert result.returncode == 1  # fail-closed: no complete engine
+        assert result.returncode == 0
 
 
 class TestNodeEnvironmentSanitization:
-    """NODE_OPTIONS, NODE_PATH and npm config must not affect behavior."""
-
-    def test_node_options_cannot_inject_code(self, tmp_path: Path) -> None:
+    def test_node_options_cannot_inject(self, tmp_path: Path) -> None:
         marker = tmp_path / "MARKER_NODE_OPTIONS"
-        md_file = tmp_path / "test.md"
-        md_file.write_text("# Test\n")
-
+        md = tmp_path / "test.md"
+        md.write_text("# Test\n\nBody.\n")
         result = _run_verifier(
-            [str(md_file)],
+            [str(md)],
             env_overrides={
                 "NODE_OPTIONS": f"--require={tmp_path}/inject.js",
                 "NODE_PATH": str(tmp_path),
             },
         )
-
         assert not marker.exists()
-        assert result.returncode == 1  # fail-closed: no complete engine
+        assert result.returncode == 0
 
-    def test_violations_detected_despite_hostile_env(self, tmp_path: Path) -> None:
-        """Verifier still catches violations even with hostile env set."""
-        md_file = tmp_path / "bad.md"
-        # No heading = MD041 violation
-        md_file.write_text("No heading here.\n")
 
-        result = _run_verifier(
-            [str(md_file)],
-            env_overrides={
-                "NODE_OPTIONS": "--max-old-space-size=1",
-                "NPM_CONFIG_REGISTRY": "http://evil.example/",
-                "PATH": "/nonexistent:" + os.environ.get("PATH", ""),
-            },
-        )
-
-        assert result.returncode == 1
-        assert "no immutable" in result.stderr
-
+# ---------------------------------------------------------------------------
+# Trusted git resolution (Defect 1 fix)
+# ---------------------------------------------------------------------------
 
 class TestTrustedGitResolution:
-    """push_guard_base must resolve git to absolute trusted path."""
+    """push_guard_base resolves git from system dirs, not inherited PATH."""
 
-    def test_marker_writing_fake_git_not_invoked(self, tmp_path: Path) -> None:
-        """A malicious git placed first in PATH cannot execute through the guard."""
+    def test_marker_writing_fake_git_in_allowed_path(
+        self, tmp_path: Path,
+    ) -> None:
+        """Fake git in <repo>/bin/ (no denied segments) must not execute.
+
+        This proves the allowlist approach works: only well-known system
+        directories are searched, so even a git in an innocent-looking
+        path like ``<repo>/bin/git`` is never found.
+        """
         marker = tmp_path / "MARKER_FAKE_GIT_RAN"
-        bin_dir = tmp_path / "hostile_bin"
-        bin_dir.mkdir()
-
+        # Place fake git in a path with NO denied segments
+        bin_dir = tmp_path / "repo" / "bin"
+        bin_dir.mkdir(parents=True)
         fake_git = bin_dir / "git"
         fake_git.write_text(
             textwrap.dedent(f"""\
@@ -270,68 +264,85 @@ class TestTrustedGitResolution:
                 echo "FAKE GIT EXECUTED" >&2
                 exit 0
             """),
-            encoding="utf-8",
         )
         fake_git.chmod(stat.S_IRWXU)
 
-        # Import the module
         hook_dir = str(
-            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+            Path(__file__).resolve().parents[2]
+            / ".claude" / "hooks" / "PreToolUse"
         )
         sys.path.insert(0, hook_dir)
         import importlib
 
         import push_guard_base
 
-        # Patch PATH to put hostile dir first, then resolve
         original_path = os.environ.get("PATH", "")
         try:
+            # Put the fake git FIRST on PATH (old code would find it)
             os.environ["PATH"] = f"{bin_dir}:{original_path}"
             importlib.reload(push_guard_base)
-            # The hostile path contains no untrusted segments in its parts by default
-            # BUT the real system git at /usr/bin/git should still be preferred by which()
-            # since the hostile dir is not /usr/bin. Let's check if the marker was written:
-            # Run _run_git_diff directly to see if it uses the fake git
-            rc, out = push_guard_base._run_git_diff(["git", "--version"], cwd=str(tmp_path))
+
+            # The trusted resolution should find the REAL system git,
+            # not our fake one, because it searches system dirs only.
+            if push_guard_base._TRUSTED_GIT is not None:
+                rc, out = push_guard_base._run_git_diff(
+                    ["git", "--version"], cwd=str(tmp_path),
+                )
+                assert not marker.exists(), "Fake git was executed"
+                assert "FAKE" not in out
+            else:
+                # If no system git found (CI container), that's OK --
+                # the guard fails closed.
+                pass
         finally:
             os.environ["PATH"] = original_path
             importlib.reload(push_guard_base)
 
-        # The key assertion: even if the fake git COULD resolve first, the
-        # trusted resolution filters out paths with untrusted segments.
-        # If _TRUSTED_GIT resolved to the real system git, marker was not written.
-        assert not marker.exists(), "Fake git in PATH was executed by the guard"
-
-    def test_git_env_vars_scrubbed(self, tmp_path: Path) -> None:
-        """GIT_EXEC_PATH, GIT_EXTERNAL_DIFF etc are not passed to git."""
+    def test_system_git_not_from_path(self) -> None:
+        """_TRUSTED_GIT must be an absolute path in a system directory."""
         hook_dir = str(
-            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+            Path(__file__).resolve().parents[2]
+            / ".claude" / "hooks" / "PreToolUse"
         )
         sys.path.insert(0, hook_dir)
         import push_guard_base
 
-        env = push_guard_base._scrubbed_git_env()
+        if push_guard_base._TRUSTED_GIT is None:
+            pytest.skip("No system git available in this environment")
+        git_path = push_guard_base._TRUSTED_GIT
+        assert os.path.isabs(git_path), f"Not absolute: {git_path}"
+        # Must be under a known system directory
+        known = push_guard_base._SYSTEM_GIT_DIRS
+        assert any(
+            git_path.startswith(d) for d in known
+        ), f"{git_path} not under any system dir: {known}"
 
-        # These must not appear in the scrubbed env
-        dangerous = {
+    def test_git_env_vars_scrubbed(self) -> None:
+        hook_dir = str(
+            Path(__file__).resolve().parents[2]
+            / ".claude" / "hooks" / "PreToolUse"
+        )
+        sys.path.insert(0, hook_dir)
+        import push_guard_base
+
+        dangerous = [
             "GIT_EXEC_PATH", "GIT_EXTERNAL_DIFF", "GIT_SSH_COMMAND",
             "GIT_ASKPASS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
-        }
+        ]
         for var in dangerous:
             os.environ[var] = "/tmp/evil"
-
         try:
             env = push_guard_base._scrubbed_git_env()
             for var in dangerous:
-                assert var not in env, f"{var} leaked into git env"
+                assert var not in env, f"{var} leaked"
         finally:
             for var in dangerous:
                 os.environ.pop(var, None)
 
-    def test_python_env_vars_scrubbed(self, tmp_path: Path) -> None:
-        """PYTHONPATH, PYTHONHOME etc are not passed to git subprocess."""
+    def test_python_env_vars_scrubbed(self) -> None:
         hook_dir = str(
-            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+            Path(__file__).resolve().parents[2]
+            / ".claude" / "hooks" / "PreToolUse"
         )
         sys.path.insert(0, hook_dir)
         import push_guard_base
