@@ -79,7 +79,8 @@
         "e010",
         "e011",
         "e014",
-        "e018"
+        "e018",
+        "e021"
       ],
       "leads_to": [
         "e012"
@@ -249,6 +250,30 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved structured assignment truncation and suffix leak reviews",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-09T10:11:47+00:00",
+      "type": "commit",
+      "content": "Commit: 3c6f503c9965165773709e93b8746e8dca75752f",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -258,7 +283,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 20
   },
   "lessons": []
