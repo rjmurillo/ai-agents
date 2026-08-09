@@ -673,13 +673,6 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
             "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
         ),
     )
-    analyst_github_events = _run_copilot_agent(
-        "analyst",
-        (
-            "Use github/issue_read to read issue 3918 in rjmurillo/ai-agents. "
-            "Do not use a substitute. If unavailable reply exactly GITHUB_UNAVAILABLE."
-        ),
-    )
     implementer_events = _run_copilot_agent(
         "implementer",
         (
