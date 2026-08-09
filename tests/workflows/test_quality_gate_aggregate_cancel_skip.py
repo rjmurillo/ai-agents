@@ -90,6 +90,38 @@ class TestAggregateCancelSkip:
         assert "always()" in gate
         assert "!cancelled()" in gate or "cancelled() == false" in gate
 
+    def test_session_prerequisite_script_runs_after_checkout(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        steps = session_workflow["jobs"]["aggregate"]["steps"]
+        names = [step.get("name") for step in steps]
+        assert names.index("Checkout repository") < names.index(
+            "Check if aggregation needed"
+        )
+
+    def test_session_prerequisite_outputs_are_wired(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        steps = session_workflow["jobs"]["aggregate"]["steps"]
+        prerequisite = next(
+            step for step in steps if step.get("name") == "Check if aggregation needed"
+        )
+        aggregate = next(
+            step for step in steps if step.get("name") == "Aggregate Verdicts"
+        )
+
+        assert prerequisite["env"]["VALIDATE_RESULT"] == "${{ needs.validate.result }}"
+        assert (
+            prerequisite["env"]["SESSION_FILES"]
+            == "${{ needs.detect-changes.outputs.session_files }}"
+        )
+        assert (
+            aggregate["env"]["EXPECTED_RESULTS"]
+            == "${{ steps.should-run-protocol.outputs.expected_results }}"
+        )
+
     def test_concurrency_still_cancels_in_progress(self, workflow: dict) -> None:
         """Concurrency cancel-in-progress must remain enabled.
 
