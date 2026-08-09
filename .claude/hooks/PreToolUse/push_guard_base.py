@@ -68,7 +68,6 @@ import json
 import os
 import re
 import shlex
-import shutil as _shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -121,9 +120,26 @@ GIT_DIFF_TIMEOUT = 10
 # ---------------------------------------------------------------------------
 # Trusted git resolution (defect #2 mitigation)
 # ---------------------------------------------------------------------------
-_UNTRUSTED_PATH_SEGMENTS = frozenset({
-    "node_modules", ".npm", ".local", "tmp", "temp", ".cache",
-})
+# Well-known system directories where git is installed by the OS or
+# package manager.  Inherited PATH is never consulted -- a consumer can
+# place a hostile ``git`` anywhere on PATH and the denylist cannot
+# enumerate every possible wrapper location.
+_SYSTEM_GIT_DIRS: tuple[str, ...] = (
+    # Linux / generic Unix
+    "/usr/bin",
+    "/usr/local/bin",
+    # macOS Homebrew (Apple Silicon + Intel)
+    "/opt/homebrew/bin",
+    "/usr/local/Cellar",
+    # macOS Xcode / CLT
+    "/Library/Developer/CommandLineTools/usr/bin",
+    "/Applications/Xcode.app/Contents/Developer/usr/bin",
+)
+_WINDOWS_GIT_DIRS: tuple[str, ...] = (
+    r"C:\Program Files\Git\cmd",
+    r"C:\Program Files (x86)\Git\cmd",
+    r"C:\Program Files\Git\bin",
+)
 
 # Environment variables that can redirect git behavior to attacker code.
 _GIT_DANGEROUS_ENV = frozenset({
@@ -135,18 +151,42 @@ _GIT_DANGEROUS_ENV = frozenset({
 
 
 def _resolve_trusted_git() -> str:
-    """Return absolute path to git, or raise if untrusted."""
-    git_path = _shutil.which("git")
-    if git_path is None:
-        raise FileNotFoundError("git not found on PATH")
-    resolved = str(Path(git_path).resolve())
-    parts = Path(resolved).parts
-    for segment in parts:
-        if segment in _UNTRUSTED_PATH_SEGMENTS:
-            raise FileNotFoundError(
-                f"git resolved to untrusted location: {resolved}"
-            )
-    return resolved
+    """Return absolute path to a system-installed git binary.
+
+    Searches only well-known OS/package-manager directories.  Never
+    consults inherited PATH.  Validates that the resolved real path
+    also lives under a trusted prefix (guards against symlink attacks).
+    On POSIX, additionally checks root ownership (uid 0).
+    """
+    name = "git.exe" if sys.platform == "win32" else "git"
+    dirs = _WINDOWS_GIT_DIRS if sys.platform == "win32" else _SYSTEM_GIT_DIRS
+    trusted_prefixes = tuple(dirs)
+
+    for d in dirs:
+        candidate = os.path.join(d, name)
+        if not os.path.isfile(candidate):
+            continue
+        if not os.access(candidate, os.X_OK):
+            continue
+        # Resolve symlinks and verify the target is also under a
+        # trusted prefix (prevents /usr/bin/git -> /tmp/evil/git).
+        resolved = os.path.realpath(candidate)
+        if not any(resolved.startswith(tp) for tp in trusted_prefixes):
+            continue
+        # POSIX: require root ownership.
+        if sys.platform != "win32":
+            try:
+                st = os.stat(resolved)
+            except OSError:
+                continue
+            if st.st_uid != 0:
+                continue
+        return resolved
+
+    raise FileNotFoundError(
+        "no system git found in trusted directories: "
+        + ", ".join(dirs)
+    )
 
 
 def _scrubbed_git_env() -> dict[str, str]:

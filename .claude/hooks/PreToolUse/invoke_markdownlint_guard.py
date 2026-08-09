@@ -3,7 +3,7 @@
 
 Thin adapter over :mod:`push_guard_base`. Activates on ``*.md`` files in
 the push changeset and runs the co-located ``_markdownlint_verifier.py``
-(a pure-Python linter using shipped ``markdown-it-py``). No external
+a pure-Python stdlib-only linter). No external
 binaries, no registry downloads, no consumer configs or plugins.
 
 Customer value: prevents markdown lint failures from reaching consumer branches.
