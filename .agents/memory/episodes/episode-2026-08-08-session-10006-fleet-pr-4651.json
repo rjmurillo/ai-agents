@@ -65,7 +65,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     },
     {
@@ -80,15 +82,26 @@
         "e005"
       ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retrospective evidence recorded for PR 4651 merge-tree repair: moved the shared markdownlint config hunk out of the merge path and kept the hook regression coverage intact.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     }
   ],
   "metrics": {
-    "duration_minutes": 324,
+    "duration_minutes": 457,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 10
+    "files_changed": 3
   },
   "lessons": []
 }

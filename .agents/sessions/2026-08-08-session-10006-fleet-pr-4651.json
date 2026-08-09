@@ -130,6 +130,10 @@
     {
       "time": "2026-08-08T21:46:25Z",
       "entry": "Completed main and concurrent-remote merges, fixed all verified Sol High findings, passed mutation controls and recursive CLEAN review, received security approval, passed local and pre-push gates, and pushed c6e0c05bd167aed433a39af6f8d09ff5bd25bf79 normally."
+    },
+    {
+      "time": "2026-08-09T00:00:00Z",
+      "entry": "Retrospective evidence recorded for PR 4651 merge-tree repair: moved the shared markdownlint config hunk out of the merge path and kept the hook regression coverage intact."
     }
   ],
   "nextSteps": [],
