@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10003,
+    "date": "2026-08-06",
+    "branch": "perf/git-hook-latency",
+    "startingCommit": "b22b19b63",
+    "objective": "Profile and optimize pre-submit pre-commit and pre-push hooks without correctness loss"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions succeeded for the active repository project before code changes."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called Serena initial_instructions before repository analysis."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read read-only .agents/HANDOFF.md. No issue-specific hook handoff existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 52 GitHub skill scripts and used the issue and PR workflow scripts instead of raw gh."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory and followed skill-first GitHub operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md, GOTCHAS.md, session-log rules, and matching Python, test, workflow, generated-artifact, and security instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, git/lefthook-migration-contracts, decision-pre-push-suite-timeout-budget, git-working-tree-mutates-under-you-during-pre-push, and coding/pre-commit-quality-gates."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/git-hook-latency"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/git-hook-latency"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified a clean main worktree at b22b19b63, then created perf/git-hook-latency before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b22b19b63"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end MUST items carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: ebc2b44ed)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final full pytest, pre_pr.py, focused validation, and validate_session_json.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Mapped and measured local validation",
+      "outcome": "Six parallel agents traced pre-commit, pre-push, pre_pr.py, CI, issue discourse, and incident history. uv startup measured 0.136 to 0.283 seconds versus 0.024 to 0.026 seconds for direct venv Python. Full actionlint measured 0.43 to 0.54 seconds versus 0.021 seconds for one workflow."
+    },
+    {
+      "action": "Removed suite-scale HEAD guard subprocess cost",
+      "outcome": "The function-scoped autouse guard now reads detached or loose symbolic HEAD metadata directly and falls back to git for packed refs, reftable, non-UTF8, malformed, unsafe, or unreadable state. A 10000-call probe completed in 0.845 seconds with zero subprocess calls."
+    },
+    {
+      "action": "Scoped pre-PR lint gates without hiding pushed changes",
+      "outcome": "Changed-path discovery now unions committed, staged, unstaged, and untracked NUL-delimited paths. Missing relevant worktree content fails closed with staged-deletion-aware guidance. GitHub PR-base queries share one authoritative probe per invocation and reset between runs."
+    },
+    {
+      "action": "Eliminated duplicate coverage-pin test execution",
+      "outcome": "Main-suite line coverage measured 438.91 seconds. Branch coverage measured 465.93 seconds and failed on mixed child data. The final design keeps main statement coverage, collects broad branch coverage in two small pin partitions, enforces target-only 100 percent gates, and projects all pin lines into one final report."
+    },
+    {
+      "action": "Proved and persisted the Lefthook stdin contract",
+      "outcome": "A Lefthook 2.1.10 probe delivered identical 362604-byte stdin to three piped consumers in 5 of 5 runs. Parallel consumers corrupted all 30 large-payload deliveries across 10 runs. Canonical ci-scripts and testing rules plus Copilot mirrors record the result."
+    },
+    {
+      "action": "Completed recursive adversarial review",
+      "outcome": "Five review rounds used GPT 5.6 Sol correctness and performance agents plus security, silent-failure, test-quality, and project-convention reviewers. Every valid finding was fixed. Final correctness, performance, test-quality, and convention reviews returned CLEAN; security approved with no exploitable or fail-open findings."
+    },
+    {
+      "action": "Ran full validation",
+      "outcome": "Final full suite passed 23813 tests with 33 skipped. Final pre_pr.py passed all 46 runnable validations with 4 expected skips. Ruff, mypy, actionlint, workflow dry-run, rule generation, instruction budget, taste ratchet, duplicate-helper, nested-test, and diff checks passed."
+    },
+    {
+      "action": "Filed discovered defects and the delivery issue",
+      "outcome": "Filed #4692 for fleet agent capability guidance, #4695 for list_issues.py failure classification, #4699 for fixed /tmp symlink paths, #4700 for dead ref-trace code, and #4710 for the hook performance stack."
+    },
+    {
+      "action": "Created the atomic local stack",
+      "outcome": "Committed ten logical changes with five or fewer authored files each. Marked fix/hook-lint-scope, fix/head-guard-fastpath, and fix/coverage-pin-dedup stack branches. The final documentation branch will include this completed session record."
+    }
+  ],
+  "endingCommit": "ebc2b44ed",
+  "nextSteps": [
+    "Open and monitor the stacked PR chain for issue #4710."
+  ]
+}
