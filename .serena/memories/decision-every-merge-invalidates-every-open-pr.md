@@ -14,25 +14,34 @@ contributor discipline, a thing you remember to do.
 
 ## First-principles position
 
-Contributors keep re-deriving it because nothing makes a branch current
-automatically, and there is still no merge queue to test the combined result:
+Contributors keep re-deriving it because branch work still goes stale
+locally even though the repository now has a queue to test the combined result.
+The repository adopted Trunk Merge Queue on 2026-08-09. It is not GitHub's
+`merge_group` queue, so this historical probe still returns nothing:
 
 ```
 grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
 
-The consequence is stronger than "branches go stale". The count ratchets compare
-a branch's whole tree against a baseline integer that main lowers whenever main
-clears violations. So **every merge invalidates every other open PR**, and a
-drain of N PRs is not N independent units of work. It is a queue that re-dirties
-itself behind you.
+The consequence remains stronger than "branches go stale" for direct branch
+work. The count ratchets compare a branch's whole tree against a baseline
+integer that main lowers whenever main clears violations. So **every merge
+invalidates every other open PR**, and a drain of N PRs is not N independent
+units of work unless the queued merge path tests the combined result before
+landing it.
 
-### The strict policy flipped on, which sharpens this rather than fixing it
+### The strict policy flipped on, then off again when Trunk took over
 
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
-ever *required* to be current. That is no longer the configuration. Measured
+ever *required* to be current. That was true originally, then false as current
+guidance after two later changes.
+
+The setting went `true` on 2026-08-05 as the shipped remedy for issue #3755,
+"Merge race: a pull request behind main can merge on a check that never saw
+main's content". That issue named `strict_required_status_checks_policy = False`
+on ruleset 11104075 as the structural cause. It closed 2026-08-05. Measured
 2026-08-08:
 
 ```
@@ -42,40 +51,47 @@ gh api repos/rjmurillo/ai-agents/rules/branches/main \
   -> [true]
 ```
 
-This was a deliberate remedy, not configuration drift. Issue #3755, "Merge
-race: a pull request behind main can merge on a check that never saw main's
-content", argued that `strict_required_status_checks_policy = False` on ruleset
-11104075 let a green check describe a tree that no longer existed, and
-documented two PRs four minutes apart whose gate and prose met for the first
-time on main. It closed 2026-08-05. Enabling strict is the fix it asked for, so
-read the flip as that issue landing rather than as a setting someone toggled.
+The setting went `false` again on 2026-08-09 because the repository adopted
+Trunk Merge Queue. GitHub reports "Require branches to be up to date before
+merging" as incompatible with a merge queue unless only one PR is ever queued at
+a time, so strict had to come off for the queue to batch. Measured 2026-08-09:
 
-Read the reversal carefully, because it inverts the operational conclusion
-without touching the root cause. Under `false`, a stale branch *could* still
-merge, so staleness cost you a spurious red and a re-measure. Under `true`,
-GitHub refuses the merge outright until the branch is current, so the
-invalidation is no longer advisory: after each landing, every other open PR is
-hard-blocked until someone refreshes it.
+```
+gh api repos/rjmurillo/ai-agents/rules/branches/main \
+  --jq '[.[] | select(.type=="required_status_checks")
+         | .parameters.strict_required_status_checks_policy]'
+  -> [false]
+```
 
-The drain is therefore strictly serial. Measured the same day: four PRs landed
-(#4614, #4572, #4755, #4741) and the open count ended at 60, with every
-remaining PR pushed back to `BEHIND` by the landings.
+The queue supersedes the guard rather than abandoning it. Strict made each
+branch prove itself current before merging. The queue tests the combined result
+before the merge, which is the stronger form of the same guarantee and the
+structural fix this memory already recommended.
+
+Trunk runs in Draft PR mode, its default. It creates a draft pull request to
+test the queued change, so existing `pull_request` workflows fire normally.
+Verified 2026-08-09: no workflow under `.github/workflows/` has a draft guard,
+so required checks report on the draft. Push-triggered mode is the advanced
+alternative and would require every `pull_request`-only required workflow to
+also trigger on `trunk-merge/**` pushes. Ten of the eighteen required checks are
+`pull_request`-only or aggregate `pull_request`-only jobs, so that mode is not
+free here.
+
+The queue is driven by commenting `/trunk merge` on a PR. Before strict was
+removed, auto-merge was disarmed on the five armed PRs. With strict off, a
+`BEHIND` PR is no longer blocked by that ruleset value, and armed PRs could land
+outside the queue in a burst, reviving the exact #3755 race.
+
+Measured 2026-08-08 while strict was still true: four PRs landed (#4614, #4572,
+#4755, #4741) and the open count ended at 60, with every remaining PR pushed
+back to `BEHIND` by the landings. That was the strict-drain behavior, not the
+queue behavior after 2026-08-09.
 
 Do not read that as "64 minus four equals 60". Reconstructing open-PR state
 from the API puts 65 open immediately before the first landing, and five PRs
 left the queue in that window, because #4683 was closed unmerged at 14:57:16Z
 alongside the four merges. Queue size is not a landing ledger, so measure the
 count and the landings separately rather than deriving one from the other.
-
-An armed auto-merge does not rescue the serialization, because auto-merge never
-updates a branch: it stays armed and waits indefinitely while the PR sits
-`BEHIND`. Observed on #4766, whose `autoMergeRequest.enabledAt` of
-`2026-08-08T18:38:05Z` survived both a later landing that knocked it back and
-two subsequent branch refreshes. Refreshing the branch is the step a human
-still has to take; re-arming is not.
-
-The merge-queue caveat below is unchanged and is now the binding constraint,
-not the staleness itself.
 
 ## Evidence
 
@@ -114,25 +130,25 @@ not a burndown either.
 
 ## Decision
 
-Treat the queue as self-invalidating and plan accordingly rather than treating
-each stale signal as a defect to diagnose:
+Treat the queue as self-invalidating unless the PR lands through the queued
+path, and plan accordingly rather than treating each stale signal as a defect to
+diagnose:
 
 - Re-fetch and merge `origin/main` immediately before measuring anything, and
   treat a `main` fetched earlier in the same session as already stale. This
   repository merges several times an hour.
-- Expect to re-merge main into every remaining PR after each landing. Batching
-  merges reduces the number of invalidation waves.
-- A merge queue is the structural fix, because it tests the combined result
-  before the merge instead of after. Enabling it is an owner decision, and it is
-  not free here: several required checks are PR-scoped (`Validate PR title`,
-  `Validate Spec Coverage`, the ten LLM review axes feeding `Aggregate Results`)
-  and key off `github.event.pull_request`. A `merge_group` event has no pull
-  request, so adding the queue rule without first remapping those checks leaves
-  them permanently unreported and wedges the queue.
+- Use `/trunk merge` for landing PRs. That route tests the combined result
+  before the merge instead of after.
+- Do not add `trunk-merge/**` triggers for the current Trunk Draft PR mode.
+  Existing `pull_request` workflows fire on the draft PR, and no workflow has a
+  draft guard. Add those push triggers only if the repository switches to
+  Trunk's push-triggered mode.
+- Do not rely on GitHub auto-merge while strict is false. A `BEHIND` PR is no
+  longer blocked by `strict_required_status_checks_policy`, so an armed PR can
+  land outside the queue and recreate the #3755 race.
 
-Owner decision recorded 2026-08-03: enable a merge queue, sequenced after the
-drain rather than before it, since a queue serializes merges and would have made
-the drain slower.
+Owner decision recorded 2026-08-03: enable a merge queue after the drain. That
+was superseded 2026-08-09 by Trunk Merge Queue adoption.
 
 ## Corollary: the merged result can be red even when every input was green
 

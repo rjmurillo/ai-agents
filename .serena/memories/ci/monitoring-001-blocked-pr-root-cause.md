@@ -60,14 +60,15 @@ gh pr checks $PR_NUMBER --repo $REPO | grep -E "(pending|fail|skipping)"
 | Check shows "skipping" | Conditional execution skipped | Check conditions |
 | Check shows "fail" | Actual failure | Fix code/config |
 
-## Superseded specifics (measured 2026-08-01)
+## Superseded specifics (measured 2026-08-01, amended 2026-08-09)
 
 The principle above holds. Three of its specifics no longer match the repo:
 
-1. "Needs main merge" is now correct when a PR is behind main. The main ruleset
-   sets `strict_required_status_checks_policy: true`, so being behind main
-   blocks a merge. Refreshing the branch against main is required before the
-   remaining gates can clear.
+1. "Needs main merge" is still correct for local measurement and count ratchets,
+   but not because strict is currently on. The ruleset set
+   `strict_required_status_checks_policy: true` from 2026-08-05 until
+   2026-08-09. Trunk Merge Queue then required it to return to `false` so the
+   queue could batch. Use `/trunk merge` for landing PRs.
 2. "Awaiting review" is rarely the answer. `required_approving_review_count`
    is 0. What does block is `required_review_thread_resolution: true`, so an
    unresolved thread, not a missing approval.

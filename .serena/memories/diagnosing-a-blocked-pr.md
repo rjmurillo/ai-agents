@@ -27,13 +27,15 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `true` | Being behind main DOES block. Refresh the branch against main to unblock it. |
+| `strict_required_status_checks_policy` | `false` | Being behind main is not blocked by this ruleset value. Use `/trunk merge` so the queue tests the combined result. |
 | `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. This is the dominant real cause. |
 | `required_approving_review_count` | `0` | No human approval needed. |
-| `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
+| `required_status_checks` | 18 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
 
-The ruleset now makes branch freshness a merge gate. When a PR is behind main,
-refresh the branch before diagnosing missing contexts or unresolved threads.
+Measured 2026-08-09, strict is false because Trunk Merge Queue supersedes the
+branch-freshness guard. When a PR is behind main, refresh before local
+measurement and use `/trunk merge` to land it. Do not rely on GitHub auto-merge
+to keep stale PRs out while strict is false.
 
 ## The diagnosis that works
 
