@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli",
+  "session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "RCA and fix PR 4773 Copilot CLI quality gate outage",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read PR #4773 discourse, issue #2821 history, linked issues, and Actions runs 31283819879 and 31283819979.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #4777 for the fail-open gate and issue #4778 for ignored infrastructure preflight. Updated canonical token issue #3275.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored fail-closed security semantics and removed invented Copilot-unavailable diagnostics.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran recursive GPT-5.6 Sol, code, silent-failure, and security reviews.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the final committed tree.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed tool and process issues #4779, #4780, and #4781.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T05:53:51+00:00",
+      "type": "commit",
+      "content": "Commit: 8d903e4a21",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 14
+  },
+  "lessons": []
+}
