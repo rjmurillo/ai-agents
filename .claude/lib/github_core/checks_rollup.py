@@ -170,9 +170,9 @@ def fetch_ruleset_required_contexts(
     Returns a sorted list of context strings, or None if the API call fails
     (callers should treat None as unknown rather than empty). Refs issue #4359.
     """
-    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}"
+    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
     result = subprocess.run(
-        ["gh", "api", endpoint],
+        ["gh", "api", "--paginate", "--slurp", endpoint],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -181,11 +181,16 @@ def fetch_ruleset_required_contexts(
     if result.returncode != 0:
         return None
     try:
-        rules = json.loads(result.stdout)
+        payload = json.loads(result.stdout)
     except json.JSONDecodeError:
         return None
-    if not isinstance(rules, list):
+    if not isinstance(payload, list):
         return None
+    rules = (
+        [rule for page in payload for rule in page]
+        if payload and all(isinstance(page, list) for page in payload)
+        else payload
+    )
 
     contexts: list[str] = []
     for rule in rules:
