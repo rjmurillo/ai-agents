@@ -1,11 +1,11 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-06-session-10004-memory-index-duplicate.json
-qaCommit: 87b2b5ad85f13f935a1dfd1e4abf07ed6f319220
+qaCommit: fbc0853df9d6a348140f01ca5e2dfe36b28769e8
 ---
 # QA Report: PR #4735 Closing Review Refresh
 
-**SHA**: 87b2b5ad85f13f935a1dfd1e4abf07ed6f319220
+**SHA**: fbc0853df9d6a348140f01ca5e2dfe36b28769e8
 **Date**: 2026-08-09
 **Scope**: Merge conflict resolution after `origin/main`, memory-validation gate repair, and stale QA review-thread fix.
 
@@ -27,6 +27,7 @@ PASS. No blocking issues found in the merge-resolution delta.
 | memory-index target uniqueness check | targets 152, unique 152 |
 | origin/main row preservation check | missing from origin/main 0 |
 | security-review agent on workflow and QA gate changes | CLEAN |
+| retrospective-policy gate | Passed after adding `.agents/retrospective/2026-08-09-pr-4735-merge-unblock.md` |
 
 ## Notes
 

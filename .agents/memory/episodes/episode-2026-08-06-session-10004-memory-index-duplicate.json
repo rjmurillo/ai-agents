@@ -130,6 +130,19 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T02:18:10+00:00",
+      "type": "commit",
+      "content": "Commit: fbc0853df9",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
     }
@@ -139,7 +152,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 4
   },
   "lessons": []
