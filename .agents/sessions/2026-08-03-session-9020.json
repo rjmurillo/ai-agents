@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-session-9020-qa.md"
       }
     }
   },
@@ -139,6 +144,6 @@
       "action": "Fixed episode metrics for session-9020"
     }
   ],
-  "endingCommit": "4cba2e03e",
+  "endingCommit": "1803af61e296fe41d0d401f9361620e98845c3c9",
   "nextSteps": []
 }

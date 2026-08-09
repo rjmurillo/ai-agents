@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "Learnings captured through the retrospective skill before push."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4543-merge-refresh.md"
       }
     }
   },
@@ -135,6 +140,6 @@
       "result": "31 targeted tests passed, Ruff passed, pre-PR validation passed, and independent Sol Critical/High review found no findings."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "1803af61e296fe41d0d401f9361620e98845c3c9",
   "nextSteps": []
 }
