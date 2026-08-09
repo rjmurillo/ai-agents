@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py --markdown-lint-only: 1 of 2 files linted"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 2559c8e0f4)"
+        "Evidence": "All changes committed (HEAD: 2de7a113e8)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,7 +114,7 @@
       "reworkWarning": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 16 times\nrework-warning: tests/test_validation_memory_index.py edited 15 times\nrework-warning: scripts/validate_session_json.py edited 8 times\nrework-warning: tests/test_validate_session_json.py edited 8 times\nrework-warning: .claude/skills/session-end/tests/test_complete_session_log.py edited 7 times\nrework-warning: src/copilot-cli/skills/session-end/tests/test_complete_session_log.py edited 7 times"
+        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 19 times\nrework-warning: tests/test_validation_memory_index.py edited 16 times\nrework-warning: scripts/validate_session_json.py edited 8 times\nrework-warning: tests/test_validate_session_json.py edited 8 times\nrework-warning: .claude/skills/session-end/tests/test_complete_session_log.py edited 7 times\nrework-warning: src/copilot-cli/skills/session-end/tests/test_complete_session_log.py edited 7 times"
       },
       "qaValidation": {
         "level": "MUST",
@@ -145,10 +145,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "00a95ad5a",
-      "head": "2559c8e0f45fb7dbe2107bd42e347e6ea8cb63e0"
+      "head": "2de7a113e8400d5cc0b59c975606555061f96beb"
     }
   },
-  "endingCommit": "2559c8e0f4",
+  "endingCommit": "2de7a113e8",
   "nextSteps": [
     "Commit, push, and open the corrective pull request"
   ]
