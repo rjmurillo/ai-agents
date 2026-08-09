@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size
+# Reason: this is a comprehensive contract-test suite; splitting would scatter
+# related fixtures/helpers across files, harming cohesion. Issue #3779.
 """Structural guards for the analyst tool and delegation contract."""
 
 from __future__ import annotations
