@@ -188,6 +188,17 @@ class TestCiSinkWrappers:
         assert result.text == "Authorization: Token ***,timeout=30"
         assert result.reasons == ("authorization-header",)
 
+    @pytest.mark.parametrize("scheme", ["Basic", "Token", "Bearer"])
+    def test_authorization_equals_redacts_the_complete_credential(self, scheme):
+        credential = "ordinary-secret-value"
+        value = f"Authorization={scheme} {credential},timeout=30"
+
+        result = redact_ci_sink(value, redact_assignments=False)
+
+        assert credential not in result.text
+        assert result.text == f"Authorization={scheme} ***,timeout=30"
+        assert result.reasons == ("authorization-header",)
+
     @pytest.mark.parametrize("serialization_depth", range(7))
     def test_serialized_authorization_escaped_slash_is_redacted(
         self,

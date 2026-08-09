@@ -114,7 +114,7 @@ _CREDENTIAL_ASSIGNMENT_AT_CURSOR = re.compile(rf"(?i)({_CREDENTIAL_PREFIX_BODY})
 _AUTHORIZATION_QUOTE = rf"(?:{_SERIALIZED_BACKSLASHES}[\"']|[\"'])?"
 _AUTHORIZATION_WRAPPER = re.compile(
     rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}{_AUTHORIZATION_KEY_WORD}"
-    rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
+    rf"{_AUTHORIZATION_QUOTE}\s*[:=]\s*{_AUTHORIZATION_QUOTE}"
     r"(?:bearer|token|basic)\s+)"
     rf"((?:[A-Za-z0-9._\-+/=~]|{_SERIALIZED_BACKSLASHES}/|"
     rf"{_SERIALIZED_BACKSLASHES}u[0-9a-f]{{4}})+)"
