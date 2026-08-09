@@ -600,7 +600,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     if hard_blocker:
         return 1
-    if result.get("PendingRequiredChecks"):
+    if (
+        result.get("PendingRequiredChecks")
+        or result.get("Mergeable") == "UNKNOWN"
+        or result.get("MergeStateStatus") == "UNKNOWN"
+    ):
         return 2
     return 0
 

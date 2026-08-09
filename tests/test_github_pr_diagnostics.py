@@ -952,6 +952,33 @@ class TestWhyPrBlockedMain:
             rc = _why_mod.main(["--pull-request", "100"])
         assert rc == 1
 
+    def test_exit_2_when_merge_state_is_unknown(self):
+        data = {
+            "Success": True,
+            "Number": 100,
+            "LikelyMergeable": False,
+            "Causes": ["MERGE (state unknown)"],
+            "MissingRequiredChecks": [],
+            "FailingRequiredChecks": [],
+            "PendingRequiredChecks": [],
+            "UnresolvedThreads": 0,
+            "RulesetRequiredContexts": [],
+            "BaseBranch": "main",
+            "Mergeable": "UNKNOWN",
+            "MergeStateStatus": "UNKNOWN",
+            "ReviewDecision": "",
+            "Owner": "o",
+            "Repo": "r",
+        }
+        with (
+            patch(f"{_why_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_why_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_why_mod.__name__}.diagnose", return_value=data),
+            patch(f"{_why_mod.__name__}.write_skill_output"),
+        ):
+            rc = _why_mod.main(["--pull-request", "100"])
+        assert rc == 2
+
     def test_exit_2_on_not_found(self):
         with (
             patch(f"{_why_mod.__name__}.assert_gh_authenticated"),
