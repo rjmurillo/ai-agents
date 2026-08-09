@@ -676,3 +676,15 @@ This can be addressed in a follow-up PR focused on [specific improvement].
 - [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
 - [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)
 - [pr-987-review-response](pr-987-review-response.md)
+
+## Issue #3930: Requery Before Thread Mutation
+
+PR #4566 added live-state gates to reply, resolve, bulk resolve, and
+review-comment reaction paths. Each path verifies PR ownership and requeries
+target state immediately before mutation. Missing, resolved, and wrong-PR
+targets return structured `SKIP`. Query failures return exit 3. Attempted
+mutation failures remain `ACT` failures.
+
+Canonical code lives under `.claude/skills/github/scripts/`. Workflow contracts
+live in `.claude/skills/pr-comment-responder/references/`. Focused positive,
+negative, edge, and concurrency coverage passed 137 tests.
