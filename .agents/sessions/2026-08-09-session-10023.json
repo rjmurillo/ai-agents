@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed through d19a76d479fc2f3bbc8b024aaee899ffd3d59a58 before QA evidence commit."
+        "Evidence": "Code changes committed in f706ed51014b4c715c684bf931d9e27b00bb45fa before QA evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-push passed: 24880 passed, 34 skipped, 50 deselected; safe-push tests passed: 34 selected."
+        "Evidence": "Targeted hook policy tests passed: 1154 passed. Ruff passed on changed files. Mypy passed on changed files. Negative control failed without the source fix and passed after restoring it."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -134,9 +134,17 @@
     {
       "action": "Added QA evidence",
       "result": "Created QA report bound to this session log and the validated commit."
+    },
+    {
+      "action": "Fixed PR 4747 fail-open session validation review thread",
+      "result": "Changed session-log upstream skip checks to compare content. Pre-commit compares index content to upstream default. Pre-push compares HEAD content to upstream default."
+    },
+    {
+      "action": "Validated fail-open regression tests",
+      "result": "Changed-content negative controls failed against the old predicate and passed after restoring the source fix."
     }
   ],
-  "endingCommit": "d19a76d479fc2f3bbc8b024aaee899ffd3d59a58",
+  "endingCommit": "f706ed51014b4c715c684bf931d9e27b00bb45fa",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
