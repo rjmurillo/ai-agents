@@ -251,3 +251,43 @@ a dead `noqa` on a line the branch never touched still blocks the push once the
 branch edits anything else in that file. `tests/validation/test_always_on_corpus_claims.py:36`
 carried `# noqa: E402` from PR #4485 on main and failed `python-lint-ratchet`
 for exactly that reason.
+
+## The same shape outside the count ratchets: hand-written corpus figures
+
+The ratchets are not the only absolute baseline measured against the whole
+tree. `tests/validation/test_always_on_corpus_claims.py` parses six figures out
+of `.claude/skills/context-optimizer/references/model-context-doctrine.md` and
+asserts each against a live measurement of the always-on rule corpus. The
+figures are hand-written prose, so they behave exactly like a ratchet baseline:
+
+- Any branch that adds bytes to an always-on rule must rewrite them.
+- Two such branches rewrite the **same prose lines**, so they conflict in
+  narrative text rather than failing a counter. The conflict is a mid-air
+  collision on numbers that look arbitrary, which is worse to resolve than a
+  counter bump.
+- Merging either one invalidates the other's figures even after the textual
+  conflict is settled, because the measurement moved.
+
+Practical consequence: **stack always-on rule edits on one branch instead of
+opening parallel ones.** On 2026-08-05 the retro branch already owned the
+current figures, so a second rule edit went on the same branch deliberately
+rather than onto a fresh branch off main, which would have conflicted by
+construction.
+
+Two properties make the fix cheap once you know them. A small delta fails four
+of the six numeric assertions, the mirror, Python, source-total, and plugin
+claims. The multiplier and largest-rule checks hold because they only move when
+a rounded value or a ranking changes, so a small edit reads like a different
+problem. And the guard runs in 0.5 seconds standalone while the pre-push hook
+that contains it took 825 seconds in that run:
+
+```bash
+uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py -q
+```
+
+Know what is **not** guarded. The table of per-rule sizes has its rule *names*
+checked against the measured set by
+`test_doctrine_table_matches_measured_always_on_set`, but not its *byte
+values*. The rounded KB figures in the narrative prose and the book-rule
+percentage are unparsed entirely. All three go stale in silence. Recompute them
+by hand in the same edit.
