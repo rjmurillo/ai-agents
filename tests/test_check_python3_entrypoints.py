@@ -15,6 +15,8 @@ Mutation targets verified:
 
 from __future__ import annotations
 
+import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation.check_python3_entrypoints import (
+    _DEFAULT_DOCS,
     _THIRD_PARTY_IMPORTS,
     _collect_third_party_imports,
     check_docs,
@@ -35,6 +38,19 @@ from scripts.validation.check_python3_entrypoints import (
 
 _REPO_ROOT = Path(__file__).parent.parent
 _VALIDATOR = _REPO_ROOT / "scripts/validation/check_python3_entrypoints.py"
+_MEMORY_INDEX_ENTRYPOINT = re.compile(
+    r"(?P<command>(?:python3|uv run(?: --frozen)? python) "
+    r"scripts/validation/memory_index\.py --ci)"
+)
+_MEMORY_INDEX_DOCS = {
+    ".agents/prototypes/agents/implementer.compressed.md",
+    ".claude/agents/retrospective.md",
+    ".github/agents/retrospective.agent.md",
+    "src/claude/retrospective.md",
+    "src/copilot-cli/agents/retrospective.agent.md",
+    "src/vs-code-agents/retrospective.agent.md",
+    "templates/agents/retrospective.shared.md",
+}
 
 # Subprocess captures below pass encoding="utf-8", errors="replace". The
 # repo-wide guard tests/test_subprocess_text_encoding.py enforces the encoding
@@ -90,6 +106,51 @@ class TestCollectThirdPartyImports:
     def test_nested_import_detected(self, tmp_path: Path) -> None:
         s = _write_script(tmp_path, "a.py", "def f():\n    import yaml\n")
         assert "yaml" in _collect_third_party_imports(s)
+
+    def test_transitive_local_import_detected(self, tmp_path: Path) -> None:
+        script = _write_script(
+            tmp_path,
+            "scripts/audit.py",
+            "from scripts import helper\n",
+        )
+        _write_script(tmp_path, "scripts/helper.py", "import yaml\n")
+
+        assert _collect_third_party_imports(script, tmp_path) == {"yaml"}
+
+    def test_local_import_cycle_terminates(self, tmp_path: Path) -> None:
+        script = _write_script(
+            tmp_path,
+            "scripts/audit.py",
+            "from scripts import helper\n",
+        )
+        _write_script(
+            tmp_path,
+            "scripts/helper.py",
+            "from scripts import audit\nimport yaml\n",
+        )
+
+        assert _collect_third_party_imports(script, tmp_path) == {"yaml"}
+
+    def test_parent_package_initializer_import_detected(
+        self, tmp_path: Path
+    ) -> None:
+        script = _write_script(
+            tmp_path,
+            "scripts/audit.py",
+            "import scripts.package.child\n",
+        )
+        _write_script(
+            tmp_path,
+            "scripts/package/__init__.py",
+            "import yaml\n",
+        )
+        _write_script(
+            tmp_path,
+            "scripts/package/child.py",
+            "import sys\n",
+        )
+
+        assert _collect_third_party_imports(script, tmp_path) == {"yaml"}
 
     def test_third_party_imports_set_contains_yaml(self) -> None:
         assert "yaml" in _THIRD_PARTY_IMPORTS
@@ -171,6 +232,62 @@ class TestCheckDocs:
 
         assert len(violations) == 1
         assert violations[0][1] == 3
+
+    def test_violation_when_local_import_loads_yaml(
+        self, tmp_path: Path
+    ) -> None:
+        _write_script(
+            tmp_path,
+            "scripts/audit.py",
+            "from scripts import helper\n",
+        )
+        _write_script(tmp_path, "scripts/helper.py", "import yaml\n")
+        doc = _write_doc(
+            tmp_path,
+            "README.md",
+            ["Run: `python3 scripts/audit.py`"],
+        )
+
+        violations = check_docs([doc], tmp_path)
+
+        assert len(violations) == 1
+        assert violations[0][3] == {"yaml"}
+
+
+class TestDocumentedMemoryIndexEntrypoints:
+    def test_default_docs_cover_every_entrypoint_surface(self) -> None:
+        assert _MEMORY_INDEX_DOCS <= set(_DEFAULT_DOCS)
+
+    def test_every_declared_entrypoint_runs_in_locked_environment(
+        self,
+    ) -> None:
+        commands: list[str] = []
+        for relative_path in sorted(_MEMORY_INDEX_DOCS):
+            content = (_REPO_ROOT / relative_path).read_text(
+                encoding="utf-8",
+            )
+            commands.extend(
+                match.group("command")
+                for match in _MEMORY_INDEX_ENTRYPOINT.finditer(content)
+            )
+
+        assert len(commands) == 25
+        assert set(commands) == {
+            "uv run --frozen python "
+            "scripts/validation/memory_index.py --ci"
+        }
+
+        result = subprocess.run(
+            shlex.split(commands[0]),
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ---------------------------------------------------------------------------
