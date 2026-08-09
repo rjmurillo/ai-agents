@@ -589,6 +589,31 @@ reason.
 Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
+## 2026-08-09 Issue #4764 Inventory Amendment
+
+The six roles reviewed the factual amendment after the push-pr script identity
+gate became the second PreToolUse shim.
+
+### Evidence verified
+
+- Vendored source has two PreToolUse shims and one PostToolUse shim.
+- The PreToolUse manifest timeout sum is 100 seconds.
+- The generated host timeout is 105 seconds.
+- Consolidation saves one process start when both PreToolUse shims match.
+- A first-shim hang can bypass the second because Copilot timeouts fail open.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Counts, timeout arithmetic, and decision scope match. |
+| critic | Accept | No contradiction or hidden design change remains. |
+| independent-thinker | Accept | The amendment states the matcher-limited saving. |
+| security | Accept | The fail-open residual and shim order are explicit. |
+| analyst | Accept | Live manifests confirm every amended number. |
+| high-level-advisor | Accept | The correction is proportionate to one new shim. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
 ## References
 
 - `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`

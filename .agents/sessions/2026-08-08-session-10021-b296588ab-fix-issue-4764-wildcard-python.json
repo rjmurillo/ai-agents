@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10021,
+    "date": "2026-08-08",
+    "branch": "fix/push-pr-script-identity",
+    "startingCommit": "ec076e31d",
+    "objective": "Fix issue 4764 wildcard Python script identity vulnerability"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was active; memory and symbolic tool calls succeeded in the issue worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no .agents/sessions/handoffs file matched issue 4764"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts Python inventory listed and GitHub skill used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded copilot-hook-generation-invariants, copilot skill mirror sources, PreToolUse envelope, security index, push liveness, and session log fixer memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/push-pr-script-identity"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/push-pr-script-identity"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed before commits; only issue 4764 files remained"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ec076e31d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start MUST items and review gates are evidenced in this log"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read-only and unmodified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated copilot-hook-generation-invariants with command identity guard wrapper rules"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdown checks passed on included files; .agents ADR paths reported excluded rather than falsely claiming lint coverage"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, generated surfaces, tests, and contract updates committed through eafff663db; this commit series carries the remaining ADR and session evidence"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "270 guard tests passed; targeted suite 523 passed and 2 skipped; plugin smoke 17 passed and 3 skipped; Ruff and hook contract tests passed"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/4764-push-pr-script-identity-guard-report.md"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced command identity bypasses",
+      "result": "Confirmed GNU env split-string expansion and clustered shell evaluator flags bypassed interpreter detection"
+    },
+    {
+      "action": "Implemented root-cause guard fix",
+      "result": "Rejected env split-string and shell evaluator wrappers while preserving the exact canonical isolated Python invocation"
+    },
+    {
+      "action": "Expanded cross-harness runtime coverage",
+      "result": "Added Claude and generated Copilot tests for wrappers, expansions, interpreters, quoting, normalization, links, and benign commands"
+    },
+    {
+      "action": "security-review",
+      "result": "Independent security reviewer returned APPROVED after recursive High finding fixes"
+    },
+    {
+      "action": "GPT-5.6 Sol adversarial review",
+      "result": "Independent reviewer returned CLEAN after env abbreviation, nested wrapper, and BusyBox fixes"
+    },
+    {
+      "action": "adr-review",
+      "result": "Six independent ADR reviewers returned Accept on ADR-068, ADR-071, and ADR-085 amendments"
+    },
+    {
+      "action": "qa validation",
+      "result": ".agents/qa/4764-push-pr-script-identity-guard-report.md recorded PASS after 480 tests with no Critical or High findings"
+    }
+  ],
+  "endingCommit": "eafff663db",
+  "nextSteps": [
+    "Merge current origin/main and regenerate",
+    "Run final generation, parity, markdown, pre-PR, security, and session gates",
+    "Push one PR, resolve review threads, merge, verify issue 4764 closure, and update todo status"
+  ]
+}

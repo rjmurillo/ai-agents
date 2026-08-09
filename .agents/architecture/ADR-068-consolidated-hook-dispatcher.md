@@ -37,8 +37,9 @@ closed issue state, the ADR-082 dependency, and the retirement endpoint were
 made explicit.
 
 The decision remains active after the 2026-07-22 hook purge. The current
-one-shim PreToolUse and one-shim PostToolUse dispatchers save no process
-starts. Issue #3218 closed on 2026-07-28 after verification showed its
+two-shim PreToolUse dispatcher saves one host process start for matching
+`git push` calls. The one-shim PostToolUse dispatcher saves none. Issue #3218
+closed on 2026-07-28 after verification showed its
 retirement premise was wrong: `_expand_dispatch_groups` and
 `event_matcher_union` remain live generation paths, while parity tests cover
 the generated surfaces. Removing or replacing the generated dispatcher
@@ -81,16 +82,16 @@ The proposal-era measurements were:
 - HISTORICAL sequential aggregate of about 8.7 seconds.
 
 Those numbers explain the original decision but do not describe the current
-tree. PR #3295 completed the hook purge on 2026-07-22. The vendored Claude
-plugin source now contains two registrations across two events: one
-PreToolUse shim and one PostToolUse shim. The generated Copilot plugin exposes
-one dispatcher entry for each event. Consolidation therefore saves no current
-host process start.
+tree. PR #3295 completed the hook purge on 2026-07-22. Issue #4764 later added
+the push-pr script identity gate. The vendored Claude plugin source now contains
+three registrations across two events: two PreToolUse shims and one PostToolUse
+shim. The generated Copilot plugin exposes one dispatcher entry for each event.
+Consolidation saves one host process start when both PreToolUse shims match.
 
 Local `.claude/settings.json` is a separate repository-only surface. It contains
-five registrations across SessionStart, PostToolUse, Stop, and PreCompact. The
-Copilot plugin generator reads the vendored plugin source, not these local
-settings.
+eight registrations across SessionStart, UserPromptSubmit, PostToolUse,
+SessionEnd, PreCompact, and PreToolUse. The Copilot plugin generator reads the
+vendored plugin source, not these local settings.
 
 The current PostToolUse producer, `invoke_markdown_auto_lint.py`, emits
 plaintext diagnostics rather than `modifiedResult` or pre-structured hook
@@ -194,10 +195,11 @@ events and execute those shims in process through
 4. **No in-process budget watchdog.** The manifest records positive,
    non-boolean integer timeout metadata. The consolidated host entry uses the
    sum of per-shim timeout values plus five seconds of dispatcher headroom. The
-   current PreToolUse manifest has one shim with a 90-second configured value,
-   so the generated host entry requests 95 seconds. The host owns the aggregate
-   process timeout. The 1.0.72-1 probe tested only a 2-second timeout. No
-   evidence proves the host grants, caps, or enforces the requested 95 seconds.
+   current PreToolUse manifest has two shims with 100 seconds of configured
+   timeout, so the generated host entry requests 105 seconds. The host owns the
+   aggregate process timeout. The 1.0.72-1 probe tested only a 2-second timeout.
+   No evidence proves the host grants, caps, or enforces the requested 105
+   seconds.
    There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default, `SIGALRM`,
    watchdog thread, or structured `budget_exceeded` result.
    In-process termination was rejected because a watchdog thread cannot safely
@@ -264,10 +266,9 @@ this ADR removes.
 
 The remaining timeout boundary is therefore the host process. On the measured
 Copilot CLI 1.0.72-1 behavior, a host timeout fails open. The current
-PreToolUse manifest has one shim, so a hang cannot bypass a later PreToolUse
-shim. The host can still allow the tool whose only gate timed out. Consolidation
-therefore adds no current intra-event gate bypass, but the host fail-open
-residual remains.
+PreToolUse manifest has two shims, so a hang in the first can bypass the second.
+The host can also allow the tool when either gate never completes. The host
+fail-open residual remains.
 
 ## Prior Art and Current Rationale
 
@@ -278,8 +279,8 @@ registration count, not canonical guard authorship or matcher semantics.
 The current reasons to keep the dispatcher are:
 
 1. One implementation path preserves reviewed dispatch and output policy for
-   active events. With one shim per active event, it saves no current process
-   start.
+   active events. It saves one current process start when both PreToolUse shims
+   match.
 2. Per-shim self-filtering provides a fallback for old hosts and matchers that
    cannot be represented safely as a host union.
 3. Generic PermissionRequest translation prevents future policy producers from
@@ -298,7 +299,7 @@ The current reasons to keep the dispatcher are:
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
 | Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
 | Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is one shim, so direct registration would not increase gate process count. The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
+| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is two shims. Direct registration would add one process for calls matching both. The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -310,8 +311,9 @@ The current reasons to keep the dispatcher are:
 
 ### Positive
 
-- The current vendored tree keeps one host entry per active event and preserves
-  one generation path for future safely consolidatable events.
+- The current vendored tree keeps one host entry per active event, reduces two
+  matching PreToolUse processes to one, and preserves one generation path for
+  future safely consolidatable events.
 - Hosts that support matchers can skip a dispatcher spawn for safely reduced
   nonmatching tool calls.
 - Retained self-filtering keeps the generated shim matcher grammar as the
@@ -329,15 +331,16 @@ The current reasons to keep the dispatcher are:
 ### Negative
 
 - One dispatcher defect affects every shim registered for that event.
-- The current complexity-to-value ratio is low. Neither active event saves a
-  process start. Issue #3218 closed without removing the live generation
-  machinery. Simplification requires a new architecture decision.
+- The current complexity-to-value ratio remains low. Only `git push` calls
+  matching both PreToolUse shims save one process start. Issue #3218 closed
+  without removing the live generation machinery. Simplification requires a
+  new architecture decision.
 - One hung consolidated gate can reach the host timeout. On the measured
-  1.0.72-1 host, that timeout fails open. The current one-shim PreToolUse
-  manifest has no later gate to bypass, but its tool call can still proceed.
+  1.0.72-1 host, that timeout fails open. The current two-shim PreToolUse
+  manifest can skip a later gate, and its tool call can still proceed.
 - In-process guards share interpreter state, stdin replay, and module state.
-- The current PreToolUse manifest value is 90 seconds. The generated host entry
-  requests 95 seconds after five seconds of dispatcher headroom. No
+- The current PreToolUse manifest value is 100 seconds. The generated host entry
+  requests 105 seconds after five seconds of dispatcher headroom. No
   current evidence shows whether the host grants, caps, or enforces it.
 - The observer merger treats PostToolUse stdout as context text. The flat
   blank-line merge loses per-shim attribution. It does not merge
@@ -404,8 +407,8 @@ Reopen this decision when any of these occurs:
 
 1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
    structured-output behavior.
-2. The active PreToolUse manifest grows beyond one shim or its summed requested
-   timeout grows beyond 90 seconds.
+2. The active PreToolUse manifest grows beyond two shims or its summed requested
+   timeout grows beyond 100 seconds.
 3. A new PermissionRequest producer or a new blocking gate joins the
    consolidated path.
 4. A PostToolUseFailure producer emits repository-controlled or other untrusted
