@@ -56,11 +56,25 @@ SERENA_WRITES = {
     "onboarding",
 }
 
+REQUIRED_GITHUB_READ_TOOLS = {
+    "github/issue_read",
+    "github/pull_request_read",
+    "github/get_file_contents",
+    "github/list_commits",
+}
+
+REQUIRED_CI_READ_TOOLS = {
+    "github/list_workflow_runs",
+    "github/get_workflow_run",
+}
+
 PORTABLE_READONLY_TOOLS = {
     "read",
     "search",
     "cognitionai/deepwiki/*",
     "context7/*",
+    *REQUIRED_GITHUB_READ_TOOLS,
+    *REQUIRED_CI_READ_TOOLS,
     *(f"serena/{operation}" for operation in SERENA_READONLY),
 }
 
@@ -72,6 +86,8 @@ CLAUDE_READONLY_TOOLS = {
     "mcp__context7__get_library_docs",
     "mcp__deepwiki__read_wiki_structure",
     "mcp__deepwiki__read_wiki_contents",
+    *REQUIRED_GITHUB_READ_TOOLS,
+    *REQUIRED_CI_READ_TOOLS,
     *(f"mcp__serena__{operation}" for operation in SERENA_READONLY),
 }
 
@@ -200,6 +216,46 @@ class TestNoUnsafeToolsInFrontmatter:
                     pytest.fail(
                         f"{path.relative_to(REPO_ROOT)}: serena write op '{tool}'"
                     )
+
+
+class TestRequiredReadOnlyGitHubTools:
+    """Analyst outputs must keep PR, issue, file, commit, and CI read tools."""
+
+    @pytest.mark.parametrize(
+        "path",
+        ALL_ANALYST_FILES,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_required_read_tools_present(self, path: Path) -> None:
+        text = path.read_text()
+        frontmatter = _extract_frontmatter(text)
+        tools = set(_extract_tools(frontmatter))
+        missing_github = REQUIRED_GITHUB_READ_TOOLS - tools
+        missing_ci = REQUIRED_CI_READ_TOOLS - tools
+        assert not missing_github, (
+            f"{path.relative_to(REPO_ROOT)}: missing GitHub read tools "
+            f"{sorted(missing_github)}"
+        )
+        assert not missing_ci, (
+            f"{path.relative_to(REPO_ROOT)}: missing CI read tools "
+            f"{sorted(missing_ci)}"
+        )
+
+    @pytest.mark.parametrize(
+        "path",
+        ALL_ANALYST_FILES,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_prose_uses_declared_github_read_tools(self, path: Path) -> None:
+        text = path.read_text()
+        assert "Use the declared GitHub read tools" in text, (
+            f"{path.relative_to(REPO_ROOT)}: GitHub read tools are declared "
+            "but not used by the agent contract"
+        )
+        assert "Do not claim the ability to retrieve GitHub data" not in text, (
+            f"{path.relative_to(REPO_ROOT)}: prose contradicts declared "
+            "GitHub read tools"
+        )
 
 
 class TestNoDirectGitHubGuidance:
