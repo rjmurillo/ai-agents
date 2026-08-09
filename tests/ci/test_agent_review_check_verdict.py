@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -17,11 +18,22 @@ from scripts.ci.agent_review_check_verdict import (
     run,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = REPO_ROOT / "scripts" / "ci" / "agent_review_check_verdict.py"
+
 
 class TestConstants:
     def test_blocking_verdicts_set(self) -> None:
         assert _BLOCKING_VERDICTS == frozenset(
-            {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"}
+            {
+                "CRITICAL_FAIL",
+                "REJECTED",
+                "FAIL",
+                "NEEDS_REVIEW",
+                "NON_COMPLIANT",
+                "UNKNOWN",
+                "DID_NOT_RUN",
+            }
         )
 
     def test_max_annotation_length(self) -> None:
@@ -42,8 +54,8 @@ class TestRun:
         with patch.dict(os.environ, self._env("PASS")):
             assert run() == 0
 
-    def test_approved_returns_0(self) -> None:
-        with patch.dict(os.environ, self._env("APPROVED")):
+    def test_compliant_returns_0(self) -> None:
+        with patch.dict(os.environ, self._env("COMPLIANT")):
             assert run() == 0
 
     def test_critical_fail_returns_1(self) -> None:
@@ -62,8 +74,19 @@ class TestRun:
         with patch.dict(os.environ, self._env("NEEDS_REVIEW")):
             assert run() == 1
 
-    def test_infra_failure_downgrades_blocking_to_0(self) -> None:
-        with patch.dict(os.environ, self._env("CRITICAL_FAIL", infra="true")):
+    @pytest.mark.parametrize(
+        "verdict",
+        ["NON_COMPLIANT", "UNKNOWN", "DID_NOT_RUN", "FOOBAR"],
+    )
+    def test_other_blocking_or_malformed_verdicts_return_1(
+        self, verdict: str
+    ) -> None:
+        with patch.dict(os.environ, self._env(verdict)):
+            assert run() == 1
+
+    @pytest.mark.parametrize("verdict", ["CRITICAL_FAIL", "DID_NOT_RUN", "UNKNOWN"])
+    def test_infra_failure_defers_to_aggregate(self, verdict: str) -> None:
+        with patch.dict(os.environ, self._env(verdict, infra="true")):
             assert run() == 0
 
     def test_empty_verdict_defaults_to_needs_review_blocking(self) -> None:
@@ -118,6 +141,8 @@ class TestRun:
             run()
         out = capsys.readouterr().out
         assert "infrastructure failure" in out.lower()
+        assert "Aggregate Results decides whether this blocks the PR." in out
+        assert "Copilot CLI unavailable" not in out
 
     def test_pass_message_printed_on_success(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch.dict(os.environ, self._env("PASS")):
@@ -130,3 +155,29 @@ class TestMain:
     def test_main_delegates(self) -> None:
         with patch("scripts.ci.agent_review_check_verdict.run", return_value=0):
             assert main() == 0
+
+    def test_script_bootstraps_repo_root_from_foreign_cwd(
+        self, tmp_path: Path
+    ) -> None:
+        env = {
+            **os.environ,
+            "AGENT": "security",
+            "EMOJI": "lock",
+            "VERDICT": "PASS",
+            "FINDINGS": "",
+            "INFRASTRUCTURE_FAILURE": "false",
+        }
+
+        completed = subprocess.run(
+            [sys.executable, "-I", str(SCRIPT)],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        assert completed.returncode == 0
+        assert "review passed with verdict: PASS" in completed.stdout
+        assert "ModuleNotFoundError" not in completed.stderr
