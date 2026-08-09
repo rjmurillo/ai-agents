@@ -282,13 +282,18 @@ def test_pull_request_read_declared(path: Path) -> None:
 
 @pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_blocked_requires_retrieval_failure(path: Path) -> None:
-    """BLOCKED must be conditional on retrieval failure."""
+    """BLOCKED must be conditional on retrieval failure, not unconditional."""
     text = path.read_text()
     idx = text.find("[BLOCKED]")
     assert idx != -1
-    ctx = text[max(0, idx - 300):idx + 300].lower()
-    assert any(w in ctx for w in ("missing", "fails", "after", "unavailable")), (
-        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] not conditional on retrieval failure"
+    # Look at the sentence/paragraph containing BLOCKED
+    ctx = text[max(0, idx - 500):idx + 200].lower()
+    # Must contain conditional language (if/when/after), not just a keyword
+    # that also appears in the BLOCKED message itself
+    conditional_words = ("if ", "when ", "only after", "only when", "only if")
+    assert any(w in ctx for w in conditional_words), (
+        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] appears unconditional; "
+        f"must use conditional language (if/when/only after retrieval failure)"
     )
 
 
@@ -306,10 +311,10 @@ def test_local_identity_conditional_in_template() -> None:
 
 
 def test_no_duplicate_identity_gate() -> None:
-    """Only one PR identity gate per surface."""
+    """Exactly one PR identity gate per surface."""
     for path in ALL_ANALYST_SURFACES:
         text = path.read_text()
         count = text.count("PR identity gate")
-        assert count <= 1, (
-            f"{path.relative_to(REPO_ROOT)}: {count} PR identity gates (expected 1)"
+        assert count == 1, (
+            f"{path.relative_to(REPO_ROOT)}: {count} PR identity gates (expected exactly 1)"
         )
