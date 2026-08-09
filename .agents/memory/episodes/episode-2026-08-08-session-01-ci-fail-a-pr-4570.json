@@ -1,0 +1,121 @@
+{
+  "id": "episode-2026-08-08-session-01-ci-fail-a-pr-4570",
+  "session": "2026-08-08-session-01-ci-fail-a-pr-4570",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix the failing required CI check on PR 4570 without touching review threads.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T05:05:00+00:00",
+      "type": "milestone",
+      "content": "Acquired PR 4570 lease and live-state check returned ACT.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T05:10:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused analyst contract tests: 81 collected, 81 passed.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T05:10:00+00:00",
+      "type": "test",
+      "content": "Ran focused analyst contract tests: 81 collected, 81 passed.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T05:12:00+00:00",
+      "type": "milestone",
+      "content": "Added QA report for the required PR validation gate. Review threads were not touched.",
+      "caused_by": [
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T04:31:15+00:00",
+      "type": "commit",
+      "content": "Commit: c5415bc24b62aacde4cc7c21964f42ac9b101e80",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T05:35:00+00:00",
+      "type": "milestone",
+      "content": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T05:35:00+00:00",
+      "type": "test",
+      "content": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T05:18:19+00:00",
+      "type": "commit",
+      "content": "Commit: 43c67cd4eb9d0ca2acb57e614776db809990b4d8",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006",
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 30,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 11
+  },
+  "lessons": []
+}
