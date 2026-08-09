@@ -458,6 +458,7 @@ GENERATED_GLOBS = {
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
     "prompts": (".github/prompts/pr-quality-gate-*.md",),
+    "vendor": (".claude/hooks/PreToolUse/_vendor/**",),
 }
 
 # Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
