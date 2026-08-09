@@ -170,7 +170,8 @@ Run it from a clean worktree at `origin/main`, not from a branch checkout, or
 the branch's own content contaminates the answer:
 
 ```bash
-git worktree add /tmp/mainverify origin/main --detach
+git fetch origin main
+git worktree add "$HOME/src/scratch/worktrees/mainverify" origin/main --detach
 ```
 
 Applied 2026-08-08 after landing #4614, #4572, #4755, and #4741: `181 passed
