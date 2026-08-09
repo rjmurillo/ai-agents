@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Original fixes through 40503be635, recovery fix 49be29e0d8, and latest-main merge 40422abc79"
+        "Evidence": "Original fixes through 40503be635, recovery fixes 49be29e0d8 and 5106f0b756, and latest-main merge 40422abc79"
       },
       "validationPassed": {
         "level": "MUST",
@@ -156,6 +156,6 @@
       "outcome": "The legacy filesystem scanner examined 461 ignored pytest artifact files and disagreed with pre-PR; issue #4657 now wires both phases to the same git-scoped fail-closed checker"
     }
   ],
-  "endingCommit": "40422abc798b15fda2fa62ed8ef0a48369af4b58",
+  "endingCommit": "5106f0b756c1bd98a039f1b907fbd213478eae43",
   "nextSteps": []
 }

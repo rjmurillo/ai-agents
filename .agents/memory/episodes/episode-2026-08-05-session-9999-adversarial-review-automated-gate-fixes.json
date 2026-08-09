@@ -277,6 +277,32 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-09T04:54:10+00:00",
+      "type": "commit",
+      "content": "Commit: 40422abc79",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-09T05:43:44+00:00",
+      "type": "commit",
+      "content": "Commit: 5106f0b756c1bd98a039f1b907fbd213478eae43",
+      "caused_by": [
+        "e023"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
@@ -286,8 +312,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
-    "files_changed": 63
+    "commits": 15,
+    "files_changed": 64
   },
   "lessons": []
 }
