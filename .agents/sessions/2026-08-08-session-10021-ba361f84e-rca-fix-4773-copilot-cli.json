@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/4777-ai-quality-gate-test-report.md"
+        "Evidence": ".agents/qa/4777-pr-4784-ai-quality-gate-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
