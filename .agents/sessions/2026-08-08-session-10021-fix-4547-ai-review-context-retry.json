@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA commit 1a8a3fc487d60d7a1b6718aa4e2606f625a6d41a."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit fb136f0933477c1af22e54b9757abe2dea2edcfb."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "395 focused and plain-script import tests passed at QA commit 1a8a3fc487d60d7a1b6718aa4e2606f625a6d41a. The previous full pre-push suite passed 24917 tests with 34 skips and 50 deselections. Mypy, Ruff, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "431 focused and plain-script import tests passed at QA code commit fb136f0933477c1af22e54b9757abe2dea2edcfb. The previous full pre-push suite passed 24917 tests with 34 skips and 50 deselections. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -158,9 +158,13 @@
     {
       "action": "Resolved final credential-shape review finding",
       "outcome": "Applied the shared token-shape redactor with include_hex disabled before context files, GitHub outputs, artifact contexts, persisted prompts, and model argv. Final recursive DevOps and GPT-5.6 Sol reviews passed."
+    },
+    {
+      "action": "Resolved recursive sink and stale-verdict findings",
+      "outcome": "Added shared wrapper and assignment redaction, parse-before-redact handling for structured GitHub responses, collision-safe outputs, direct-action deadlines, failed-process verdict rejection, and stale output removal. Final DevOps and GPT-5.6 Sol reviews found no Critical or High issues."
     }
   ],
-  "endingCommit": "1a8a3fc487d60d7a1b6718aa4e2606f625a6d41a",
+  "endingCommit": "fb136f0933477c1af22e54b9757abe2dea2edcfb",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]
