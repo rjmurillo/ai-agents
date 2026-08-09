@@ -35,6 +35,10 @@ PERMANENT_AUTH_PATTERN = re.compile(
     r"resource not accessible by integration|must have admin rights",
     re.IGNORECASE,
 )
+EXPLICIT_TRANSIENT_PATTERN = re.compile(
+    r"\bHTTP\s+(?:429|500|502|503|504)\b|rate limit|too many requests",
+    re.IGNORECASE,
+)
 RETRY_AFTER_PATTERN = re.compile(
     r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
     re.IGNORECASE,
@@ -127,10 +131,14 @@ def append_multiline_output(path: Path, name: str, value: str) -> None:
         handle.write(f"{delimiter}\n")
 
 
-def redact_secrets(value: str | None) -> str:
+def redact_secrets(value: str | None, *, redact_assignments: bool = True) -> str:
     """Redact installed values, wrappers, and recognized credential shapes."""
     secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
-    return redact_ci_sink(value or "", secret_values=secret_values).text
+    return redact_ci_sink(
+        value or "",
+        secret_values=secret_values,
+        redact_assignments=redact_assignments,
+    ).text
 
 
 def retry_delay(stderr: str, fallback: int) -> int:
@@ -138,6 +146,13 @@ def retry_delay(stderr: str, fallback: int) -> int:
     if not header:
         return fallback
     return max(0, int(float(header.group(1))))
+
+
+def is_permanent_auth_failure(value: str) -> bool:
+    """Return whether the CLI rejected credentials rather than service capacity."""
+    if EXPLICIT_TRANSIENT_PATTERN.search(value):
+        return False
+    return PERMANENT_AUTH_PATTERN.search(value) is not None
 
 
 def parse_config(env: Mapping[str, str]) -> InvokeConfig:
@@ -301,7 +316,7 @@ def invoke_with_retry(
         print(f"Stdout length: {len(output)} chars")
         print(f"Stderr length: {len(stderr)} chars")
 
-        if exit_code != 0 and PERMANENT_AUTH_PATTERN.search(f"{stderr}\n{output}"):
+        if exit_code != 0 and is_permanent_auth_failure(f"{stderr}\n{output}"):
             infrastructure_failure = True
             print("::warning::Copilot authentication or permission was rejected.")
             output = (
@@ -388,7 +403,7 @@ def analyze_non_infra_failure(result: AttemptResult) -> int:
 def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult) -> None:
     output = redact_secrets(result.output)
     stderr = redact_secrets(result.stderr)
-    persisted_prompt = redact_secrets(full_prompt)
+    persisted_prompt = redact_secrets(full_prompt, redact_assignments=False)
     if result.infrastructure_failure and not output:
         output = (
             "VERDICT: CRITICAL_FAIL\n"
@@ -424,7 +439,7 @@ def run(config: InvokeConfig) -> int:
         additional_context=config.additional_context,
         context_file=config.context_file,
     )
-    full_prompt = redact_secrets(full_prompt)
+    full_prompt = redact_secrets(full_prompt, redact_assignments=False)
     FULL_PROMPT_PATH.write_text(full_prompt + "\n", encoding="utf-8")
     if (
         config.context_file is None

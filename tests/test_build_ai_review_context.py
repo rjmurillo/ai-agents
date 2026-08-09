@@ -1474,6 +1474,24 @@ def test_write_outputs_redacts_context_before_every_sink(
     assert "[redacted: github-pat]" in persisted
 
 
+def test_write_outputs_preserves_source_assignment_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    output_path = tmp_path / "github-output.txt"
+    runner_temp = tmp_path / "runner"
+    source = '+token = accept_unverified_jwt(user_input)'
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
+    monkeypatch.delenv("PR_NUMBER", raising=False)
+
+    _mod.write_outputs(ReviewContext(source, "full"))
+
+    context_file = next(runner_temp.glob("ai-review-context-pr*.txt"))
+    persisted = output_path.read_text(encoding="utf-8") + context_file.read_text(encoding="utf-8")
+    assert source in persisted
+
+
 def test_write_outputs_sanitizes_context_file_identifier(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

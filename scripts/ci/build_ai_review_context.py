@@ -490,8 +490,9 @@ def _build_pr_diff_context(
             f"PR number mismatch: requested {pr_number}, got {metadata.number}",
         )
 
-    title = metadata.title
-    print(f"Building context for PR #{pr_number}: {_redact_secrets(title)}")
+    title = _redact_secrets(metadata.title)
+    body = _redact_secrets(metadata.body)
+    print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
     try:
@@ -502,7 +503,6 @@ def _build_pr_diff_context(
         # defaults to NEEDS_REVIEW with INFRA_FAILURE false and blocks the PR.
         return _pr_fetch_failure_context(pr_number, str(exc))
 
-    body = metadata.body
     if body:
         text = (
             f"## PR #{pr_number}: {title}\n\n## PR Description\n{body}\n\n## Changes\n{built.text}"
@@ -721,7 +721,12 @@ def write_outputs(review_context: ReviewContext) -> None:
     workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
-    safe_context = _redact_secrets(review_context.text)
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    safe_context = redact_ci_sink(
+        review_context.text,
+        secret_values=secret_values,
+        redact_assignments=False,
+    ).text
     context_file.write_text(safe_context, encoding="utf-8")
 
     append_output(output_path, "context_mode", review_context.mode)

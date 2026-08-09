@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 
+import pytest
+
 from scripts.ci import invoke_copilot_cli as invoke
 
 
@@ -164,6 +166,35 @@ def test_invoke_honors_inline_retry_after_for_http_429(tmp_path):
     assert result.infrastructure_failure is False
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "HTTP 429: authentication failed because too many requests; Retry-After: 0",
+        "HTTP 503: authentication failed: service unavailable",
+    ],
+)
+def test_explicit_transient_status_precedes_generic_auth_wording(tmp_path, failure):
+    calls = 0
+
+    def runner(_argv):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return invoke.CommandResult(1, "", failure)
+        return invoke.CommandResult(0, "VERDICT: PASS", "")
+
+    result = invoke.invoke_with_retry(
+        config=make_config(tmp_path),
+        full_prompt="prompt",
+        runner=runner,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert calls == 2
+    assert result.infrastructure_failure is False
+    assert result.retry_count == 1
+
+
 def test_invoke_retries_empty_success_output_and_fails_as_infrastructure(tmp_path):
     calls = 0
 
@@ -299,6 +330,23 @@ def test_run_redacts_prompt_before_invocation(tmp_path, monkeypatch):
     assert invoke.run(config) == invoke.EXIT_OK
     assert token not in observed[0]
     assert "[redacted: github-token]" in observed[0]
+
+
+def test_run_preserves_source_assignment_semantics(tmp_path, monkeypatch):
+    source = '+token = accept_unverified_jwt(user_input)'
+    context_file = tmp_path / "context.md"
+    context_file.write_text(source, encoding="utf-8")
+    config = make_config(tmp_path, context_file=context_file)
+    observed: list[str] = []
+
+    def fake_invoke_with_retry(*, config, full_prompt):
+        observed.append(full_prompt)
+        return invoke.AttemptResult(0, "VERDICT: PASS", "", False, 0)
+
+    monkeypatch.setattr(invoke, "invoke_with_retry", fake_invoke_with_retry)
+
+    assert invoke.run(config) == invoke.EXIT_OK
+    assert source in observed[0]
 
 
 def test_write_results_preserves_outputs_and_flags(tmp_path):

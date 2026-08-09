@@ -41,7 +41,11 @@ _SECRET_ENVIRONMENT_VARIABLES = (
 def redact_artifact_text(value: str) -> str:
     """Redact installed credentials and recognized shapes from artifact text."""
     secret_values = (os.environ.get(variable, "") for variable in _SECRET_ENVIRONMENT_VARIABLES)
-    return redact_ci_sink(value, secret_values=secret_values).text
+    return redact_ci_sink(
+        value,
+        secret_values=secret_values,
+        redact_assignments=False,
+    ).text
 
 
 def write_github_output(key: str, value: str) -> None:
