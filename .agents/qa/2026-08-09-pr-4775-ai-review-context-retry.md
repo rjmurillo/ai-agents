@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 7dc1f9160c5ff336da29494c1d0a55c79210a347
+qaCommit: b0f0be739909a3069cbe75c13b781d6713bffac1
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -21,10 +21,11 @@ across context, model, and artifact sinks.
 | Copilot invoker tests | [PASS], 18 tests |
 | Artifact context tests | [PASS], 9 tests |
 | Shared redactor tests | [PASS], 23 tests |
-| Direct-action budget tests | [PASS], 5 tests |
-| Plain-script import tests | [PASS], 293 tests |
+| Direct-action budget and deadline tests | [PASS], 19 tests |
+| Plain-script import tests | [PASS], 294 tests |
 | Bundled redactor parity tests | [PASS], 6 tests |
-| Combined focused regression selection | [PASS], 437 tests |
+| Combined focused regression selection | [PASS], 452 tests |
+| ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
 | Changed-file mypy | [PASS] |
 | Pre-PR validations | [PASS], 50 checks |
@@ -46,6 +47,8 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            URL, token-shape, and assignment redaction before every external
            sink; parse-before-redact for successful structured responses;
            collision-safe GitHub outputs; stale verdict removal.
+           Composite-action deadline logic extracted into a tested Python
+           helper with exact inherited-deadline input validation.
 Gap: None.
 Result: PASS
 ```

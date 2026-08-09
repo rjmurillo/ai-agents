@@ -78,7 +78,8 @@
         "e009",
         "e010",
         "e011",
-        "e014"
+        "e014",
+        "e018"
       ],
       "leads_to": [
         "e012"
@@ -211,6 +212,30 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR validation deadline extraction",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-09T09:10:59+00:00",
+      "type": "commit",
+      "content": "Commit: b0f0be739909a3069cbe75c13b781d6713bffac1",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -220,8 +245,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 18
+    "commits": 7,
+    "files_changed": 20
   },
   "lessons": []
 }
