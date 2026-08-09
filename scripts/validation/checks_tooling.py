@@ -12,22 +12,33 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from checks_changed_paths import _filtered_targets  # noqa: E402
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
     _run_subprocess,
 )
 from checks_dash import _is_vendored  # noqa: E402
+from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
 # "Linting: N files" prints before any read; Summary's count is files *with
 # issues*, so a clean file and an unselected file both read as 0-of-0.
 _LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
+
+
+def _require_script(script: Path) -> None:
+    """Raise MissingScriptSkip if ``script`` is absent (a SKIP, not a FAIL)."""
+    if not script.exists():
+        raise MissingScriptSkip(
+            f"{script.name} not present (ADR-042 expungement; no Python port yet)"
+        )
 
 
 def _find_latest_session_log(repo_root: Path) -> Path | None:
@@ -76,6 +87,12 @@ def validate_session_end(repo_root: Path) -> bool:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
 
+    _, validation_head, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        timeout=30,
+    )
+    validation_head = validation_head.strip() or "INVALID_HEAD"
+
     python_script = repo_root / "scripts" / "validate_session_json.py"
     if not python_script.exists():
         raise MissingScriptSkip(
@@ -86,7 +103,13 @@ def validate_session_end(repo_root: Path) -> bool:
     for log_path in changed_logs:
         print(f"Validating session log: {log_path.name}")
         exit_code, stdout, stderr = _run_subprocess(
-            [sys.executable, str(python_script), str(log_path)]
+            [
+                sys.executable,
+                str(python_script),
+                str(log_path),
+                "--validation-head",
+                validation_head,
+            ]
         )
         output = (stdout or "") + (stderr or "")
         if output.strip():
@@ -97,14 +120,11 @@ def validate_session_end(repo_root: Path) -> bool:
     return not failed
 
 
-def validate_markdown_lint(
-    repo_root: Path,
-    explicit_targets: list[str] | None = None,
-) -> bool:
+def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None = None) -> bool:
     """Validate Markdown and report whether markdownlint selected any files.
 
-    ``explicit_targets`` is used by Lefthook's staged-file jobs. It keeps the
-    hook on the same reporting path as the pre-PR validator while still letting
+    ``explicit_targets`` (Lefthook's staged-file jobs) keeps the hook on the
+    same reporting path as the pre-PR validator while still letting
     markdownlint-cli2 apply ``ignores`` from ``.markdownlint-cli2.yaml``.
     """
     if not shutil.which("npx"):
@@ -113,9 +133,7 @@ def validate_markdown_lint(
         return False
 
     targets = (
-        explicit_targets
-        if explicit_targets is not None
-        else _markdown_lint_targets(repo_root)
+        explicit_targets if explicit_targets is not None else _markdown_lint_targets(repo_root)
     )
     scope_name = "selected" if explicit_targets is not None else "branch"
     if targets == []:
@@ -126,9 +144,7 @@ def validate_markdown_lint(
     action = "Auto-fixing" if autofix else "Checking"
     target_args = ["**/*.md"] if targets is None else targets
     scope = (
-        "markdown files"
-        if targets is None
-        else f"{len(target_args)} {scope_name} markdown file(s)"
+        "markdown files" if targets is None else f"{len(target_args)} {scope_name} markdown file(s)"
     )
     print(f"{action} {scope}...")
     command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
@@ -144,16 +160,10 @@ def validate_markdown_lint(
 
     print("[FAIL] Markdown linting failed")
     print()
-    # markdownlint-cli2 writes violations to stderr and a progress banner to
-    # stdout, and both were discarded here. A failing run printed the canned
-    # list below and nothing else, so an MD041 and an MD032 arrived as advice
-    # about MD040 and MD033. Print what the tool actually said.
-    #
-    # stderr only, when it has anything: stdout's "Finding:" line restates all
-    # 44 exclusion globs on one ~1,000-character line and would bury the two
-    # lines that name the file, the line and the rule. stdout is the fallback
-    # for the failure modes that never reach the violation reporter, such as an
-    # unparsable config.
+    # Prefer stderr (violations); stdout's "Finding:" line restates all 44
+    # exclusion globs on one long line, burying the file/line/rule. stdout is
+    # the fallback when a failure never reaches the violation reporter (e.g.
+    # an unparsable config).
     detail = stderr if stderr.strip() else stdout
     for line in detail.splitlines():
         if line.strip():
@@ -166,12 +176,7 @@ def validate_markdown_lint(
 
 
 def _linted_file_count(stdout: str) -> int | None:
-    """Return how many files markdownlint-cli2 actually selected, or None.
-
-    None means the banner was absent, which happens if the tool changes its
-    output. Callers must not read that as zero or as "all of them"; it is
-    "unknown", and saying so beats guessing.
-    """
+    """Return files markdownlint-cli2 selected, or None (unknown, not zero)."""
     match = _LINTED_COUNT_PATTERN.search(stdout)
     return int(match.group(1)) if match else None
 
@@ -179,13 +184,9 @@ def _linted_file_count(stdout: str) -> int | None:
 def _report_selection(target_args: list[str], stdout: str) -> None:
     """Say whether a green run checked anything (issue #3710).
 
-    ``.markdownlint-cli2.yaml`` excludes 89.7% of tracked markdown, including
-    ``.claude/skills/**``, ``.agents/**`` and ``**/CLAUDE.md``, which is most of
-    what anyone edits here. Naming an excluded file on the command line selects
-    nothing and exits 0, so this check reported PASS on a branch where every
-    changed file went unread, and the session log recorded "markdownlint passed"
-    as evidence. The exclusions are deliberate, so this is not a failure. It is
-    a PASS that has to say which kind of PASS it is.
+    ``.markdownlint-cli2.yaml`` excludes 89.7% of tracked markdown; naming an
+    excluded file selects nothing and exits 0, so a PASS must say which
+    kind of PASS it is.
     """
     selected = _linted_file_count(stdout)
     if selected is None:
@@ -210,62 +211,51 @@ def _report_selection(target_args: list[str], stdout: str) -> None:
         )
 
 
+def _print_capped(output: str, limit: int, unit: str) -> None:
+    """Print at most ``limit`` lines of ``output``, then an omitted-count note."""
+    lines = output.strip().split("\n")
+    for line in lines[:limit]:
+        print(line)
+    if len(lines) > limit:
+        print(f"... ({len(lines) - limit} more {unit} omitted)")
+
+
 def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
     """Return changed markdown files, [] for none, or None for full-repo fallback."""
-    base_ref = _resolve_branch_base_ref(repo_root)
-    if base_ref is None:
-        print("[WARNING] Markdown lint target narrowing skipped: no base ref resolved")
-        return None
-
-    exit_code, stdout, stderr = _run_subprocess(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "diff",
-            "--name-only",
-            "--diff-filter=ACMR",
-            f"{base_ref}...HEAD",
-        ],
-        timeout=30,
+    return cast(
+        list[str] | None,
+        _filtered_targets(
+            repo_root, "Markdown lint", lambda p: p.endswith(".md") and not _is_vendored(p)
+        ),
     )
-    if exit_code != 0:
-        print(
-            f"[WARNING] Markdown lint target narrowing skipped: git diff failed: {stderr}",
-        )
-        return None
 
-    return [
-        path
-        for path in stdout.splitlines()
-        if path.endswith(".md") and not _is_vendored(path) and (repo_root / path).is_file()
-    ]
+
+def _yaml_style_targets(repo_root: Path) -> list[str] | None:
+    """Return changed YAML files, [] for none, or None for full-repo fallback.
+
+    No vendored filter: yamllint applies ``.yamllint.yml``'s ``ignore:`` per
+    path already (verified 1.38.0: no-op, exit 0), unlike markdown.
+    """
+    return cast(
+        list[str] | None,
+        _filtered_targets(repo_root, "YAML style", lambda p: p.endswith((".yml", ".yaml"))),
+    )
 
 
 def validate_workflow_yaml(repo_root: Path) -> bool:
     """Validate GitHub Actions workflow files with actionlint.
 
-    Scope is restricted to ``.github/workflows/`` by globbing that directory
-    and passing the explicit file list to actionlint. This is deliberate:
-    actionlint validates workflow files only. A bare ``actionlint`` with no
-    path argument recursively scans every ``.yml``/``.yaml`` file, including
-    composite action definitions under ``.github/actions/*/action.yml``, and
-    misreads each composite ``action.yml`` as a workflow, emitting false
-    errors (issue #2346). Composite actions cannot be validated with
-    actionlint, so they are never passed to it here. Do not widen the glob
-    to the repo root or to ``.github/``.
+    Scoped to ``.github/workflows/``: a bare ``actionlint`` recursively scans
+    every YAML file, including composite actions under
+    ``.github/actions/*/action.yml``, misreading each as a workflow (issue
+    #2346); never widen the glob.
 
-    actionlint shells out to shellcheck for ``run:`` scripts. shellcheck
-    emits findings at four severities: ``error``, ``warning``, ``info``,
-    ``style``. The ``info`` and ``style`` tiers are advisory. On a clean
-    checkout the existing workflows carry advisory findings unrelated to any
-    given PR, which turned this gate red on baseline and blocked merge work
-    that touched no workflow (Issue #2374).
-
-    Fix: raise the shellcheck severity floor to ``warning`` via
-    ``SHELLCHECK_OPTS`` so only ``warning`` and ``error`` findings block.
-    This mirrors the existing precedent that ``validate_yaml_style``
-    (yamllint) treats style findings as non-blocking warnings.
+    actionlint shells to shellcheck for ``run:`` scripts at four severities;
+    ``info``/``style`` are advisory and turned this gate red on unrelated
+    pre-existing findings (Issue #2374), so ``SHELLCHECK_OPTS`` raises the
+    floor to ``warning``, mirroring ``validate_yaml_style``'s precedent. An
+    empty ``_workflow_yaml_targets`` change set passes without invoking
+    actionlint; an unproven scope falls back to the full glob below.
     """
     if not shutil.which("actionlint"):
         print("[WARNING] actionlint not found (workflow validation skipped)")
@@ -277,14 +267,21 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
         print("[WARNING] No .github/workflows directory found")
         return True
 
-    workflow_files = list(workflow_path.glob("*.yml")) + list(
-        workflow_path.glob("*.yaml")
-    )
-    if not workflow_files:
-        print("[WARNING] No workflow files found in .github/workflows/")
+    targets = _workflow_yaml_targets(repo_root)
+    if targets == []:
+        print("[PASS] Workflow validation (no changed workflow files)")
         return True
 
-    print(f"Validating {len(workflow_files)} workflow file(s)...")
+    if targets is None:
+        workflow_files = list(workflow_path.glob("*.yml")) + list(workflow_path.glob("*.yaml"))
+        if not workflow_files:
+            print("[WARNING] No workflow files found in .github/workflows/")
+            return True
+        file_args = [str(f) for f in workflow_files]
+        print(f"Validating {len(file_args)} workflow file(s)...")
+    else:
+        file_args = [str(repo_root / path) for path in targets]
+        print(f"Validating {len(file_args)} changed workflow file(s)...")
 
     shellcheck_env = dict(os.environ)
     existing_opts = shellcheck_env.get("SHELLCHECK_OPTS", "").strip()
@@ -294,18 +291,13 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
     )
 
     exit_code, stdout, stderr = _run_subprocess(
-        ["actionlint"] + [str(f) for f in workflow_files],
+        ["actionlint"] + file_args,
         env=shellcheck_env,
     )
 
     if exit_code != 0:
         print("[FAIL] actionlint found issues in workflow files")
-        output = stdout or stderr
-        lines = output.strip().split("\n")
-        for line in lines[:20]:
-            print(line)
-        if len(lines) > 20:
-            print(f"... ({len(lines) - 20} more lines omitted)")
+        _print_capped(stdout or stderr, 20, "lines")
         return False
 
     print("All workflow files validated successfully.")
@@ -313,24 +305,32 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
 
 
 def validate_yaml_style(repo_root: Path) -> bool:
-    """Check YAML style with yamllint."""
+    """Check YAML style with yamllint (advisory: findings warn, never fail).
+
+    An empty ``_yaml_style_targets`` change set passes without invoking
+    yamllint; an unproven scope falls back to the full-repo scan.
+    """
     if not shutil.which("yamllint"):
         print("[WARNING] yamllint not found (YAML style validation skipped)")
         return True
 
-    print("Checking YAML files for style issues...")
-    exit_code, stdout, stderr = _run_subprocess(
-        ["yamllint", "-f", "parsable", str(repo_root)]
-    )
+    targets = _yaml_style_targets(repo_root)
+    if targets == []:
+        print("[PASS] YAML style check (no changed YAML files)")
+        return True
+
+    if targets is None:
+        target_args = [str(repo_root)]
+        print("Checking YAML files for style issues...")
+    else:
+        target_args = [str(repo_root / path) for path in targets]
+        print(f"Checking {len(target_args)} changed YAML file(s) for style issues...")
+
+    exit_code, stdout, stderr = _run_subprocess(["yamllint", "-f", "parsable", *target_args])
 
     if exit_code != 0:
         print("[WARNING] yamllint found style issues (non-blocking)")
-        output = stdout or stderr
-        lines = output.strip().split("\n")
-        for line in lines[:30]:
-            print(line)
-        if len(lines) > 30:
-            print(f"... ({len(lines) - 30} more issues omitted)")
+        _print_capped(stdout or stderr, 30, "issues")
         print()
         print("Note: These are warnings, not errors. Fix when convenient.")
         return True
@@ -369,18 +369,12 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
 
 
 def validate_agent_drift(repo_root: Path) -> bool:
-    """Detect agent semantic drift.
+    """Detect agent semantic drift (ADR-042 ported Detect-AgentDrift.ps1 to
+    build/scripts/detect_agent_drift.py, invoked directly here).
 
-    Per ADR-042 the legacy Detect-AgentDrift.ps1 was expunged in favor of the
-    Python port at build/scripts/detect_agent_drift.py. Invoke the Python
-    version directly so the drift gate continues to run after migration.
-
-    The detector runs two comparisons (Issue #2267): the vendored
-    src/claude vs src/vs-code-agents pair (blocking) and the hand-maintained
-    .claude/agents vs .github/agents install pair for shared-template agents
-    (advisory; reported but does not flip the exit code, because the two
-    self-host copies carry large pre-existing structural differences). Only
-    vendored drift blocks this gate.
+    Runs two comparisons (Issue #2267): vendored src/claude vs
+    src/vs-code-agents (blocking), and .claude/agents vs .github/agents
+    (advisory only, large pre-existing diffs). Only vendored drift blocks.
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
     if not python_script.exists():
@@ -401,10 +395,8 @@ def validate_agent_drift(repo_root: Path) -> bool:
 def validate_copilot_version_pin(repo_root: Path) -> bool:
     """Guard the pinned @github/copilot CLI version (Issue #2630).
 
-    Thin wrapper over ``check_copilot_version_pin.check_action``: fails the gate
-    when the pin in ``.github/actions/ai-review/action.yml`` is missing,
-    unparseable, or on the known-bad list (seed: 0.0.397). The action is absent
-    in downstream installs, so SKIP rather than FAIL when it is not present.
+    Wraps ``check_copilot_version_pin.check_action``: fails when the pin is
+    missing, unparseable, or known-bad; SKIP when the action is absent.
     """
     from check_copilot_version_pin import EXIT_OK, check_action
 
@@ -417,13 +409,8 @@ def validate_copilot_version_pin(repo_root: Path) -> bool:
 
 
 def validate_ci_dependency_pins(repo_root: Path) -> bool:
-    """Assert every hand-written pkg==version pin in .github/ YAML agrees with
-    pyproject.toml (Issue #3377).
-
-    Thin wrapper over ``check_ci_dependency_pins.check``, whose module docstring
-    holds the full scope. In short: workflow and action YAML only, and only for
-    packages pyproject declares. The .github tree is absent in downstream
-    installs, so SKIP rather than FAIL when it is not present.
+    """Assert every hand-written pkg==version pin in .github/ YAML agrees
+    with pyproject.toml (Issue #3377); SKIP when ``.github/`` is absent.
     """
     workflows = repo_root / ".github"
     pyproject = repo_root / "pyproject.toml"
@@ -441,11 +428,8 @@ def validate_instruction_budget(repo_root: Path) -> bool:
     """Gate the always-on instruction budget per language (Issue #3419).
 
     Sums the bytes of ``.github/instructions/*.instructions.md`` files whose
-    ``applyTo`` scopes them to every file of a language (per VS Code applyTo
-    matching semantics) and fails when a language exceeds its non-regression
-    ceiling. Runs the module via ``-m`` from ``repo_root`` so its
-    ``scripts.validation`` package import resolves. The instructions tree is
-    absent in downstream installs, so SKIP rather than FAIL when it is missing.
+    ``applyTo`` scopes them to every file of a language, failing past the
+    non-regression ceiling. SKIP when the instructions tree is absent.
     """
     if not (repo_root / ".github" / "instructions").is_dir():
         raise MissingScriptSkip(
