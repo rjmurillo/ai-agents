@@ -144,6 +144,22 @@ class TestCiSinkWrappers:
             assert f"{scheme}://******@example.com/path" == result.text
             assert "url-credential" in result.reasons
 
+    def test_url_userinfo_redacts_token_without_password(self):
+        value = "https://opaque-token@example.com/repo"
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "https://******@example.com/repo"
+        assert result.reasons == ("url-credential",)
+
+    def test_url_without_userinfo_passes_through_byte_identical(self):
+        value = "https://example.com/repo"
+
+        result = redact_ci_sink(value)
+
+        assert result.text == value
+        assert not result.redacted
+
     def test_mixed_case_credential_assignments_are_redacted(self):
         escaped_key = "access" + "\\u005f" + "token"
         escaped_value = "prefix" + '\\"' + "suffix"
