@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 8599078cacbc4bfb81e0e1db169a41673c9b8692."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 7dc1f9160c5ff336da29494c1d0a55c79210a347."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "431 focused and plain-script import tests passed at QA code commit 8599078cacbc4bfb81e0e1db169a41673c9b8692. The previous full pre-push suite passed 24917 tests with 34 skips and 50 deselections. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "437 focused, plain-script import, and bundled parity tests passed at QA code commit 7dc1f9160c5ff336da29494c1d0a55c79210a347. A full pre-push run passed 24926 tests with 34 skips and 50 deselections except the bundled parity failure corrected by this commit. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -164,7 +164,7 @@
       "outcome": "Added shared wrapper and assignment redaction, parse-before-redact handling for structured GitHub responses, collision-safe outputs, direct-action deadlines, failed-process verdict rejection, and stale output removal. Final DevOps and GPT-5.6 Sol reviews found no Critical or High issues."
     }
   ],
-  "endingCommit": "8599078cacbc4bfb81e0e1db169a41673c9b8692",
+  "endingCommit": "7dc1f9160c5ff336da29494c1d0a55c79210a347",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]

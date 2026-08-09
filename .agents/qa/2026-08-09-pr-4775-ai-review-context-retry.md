@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 8599078cacbc4bfb81e0e1db169a41673c9b8692
+qaCommit: 7dc1f9160c5ff336da29494c1d0a55c79210a347
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -23,7 +23,8 @@ across context, model, and artifact sinks.
 | Shared redactor tests | [PASS], 23 tests |
 | Direct-action budget tests | [PASS], 5 tests |
 | Plain-script import tests | [PASS], 293 tests |
-| Combined focused regression selection | [PASS], 431 tests |
+| Bundled redactor parity tests | [PASS], 6 tests |
+| Combined focused regression selection | [PASS], 437 tests |
 | Ruff | [PASS] |
 | Changed-file mypy | [PASS] |
 | Pre-PR validations | [PASS], 50 checks |

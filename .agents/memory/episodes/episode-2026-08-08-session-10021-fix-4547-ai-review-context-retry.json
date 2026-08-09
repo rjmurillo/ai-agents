@@ -198,6 +198,19 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-09T08:31:28+00:00",
+      "type": "commit",
+      "content": "Commit: 7dc1f9160c5ff336da29494c1d0a55c79210a347",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -207,8 +220,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 17
+    "commits": 6,
+    "files_changed": 18
   },
   "lessons": []
 }
