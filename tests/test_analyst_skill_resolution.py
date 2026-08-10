@@ -422,29 +422,47 @@ def _is_affirmative_directive(line: str) -> bool:
     if _OTHER_AGENT.search(line):
         return False
 
-    # Strip quoted and inline-code spans
-    prose = re.sub(r"`[^`]*`", "", line)
-    prose = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", prose)
-    prose = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", "", prose)
-    lower = prose.lower()
+    # Equal-length masking: replace quoted/code spans with spaces so offsets
+    # are preserved between the masked string and the original.
+    def _mask(m: re.Match[str]) -> str:
+        return " " * len(m.group(0))
+
+    masked = re.sub(r"`[^`]*`", _mask, line)
+    masked = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', _mask, masked)
+    masked = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", _mask, masked)
+    lower = masked.lower()
 
     # Reject passive voice
     if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
         return False
 
-    # Split into clauses on semicolons and sentence boundaries
+    # Split into clauses on semicolons and sentence boundaries.
+    # Use masked text to find analyst+verb (ensures it's not inside code/quotes).
+    # Use original text at same offsets for tool search (tools may be backtick-
+    # formatted legitimately, e.g. `mcp__github__pull_request_read`).
     clauses = re.split(r"[;.](?:\s|$)", lower)
     orig_lower = line.lower()
     orig_clauses = re.split(r"[;.](?:\s|$)", orig_lower)
 
-    # Pattern detecting another actor+verb introducing a new clause
-    new_actor_verb = re.compile(
-        r"\b\S+\s+(retrieves?|uses?|calls?|invokes?|attempts?)\b"
+    # Subordinating conjunctions: boundaries for tool search scope
+    subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
+
+    # Pattern: comma or conjunction introducing a new subject+verb signals
+    # a clause boundary. Requires the new subject to be followed by a verb,
+    # distinguishing "analyst retrieves data, bot reads tool" from
+    # "analyst retrieves PR, issue, and CI context".
+    new_subject_boundary = re.compile(
+        r"(?:,\s*|\band\b\s+|\bor\b\s+)"
+        r"(?!analyst\b)([a-z][\w-]*)"
+        r"\s+(?:directly\s+)?"
+        r"(retrieves?|uses?|calls?|invokes?|attempts?|reads?|fetches?"
+        r"|gets?|accesses?|queries|requests?)\b"
     )
 
     for i, clause in enumerate(clauses):
-        # Require analyst as grammatical subject: not preceded by hyphen
-        # (rejects "non-analyst") and must be a true word boundary
+        # Require analyst as grammatical subject in MASKED text (not preceded
+        # by hyphen, rejects "non-analyst", must be true word boundary).
+        # Masking ensures analyst+verb inside code spans is not accepted.
         verb_match = re.search(
             r"(?<![-])\banalyst\b\s+(?:directly\s+)?"
             r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
@@ -453,27 +471,26 @@ def _is_affirmative_directive(line: str) -> bool:
         if not verb_match:
             continue
         # Tool must appear AFTER the analyst+verb as its direct argument,
-        # not in a subordinate clause.
+        # not in a subordinate clause or after a new subject boundary.
+        # Use MASKED text for boundary detection (same offsets as verb_match).
         after_verb = clause[verb_match.end():]
-        # Split on subordinating conjunctions (boundaries for tool search)
-        subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
         main_frag = re.split(subord, after_verb)[0]
-        orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
-        orig_after = orig_clause[verb_match.end():]
-        orig_main = re.split(subord, orig_after)[0]
+        boundary = new_subject_boundary.search(main_frag)
+        frag_end = verb_match.end() + (boundary.start() if boundary else len(main_frag))
 
-        # Reject if another actor+verb appears before the tool in main_frag
-        # (catches "analyst retrieves data, release-bot calls tool")
-        tool_match = _TOOL_RE.search(orig_main)
+        # Search for tool in ORIGINAL text at the same offset range.
+        # This allows backtick-formatted tool names to be found while the
+        # masking still protects against spurious verb matches inside code.
+        orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
+        orig_frag = orig_clause[verb_match.end():frag_end]
+
+        tool_match = _TOOL_RE.search(orig_frag)
         if tool_match:
-            # Reject if another actor+verb precedes tool in this fragment
-            pre_tool = orig_main[:tool_match.start()]
-            if new_actor_verb.search(pre_tool):
-                continue
             return True
 
-        has_tool = "declared" in main_frag and "tool" in main_frag
-        if has_tool:
+        # Also accept "declared tool" phrasing in masked fragment
+        masked_frag = main_frag[:boundary.start()] if boundary else main_frag
+        if "declared" in masked_frag and "tool" in masked_frag:
             return True
 
     return False
@@ -1135,3 +1152,76 @@ class TestNegativeControls:
         """Comma mixed actors with compliance-bot must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_COMMA_COMPLIANCE_BOT)
         assert err is not None, "Should reject compliance-bot mixed actor"
+
+    # Fixture 46: masked-span offset misalignment (HIGH 1)
+    TOOL_MASKED_SPAN = (
+        "\n### delegation contract\n"
+        "`xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx pull_request_read`"
+        " The analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 47: masked-span with backtick quotes, short masking
+    TOOL_MASKED_SPAN_SHORT = (
+        "\n### delegation contract\n"
+        "`xx pull_request_read` The analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 48: reads verb mixed actor (HIGH 2)
+    TOOL_READS_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot reads pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 49: fetches verb mixed actor (HIGH 2)
+    TOOL_FETCHES_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot fetches pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 50: gets verb mixed actor (HIGH 2)
+    TOOL_GETS_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache and release-bot gets pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 51: accesses verb mixed actor (HIGH 2)
+    TOOL_ACCESSES_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, compliance-bot accesses pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    def test_tool_masked_span_rejected(self) -> None:
+        """Equal-length masked code span must not leak tool into search."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MASKED_SPAN)
+        assert err is not None, "Should reject masked-span tool"
+
+    def test_tool_masked_span_short_rejected(self) -> None:
+        """Short masked code span boundary must not leak tool."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MASKED_SPAN_SHORT)
+        assert err is not None, "Should reject short masked-span tool"
+
+    def test_tool_reads_mixed_rejected(self) -> None:
+        """'reads' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_READS_MIXED)
+        assert err is not None, "Should reject reads mixed actor"
+
+    def test_tool_fetches_mixed_rejected(self) -> None:
+        """'fetches' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_FETCHES_MIXED)
+        assert err is not None, "Should reject fetches mixed actor"
+
+    def test_tool_gets_mixed_rejected(self) -> None:
+        """'gets' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_GETS_MIXED)
+        assert err is not None, "Should reject gets mixed actor"
+
+    def test_tool_accesses_mixed_rejected(self) -> None:
+        """'accesses' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ACCESSES_MIXED)
+        assert err is not None, "Should reject accesses mixed actor"
