@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: f968dfc87b8f96923c84e500b00697c9fb1b7856
+qaCommit: e28753afaf61456e27718ac3b64618cb13b94df8
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -185,6 +185,15 @@ Two regressions pin both sides of the distinction. An executor PASS plus
 `action_required` resolves UNKNOWN. An unclassified deciding tier plus a
 failing sibling resolves FAIL. All 88 focused tests pass in 0.49 seconds. Ruff
 passes on both changed Python files. An independent code review returned PASS.
+
+## Revalidation at e28753afa
+
+Removed redundant docstring prose after the final regressions pushed both new
+files over the 500-line gate. The resolver is now 492 lines and its test file
+is 498 lines. Taste-lints reports zero errors and two near-limit warnings.
+
+All 88 focused tests pass in 1.22 seconds. Ruff passes on both files. An
+independent code review returned PASS.
 
 ## Accepted residual risk
 

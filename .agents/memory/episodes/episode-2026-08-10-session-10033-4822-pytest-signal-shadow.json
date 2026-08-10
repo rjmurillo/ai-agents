@@ -299,7 +299,9 @@
       "caused_by": [
         "e025"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e027"
+      ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
     {
@@ -314,14 +316,38 @@
         "e024"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T16:58:42+00:00",
+      "type": "milestone",
+      "content": "Returned both new resolver files below the size gate",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-10T16:58:07+00:00",
+      "type": "commit",
+      "content": "Commit: e28753afaf61456e27718ac3b64618cb13b94df8",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     }
   ],
   "metrics": {
-    "duration_minutes": 92,
+    "duration_minutes": 129,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 7
   },
   "lessons": []

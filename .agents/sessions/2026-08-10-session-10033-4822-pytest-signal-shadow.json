@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af, the PR 4845 report discovery fix as addd9410f09c00236f381bb7689c0d692e752b95, the lint-baseline merge as 69f0d2f6a18e0ceb74820e4a354866333743bf60, the xdist-bearing main merge as c784dca71fe80d6fcd11f132f864ebde2e3cf75c, final review fixes as 2360162d7e93850cce70b450ff923c810bdaeafe, and the blocking sibling correction as f968dfc87b8f96923c84e500b00697c9fb1b7856. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af, the PR 4845 report discovery fix as addd9410f09c00236f381bb7689c0d692e752b95, the lint-baseline merge as 69f0d2f6a18e0ceb74820e4a354866333743bf60, the xdist-bearing main merge as c784dca71fe80d6fcd11f132f864ebde2e3cf75c, final review fixes as 2360162d7e93850cce70b450ff923c810bdaeafe, the blocking sibling correction as f968dfc87b8f96923c84e500b00697c9fb1b7856, and the final size-gate cleanup as e28753afaf61456e27718ac3b64618cb13b94df8. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes. At 34cf0678, all 83 focused tests, Ruff, and taste-lints pass. After merge c784dca71, all 83 focused tests pass in 0.52 seconds. At 2360162d7, all 86 focused tests pass in 0.49 seconds, Ruff and actionlint pass, yamllint adds no new warning, security review reports no exploitable issue, and full pre_pr.py passes all 50 validations. At f968dfc87, all 88 focused tests pass in 0.49 seconds, Ruff passes, and an independent code review reports PASS. The pre-push suite passed Python tests and 49 of 50 pre-PR validations; only this QA report's stale commit binding failed."
+        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes. At 34cf0678, all 83 focused tests, Ruff, and taste-lints pass. After merge c784dca71, all 83 focused tests pass in 0.52 seconds. At 2360162d7, all 86 focused tests pass in 0.49 seconds, Ruff and actionlint pass, yamllint adds no new warning, security review reports no exploitable issue, and full pre_pr.py passes all 50 validations. At f968dfc87, all 88 focused tests pass in 0.49 seconds, Ruff passes, and an independent code review reports PASS. At e28753afa, all 88 focused tests pass in 1.22 seconds, Ruff passes, taste-lints reports zero errors at 492 and 498 lines, and independent review reports PASS."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -184,9 +184,14 @@
       "time": "2026-08-10T16:21:50Z",
       "action": "Closed the blocking sibling fail-open review finding",
       "result": "Commit f968dfc87b8f96923c84e500b00697c9fb1b7856 separates benign completed-success unclassified jobs from public UNKNOWN conclusions. An executor PASS plus action_required now resolves UNKNOWN, while an unclassified deciding tier cannot mask a failing sibling. All 88 focused tests pass in 0.49 seconds, Ruff passes, and independent review reports PASS."
+    },
+    {
+      "time": "2026-08-10T16:58:42Z",
+      "action": "Returned both new resolver files below the size gate",
+      "result": "Commit e28753afaf61456e27718ac3b64618cb13b94df8 removes only redundant docstring prose. The resolver is 492 lines and its tests are 498 lines. All 88 focused tests pass, Ruff passes, taste-lints reports zero errors, and independent review reports PASS."
     }
   ],
-  "endingCommit": "f968dfc87b8f96923c84e500b00697c9fb1b7856",
+  "endingCommit": "e28753afaf61456e27718ac3b64618cb13b94df8",
   "nextSteps": [
     "Push PR 4845 and collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",
     "Expect frequent PENDING versus PASS disagreements: pytest.yml has a 45 minute budget while ai-pr-quality-gate run-tests has 10 minutes. Measuring that rate is the point of phase 1.",
