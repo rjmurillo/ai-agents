@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10036.json
-qaCommit: 08edf93c5bade8fba702527771254a18c82670e3
+qaCommit: 8415889de3af9ac23bdb6452171f8bca23d8dda2
 ---
 
 # PR 4747 QA Report
