@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4747-walk-the-gate.md"
+        "Evidence": ".agents/qa/pr-4747-walk-the-gate-session-10023.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -144,7 +144,7 @@
       "result": "Changed-content negative controls failed against the old predicate and passed after restoring the source fix."
     }
   ],
-  "endingCommit": "f7b6dfe34466e7ed1099129409e963befe370816",
+  "endingCommit": "7181c7480703be0270835ab0ad7722f733d2381a",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
