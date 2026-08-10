@@ -84,12 +84,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545 before QA evidence refresh."
+        "Evidence": "PR code validated at 49a0cc9224b49d2def524d44406aa108045c893d after subprocess decoding cleanup."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after merging origin/main: pytest collected 296 and passed 296 for worktree GC targeted suites. Ruff passed on changed maintenance and GC test files."
+        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 64 and passed 64 for GC anchor and real-git stale suites; subprocess encoding count ratchet passed with 236 violations <= baseline 253."
       },
       "tasksUpdated": {
         "level": "MUST",
@@ -326,7 +326,7 @@
       "evidence": "Wrote .agents/retrospective/2026-08-06-squash-severed-stack-and-silent-reflog-defaults.md covering three failures classified against FAILURE-MODES.md: a delegated agent that reset and cleaned a shared worktree holding committed work (mode 7), two High silent-default defects in the reflog reader that 262 mock-based tests missed (mode 10), and reading git log as ancestry proof (mode 9). Zero em or en dashes, taste-lints clean."
     }
   ],
-  "endingCommit": "7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545",
+  "endingCommit": "49a0cc9224b49d2def524d44406aa108045c893d",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
