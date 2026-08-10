@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- single-file security boundary
 """Trusted vendor provenance validator (base-branch owned, standalone).
 
 Runs from BASE branch via pull_request_target. Authenticates every

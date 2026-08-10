@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 """Tests for vendor provenance validator.
 
 Covers: CLI exit codes, artifact authentication (pass and tamper),
