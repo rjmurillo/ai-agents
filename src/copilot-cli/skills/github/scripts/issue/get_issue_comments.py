@@ -22,8 +22,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -61,6 +63,12 @@ _AUTH_ERROR_MARKERS = (
     "authentication",
     "requires authentication",
 )
+ISSUE_COMMENT_PAGE_PACE_SECONDS = 3.0
+ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS = (300.0, 600.0)
+_RETRYABLE_COMMENT_FETCH_ERROR = re.compile(
+    r"rate limit|secondary rate|abuse detection|\bHTTP\s+(429|500|502|503|504)\b",
+    re.IGNORECASE,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,55 +101,108 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
     return 3, "ApiError"
 
 
-def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
-    """Page through the issue's comments via gh api. Raises SystemExit on error."""
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
-            "--paginate",
-            "--slurp",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=60,
-        check=False,
+def _comment_page_error_text(
+    result: subprocess.CompletedProcess[str],
+    page: int,
+) -> str:
+    message = result.stderr.strip() or result.stdout.strip()
+    if message:
+        return message
+    return (
+        "gh api exited with return code "
+        f"{result.returncode} while fetching issue comment page {page} "
+        "and no error output"
     )
-    if result.returncode != 0:
-        error_str = result.stderr.strip() or result.stdout.strip()
-        not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
-        code, error_type = _exit_code_for(error_str, not_found=not_found)
-        write_skill_error(
-            f"Failed to fetch comments for issue #{issue}: {error_str}",
-            code,
-            error_type=error_type,
-            output_format=fmt,
-            script_name=_SCRIPT,
-            extra={"issue": issue},
+
+
+def _run_comment_page(
+    owner: str,
+    repo: str,
+    issue: int,
+    page: int,
+) -> subprocess.CompletedProcess[str]:
+    endpoint = f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100&page={page}"
+    attempts = len(ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS) + 1
+    for attempt in range(attempts):
+        result = subprocess.run(
+            ["gh", "api", endpoint],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
         )
-        raise SystemExit(code)
-    try:
-        payload = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError as exc:
-        write_skill_error(
-            f"Failed to parse comments for issue #{issue}: {exc}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name=_SCRIPT,
-            extra={"issue": issue},
+        if result.returncode == 0:
+            return result
+
+        error_text = _comment_page_error_text(result, page)
+        if attempt >= len(
+            ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS
+        ) or not _RETRYABLE_COMMENT_FETCH_ERROR.search(error_text):
+            return result
+
+        delay = ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS[attempt]
+        print(
+            f"GitHub refused issue comment page {page}; retrying in {delay:.0f}s",
+            file=sys.stderr,
         )
-        raise SystemExit(3) from exc
-    # --slurp wraps each page's array in an outer list; flatten one level.
-    pages = payload if isinstance(payload, list) else [payload]
+        time.sleep(delay)
+
+    raise RuntimeError("unreachable issue comment retry loop")
+
+
+def _comment_page_items(payload: object) -> list[dict[str, object]]:
+    if not isinstance(payload, list):
+        return [payload] if isinstance(payload, dict) else []
     comments: list[dict[str, object]] = []
-    for page in pages:
-        items = page if isinstance(page, list) else [page]
-        for item in items:
-            if isinstance(item, dict):
-                comments.append(item)
+    for item in payload:
+        if isinstance(item, list):
+            comments.extend(_comment_page_items(item))
+        elif isinstance(item, dict):
+            comments.append(item)
+    return comments
+
+
+def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
+    comments: list[dict[str, object]] = []
+    page = 1
+    while True:
+        result = _run_comment_page(owner, repo, issue, page)
+        if result.returncode != 0:
+            error_str = _comment_page_error_text(result, page)
+            not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
+            code, error_type = _exit_code_for(error_str, not_found=not_found)
+            write_skill_error(
+                f"Failed to fetch comments for issue #{issue}: {error_str}",
+                code,
+                error_type=error_type,
+                output_format=fmt,
+                script_name=_SCRIPT,
+                extra={"issue": issue},
+            )
+            raise SystemExit(code)
+        try:
+            payload = json.loads(result.stdout or "[]")
+        except json.JSONDecodeError as exc:
+            write_skill_error(
+                f"Failed to parse comments for issue #{issue}: {exc}",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name=_SCRIPT,
+                extra={"issue": issue},
+            )
+            raise SystemExit(3) from exc
+
+        items = _comment_page_items(payload)
+        if not items:
+            break
+        comments.extend(items)
+        if len(items) < 100:
+            break
+        time.sleep(ISSUE_COMMENT_PAGE_PACE_SECONDS)
+        page += 1
     return comments
 
 
