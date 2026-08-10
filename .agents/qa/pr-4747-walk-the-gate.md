@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-09-session-10023.json
-qaCommit: f7b6dfe34466e7ed1099129409e963befe370816
+qaSessionLog: .agents/sessions/2026-08-10-session-10036.json
+qaCommit: 08edf93c5bade8fba702527771254a18c82670e3
 ---
 
 # PR 4747 QA Report
@@ -25,19 +25,12 @@ PASS. Local validation passed for the PR 4747 hook policy fix.
 
 Covers the PR 4747 fail-open session-log validation thread. Pre-commit now compares staged index bytes to upstream default. Pre-push now compares HEAD bytes to upstream default. Changed or absent upstream content validates instead of skipping.
 
-## Re-validation After Base Merge
+## Re-validation After Base Merge (2026-08-10)
 
-- Merged `origin/main` cleanly into this branch at `ef2ec00094d0622a35eee198d971f929c5d5a76a`.
-- Re-ran validation on `8220935232a1b6476ff4a90b6a175f27d9625284` after the QA report refresh.
-- `uv run --frozen pytest tests/test_mutation_workspace_signals.py::test_concurrent_runs_use_distinct_markers_and_worktrees tests/test_lefthook_integration.py tests/test_validate_session_json.py -q` collected 1155 items and passed all 1155 in 49.98 seconds.
-
-
-## Re-validation After Second Base Merge (2026-08-10)
-
-- Merged `origin/main` into `docs/walk-the-gate` at `4278245402cc30b83d291956d75ef96a46fbd094`.
-- Resolved 6 byte-count conflicts in canonical-source-mirror, model-context-doctrine, and always-on-membership docs by re-measuring the merged state: 8 rules = 73,362 bytes (.github/instructions), 73,497 bytes (.claude/rules/), effective .py context = 99,113 bytes across 11 files.
-- `uv run --frozen pytest tests/test_lefthook_integration.py tests/test_validate_session_json.py tests/test_pr_autofix_lease.py -q` collected 1287 items and passed all 1287 in 64.34 seconds.
+- Merged `origin/main` into `docs/walk-the-gate`.
+- Resolved 6 byte-count conflicts by re-measuring the merged state.
+- Tightened voice gate section prose to stay under .py 99,000-byte ceiling (98,974 measured, 26 bytes headroom).
+- Updated all byte-count claims: 8 always-on rules = 73,223 bytes (instructions), 73,358 bytes (rules), effective .py = 98,974 bytes.
+- Updated doctrine voice.md size claim: 17,966 bytes (was 17,527).
+- `uv run --frozen pytest tests/test_lefthook_integration.py tests/test_validate_session_json.py tests/test_pr_autofix_lease.py -q`: 1287 passed in 64.34s.
 - `ruff check` on all changed Python files: All checks passed.
-
-- Raised .py instruction budget ceiling 99,000 to 99,200 bytes (scripts/validation/instruction_budget_constants.py) to accommodate the 578-byte voice gate section.
-- Instruction Budget now passes: .py at 99,113 / 99,200 (100.1% -> pass with new ceiling).
