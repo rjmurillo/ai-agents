@@ -331,9 +331,18 @@ _TOOL_NAMES = (
 )
 
 _NEGATIONS = re.compile(
-    r"\b(do\s+not|don[\u2019']?t|never|cannot|can[\u2019']t|"
-    r"must\s+not|should\s+not|shall\s+not|will\s+not|may\s+not|"
-    r"forbidden|deprecated|was\s+deprecated|is\s+not|prohibited)\b",
+    r"\b("
+    r"do\s+not|don[\u2019']?t|never|"
+    r"cannot|can[\u2019']?t|"
+    r"must\s+not|mustn[\u2019']?t|"
+    r"should\s+not|shouldn[\u2019']?t|"
+    r"shall\s+not|shan[\u2019']?t|"
+    r"will\s+not|won[\u2019']?t|"
+    r"would\s+not|wouldn[\u2019']?t|"
+    r"could\s+not|couldn[\u2019']?t|"
+    r"may\s+not|might\s+not|"
+    r"forbidden|deprecated|was\s+deprecated|is\s+not|prohibited"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -352,9 +361,13 @@ _NON_DIRECTIVE = re.compile(
 )
 
 
-def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
-    """Return True if line is structural markup or inside a fenced block."""
+def _is_skippable_line(raw_line: str, stripped: str, in_fence: bool) -> bool:
+    """Return True if line is structural markup, inside a fenced block,
+    or inside a 4-space/tab indented code block."""
     if in_fence:
+        return True
+    # Markdown indented code block: 4+ spaces or tab at start of raw line
+    if raw_line.startswith("    ") or raw_line.startswith("\t"):
         return True
     return (
         not stripped
@@ -415,15 +428,12 @@ def _is_affirmative_directive(line: str) -> bool:
         return False
 
     # Require "analyst" as subject directly before a retrieval verb.
-    # Pattern: "analyst" followed (possibly with modals) by an active verb.
+    # Only one path: analyst + (optional adverb) + active verb.
     if re.search(
         r"\banalyst\b\s+(?:directly\s+)?"
         r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
         lower,
     ):
-        return True
-    # "retrieval via declared tools" with analyst context
-    if "analyst" in lower and "retrieval via declared tools" in lower:
         return True
     return False
 
@@ -452,7 +462,7 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             continue
-        if _is_skippable_line(stripped, in_fence):
+        if _is_skippable_line(line, stripped, in_fence):
             continue
         if not _line_has_tool_reference(line):
             continue
@@ -734,6 +744,55 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 30: shouldn't contraction (must reject)
+    TOOL_ANALYST_SHOULDNT = (
+        "\n### delegation contract\n"
+        "the analyst shouldn't call pull_request_read directly. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 31: mustn't contraction (must reject)
+    TOOL_ANALYST_MUSTNT = (
+        "\n### delegation contract\n"
+        "the analyst mustn't invoke pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 32: won't contraction (must reject)
+    TOOL_ANALYST_WONT = (
+        "\n### delegation contract\n"
+        "the analyst won't use pull_request_read here. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 33: could not (must reject)
+    TOOL_ANALYST_COULD_NOT = (
+        "\n### delegation contract\n"
+        "the analyst could not call pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 34: might not (must reject)
+    TOOL_ANALYST_MIGHT_NOT = (
+        "\n### delegation contract\n"
+        "the analyst might not use pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 35: directive in 4-space indented code block (must reject)
+    TOOL_IN_INDENTED_CODE = (
+        "\n### delegation contract\n"
+        "    the analyst retrieves PR data using pull_request_read.\n"
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 36: directive in tab-indented code block (must reject)
+    TOOL_IN_TAB_INDENTED = (
+        "\n### delegation contract\n"
+        "\tthe analyst retrieves PR data using pull_request_read.\n"
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -878,3 +937,38 @@ class TestNegativeControls:
         """'analyst will not' must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_WILL_NOT)
         assert err is not None, "Should reject 'will not' negation"
+
+    def test_tool_analyst_shouldnt_rejected(self) -> None:
+        """'analyst shouldn't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_SHOULDNT)
+        assert err is not None, "Should reject shouldn't contraction"
+
+    def test_tool_analyst_mustnt_rejected(self) -> None:
+        """'analyst mustn't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MUSTNT)
+        assert err is not None, "Should reject mustn't contraction"
+
+    def test_tool_analyst_wont_rejected(self) -> None:
+        """'analyst won't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_WONT)
+        assert err is not None, "Should reject won't contraction"
+
+    def test_tool_analyst_could_not_rejected(self) -> None:
+        """'analyst could not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_COULD_NOT)
+        assert err is not None, "Should reject 'could not'"
+
+    def test_tool_analyst_might_not_rejected(self) -> None:
+        """'analyst might not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MIGHT_NOT)
+        assert err is not None, "Should reject 'might not'"
+
+    def test_tool_in_indented_code_rejected(self) -> None:
+        """Directive in 4-space indented code block must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_INDENTED_CODE)
+        assert err is not None, "Should reject 4-space indented code"
+
+    def test_tool_in_tab_indented_rejected(self) -> None:
+        """Directive in tab-indented code block must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_TAB_INDENTED)
+        assert err is not None, "Should reject tab-indented code"

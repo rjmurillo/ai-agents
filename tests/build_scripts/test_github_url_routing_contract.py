@@ -134,8 +134,8 @@ def _is_claude_surface(surface: Path) -> bool:
 def _parse_routing_table(body: str) -> dict[str, list[str]]:
     """Parse the URL classification table into a multimap {pattern: [tool, ...]}.
 
-    Matches normalized first-cell content exactly against canonical patterns.
-    Returns raw tool names (may include MCP prefix) for surface-aware validation.
+    Preserves EVERY data row (not just canonical ones) so the validator
+    can reject noncanonical extras, duplicates, and conflicts.
     """
     routes: dict[str, list[str]] = {}
     lines = body.split("\n")
@@ -166,8 +166,7 @@ def _parse_routing_table(body: str) -> dict[str, list[str]]:
         first_alt = raw_pattern.split(" or ")[0].strip().strip("`").lower()
         tool_cell = cells[1].strip().strip("`")
 
-        if first_alt in _CANONICAL_PATTERNS:
-            routes.setdefault(first_alt, []).append(tool_cell)
+        routes.setdefault(first_alt, []).append(tool_cell)
 
     return routes
 
@@ -184,9 +183,11 @@ def _validate_routing_table(
     - Every canonical pattern has exactly one row
     - Each mapped tool matches the expected tool (with MCP prefix if applicable)
     - No duplicate rows for same pattern
-    - No extra unrecognized patterns (only canonical ones accepted)
+    - No noncanonical extra rows that share a path prefix with canonical ones
     """
     errors: list[str] = []
+
+    # Check every canonical pattern exists with correct tool
     for pattern, bare_tool in _CANONICAL_PATTERNS.items():
         expected = (_MCP_PREFIX + bare_tool) if mcp_prefixed else bare_tool
         tools = routes.get(pattern)
@@ -205,6 +206,19 @@ def _validate_routing_table(
                 f"{surface_label}: pattern '{pattern}' maps to "
                 f"'{tools[0]}', expected '{expected}'"
             )
+
+    # Reject noncanonical rows that share a URL path segment with canonical
+    canonical_segments = {"/pull/", "/issues/", "/actions/", "/job/"}
+    for pattern in routes:
+        if pattern in _CANONICAL_PATTERNS:
+            continue
+        # Check if this noncanonical row collides with canonical paths
+        if any(seg in pattern for seg in canonical_segments):
+            errors.append(
+                f"{surface_label}: noncanonical extra row '{pattern}' "
+                f"conflicts with canonical routes"
+            )
+
     return errors
 
 
@@ -345,3 +359,49 @@ def test_analyst_surface_uses_singular_job_path(surface: Path) -> None:
         f"{surface.relative_to(REPO_ROOT)}: uses /jobs/ but GitHub URLs use "
         f"singular /job/<JID>"
     )
+
+
+def test_routing_table_rejects_api_prefix() -> None:
+    """Negative control: /api/pull/<N> is not canonical."""
+    api_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/api/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes = _parse_routing_table(api_table)
+    errors = _validate_routing_table(routes, "api-prefix-fixture")
+    assert errors, "Non-canonical /api/pull/<N> must fail validation"
+
+
+def test_routing_table_rejects_pull_latest() -> None:
+    """Negative control: /pull/latest is not canonical."""
+    latest_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/latest` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes = _parse_routing_table(latest_table)
+    errors = _validate_routing_table(routes, "pull-latest-fixture")
+    assert errors, "Non-canonical /pull/latest must fail validation"
+
+
+def test_routing_table_rejects_extra_conflicting_row() -> None:
+    """Negative control: extra row conflicting with canonical path rejected."""
+    extra_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/pull/<N>/files` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes = _parse_routing_table(extra_table)
+    errors = _validate_routing_table(routes, "extra-row-fixture")
+    assert errors, "Extra conflicting row must fail validation"
