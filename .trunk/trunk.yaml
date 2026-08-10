@@ -1,0 +1,35 @@
+version: 0.1
+
+# What Merge Queue waits on while testing a queued pull request. Without this,
+# Trunk falls back to all 16 required contexts from ruleset 11104075, which
+# re-runs six paid AI agent reviews against code the source pull request has
+# already reviewed. Measured 2026-08-10: 695 of roughly 1000 workflow runs in
+# one window were Trunk draft branches, for zero merges.
+#
+# This does not change what a pull request needs in order to merge. Ruleset
+# 11104075 still gates the source pull request on all 16. This is only the
+# subset re-verified against the merged result, so it keeps the checks that can
+# pass on two pull requests separately and fail on their combination:
+#
+#   Run Python Tests           tests that pass apart and fail together
+#   Validate Generated Files   both edit canonical sources, mirrors go stale
+#   Validate PR                repository-wide validation of the merged tree
+#   Validate memory citations  concurrent memory-index edits merge without a
+#                              conflict and still leave a broken citation
+#
+# Excluded deliberately. The six AI agent reviews (Analyst, Architect, DevOps,
+# QA, Roadmap, Security) and Validate Spec Coverage judge the change, not the
+# combination, and each costs AI credits per run. Validate PR title is exempt
+# on trunk-merge branches by construction. Analyze (actions) and Analyze
+# (python) have never been observed reporting on a Trunk draft, so requiring
+# them would hang the queue on a check that never arrives.
+#
+# Names must match the job `name:` exactly. Renaming one of these jobs is a
+# queue change as well as a branch-protection change; `.claude/rules/ci-scripts.md`
+# MUST 22 gives the ordering that avoids a deadlock.
+merge:
+  required_statuses:
+    - Run Python Tests
+    - Validate Generated Files
+    - Validate PR
+    - Validate memory citations
