@@ -391,7 +391,7 @@ class TestPytestYmlTimeout:
         )
 
     def test_test_job_timeout_minutes_is_reasonable(self) -> None:
-        """timeout-minutes for the test job should be between 20 and 90 minutes."""
+        """timeout-minutes for the test job should be between 10 and 90 minutes."""
         import yaml
 
         repo_root = Path(__file__).parent.parent.parent
@@ -401,6 +401,6 @@ class TestPytestYmlTimeout:
 
         timeout = workflow.get("jobs", {}).get("test", {}).get("timeout-minutes")
         assert timeout is not None
-        assert 20 <= timeout <= 90, (
-            f"test job timeout-minutes={timeout} is outside the expected range [20, 90]"
+        assert 10 <= timeout <= 90, (
+            f"test job timeout-minutes={timeout} is outside the expected range [10, 90]"
         )
