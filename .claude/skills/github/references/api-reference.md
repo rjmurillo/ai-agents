@@ -53,6 +53,12 @@ The `Data` object returned by `get_pr_context.py` includes these fields.
 | `deletions` | int | `deletions` | Lines removed |
 | `changed_files` | int | `changedFiles` | Files changed |
 | `mergeable` | string | `mergeable` | `MERGEABLE`, `CONFLICTING`, or `UNKNOWN` |
+| `status_checks` | list[object] | `statusCheckRollup` | Raw `CheckRun` and `StatusContext` records. Empty when the rollup is `null`. |
+| `status_check_total_count` | int | `len(statusCheckRollup)` | Number of returned status checks. |
+| `review_thread_total_count` | int | GraphQL `reviewThreads.totalCount` | Total review threads reported by GitHub. |
+| `review_thread_returned_count` | int | GraphQL `reviewThreads.nodes` | Review-thread nodes returned across all pages. |
+| `review_thread_unresolved_count` | int | GraphQL `reviewThreads.nodes[].isResolved` | Unresolved threads among returned nodes. |
+| `review_thread_counts_complete` | bool | Derived | Whether returned thread count equals GitHub's total count. |
 | `merged` | bool | `bool(mergedAt)` | Whether the PR is merged |
 | `merged_by` | string \| null | `mergedBy.login` | Who merged the PR |
 | `created_at` | string | `createdAt` | ISO 8601 timestamp |

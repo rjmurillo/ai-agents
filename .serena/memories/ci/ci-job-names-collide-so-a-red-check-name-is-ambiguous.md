@@ -6,8 +6,8 @@ Conventional reading: a failing check name tells you what broke. `gh pr checks`
 prints one name per row, so the name looks like an identifier.
 
 It is not. GitHub reports the **job name**, and job names are not unique across
-workflows in this repository. Twelve display names are shared by two or more job
-definitions, and ten of those collide entirely among `pull_request` jobs.
+workflows in this repository. Eleven display names are shared by two or more job
+definitions.
 
 ## The case that costs the most
 
@@ -69,7 +69,6 @@ both able to run and to fail:
 |---|---|---|
 | `Check Changed Paths` | 9 | ai-spec-validation, cli-smoke, codeql-analysis, pytest, skillbook-validation, validate-paths, validate-plugin-manifests, validate-plugin-version-bump, yaml-lint |
 | `Detect changes` | 5 | citation-verify, memory-health, memory-validation, passive-context-budget, skill-passive-compliance |
-| `Aggregate Results` | 3 | ai-pr-quality-gate, ai-session-protocol, test-codeql-integration |
 | `Validate budget` | 2 | instruction-budget, passive-context-budget |
 | `Validate Investigation Claims` | 2 | ai-session-protocol, investigation-claim-backstop |
 | `Debounce Workflow` | 2 | ai-pr-quality-gate, ai-spec-validation |
@@ -110,10 +109,19 @@ for k, v in sorted(n.items()):
 '
 ```
 
-Measured 2026-08-03 at `origin/main` `db5aab393`: **138 job definitions carry a
-`name:`, spanning 113 unique display names.** Twelve of those names are used by
-more than one definition; ten collide entirely among `pull_request` jobs. Count
-definitions, not names: the two numbers differ by 25 and are easy to conflate.
+Measured 2026-08-09 on the issue #4785 branch: **143 job definitions carry a
+`name:`, spanning 120 unique display names.** Eleven names are used by more
+than one definition. Count definitions, not names: the two numbers differ by
+23 and are easy to conflate.
+
+## Required result contexts are now unique
+
+Issue #4785 closed the load-bearing collision. AI PR Quality Gate emits the
+required `AI Quality Gate Results` context. Session Protocol Validation emits
+the separately required `Session Protocol Results` context. Both names have
+repo-wide uniqueness tests and both are active in ruleset 11104075.
+
+CodeQL integration retains the generic, non-required `Aggregate Results` name.
 
 ## Related
 

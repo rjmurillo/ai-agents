@@ -390,4 +390,3 @@ class TestFlagContractWithRealTarget:
             f"wrapper emits {unknown}, which {SKILL_RELPATH} does not accept; "
             f"it accepts {sorted(accepted)}"
         )
-

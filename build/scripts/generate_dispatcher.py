@@ -70,12 +70,106 @@ from regen_guard import detect_reason_strict as regen_detect_reason
 # "timeoutSec": timeout_sec
 # The dispatcher swaps {rel} to point at the per-event _dispatch.py but keeps
 # root resolution and shell shape identical.
+# Minimum Python version required by the hook runtime. Oldest version still
+# receiving security patches as of 2026. The hook code uses f-strings (3.6+)
+# and `from __future__ import annotations` (3.7+), but we declare 3.10 as the
+# supported floor to match the Python lifecycle.
+_MIN_PYTHON_MAJOR = 3
+_MIN_PYTHON_MINOR = 10
+
+_WARN_PREFIX = "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."
+
 _BASH_TEMPLATE = (
-    'python3 -u "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}/hooks/{event}/_dispatch.py"'
+    '_ptr="${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}"; '
+    '_warn="project-toolkit@ai-agents WARNING: hooks DISABLED '
+    '(your session is unaffected)."; '
+    'if [ -z "$_ptr" ]; then '
+    'echo "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and '
+    'CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    'if [ ! -d "$_ptr" ]; then '
+    'echo "$_warn Plugin root is not a directory: $_ptr. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    # Interpreter discovery: preflight each candidate with a version check.
+    # A broken launcher (exits nonzero) or too-old interpreter (< 3.10) moves
+    # to the next candidate. Covers HIGH 3 and HIGH 5 from #4672 review.
+    '_interp=""; '
+    'for _c in python3 python; do '
+    'if command -v "$_c" >/dev/null 2>&1; then '
+    '_ok=$("$_c" -c "import sys;'
+    'print(int(sys.version_info>=({min_maj},{min_min})))" 2>/dev/null) || _ok=""; '
+    'if [ "$_ok" = "1" ]; then _interp="$_c"; break; fi; '
+    'fi; done; '
+    'if [ -z "$_interp" ]; then '
+    'echo "$_warn No suitable Python interpreter found (need >= {min_maj}.{min_min}). '
+    'Install: https://www.python.org/downloads/" >&2; exit 0; fi; '
+    # Dispatcher must be a regular file and readable (not a directory).
+    'if [ ! -f "$_ptr/hooks/{event}/_dispatch.py" ]; then '
+    'echo "$_warn Dispatcher missing or not a file: '
+    '$_ptr/hooks/{event}/_dispatch.py. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    'if [ ! -r "$_ptr/hooks/{event}/_dispatch.py" ]; then '
+    'echo "$_warn Dispatcher unreadable: '
+    '$_ptr/hooks/{event}/_dispatch.py. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    '"$_interp" -u "$_ptr/hooks/{event}/_dispatch.py"; _rc=$?; '
+    'if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then '
+    'echo "$_warn Python interpreter failed to start ($_interp, exit $_rc). '
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/" >&2; exit 0; fi; '
+    'exit $_rc'
 )
 _PWSH_TEMPLATE = (
-    'py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {{$env:COPILOT_PLUGIN_ROOT}} '
-    'else {{$env:CLAUDE_PLUGIN_ROOT}})/hooks/{event}/_dispatch.py"'
+    '$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} '
+    'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} '
+    'else {{ $null }}; '
+    '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED '
+    '(your session is unaffected)."; '
+    'if (-not $_ptr) {{ '
+    '[Console]::Error.WriteLine("$_warn Plugin root unresolvable '
+    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    'if (-not (Test-Path $_ptr -PathType Container)) {{ '
+    '[Console]::Error.WriteLine("$_warn Plugin root is not a directory: $_ptr. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    # Interpreter discovery: preflight each candidate with version check.
+    # A broken launcher or too-old interpreter moves to the next candidate.
+    '$_interp = $null; '
+    'foreach ($c in @("py","python3","python")) {{ '
+    'if (Get-Command $c -ErrorAction SilentlyContinue) {{ '
+    'try {{ $_ok = & $c -c '
+    '"import sys;print(int(sys.version_info>=({min_maj},{min_min})))" '
+    '2>$null; if ($_ok -eq "1") {{ $_interp = $c; break }} }} '
+    'catch {{}} }} }}; '
+    'if (-not $_interp) {{ '
+    '[Console]::Error.WriteLine("$_warn No suitable Python interpreter found '
+    '(need >= {min_maj}.{min_min}). '
+    'Install: https://www.python.org/downloads/"); exit 0 }}; '
+    # Dispatcher must be a leaf file AND readable. Test-Path alone answers
+    # only "does it exist": a file blocked by Windows ACLs passes it, Python
+    # then exits 2 opening it, and the trailing `exit $LASTEXITCODE` denies
+    # every call. The bash form already checks -r, so testing existence only
+    # here left the two launchers covering different failures on the platform
+    # the customer was actually running. Refs #4672.
+    '$_script = "$_ptr/hooks/{event}/_dispatch.py"; '
+    'if (-not (Test-Path $_script -PathType Leaf)) {{ '
+    '[Console]::Error.WriteLine("$_warn Dispatcher missing or not a file: '
+    '$_script. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    'try {{ [System.IO.File]::OpenRead($_script).Close() }} catch {{ '
+    '[Console]::Error.WriteLine("$_warn Dispatcher not readable: $_script. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    '& $_interp -u "$_script"; '
+    'if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ '
+    '[Console]::Error.WriteLine("$_warn Python interpreter failed to start '
+    '($_interp, exit $LASTEXITCODE). '
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/"); exit 0 }}; '
+    'exit $LASTEXITCODE'
 )
 
 _ENTRYPOINT = """\
@@ -93,9 +187,24 @@ import sys
 from pathlib import Path, PureWindowsPath
 from typing import cast
 
+# Version check: degrade gracefully on interpreters below the supported floor.
+# This runs inside the already-started Python process (no extra subprocess).
+# Python 3.7+ can parse this file; older versions fail at `from __future__`.
+if sys.version_info < (__MIN_PYTHON_MAJOR__, __MIN_PYTHON_MINOR__):
+    _v = ".".join(str(x) for x in sys.version_info[:3])
+    print(
+        "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is "
+        "unaffected). Python >= __MIN_PYTHON_MAJOR__.__MIN_PYTHON_MINOR__ "
+        "required but Python " + _v + " found. "
+        "Upgrade: https://www.python.org/downloads/",
+        file=sys.stderr,
+    )
+    sys.exit(0)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _bootstrap import ensure_plugin_paths  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -255,9 +364,61 @@ def _main() -> int:
     event_dir = Path(__file__).resolve().parent
     mode = None
     try:
+        from _bootstrap import ensure_plugin_paths  # noqa: E402
         ensure_plugin_paths()
+    except (Exception, SystemExit) as exc:
+        # Infrastructure failure: the dispatch machinery could not load.
+        # Catches ImportError (missing/broken _bootstrap.py, version skew),
+        # PluginInfrastructureError (lib dir missing, plugin root invalid),
+        # TypeError (signature mismatch from partial upgrade), OSError (file
+        # system issues).
+        #
+        # SystemExit is caught here on purpose. It is a BaseException, so a
+        # bare `except Exception` misses it, and every _bootstrap.py shipped
+        # before this change calls sys.exit(2) for a missing plugin root or
+        # lib directory. A partial upgrade pairing this dispatcher with one of
+        # those therefore exited 2 and denied every PreToolUse call: the exact
+        # customer-wide denial this fail-open path exists to prevent, arriving
+        # through the one exception type the handler did not cover.
+        #
+        # The scope is deliberately this bootstrap import only. A SystemExit
+        # raised later, from shim execution, must still deny, because
+        # degrading there would convert "crash the guard" into "bypass the
+        # guard".
+        # Allow the tool call (exit 0) to keep the plugin usable. A plugin
+        # that denies every call forces uninstall, removing all protection.
+        # Fail-open on infrastructure keeps the plugin installed so the next
+        # release still protects the user (#4672).
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
+    # The module import is its own infrastructure boundary. Folding it into
+    # the dispatch try below meant only ImportError counted as a load failure,
+    # so a hook_dispatch.py that exists but cannot compile, cannot be read, or
+    # raises during module initialization fell through to the broad handler and
+    # was classified as a policy failure: exit 2, denying every PreToolUse
+    # call. That is the customer-wide denial arriving through a second door.
+    # A load failure cannot be a policy decision, because no policy ran.
+    try:
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
+    except (Exception, SystemExit) as exc:
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
 
+    try:
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
         raw, oversize_exit = _read_payload(event, shims, mode)
         if oversize_exit is not None:
@@ -282,7 +443,23 @@ def _main() -> int:
                 ),
             ),
         )
+    except ImportError as exc:
+        # A nested import inside the dispatch path (run_permission_dispatch)
+        # can still fail after the module loaded. Same reasoning: a missing
+        # module is infrastructure, not a policy decision.
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+        # Policy or dispatch error after machinery loaded: a shim ran and
+        # raised, or manifest validation failed post-load. Fail closed for
+        # gate/advise events (these are policy decisions), allow for observers.
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",
@@ -303,6 +480,8 @@ def _main() -> int:
 sys.exit(_main())
 """
 _ENTRYPOINT = _ENTRYPOINT.replace("__HOOK_STDIN_CEILING_MIB__", str(HOOK_STDIN_CEILING_MIB))
+_ENTRYPOINT = _ENTRYPOINT.replace("__MIN_PYTHON_MAJOR__", str(_MIN_PYTHON_MAJOR))
+_ENTRYPOINT = _ENTRYPOINT.replace("__MIN_PYTHON_MINOR__", str(_MIN_PYTHON_MINOR))
 
 
 def dispatcher_entry(event: str, timeout_sec: int, matcher: str | None = None) -> dict[str, Any]:
@@ -317,9 +496,13 @@ def dispatcher_entry(event: str, timeout_sec: int, matcher: str | None = None) -
     dispatcher's in-process filtering (unchanged).
     """
     entry: dict[str, Any] = {
-        "bash": _BASH_TEMPLATE.format(event=event),
+        "bash": _BASH_TEMPLATE.format(
+            event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR
+        ),
         "cwd": ".",
-        "powershell": _PWSH_TEMPLATE.format(event=event),
+        "powershell": _PWSH_TEMPLATE.format(
+            event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR
+        ),
         "timeoutSec": timeout_sec,
         "type": "command",
     }

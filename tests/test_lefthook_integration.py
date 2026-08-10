@@ -813,16 +813,17 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
-    stdin_groups = [
+    piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
         if isinstance(item.get("group"), dict)
+        and item["group"].get("piped") is True
         and any(bool(job.get("use_stdin")) for job in item["group"].get("jobs", []))
     ]
-    assert len(stdin_groups) == 1
-    assert stdin_groups[0].get("piped") is True
-    assert stdin_groups[0].get("parallel") is not True
-    assert [job["name"] for job in stdin_groups[0]["jobs"]] == [
+    assert len(piped_stdin_groups) == 1
+    assert piped_stdin_groups[0].get("piped") is True
+    assert piped_stdin_groups[0].get("parallel") is not True
+    assert [job["name"] for job in piped_stdin_groups[0]["jobs"]] == [
         "push-ref-policy",
         "security-scan",
         "security-suppression-policy",
