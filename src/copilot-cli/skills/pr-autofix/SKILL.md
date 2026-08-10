@@ -176,6 +176,12 @@ run_mutation_with_lease_monitor() {
         sleep 0.01
     done
     if [ "$mutation_pgid" != "$mutation_pid" ]; then
+        if ! kill -0 "$mutation_pid" 2>/dev/null; then
+            if wait "$mutation_pid"; then
+                return 0
+            fi
+            return $?
+        fi
         kill "$mutation_pid" 2>/dev/null || true
         wait "$mutation_pid" 2>/dev/null || true
         echo "Stopping mutation for #$PR: process group setup failed"
