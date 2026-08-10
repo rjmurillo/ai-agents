@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-10-session-10042-pr-4642-autofix",
+  "session": "2026-08-10-session-10042-pr-4642-autofix",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Validate PR 4642 and add the missing QA evidence required by Validate PR",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the failing required check",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10042-pr-4642-autofix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused validation at the live PR head",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10042-pr-4642-autofix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added QA and session evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10042-pr-4642-autofix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T09:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: 7db7eff9fd6593f7105bc81ffd5a4fdec45cf491",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10042-pr-4642-autofix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
