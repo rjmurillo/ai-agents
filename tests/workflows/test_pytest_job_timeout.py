@@ -6,8 +6,10 @@ Its evidence records run 30830624080 at 986 seconds and one parallel-fleet
 run at 1546 seconds (26 min), the worst observation, not a percentile. This
 is a two-observation operational guardrail, not a distribution estimate.
 The CI run's complete job took 17.2 minutes; the fleet record covers pytest
-runtime only, so 45 minutes also leaves 19 minutes for setup, coverage gates,
-and artifact upload beyond the worst observed suite.
+runtime only, so the remaining 19 minutes for setup, coverage gates, and
+artifact upload is a conservative assumption, not measured phase headroom.
+No comparable failed or cancelled-run dataset exists. The review trigger below
+collects new runtime evidence before the limit changes.
 
 Thirty minutes leaves only 1.2x the worst observation, too little for runner
 contention. Sixty minutes leaves 2.3x but doubles the time to stop a genuine
