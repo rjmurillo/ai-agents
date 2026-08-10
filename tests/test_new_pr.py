@@ -622,7 +622,11 @@ class TestRunValidations:
             if cmd[:2] == ["git", "show"]:
                 return _completed(stdout='{"session": 1}\n', rc=0)
             if cmd[0].endswith("python") or "validate_session_json.py" in " ".join(cmd):
-                validated_paths.append(cmd[-1])
+                validated_paths.append(cmd[2])
+                assert cmd[-2:] == [
+                    "--session-log-identity",
+                    ".agents/sessions/2025-01-01-session-01.json",
+                ]
                 return _completed(rc=0)
             return _completed(rc=0)
 

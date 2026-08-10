@@ -356,6 +356,8 @@ def run_validations(
                                 sys.executable,
                                 validate_script,
                                 session_log_path,
+                                "--session-log-identity",
+                                session_log,
                             ],
                             capture_output=True,
                             text=True,

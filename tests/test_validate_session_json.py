@@ -3216,6 +3216,20 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         assert vsj._repo_relative(Path("/tmp/elsewhere.json")) == "/tmp/elsewhere.json"
 
+    def test_session_identity_override_preserves_the_logical_sessions_path(self) -> None:
+        import scripts.validate_session_json as vsj
+
+        identity = ".agents/sessions/2026-08-10-session-42-example.json"
+        assert vsj._session_identity_override(identity) == identity
+
+    def test_session_identity_override_rejects_a_scratch_path(self) -> None:
+        import scripts.validate_session_json as vsj
+
+        with pytest.raises(ValueError):
+            vsj._session_identity_override(
+                ".agents/scratch/session-log-validation/example.json"
+            )
+
     def test_an_explicit_existing_log_flag_skips_the_git_probe(self) -> None:
         """--existing-log is the caller's own answer; do not re-derive it."""
         import scripts.validate_session_json as vsj
