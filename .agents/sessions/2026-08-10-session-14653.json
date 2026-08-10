@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4850-qa-contract-report.md"
+        "Evidence": ".agents/qa/pr-4860-issue-4850-qa-contract-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
