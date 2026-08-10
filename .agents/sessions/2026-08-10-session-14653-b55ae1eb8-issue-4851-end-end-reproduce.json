@@ -79,7 +79,7 @@
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md remained unchanged."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, regression tests, and current origin/main merged through c2cd517ba6f822e5aa95de98d6dc9795be939e34."
+        "Evidence": "All changes committed (HEAD: c2cd517ba6f822e5aa95de98d6dc9795be939e34)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "75 tests, ruff, mypy, markdownlint, generation, build-all, install parity, drift, catalog, and plugin manifest checks passed."
+        "Evidence": "75 tests, ruff, mypy, markdownlint, generation, build-all, install parity, drift, catalog, plugin manifest, and session checks passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No retrospective required for this bounded prompt parity fix."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
