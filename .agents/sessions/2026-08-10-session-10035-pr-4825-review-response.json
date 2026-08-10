@@ -152,7 +152,7 @@
       "outcome": "Probing ordinary brace usage found the gate denied 4 of 7 legitimate commands because materializing a large range exceeded the expansion budget, which fails closed. Collapsed ranges to the characters new_pr.py can use instead of enumerating them. Re-probed: 0 of 7 legitimate denied, 0 of 8 range-obfuscated attempts leaked, worst case 0.103s against the 10s hook timeout. Both bands are regression tests."
     }
   ],
-  "endingCommit": "b3e8fecdcc83cc67aed51e109fae40b9db1e7a4f",
+  "endingCommit": "ca57c10ae5ecf35df291c899629f3a9f9362fec4",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",

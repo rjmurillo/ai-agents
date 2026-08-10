@@ -168,7 +168,7 @@
       "result": "Merged current origin/main, generation check and Ruff passed, and 692 targeted runtime tests passed with no skips"
     }
   ],
-  "endingCommit": "b3e8fecdcc83cc67aed51e109fae40b9db1e7a4f",
+  "endingCommit": "ca57c10ae5ecf35df291c899629f3a9f9362fec4",
   "nextSteps": [
     "Push one PR, resolve review threads, merge, verify issue 4764 closure, and update todo status"
   ]
