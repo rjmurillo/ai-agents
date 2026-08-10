@@ -413,12 +413,6 @@ class TestReporting:
         assert len(sanitize("x" * 500)) == 160
 
     def test_emit_sanitizes_a_reason_it_is_handed(self, capsys: Capsys) -> None:
-        """The second line of defence, reached only if a reason carries text.
-
-        Every reason this module builds is a fixed constant, so constructing the
-        Resolution directly is the only input on which a sanitizing and a
-        non-sanitizing ``emit`` disagree, and so the only testable one.
-        """
         hostile = Resolution(STATUS_FAIL, "::error::title=x\nsecond line")
         outputs = mod.emit(hostile, DISAGREE, "::error::agreement")
         printed = capsys.readouterr().out

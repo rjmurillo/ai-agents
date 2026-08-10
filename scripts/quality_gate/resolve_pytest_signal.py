@@ -24,16 +24,6 @@ stricter than the name match live with the code that applies them: freshness in
 ``resolve``, pull request binding in ``binds_to_pr``, the never-ran executor in
 ``job_status``, worst-sibling escalation in ``aggregate``.
 
-Reads need ``actions: read`` for runs and jobs; the live head is a Git
-references endpoint already covered by the caller's ``contents: read``. Env
-vars, each overridable by the matching CLI flag: GITHUB_REPOSITORY, PR_NUMBER,
-EXPECTED_HEAD_SHA, LOCAL_PYTEST_STATUS, and the optional GITHUB_OUTPUT, written
-when set. Outputs are named apart from the existing pytest_status/pytest_summary
-so no current consumer can pick them up by accident: ``shadow_pytest_status``,
-``shadow_pytest_reason`` (sanitized), ``shadow_pytest_agreement``, and
-``shadow_pytest_compared``, "true" only when a real comparison happened so
-samples can be counted (see ``emit``).
-
 Exit codes (ADR-035): 0 once a status is resolved and emitted, which is EVERY
 resolution outcome including UNKNOWN from an API failure, because a shadow must
 never change the job's verdict; 2 for a config error (bad repo, PR number, SHA,
