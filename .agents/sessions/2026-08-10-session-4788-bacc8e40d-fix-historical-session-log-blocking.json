@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: 2073efa92e807caa7542eec2f7ced47beeef2a17, 8220fd5a8cdccf8b612c7afd6e773dc298eca644, e144105aa35b45e2403d656ef219d0413a0d1284, 5544bbf2f52609d846d33e7f1ef4f6391c932b71"
+        "Evidence": "Commits: 2073efa92e807caa7542eec2f7ced47beeef2a17, 8220fd5a8cdccf8b612c7afd6e773dc298eca644, e144105aa35b45e2403d656ef219d0413a0d1284, 5544bbf2f52609d846d33e7f1ef4f6391c932b71, fc40bb5353edccb4b0d061d25cbbf04b2511ed23, e5d3691de27b8a07c651a051c82ad13bd364fbaf"
       },
       "validationPassed": {
         "level": "MUST",
@@ -171,9 +171,13 @@
     {
       "task": "Update the full-suite invalid-log control to the NUL path contract",
       "outcome": "The previously failing test now reaches and observes the validator failure"
+    },
+    {
+      "task": "Merge current main after the full-suite run",
+      "outcome": "Clean merge removed stale Velocity Accelerator paths that caused merge-tree counters to read deleted files"
     }
   ],
-  "endingCommit": "5544bbf2f52609d846d33e7f1ef4f6391c932b71",
+  "endingCommit": "e5d3691de27b8a07c651a051c82ad13bd364fbaf",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
