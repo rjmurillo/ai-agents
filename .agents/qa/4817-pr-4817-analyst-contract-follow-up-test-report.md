@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 1a18a9ab06812ab2a784b8e8b66216081759b53d
+qaCommit: c7645d15c0ac599d4982e21ec73dc5392328eda4
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -83,3 +83,26 @@ Routing validator (new):
 ### Failed
 
 None.
+
+## PR #4817 review thread follow-up, arbitrary verbs
+
+Copilot flagged a remaining finite-verb bypass: `The analyst retrieves cache,
+compliance-bot owns pull_request_read.` was accepted because `owns` was not in
+the boundary verb list. Confirmed and fixed in commit `c7645d15c0ac599d4982e21ec73dc5392328eda4`.
+
+The boundary now treats bot or agent subjects as new actors without enumerating
+their verbs. Existing tool-subject and list-item controls still pass.
+
+Verification run in this session:
+
+```text
+$ uv run --frozen pytest tests/test_analyst_skill_resolution.py -q
+============================= 118 passed in 0.49s ==============================
+
+$ uv run --frozen ruff check tests/test_analyst_skill_resolution.py
+All checks passed!
+```
+
+Added negative control: `test_tool_mixed_owns_rejected`.
+
+**Result**: PASS

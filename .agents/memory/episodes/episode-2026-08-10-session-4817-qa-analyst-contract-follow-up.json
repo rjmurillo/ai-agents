@@ -60,7 +60,8 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e009"
       ],
       "leads_to": [
         "e006"
@@ -101,6 +102,30 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve PR 4817 arbitrary verb review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T18:03:45+00:00",
+      "type": "commit",
+      "content": "Commit: c7645d15c0ac599d4982e21ec73dc5392328eda4",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     }
@@ -110,7 +135,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 5
   },
   "lessons": []

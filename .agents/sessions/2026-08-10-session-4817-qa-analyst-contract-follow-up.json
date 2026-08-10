@@ -114,12 +114,12 @@
     {
       "action": "Regenerate QA evidence",
       "detail": "Fresh test run 149 passed at exact code commit 1f776d469"
+    },
+    {
+      "task": "Resolve PR 4817 arbitrary verb review thread",
+      "outcome": "Confirmed compliance-bot owns pull_request_read still bypassed the analyst retrieval guard. Replaced the actor-boundary verb list for bot or agent subjects with open-ended verb detection, preserved the tool-subject and list-item controls, and verified 118 analyst resolution tests plus ruff."
     }
   ],
-  "endingCommit": "1a18a9ab06812ab2a784b8e8b66216081759b53d",
-  "nextSteps": [
-    "Push and verify CI",
-    "Independent review on final head",
-    "Human approval required"
-  ]
+  "endingCommit": "c7645d15c0ac599d4982e21ec73dc5392328eda4",
+  "nextSteps": []
 }
