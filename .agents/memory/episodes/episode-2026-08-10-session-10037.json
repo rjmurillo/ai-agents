@@ -98,7 +98,8 @@
         "e006",
         "e007",
         "e010",
-        "e011"
+        "e011",
+        "e013"
       ],
       "leads_to": [
         "e009"
@@ -148,6 +149,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main after Validate PR conflict failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T14:43:30+00:00",
+      "type": "commit",
+      "content": "Commit: 75489ac95c2dc3500dc2c8b473c3094cdf02fb76",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10037"
     }
@@ -157,7 +182,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 13
   },
   "lessons": []

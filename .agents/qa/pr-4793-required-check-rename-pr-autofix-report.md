@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10037.json
-qaCommit: d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb
+qaCommit: 75489ac95c2dc3500dc2c8b473c3094cdf02fb76
 ---
 # PR #4793 required-check rename and pr-autofix validation
 
@@ -16,12 +16,12 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 ## Evidence
 
 - Negative control: adding job control to the local harness reproduced the process-group setup failure before the fix.
-- `uv run pytest -n auto tests/test_pr_autofix_late_live_state_gate.py -q`: 26 passed in 3.08s.
+- `uv run pytest -n auto tests/test_pr_autofix_late_live_state_gate.py -q`: 26 passed in 3.54s after merging current origin/main.
 - `for i in 1 2 3 4 5; do uv run pytest -q tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_reports_lease_loss_after_wait || exit $?; done`: each run collected 2 items and passed.
 - `uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py -q`: 37 passed in 0.74s.
 - `uv run --frozen python scripts/validation/pre_pr.py`: RESULT All validations passed, 50 passed, 0 failed, 0 skipped.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
-- QA content commit: `d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb`. Later commits in this PR add QA evidence only under `.agents/`.
+- QA content commit: `75489ac95c2dc3500dc2c8b473c3094cdf02fb76`. Later commits in this PR add QA evidence only under `.agents/`.
 
 ## Thread disposition
 

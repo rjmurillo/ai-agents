@@ -154,9 +154,13 @@
     {
       "action": "Fixed CI fast-exit lease-loss race",
       "result": "Actions observed the fast mutation before it became waitable. The monitor now rechecks for a completed or zombie child before terminating the mutation group."
+    },
+    {
+      "action": "Merged current origin/main after Validate PR conflict failure",
+      "result": "Resolved pr-autofix command and generated skill conflicts, regenerated mirrors, and reran pr-autofix tests after the merge."
     }
   ],
-  "endingCommit": "d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb",
+  "endingCommit": "75489ac95c2dc3500dc2c8b473c3094cdf02fb76",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]
