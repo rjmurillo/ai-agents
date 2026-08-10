@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests.json
-qaCommit: fbe46a90ca2ef533588730ead8928f2024acb439
+qaCommit: 75c22a3e0fe768b600a93a40819a0789b7b286c4
 ---
 
 # PR 4849 pr-autofix process isolation
@@ -10,7 +10,7 @@ qaCommit: fbe46a90ca2ef533588730ead8928f2024acb439
 
 PASS. Pre-push runs the pr-autofix process-group tests in their own serial
 pytest process. Fast mutations that exit before process-group observation now
-return their actual status.
+return their actual status without releasing the PR lease early.
 
 ## Evidence
 
@@ -19,3 +19,6 @@ return their actual status.
 - Ruff passed on the three changed Python files.
 - `build_all.py` regenerated the Copilot skill mirror.
 - Security review found no blocking finding.
+- Review regression confirmed the lease remains held after a fast mutation.
+- `pre_pr.py` passed all 49 non-session validations. Session validation only
+  required this refreshed QA binding.

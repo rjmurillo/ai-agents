@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: fbe46a90ca)"
+        "Evidence": "All implementation changes committed (HEAD: 75c22a3e0)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "83 partition tests passed. All 24 process tests passed in ten consecutive runs. Ruff passed. build_all.py --check passed after the code commit."
+        "Evidence": "83 partition tests passed. All 24 process tests passed in ten consecutive runs and after the lease-lifetime review fix. Ruff and build_all.py --check passed. pre_pr.py passed all 49 non-session validations."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -139,9 +139,13 @@
     {
       "action": "Regenerated the Copilot skill mirror",
       "result": "build_all.py updated src/copilot-cli/skills/pr-autofix/SKILL.md from the canonical .claude command."
+    },
+    {
+      "action": "Addressed PR review lease-lifetime finding",
+      "result": "Removed the fast-success cleanup. A regression now proves the lease remains held until per-PR work ends."
     }
   ],
-  "endingCommit": "fbe46a90ca2ef533588730ead8928f2024acb439",
+  "endingCommit": "75c22a3e0fe768b600a93a40819a0789b7b286c4",
   "nextSteps": [
     "Merge this PR, then refresh PR #4845 from main and push it again."
   ]
