@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No retrospective requested for this task."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4606-session-10026-qa-report.md"
       }
     }
   },
@@ -135,7 +140,7 @@
       "evidence": "Five behavioral mutants died and one cosmetic control survived in /home/richard/src/scratch/mut_revthreads.log."
     }
   ],
-  "endingCommit": "ed5350a919",
+  "endingCommit": "",
   "nextSteps": [],
   "tasks": [
     {
@@ -148,5 +153,13 @@
       "disposition": "fixed",
       "evidence": "check_review_thread_resolution_shas.py reports sha_reference_count=4, unreachable_count=4, invalid_count=0 on PR 4277."
     }
-  ]
+  ],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "79d59f39f32d9046a06a4c318f5be6eee19aad31",
+      "head": "d45b29db6c97c4558f6c2de4e66ff26bf050e33a"
+    }
+  }
 }

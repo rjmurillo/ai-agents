@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No retrospective requested."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4606-session-10027-qa-report.md"
       }
     }
   },
@@ -135,7 +140,7 @@
       "evidence": "Mutation proof killed M1 through M5 and let cosmetic M6 survive; pycache purged before every run and PYTHONDONTWRITEBYTECODE set."
     }
   ],
-  "endingCommit": "eca9155959",
+  "endingCommit": "",
   "nextSteps": [],
   "tasks": [
     {
@@ -148,5 +153,13 @@
       "disposition": "fixed",
       "evidence": "PR 4606 now fails resolved review threads with unreachable, invalid, or ambiguous SHA references; PR 4277 reports 4 unreachable references."
     }
-  ]
+  ],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "79d59f39f32d9046a06a4c318f5be6eee19aad31",
+      "head": "d45b29db6c97c4558f6c2de4e66ff26bf050e33a"
+    }
+  }
 }
