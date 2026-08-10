@@ -1,0 +1,166 @@
+{
+  "id": "episode-2026-08-04-session-9044-governance-doc-accuracy",
+  "session": "2026-08-04-session-9044-governance-doc-accuracy",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Audit always-on governance documents for stale claims and correct false documentation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Enumerate governance claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify corpus and generator claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct false always-on steering claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T05:10:22+00:00",
+      "type": "commit",
+      "content": "Commit: 5ec85be51aad",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e006",
+        "e007",
+        "e008",
+        "e011"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T08:34:12+00:00",
+      "type": "commit",
+      "content": "Commit: e5758b4930d4d5cca0fefc10f601e8616f94917e",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classify unverifiable audit rows",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recheck TRUE rows that claimed gate wiring",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrite high-value unfalsifiable clauses",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T08:43:55+00:00",
+      "type": "commit",
+      "content": "Commit: d9e4f7d54e47de86ed58b7158f727f6099c05247",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T11:22:51+00:00",
+      "type": "commit",
+      "content": "Commit: 20e1e2d3854f1c94270110a84c653e13b05a68bb",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disambiguate skill validation reference",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T19:40:10+00:00",
+      "type": "commit",
+      "content": "Commit: 60793c17fbbeb04fd8d44cdad151807b513e671f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 214
+  },
+  "lessons": []
+}
