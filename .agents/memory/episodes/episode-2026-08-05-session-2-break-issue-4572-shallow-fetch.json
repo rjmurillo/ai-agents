@@ -75,6 +75,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T11:56:43+00:00",
+      "type": "commit",
+      "content": "Commit: 73f47e124185ad5830e07d899ac048ebff4a0632",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
     }
@@ -84,8 +97,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 10
   },
   "lessons": []
 }

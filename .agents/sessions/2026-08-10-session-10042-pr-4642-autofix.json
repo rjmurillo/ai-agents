@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The guarded autofix commit contains only this session log and its QA report."
+        "Evidence": "Implementation, evidence, and main-refresh commits are recorded through 73f47e124185ad5830e07d899ac048ebff4a0632."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,6 +137,6 @@
       "outcome": "No implementation files changed."
     }
   ],
-  "endingCommit": "7db7eff9fd6593f7105bc81ffd5a4fdec45cf491",
+  "endingCommit": "73f47e124185ad5830e07d899ac048ebff4a0632",
   "nextSteps": []
 }
