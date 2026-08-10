@@ -22,7 +22,7 @@ on:
 
 jobs:
   provenance:
-    name: Validate Vendor Provenance
+    name: Vendor Provenance
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
 

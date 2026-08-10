@@ -263,10 +263,19 @@ class TestNpmrcRejection:
 class TestInstalledHookEntrypoint:
     """Verify the validator can be invoked as a subprocess (entrypoint test)."""
 
-    def test_entrypoint_runs_and_returns_int(self) -> None:
+    def test_entrypoint_nonexistent_dir_fails(self) -> None:
+        """Validator returns error exit for nonexistent candidate root."""
         r = _run(["--candidate-root", "/tmp/empty-dir-nonexistent"])
         assert isinstance(r.returncode, int)
-        assert r.returncode in (1, 2)
+        assert r.returncode in (1, 2), "nonexistent dir must fail validation"
+
+    def test_entrypoint_valid_tree_passes(self) -> None:
+        """Validator passes on the real repo tree (production-grounded)."""
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        r = _run(["--candidate-root", str(repo_root)])
+        assert r.returncode == 0, f"valid tree must pass: {r.stdout}"
 # New test classes to append
 
 class TestMissingPinnedFile:
