@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and validation fixes committed through e036e7c11dc44ccb113a67a0c85076452f62a252."
+        "Evidence": "Code and validation fixes committed through 4e09970895e0f4298a564aed98b53024e4640135."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted ruff passed, targeted pytest passed 116 tests, mutation harness passed 2 tests, pre-push suite passed on push to e036e7c11."
+        "Evidence": "Targeted ruff passed, targeted pytest passed 116 tests, mutation harness passed 2 tests, affected tests passed 533 tests, subprocess ratchet matched baseline 253, and pre-push suite passed."
       }
     }
   },
@@ -115,9 +115,13 @@
     {
       "action": "Replied to review threads",
       "result": "Seven unresolved threads received evidence replies and were resolved."
+    },
+    {
+      "action": "Cleared subprocess count ratchet",
+      "result": "Added errors handling to branch-touched subprocess test calls and verified the ratchet reports OK at baseline 253."
     }
   ],
-  "endingCommit": "e036e7c11dc44ccb113a67a0c85076452f62a252",
+  "endingCommit": "4e09970895e0f4298a564aed98b53024e4640135",
   "nextSteps": [
     "Wait for required GitHub checks to finish and enable squash auto-merge after merge readiness passes."
   ]
