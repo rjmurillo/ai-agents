@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4586,
+    "date": "2026-08-10",
+    "branch": "autofix-qa-4586",
+    "startingCommit": "042c48239bb79ffc9aed4b980687f7a4e3de0513",
+    "objective": "Add QA evidence for PR 4586 Validate PR gate."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this run."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this run."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Compacted task handoff supplied prior PR state."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log: .agents/sessions/2026-08-10-session-4586-qa-report.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used repository PR scripts under .claude/skills/github/scripts/pr/."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill active for PR operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied lease, live-state, worktree, hook, and no-bypass constraints."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Compacted context supplied prior session memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned autofix-qa-4586."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch autofix-qa-4586 is not main or master."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "042c48239bb79ffc9aed4b980687f7a4e3de0513"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report created for PR 4586."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Did not edit HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable repository learning was created."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report uses existing markdown table and heading style."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report and session log are committed in this session; final SHA is recorded by git history."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q passed with 336 passed in 2.82s."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4586-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-10T11:20:00Z",
+      "entry": "Acquired pr_autofix lease for PR 4586 and live-state gate returned ACT."
+    },
+    {
+      "time": "2026-08-10T11:25:00Z",
+      "entry": "Ran targeted test command: uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q. Result: 336 passed in 2.82s."
+    },
+    {
+      "time": "2026-08-10T11:30:00Z",
+      "entry": "Created QA report bound to pre-report code commit 042c48239bb79ffc9aed4b980687f7a4e3de0513."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "6965c145f0dc621f1d3f3040efa3426ce425e34c",
+      "head": "042c48239bb79ffc9aed4b980687f7a4e3de0513"
+    }
+  }
+}
