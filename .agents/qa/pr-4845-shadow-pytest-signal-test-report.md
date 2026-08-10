@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: c784dca71fe80d6fcd11f132f864ebde2e3cf75c
+qaCommit: 2360162d7e93850cce70b450ff923c810bdaeafe
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -13,21 +13,19 @@ changing any existing output, consumer, or check name. The duplicate
 authoritative pytest run is deliberately untouched, which is the phase 1
 contract.
 
-This revision covers merge commit c784dca71, which imports current `main`
-after PR #4844 merged. The shadow resolver runtime logic is unchanged. The
-focused suite passed again at c784dca71. Earlier measurements remain bound to
-0e88151e and are recorded below.
+This revision covers review fix commit 2360162d7. It preserves missing local
+pytest output as unknown, accepts uppercase expected SHAs, validates subprocess
+timeouts, and sources the pull request number from the event payload.
 
 ## Evidence
 
-- Focused tests: 83 passed in `tests/quality_gate/test_resolve_pytest_signal.py`.
-- Post-merge focused run: 83 passed in 0.52 seconds.
+- Focused tests: 86 passed in 0.49 seconds.
 - Neighbouring suites: 637 passed across `tests/workflows/` and
   `tests/quality_gate/`.
-- `pre_pr.py` passed all validations.
-- `ruff check`, `ruff format --check`, and `mypy` clean on both new files.
-- `actionlint` exit 0. `yamllint` warning categories and counts diffed against
-  the pre-change file: identical, so the edit adds no new warning.
+- `ruff check` and `ruff format --check` clean on both Python files.
+- `actionlint` exit 0. `yamllint` exits 0 with only pre-existing warnings.
+- Security review found no exploitable issue in commit 2360162d7.
+- Full `scripts/validation/pre_pr.py` passed all 50 validations.
 - Taste count ratchet measured with the new files tracked: 581 violations
   against baseline 583.
 
@@ -40,6 +38,10 @@ focused suite passed again at c784dca71. Earlier measurements remain bound to
 | Runs matched on head SHA alone | candidates must bind to the requested PR number | `test_a_colliding_sibling_run_does_not_hide_our_own_run` |
 | Empty `pull_requests` opened a hole | same-repo proven against a trusted constant | `test_a_run_binds_only_when_it_provably_belongs_to_us[empty-list-fork]` |
 | Shadow could collect zero samples silently | every run emits one sample notice, no-sample warns | `test_every_invocation_emits_exactly_one_sample_marker` |
+| Missing local output became `SKIPPED` | pass the empty output through as unknown | `test_shadow_step_passes_missing_local_status_through` |
+| Direct uppercase expected SHA became stale | normalize at the `resolve` boundary | `test_an_upper_case_expected_head_is_not_stale` |
+| Invalid timeout escaped config validation | reject non-finite and non-positive values | `test_an_invalid_invocation_exits_config` |
+| Shadow step depended on inherited PR wiring | source the current event PR directly | `test_shadow_step_passes_missing_local_status_through` |
 
 The escalation fix carries an over-fire risk, since `pytest.yml` ships a real
 `skip-tests` job with empty steps that appears alongside a green executor. If

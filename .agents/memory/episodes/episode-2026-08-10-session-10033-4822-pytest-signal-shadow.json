@@ -180,7 +180,8 @@
         "e011",
         "e012",
         "e013",
-        "e014"
+        "e014",
+        "e022"
       ],
       "leads_to": [
         "e016"
@@ -260,6 +261,30 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved final PR 4845 review defects",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T14:48:51+00:00",
+      "type": "commit",
+      "content": "Commit: 2360162d7e93850cce70b450ff923c810bdaeafe",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     }
@@ -269,7 +294,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 7
   },
   "lessons": []
