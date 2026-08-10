@@ -75,6 +75,10 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
         if uses.startswith("actions/checkout"):
             checked_out = True
             continue
+        # git checkout-index also materializes repo files (used by vendor-provenance)
+        run_text = str(step.get("run") or "")
+        if "git checkout-index" in run_text:
+            checked_out = True
         label = str(step.get("name") or uses or "<unnamed>")
         if uses.startswith("./"):
             if not checked_out:
