@@ -306,6 +306,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
             ],
         ), patch(
             "new_pr.run_validations",
@@ -323,6 +324,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -344,8 +346,12 @@ class TestMain:
             if len(calls) == 2:
                 return _completed(rc=0)  # gh --version
             if len(calls) == 3:
-                return _completed(stdout="", rc=0)  # git diff
+                return _completed(rc=0)  # git rev-parse --verify origin/main
             if len(calls) == 4:
+                return _completed(stdout="a" * 40 + "\n", rc=0)  # git rev-parse --verify head
+            if len(calls) == 5:
+                return _completed(stdout="", rc=0)  # git diff
+            if len(calls) == 6:
                 return _completed(stdout="{}", stderr="", rc=0)  # PR description validation
             return _completed(rc=0)  # gh pr create
 
