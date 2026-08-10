@@ -265,6 +265,49 @@ Durable tests:
 - `tests/hooks/test_push_pr_script_identity_guard.py`
 - `tests/hooks/test_dispatch_groups_parity.py`
 
+### 7a. Relevance before policy on the plugin-wide Bash matcher
+
+Issue #4825, Copilot review 4894113215, 2026-08-10.
+
+The bare `Bash` matcher above means the guard runs on every Bash command. The
+first implementation applied its deny policy before deciding whether the
+command was related to `new_pr.py`, so installing the plugin denied ordinary
+work.
+
+Method: drive the committed guard script directly with the host payload shape
+(`{"tool_input": {"command": ...}, "cwd": ...}`), 22 commands unrelated to
+`new_pr.py` and 11 `new_pr.py` attempts, and record the exit code of each.
+
+Observed, before the relevance gate:
+
+```text
+irrelevant commands denied: 15 of 22
+new_pr.py attempts denied:  11 of 11
+denied: git status && git diff, bash -c, sh -c, node -e, perl -e,
+        python3 <other>.py, uv run pytest, rg --files | head, git fetch,
+        make build, npm run lint, eval, env LD_PRELOAD=... ls, echo *.py,
+        uv run python -c
+```
+
+Observed, after the relevance gate:
+
+```text
+irrelevant commands denied: 0 of 22
+new_pr.py attempts denied:  11 of 11
+```
+
+The negative control is the second row: a scope gate that let a `new_pr.py`
+attempt through would show a nonzero "allowed" count there. Both surfaces are
+covered by `test_dispatchers_allow_commands_outside_guard_scope` and
+`test_dispatchers_deny_commands_inside_guard_scope`.
+
+Accepted residual: a command that reconstructs the path at runtime without
+naming it (`python3 -c` with a hex-decoded path, `ext::sh -c` with a payload
+that never spells `new_pr.py`) is outside the detection surface. The guard
+bounds the identity of named push-pr invocations; it is not a Python or shell
+sandbox. `test_dispatchers_allow_dynamic_launcher_that_never_names_the_script`
+pins that boundary so it stays a decision rather than a discovery.
+
 ## 8. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
