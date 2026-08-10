@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-03-session-4509-4514-4520-skill-doc-quality.json
-qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
+qaCommit: d08463638b6f986d73892bb0e54177732086a768
 ---
 
 # QA Report: PR 4586 session 4509
 
 - PR: #4586
 - Session log: `.agents/sessions/2026-08-03-session-4509-4514-4520-skill-doc-quality.json`
-- QA commit: `3664742506956eecf9bb7aef2d6edf677acb3984`
+- QA commit: `d08463638b6f986d73892bb0e54177732086a768`
 
 ## Evidence
 

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4586-qa-report.json
-qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
+qaCommit: d08463638b6f986d73892bb0e54177732086a768
 ---
 
 # QA Report: PR 4586
@@ -10,7 +10,7 @@ qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
 
 - PR: #4586
 - Branch: `fix/skill-doc-quality-gates`
-- Pre-report code commit: `1dab2578057cf0c60985444ee200ac78d6a2f780`
+- Pre-report code commit: `d08463638b6f986d73892bb0e54177732086a768`
 - Session log: `.agents/sessions/2026-08-10-session-4586-qa-report.json`
 - Change area: Doc accuracy checks and PR description validation.
 
@@ -24,7 +24,8 @@ qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
 
 | Command | Result |
 |---------|--------|
-| `uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q` | PASS, 336 passed in 2.82s |
+| `uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q` | PASS, 336 passed in 3.60s |
+| `uv run --frozen python -c "from pathlib import Path; from scripts.validation.checks_mypy import validate_mypy_changed_files; raise SystemExit(0 if validate_mypy_changed_files(Path.cwd()) else 1)"` | PASS, mypy changed-file gate returned 0 |
 
 ## Validator evidence
 
@@ -33,4 +34,4 @@ qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
 
 ## Verdict
 
-PASS. Targeted tests passed against pre-report code commit `1dab2578057c`.
+PASS. Targeted tests passed against pre-report code commit `d08463638b6f`.
