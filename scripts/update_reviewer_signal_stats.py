@@ -36,6 +36,7 @@ from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
 )
+from scripts.github_core.bot_config import canonicalize_login  # noqa: E402
 from scripts.github_core.repo import get_repo_root  # noqa: E402
 from scripts.llm_classification import (  # noqa: E402
     LLMClassifier,
@@ -128,6 +129,7 @@ class ReviewerStats:
     prs_with_comments: set[int] = field(default_factory=set)
     comments: list[CommentData] = field(default_factory=list)
     verified_actionable: int = 0
+    actor_ids: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -149,6 +151,28 @@ class SignalStats:
 # ---------------------------------------------------------------------------
 
 
+
+def _is_same_actor(
+    login_a: str,
+    id_a: int | None,
+    login_b: str,
+    id_b: int | None,
+) -> bool:
+    """Return True only when identity is authoritative on both sides.
+
+    Two empty/unknown logins must NOT be treated as the same actor;
+    that would silently discard comments from anonymous or null-login
+    API responses.
+    """
+    # If both have numeric IDs, those are authoritative.
+    if id_a is not None and id_b is not None:
+        return id_a == id_b
+    # Fall back to login comparison, but only when both are non-empty.
+    if login_a and login_b:
+        return login_a == login_b
+    return False
+
+
 def get_comments_by_reviewer(
     prs: list[dict[str, Any]],
 ) -> dict[str, ReviewerStats]:
@@ -161,12 +185,20 @@ def get_comments_by_reviewer(
         prs: List of PR dicts from GraphQL with reviewThreads.
 
     Returns:
-        Dict mapping reviewer login to ReviewerStats.
+        Dict mapping canonical reviewer login to ReviewerStats.
     """
     reviewer_stats: dict[str, ReviewerStats] = {}
 
     for pr in prs:
-        pr_author = (pr.get("author") or {}).get("login", "")
+        # Canonical identity on both sides: one integration reaches the API
+        # under several logins, so a raw-login key counts it as several
+        # reviewers in the committed statistics (issue #4378).
+        pr_author_data = pr.get("author") or {}
+        pr_author_id: int | None = pr_author_data.get("databaseId")  # int | None
+        pr_author = canonicalize_login(
+            (pr_author_data.get("login") or ""),
+            pr_author_id,
+        )
 
         threads = pr.get("reviewThreads", {}).get("nodes", [])
         for thread in threads:
@@ -175,16 +207,28 @@ def get_comments_by_reviewer(
             comments_nodes = thread.get("comments", {}).get("nodes", [])
 
             for comment in comments_nodes:
-                comment_author = (comment.get("author") or {}).get("login", "")
+                comment_author_data = comment.get("author") or {}
+                comment_author_id = comment_author_data.get("databaseId")  # int | None
+                comment_author = canonicalize_login(
+                    (comment_author_data.get("login") or ""),
+                    comment_author_id,
+                )
 
-                # Skip self-comments (reviewer commenting on their own PR)
-                if comment_author == pr_author:
+                # Skip self-comments (reviewer commenting on their own PR).
+                # Only exclude when identity is authoritative: a non-empty
+                # login matches, or both sides carry an ID that matches.
+                # Two empty/unknown logins must NOT be treated as equal.
+                if _is_same_actor(
+                    pr_author, pr_author_id, comment_author, comment_author_id
+                ):
                     continue
 
                 if comment_author not in reviewer_stats:
                     reviewer_stats[comment_author] = ReviewerStats()
 
                 stats = reviewer_stats[comment_author]
+                if isinstance(comment_author_id, int):
+                    stats.actor_ids.add(comment_author_id)
                 stats.total_comments += 1
                 stats.prs_with_comments.add(pr.get("number", 0))
                 stats.comments.append(
