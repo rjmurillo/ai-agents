@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Documentation merged with current main in 9670e5ecda0f8ac5132e0bc315fb34e9295587b7; this follow-up updates QA and session markers only."
+        "Evidence": "Final serial workflow documentation committed in 55ce3cf5a098848eceaf0fcba43b7bcf90a4d8a9; this follow-up updates QA and session markers only."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,6 +116,6 @@
       "outcome": "Re-ran review after the strict-off decision and addressed TOCTOU, concurrent-session, 422 recovery, cost-model, and main-health findings before 6/6 acceptance."
     }
   ],
-  "endingCommit": "9670e5ecda0f8ac5132e0bc315fb34e9295587b7",
+  "endingCommit": "55ce3cf5a098848eceaf0fcba43b7bcf90a4d8a9",
   "nextSteps": []
 }
