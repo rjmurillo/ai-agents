@@ -1,0 +1,174 @@
+{
+  "id": "episode-2026-08-10-session-10033",
+  "session": "2026-08-10-session-10033",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Remove redundant subprocess reruns in mutation and skill-bundle test harnesses (Issue #4826)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured BEFORE timing for tests/mutation/test_mutate_debate_log_path.py",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Captured BEFORE timing for tests/mutation/test_mutate_debate_log_path.py      uv run --frozen python -m pytest tests/mutation/test_mutate_debate_log_path.py -q --tb=short --durations=0: 5 passed in 195.39s (0:03:15). Per-test: M1 54.37s, M3 53.07s, M2 52.80s, IC 29.95s, isolation 1.00s.",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured BEFORE timing for tests/test_skill_bundle_suites_run.py",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Captured BEFORE timing for tests/test_skill_bundle_suites_run.py      uv run --frozen python -m pytest tests/test_skill_bundle_suites_run.py -q --tb=short --durations=0: 8 passed in 27.43s. suite_passes[.claude/skills] 7.58s, suite_passes[src/copilot-cli/skills] 7.18s, collects_tests[.claude/skills] 6.34s, collects_tests[src/copilot-cli/skills] 6.22s.",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed redundant post-restore _run_tests_in(scratch_worktree) reruns and their assertions from test_m1/test_m2/test_m3 in tests/mutation/test_mutate_debate_log_path.py; preserved mutant-kill run inside _apply_positive_mutant, _active_target_unmodified() checks, and the IC/isolation tests unchanged",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Memoized _run_tree(root) in tests/test_skill_bundle_suites_run.py with @functools.cache so test_bundle_tree_suite_passes and test_bundle_tree_collects_tests share one subprocess result per root instead of one each",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured AFTER timing for tests/mutation/test_mutate_debate_log_path.py",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Captured AFTER timing for tests/mutation/test_mutate_debate_log_path.py      5 passed in 110.72s (0:01:50), down from 195.39s BEFORE (savings ~84.67s, ~43%). Per-test: M1 26.94s, M3 26.46s, M2 26.24s, IC 26.22s, isolation 0.94s. Test count unchanged (5 passed both runs).",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured AFTER timing for tests/test_skill_bundle_suites_run.py",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Captured AFTER timing for tests/test_skill_bundle_suites_run.py      8 passed in 12.74s, down from 27.43s BEFORE (savings ~14.69s, ~54%). Only 2 _run_tree subprocess durations reported instead of 4 (suite_passes[.claude/skills] 6.48s, suite_passes[src/copilot-cli/skills] 6.16s); collects_tests entries now reuse the cached result. Test count unchanged (8 passed both runs).",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran broader command to prove no contract loss: uv run --frozen python -m pytest tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran broader command to prove no contract loss: uv run --frozen python -m pytest tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short      26 passed in 154.05s (0:02:34); all mutation harness files (baseline-ratchet, debate-log-path, lefthook-ratchet-wiring, pr-description, validate-findings-scope) plus the skill-bundle suite file all pass together, confirming no cross-file regression from the changes.",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T06:35:50+00:00",
+      "type": "commit",
+      "content": "Commit: ffba771110f138fb50b7c4a6c65c77186180dd76",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10033"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

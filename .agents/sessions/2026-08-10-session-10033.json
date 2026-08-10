@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10033,
+    "date": "2026-08-10",
+    "branch": "perf/4826-redundant-test-runs",
+    "startingCommit": "3b3c53e2f",
+    "objective": "Remove redundant subprocess reruns in mutation and skill-bundle test harnesses (Issue #4826)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable in this shell-driven session; project files read directly per vendor-install/no-MCP fallback path"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Same as above"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; no PR #4826-specific per-issue handoff found under .agents/sessions/handoffs/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/session-init scripts; used new_session_log_json.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md root, tests/CLAUDE.md, .github/instructions/{testing,python,pragmatic-programmer,unified-software-engineering,session-logs}.instructions.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/SESSION-PROTOCOL.md Phase 0-2 sections"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Serena MCP session in this environment; read issue #4826 body via gh issue view for authoritative acceptance criteria instead"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/4826-redundant-test-runs"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/4826-redundant-test-runs"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start (nothing to commit, up to date with origin/main)"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3b3c53e2f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Self-critique pass and pre-PR validation gate checklist completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014 notice)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Serena MCP available in this shell-only session; nothing to update"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files authored/edited this session; Markdown Linting check inside scripts/validation/pre_pr.py passed (0.06s)"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4826-redundant-test-runs-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "tests/mutation/test_mutate_debate_log_path.py and tests/test_skill_bundle_suites_run.py committed at ffba771110f138fb50b7c4a6c65c77186180dd76"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py --quick: RESULT All validations passed (46 passed, 0 failed, 4 skipped)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo implement-p0-test-pr will be marked done on successful commit"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Captured BEFORE timing for tests/mutation/test_mutate_debate_log_path.py",
+      "result": "uv run --frozen python -m pytest tests/mutation/test_mutate_debate_log_path.py -q --tb=short --durations=0: 5 passed in 195.39s (0:03:15). Per-test: M1 54.37s, M3 53.07s, M2 52.80s, IC 29.95s, isolation 1.00s."
+    },
+    {
+      "action": "Captured BEFORE timing for tests/test_skill_bundle_suites_run.py",
+      "result": "uv run --frozen python -m pytest tests/test_skill_bundle_suites_run.py -q --tb=short --durations=0: 8 passed in 27.43s. suite_passes[.claude/skills] 7.58s, suite_passes[src/copilot-cli/skills] 7.18s, collects_tests[.claude/skills] 6.34s, collects_tests[src/copilot-cli/skills] 6.22s."
+    },
+    {
+      "action": "Removed redundant post-restore _run_tests_in(scratch_worktree) reruns and their assertions from test_m1/test_m2/test_m3 in tests/mutation/test_mutate_debate_log_path.py; preserved mutant-kill run inside _apply_positive_mutant, _active_target_unmodified() checks, and the IC/isolation tests unchanged",
+      "result": "Added a cheap byte-for-byte restoration assertion (wt_target.read_bytes() == original) inside the shared _apply_positive_mutant helper in place of the deleted subprocess rerun, per Issue #4826 acceptance criteria (Active-target-diff contract)"
+    },
+    {
+      "action": "Memoized _run_tree(root) in tests/test_skill_bundle_suites_run.py with @functools.cache so test_bundle_tree_suite_passes and test_bundle_tree_collects_tests share one subprocess result per root instead of one each",
+      "result": "ruff UP033 flagged initial @functools.lru_cache(maxsize=None); switched to @functools.cache (stdlib, no new dependency). ruff check and ruff format --check both pass on both files."
+    },
+    {
+      "action": "Captured AFTER timing for tests/mutation/test_mutate_debate_log_path.py",
+      "result": "5 passed in 110.72s (0:01:50), down from 195.39s BEFORE (savings ~84.67s, ~43%). Per-test: M1 26.94s, M3 26.46s, M2 26.24s, IC 26.22s, isolation 0.94s. Test count unchanged (5 passed both runs)."
+    },
+    {
+      "action": "Captured AFTER timing for tests/test_skill_bundle_suites_run.py",
+      "result": "8 passed in 12.74s, down from 27.43s BEFORE (savings ~14.69s, ~54%). Only 2 _run_tree subprocess durations reported instead of 4 (suite_passes[.claude/skills] 6.48s, suite_passes[src/copilot-cli/skills] 6.16s); collects_tests entries now reuse the cached result. Test count unchanged (8 passed both runs)."
+    },
+    {
+      "action": "Ran broader command to prove no contract loss: uv run --frozen python -m pytest tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short",
+      "result": "26 passed in 154.05s (0:02:34); all mutation harness files (baseline-ratchet, debate-log-path, lefthook-ratchet-wiring, pr-description, validate-findings-scope) plus the skill-bundle suite file all pass together, confirming no cross-file regression from the changes."
+    }
+  ],
+  "endingCommit": "ffba771110f138fb50b7c4a6c65c77186180dd76",
+  "nextSteps": [
+    "Commit tests/mutation/test_mutate_debate_log_path.py, tests/test_skill_bundle_suites_run.py, and this session log",
+    "Set endingCommit in a follow-up commit per session-logs.instructions.md (do not amend)",
+    "Hand off to qa/critic for pre-merge review; do not push or open PR per task scope"
+  ]
+}
