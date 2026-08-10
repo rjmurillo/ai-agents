@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size
+# Reason: comprehensive routing contract test suite; splitting scatters helpers.
 """Contract tests: analyst agent prompts must route GitHub URLs through
 declared read-only tools, not web_fetch or external skills (issue #4032).
 
@@ -132,57 +134,67 @@ def _is_claude_surface(surface: Path) -> bool:
 
 
 def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
-    """Parse the URL classification table.
+    """Parse ALL URL classification tables in the document.
 
     Returns (multimap, all_patterns) where multimap is {pattern: [tool, ...]}
     and all_patterns is every normalized pattern found (including alternatives).
     Preserves EVERY data row and every alternative to enable strict validation.
+    Parses all tables (not just first) so duplicates across tables are caught.
     """
     routes: dict[str, list[str]] = {}
     all_patterns: list[str] = []
     lines = body.split("\n")
-    table_start = -1
 
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         if line.strip().startswith("|") and "url pattern" in line.lower():
-            table_start = i
-            break
+            # Found a table header
+            data_start = i + 1
+            if data_start < len(lines) and "---" in lines[data_start]:
+                data_start += 1
+            # Parse data rows
+            for j in range(data_start, len(lines)):
+                stripped = lines[j].strip()
+                if not stripped.startswith("|"):
+                    i = j
+                    break
+                cells = [c.strip().replace("`", "") for c in stripped.split("|")[1:-1]]
+                if len(cells) < 2:
+                    all_patterns.append("<malformed>")
+                    continue
 
-    if table_start == -1:
-        return routes, all_patterns
+                raw_pattern = cells[0]
+                tool_cell = cells[1].strip().strip("`")
 
-    data_start = table_start + 1
-    if data_start < len(lines) and "---" in lines[data_start]:
-        data_start += 1
+                # Parse ALL alternatives separated by " or "
+                alternatives = [a.strip().strip("`").lower() for a in raw_pattern.split(" or ")]
 
-    for line in lines[data_start:]:
-        stripped = line.strip()
-        if not stripped.startswith("|"):
-            break
-        cells = [c.strip().replace("`", "") for c in stripped.split("|")[1:-1]]
-        if len(cells) < 2:
-            all_patterns.append("<malformed>")
-            continue
+                # Use first alternative as the canonical key
+                first_alt = alternatives[0]
+                routes.setdefault(first_alt, []).append(tool_cell)
 
-        raw_pattern = cells[0]
-        tool_cell = cells[1].strip().strip("`")
-
-        # Parse ALL alternatives separated by " or "
-        alternatives = [a.strip().strip("`").lower() for a in raw_pattern.split(" or ")]
-
-        # Use first alternative as the canonical key
-        first_alt = alternatives[0]
-        routes.setdefault(first_alt, []).append(tool_cell)
-
-        # Record all alternatives for validation
-        all_patterns.extend(alternatives)
+                # Record all alternatives for validation
+                all_patterns.extend(alternatives)
+            else:
+                i = len(lines)
+        else:
+            i += 1
 
     return routes, all_patterns
 
 
 # Allowed non-URL alternatives and known non-canonical path rows
-_ALLOWED_NON_PATH_ALTS = {"pr #n", "issue #n", "ci overview"}
-_ALLOWED_EXTRA_PATHS = {"/actions (list)", "/actions"}
+# Each maps to its expected tool binding.
+_ALLOWED_NON_PATH_ALTS: dict[str, str] = {
+    "pr #n": "pull_request_read",
+    "issue #n": "issue_read",
+    "ci overview": "list_workflow_runs",
+}
+_ALLOWED_EXTRA_PATHS: dict[str, str] = {
+    "/actions (list)": "list_workflow_runs",
+    "/actions": "list_workflow_runs",
+}
 
 
 def _validate_routing_table(
@@ -227,18 +239,42 @@ def _validate_routing_table(
     if "<malformed>" in all_patterns:
         errors.append(f"{surface_label}: malformed single-cell row in table")
 
-    # Reject noncanonical path-like alternatives
+    # Reject noncanonical alternatives and validate tool bindings
     for alt in all_patterns:
         if alt == "<malformed>":
             continue
         if alt in _CANONICAL_PATTERNS:
             continue
         if alt in _ALLOWED_NON_PATH_ALTS:
+            # Validate tool binding
+            expected_tool = _ALLOWED_NON_PATH_ALTS[alt]
+            actual_tools = routes.get(alt, [])
+            if not actual_tools:
+                # Alt is secondary in an " or " split - check parent row
+                continue
+            pfx = (_MCP_PREFIX + expected_tool) if mcp_prefixed else expected_tool
+            if actual_tools and actual_tools[0] != pfx:
+                errors.append(
+                    f"{surface_label}: non-path alias '{alt}' maps to "
+                    f"'{actual_tools[0]}', expected '{pfx}'"
+                )
             continue
         if alt in _ALLOWED_EXTRA_PATHS:
+            expected_tool = _ALLOWED_EXTRA_PATHS[alt]
+            actual_tools = routes.get(alt, [])
+            if actual_tools:
+                pfx = (_MCP_PREFIX + expected_tool) if mcp_prefixed else expected_tool
+                if actual_tools[0] != pfx:
+                    errors.append(
+                        f"{surface_label}: extra path '{alt}' maps to "
+                        f"'{actual_tools[0]}', expected '{pfx}'"
+                    )
             continue
-        # Non-path text (no leading /) is allowed (e.g. "pr #n")
+        # Non-path text (no leading /) that is NOT in the allowlist → reject
         if not alt.startswith("/"):
+            errors.append(
+                f"{surface_label}: unrecognized non-path alternative '{alt}' in table"
+            )
             continue
         # Path-like but not canonical → reject
         errors.append(
@@ -494,3 +530,73 @@ def test_routing_table_rejects_mixed_alternative() -> None:
     routes, all_pats = _parse_routing_table(table)
     errors = _validate_routing_table(routes, all_pats, "mixed-alt-fixture")
     assert errors, "Mixed canonical/noncanonical alternative must fail"
+
+
+def test_routing_table_rejects_non_path_alternative() -> None:
+    """Non-path alternative not in allowlist must be rejected."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` or run shell commands | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "non-path-alt")
+    assert any("unrecognized non-path" in e for e in errors), f"Expected rejection: {errors}"
+
+
+def test_routing_table_rejects_duplicate_across_tables() -> None:
+    """Duplicate canonical pattern across two tables must be caught."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "\nExtra:\n"
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `some_other_tool` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "dup-table")
+    assert any("duplicate" in e for e in errors), f"Expected duplicate detection: {errors}"
+
+
+def test_routing_table_rejects_wrong_extra_path_tool() -> None:
+    """Extra path /actions (list) with wrong tool must be rejected."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| `/actions (list)` | `pull_request_read` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "wrong-extra")
+    assert any("extra path" in e and "expected" in e for e in errors), (
+        f"Expected binding error: {errors}"
+    )
+
+
+def test_routing_table_rejects_bare_alias_wrong_tool() -> None:
+    """Bare non-path alias PR #N with arbitrary tool must be rejected."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| PR #N | `some_arbitrary_tool` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "wrong-alias")
+    assert any("non-path alias" in e and "expected" in e for e in errors), (
+        f"Expected binding error: {errors}"
+    )

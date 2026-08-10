@@ -434,30 +434,45 @@ def _is_affirmative_directive(line: str) -> bool:
 
     # Split into clauses on semicolons and sentence boundaries
     clauses = re.split(r"[;.](?:\s|$)", lower)
-    # Also split the original line (with backticks) for tool matching
     orig_lower = line.lower()
     orig_clauses = re.split(r"[;.](?:\s|$)", orig_lower)
 
+    # Pattern detecting another actor+verb introducing a new clause
+    new_actor_verb = re.compile(
+        r"\b\S+\s+(retrieves?|uses?|calls?|invokes?|attempts?)\b"
+    )
+
     for i, clause in enumerate(clauses):
-        # Require analyst+verb in this clause (checked in stripped prose)
+        # Require analyst as grammatical subject: not preceded by hyphen
+        # (rejects "non-analyst") and must be a true word boundary
         verb_match = re.search(
-            r"\banalyst\b\s+(?:directly\s+)?"
+            r"(?<![-])\banalyst\b\s+(?:directly\s+)?"
             r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
             clause,
         )
         if not verb_match:
             continue
         # Tool must appear AFTER the analyst+verb as its direct argument,
-        # not in a subordinate clause (while/but/although/when).
+        # not in a subordinate clause.
         after_verb = clause[verb_match.end():]
-        # Take only the main clause fragment (before subordinating conjunctions)
-        main_frag = re.split(r"\b(while|but|although|whereas|however)\b", after_verb)[0]
+        # Split on subordinating conjunctions (boundaries for tool search)
+        subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
+        main_frag = re.split(subord, after_verb)[0]
         orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
         orig_after = orig_clause[verb_match.end():]
-        orig_main = re.split(r"\b(while|but|although|whereas|however)\b", orig_after)[0]
-        has_tool = bool(_TOOL_RE.search(orig_main))
-        if not has_tool:
-            has_tool = "declared" in main_frag and "tool" in main_frag
+        orig_main = re.split(subord, orig_after)[0]
+
+        # Reject if another actor+verb appears before the tool in main_frag
+        # (catches "analyst retrieves data, release-bot calls tool")
+        tool_match = _TOOL_RE.search(orig_main)
+        if tool_match:
+            # Reject if another actor+verb precedes tool in this fragment
+            pre_tool = orig_main[:tool_match.start()]
+            if new_actor_verb.search(pre_tool):
+                continue
+            return True
+
+        has_tool = "declared" in main_frag and "tool" in main_frag
         if has_tool:
             return True
 
@@ -1060,3 +1075,63 @@ class TestNegativeControls:
         """Substring tool name like not_pull_request_read must not match."""
         err = _check_retrieval_precedes_blocked(self.TOOL_SUBSTRING_NAME)
         assert err is not None, "Should reject substring tool name"
+
+    # Fixture 41: subordinate 'when' clause (tool in conditional, not direct arg)
+    TOOL_IN_WHEN_CLAUSE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache when pull_request_read is available. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 42: non-analyst as prefixed/hyphenated word
+    TOOL_NON_ANALYST_PREFIX = (
+        "\n### delegation contract\n"
+        "non-analyst retrieves PR data using pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 43: comma-separated mixed actors
+    TOOL_COMMA_MIXED_ACTORS = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot calls pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 44: conjunction mixed actors
+    TOOL_AND_MIXED_ACTORS = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data and release-bot calls pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 45: comma mixed actors variant
+    TOOL_COMMA_COMPLIANCE_BOT = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache, compliance-bot uses pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    def test_tool_in_when_clause_rejected(self) -> None:
+        """Tool in subordinate 'when' clause is not a direct argument."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_WHEN_CLAUSE)
+        assert err is not None, "Should reject tool in subordinate 'when' clause"
+
+    def test_tool_non_analyst_prefix_rejected(self) -> None:
+        """Hyphenated 'non-analyst' must not match analyst as actor."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_NON_ANALYST_PREFIX)
+        assert err is not None, "Should reject non-analyst prefix"
+
+    def test_tool_comma_mixed_actors_rejected(self) -> None:
+        """Comma-separated mixed actors must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMMA_MIXED_ACTORS)
+        assert err is not None, "Should reject comma mixed actors"
+
+    def test_tool_and_mixed_actors_rejected(self) -> None:
+        """Conjunction mixed actors must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_AND_MIXED_ACTORS)
+        assert err is not None, "Should reject conjunction mixed actors"
+
+    def test_tool_comma_compliance_bot_rejected(self) -> None:
+        """Comma mixed actors with compliance-bot must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMMA_COMPLIANCE_BOT)
+        assert err is not None, "Should reject compliance-bot mixed actor"
