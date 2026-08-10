@@ -41,7 +41,6 @@ unrelated Bash command, which is a larger, certain harm than the residual.
 
 from __future__ import annotations
 
-import codecs
 import fnmatch
 import hashlib
 import json
@@ -708,12 +707,17 @@ def _ansi_c_decoded(text: str) -> str:
     """
 
     def decode(match: re.Match[str]) -> str:
+        body = match.group(1)
         try:
-            return codecs.decode(match.group(1), "unicode_escape")
-        except (UnicodeDecodeError, ValueError):
-            return match.group(1)
+            return body.encode("latin-1", "backslashreplace").decode("unicode_escape")
+        except (UnicodeDecodeError, UnicodeEncodeError, ValueError):
+            return body
 
-    return _ANSI_C_QUOTED.sub(decode, text)
+    # Annotated because the generated shim inlines this module into a
+    # function, which loses the pattern's inferred type and makes the
+    # substitution read as Any to mypy.
+    decoded: str = _ANSI_C_QUOTED.sub(decode, text)
+    return decoded
 
 
 def _names_new_pr(command: str) -> bool:
