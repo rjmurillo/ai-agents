@@ -457,6 +457,19 @@
       "caused_by": [
         "e035"
       ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-10T17:19:39+00:00",
+      "type": "commit",
+      "content": "Commit: 1d7213f787fab4961c985fc819b09abd99381497",
+      "caused_by": [
+        "e036"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
     }
@@ -466,7 +479,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 24,
+    "commits": 25,
     "files_changed": 198
   },
   "lessons": []

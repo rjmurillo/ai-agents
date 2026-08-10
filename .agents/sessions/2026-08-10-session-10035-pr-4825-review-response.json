@@ -186,9 +186,13 @@
     {
       "task": "Fold in the concurrent session's nested-evaluator fix",
       "outcome": "Merged its round 8 work, which closed bash -c './attacker/pr/?ew_pr.py'. Code merged cleanly with the per-segment relevance change; conflicts were confined to shared evidence files and were resolved by keeping the fuller work log and folding its Round 8 QA section in rather than dropping either account. Combined probe on the merged tree: leaked 0/15, falsely denied 0/14, worst 0.065s. 887 guard tests pass."
+    },
+    {
+      "task": "Process round 9 of the recursive review",
+      "outcome": "Relevance segmentation was neither quote-aware nor redirection-aware, so a redirection or a quoted operator argument skipped the only segment. Measured 4 leaks. Added quote-aware redirection stripping, quote-aware splitting, and a fail-closed backstop for segments that still will not parse. 0 of 9 leak and 0 of 10 ordinary redirection commands are falsely denied."
     }
   ],
-  "endingCommit": "d47733a20a67c49d08ceb5b2d27dc2585d4cd530",
+  "endingCommit": "1d7213f787fab4961c985fc819b09abd99381497",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
