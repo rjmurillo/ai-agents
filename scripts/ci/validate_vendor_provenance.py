@@ -670,6 +670,53 @@ def _check_path_component_symlinks(candidate: Path) -> list[str]:
             break
     return errors
 
+
+def _check_ancestors_not_symlink(root: Path, rel: str) -> str | None:
+    """Reject symlinks in any path component of rel under root.
+
+    Returns an error message if any ancestor is a symlink, None otherwise.
+    Does not follow symlinks or depend on target existence.
+    """
+    parts = Path(rel).parts
+    check = root
+    for part in parts[:-1]:  # All ancestors, not the leaf
+        check = check / part
+        if check.is_symlink():
+            ancestor_rel = str(check.relative_to(root))
+            return f"ancestor {ancestor_rel} is a symlink"
+    return None
+
+
+def _check_file_mode(
+    candidate: Path, base: Path, rel: str, label: str
+) -> str | None:
+    """Reject Git mode changes between base and candidate.
+
+    Compares file permissions (executable bit). If base has 0o755 and
+    candidate has 0o644 (or vice versa), reports a mode mismatch.
+    Symlink mode (0o120000) and submodule mode (0o160000) are rejected.
+    """
+    cand_path = candidate / rel
+    base_path = base / rel
+    if not base_path.exists():
+        return None  # Bootstrap: no base reference
+    cand_mode = cand_path.stat().st_mode
+    base_mode = base_path.stat().st_mode
+    # Reject symlink or submodule modes in candidate
+    import stat as stat_mod
+    if stat_mod.S_ISLNK(cand_mode):
+        return f"{label} ({rel}): candidate has symlink mode"
+    # Check executable bit consistency
+    cand_exec = bool(cand_mode & 0o111)
+    base_exec = bool(base_mode & 0o111)
+    if cand_exec != base_exec:
+        change = "executable->regular" if base_exec else "regular->executable"
+        return (
+            f"{label} ({rel}): mode changed ({change}); "
+            f"mode tampering rejected"
+        )
+    return None
+
 def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]:
     """Authenticate every pinned artifact against its trust anchor.
 
@@ -701,6 +748,17 @@ def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]
         if not fpath.is_file():
             errors.append(f"{label} ({rel}): not a regular file")
             continue
+        # Reject path-component symlinks before reading content
+        comp_err = _check_ancestors_not_symlink(candidate, rel)
+        if comp_err:
+            errors.append(f"{label} ({rel}): {comp_err}")
+            continue
+        # Authenticate Git mode if base is available
+        if base:
+            mode_err = _check_file_mode(candidate, base, rel, label)
+            if mode_err:
+                errors.append(mode_err)
+                continue
         actual = _sha256_file(fpath)
         if actual != expected:
             errors.append(
@@ -951,6 +1009,11 @@ def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[st
         if not cand_path.is_file():
             errors.append(f"Trust anchor not a regular file: {rel}")
             continue
+        # Reject path-component symlinks before reading content
+        comp_err = _check_ancestors_not_symlink(candidate, rel)
+        if comp_err:
+            errors.append(f"Trust anchor path component symlink: {rel} ({comp_err})")
+            continue
         base_hash = hashlib.sha256(base_path.read_bytes()).hexdigest()
         cand_hash = hashlib.sha256(cand_path.read_bytes()).hexdigest()
         if cand_hash != base_hash:
@@ -1094,8 +1157,8 @@ def _watched_paths() -> frozenset[str]:
     """Structurally derive the full relevance set.
 
     Combines: every pinned artifact path, every scan root prefix,
-    and trust-anchor surfaces. This prevents drift between pins
-    and relevance by construction.
+    trust-anchor surfaces, and markdownlint auto-discovery names.
+    This prevents drift between pins/rejection and relevance by construction.
     """
     paths: set[str] = set()
     # Every pinned artifact is relevant
@@ -1107,6 +1170,9 @@ def _watched_paths() -> frozenset[str]:
     # Extra trust-anchor files
     for extra in _EXTRA_WATCHED:
         paths.add(extra)
+    # Root markdownlint config names (structurally derived from rejection list)
+    for config_name in _MARKDOWNLINT_CONFIG_GLOBS:
+        paths.add(config_name)
     return frozenset(paths)
 
 

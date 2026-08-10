@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
+import pytest
+
 SCRIPT = "scripts/ci/validate_vendor_provenance.py"
 WT = Path(__file__).resolve().parents[2]
 
@@ -1195,3 +1197,211 @@ class TestRootMarkdownlintConfigInjection:
         # For this specific file we need explicit watch.
         # NOTE: This test documents current behavior.
         pass  # covered by _reject_markdownlint_config_injection when validation runs
+
+
+# === Finding 1: Root markdownlint config relevance ===
+
+class TestMarkdownlintConfigRelevance:
+    """Every rejected root markdownlint config name must trigger relevance."""
+
+    def test_each_config_name_is_relevant(self):
+        """Each _MARKDOWNLINT_CONFIG_GLOBS entry is in WATCHED_PREFIXES."""
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_CONFIG_GLOBS,
+            WATCHED_PREFIXES,
+        )
+        for name in _MARKDOWNLINT_CONFIG_GLOBS:
+            assert name in WATCHED_PREFIXES, (
+                f"{name} rejected but not relevant"
+            )
+
+    @pytest.mark.parametrize("config_name", [
+        ".markdownlint-cli2.yaml",
+        ".markdownlint-cli2.cjs",
+        ".markdownlint-cli2.mjs",
+        ".markdownlint.cjs",
+        ".markdownlint.jsonc",
+    ])
+    def test_only_config_change_triggers_relevance(self, config_name):
+        """A PR changing only a root markdownlint config must be relevant."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+        assert check_relevance([config_name]) is True
+
+
+# === Finding 2: Git mode authentication ===
+
+class TestGitModeAuthentication:
+    """Authenticate Git file modes between base and candidate."""
+
+    def test_executable_to_regular_rejected(self, tmp_path):
+        """Changing 755 to 644 on a pinned file is rejected."""
+        from scripts.ci.validate_vendor_provenance import _check_file_mode
+        cand = tmp_path / "cand"
+        base = tmp_path / "base"
+        cand.mkdir()
+        base.mkdir()
+        rel = "test.sh"
+        (base / rel).write_text("#!/bin/sh\n")
+        (base / rel).chmod(0o755)
+        (cand / rel).write_text("#!/bin/sh\n")
+        (cand / rel).chmod(0o644)
+        err = _check_file_mode(cand, base, rel, "test")
+        assert err is not None
+        assert "executable->regular" in err
+
+    def test_regular_to_executable_rejected(self, tmp_path):
+        """Changing 644 to 755 on a pinned file is rejected."""
+        from scripts.ci.validate_vendor_provenance import _check_file_mode
+        cand = tmp_path / "cand"
+        base = tmp_path / "base"
+        cand.mkdir()
+        base.mkdir()
+        rel = "config.json"
+        (base / rel).write_text("{}")
+        (base / rel).chmod(0o644)
+        (cand / rel).write_text("{}")
+        (cand / rel).chmod(0o755)
+        err = _check_file_mode(cand, base, rel, "test")
+        assert err is not None
+        assert "regular->executable" in err
+
+    def test_matching_mode_passes(self, tmp_path):
+        """Same mode between base and candidate passes."""
+        from scripts.ci.validate_vendor_provenance import _check_file_mode
+        cand = tmp_path / "cand"
+        base = tmp_path / "base"
+        cand.mkdir()
+        base.mkdir()
+        rel = "script.sh"
+        (base / rel).write_text("#!/bin/sh\n")
+        (base / rel).chmod(0o755)
+        (cand / rel).write_text("#!/bin/sh\n")
+        (cand / rel).chmod(0o755)
+        err = _check_file_mode(cand, base, rel, "test")
+        assert err is None
+
+    def test_missing_base_bootstrap_passes(self, tmp_path):
+        """When base lacks the file (bootstrap), no mode check."""
+        from scripts.ci.validate_vendor_provenance import _check_file_mode
+        cand = tmp_path / "cand"
+        base = tmp_path / "base"
+        cand.mkdir()
+        base.mkdir()
+        rel = "new.sh"
+        (cand / rel).write_text("#!/bin/sh\n")
+        (cand / rel).chmod(0o755)
+        err = _check_file_mode(cand, base, rel, "test")
+        assert err is None
+
+
+# === Finding 3: Path-component symlinks for pinned artifacts ===
+
+class TestAncestorSymlinkPinned:
+    """Path-component symlinks must be rejected for all pinned/TA paths."""
+
+    def test_ancestor_symlink_in_pinned_artifact(self, tmp_path):
+        """A symlinked ancestor directory causes rejection."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        cand.mkdir()
+        real_dir = tmp_path / "real"
+        real_dir.mkdir()
+        (real_dir / "file.py").write_text("x")
+        # .claude/lib -> /tmp/real
+        (cand / ".claude").mkdir()
+        (cand / ".claude" / "lib").symlink_to(real_dir)
+        err = _check_ancestors_not_symlink(cand, ".claude/lib/file.py")
+        assert err is not None
+        assert ".claude/lib" in err
+
+    def test_absolute_symlink_ancestor(self, tmp_path):
+        """Absolute symlink target in ancestor is rejected."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        cand.mkdir()
+        (cand / ".github").symlink_to("/tmp")
+        err = _check_ancestors_not_symlink(cand, ".github/workflows/x.yml")
+        assert err is not None
+        assert ".github" in err
+
+    def test_dangling_symlink_ancestor(self, tmp_path):
+        """Dangling symlink ancestor is rejected."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        cand.mkdir()
+        (cand / "src").symlink_to("/nonexistent/path")
+        err = _check_ancestors_not_symlink(cand, "src/copilot-cli/lib/x.py")
+        assert err is not None
+
+    def test_multi_hop_ancestor(self, tmp_path):
+        """Multi-hop symlink (symlink -> symlink -> real) is rejected."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        cand.mkdir()
+        real = tmp_path / "real"
+        real.mkdir()
+        hop1 = tmp_path / "hop1"
+        hop1.symlink_to(real)
+        (cand / ".claude").symlink_to(hop1)
+        err = _check_ancestors_not_symlink(cand, ".claude/hooks/x.py")
+        assert err is not None
+
+    def test_normal_directories_pass(self, tmp_path):
+        """Normal (non-symlink) directories pass."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        (cand / ".claude" / "lib").mkdir(parents=True)
+        (cand / ".claude" / "lib" / "x.py").write_text("x")
+        err = _check_ancestors_not_symlink(cand, ".claude/lib/x.py")
+        assert err is None
+
+    def test_sibling_prefix_no_false_positive(self, tmp_path):
+        """A sibling with similar prefix does not trigger."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        (cand / ".claude" / "hooks").mkdir(parents=True)
+        (cand / ".claude" / "hooks" / "x.py").write_text("x")
+        # .claude-extra is a symlink but not an ancestor
+        (cand / ".claude-extra").symlink_to("/tmp")
+        err = _check_ancestors_not_symlink(cand, ".claude/hooks/x.py")
+        assert err is None
+
+    def test_trust_anchor_ancestor_symlink_to_base(self, tmp_path):
+        """Symlink .github/workflows -> base path is rejected in TA check."""
+        from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+        cand = tmp_path / "cand"
+        base = tmp_path / "base"
+        (base / ".github" / "workflows").mkdir(parents=True)
+        (base / ".github" / "workflows" / "v.yml").write_text("trusted")
+        cand.mkdir()
+        (cand / ".github").symlink_to(base / ".github")
+        err = _check_ancestors_not_symlink(
+            cand, ".github/workflows/v.yml"
+        )
+        assert err is not None
+        assert ".github" in err
+
+
+# === Finding 4: Workflow immutable base ref ===
+
+class TestWorkflowImmutableBaseRef:
+    """Workflow must use immutable event SHAs, not moving branch refs."""
+
+    def test_no_base_ref_in_workflow(self):
+        """github.base_ref must not appear in checkout ref."""
+        wf_path = Path(__file__).resolve().parents[2] / (
+            ".github/workflows/vendor-provenance.yml"
+        )
+        content = wf_path.read_text()
+        # Should not use mutable base_ref for checkout
+        assert "ref: ${{ github.base_ref }}" not in content, (
+            "Workflow uses mutable github.base_ref instead of immutable SHA"
+        )
+
+    def test_uses_immutable_base_sha(self):
+        """Checkout ref must be the immutable event base SHA."""
+        wf_path = Path(__file__).resolve().parents[2] / (
+            ".github/workflows/vendor-provenance.yml"
+        )
+        content = wf_path.read_text()
+        assert "github.event.pull_request.base.sha" in content
