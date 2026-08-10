@@ -236,8 +236,13 @@ class TestCheckThresholdsStillAbsolute:
             ],
         )
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr(
+            "assess.get_changed_files",
+            lambda *_args, **_kwargs: [ChangedFile("M", Path("legacy.py"), Path("legacy.py"))],
+        )
         monkeypatch.setattr("assess.assess_file", lambda *_args: head)
-        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+        monkeypatch.setattr("assess.get_file_at_revision", lambda *_args: b"legacy")
+        monkeypatch.setattr("assess._assess_base_bytes", lambda *_args: base["legacy.py"])
 
         assert assess_main() == 0
 
@@ -262,8 +267,13 @@ class TestCheckThresholdsStillAbsolute:
             ],
         )
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr(
+            "assess.get_changed_files",
+            lambda *_args, **_kwargs: [ChangedFile("M", Path("legacy.py"), Path("legacy.py"))],
+        )
         monkeypatch.setattr("assess.assess_file", lambda *_args: head)
-        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+        monkeypatch.setattr("assess.get_file_at_revision", lambda *_args: b"legacy")
+        monkeypatch.setattr("assess._assess_base_bytes", lambda *_args: base["legacy.py"])
 
         assert assess_main() == 10
 
