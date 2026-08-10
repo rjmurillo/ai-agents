@@ -184,6 +184,45 @@ The sub-10-minute CI wall-clock target is unproven. Every measurement above is
 local. The CI number can only be read from a workflow run after this branch is
 pushed.
 
+## Push prerequisite, verified locally
+
+`merge-tree-ratchet` runs in the `pre-push` hook and currently refuses this
+branch:
+
+```text
+merge-tree-ratchet: merge has conflicts against 1bfc0b8829cb. Ratchets were not
+evaluated; resolve the conflicts and rerun the ratchet.
+```
+
+The conflict is add/add on `.agents/sessions/2026-08-10-session-10033.json`. It
+predates this work: it reproduces at the session's starting commit
+`db8e9441b`, because the prerequisite branch was squash merged into `main` as
+`1bfc0b8829cb` and `main` now carries its own copy of that log.
+
+Rebasing onto `main` fixes it. Measured on a throwaway branch, leaving
+`perf/4823-pytest-xdist` untouched: `git rebase --onto origin/main origin/main`
+drops the two prerequisite commits (one applies, one is skipped as a duplicate),
+leaves exactly the four commits above, and `git merge-tree --write-tree
+origin/main HEAD` then exits 0.
+
+The rebase orphans the SHAs this evidence names, which is the trap
+`.claude/rules/session-logs.md` item 3 describes. The probe reproduced both
+errors verbatim:
+
+```text
+endingCommit '4599e70f8e...' names a commit that is not an ancestor of HEAD
+QA commit is not an ancestor of validation head
+```
+
+So after rebasing, re-point `endingCommit` in
+`.agents/sessions/2026-08-10-session-10034.json` and `qaCommit` in this report to
+the post-rebase SHA of the `perf(ci)` commit, and commit that edit.
+
+One failure is not this branch's to fix: `origin/main` at `1bfc0b8829cb` already
+fails `validate_session_json.py` on session log 10033 with the same orphaned
+`endingCommit` error, because the squash merge orphaned `4e7c0868f`. Verified by
+running the validator against a pristine `origin/main` worktree.
+
 ## Verdict
 
 Pass. Collection is identical between modes, three consecutive four-worker gate

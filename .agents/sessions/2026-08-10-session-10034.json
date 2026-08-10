@@ -142,11 +142,15 @@
     {
       "action": "Recorded one flaky failure seen in a parallel coverage run",
       "outcome": "tests/test_pr_autofix_late_live_state_gate.py hit the 120s pytest-timeout once in 3 CI-shaped runs while blocked on subprocess pipe EOF; the QA report carries the analysis and names it a pre-existing race in a file this change does not touch."
+    },
+    {
+      "action": "Probed the push path on a throwaway branch",
+      "outcome": "Rebasing onto main clears the merge-tree ratchet conflict that blocks pre-push and leaves four commits; the probe also reproduced the orphaned-SHA errors, so endingCommit and qaCommit both need re-pointing after any rebase."
     }
   ],
   "endingCommit": "4599e70f8e28846f5f327a56baccf6c18b726d57",
   "nextSteps": [
-    "Rebase onto main before pushing: the prerequisite landed as 1bfc0b8829cb and its session log collides add/add with this branch's copy.",
+    "Rebase onto main before pushing: git rebase --onto origin/main origin/main, then re-point endingCommit and the QA report qaCommit to the post-rebase perf(ci) SHA.",
     "Open a pull request referencing Issue 4823 and read the CI wall clock from the workflow run; the sub-10-minute target is unmeasured until then.",
     "File a separate issue for the pr-autofix lease-renewal subprocess hang described in the QA report."
   ]

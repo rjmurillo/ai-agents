@@ -84,7 +84,8 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e010"
       ],
       "leads_to": [
         "e008"
@@ -113,6 +114,17 @@
         "e008"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the push path on a throwaway branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-10-session-10034"
     }
   ],
