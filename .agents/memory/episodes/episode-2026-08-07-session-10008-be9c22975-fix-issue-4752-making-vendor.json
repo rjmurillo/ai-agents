@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor",
+  "session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4752 by making vendor portability validation unconditional for whole-tree checks",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T17:05:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4752, its comments, and linked issue and PR discussions. Verified no open PR already addresses the issue.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T17:25:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the defect on current origin/main: the whole-tree validation job depended on dorny path-filter output and a skip job could report success without a measurement.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T17:35:00+00:00",
+      "type": "milestone",
+      "content": "Removed the change-detector and skip jobs so one validation job runs for push, pull_request, and workflow_dispatch. Updated structural tests to pin every validator command, unconditional job wiring, triggers, and absence of filters.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T17:42:00+00:00",
+      "type": "milestone",
+      "content": "Proved the tests fail against the old filtered workflow, a deleted-validator mutant, and an event-level paths-ignore mutant. Ran 11 focused tests, all six validators, security review, and a full local gh act push execution successfully.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T17:47:40+00:00",
+      "type": "commit",
+      "content": "Commit: c90e4537b",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T18:03:00+00:00",
+      "type": "milestone",
+      "content": "The full pre-push suite exposed one stale test that required the removed path filter. Replaced it with a parsed YAML assertion for unconditional exec-validator wiring; 68 focused tests passed.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T18:54:28+00:00",
+      "type": "commit",
+      "content": "Commit: 9f021acd2",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T18:55:18+00:00",
+      "type": "commit",
+      "content": "Commit: 746f3fcab",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 58,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 2
+  },
+  "lessons": []
+}

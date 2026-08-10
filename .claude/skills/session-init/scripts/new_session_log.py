@@ -94,6 +94,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 _SESSION_NUM_RE = re.compile(r"session-(\d+)")
 
+# Width of the branch-name hash used as a filename discriminator (hex characters).
+# At 8 hex chars (4 bytes, 4.3 billion values), the birthday-problem collision
+# probability for 940 branches is ~0.01%.  The birthday bound reaches 1% at
+# ~9,300 branches, roughly 10x the current count.
+_BRANCH_DISCRIMINATOR_WIDTH = 8
+
+
+def _branch_discriminator(branch: str) -> str:
+    """Return a deterministic hash prefix of the branch name.
+
+    Used as a filename discriminator so parallel worktrees on different branches
+    cannot produce colliding session-log filenames even when they allocate the
+    same session number (issue #4561).
+
+    Stability: sha256 of the UTF-8 bytes is platform-independent and
+    Python-version-independent. The ``errors="replace"`` fallback means two
+    branch names differing only in invalid UTF-8 bytes would collide, but git
+    branch names are constrained to a subset of ASCII by refname rules, so
+    invalid-byte branches are unreachable in practice.
+    """
+    import hashlib
+
+    digest = hashlib.sha256(branch.encode("utf-8", errors="replace")).hexdigest()
+    return digest[:_BRANCH_DISCRIMINATOR_WIDTH]
+
 
 def _max_session_in_names(names: list[str]) -> int:
     """Highest session number among `*.json` file names, or 0 when none."""
@@ -222,6 +247,7 @@ def _write_session_file(
     session_data: dict[str, Any],
     current_date: str,
     objective: str,
+    branch: str = "",
 ) -> tuple[str, int]:
     """Write session JSON file with atomic creation and collision retry.
 
@@ -230,11 +256,12 @@ def _write_session_file(
     os.makedirs(sessions_dir, exist_ok=True)
     session_number = session_data["session"]["number"]
     max_retries = 5
+    disc = f"-b{_branch_discriminator(branch)}" if branch else ""
 
     for retry in range(max_retries):
         keywords = get_descriptive_keywords(objective)
         suffix = f"-{keywords}" if keywords else ""
-        filename = f"{current_date}-session-{session_number}{suffix}.json"
+        filename = f"{current_date}-session-{session_number}{disc}{suffix}.json"
         filepath = os.path.join(sessions_dir, filename)
 
         try:
@@ -326,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             session_data,
             current_date,
             objective,
+            branch=git_info["branch"],
         )
     except OSError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -1,0 +1,203 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10021,
+    "date": "2026-08-08",
+    "branch": "fix/4547-ai-review-context-retry",
+    "startingCommit": "c4eb7e4ddd",
+    "objective": "Add bounded, rate-limit-aware retry and truthful infrastructure classification for issue 4547"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were available for the repository."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the Serena instructions before repository work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No issue-specific handoff was required."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located repository validation, review, and GitHub workflow tooling."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed repository and DevOps agent workflow requirements."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository instructions and scoped validation requirements."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded retry timing, runner token, and rate-limit instrumentation memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4547-ai-review-context-retry"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used an isolated worktree and feature branch."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The isolated worktree started clean at origin/main."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c4eb7e4ddd"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, reviews, and validation completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "DevOps runtime and validation details are recorded in .agents/devops."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit selected the DevOps Markdown file; repository configuration excluded it."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, documentation, and recursive review fixes are present in validated tree commit cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "At validated tree commit cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d, 167 final redactor and parity tests passed. The complete Python suite passed 25,216 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4775-ai-review-context-retry.md"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Todo fix-4547 remains in progress until merge and issue closure."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "## Retrospective: learnings captured from review-driven corrections and retry-budget validation."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue and linked pull request discourse",
+      "outcome": "Read issue 4547, duplicate PR 4621, and PR 4721 review and workflow discussions."
+    },
+    {
+      "action": "Reproduced current main",
+      "outcome": "Current main classified empty transient failures but performed no context-fetch retry."
+    },
+    {
+      "action": "Implemented bounded retry",
+      "outcome": "Added three attempts, a 210-second shared budget, header-aware waits, permanent-auth short-circuiting, and redacted diagnostics."
+    },
+    {
+      "action": "Added regression coverage",
+      "outcome": "Covered eventual success, exhausted retries, auth and permission rejection, malformed and empty output, whitespace-only output, and secret redaction."
+    },
+    {
+      "action": "Completed recursive independent review",
+      "outcome": "DevOps review passed. GPT-5.6 Sol found and verified fixes for whitespace context, shared deadlines, permission fallback, and stdout redaction."
+    },
+    {
+      "action": "Recorded retrospective",
+      "outcome": "Fresh-context review prevented three false-success paths. The shared deadline belongs at the context boundary, whitespace is empty infrastructure output, and tests must inject dynamic secret values."
+    },
+    {
+      "action": "Addressed PR review",
+      "outcome": "Remote issue and spec failures now set infrastructure_failure. Empty issue output also fails closed. A job-level absolute deadline deducts elapsed setup and preserves model invocation plus finalization time."
+    },
+    {
+      "action": "Resolved recursive Critical and High review findings",
+      "outcome": "Rejected partial failed output, recovered only through complete fallback transports, failed closed on every missing or empty context, stopped permanent authentication fallbacks, redacted model diagnostics, honored HTTP 429 Retry-After, and bounded Copilot termination with a five-second kill grace."
+    },
+    {
+      "action": "Completed recursive independent re-review",
+      "outcome": "Independent DevOps and GPT-5.6 Sol reviews reported no remaining Critical or High findings across context, invocation, action, workflow, and tests."
+    },
+    {
+      "action": "Resolved final credential-shape review finding",
+      "outcome": "Applied the shared token-shape redactor with include_hex disabled before context files, GitHub outputs, artifact contexts, persisted prompts, and model argv. Final recursive DevOps and GPT-5.6 Sol reviews passed."
+    },
+    {
+      "action": "Resolved recursive sink and stale-verdict findings",
+      "outcome": "Added shared wrapper and assignment redaction, parse-before-redact handling for structured GitHub responses, collision-safe outputs, direct-action deadlines, failed-process verdict rejection, and stale output removal. Final DevOps and GPT-5.6 Sol reviews found no Critical or High issues."
+    },
+    {
+      "action": "Resolved PR validation deadline extraction",
+      "outcome": "Moved direct-action deadline arithmetic from workflow YAML into a tested Python helper. Exact inherited-deadline validation rejects negative, non-finite, scientific, and malformed values. ADR-006 reports zero run-block violations, and recursive DevOps review reports no Critical or High findings."
+    },
+    {
+      "action": "Resolved structured assignment truncation and suffix leak reviews",
+      "outcome": "Bounded credential assignment redaction to scalar values, preserved trailing JSON and prose fields, and covered raw and escaped JSON with one through six backslashes before inner quotes. Recursive GPT-5.6 Sol review reports no Critical or High findings."
+    },
+    {
+      "action": "Resolved separator backtracking review findings",
+      "outcome": "Made credential namespace separator alternatives disjoint in the canonical and bundled redactors, added escaped-separator and adversarial long-input coverage, proved the new regression fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
+    },
+    {
+      "action": "Resolved token-only URL userinfo review findings",
+      "outcome": "Changed canonical and bundled URL userinfo redaction to mask credentials before @ even without a password separator. Added token-only positive coverage, URL-without-userinfo negative coverage, proved the new token-only test fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
+    },
+    {
+      "action": "Completed final rate-limit transport and recursive review",
+      "outcome": "Full PR diffs now use gh api with the diff media type and included response headers. Retry-After and valid exhausted-quota resets control bounded waits. Unicode Authorization, arbitrary serialization depth, token-only URL userinfo, and source-safe sinks passed recursive review with no Critical or High findings."
+    },
+    {
+      "action": "Completed final full validation",
+      "outcome": "The complete Python suite passed 25,213 tests with 36 skipped in 722.73 seconds."
+    },
+    {
+      "action": "Resolved Authorization assignment review findings",
+      "outcome": "Authorization wrappers now accept colon and equals syntax. Basic, Token, and Bearer values redact completely while preserving trailing fields. Final recursive Sol and independent DevOps reviews passed."
+    },
+    {
+      "action": "Repeated final full validation",
+      "outcome": "The complete Python suite passed 25,216 tests with 36 skipped in 725.88 seconds."
+    }
+  ],
+  "endingCommit": "cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d",
+  "nextSteps": [
+    "Push PR 4775, resolve remaining review threads, verify a real security verdict, merge, close issue 4547, then reassess PR 4721."
+  ]
+}

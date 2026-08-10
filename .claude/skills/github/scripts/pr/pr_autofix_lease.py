@@ -21,8 +21,10 @@ safe to ship before any remote integration exists. This module
 implements no remote coordination.
 
 Storage (ADR-076 part 1): the lease lives in hidden-marker comments on
-the PR timeline (the issue-comment stream). The latest
-`<!-- PR-AUTOFIX-LEASE -->` marker comment wins. This is NOT a
+the PR timeline (the issue-comment stream). The latest claim wins. Each
+claim has an immutable random ID. A release tombstone applies only to the
+exact claim identity it names, so a delayed release cannot clear a newer
+claim. This is NOT a
 worktree-local file: ADR-076 explicitly rejects the git-notes/local
 alternative because it is "not in the PR timeline (fails acceptance
 criterion 3)". A live lease is one whose `owner` is not `none`, whose
@@ -35,11 +37,13 @@ hard safety boundary and is never replaced or relaxed by this module.
 
 Exit codes (within the ADR-035 range, matching `check_pr_live_state.py`'s
 ACT/SKIP convention):
-    0 - ACT: caller may proceed (lease acquired, renewed, or released)
-    1 - SKIP: a live lease is held by another loop (acquire only)
+    0 - ACT: caller may proceed (lease acquired, renewed, released, or
+        fail-open on auth/store error per ADR-076 part 3 step 6)
+    1 - SKIP: a live lease is held by another loop (acquire/renew only)
     2 - PR not found / usage error
     3 - External error (API failure)
-    4 - Auth error
+    4 - Auth error (only for non-lease operations; lease operations fail
+        open to exit 0 per ADR-076 part 3 step 6)
 
 Stricter/looser/different than canonical
 ========================================
@@ -109,6 +113,7 @@ import os
 import re
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
@@ -200,6 +205,7 @@ _RFC3339_UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
 
 #: 40-hex git SHA (ADR-076 part 1: ``base_sha: <40-hex>``).
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
+_CLAIM_ID = re.compile(r"^[0-9a-f]{32}$")
 
 #: Per-key strict line patterns. The block is parsed key-by-key; anything that
 #: does not match every required key with a valid value is malformed and
@@ -207,6 +213,7 @@ _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _KEY_LINE = re.compile(r"^([a-z_]+):\s*(.+?)\s*$")
 
 _REQUIRED_KEYS = ("owner", "session", "acquired_at", "expires_at", "base_sha")
+_OPTIONAL_KEYS = ("target_owner", "claim_id")
 
 
 # ---------------------------------------------------------------------------
@@ -221,14 +228,13 @@ class Lease:
     Construction implies validity: ``parse_lease_block`` returns ``None``
     rather than an invalid ``Lease``. ``owner == "none"`` is a tombstone.
 
-    ``owner`` and ``session`` come from the (forgeable) comment body and are
-    display/traceability only. ``author`` is the VERIFIED GitHub comment
-    author (``user.login`` from the API), the credential that actually
-    posted the comment; it is the only field a trust decision keys on
-    (ADR-076 part 4, Security). ``parse_lease_block`` cannot know the
-    author from the body alone, so it leaves ``author=""``;
-    ``select_authoritative_lease`` stamps the verified author from the
-    enclosing comment.
+    ``owner``, ``session``, ``target_owner``, and ``claim_id`` come from the
+    forgeable comment body. ``author`` is the VERIFIED GitHub comment author
+    (``user.login`` from the API), the credential that posted the comment.
+    Tombstone causality matches all body identity fields plus the verified
+    author. ``parse_lease_block`` cannot know the author from the body, so
+    it leaves ``author=""``; ``select_authoritative_lease`` stamps it from
+    the enclosing comment.
     """
 
     owner: str
@@ -237,6 +243,8 @@ class Lease:
     expires_at: datetime
     base_sha: str
     author: str = ""
+    target_owner: str = ""
+    claim_id: str = ""
 
     def is_live(self, now: datetime) -> bool:
         """A lease is live, judged against the READER's clock ``now``.
@@ -278,6 +286,25 @@ def _parse_rfc3339_utc(value: str) -> datetime | None:
         return None
 
 
+def _parse_identity_fields(
+    fields: dict[str, str],
+) -> tuple[str, str, str, str] | None:
+    """Validate and return owner, target owner, base SHA, and claim ID."""
+    owner = fields["owner"]
+    if owner not in KNOWN_OWNERS:
+        return None
+    target_owner = fields.get("target_owner", "")
+    if target_owner and target_owner not in KNOWN_OWNERS - {TOMBSTONE_OWNER}:
+        return None
+    base_sha = fields["base_sha"]
+    if not _SHA40.match(base_sha):
+        return None
+    claim_id = fields.get("claim_id", "")
+    if claim_id and not _CLAIM_ID.match(claim_id):
+        return None
+    return owner, target_owner, base_sha, claim_id
+
+
 def parse_lease_block(body: str) -> Lease | None:
     """Parse a single lease comment body into a ``Lease``, or ``None``.
 
@@ -298,19 +325,16 @@ def parse_lease_block(body: str) -> Lease | None:
         if match is None:
             continue
         key, value = match.group(1), match.group(2)
-        if key in _REQUIRED_KEYS:
+        if key in (*_REQUIRED_KEYS, *_OPTIONAL_KEYS):
             fields[key] = value
 
     if any(key not in fields for key in _REQUIRED_KEYS):
         return None
 
-    owner = fields["owner"]
-    if owner not in KNOWN_OWNERS:
+    identity = _parse_identity_fields(fields)
+    if identity is None:
         return None
-
-    base_sha = fields["base_sha"]
-    if not _SHA40.match(base_sha):
-        return None
+    owner, target_owner, base_sha, claim_id = identity
 
     acquired_at = _parse_rfc3339_utc(fields["acquired_at"])
     expires_at = _parse_rfc3339_utc(fields["expires_at"])
@@ -330,6 +354,8 @@ def parse_lease_block(body: str) -> Lease | None:
         acquired_at=acquired_at,
         expires_at=expires_at,
         base_sha=base_sha,
+        target_owner=target_owner,
+        claim_id=claim_id,
     )
 
 
@@ -353,15 +379,31 @@ def _comment_author(comment: dict) -> str:
     return login if isinstance(login, str) else ""
 
 
+def _tombstone_matches(tombstone: Lease, claim: Lease) -> bool:
+    """Return whether a tombstone causally targets the current claim."""
+    return (
+        tombstone.target_owner == claim.owner
+        and tombstone.session == claim.session
+        and tombstone.base_sha == claim.base_sha
+        and tombstone.claim_id != ""
+        and tombstone.claim_id == claim.claim_id
+        and tombstone.author != ""
+        and tombstone.author == claim.author
+    )
+
+
 def select_authoritative_lease(comments: list[dict]) -> Lease | None:
     """Return the lease from the most-recent valid marker comment, or None.
 
-    Latest-marker-wins (ADR-076 part 1: "The latest marker comment wins").
-    ``comments`` is the PR timeline in API order (oldest first), each a
-    dict with at least ``body``, ``created_at``, and ``user.login``. The
-    scan is bounded to the latest ``MAX_SCAN`` comments (ADR-076 Security):
-    a flood of forged markers cannot become an unbounded parse-cost DoS,
-    and an older comment cannot hold a live lease anyway (TTL is 15 min).
+    Claims use latest-marker-wins ordering (ADR-076 part 1). Tombstones are
+    causal: they replace the current claim only when owner, session, base
+    SHA, immutable claim ID, and verified author match. A delayed release
+    therefore cannot clear a newer claim. ``comments`` is the PR timeline
+    in API order
+    (oldest first), each a dict with at least ``body``, ``created_at``, and
+    ``user.login``. The scan is bounded to the latest ``MAX_SCAN`` comments
+    (ADR-076 Security): a flood of forged markers cannot become an unbounded
+    parse-cost DoS, and an older comment cannot hold a live lease anyway.
 
     Each selected lease is stamped with its enclosing comment's VERIFIED
     author (``user.login``), so a later trust decision keys on the
@@ -369,8 +411,7 @@ def select_authoritative_lease(comments: list[dict]) -> Lease | None:
     ``owner`` / ``session``. Marker comments that fail to parse are skipped
     (treated as "no live lease"); the most recent *parseable* marker wins.
     """
-    latest: Lease | None = None
-    latest_created: str = ""
+    candidates: list[tuple[str, Lease]] = []
     for comment in comments[-MAX_SCAN:]:
         body = comment.get("body") or ""
         if LEASE_MARKER not in body:
@@ -379,15 +420,24 @@ def select_authoritative_lease(comments: list[dict]) -> Lease | None:
         if lease is None:
             continue
         created = comment.get("created_at") or ""
-        if latest is None or created >= latest_created:
-            latest = replace(lease, author=_comment_author(comment))
-            latest_created = created
+        candidates.append((created, replace(lease, author=_comment_author(comment))))
+
+    latest: Lease | None = None
+    for _, candidate in sorted(candidates, key=lambda item: item[0]):
+        if (
+            candidate.owner == TOMBSTONE_OWNER
+            and latest is not None
+            and not _tombstone_matches(candidate, latest)
+        ):
+            continue
+        latest = candidate
     return latest
 
 
 def classify_acquire(
     lease: Lease | None,
     acting_author: str,
+    session: str,
     now: datetime,
 ) -> dict:
     """Decide ACT vs SKIP for an acquire, given the authoritative lease.
@@ -399,10 +449,11 @@ def classify_acquire(
       -> SKIP, reason ``held-by:<owner>``, with ``expires_at`` so the
       caller knows when to retry. (``owner`` in the reason is the body's
       display label; the trust decision used ``author``.)
-    - A live lease whose verified author IS ``acting_author``
-      (self-renewal) -> ACT, reason ``self-renew``. The match keys on the
-      verified GitHub comment author, never on the forgeable body
-      ``owner`` / ``session`` (ADR-076 Security, CWE-345).
+    - A live lease whose verified author IS ``acting_author`` and whose
+      session matches the caller (self-renewal) -> ACT, reason
+      ``self-renew``. The verified author is the trust boundary. Session
+      identity prevents two agents sharing one login from renewing each
+      other's lease.
     - No live lease (absent, tombstoned, expired, beyond-MAX_TTL, or
       malformed/None) -> ACT, reason ``free`` (the caller claims it).
 
@@ -414,7 +465,7 @@ def classify_acquire(
     the push.
     """
     if lease is not None and lease.is_live(now):
-        if acting_author != "" and lease.author == acting_author:
+        if acting_author != "" and lease.author == acting_author and lease.session == session:
             return {"action": "ACT", "reason": "self-renew"}
         return {
             "action": "SKIP",
@@ -422,6 +473,22 @@ def classify_acquire(
             "expires_at": _to_rfc3339(lease.expires_at),
         }
     return {"action": "ACT", "reason": "free"}
+
+
+def _claim_is_authoritative(lease: Lease | None, claim: Lease, author: str) -> bool:
+    """Return True when a reread lease still matches the posted claim.
+
+    The posted body is serialized to whole-second RFC3339 timestamps, so
+    the in-memory claim must be normalized to the same precision before
+    comparing.
+    """
+    normalized = replace(
+        claim,
+        author=author,
+        acquired_at=claim.acquired_at.replace(microsecond=0),
+        expires_at=claim.expires_at.replace(microsecond=0),
+    )
+    return lease == normalized
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +506,8 @@ def render_lease_comment(lease: Lease) -> str:
 
     The output round-trips through ``parse_lease_block``.
     """
+    target_owner = f"target_owner: {lease.target_owner}\n" if lease.target_owner else ""
+    claim_id = f"claim_id: {lease.claim_id}\n" if lease.claim_id else ""
     return (
         f"{LEASE_MARKER}\n"
         f"owner: {lease.owner}\n"
@@ -446,10 +515,18 @@ def render_lease_comment(lease: Lease) -> str:
         f"acquired_at: {_to_rfc3339(lease.acquired_at)}\n"
         f"expires_at: {_to_rfc3339(lease.expires_at)}\n"
         f"base_sha: {lease.base_sha}\n"
+        f"{target_owner}"
+        f"{claim_id}"
     )
 
 
-def build_claim(owner: str, session: str, base_sha: str, now: datetime) -> Lease:
+def build_claim(
+    owner: str,
+    session: str,
+    base_sha: str,
+    now: datetime,
+    claim_id: str | None = None,
+) -> Lease:
     """Build a fresh claim lease starting now with a full TTL window."""
     return Lease(
         owner=owner,
@@ -457,10 +534,17 @@ def build_claim(owner: str, session: str, base_sha: str, now: datetime) -> Lease
         acquired_at=now,
         expires_at=now + TTL,
         base_sha=base_sha,
+        claim_id=claim_id or uuid.uuid4().hex,
     )
 
 
-def build_tombstone(owner: str, session: str, now: datetime) -> Lease:
+def build_tombstone(
+    owner: str,
+    session: str,
+    now: datetime,
+    base_sha: str = "0" * 40,
+    claim_id: str = "",
+) -> Lease:
     """Build a release tombstone (ADR-076 part 1).
 
     ``owner`` is set to ``none`` and ``expires_at`` to the past so the
@@ -473,7 +557,9 @@ def build_tombstone(owner: str, session: str, now: datetime) -> Lease:
         session=session,
         acquired_at=past,
         expires_at=past,
-        base_sha="0" * 40,
+        base_sha=base_sha,
+        target_owner=owner,
+        claim_id=claim_id,
     )
 
 
@@ -723,14 +809,20 @@ def acquire(
     authoritative lease comment, never against the forgeable body
     ``owner`` / ``session`` (ADR-076 Security, CWE-345). ``acting_author``
     is injectable for deterministic tests; production passes None and the
-    authenticated ``gh`` login is resolved. An unresolved login ("") can
-    only claim a free lock, never self-renew a foreign one (fails safe).
+    authenticated ``gh`` login is resolved. An unresolved login fails open
+    to ``ACT/lease-store-unavailable`` because ownership loss was not
+    positively confirmed. The SHA gate remains the mutation backstop.
 
     ``base_sha`` is the PR head SHA read from GitHub (ADR-076 part 3 step
     1), never the caller's local HEAD, so an acquire run from the wrong
     checkout cannot publish freshness evidence for another branch. The
     local HEAD is still read and reported as ``local_head_sha``, and a
     mismatch is logged with both values (issues #4357, #4375).
+
+    After posting a claim, acquire rereads the authoritative timeline and
+    only returns ACT when the posted claim is still the latest live marker.
+    A competing writer that wins the reread race turns the acquire into
+    SKIP, so two actors do not both continue with false success.
 
     Only the comment read fails open. The head read runs after the lease
     verdict and records the zero sentinel on failure, so a transient error
@@ -743,6 +835,11 @@ def acquire(
     now = now or datetime.now(UTC)
     author = _gh_authenticated_login() if acting_author is None else acting_author
     local_sha = _git_head_sha()
+    if acting_author is None and author == "":
+        logger.warning("op=lease_login_unavailable pr=%d", pr)
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+        )
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
@@ -752,7 +849,7 @@ def acquire(
         )
 
     current = select_authoritative_lease(comments)
-    verdict = classify_acquire(current, author, now)
+    verdict = classify_acquire(current, author, session, now)
     if verdict["action"] == "SKIP":
         return LeaseResult("SKIP", verdict["reason"], expires_at=verdict.get("expires_at"))
 
@@ -774,6 +871,25 @@ def acquire(
         return LeaseResult(
             "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
         )
+
+    try:
+        latest_comments = list_lease_comments(repo_owner, repo, pr)
+    except LeaseStoreError as exc:
+        logger.warning("op=lease_claim_recheck_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+        )
+
+    current_after_post = select_authoritative_lease(latest_comments)
+    if not _claim_is_authoritative(current_after_post, claim, author):
+        if current_after_post is not None and current_after_post.author not in ("", author):
+            return LeaseResult(
+                "SKIP",
+                f"held-by:{current_after_post.owner}",
+                expires_at=_to_rfc3339(current_after_post.expires_at),
+            )
+        return LeaseResult("SKIP", "lease-race-lost", expires_at=_to_rfc3339(claim.expires_at))
+
     return LeaseResult(
         "ACT",
         verdict["reason"],
@@ -790,16 +906,44 @@ def release(
     repo: str,
     pr: int,
     now: datetime | None = None,
+    acting_author: str | None = None,
 ) -> LeaseResult:
     """Release the lease for ``pr`` by writing a tombstone (ADR-076 part 3).
 
-    Best-effort and idempotent: releasing an already-free lock writes a
-    tombstone and still returns ACT, and a store error fails open to ACT
-    (a missed release is covered by TTL expiry). ``now`` is injectable for
-    deterministic tests.
+    Best-effort and idempotent: a tombstone is posted only when the latest
+    live lease still matches this owner, session, verified author, and an
+    immutable claim ID. An already-free, legacy, or foreign lease returns
+    ACT without writing. A store error fails open to ACT because TTL expiry
+    covers a missed release. ``now`` and ``acting_author`` are injectable
+    for deterministic tests.
     """
     now = now or datetime.now(UTC)
-    tombstone = build_tombstone(owner, session, now)
+    author = _gh_authenticated_login() if acting_author is None else acting_author
+    try:
+        comments = list_lease_comments(repo_owner, repo, pr)
+    except LeaseStoreError as exc:
+        logger.warning("op=lease_release_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("ACT", "lease-store-unavailable")
+
+    current = select_authoritative_lease(comments)
+    if current is None or not current.is_live(now):
+        return LeaseResult("ACT", "already-free")
+    if (
+        current.owner != owner
+        or current.session != session
+        or author == ""
+        or current.author != author
+        or current.claim_id == ""
+    ):
+        return LeaseResult("ACT", "not-owner")
+
+    tombstone = build_tombstone(
+        owner,
+        session,
+        now,
+        current.base_sha,
+        current.claim_id,
+    )
     try:
         post_lease_comment(repo_owner, repo, pr, render_lease_comment(tombstone))
     except LeaseStoreError as exc:
@@ -842,7 +986,16 @@ def build_parser() -> argparse.ArgumentParser:
             "SHA gate remains the only hard safety boundary."
         ),
     )
-    parser.add_argument("command", choices=["acquire", "release", "status"], help="Lease operation")
+    parser.add_argument(
+        "command",
+        choices=["acquire", "renew", "release", "status"],
+        help=(
+            "Lease operation. 'renew' extends the TTL in place (call periodically "
+            "during a long pre-push validation so the lease outlives the hook; "
+            "issue #4376). Internally identical to 'acquire' on an existing live "
+            "lease held by this credential (self-renewal via ADR-076 part 3 step 4)."
+        ),
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument("--pull-request", type=int, required=True, help="Pull request number")
@@ -884,7 +1037,14 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
             args.output_format,
             args.pull_request,
         )
-    if args.command == "acquire":
+    # 'renew' is acquire with self-renewal semantics: the caller already holds
+    # the lease and wants to extend the TTL in place. The acquire() function
+    # handles this via classify_acquire's self-renew branch (ADR-076 part 3
+    # step 4). Callers should invoke 'renew' periodically during a long
+    # pre-push validation run to keep the lease live for the full critical
+    # section (issue #4376). A renew that finds the lease free (e.g. expired)
+    # re-claims it, which is the correct recovery.
+    if args.command in ("acquire", "renew"):
         return acquire(args.lease_owner, args.session, owner, repo, args.pull_request)
     return release(args.lease_owner, args.session, owner, repo, args.pull_request)
 
@@ -892,10 +1052,56 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
-    assert_gh_authenticated()
-
+    # ADR-076 part 3 step 6: repo-parameter validation must run before any
+    # auth fail-open so malformed owner/repo still exits 2. Valid auth
+    # failures still fail open to ACT with reason=lease-store-unavailable.
+    # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
+    # converts an advisory coordination mechanism into a workflow outage
+    # (issue #4375).
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
+    try:
+        assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 3
+        if code not in (3, 4):
+            raise
+        # Auth failure. Fail open per ADR-076 part 3
+        # step 6: emit an ACT/lease-store-unavailable result on the same
+        # output channel so the caller sees a structured verdict, then exit
+        # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
+        # result. Output serialization failures remain fatal because callers
+        # cannot act safely without a readable lease verdict.
+        logger.warning(
+            "op=lease_main_failopen exit_code=%d command=%s pr=%d",
+            code,
+            args.command,
+            args.pull_request,
+        )
+        fail_open_result = {
+            "success": True,
+            "pull_request": args.pull_request,
+            "owner": args.owner or "",
+            "repo": args.repo or "",
+            "command": args.command,
+            "action": "ACT",
+            "reason": "lease-store-unavailable",
+            "expires_at": None,
+            "base_sha": None,
+            "local_head_sha": None,
+        }
+        write_skill_output(
+            fail_open_result,
+            output_format=output_format,
+            human_summary=(
+                f"PR #{args.pull_request} lease {args.command}: "
+                f"ACT (lease-store-unavailable; auth/repo resolution failed, "
+                f"original exit {code})"
+            ),
+            status="PASS",
+            script_name=_SCRIPT_NAME,
+        )
+        return 0
 
     result = _run_command(args, owner, repo)
 
