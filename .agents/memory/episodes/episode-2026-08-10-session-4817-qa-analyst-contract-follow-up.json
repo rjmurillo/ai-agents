@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-10-session-4817-qa-analyst-contract-follow-up",
+  "session": "2026-08-10-session-4817-qa-analyst-contract-follow-up",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "QA validation for PR #4817: explicit analyst attribution and strict routing validation.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched PR #4817 metadata and CI failure details",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree at /tmp/qa-pr-4817-worktree on fix/analyst-contract-follow-up",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pytest on both changed test files",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran pytest on both changed test files      122/122 passed in 0.75s",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report with PASS verdict",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T09:33:01+00:00",
+      "type": "commit",
+      "content": "Commit: 275c538599fa8021ec113539b3f998751fff2cee",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
