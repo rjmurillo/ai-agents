@@ -418,6 +418,7 @@ def _original_main(stdin_bytes):
     import stat
     import subprocess
     import sys
+    from collections.abc import Iterator
     from pathlib import Path
     from typing import BinaryIO, NamedTuple
 
@@ -428,10 +429,26 @@ def _original_main(stdin_bytes):
     )
     _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
     _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
+    # Bash extglob group: one of ? * + @ ! immediately followed by a
+    # parenthesized alternation. Innermost only, so nesting is handled by repeated
+    # application rather than by a recursive pattern.
+    _EXTGLOB_GROUP = re.compile(r"([?*+@!])\(([^()]*)\)")
     _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
     _NEW_PR_TARGET = "new_pr.py"
     _ANSI_C_QUOTED = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
     _MAX_BRACE_EXPANSIONS = 4096
+    # Total bytes one relevance decision may materialize across all brace
+    # expansions. The count budget above cannot bound this: every expansion carries
+    # a copy of the surrounding literal text, so cost is count times length. Issue
+    # #4764 measured 204,832,768 bytes and a 195.6 MiB peak from a 100,060-byte
+    # command that never exceeded the count budget. 256 KiB leaves ordinary
+    # multi-alternative commands untouched while keeping a hostile 128 KiB command
+    # far from both the host's 10s PreToolUse timeout (where a Copilot timeout
+    # fails OPEN) and any meaningful RSS growth.
+    _MAX_BRACE_EXPANDED_BYTES = 256 * 1024
+    # Bound on innermost-first extglob rewrites, so a pathological nesting cannot
+    # loop. Far above any real command; the canonical invocation has none.
+    _MAX_EXTGLOB_REWRITES = 64
     _MAX_POLICY_TOKENS = 256
     _MAX_INTERPRETER_SEARCH = 64
     _DIGEST_CHUNK_BYTES = 1 << 20
@@ -840,6 +857,51 @@ def _original_main(stdin_bytes):
             "RUBYOPT",
         }
     )
+    # Assignments whose VALUE names a program the shell or interpreter executes,
+    # beyond the loader set above. Relevance inspects these because such a variable
+    # runs its value without the path ever appearing as a command operand
+    # (issue #4764).
+    # Commands that exist to RUN another program named in their arguments. Their
+    # operands are never data, so relevance keeps a new_pr.py reference in scope
+    # (issue #4764). Interpreters, shells, and evaluators are covered by the
+    # existing evaluator sets; this list is the remaining launchers.
+    #
+    # Omission fails closed only when the launcher is also unresolvable, so keep it
+    # current: a resolvable launcher missing from this list would let
+    # `<launcher> new_pr.py` read as data. `uv` is here because `uv run
+    # tools/copy.py` executes a renamed copy of new_pr.py, which is a measured
+    # vector in tests/hooks/test_push_pr_script_identity_guard.py.
+    _LAUNCHER_COMMANDS = frozenset(
+        {
+            "conda",
+            "doas",
+            "hatch",
+            "micromamba",
+            "nix-shell",
+            "parallel",
+            "pdm",
+            "pipenv",
+            "pipx",
+            "pixi",
+            "poetry",
+            "rye",
+            "sudo",
+            "tox",
+            "uv",
+            "uvx",
+            "xargs",
+        }
+    )
+    _EXECUTION_INFLUENCING_VARIABLES = frozenset(
+        {
+            "BASH_ENV",
+            "ENV",
+            "PAGER",
+            "PUSH_PR_SCRIPT",
+            "SHELL",
+            "VISUAL",
+        }
+    )
     _GIT_CONFIG_READ_MODIFIERS = frozenset(
         {
             "--fixed-value",
@@ -1036,32 +1098,176 @@ def _original_main(stdin_bytes):
         return body.split(",")
 
 
-    def _brace_expanded(command: str) -> list[str] | None:
-        """Enumerate brace expansions of ``command``, innermost group first.
+    class _ExpansionBudgetError(Exception):
+        """Enumeration hit a bound before finishing, so the caller must fail closed.
 
-        Returns None when enumeration exceeds ``_MAX_BRACE_EXPANSIONS``; the caller
-        fails closed on that, because an expansion it cannot enumerate may name
-        new_pr.py. The enumeration is deliberately a superset of what a shell
-        produces: relevance only decides whether the strict policy applies.
+        A distinct type rather than a ``None`` return, so a caller cannot mistake
+        "produced no match" for "gave up before looking". The two demand opposite
+        verdicts: the first means the command is irrelevant, the second means the
+        guard cannot prove it is, and an attacker who can force the second reading
+        into an allow buys a bypass by making the command expensive.
+        """
+
+
+    def _iter_brace_expansions(command: str) -> Iterator[str]:
+        """Yield brace expansions of ``command``, innermost group first.
+
+        Streams instead of materializing, and charges every projected byte against
+        a budget BEFORE allocating it. Issue #4764 measured the previous
+        list-building form on the merged tree:
+
+            input 10,921 bytes -> 256 expansions, 2,562,194 bytes materialized
+            input 100,060 bytes -> 2,048 expansions, 204,832,768 bytes,
+                                   195.6 MiB peak allocation
+
+        Both stayed inside the 4,096-expansion budget, because a count budget
+        cannot bound size: each expansion carries a full copy of the surrounding
+        literal text, so cost is count times length, not count. The byte budget is
+        the one that binds, and it is checked against the projected total before
+        the strings exist, since checking after allocation measures a spike that
+        has already happened.
+
+        Raises ``_ExpansionBudgetError`` when either budget is exhausted. The
+        enumeration is deliberately a superset of what a shell produces: relevance
+        may over-include, never under-include.
         """
         frontier = [command]
-        expansions: list[str] = []
-        budget = _MAX_BRACE_EXPANSIONS
+        produced_bytes = len(command)
+        remaining = _MAX_BRACE_EXPANSIONS
         while frontier:
             candidate = frontier.pop()
             group = _INNERMOST_BRACE_GROUP.search(candidate)
             if group is None:
-                expansions.append(candidate)
+                yield candidate
                 continue
             alternatives = _brace_alternatives(group.group(1))
-            budget -= len(alternatives)
-            if budget < 0:
-                return None
+            remaining -= len(alternatives)
+            if remaining < 0:
+                raise _ExpansionBudgetError("brace expansion count budget exhausted")
+            base_length = len(candidate) - (group.end() - group.start())
+            produced_bytes += sum(base_length + len(alternative) for alternative in alternatives)
+            if produced_bytes > _MAX_BRACE_EXPANDED_BYTES:
+                raise _ExpansionBudgetError("brace expansion byte budget exhausted")
             frontier.extend(
                 candidate[: group.start()] + alternative + candidate[group.end() :]
                 for alternative in alternatives
             )
-        return expansions
+
+
+    def _extglob_to_brace(text: str) -> str:
+        """Rewrite Bash extglob groups into brace groups the expander already handles.
+
+        Issue #4764: ``bash -O extglob`` expands
+        ``.../pr/@(new)_pr.py`` to ``.../pr/new_pr.py``, and both dispatchers
+        returned 0 (allow) for that command on the merged tree. ``@(`` and ``!(``
+        carry none of the ``? * [`` characters the guard treated as glob markers,
+        so the pattern read as ordinary literal text that did not contain
+        ``new_pr.py``, and ``(`` made the segment fail to tokenize, which routed it
+        to a backstop that only inspects the head word.
+
+        Rewriting rather than adding a second expander keeps one enumeration engine
+        and one budget. The mapping is a superset of what the shell produces, which
+        is the safe direction for a relevance decision:
+
+        ==========  =============  =================================
+        Pattern     Rewrite        Reason
+        ==========  =============  =================================
+        ``@(a|b)``  ``{a,b}``      exactly one alternative
+        ``+(a|b)``  ``{a,b}``      one or more; one alternative is in the set
+        ``?(a|b)``  ``{,a,b}``     zero or one
+        ``*(a|b)``  ``{,a,b}``     zero or more; both endpoints are in the set
+        ``!(a|b)``  ``*``          anything else, so a wildcard covers it
+        ==========  =============  =================================
+
+        ``*(a|b)`` can also produce ``aa`` and ``abab``, which this does not
+        enumerate. It does not need to: relevance asks whether the pattern CAN name
+        new_pr.py, and if it can, one of the listed alternatives already spells it.
+
+        Innermost-first, bounded by ``_MAX_EXTGLOB_REWRITES``, so a nested pattern
+        cannot loop. Text with no extglob group is returned unchanged.
+        """
+        for _ in range(_MAX_EXTGLOB_REWRITES):
+            match = _EXTGLOB_GROUP.search(text)
+            if match is None:
+                return text
+            operator, body = match.group(1), match.group(2)
+            alternatives = body.split("|")
+            if operator == "!":
+                replacement = "*"
+            elif operator in {"?", "*"}:
+                replacement = "{," + ",".join(alternatives) + "}"
+            else:
+                replacement = "{" + ",".join(alternatives) + "}"
+            text = text[: match.start()] + replacement + text[match.end() :]
+        return text
+
+
+    def _spellings(text: str) -> set[str]:
+        """Return the ways a shell could spell ``text`` before it reaches the OS.
+
+        Collects the obfuscations the guard already knew about individually:
+        single-character glob classes (``n[e]w_pr.py``), ANSI-C quoting
+        (``$'new\\x5fpr.py'``), and extglob groups (``@(new)_pr.py``). Brace
+        expansion is applied by the caller, because it is the only one that can
+        exceed a budget.
+        """
+        unclassed = text.replace("[", "").replace("]", "")
+        variants = {text, unclassed}
+        variants |= {_ansi_c_decoded(variant) for variant in tuple(variants)}
+        variants |= {_extglob_to_brace(variant) for variant in tuple(variants)}
+        return variants
+
+
+    def _names_new_pr(command: str) -> bool:
+        """True when ``command`` text can spell new_pr.py anywhere in it.
+
+        Substring-based and position-blind. Used for CODE positions, where the text
+        is a program rather than a path, and by the fail-closed backstop for a
+        segment that will not tokenize. Path positions use
+        ``_path_names_new_pr`` instead, because a substring test reports
+        ``tests/test_new_pr.py`` as new_pr.py (issue #4764).
+        """
+        for text in _spellings(command):
+            if _could_target_new_pr(text):
+                return True
+            try:
+                if any(_could_target_new_pr(candidate) for candidate in _iter_brace_expansions(text)):
+                    return True
+            except _ExpansionBudgetError:
+                return True
+        return False
+
+
+    def _path_names_new_pr(value: str) -> bool:
+        """True when ``value`` is a path whose final component is new_pr.py.
+
+        Basename equality, not substring containment. Issue #4764 measured the
+        substring form denying ``python3 -m pytest tests/test_new_pr.py``, because
+        ``test_new_pr.py`` contains ``new_pr.py``. A path names the script only
+        when its LAST component is the script; ``foo_new_pr.py`` and
+        ``new_pr.py.bak`` are different files.
+
+        Narrowing here does not lose the renamed-copy case: a file whose name
+        differs but whose bytes match is caught by ``_operand_is_new_pr_copy``,
+        which compares content at execution positions.
+        """
+        for text in _spellings(value):
+            try:
+                candidates = list(_iter_brace_expansions(text))
+            except _ExpansionBudgetError:
+                return True
+            for candidate in candidates:
+                literal = candidate.replace("\\\r\n", "").replace("\\\n", "").casefold()
+                for normalized in (literal, literal.replace("\\", "/"), literal.replace("\\", "")):
+                    compacted = normalized.translate(str.maketrans("", "", "'\"+ \t"))
+                    basename = compacted.rsplit("/", 1)[-1]
+                    if basename == _NEW_PR_TARGET:
+                        return True
+                    if any(marker in basename for marker in "?*[") and fnmatch.fnmatch(
+                        _NEW_PR_TARGET, basename
+                    ):
+                        return True
+        return False
 
 
     def _ansi_c_decoded(text: str) -> str:
@@ -1086,24 +1292,6 @@ def _original_main(stdin_bytes):
         # substitution read as Any to mypy.
         decoded: str = _ANSI_C_QUOTED.sub(decode, text)
         return decoded
-
-
-    def _names_new_pr(command: str) -> bool:
-        """Scope rule A: the command text can name new_pr.py."""
-        # Single-character glob classes are a naming obfuscation, not a wildcard
-        # search: n[e]w_[p]r.[p][y] names exactly new_pr.py.
-        unclassed = command.replace("[", "").replace("]", "")
-        variants = {command, unclassed}
-        variants |= {_ansi_c_decoded(variant) for variant in tuple(variants)}
-        for text in variants:
-            if _could_target_new_pr(text):
-                return True
-            expansions = _brace_expanded(text)
-            if expansions is None:
-                return True
-            if any(_could_target_new_pr(candidate) for candidate in expansions):
-                return True
-        return False
 
 
     def _execution_position_names_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
@@ -1231,16 +1419,26 @@ def _original_main(stdin_bytes):
 
         Keeps an unparseable but target-shaped execution in scope rather than
         letting a quoting artifact decide relevance.
+
+        Position-blind on purpose. Everywhere else relevance asks WHERE the name
+        appears, but a segment that will not tokenize has no positions to ask
+        about: the guard cannot tell an operand from a command word in text it
+        could not parse. So the whole segment is tested, which is the merged
+        tree's original rule confined to the one case that needs it. Testing only
+        the head word let ``python3 .../new_pr.py # comment`` out of scope, because
+        ``#`` makes ``_split_command`` raise and the head is ``python3``
+        (issue #4764).
         """
-        head = segment.strip().split(None, 1)
-        if not head:
+        stripped = segment.strip()
+        if not stripped:
             return False
+        if _names_new_pr(stripped):
+            return True
+        head = stripped.split(None, 1)
         word = head[0].strip("'\"")
         basename = word.rsplit("/", 1)[-1]
         if not basename:
             return False
-        if _names_new_pr(word):
-            return True
         return any(marker in basename for marker in "?*[") and fnmatch.fnmatch(
             _NEW_PR_TARGET, basename
         )
@@ -1265,10 +1463,17 @@ def _original_main(stdin_bytes):
             stripped = piece.strip()
             if not stripped:
                 continue
+            # Extglob groups become brace groups BEFORE tokenizing. `(` and `)` are
+            # shell operators that _split_command rejects, so an extglob segment
+            # used to fail to parse and fall through to the head-word backstop,
+            # which allowed `python3 .../@(new)_pr.py` outright (issue #4764).
+            # Rewriting keeps one expansion engine and one budget; see
+            # _extglob_to_brace for the mapping and why it is a safe superset.
+            rewritten = _extglob_to_brace(stripped)
             try:
-                tokens = _split_command(stripped)
+                tokens = _split_command(rewritten)
             except GuardViolationError:
-                if _segment_head_names_new_pr(stripped):
+                if _segment_head_names_new_pr(rewritten):
                     return [[ShellToken(_NEW_PR_TARGET, _NEW_PR_TARGET)]]
                 continue
             if tokens:
@@ -1326,10 +1531,20 @@ def _original_main(stdin_bytes):
         interpreter reached through wrappers, and that interpreter's script
         operand. An operand sitting elsewhere is a filename argument, not an
         execution, so it is not this guard's business.
+
+        Consults ``_operands_are_data`` first, so every scope rule shares one
+        definition of an execution position. Without that, the interpreter search
+        reads shebangs and reports the real new_pr.py as an "interpreter" whenever
+        it appears as an operand, which put ``git diff -- .../new_pr.py`` and
+        ``ruff check .../new_pr.py`` back in scope through the renamed-copy rule
+        even after the path rule had correctly classified them as data
+        (issue #4764).
         """
         index = _effective_command_index(tokens)
         if index is None:
             return []
+        if _operands_are_data(tokens, index, cwd):
+            return [tokens[index]]
         positions = [tokens[index]]
         arguments = _python_arguments(tokens, cwd)
         if arguments is not None:
@@ -1389,22 +1604,289 @@ def _original_main(stdin_bytes):
         return False
 
 
+    def _operands_are_data(tokens: list[ShellToken], index: int, cwd: Path) -> bool:
+        """True when the effective command READS its operands instead of running them.
+
+        This is the discriminator that fixes the issue #4764 false denials without
+        weakening execution detection. ``git diff -- .../new_pr.py``, ``cat
+        .../new_pr.py`` and ``ruff check .../new_pr.py`` all name the script in an
+        operand, and none of them execute an operand, so the reference is data.
+
+        Stated as four disqualifications rather than an allowlist of readers. An
+        allowlist would have to name every tool anyone runs against a Python file,
+        and every omission is a false denial of a routine command. The
+        disqualifications below are closed sets the guard already maintains, so an
+        unlisted READER is handled correctly by default and only an unlisted
+        EXECUTOR needs adding.
+
+        Operands are NOT data when:
+
+        1. A leading assignment is present. ``/usr/bin/env PATH=. cat
+           attacker/new_pr.py`` reads like a plain read, but ``PATH=.`` decides
+           which ``cat`` runs, so the command is no longer the one it names.
+        2. The command word carries active shell expansion. ``/usr/bin/pytho[n]3``,
+           ``pytho{n,xx}3`` and ``$PY`` all resolve at runtime to something the
+           guard cannot name, so it must assume the worst.
+        3. The command is an interpreter, evaluator, or launcher. These exist to
+           run their operands.
+        4. The command does not resolve to a program on disk. An unresolvable
+           command word is an unknown program, and this fails closed.
+
+        Anything that survives all four is a resolvable, non-executing program, and
+        a path in its argument vector is data.
+        """
+        if any(_is_assignment(token.value) for token in tokens[:index]):
+            return False
+        token = tokens[index]
+        if _contains_active_shell_expansion(token.raw):
+            return False
+        name = _command_name(token.value)
+        unversioned = _unversioned_command_name(token.value)
+        executors = _SHELL_EVALUATORS | _DYNAMIC_EVALUATORS | _DEBUG_EVALUATORS | _LAUNCHER_COMMANDS
+        if name in executors or unversioned in executors:
+            return False
+        if _is_python_interpreter(token.value) or _is_dynamic_evaluator_name(token.value):
+            return False
+        # `script -q -c '<command>'` and `nsenter --target 1 --mount <command>` run
+        # a program named in their arguments without being interpreters. The policy
+        # layer already classifies them through `_is_command_delegator`; relevance
+        # reuses it so a shape the policy would deny cannot fall out of scope first.
+        #
+        # `_contains_dynamic_evaluator` is deliberately NOT reused here even though
+        # it is the fuller predicate: it calls `_repository_has_active_git_hooks`,
+        # which returns True for an ordinary repository, so every `git` command
+        # would be classified as an executor and `git diff -- .../new_pr.py` would
+        # be denied again.
+        if _is_command_delegator(tokens, index):
+            return False
+        if _resolves_to_known_command(tokens, index, cwd, executors):
+            return False
+        if _resolved_command(tokens, index, cwd) is None:
+            return False
+        return not _token_is_python_interpreter(tokens, index, cwd)
+
+
+    def _execution_capable_paths(tokens: list[ShellToken], cwd: Path) -> list[ShellToken]:
+        """Return the tokens whose VALUE is a path something could execute.
+
+        Issue #4764 narrowed relevance to these positions. The previous rule placed
+        a command in scope whenever its text mentioned new_pr.py anywhere, which
+        denied ``git diff -- .../new_pr.py`` and ``python3 -m pytest
+        tests/test_new_pr.py``: routine commands that read the file or merely share
+        a name suffix with it. Both were measured returning 2 on both dispatchers.
+
+        A path reaches execution through exactly these doors:
+
+        1. the effective command, after assignments and wrappers are skipped;
+        2. a Python interpreter reached through those wrappers, and its script
+           operand when the launcher is static;
+        3. every remaining word, whenever the effective command is not provably a
+           reader (see ``_operands_are_data``). This is the fail-closed default:
+           an interpreter, a launcher, an obfuscated command word, or one the guard
+           cannot resolve gives it no way to tell an operand from a target;
+        4. an assignment the loader or interpreter acts on (``PYTHONSTARTUP``,
+           ``LD_PRELOAD``, ``BASH_ENV``, ``GIT_*``), which executes its value
+           without it ever appearing as an operand;
+        5. an operand Git delegates execution to (``-c core.pager=``,
+           ``--upload-pack=``, ``--open-files-in-pager=``, an ``ext::`` remote).
+
+        Doors 4 and 5 are additive and apply even to a reader, because they are how
+        a command that otherwise only reads can still run a program.
+
+        What this removes is door 0 of the merged tree: "the command text mentions
+        new_pr.py anywhere". That rule is what denied ``git diff`` and ``pytest``.
+        """
+        index = _effective_command_index(tokens)
+        if index is None:
+            return []
+
+        positions: list[ShellToken] = [tokens[index]]
+        positions.extend(
+            ShellToken(token.raw, token.value.partition("=")[2])
+            for token in tokens[:index]
+            if _is_execution_influencing_assignment(token.value)
+        )
+        positions.extend(_git_delegated_operands(tokens, index, cwd))
+
+        if _operands_are_data(tokens, index, cwd):
+            return positions
+
+        # Not provably a reader, so every remaining word is a candidate path. This
+        # is the fail-closed branch: an obfuscated command word
+        # (`/usr/bin/pytho[n]3`), an unresolvable one (`./p`), or one preceded by an
+        # assignment that redirects resolution (`PATH=. cat`) gives the guard no way
+        # to know which operand the program will run, so it treats them all as
+        # execution-capable. Narrowing this to _execution_position_tokens alone
+        # allowed six such shapes that the merged tree denied.
+        positions.extend(tokens[index:])
+        return positions
+
+
+    def _is_execution_influencing_assignment(value: str) -> bool:
+        """True when a leading ``NAME=value`` assignment can execute its value."""
+        name, separator, _ = value.partition("=")
+        if not separator:
+            return False
+        return (
+            name in _EXECUTION_INFLUENCING_VARIABLES
+            or name in _DANGEROUS_LOADER_ENVIRONMENT
+            or name.startswith(("DYLD_", "GIT_CONFIG_"))
+            or name in _GIT_COMMAND_ENVIRONMENT
+        )
+
+
+    def _git_delegated_operands(
+        tokens: list[ShellToken],
+        command_index: int,
+        cwd: Path,
+    ) -> list[ShellToken]:
+        """Return operands a Git invocation would hand to a program to execute.
+
+        Keeps the Git pager and external-transport vectors in scope after relevance
+        narrowed to execution positions. ``git -c core.pager=<path> log`` and
+        ``git clone ext::<payload>`` never place the executed path in a command
+        position, so ``_execution_position_tokens`` cannot see it.
+
+        Narrower than ``_contains_git_execution_delegation``, deliberately. That
+        predicate answers "could this Git command run a hook or helper at all",
+        which is true for almost every subcommand in a repository with hooks
+        installed, and using it for relevance is what denied ``git diff``. This
+        returns only the operands whose VALUE names a program.
+        """
+        git_invocation = _normalized_git_invocation(tokens, command_index, cwd)
+        if git_invocation is None:
+            return []
+        normalized, index = git_invocation
+
+        operands: list[ShellToken] = []
+        position = index + 1
+        while position < len(normalized):
+            token = normalized[position]
+            value = token.value
+            if value == "-c" and position + 1 < len(normalized):
+                configured = normalized[position + 1]
+                operands.append(
+                    ShellToken(configured.raw, configured.value.partition("=")[2])
+                )
+                position += 2
+                continue
+            if value.startswith("-c") and len(value) > 2:
+                operands.append(ShellToken(token.raw, value[2:].partition("=")[2]))
+            elif value in _GIT_GLOBAL_EXECUTION_OPTIONS and position + 1 < len(normalized):
+                operands.append(normalized[position + 1])
+            elif value.startswith(_GIT_GLOBAL_EXECUTION_PREFIXES):
+                operands.append(ShellToken(token.raw, value.partition("=")[2] or value))
+            elif _has_unsafe_git_remote(value):
+                operands.append(token)
+            position += 1
+
+        # Per-subcommand execution options, e.g. `git grep
+        # --open-files-in-pager=<program>`. These are not global options, so the
+        # loop above cannot see them, and omitting them let a pager-delegated
+        # execution out of scope.
+        subcommand_index = _git_subcommand_index_or_none(normalized, index)
+        if subcommand_index is not None:
+            subcommand = normalized[subcommand_index].value.casefold()
+            execution_options = _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND.get(subcommand, frozenset())
+            for offset, token in enumerate(
+                normalized[subcommand_index + 1 :], start=subcommand_index + 1
+            ):
+                if not _matches_git_option(subcommand, token.value, execution_options):
+                    continue
+                _key, separator, configured = token.value.partition("=")
+                if separator:
+                    operands.append(ShellToken(token.raw, configured))
+                elif offset + 1 < len(normalized):
+                    operands.append(normalized[offset + 1])
+        return operands
+
+
+    def _git_subcommand_index_or_none(tokens: list[ShellToken], command_index: int) -> int | None:
+        """``_git_subcommand_index`` without its policy exception.
+
+        The policy version raises on unsupported global options, which is correct
+        when deciding whether to DENY. Relevance must not raise: a command it
+        cannot classify is simply one with no extractable delegation operand, and
+        the other scope rules still apply to it.
+        """
+        try:
+            return _git_subcommand_index(tokens, command_index)
+        except GuardViolationError:
+            return None
+
+
+    def _execution_capable_code(tokens: list[ShellToken], cwd: Path) -> list[str]:
+        """Return argument text that is CODE rather than a path.
+
+        Code is tested by substring, because a program that reaches new_pr.py spells
+        the name inside a larger expression: ``runpy.run_path('new_pr.py')`` is not
+        a path and has no basename to compare. Applying the substring test only here
+        is what lets ``python3 -m pytest tests/test_new_pr.py`` out of scope while
+        keeping ``python3 -c "...new_pr.py..."`` in it.
+        """
+        index = _effective_command_index(tokens)
+        if index is None:
+            return []
+
+        code: list[str] = []
+        arguments = _python_arguments(tokens, cwd)
+        if arguments is not None:
+            target, dynamic = _execution_target(arguments)
+            if dynamic and target is not None:
+                code.append(target.value)
+                code.append(target.raw)
+
+        # An evaluator's arguments are a program in its own language, and this
+        # guard has no parser for awk, perl, or node. Substring over the whole
+        # argument list is what the merged tree already applied to every command;
+        # confining it to evaluators is strictly narrower, so it cannot deny
+        # anything the merged tree allowed.
+        if _command_is_evaluator(tokens, index, cwd):
+            code.extend(token.value for token in tokens[index + 1 :])
+            code.extend(token.raw for token in tokens[index + 1 :])
+        return code
+
+
+    def _command_is_evaluator(tokens: list[ShellToken], index: int, cwd: Path) -> bool:
+        """True when the effective command interprets its arguments as a program."""
+        command_name = _command_name(tokens[index].value)
+        unversioned = _unversioned_command_name(tokens[index].value)
+        if command_name in _SHELL_EVALUATORS or unversioned in _SHELL_EVALUATORS:
+            return True
+        if any(_is_dynamic_evaluator_name(token.value) for token in tokens[index : index + 2]):
+            return True
+        return _resolves_to_known_command(
+            tokens,
+            index,
+            cwd,
+            _DYNAMIC_EVALUATORS | _DEBUG_EVALUATORS,
+        )
+
+
     def _command_is_in_scope(command: str, cwd: Path) -> bool:
         """Non-blocking relevance gate. See the module docstring for the contract."""
         return _command_text_is_in_scope(command, cwd, 0)
 
 
-    def _command_text_is_in_scope(command: str, cwd: Path, depth: int) -> bool:
-        if depth > 4:
+    def _segments_are_in_scope(tokens: list[ShellToken], cwd: Path, depth: int) -> bool:
+        """Decide relevance for one shell segment."""
+        if any(_path_names_new_pr(token.value) for token in _execution_capable_paths(tokens, cwd)):
             return True
-        if _names_new_pr(command):
+        if any(_names_new_pr(text) for text in _execution_capable_code(tokens, cwd)):
             return True
-        return any(
+        return (
             _unresolvable_python_target(tokens, cwd)
             or _execution_position_names_new_pr(tokens, cwd)
             or _operand_is_new_pr_copy(tokens, cwd)
             or _shell_evaluator_argument_is_in_scope(tokens, cwd, depth)
-            for tokens in _scope_segments(command)
+        )
+
+
+    def _command_text_is_in_scope(command: str, cwd: Path, depth: int) -> bool:
+        if depth > 4:
+            return True
+        return any(
+            _segments_are_in_scope(tokens, cwd, depth) for tokens in _scope_segments(command)
         )
 
 
@@ -1739,6 +2221,14 @@ def _original_main(stdin_bytes):
         # invoked sits within a few tokens of here. Probing every token instead
         # cost a shebang read each, and an 87 KiB command took 10.2s against the
         # host's 10s timeout, where a Copilot timeout fails open (issue #4825).
+        #
+        # The scan reads shebangs, so it also classifies a Python SCRIPT as an
+        # interpreter. That is deliberate and load-bearing: `uv run tools/copy.py`
+        # is a real execution whose interpreter this guard cannot name. Relevance
+        # therefore filters on the effective COMMAND (see `_operands_are_data`)
+        # rather than on the operand, because the operand cannot tell the two
+        # apart, and filtering here denied `git diff -- .../new_pr.py`
+        # (issue #4764).
         limit = min(len(tokens), index + _MAX_INTERPRETER_SEARCH)
         for candidate_index in range(index, limit):
             if _token_is_python_interpreter(tokens, candidate_index, cwd):

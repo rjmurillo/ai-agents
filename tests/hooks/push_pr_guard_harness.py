@@ -51,8 +51,16 @@ COPILOT_GUARD = (
 
 
 def write_script(path: Path) -> Path:
+    """Write a lookalike new_pr.py.
+
+    Carries the real script's ``#!/usr/bin/env python3`` shebang. Without it the
+    fixture is not a faithful lookalike: the guard classifies interpreters by
+    reading shebangs, so a shebang-less fixture takes a different path through
+    the relevance rules than the file it stands in for, and a test can pass
+    because the fixture is wrong rather than because the guard is right.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("print('new pr')\n", encoding="utf-8")
+    path.write_text("#!/usr/bin/env python3\nprint('new pr')\n", encoding="utf-8")
     return path
 
 

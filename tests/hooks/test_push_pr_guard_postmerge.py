@@ -15,7 +15,13 @@ from __future__ import annotations
 
 import pytest
 
-from tests.hooks.push_pr_guard_harness import body_file, repository, run_claude, run_copilot
+from tests.hooks.push_pr_guard_harness import (
+    REPO_ROOT,
+    body_file,
+    repository,
+    run_claude,
+    run_copilot,
+)
 
 # Commands that Bash expands onto the real new_pr.py through extglob. Bash
 # only performs this expansion when `extglob` is enabled, and the guard cannot
@@ -145,6 +151,29 @@ def test_dispatchers_allow_data_only_references(tmp_path, command) -> None:
 
     assert claude.returncode == 0, f"claude falsely denied: {claude.stderr}"
     assert copilot.returncode == 0, f"copilot falsely denied: {copilot.stderr}"
+
+
+@pytest.mark.parametrize("command", DATA_ONLY_REFERENCES)
+def test_data_only_references_pass_against_the_real_repository(command) -> None:
+    """The same commands, run against THIS repository rather than a fixture.
+
+    The fixture in the test above writes a lookalike whose bytes differ from
+    the shipped new_pr.py. That difference hid a live false denial: the
+    renamed-copy rule compares operand CONTENT, and against the real tree the
+    operand IS the trusted file byte for byte, so ``git diff --
+    .../new_pr.py`` and ``ruff check .../new_pr.py`` were still denied while
+    every fixture-based case reported success.
+
+    A developer runs these commands in the real repository, so that is where
+    the guard has to be measured. Keeping both parametrizations means a future
+    change cannot satisfy one model of "execution position" while breaking the
+    other.
+    """
+    claude = run_claude(command, REPO_ROOT)
+    copilot = run_copilot(command, REPO_ROOT)
+
+    assert claude.returncode == 0, f"claude falsely denied in-repo: {claude.stderr}"
+    assert copilot.returncode == 0, f"copilot falsely denied in-repo: {copilot.stderr}"
 
 
 @pytest.mark.parametrize("command", PRESERVED_DENIALS)
