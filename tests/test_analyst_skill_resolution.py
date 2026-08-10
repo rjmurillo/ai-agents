@@ -389,6 +389,19 @@ def _is_skippable_line(raw_line: str, stripped: str, in_fence: bool) -> bool:
     )
 
 
+def _is_markdown_list_item(stripped: str) -> bool:
+    return stripped.startswith(("- ", "* "))
+
+
+def _append_logical_line(logical_lines: list[str], stripped: str) -> None:
+    if _is_markdown_list_item(stripped):
+        logical_lines.append(stripped)
+    elif logical_lines and logical_lines[-1] != "":
+        logical_lines[-1] += " " + stripped
+    else:
+        logical_lines.append(stripped)
+
+
 def _line_has_tool_reference(line: str) -> bool:
     """Return True if line references a declared tool or 'declared tools'.
 
@@ -551,14 +564,7 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
             if logical_lines and logical_lines[-1] != "":
                 logical_lines.append("")
             continue
-        # Markdown list items start new paragraphs (never merge with previous)
-        if stripped.startswith("- ") or stripped.startswith("* "):
-            logical_lines.append(stripped)
-        # Continuation: append to current paragraph
-        elif logical_lines and logical_lines[-1] != "":
-            logical_lines[-1] += " " + stripped
-        else:
-            logical_lines.append(stripped)
+        _append_logical_line(logical_lines, stripped)
 
     for paragraph in logical_lines:
         if not paragraph:
