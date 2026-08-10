@@ -169,6 +169,7 @@ def test_a_moved_worktree_is_marked_prunable_yet_still_works(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert still_alive.returncode == 0, still_alive.stderr
 
@@ -198,6 +199,7 @@ def test_removing_a_stale_entry_would_drop_staged_content(
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         ).stdout
 
     assert blob in staged_paths(), "before removal the orphaned index still names the blob"
@@ -212,6 +214,7 @@ def test_removing_a_stale_entry_would_drop_staged_content(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
     assert not (admin / "index").exists(), "removal took the last anchor with it"
@@ -371,6 +374,7 @@ def test_all_three_loss_channels_are_reported_together(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert ancestor.returncode != 0, "the abandoned commit must not be reachable from HEAD"
 
@@ -435,6 +439,7 @@ def test_the_reflog_rescue_command_runs_from_outside_any_repository(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     assert git(git_sandbox.main, "rev-parse", f"gc-rescue-{orphan}").stdout.strip() == orphan
@@ -476,6 +481,7 @@ def test_the_head_rescue_command_runs_from_outside_any_repository(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     assert git(git_sandbox.main, "rev-parse", f"gc-rescue-{head}").stdout.strip() == head
