@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10021-pr-4621-postmerge-qa.json
-qaCommit: f1964289ec337fa0cb040e422b2c462cedf8d6dd
+qaCommit: f90f6e6ebfa29980e97a370e7fd4594e23f57d1d
 ---
 
 # QA Report: PR #4621 post-merge validation
@@ -12,7 +12,7 @@ Validate the resolved PR #4621 tree after conflict-resolution cleared DIRTY.
 
 - PR: #4621
 - Branch: `fix/api-resilience-4547-4537-4536`
-- Code commit under test: `f1964289ec337fa0cb040e422b2c462cedf8d6dd`
+- Code commit under test: `f90f6e6ebfa29980e97a370e7fd4594e23f57d1d`
 - Base commit observed before QA: `2120a3298fae14c61af00673473590e77056a756`
 - Failure being addressed: required `Validate PR` failed because no QA report existed.
 
@@ -28,4 +28,4 @@ The resolved diff changes GitHub API resilience and rate-limit handling across `
 
 ## Result
 
-PASS. The smallest relevant suite for the changed code passed on the current resolved tree at `f1964289ec337fa0cb040e422b2c462cedf8d6dd`.
+PASS. The smallest relevant suite for the changed code passed on the current resolved tree at `f90f6e6ebfa29980e97a370e7fd4594e23f57d1d`.

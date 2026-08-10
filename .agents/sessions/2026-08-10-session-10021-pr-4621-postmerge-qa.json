@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report binds code commit f1964289ec337fa0cb040e422b2c462cedf8d6dd."
+        "Evidence": "QA report binds code commit f90f6e6ebfa29980e97a370e7fd4594e23f57d1d."
       },
       "validationPassed": {
         "level": "MUST",
@@ -129,10 +129,10 @@
     },
     {
       "action": "Created QA report .agents/qa/4621-pr-postmerge-qa-report.md bound to the exact code commit.",
-      "result": "Report records f1964289ec337fa0cb040e422b2c462cedf8d6dd as code commit under test."
+      "result": "Report records f90f6e6ebfa29980e97a370e7fd4594e23f57d1d as code commit under test."
     }
   ],
-  "endingCommit": "f1964289ec337fa0cb040e422b2c462cedf8d6dd",
+  "endingCommit": "f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
   "nextSteps": [
     "Push QA report and session binding, wait for required checks, then run completion gate."
   ]
