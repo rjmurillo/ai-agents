@@ -16,11 +16,17 @@ on the other PRs and 818 runs were cancelled.
 
 Strict freshness is the server-side stale-merge lock. The cost-safe drain is:
 
-1. Keep zero or one auto-merge request.
-2. Update only the front PR to main.
-3. Run one CI matrix.
-4. Merge it.
-5. Advance to the next PR.
+1. Atomically acquire `refs/heads/merge-drain-lock`.
+2. Keep zero or one auto-merge request.
+3. Update only the front PR to main.
+4. Run one CI matrix.
+5. Merge it.
+6. Verify main is green, then release the lease.
+7. Advance to the next PR.
+
+[2026-08-10] [agent]: Live probe confirmed GitHub ref creation is atomic for
+this use: first create succeeded, concurrent create failed HTTP 422, and delete
+released the ref.
 
 For dependent new work, use stacked PRs. Do not stack unrelated backlog work.
 
