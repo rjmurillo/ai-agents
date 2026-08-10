@@ -2,7 +2,7 @@
 #
 # Security architecture:
 # - pull_request_target: workflow YAML executes from BASE branch (main)
-# - Validator script runs from base branch only; candidate data via git archive
+# - Validator script runs from base branch only; candidate data via read-tree
 # - NO candidate code is ever executed
 # - persist-credentials: false on checkout
 # - Always emits the required check; unrelated PRs get a success no-op
@@ -30,7 +30,7 @@ jobs:
       - name: Checkout trusted code (base branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.base_ref }}
           persist-credentials: false
 
       - name: Materialize candidate and base trees
