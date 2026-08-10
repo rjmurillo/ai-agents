@@ -3090,7 +3090,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
 
-    def test_a_session_replacement_is_not_treated_as_creation(self) -> None:
+    def test_a_session_replacement_still_gets_full_validation(self) -> None:
         from scripts.validation import session_scope
 
         new_path = ".agents/sessions/2026-08-10-session-2-new.json"
@@ -3101,7 +3101,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             tracked=(new_path,),
         )
         with mock.patch.object(session_scope, "_git", stub):
-            assert session_scope.new_session_logs([new_path], Path.cwd()) == set()
+            assert session_scope.new_session_logs([new_path], Path.cwd()) == {new_path}
 
     def test_a_tab_in_a_new_session_path_is_preserved(self) -> None:
         from scripts.validation import session_scope
@@ -3131,6 +3131,20 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         assert "--" not in diff
         assert "-M" in diff
         assert diff[-1] == "deadbee"
+
+    def test_named_ref_scope_ignores_the_working_tree(self) -> None:
+        """Pre-push validates committed HEAD paths, not ambient local edits."""
+        from scripts.validation import session_scope
+
+        stub, seen = self._stub(added=("a.json",), tracked=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.new_session_logs(
+                ["a.json"],
+                Path.cwd(),
+                compare_ref="HEAD",
+            ) == {"a.json"}
+        diff = next(args for args in seen if args[0] == "diff")
+        assert diff[-2:] == ["deadbee", "HEAD"]
 
     def test_the_probe_reads_the_merge_base_not_the_tip_of_main(self) -> None:
         """A log added to main after this branch started is still new here."""
@@ -3263,6 +3277,36 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         assert "--creation-mode" in commands[0], (
             "new log must get --creation-mode so session-start commit is accepted"
         )
+
+    def test_the_hook_fully_validates_an_ambiguous_session_replacement(self) -> None:
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
+        old_path = ".agents/sessions/2026-08-10-session-1-old.json"
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(
+            added=(new_path,),
+            deleted=(old_path,),
+            tracked=(new_path,),
+        )
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=False,
+            ),
+        ):
+            git_hook_policy.validate_branch_sessions([new_path], Path.cwd())
+        assert commands
+        assert "--creation-mode" not in commands[0]
+        assert "--existing-log" not in commands[0]
 
     def test_the_hook_does_not_pass_creation_mode_for_an_existing_log(self) -> None:
         """An already-committed log must NOT get --creation-mode (issue #4425)."""

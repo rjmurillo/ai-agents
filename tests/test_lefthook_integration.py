@@ -829,6 +829,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
+        "session-json-validation",
     ]
     markdown_groups = [
         item["group"]
@@ -2047,7 +2048,7 @@ def test_session_policy_uses_existing_log_mode_for_a_historical_record(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: set())
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: (set(), False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2073,7 +2074,7 @@ def test_session_policy_fully_validates_the_current_branch_log(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: set())
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: (set(), False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2099,7 +2100,7 @@ def test_session_policy_uses_creation_mode_for_an_uncommitted_new_log(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: {path})
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: ({path}, False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2125,7 +2126,7 @@ def test_session_policy_fully_validates_a_new_log_after_its_first_commit(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: {path})
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: ({path}, False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2151,7 +2152,7 @@ def test_session_policy_fully_validates_when_head_presence_is_unknown(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: {path})
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: ({path}, False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2177,7 +2178,7 @@ def test_session_policy_fully_validates_a_staged_rename_of_a_committed_log(
         return _completed(0)
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: {path})
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: ({path}, False))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",
@@ -2214,7 +2215,7 @@ def test_session_policy_fully_validates_a_low_similarity_session_replacement(
         return subprocess.CompletedProcess([], 0, output, "")
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    monkeypatch.setattr(policy, "new_session_logs", lambda _paths, _root: {path})
+    monkeypatch.setattr(policy, "session_change_scope", lambda _paths, _root: ({path}, True))
     monkeypatch.setattr(
         policy,
         "_session_log_for_current_branch",

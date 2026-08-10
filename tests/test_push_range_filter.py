@@ -303,7 +303,10 @@ class TestHandleSessions:
             capture_output=True,
         )
         subprocess.run(
-            ["git", "-C", str(tmp_path), "commit", "-qm", "add session link"],
+            [
+                "git", "-c", "user.email=t@t", "-c", "user.name=t",
+                "-C", str(tmp_path), "commit", "-qm", "add session link",
+            ],
             check=True,
             capture_output=True,
         )

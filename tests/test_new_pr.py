@@ -40,6 +40,7 @@ get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
 _resolve_validation_base = _mod._resolve_validation_base
+_resolve_validation_head = _mod._resolve_validation_head
 _session_log_for_validation = _mod._session_log_for_validation
 
 
@@ -64,6 +65,9 @@ def test_session_log_temp_copy_preserves_the_original_basename(tmp_path: Path) -
             assert copied is not None
             copied_path = Path(copied)
             assert copied_path.name == Path(session_log).name
+            assert copied_path.parent.parent == (
+                tmp_path / ".agents" / "scratch" / "session-log-validation"
+            )
             assert copied_path.read_text(encoding="utf-8") == content
         assert not copied_path.exists()
 
@@ -623,9 +627,11 @@ class TestRunValidations:
                 return _completed(stdout='{"session": 1}\n', rc=0)
             if cmd[0].endswith("python") or "validate_session_json.py" in " ".join(cmd):
                 validated_paths.append(cmd[2])
-                assert cmd[-2:] == [
+                assert cmd[-4:] == [
                     "--session-log-identity",
                     ".agents/sessions/2025-01-01-session-01.json",
+                    "--validation-head",
+                    "feat/not-checked-out",
                 ]
                 return _completed(rc=0)
             return _completed(rc=0)
@@ -636,7 +642,7 @@ class TestRunValidations:
         assert len(validated_paths) == 1
         # The ignored repo-local scratch copy preserves the original basename,
         # because QA binding and filename validation use that identity.
-        assert Path(validated_paths[0]).parent == (
+        assert Path(validated_paths[0]).parent.parent == (
             tmp_path / ".agents" / "scratch" / "session-log-validation"
         )
         assert Path(validated_paths[0]).name == "2025-01-01-session-01.json"
@@ -1255,6 +1261,19 @@ class TestResolveValidationBase:
         assert result == "origin/main"
 
 
+class TestResolveValidationHead:
+    """_resolve_validation_head binds validation to a commit when possible."""
+
+    def test_returns_resolved_commit(self):
+        sha = "a" * 40
+        with patch("subprocess.run", return_value=_completed(stdout=sha + "\n", rc=0)):
+            assert _resolve_validation_head("feature") == sha
+
+    def test_falls_back_to_ref_when_resolution_fails(self):
+        with patch("subprocess.run", return_value=_completed(rc=128)):
+            assert _resolve_validation_head("feature") == "feature"
+
+
 class TestMainUsesResolvedValidationBase:
     """main() passes the resolved validation base to run_validations, not args.base.
 
@@ -1266,6 +1285,7 @@ class TestMainUsesResolvedValidationBase:
             _completed(rc=0),        # gh --version
             _completed(stdout=branch + "\n"),  # git branch --show-current
             _completed(rc=0),        # git rev-parse --verify origin/main
+            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
         ]
 
     def test_validation_base_uses_origin_ref_not_local(self, tmp_path):
@@ -1280,6 +1300,7 @@ class TestMainUsesResolvedValidationBase:
 
         mock_val.assert_called_once()
         assert mock_val.call_args[0][1] == "origin/main"
+        assert mock_val.call_args[0][2] == "a" * 40
 
     def test_gh_pr_create_still_receives_bare_base(self, tmp_path):
         """gh pr create --base always gets the bare branch name, not origin/main."""
@@ -1308,6 +1329,7 @@ class TestMainUsesResolvedValidationBase:
         calls = [
             _completed(rc=0),         # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
+            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
             _completed(rc=0),         # gh pr create
         ]
 
@@ -1329,6 +1351,7 @@ class TestMainUsesResolvedValidationBase:
             _completed(rc=0),         # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
             _completed(rc=1),         # git rev-parse --verify origin/main: absent
+            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
             _completed(rc=0),         # gh pr create
         ]
 
