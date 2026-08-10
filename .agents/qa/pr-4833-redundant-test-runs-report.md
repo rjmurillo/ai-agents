@@ -1,14 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033.json
-qaCommit: ffba771110f138fb50b7c4a6c65c77186180dd76
+qaCommit: f9243b90334f6d176099ea79a0c1e96aadfb1498
 ---
 
 # Issue #4826 redundant test-run removal validation
 
 ## Scope
 
-Implementer self-validation of commit `ffba771110f138fb50b7c4a6c65c77186180dd76`
+Implementer self-validation through commit
+`f9243b90334f6d176099ea79a0c1e96aadfb1498`
 against the acceptance criteria in Issue #4826. Independent qa/critic review
 is still recommended before merge; this report documents the evidence
 gathered during implementation, it does not replace that review.
@@ -33,10 +34,10 @@ contract named in the issue is unchanged.
   7.18s, collects_tests[.claude/skills] 6.34s,
   collects_tests[src/copilot-cli/skills] 6.22s (4 distinct `_run_tree`
   subprocess invocations).
-- Same file AFTER: 8 passed in 12.74s. Only 2 `_run_tree` subprocess
+- Same file AFTER: 8 passed in 12.46s. Only 2 `_run_tree` subprocess
   durations reported (suite_passes[.claude/skills] 6.48s,
   suite_passes[src/copilot-cli/skills] 6.16s); the `collects_tests` cases
-  reuse the cached `CompletedProcess`. Savings ~14.69s (~54%). Test count
+  reuse the cached `CompletedProcess`. Savings ~14.97s (~55%). Test count
   unchanged.
 - Broader regression check: `uv run --frozen python -m pytest
   tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short`:
