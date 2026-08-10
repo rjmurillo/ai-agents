@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 78aa7656791c3dbb5cba4a99cd6bc45c77f5ac1d)"
+        "Evidence": "All changes committed (HEAD: 163342f409e0f6df3b9aca9a0ee7c64ce5efbea5)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,8 +139,12 @@
     {
       "action": "Validated the change",
       "outcome": "249 tests passed; mutation failed 3 regression cases; Ruff, security scan, mirror check, and orphan reference scan passed."
+    },
+    {
+      "action": "Merged current origin/main and revalidated",
+      "outcome": "Merge completed without conflicts; 249 tests, Ruff, and mirror checks passed on the merged tree."
     }
   ],
-  "endingCommit": "78aa7656791c3dbb5cba4a99cd6bc45c77f5ac1d",
+  "endingCommit": "163342f409e0f6df3b9aca9a0ee7c64ce5efbea5",
   "nextSteps": []
 }
