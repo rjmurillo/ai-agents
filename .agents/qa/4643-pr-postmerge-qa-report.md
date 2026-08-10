@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10022-pr-4643-postmerge-qa.json
-qaCommit: c654d22c57a37ef9c4ea1c55d0ff73cba7b36f55
+qaCommit: 5adfa6922d977ec9e90e03d36999a0478dd45beb
 ---
 
 # QA Report: PR #4643 post-merge validation
@@ -12,7 +12,7 @@ Validate the resolved PR #4643 tree after conflict-resolution cleared DIRTY.
 
 - PR: #4643
 - Branch: `audit/merged-campaign-behavior-20260805012235`
-- Code commit under test: `c654d22c57a37ef9c4ea1c55d0ff73cba7b36f55`
+- Code commit under test: `5adfa6922d977ec9e90e03d36999a0478dd45beb`
 - Base commit observed before QA: `2120a3298fae14c61af00673473590e77056a756`
 - Failure being addressed: required `Validate PR` failed because no QA report existed.
 
@@ -28,4 +28,4 @@ The resolved diff changes CI audit and binding scripts: `_main_binding`, CLI exi
 
 ## Result
 
-PASS. The smallest relevant suite for the changed code passed on the current resolved tree at `c654d22c57a37ef9c4ea1c55d0ff73cba7b36f55`.
+PASS. The smallest relevant suite for the changed code passed on the current resolved tree at `5adfa6922d977ec9e90e03d36999a0478dd45beb`.
