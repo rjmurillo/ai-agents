@@ -352,8 +352,8 @@ Changes to prompts, skills, and agent definitions can alter LLM behavior. ADR-05
 
 ```bash
 # Auto-detect changes and route to correct evaluator:
-python3 scripts/eval/eval-suite.py --dry-run   # Preview what would run
-python3 scripts/eval/eval-suite.py              # Full run (requires ANTHROPIC_API_KEY)
+uv run --frozen python scripts/eval/eval-suite.py --dry-run   # Preview what would run
+uv run --frozen python scripts/eval/eval-suite.py              # Full run (requires ANTHROPIC_API_KEY)
 
 # Evaluate a specific prompt change (before/after comparison):
 uv run python scripts/eval/eval-prompt-change.py \

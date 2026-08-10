@@ -328,6 +328,104 @@ class TestAssertValidBodyFile:
         assert exc.value.code == 2
 
 
+class TestCandidateGitDirRoots:
+    """Tests for _candidate_git_dir_roots: git-dir scratch path discovery."""
+
+    def test_returns_git_dir_when_in_repo(self):
+        """Returns the resolved git dir when run inside a git repository."""
+        from scripts.github_core.validation import _candidate_git_dir_roots
+
+        roots = _candidate_git_dir_roots()
+        assert isinstance(roots, list)
+        # We are inside a git repository, so at least one root must be returned.
+        assert len(roots) >= 1
+        from pathlib import Path
+
+        assert all(Path(r).is_dir() for r in roots)
+
+    def test_returns_empty_list_when_git_fails(self, monkeypatch):
+        """Returns [] when git exits non-zero (not in a repo)."""
+        import subprocess
+
+        from scripts.github_core.validation import _candidate_git_dir_roots
+
+        def fake_run(*args, **kwargs):
+            return subprocess.CompletedProcess(args, returncode=128, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        assert _candidate_git_dir_roots() == []
+
+    def test_returns_empty_list_on_timeout(self, monkeypatch):
+        """Returns [] when git subprocess times out."""
+        import subprocess
+
+        from scripts.github_core.validation import _candidate_git_dir_roots
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=["git"], timeout=5)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        assert _candidate_git_dir_roots() == []
+
+
+class TestAssertValidBodyFileGitDir:
+    """assert_valid_body_file accepts files stored under the git dir (issue #4276)."""
+
+    def test_accepts_file_under_git_dir(self, monkeypatch):
+        """Body file under the worktree git dir is accepted when allowed_base is None."""
+        # Create a real temp dir that acts as the fake git dir.
+        import tempfile
+        from pathlib import Path
+
+        from scripts.github_core import validation as _validation
+
+        with tempfile.TemporaryDirectory() as fake_git_dir:
+            body = Path(fake_git_dir) / "reply.md"
+            body.write_text("draft reply")
+
+            monkeypatch.setattr(
+                _validation,
+                "_candidate_git_dir_roots",
+                lambda: [str(Path(fake_git_dir).resolve())],
+            )
+            # Override repo-root check to not accept this path.
+            monkeypatch.setattr(
+                _validation,
+                "_candidate_temp_roots",
+                lambda: [],
+            )
+
+            monkeypatch.setattr(
+                _validation,
+                "is_safe_file_path",
+                lambda path, base=None: (
+                    base is not None and str(Path(path).resolve()).startswith(
+                        str(Path(base).resolve())
+                    )
+                ),
+            )
+            # This must not raise SystemExit.
+            _validation.assert_valid_body_file(str(body), None)
+
+    def test_still_rejects_file_outside_all_allowed_roots(
+        self, external_tmp_path: Path, monkeypatch
+    ):
+        """File outside repo, temp dirs, and git dir is still rejected."""
+        from scripts.github_core import validation as _validation
+
+        outside_dir = external_tmp_path / "not-allowed"
+        outside_dir.mkdir()
+        outside_file = outside_dir / "body.md"
+        outside_file.write_text("hello")
+
+        monkeypatch.setattr(_validation, "_candidate_temp_roots", lambda: [])
+        monkeypatch.setattr(_validation, "_candidate_git_dir_roots", lambda: [])
+
+        with pytest.raises(SystemExit) as exc:
+            assert_valid_body_file(str(outside_file), None)
+        assert exc.value.code == 2
+
+
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------

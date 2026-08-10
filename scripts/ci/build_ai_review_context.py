@@ -17,9 +17,20 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
+
 GH_TIMEOUT_SECONDS = 60
 GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
-GH_CONTEXT_RETRY_BUDGET_SECONDS = 420.0
+# Review jobs have a 600-second deadline and model invocation may use 300
+# seconds. This leaves 30 seconds before invocation and 60 seconds afterward
+# for setup, classification, and artifact upload.
+GH_CONTEXT_RETRY_BUDGET_SECONDS = 210.0
+DOWNSTREAM_REVIEW_RESERVE_SECONDS = 360.0
+AI_REVIEW_ACTION_DEADLINE_ENV = "AI_REVIEW_ACTION_DEADLINE_EPOCH"
 _GH_RETRY_DEADLINE: ContextVar[float | None] = ContextVar(
     "gh_retry_deadline",
     default=None,
@@ -30,10 +41,35 @@ DIFF_TOO_LARGE = re.compile(
     r"(HTTP 406|too_large|exceeded the maximum number of files)",
     re.IGNORECASE,
 )
-RETRYABLE_GH_REFUSAL = re.compile(
+RETRYABLE_GH_FAILURE = re.compile(
     r"rate limit|secondary rate|abuse detection|timed out|"
     r"\bHTTP\s+(429|500|502|503|504)\b",
     re.IGNORECASE,
+)
+PERMANENT_AUTH_FAILURE = re.compile(
+    r"\bHTTP\s+401\b|bad credentials|requires authentication|"
+    r"authentication token .* could not be validated|"
+    r"resource not accessible by integration|"
+    r"must have admin rights|could not resolve to a pullrequest",
+    re.IGNORECASE,
+)
+RETRY_AFTER_HEADER = re.compile(
+    r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+RATE_LIMIT_RESET_HEADER = re.compile(
+    r"\bX-RateLimit-Reset:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+RATE_LIMIT_REMAINING_HEADER = re.compile(
+    r"\bX-RateLimit-Remaining:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+SECRET_ENVIRONMENT_VARIABLES = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN",
+    "BOT_PAT",
 )
 
 
@@ -77,6 +113,113 @@ class ExternalGhError(RuntimeError):
     """GitHub or gh failed while building review context."""
 
 
+def _redact_secrets(value: str | None) -> str:
+    """Redact installed values, wrappers, and recognized credential shapes."""
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(value or "", secret_values=secret_values).text
+
+
+def _failure_text(result: CommandResult) -> str:
+    return f"{result.stderr}\n{result.stdout}".strip()
+
+
+def _retry_delay(refusal: str, fallback: float) -> tuple[float, str]:
+    retry_after = RETRY_AFTER_HEADER.search(refusal)
+    if retry_after:
+        return max(0.0, float(retry_after.group(1))), "Retry-After"
+
+    reset = RATE_LIMIT_RESET_HEADER.search(refusal)
+    remaining = RATE_LIMIT_REMAINING_HEADER.search(refusal)
+    if reset and (remaining is None or float(remaining.group(1)) == 0):
+        wait = max(0.0, float(reset.group(1)) - time.time() + 1.0)
+        return wait, "X-RateLimit-Reset"
+
+    return fallback, "exponential backoff"
+
+
+def _with_retry_exhausted(result: CommandResult, reason: str) -> CommandResult:
+    detail = _failure_text(result)
+    diagnostic = f"{detail}\n{reason}".strip()
+    return CommandResult(result.stdout, diagnostic, result.returncode)
+
+
+def _new_context_retry_deadline() -> float:
+    """Cap context retries against the deadline established before action setup."""
+    now = time.monotonic()
+    budget = GH_CONTEXT_RETRY_BUDGET_SECONDS
+    raw_action_deadline = os.environ.get(AI_REVIEW_ACTION_DEADLINE_ENV, "")
+    if raw_action_deadline:
+        try:
+            remaining = float(raw_action_deadline) - time.time() - DOWNSTREAM_REVIEW_RESERVE_SECONDS
+        except ValueError:
+            remaining = 0.0
+        budget = min(budget, remaining)
+    return now + max(0.0, budget)
+
+
+def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
+    command_arguments = arguments
+    if arguments[:2] == ["pr", "diff"] and "--repo" in arguments:
+        repository_index = arguments.index("--repo") + 1
+        if repository_index < len(arguments) and "--name-only" not in arguments:
+            command_arguments = [
+                "api",
+                f"repos/{arguments[repository_index]}/pulls/{arguments[2]}",
+                "--method",
+                "GET",
+                "--header",
+                "Accept: application/vnd.github.v3.diff",
+            ]
+    include_response_headers = command_arguments[:1] == ["api"] and not any(
+        argument in {"--include", "-i"} for argument in command_arguments
+    )
+    command_arguments = [
+        *command_arguments,
+        *(["--include"] if include_response_headers else []),
+    ]
+    try:
+        completed = subprocess.run(
+            ["gh", *command_arguments],
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return CommandResult(
+            _redact_secrets(stdout),
+            _redact_secrets(f"{stderr}\ngh command timed out after {exc.timeout} seconds").strip(),
+            124,
+        )
+    except OSError as exc:
+        raise GhLaunchError(f"Failed to run gh: {exc}") from exc
+
+    # Successful stdout may be serialized JSON. Keep it parseable in memory;
+    # write_outputs and the invocation sink redact extracted context later.
+    # Failed stdout can enter diagnostics, so redact it before returning.
+    stdout = completed.stdout
+    response_headers = ""
+    if include_response_headers:
+        header_block, separator, response_body = stdout.partition("\n\n")
+        if separator and re.match(r"HTTP/\S+\s+\d{3}\b", header_block):
+            response_headers = header_block
+            stdout = response_body
+    if completed.returncode != 0:
+        stdout = _redact_secrets(stdout)
+    stderr = completed.stderr
+    if completed.returncode != 0 and response_headers:
+        stderr = f"{response_headers}\n{stderr}".strip()
+    return CommandResult(
+        stdout,
+        _redact_secrets(stderr),
+        completed.returncode,
+    )
+
+
 def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
     attempts = len(GH_REFUSAL_BACKOFF_SECONDS) + 1
     for attempt in range(attempts):
@@ -86,49 +229,34 @@ def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandRe
             return CommandResult("", "GitHub API retry budget exhausted", 124)
 
         command_timeout = min(timeout, remaining) if remaining is not None else timeout
-        try:
-            result = subprocess.run(
-                ["gh", *arguments],
-                capture_output=True,
-                check=False,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=command_timeout,
+        result = _invoke_gh_once(arguments, command_timeout)
+
+        if result.returncode == 0:
+            return result
+
+        refusal = _failure_text(result)
+        if PERMANENT_AUTH_FAILURE.search(refusal):
+            return result
+        if not RETRYABLE_GH_FAILURE.search(refusal):
+            return result
+        if attempt >= len(GH_REFUSAL_BACKOFF_SECONDS):
+            return _with_retry_exhausted(
+                result,
+                f"GitHub API retry attempts exhausted after {attempts} attempts",
             )
-            command_result = CommandResult(result.stdout, result.stderr, result.returncode)
-        except subprocess.TimeoutExpired as exc:
-            command_result = CommandResult(
-                "",
-                f"gh command timed out after {exc.timeout} seconds",
-                124,
-            )
-        except OSError as exc:
-            raise GhLaunchError(f"Failed to run gh: {exc}") from exc
 
-        if command_result.returncode == 0:
-            return command_result
-
-        refusal_text = f"{command_result.stderr}\n{command_result.stdout}"
-        if attempt >= len(GH_REFUSAL_BACKOFF_SECONDS) or not RETRYABLE_GH_REFUSAL.search(
-            refusal_text
-        ):
-            return command_result
-
-        delay = GH_REFUSAL_BACKOFF_SECONDS[attempt]
+        delay, source = _retry_delay(
+            refusal,
+            GH_REFUSAL_BACKOFF_SECONDS[attempt],
+        )
         if deadline is not None:
             remaining = deadline - time.monotonic()
-            if delay >= remaining:
-                detail = command_result.stderr or command_result.stdout
-                return CommandResult(
-                    command_result.stdout,
-                    f"{detail}\nGitHub API retry budget exhausted".strip(),
-                    command_result.returncode,
+            if delay + 1.0 >= remaining:
+                return _with_retry_exhausted(
+                    result,
+                    "GitHub API retry budget exhausted before the next allowed attempt",
                 )
-        print(
-            "::warning::GitHub API refusal while running gh. "
-            f"Retrying in {delay:.0f}s."
-        )
+        print(f"::warning::GitHub API transient refusal. Retrying in {delay:.0f}s using {source}.")
         time.sleep(delay)
 
     raise RuntimeError("unreachable gh retry loop")
@@ -191,18 +319,20 @@ def fetch_pr_metadata(pr_number: str, repository: str) -> PrMetadata:
         metadata = _parse_pr_payload(rest.stdout)
         if metadata is not None:
             return metadata
-    rest_error = (rest.stderr or rest.stdout).strip() or "REST response was unusable"
+        rest_error = "REST response was unusable"
+    else:
+        rest_error = _failure_text(rest) or "REST request returned no diagnostic output"
+        if PERMANENT_AUTH_FAILURE.search(rest_error):
+            return PrMetadata("", "Unknown PR", "", error=f"REST: {rest_error}")
 
-    graphql = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "number,title,body"]
-    )
+    graphql = run_gh(["pr", "view", pr_number, "--repo", repository, "--json", "number,title,body"])
     if graphql.returncode == 0:
         metadata = _parse_pr_payload(graphql.stdout)
         if metadata is not None:
             return metadata
-    graphql_error = (
-        graphql.stderr or graphql.stdout
-    ).strip() or "gh pr view response was unusable"
+        graphql_error = "gh pr view response was unusable"
+    else:
+        graphql_error = _failure_text(graphql) or "gh pr view returned no diagnostic output"
 
     return PrMetadata(
         number="",
@@ -220,17 +350,19 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
     backs it up.
     """
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
-    if result.stdout.strip():
+    if result.returncode == 0 and result.stdout.strip():
         return result.stdout.strip()
-    file_list, _truncated, _api_failed = get_paginated_file_list(pr_number, repository)
-    return file_list
+    if PERMANENT_AUTH_FAILURE.search(_failure_text(result)):
+        return ""
+    file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
+    return "" if api_failed or truncated else file_list
 
 
-def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, bool]:
+def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, str]:
     files: list[str] = []
     truncated = False
-    api_failed = False
-    for page in range(1, MAX_FILE_PAGES + 1):
+    api_failure = ""
+    for page in range(1, MAX_FILE_PAGES + 2):
         result = run_gh(
             [
                 "api",
@@ -241,39 +373,63 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool,
         )
         if result.returncode != 0:
             truncated = bool(files)
-            api_failed = True
+            api_failure = (
+                _failure_text(result) or "GitHub API pagination failed without diagnostics"
+            )
             break
 
         page_files = [line for line in result.stdout.splitlines() if line.strip()]
         if not page_files:
             break
 
+        if page > MAX_FILE_PAGES:
+            truncated = True
+            break
         files.extend(page_files)
         if len(page_files) < FILES_PER_PAGE:
             break
-    else:
-        truncated = True
 
-    return "\n".join(files), truncated, api_failed
+    return "\n".join(files), truncated, api_failure
 
 
 def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
-    file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
+    file_list, truncated, api_failure = get_paginated_file_list(pr_number, repository)
+    if api_failure:
+        total_files = count_lines(file_list)
+        if not PERMANENT_AUTH_FAILURE.search(api_failure):
+            print(
+                "::warning::REST file pagination failed. "
+                "Attempting --name-only transport fallback..."
+            )
+            name_only = get_pr_name_only(pr_number, repository)
+            if name_only:
+                return ReviewContext(
+                    f"[Large PR - showing file list only]\n{name_only}",
+                    "summary",
+                )
+        raise ExternalGhError(
+            "GitHub API pagination failed while fetching the complete file list "
+            f"for PR #{pr_number} after {total_files} files: {api_failure}"
+        )
     if file_list:
         total_files = count_lines(file_list)
         print(f"Retrieved {total_files} changed files via API pagination")
         if truncated:
-            if api_failed:
-                print(
-                    "::warning::File list incomplete after GitHub API pagination failed. "
-                    f"Retrieved {total_files} files; PR may have more changes not shown."
+            print(
+                "::warning::File list truncated at "
+                f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
+                "Attempting --name-only transport fallback."
+            )
+            name_only = get_pr_name_only(pr_number, repository)
+            if name_only:
+                return ReviewContext(
+                    f"[Large PR - showing file list only]\n{name_only}",
+                    "summary",
                 )
-            else:
-                print(
-                    "::warning::File list truncated at "
-                    f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
-                    "PR may have more changes not shown in review context."
-                )
+            raise ExternalGhError(
+                "GitHub API pagination reached its completeness cap while fetching "
+                f"PR #{pr_number}; no complete alternate file list was available"
+            )
         context = (
             "[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"
             "\n\nChanged files:\n"
@@ -318,10 +474,10 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     unconditional hint was enough for it. The REST form does carry one, so the
     hint needs the rate-limit signature to lose as well.
     """
+    detail = _redact_secrets(detail.strip()) or "GitHub API returned no diagnostic output"
     hint = (
         " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-        if FORK_PERMISSION_SIGNAL.search(detail)
-        and not RATE_LIMIT_SIGNAL.search(detail)
+        if FORK_PERMISSION_SIGNAL.search(detail) and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
     print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
@@ -339,10 +495,15 @@ def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) ->
         warning = "::warning::PR diff unavailable via gh pr diff (>300 files)."
         print(f"{warning} Falling back to API pagination...")
         return build_large_pr_context(pr_number, repository)
+    if diff.returncode != 0:
+        detail = diff.stderr.strip() or f"gh pr diff exited {diff.returncode}"
+        raise ExternalGhError(
+            f"Failed to fetch PR diff for #{pr_number} from {repository}: {detail}"
+        )
 
     line_count = count_lines(diff.stdout)
     print(f"PR diff has {line_count} lines")
-    if line_count == 0:
+    if not diff.stdout.strip():
         message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
         if diff.stderr:
             message = f"{message}: {diff.stderr.strip()}"
@@ -373,7 +534,8 @@ def _build_pr_diff_context(
             f"PR number mismatch: requested {pr_number}, got {metadata.number}",
         )
 
-    title = metadata.title
+    title = _redact_secrets(metadata.title)
+    body = _redact_secrets(metadata.body)
     print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
@@ -385,12 +547,9 @@ def _build_pr_diff_context(
         # defaults to NEEDS_REVIEW with INFRA_FAILURE false and blocks the PR.
         return _pr_fetch_failure_context(pr_number, str(exc))
 
-    body = metadata.body
     if body:
         text = (
-            f"## PR #{pr_number}: {title}\n\n"
-            f"## PR Description\n{body}\n\n"
-            f"## Changes\n{built.text}"
+            f"## PR #{pr_number}: {title}\n\n## PR Description\n{body}\n\n## Changes\n{built.text}"
         )
     else:
         text = f"## PR #{pr_number}: {title}\n\n## Changes\n{built.text}"
@@ -398,9 +557,9 @@ def _build_pr_diff_context(
 
 
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
-    token = _GH_RETRY_DEADLINE.set(
-        time.monotonic() + GH_CONTEXT_RETRY_BUDGET_SECONDS
-    )
+    if _GH_RETRY_DEADLINE.get() is not None:
+        return _build_pr_diff_context(pr_number, repository, max_diff_lines)
+    token = _GH_RETRY_DEADLINE.set(_new_context_retry_deadline())
     try:
         return _build_pr_diff_context(pr_number, repository, max_diff_lines)
     finally:
@@ -409,7 +568,11 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
 
 def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
     if not issue_number:
-        return ReviewContext("No issue number provided", "partial")
+        return ReviewContext(
+            "INFRASTRUCTURE_FAILURE: No issue number provided",
+            "error",
+            True,
+        )
     if not repository:
         raise ConfigError("GITHUB_REPOSITORY is required for issue context")
 
@@ -430,16 +593,26 @@ def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
             query,
         ]
     )
-    if result.returncode != 0:
-        return ReviewContext("Unable to get issue", "partial")
-    return ReviewContext(result.stdout.rstrip(), "full")
+    if result.returncode != 0 or not result.stdout.strip():
+        detail = _failure_text(result) or "GitHub API returned no issue output"
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Could not fetch issue #{issue_number}: {detail}",
+            "error",
+            True,
+        )
+    return ReviewContext(_redact_secrets(result.stdout.rstrip()), "full")
 
 
 def build_session_log_context(context_path: str) -> ReviewContext:
     path = Path(context_path)
     if context_path and path.is_file():
-        return ReviewContext(read_utf8_file(path, "Session log"), "full")
-    return ReviewContext(f"Session log file not found: {context_path}", "partial")
+        session_log = read_utf8_file(path, "Session log")
+        if session_log.strip():
+            return ReviewContext(session_log, "full")
+        detail = f"Session log file is empty: {context_path}"
+    else:
+        detail = f"Session log file not found: {context_path}"
+    return ReviewContext(f"INFRASTRUCTURE_FAILURE: {detail}", "error", True)
 
 
 def build_spec_context(
@@ -450,9 +623,19 @@ def build_spec_context(
 ) -> ReviewContext:
     path = Path(context_path)
     if not context_path or not path.is_file():
-        return ReviewContext(f"Spec file not found: {context_path}", "partial")
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Spec file not found: {context_path}",
+            "error",
+            True,
+        )
 
     spec = read_utf8_file(path, "Spec")
+    if not spec.strip():
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Specification file is empty: {path}",
+            "error",
+            True,
+        )
     if not pr_number:
         return ReviewContext(
             f"## Specification\n{spec}\n\n## Implementation Changes\n[No PR diff provided]",
@@ -460,7 +643,7 @@ def build_spec_context(
         )
 
     diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if diff.stdout:
+    if diff.returncode == 0 and diff.stdout.strip():
         line_count = count_lines(diff.stdout)
         diff_text = diff.stdout
         mode = "full"
@@ -468,17 +651,33 @@ def build_spec_context(
             mode = "partial"
             preview = "\n".join(diff.stdout.splitlines()[:max_diff_lines])
             diff_text = (
-                f"[Diff truncated to first {max_diff_lines} of "
-                f"{line_count} lines]\n{preview}"
+                f"[Diff truncated to first {max_diff_lines} of {line_count} lines]\n{preview}"
             )
     else:
-        mode = "summary"
+        failure = _failure_text(diff)
+        if PERMANENT_AUTH_FAILURE.search(failure):
+            detail = (
+                diff.stderr.strip() or "GitHub authentication or permission request was rejected"
+            )
+            return ReviewContext(
+                f"## Specification\n{spec}\n\n"
+                "INFRASTRUCTURE_FAILURE: "
+                f"Could not fetch PR #{pr_number} implementation context: {detail}",
+                "error",
+                True,
+            )
         name_only = get_pr_name_only(pr_number, repository)
-        diff_text = (
-            f"[Diff unavailable, showing file list only]\n{name_only}"
-            if name_only
-            else "[Diff unavailable]"
-        )
+        if not name_only:
+            detail = diff.stderr.strip() or "GitHub API returned no diff output"
+            return ReviewContext(
+                f"## Specification\n{spec}\n\n"
+                "INFRASTRUCTURE_FAILURE: "
+                f"Could not fetch PR #{pr_number} implementation context: {detail}",
+                "error",
+                True,
+            )
+        mode = "summary"
+        diff_text = f"[Diff unavailable, showing file list only]\n{name_only}"
 
     return ReviewContext(
         f"## Specification\n{spec}\n\n## Implementation Changes\n{diff_text}",
@@ -487,6 +686,21 @@ def build_spec_context(
 
 
 def build_context_from_environment() -> ReviewContext:
+    deadline = _new_context_retry_deadline()
+    if deadline <= time.monotonic():
+        return ReviewContext(
+            "INFRASTRUCTURE_FAILURE: AI review action budget exhausted before context fetch",
+            "error",
+            True,
+        )
+    token = _GH_RETRY_DEADLINE.set(deadline)
+    try:
+        return _build_context_from_environment()
+    finally:
+        _GH_RETRY_DEADLINE.reset(token)
+
+
+def _build_context_from_environment() -> ReviewContext:
     context_type = os.environ.get("CONTEXT_TYPE", "")
     pr_number = os.environ.get("PR_NUMBER", "")
     issue_number = os.environ.get("ISSUE_NUMBER", "")
@@ -551,13 +765,19 @@ def write_outputs(review_context: ReviewContext) -> None:
     workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
-    context_file.write_text(review_context.text, encoding="utf-8")
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    safe_context = redact_ci_sink(
+        review_context.text,
+        secret_values=secret_values,
+        redact_assignments=False,
+    ).text
+    context_file.write_text(safe_context, encoding="utf-8")
 
     append_output(output_path, "context_mode", review_context.mode)
     append_output(output_path, "context_file", str(context_file))
     if review_context.infrastructure_failure:
         append_output(output_path, "context_infra_failure", "true")
-    append_multiline_output(output_path, "context_built", review_context.text)
+    append_multiline_output(output_path, "context_built", safe_context)
 
 
 def main() -> int:

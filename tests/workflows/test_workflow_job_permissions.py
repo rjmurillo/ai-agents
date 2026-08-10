@@ -82,8 +82,6 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
         ("rjmurillo-bot.yml", "respond"),
         ("software-engineering-library-activation.yml", "activation-gate"),
         ("update-reviewer-stats.yml", "update-stats"),
-        ("velocity-accelerator.yml", "detect-opportunities"),
-        ("velocity-accelerator.yml", "post-summary"),
     }
 )
 
