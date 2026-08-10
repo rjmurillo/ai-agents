@@ -140,6 +140,15 @@
       "outcome": "Executed the installed skill in five isolated customer git fixtures, removed upstream governance and supersession overhead, and moved CI tests out of customer skill directories."
     }
   ],
+  "episodeMetrics": {
+    "filesChanged": 23,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 4832,
+      "base": "8108ebfea285f7030906a425be28d8707680d001",
+      "head": "58323969fa12f49c1245750f51cad9388da97280"
+    }
+  },
   "endingCommit": "58323969fa12f49c1245750f51cad9388da97280",
   "nextSteps": []
 }
