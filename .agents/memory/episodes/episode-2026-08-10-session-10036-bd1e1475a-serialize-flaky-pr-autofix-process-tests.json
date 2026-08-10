@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests",
+  "session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Serialize flaky pr-autofix process tests under xdist",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced pr-autofix process test instability",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolated process-sensitive tests",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed fast mutation completion",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot skill mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T13:28:54+00:00",
+      "type": "commit",
+      "content": "Commit: fbe46a90ca2ef533588730ead8928f2024acb439",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10036-bd1e1475a-serialize-flaky-pr-autofix-process-tests"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
