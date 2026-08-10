@@ -1075,6 +1075,22 @@ def _original_main(stdin_bytes):
                 return True
             if any(_could_target_new_pr(candidate) for candidate in expansions):
                 return True
+        # General shell globs: ? and [...] in executable-position operands can
+        # expand to new_pr.py.  Extract path segments that contain glob chars and
+        # fnmatch the protected basename against them.
+        for segment in _re.split(r'[\s;|&]+', command):
+            segment = segment.strip()
+            if not segment:
+                continue
+            basename = segment.rsplit("/", 1)[-1] if "/" in segment else segment
+            if ("?" in basename or "[" in basename or "*" in basename):
+                # Only flag targeted globs (e.g. n?w_pr.py), not broad data
+                # globs (e.g. *.py, echo *.txt).  A targeted glob shares a
+                # non-trivial literal prefix with the protected basename.
+                prefix = basename.split("?")[0].split("*")[0].split("[")[0]
+                if len(prefix) >= 1 and _NEW_PR_TARGET.startswith(prefix):
+                    if _fnmatch.fnmatch(_NEW_PR_TARGET, basename):
+                        return True
         return False
 
 
