@@ -132,7 +132,7 @@
       "outcome": "Withdrew the claim that all non-title reds were cancellations, softened an unproven CodeQL claim in two places, and replaced an invalid Fixes #4747 reference with issue #4815."
     }
   ],
-  "endingCommit": "61fddc069e99411dae7b90638385378fa830f978",
+  "endingCommit": "5deadc12a6167d1a5bee1bc98d22a26aa599888d",
   "nextSteps": [
     "Land PR #4814, then queue exactly one pull request to test the queue end to end.",
     "If that pull request does not merge cleanly, remove Trunk and restore strict_required_status_checks_policy.",

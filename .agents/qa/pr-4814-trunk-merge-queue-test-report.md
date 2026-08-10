@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10023-trunk-merge-queue.json
-qaCommit: 61fddc069e99411dae7b90638385378fa830f978
+qaCommit: 5deadc12a6167d1a5bee1bc98d22a26aa599888d
 ---
 # Test Report: PR #4814 - Trunk Merge Queue can complete and stops paying twice
 
