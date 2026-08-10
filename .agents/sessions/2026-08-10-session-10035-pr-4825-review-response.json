@@ -160,7 +160,7 @@
       "outcome": "Three findings, all confirmed. A stepped brace range let a direct lookalike launch skip the guard, a defect in the round 2 fix. The -I launcher flag dropped the script directory from sys.path and killed every timed shim before its policy ran, disabling the markdownlint push guard; I had wrongly filed that as a harness artifact earlier in this session. And this PR's bare Write grant paired unrestricted writes with git push on a command that reads untrusted diffs. Fixed all three with runtime verification and regression tests."
     }
   ],
-  "endingCommit": "40138820ba2f1b9b3220ea4dbb2bc7c8ab915d9f",
+  "endingCommit": "087a7aa1693b3183c33a15ff38719aca86009bab",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
