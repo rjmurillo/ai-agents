@@ -1,40 +1,11 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
-Issue #4823. Exactly one pytest invocation in this workflow runs on workers:
-the "Run pytest" step in job `test`, at `-n auto --dist loadfile`.
-Everything else stays serial:
+Issue #4854. The test job is a four-entry matrix (bulk, mutation, safe-push,
+pr-autofix). Only bulk and mutation use xdist (`-n auto --dist loadfile`).
+Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
-* both branch-coverage pin collection steps, whose 100% gates
-  (`tests/workflows/test_pytest_coverage_pins.py`) were measured serially and
-  which run five files in seconds, so distribution would only add worker
-  startup;
-* the Windows path-contract job, whose marker-selected set is small and whose
-  runner is the slowest and least parallel-friendly in the matrix.
-
-`auto` is xdist's own "one worker per logical CPU". The workflow states no
-number, so a larger runner is spent rather than wasted and nothing has to be
-re-tuned when the runner size changes.
-`test_main_run_does_not_hard_code_a_worker_count` is the guard on that.
-
-Coverage needs no new step. pytest-cov 7.1.0's `DistMaster.finish()` (verbatim,
-`pytest_cov/engine.py`):
-
-    self.cov.stop()
-    self.cov.save()
-    self.cov = self.combining_cov
-    self.cov.load()
-    self.cov.combine()
-    self.cov.save()
-
-and `combining_cov` is constructed with
-`data_file=os.path.abspath(self.cov.config.data_file)`, which is the step's own
-`COVERAGE_FILE`. Worker data is therefore already merged into
-`artifacts/.coverage.main` before `scripts/ci/combine_pin_coverage.py` reads
-it, so that script and its `--main-data` contract are unchanged by this issue.
-
-The local half of this policy (the pre-push gate, the worker-count parser, and
-the global-addopts prohibition) lives in
-`tests/validation/test_pytest_parallelism_policy.py`.
+The coverage combine job downloads artifacts from all matrix legs and merges
+them. The aggregate job gates on both test and coverage.
 """
 
 from __future__ import annotations
@@ -48,130 +19,276 @@ import yaml
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 
 _MAIN_STEP = "Run pytest"
-_SERIAL_STEPS = (
-    "Pin ai_review_common.verdict coverage collection (REQ-008-07)",
-    "Pin REQ-009 module coverage collection (PR #1989 user requirement)",
-)
 _WINDOWS_JOB = "test-windows-pwsh"
 _WINDOWS_STEP = "Run Windows path-contract tests"
 
 _EXPECTED_WORKERS = "auto"
 _EXPECTED_DIST = "loadfile"
+_BULK_IGNORES = {
+    "tests/test_ai_review.py",
+    "tests/test_verdict.py",
+    "tests/test_quality_gate.py",
+    "tests/skills/github/test_wait_for_unresolved_zero.py",
+    "tests/skills/session-end/test_rework_warning.py",
+    "tests/mutation",
+    "tests/test_safe_push_pr_branch.py",
+    "tests/test_pr_autofix_late_live_state_gate.py",
+}
 
 # Any argv spelling that starts workers or picks a distribution mode.
 _PARALLEL_TOKEN = re.compile(r"(?<!\S)(-n|--numprocesses|--dist)(?:[=\s]|$)")
 
 
-def _job_steps(job: str) -> list[dict[str, Any]]:
+def _load_workflow() -> dict[str, Any]:
     with _WORKFLOW.open(encoding="utf-8") as handle:
-        workflow: dict[str, Any] = yaml.safe_load(handle)
-    return workflow["jobs"][job]["steps"]
+        return yaml.safe_load(handle)
 
 
-def _step(name: str, job: str = "test") -> dict[str, Any]:
-    matches = [step for step in _job_steps(job) if step.get("name") == name]
-    assert len(matches) == 1, f"expected exactly one step named {name!r}, found {len(matches)}"
-    return matches[0]
+def _job(name: str) -> dict[str, Any]:
+    return _load_workflow()["jobs"][name]
 
 
-def _run(name: str, job: str = "test") -> str:
-    run = _step(name, job)["run"]
-    assert isinstance(run, str), f"step {name!r} has no string 'run' command"
-    return run
+def _job_steps(job: str) -> list[dict[str, Any]]:
+    return _load_workflow()["jobs"][job]["steps"]
 
 
-def test_main_run_uses_every_cpu_over_whole_files() -> None:
-    """The one parallel invocation, spelled out.
-
-    `loadfile` sends every test in one file to one worker, which is the
-    weakest distribution xdist offers and the point: module-scoped fixtures and
-    module state keep behaving the way they do serially.
-    """
-    tokens = _run(_MAIN_STEP).split()
-
-    assert "-n" in tokens, "main run must pass -n explicitly"
-    assert tokens[tokens.index("-n") + 1] == _EXPECTED_WORKERS
-    assert "--dist" in tokens, "main run must pin the distribution mode"
-    assert tokens[tokens.index("--dist") + 1] == _EXPECTED_DIST
+def _matrix() -> list[dict[str, Any]]:
+    return _job("test")["strategy"]["matrix"]["include"]
 
 
-def test_main_run_does_not_hard_code_a_worker_count() -> None:
-    """The inverse of the assertion above.
-
-    A regression that swaps `auto` for a number still passes "there is a `-n`"
-    while capping a larger runner at whatever the author's machine had. The
-    workflow must name no count at all.
-    """
-    tokens = _run(_MAIN_STEP).split()
-
-    workers = tokens[tokens.index("-n") + 1]
-
-    assert not workers.lstrip("+-").isdigit(), (
-        f"worker count must stay runner-relative, got the literal {workers!r}"
-    )
+def _partition(name: str) -> dict[str, Any]:
+    for entry in _matrix():
+        if entry["partition"] == name:
+            return entry
+    raise AssertionError(f"partition {name!r} not found in matrix")
 
 
-def test_main_run_keeps_its_coverage_and_ignore_contract() -> None:
-    """Parallelism must not have displaced the flags the pins depend on.
+class TestMatrixStructure:
+    """The test job is a four-partition matrix."""
 
-    The pin steps re-run the five files this step ignores, and
-    `scripts/ci/combine_pin_coverage.py` reads this step's data file, so
-    dropping `--cov` or an `--ignore` while adding `-n` would double-run tests
-    and break the combine input at the same time.
-    """
-    run = _run(_MAIN_STEP)
+    def test_four_partitions_exist(self) -> None:
+        partitions = [e["partition"] for e in _matrix()]
+        assert partitions == ["bulk", "mutation", "safe-push", "pr-autofix"]
 
-    assert "--cov " in run or run.rstrip().endswith("--cov")
-    assert "--cov-report=" in run
-    assert "--cov-branch" not in run
-    assert run.count("--ignore=") == 5
-    assert "--junitxml=artifacts/pytest-results.xml" in run
+    def test_job_name_includes_partition(self) -> None:
+        name = _job("test")["name"]
+        assert "pytest (${{ matrix.partition }})" in name
 
+    def test_matrix_job_skips_when_python_inputs_are_unchanged(self) -> None:
+        assert _job("test")["if"] == "needs.check-paths.outputs.python-changed == 'true'"
 
-def test_pin_collection_steps_stay_serial() -> None:
-    """Neither branch-coverage pin may acquire workers.
+    def test_each_partition_has_coverage_and_junit(self) -> None:
+        for entry in _matrix():
+            assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
+            assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
+            assert "pytest_args" in entry, f"{entry['partition']} missing pytest_args"
+        assert len({entry["coverage_file"] for entry in _matrix()}) == 4
+        assert len({entry["junit_file"] for entry in _matrix()}) == 4
 
-    Their 100% gates read each step's own data file. Adding workers there would
-    buy nothing (five files, seconds) and would put a second combine path in
-    front of a gate that must stay exact.
-    """
-    for name in _SERIAL_STEPS:
-        run = _run(name)
-        assert _PARALLEL_TOKEN.search(run) is None, (
-            f"{name!r} must stay serial, found a parallel flag in: {run!r}"
-        )
+    def test_bulk_ignores_owned_files_and_mutation_and_safe_push_and_autofix(self) -> None:
+        args = _partition("bulk")["pytest_args"]
+        ignored = {
+            token.removeprefix("--ignore=")
+            for token in args.split()
+            if token.startswith("--ignore=")
+        }
+        assert ignored == _BULK_IGNORES
+        assert args.split()[-1] == "tests/"
+        assert "-m" not in args, "CI must not drop integration-marked tests"
 
+    def test_mutation_runs_only_tests_mutation(self) -> None:
+        args = _partition("mutation")["pytest_args"]
+        assert args.split() == ["-n", "auto", "--dist", "loadfile", "tests/mutation"]
 
-def test_windows_path_contract_job_stays_serial() -> None:
-    run = _run(_WINDOWS_STEP, job=_WINDOWS_JOB)
+    def test_safe_push_runs_only_its_file(self) -> None:
+        args = _partition("safe-push")["pytest_args"]
+        assert args.strip() == "tests/test_safe_push_pr_branch.py"
 
-    assert _PARALLEL_TOKEN.search(run) is None, (
-        f"the Windows job must stay serial, found a parallel flag in: {run!r}"
-    )
-    assert "-m windows_path" in run
-
-
-def test_the_test_job_has_exactly_one_parallel_step() -> None:
-    """A whole-job sweep, so a future pytest step cannot quietly add workers."""
-    parallel_steps = [
-        step.get("name")
-        for step in _job_steps("test")
-        if isinstance(step.get("run"), str) and _PARALLEL_TOKEN.search(step["run"])
-    ]
-
-    assert parallel_steps == [_MAIN_STEP]
+    def test_pr_autofix_runs_only_its_file(self) -> None:
+        args = _partition("pr-autofix")["pytest_args"]
+        assert args.strip() == "tests/test_pr_autofix_late_live_state_gate.py"
 
 
-def test_no_explicit_coverage_combine_step_was_added_for_workers() -> None:
-    """pytest-cov already merges worker data into this step's COVERAGE_FILE.
+class TestXdistParallelism:
+    """Only bulk and mutation use xdist; safe-push and pr-autofix stay serial."""
 
-    `DistMaster.finish()` calls `combining_cov.combine()` against
-    `data_file=os.path.abspath(self.cov.config.data_file)`, so the merge target
-    is `artifacts/.coverage.main` itself. A hand-rolled `coverage combine` here
-    would re-read already-combined data and could only add failure modes.
-    """
-    combine_run = _run("Combine coverage data")
+    def test_bulk_uses_xdist(self) -> None:
+        args = _partition("bulk")["pytest_args"]
+        assert "-n auto" in args
+        assert "--dist loadfile" in args
 
-    assert "coverage combine" not in combine_run
-    assert "scripts/ci/combine_pin_coverage.py" in combine_run
-    assert "--main-data artifacts/.coverage.main" in combine_run
+    def test_mutation_uses_xdist(self) -> None:
+        args = _partition("mutation")["pytest_args"]
+        assert "-n auto" in args
+        assert "--dist loadfile" in args
+
+    def test_safe_push_stays_serial(self) -> None:
+        args = _partition("safe-push")["pytest_args"]
+        assert _PARALLEL_TOKEN.search(args) is None
+
+    def test_pr_autofix_stays_serial(self) -> None:
+        args = _partition("pr-autofix")["pytest_args"]
+        assert _PARALLEL_TOKEN.search(args) is None
+
+    def test_no_hard_coded_worker_count(self) -> None:
+        for entry in _matrix():
+            args = entry["pytest_args"]
+            if "-n" in args:
+                tokens = args.split()
+                idx = tokens.index("-n")
+                val = tokens[idx + 1]
+                assert not val.lstrip("+-").isdigit(), (
+                    f"partition {entry['partition']} hard-codes worker count {val!r}"
+                )
+
+    def test_windows_path_contract_job_stays_serial(self) -> None:
+        steps = _job_steps(_WINDOWS_JOB)
+        win_step = [s for s in steps if s.get("name") == _WINDOWS_STEP][0]
+        run = win_step["run"]
+        assert _PARALLEL_TOKEN.search(run) is None
+
+
+class TestRunPytestStep:
+    """The shared Run pytest step uses matrix data."""
+
+    def test_run_step_uses_matrix_pytest_args(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        run = run_step["run"]
+        assert "${{ matrix.pytest_args }}" in run
+
+    def test_run_step_uses_matrix_coverage_file(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        env = run_step.get("env", {})
+        assert "${{ matrix.coverage_file }}" in env.get("COVERAGE_FILE", "")
+
+    def test_run_step_uses_matrix_junit_file(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        run = run_step["run"]
+        assert "${{ matrix.junit_file }}" in run
+
+    def test_run_step_has_cov_and_cov_report(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        run = run_step["run"]
+        assert "--cov" in run
+        assert "--cov-report=" in run
+
+    def test_run_step_has_no_cov_branch(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        run = run_step["run"]
+        assert "--cov-branch" not in run
+
+
+class TestArtifactUpload:
+    """Each matrix leg uploads a unique artifact with include-hidden-files."""
+
+    def test_upload_artifact_name_includes_partition(self) -> None:
+        steps = _job_steps("test")
+        upload = [s for s in steps if s.get("name") == "Upload test results"][0]
+        assert "pytest-results-${{ matrix.partition }}" in upload["with"]["name"]
+
+    def test_upload_includes_hidden_files(self) -> None:
+        steps = _job_steps("test")
+        upload = [s for s in steps if s.get("name") == "Upload test results"][0]
+        assert upload["with"].get("include-hidden-files") is True
+
+
+class TestCoverageJob:
+    """The coverage combine job merges all partition data."""
+
+    def test_coverage_job_exists(self) -> None:
+        assert "coverage" in _load_workflow()["jobs"]
+
+    def test_coverage_job_name(self) -> None:
+        assert _job("coverage")["name"] == "Combine Python coverage"
+
+    def test_coverage_job_needs_test(self) -> None:
+        needs = _job("coverage")["needs"]
+        assert "test" in needs
+        assert "check-paths" in needs
+
+    def test_coverage_job_timeout(self) -> None:
+        assert _job("coverage")["timeout-minutes"] == 10
+
+    def test_coverage_downloads_with_pattern_and_merge(self) -> None:
+        steps = _job("coverage")["steps"]
+        dl = [s for s in steps if s.get("name") == "Download partition artifacts"][0]
+        assert dl["with"]["pattern"] == "pytest-results-*"
+        assert dl["with"]["merge-multiple"] is True
+
+    def test_combine_uses_four_main_data_inputs(self) -> None:
+        steps = _job("coverage")["steps"]
+        combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
+        run = combine["run"]
+        assert re.findall(r"--main-data\s+(\S+)", run) == [
+            "artifacts/.coverage.bulk",
+            "artifacts/.coverage.mutation",
+            "artifacts/.coverage.safe-push",
+            "artifacts/.coverage.pr-autofix",
+        ]
+
+    def test_combine_has_two_pin_inputs(self) -> None:
+        steps = _job("coverage")["steps"]
+        combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
+        run = combine["run"]
+        assert re.findall(r"--pin-data\s+(\S+)", run) == [
+            "artifacts/.coverage.pin-verdict",
+            "artifacts/.coverage.pin-req009",
+        ]
+
+    def test_combine_runs_coverage_xml(self) -> None:
+        steps = _job("coverage")["steps"]
+        combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
+        run = combine["run"]
+        assert "coverage xml" in run
+
+    def test_coverage_uploads_final_artifact(self) -> None:
+        steps = _job("coverage")["steps"]
+        upload = [s for s in steps if s.get("name") == "Upload combined coverage"][0]
+        assert upload["with"]["name"] == "pytest-results"
+
+    def test_no_shell_branching_in_combine(self) -> None:
+        steps = _job("coverage")["steps"]
+        combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
+        run = combine["run"]
+        for token in (" if ", " if[", "\nif ", "for ", "while ", "$(", "`"):
+            assert token not in run
+
+
+class TestAggregateJob:
+    """The test-result aggregate job gates the required status check."""
+
+    def test_aggregate_job_exists(self) -> None:
+        assert "test-result" in _load_workflow()["jobs"]
+
+    def test_aggregate_job_name(self) -> None:
+        assert _job("test-result")["name"] == "Run Python Tests"
+
+    def test_aggregate_needs(self) -> None:
+        needs = _job("test-result")["needs"]
+        assert "check-paths" in needs
+        assert "test" in needs
+        assert "coverage" in needs
+
+    def test_aggregate_uses_require_job_results(self) -> None:
+        steps = _job("test-result")["steps"]
+        run_steps = [s for s in steps if isinstance(s.get("run"), str)]
+        script_step = [s for s in run_steps if "require_job_results.py" in s["run"]][0]
+        assert "TEST_RESULT" in script_step.get("env", {})
+        assert "COVERAGE_RESULT" in script_step.get("env", {})
+
+    def test_aggregate_timeout(self) -> None:
+        assert _job("test-result")["timeout-minutes"] == 2
+
+
+class TestMainFailureAlert:
+    """main-failure-alert depends on test and test-result."""
+
+    def test_alert_needs_test_and_aggregate(self) -> None:
+        needs = _job("main-failure-alert")["needs"]
+        assert "test" in needs
+        assert "test-result" in needs
