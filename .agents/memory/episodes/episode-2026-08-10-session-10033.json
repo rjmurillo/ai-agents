@@ -4,17 +4,17 @@
   "timestamp": "2026-08-10T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Add QA evidence required by Validate PR for PR 4681",
+  "task": "Fix xdist collection order for Issue 4823",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Acquired the pr_autofix lease and bound live state",
+      "content": "Reproduced xdist collection mismatch",
       "caused_by": [],
       "leads_to": [
-        "e005"
+        "e004"
       ],
       "_source_session": "2026-08-10-session-10033"
     },
@@ -22,10 +22,10 @@
       "id": "e002",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Disarmed auto-merge before acting on non-T1 PR",
+      "content": "Made parametrization deterministic",
       "caused_by": [],
       "leads_to": [
-        "e005"
+        "e004"
       ],
       "_source_session": "2026-08-10-session-10033"
     },
@@ -33,34 +33,22 @@
       "id": "e003",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Diagnosed the required Validate PR failure",
+      "content": "Verified the fix",
       "caused_by": [],
       "leads_to": [
-        "e005"
+        "e004"
       ],
       "_source_session": "2026-08-10-session-10033"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Consolidated existing QA evidence",
-      "caused_by": [],
-      "leads_to": [
-        "e005"
-      ],
-      "_source_session": "2026-08-10-session-10033"
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-08-10T09:33:04+00:00",
+      "timestamp": "2026-08-10T06:42:16+00:00",
       "type": "commit",
-      "content": "Commit: 19ce5539071cbae8095f7578af41dd6e0c36d0bf",
+      "content": "Commit: 4e7c0868f97104396b328cf9b6f08f2d8518afbe",
       "caused_by": [
         "e001",
         "e002",
-        "e003",
-        "e004"
+        "e003"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033"
@@ -72,7 +60,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 0
+    "files_changed": 1
   },
   "lessons": []
 }

@@ -91,6 +91,11 @@
         "Complete": true,
         "Evidence": "Markdown lint invoked; repository configuration excludes .agents retrospectives and reported 0 selected files"
       },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/session-10019-pr-4681-validation.md"
+      },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
@@ -135,6 +140,6 @@
       "outcome": "244 targeted tests, full pre-PR validation, and 24,832 full-suite tests passed"
     }
   ],
-  "endingCommit": "f9b65c1f6a77aeeccf39ee475ccad61634b468be",
+  "endingCommit": "19ce5539071cbae8095f7578af41dd6e0c36d0bf",
   "nextSteps": []
 }
