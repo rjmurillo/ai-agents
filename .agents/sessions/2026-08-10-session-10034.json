@@ -150,11 +150,52 @@
     {
       "action": "Merged origin/main and resolved the prerequisite session conflict",
       "outcome": "Preserved main's canonical session 10033. All 48 targeted dependency, local-policy, and workflow contract tests passed after merge commit 3d82967895dfd2adf2f3479726b0cb7546346c97."
+    },
+    {
+      "action": "Rebuilt the worker contract on xdist's own -n auto instead of a fixed count",
+      "outcome": "parse_pytest_workers returns a string, accepts case-insensitive 'auto' or a positive integer, and raises for anything else so run_pytest exits 2 without running tests. Commits aaa1efa90 (local gate) and ea508b072 (CI step)."
+    },
+    {
+      "action": "Inverted the contract tests to forbid a hard-coded worker count",
+      "outcome": "36 local plus 7 workflow tests pass. Three mutations killed 2, 8, and 5 tests: hard-coding the CI count, hard-coding the local default, and deleting the auto branch from the parser."
+    },
+    {
+      "action": "Ran the pre-push gate at -n auto and found two failing tests",
+      "outcome": "48 of 48 workers over 25400 items in 227.72s, wall 3:50.52, peak RSS 551908 KB by /usr/bin/time -v, zero worker crashes, 2 failed in tests/test_mutation_workspace_signals.py."
+    },
+    {
+      "action": "Root-caused the two failures to a repo-global emptiness assertion",
+      "outcome": "The tests asserted marker_directory(REPO_ROOT) was empty while tests/test_mutation_workspace.py wrote markers into that same shared directory from another worker. Reproduced 2 failed and 24 passed for 3 of 3 runs at -n 2 --dist loadfile; serial control 26 passed."
+    },
+    {
+      "action": "Scoped both assertions to the marker their own run created",
+      "outcome": "Commit 953338d6f. Each test asserts the marker exists while the run is live before asserting it is gone, so mutating the suffix to .NOPE fails both tests instead of passing vacuously. 26 passed for 3 of 3 runs at -n 2 --dist loadfile."
+    },
+    {
+      "action": "Re-ran the full pre-push gate at -n auto after the fix",
+      "outcome": "48 of 48 workers, 25364 passed with 36 skips in 232.15s, wall 3:57.40, peak RSS 547032 KB. All 10 grep hits for crash markers are test names containing the word crashed, so no worker crashed."
+    },
+    {
+      "action": "Compared serial and -n auto coverage on the CI-shaped command",
+      "outcome": "Identical 609-file set with zero files on one side only, num_statements 74898 both, covered_lines 61252 serial against 61253 parallel, percent_covered delta +0.0013 points against a 0.1-point bound. Serial 765.23s against 234.16s parallel."
+    },
+    {
+      "action": "Recorded two wall-clock deadline tests that failed in one of two coverage runs",
+      "outcome": "test_process_shutdown_obeys_the_session_deadline and test_concurrent_writers_serialize_the_read_and_replace pass serially with coverage in 0.70s and pass at -n auto without coverage. They need 48 workers and coverage tracing together, which is CPU oversubscription against a two-second thread join."
+    },
+    {
+      "action": "Cleared both mandatory doc-accuracy findings on the QA report",
+      "outcome": "Replaced the fenced stdin-drain snippet with prose plus verified line citations and rewrote the ratchet section as prose. Repository-wide findings went from 3091 to 3089 and the two that named this report are gone."
+    },
+    {
+      "action": "Confirmed the push blocker is cleared",
+      "outcome": "scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main exits 0 and reports the merged tree passes every registered ratchet, with the cli exit contract ratchet at 27 against a budget of 27."
     }
   ],
-  "endingCommit": "3d82967895dfd2adf2f3479726b0cb7546346c97",
+  "endingCommit": "953338d6fe8cfcd86206fb6a467060bb66d5693b",
   "nextSteps": [
-    "Open a pull request referencing Issue 4823 and read the CI wall clock from the workflow run; the sub-10-minute target is unmeasured until then.",
-    "File a separate issue for the pr-autofix lease-renewal subprocess hang described in the QA report."
+    "Push the branch and read the CI wall clock from the workflow run; the sub-10-minute target is unproven until then.",
+    "File a separate issue for the pr-autofix lease-renewal grandchild that keeps the harness pipe open.",
+    "File a separate issue for the two wall-clock deadline tests that starve under heavy worker oversubscription with coverage."
   ]
 }
