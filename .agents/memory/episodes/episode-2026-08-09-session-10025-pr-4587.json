@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-09-session-10025-pr-4587",
+  "session": "2026-08-09-session-10025-pr-4587",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR #4587 conflicts, reproduce its CI prompts locally, fix supported findings, and add QA evidence.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the diff3 conflict",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10025-pr-4587"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Downloaded remote AI review artifacts",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10025-pr-4587"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran all ten canonical CI review prompts locally",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10025-pr-4587"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the final branch",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10025-pr-4587"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T04:33:59+00:00",
+      "type": "commit",
+      "content": "Commit: 544521f4f57006a8c668f591baa1ae05900649bd",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10025-pr-4587"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 8
+  },
+  "lessons": []
+}
