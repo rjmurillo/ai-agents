@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: a701e9982f5719d02cae7912419667084cc1ad6a
+qaCommit: 4b7b410b762fa9e262c548d36cfcae30f148bf0c
 ---
 
 # Test Report: PR #4817 -- Explicit Analyst Attribution and Strict Routing Validation
