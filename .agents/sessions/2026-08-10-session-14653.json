@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-10-issue-4842-repository-name-parser-report.md"
+        "Evidence": ".agents/qa/2026-08-10-pr-4856-issue-4842-repository-name-parser-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
