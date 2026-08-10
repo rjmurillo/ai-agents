@@ -17,13 +17,14 @@ used in log lines and error codes. The framework owns:
   plus suffix string check; see issue 1884 pre-mortem R-E)
 - structured stdout block on violation
 - a machine-parseable ``EVENT=<json>`` line on stderr for every block
-- fail-open on infrastructure errors
+- configurable infrastructure error handling
 
 Hook Type: PreToolUse
 
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Allow (no matching files, validator clean, infra fallback)
-    2 = Block (validator returned violations OR bootstrap failed)
+    0 = Allow (no matching files or validator clean)
+    2 = Block (validator returned violations, strict infrastructure failure,
+        or bootstrap failure)
 
 Bootstrap failures (missing plugin lib) exit 2, NOT fail-open. A guard
 that cannot find its lib is a hard misconfiguration; allowing pushes
@@ -36,6 +37,9 @@ Naming convention:
         name="markdown-lint"  -> E_MARKDOWN_LINT
         name="manifest-count" -> E_MANIFEST_COUNT
         name="session-log"    -> E_SESSION_LOG
+
+Customer-facing verifiers pass ``project_only=False`` and
+``fail_closed=True``. Internal advisory guards can retain the defaults.
 
 When NOT to use this framework:
     - PostToolUse hooks (different hook semantics).
@@ -63,6 +67,7 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable
@@ -112,6 +117,95 @@ __all__ = ["run_guard", "get_project_directory", "emit_fail_open"]
 
 GIT_DIFF_TIMEOUT = 10
 
+# ---------------------------------------------------------------------------
+# Trusted git resolution (defect #2 mitigation)
+# ---------------------------------------------------------------------------
+# Well-known system directories where git is installed by the OS or
+# package manager.  Inherited PATH is never consulted -- a consumer can
+# place a hostile ``git`` anywhere on PATH and the denylist cannot
+# enumerate every possible wrapper location.
+_SYSTEM_GIT_DIRS: tuple[str, ...] = (
+    # Linux / generic Unix
+    "/usr/bin",
+    "/usr/local/bin",
+    # macOS Homebrew (Apple Silicon + Intel)
+    "/opt/homebrew/bin",
+    "/usr/local/Cellar",
+    # macOS Xcode / CLT
+    "/Library/Developer/CommandLineTools/usr/bin",
+    "/Applications/Xcode.app/Contents/Developer/usr/bin",
+)
+_WINDOWS_GIT_DIRS: tuple[str, ...] = (
+    r"C:\Program Files\Git\cmd",
+    r"C:\Program Files (x86)\Git\cmd",
+    r"C:\Program Files\Git\bin",
+)
+
+# Environment variables that can redirect git behavior to attacker code.
+_GIT_DANGEROUS_ENV = frozenset({
+    "GIT_EXEC_PATH", "GIT_EXTERNAL_DIFF", "GIT_DIFF_OPTS",
+    "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_EDITOR",
+    "GIT_PAGER", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM", "GIT_ATTR_NOSYSTEM",
+})
+
+
+def _resolve_trusted_git() -> str:
+    """Return absolute path to a system-installed git binary.
+
+    Searches only well-known OS/package-manager directories.  Never
+    consults inherited PATH.  Validates that the resolved real path
+    also lives under a trusted prefix (guards against symlink attacks).
+    On POSIX, additionally checks root ownership (uid 0).
+    """
+    name = "git.exe" if sys.platform == "win32" else "git"
+    dirs = _WINDOWS_GIT_DIRS if sys.platform == "win32" else _SYSTEM_GIT_DIRS
+    trusted_prefixes = tuple(dirs)
+
+    for d in dirs:
+        candidate = os.path.join(d, name)
+        if not os.path.isfile(candidate):
+            continue
+        if not os.access(candidate, os.X_OK):
+            continue
+        # Resolve symlinks and verify the target is also under a
+        # trusted prefix (prevents /usr/bin/git -> /tmp/evil/git).
+        resolved = os.path.realpath(candidate)
+        if not any(resolved.startswith(tp) for tp in trusted_prefixes):
+            continue
+        # POSIX: require root ownership.
+        if sys.platform != "win32":
+            try:
+                st = os.stat(resolved)
+            except OSError:
+                continue
+            if st.st_uid != 0:
+                continue
+        return resolved
+
+    raise FileNotFoundError(
+        "no system git found in trusted directories: "
+        + ", ".join(dirs)
+    )
+
+
+def _scrubbed_git_env() -> dict[str, str]:
+    """Return os.environ minus dangerous GIT_* and PYTHON* variables."""
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _GIT_DANGEROUS_ENV
+        and not k.startswith("PYTHON")
+    }
+
+
+# Resolved once at import time; guards fail closed if untrusted.
+try:
+    _TRUSTED_GIT: str | None = _resolve_trusted_git()
+except FileNotFoundError:
+    _TRUSTED_GIT = None
+
+
 # Cap stdin read so a malicious or buggy upstream cannot OOM the hook
 # (CWE-400). Real Claude Code tool_input commands are well below 1 MiB.
 MAX_STDIN_BYTES = 1_048_576
@@ -122,6 +216,27 @@ MAX_STDIN_BYTES = 1_048_576
 # ``git push`` is too strict. ``re.match`` anchors at the start, but
 # accept optional leading whitespace too for robustness.
 _GIT_PUSH_RE = re.compile(r"\s*git\s+push(\s|$)")
+_SAFE_PUSH_OPTIONS = {
+    "--atomic",
+    "--dry-run",
+    "--force-with-lease",
+    "--force-if-includes",
+    "--no-signed",
+    "--porcelain",
+    "--quiet",
+    "--signed",
+    "--signed=false",
+    "--signed=if-asked",
+    "--signed=true",
+    "--verbose",
+    "-q",
+    "-v",
+}
+_SHELL_EXPANSION_RE = re.compile(r"[\n\r`$;&|<>()*?\[\]{}\\!]")
+
+
+class _HookInputError(ValueError):
+    """Raised when a strict guard receives an invalid hook payload."""
 
 
 def _match_double_star(path: str, pattern: str) -> bool:
@@ -212,16 +327,144 @@ def _filter_by_globs(paths: list[str], globs: list[str]) -> list[str]:
     return matched
 
 
+def _validate_strict_push_command(command: str, cwd: str) -> None:
+    """Reject push forms whose outgoing commit set cannot be determined safely."""
+    if _SHELL_EXPANSION_RE.search(command):
+        raise _HookInputError(
+            "strict push guards do not allow shell expansion or control syntax"
+        )
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        raise _HookInputError(f"unparseable git push command: {exc}") from exc
+
+    if len(tokens) < 2 or tokens[:2] != ["git", "push"]:
+        raise _HookInputError("command is not a direct git push")
+
+    arguments = [
+        token
+        for token in tokens[2:]
+        if token not in _SAFE_PUSH_OPTIONS
+    ]
+    if not arguments:
+        return
+
+    remote, branch = _strict_push_target(cwd)
+    allowed_targets = ([remote, branch], [remote, f"HEAD:{branch}"])
+    if arguments in allowed_targets:
+        return
+
+    rendered = " ".join(arguments)
+    raise _HookInputError(
+        "strict push guards require the configured push target; "
+        f"unsupported arguments: {rendered}. Use git push."
+    )
+
+
+def _git_config_values(cwd: str, key: str) -> list[str]:
+    rc, out = _run_git_diff(["git", "config", "--get-all", key], cwd=cwd)
+    if rc == 1:
+        return []
+    if rc != 0:
+        raise _HookInputError(f"could not read git config {key}: {out}")
+    return [line for line in out.splitlines() if line.strip()]
+
+
+def _git_config_bool(cwd: str, key: str) -> bool:
+    rc, out = _run_git_diff(["git", "config", "--bool", "--get", key], cwd=cwd)
+    if rc == 1:
+        return False
+    if rc != 0:
+        raise _HookInputError(f"could not read git config {key}: {out}")
+    value = out.strip()
+    if value not in {"false", "true"}:
+        raise _HookInputError(f"git config {key} is not boolean: {value}")
+    return value == "true"
+
+
+def _strict_push_remote(cwd: str, branch: str) -> str:
+    for key in (
+        f"branch.{branch}.pushRemote",
+        "remote.pushDefault",
+        f"branch.{branch}.remote",
+    ):
+        values = _git_config_values(cwd, key)
+        if values:
+            return values[-1]
+
+    rc, out = _run_git_diff(["git", "remote"], cwd=cwd)
+    if rc != 0:
+        raise _HookInputError(f"could not list git remotes: {out}")
+    remotes = [line for line in out.splitlines() if line.strip()]
+    if "origin" in remotes:
+        return "origin"
+    if len(remotes) == 1:
+        return remotes[0]
+    raise _HookInputError("bare git push has no unambiguous push remote")
+
+
+def _strict_push_target(cwd: str) -> tuple[str, str]:
+    """Return the configured push remote and current branch."""
+    rc, branch = _run_git_diff(["git", "branch", "--show-current"], cwd=cwd)
+    branch = branch.strip()
+    if rc != 0 or not branch:
+        raise _HookInputError("bare git push requires an attached branch")
+
+    push_defaults = _git_config_values(cwd, "push.default")
+    push_default = push_defaults[-1] if push_defaults else "simple"
+    if push_default not in {"current", "simple", "upstream"}:
+        raise _HookInputError(
+            "strict push guards require push.default=current, simple, or upstream; "
+            f"found {push_default}"
+        )
+
+    return _strict_push_remote(cwd, branch), branch
+
+
+def _validate_strict_push_configuration(cwd: str) -> None:
+    """Require a current-branch-only bare push configuration."""
+    remote, _branch = _strict_push_target(cwd)
+    if remote == ".":
+        raise _HookInputError("strict push guards do not support remote '.'")
+    refspecs = _git_config_values(cwd, f"remote.{remote}.push")
+    if refspecs:
+        raise _HookInputError(
+            f"strict push guards do not support remote.{remote}.push refspecs"
+        )
+    for key in (f"remote.{remote}.mirror", "push.followTags"):
+        if _git_config_bool(cwd, key):
+            raise _HookInputError(f"strict push guards require {key}=false")
+
+    recurse_values = _git_config_values(cwd, "push.recurseSubmodules")
+    if recurse_values:
+        recurse = recurse_values[-1]
+        if recurse not in {"check", "false", "no"}:
+            raise _HookInputError(
+                "strict push guards require "
+                f"push.recurseSubmodules=no or check; found {recurse}"
+            )
+    elif _git_config_bool(cwd, "submodule.recurse"):
+        raise _HookInputError(
+            "strict push guards require submodule.recurse=false "
+            "when push.recurseSubmodules is unset"
+        )
+
+
 def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
+    if _TRUSTED_GIT is None:
+        return 1, "git not found or resolved to untrusted location"
+    # Replace bare 'git' with absolute trusted path.
+    resolved_args = [_TRUSTED_GIT if a == "git" else a for a in args]
     try:
         proc = subprocess.run(
-            args,
+            resolved_args,
             cwd=cwd,
             capture_output=True,
             text=True,
             timeout=GIT_DIFF_TIMEOUT,
             shell=False,
             check=False,
+            env=_scrubbed_git_env(),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         return 1, f"{type(exc).__name__}: {exc}"
@@ -237,6 +480,7 @@ def _changed_files(
     cwd: str,
     name: str = "guard",
     include_deletions: bool = False,
+    fail_closed: bool = False,
 ) -> list[str] | None:
     """Return changed files committed but not yet pushed.
 
@@ -279,79 +523,37 @@ def _changed_files(
     if rc2 == 0:
         return [line for line in out2.splitlines() if line.strip()]
     fallback_reason = out2.splitlines()[0] if out2 else "non-zero exit"
+    outcome = "blocking push" if fail_closed else "allowing push (fail-open)"
     print(
-        f"[{name}] git diff failed on both refs; allowing push (fail-open). "
+        f"[{name}] git diff failed on both refs; {outcome}. "
         f"primary=@{{push}}..HEAD: {primary_reason}; "
         f"fallback={fallback_ref}...HEAD: {fallback_reason}",
         file=sys.stderr,
     )
-    _emit_fail_open(name, "diff_failed", f"primary: {primary_reason}; fallback: {fallback_reason}")
-    return None
-
-
-_GH_TIMEOUT = 5
-
-
-def _gh_base_ref(cwd: str) -> str | None:
-    """Return ``origin/<baseRefName>`` for the open PR, or None.
-
-    When a PR exists for the current branch, ``baseRefName`` is the
-    ground truth. This handles the derivative-PR case where the user
-    has not run ``git push -u`` yet but the PR is already opened
-    against a non-default base. Fail-open semantics: any gh failure
-    (missing CLI, no PR, auth, network) returns None and the caller
-    falls through to the next signal in the chain.
-    """
-    import shutil  # local import to keep top-level imports minimal
-
-    if shutil.which("gh") is None:
-        return None
-    try:
-        proc = subprocess.run(
-            ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=_GH_TIMEOUT,
-            shell=False,
-            check=False,
+    if not fail_closed:
+        _emit_fail_open(
+            name,
+            "diff_failed",
+            f"primary: {primary_reason}; fallback: {fallback_reason}",
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return None
-    if proc.returncode != 0:
-        return None
-    base = proc.stdout.strip()
-    if not base:
-        return None
-    return f"origin/{base}"
+    return None
 
 
 def _detect_default_base_ref(cwd: str) -> str:
     """Resolve the right base ref to diff against when ``@{push}`` is unset.
 
-    The fallback hierarchy mirrors what a careful engineer would inspect by
-    hand:
+    The fallback hierarchy uses only the trusted absolute git binary:
 
-    1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
-       ground truth once a PR exists and handles the derivative-PR case
-       where the user has not run ``git push -u`` yet but the PR is
-       already opened against a non-default base. Fail-open: any gh
-       failure (missing CLI, no PR, auth, network) falls to step 2.
-    2. The current branch's configured upstream (``@{u}``). When the user
+    1. The current branch's configured upstream (``@{u}``). When the user
        has set tracking explicitly (``git push -u``,
        ``git branch --set-upstream-to=...``), this is the right answer
-       for both mainline branches and derivative branches before the PR
-       exists. Hardcoding ``origin/main`` here would pull in the parent
-       branch's history.
-    3. The remote's default branch via ``refs/remotes/origin/HEAD``. The
+       for both mainline branches and derivative branches.
+    2. The remote's default branch via ``refs/remotes/origin/HEAD``. The
        documented "what does the remote consider default" answer for a
-       brand-new feature branch with no upstream and no PR yet.
-    4. ``origin/main`` as a last-resort literal so a misconfigured clone
+       brand-new feature branch with no upstream.
+    3. ``origin/main`` as a last-resort literal so a misconfigured clone
        still produces a sensible (if imperfect) reference.
     """
-    pr_base = _gh_base_ref(cwd)
-    if pr_base:
-        return pr_base
     rc, out = _run_git_diff(
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         cwd=cwd,
@@ -381,40 +583,47 @@ def _detect_default_base_ref(cwd: str) -> str:
     return "origin/main"
 
 
-def _read_stdin_command(name: str) -> str | None:
+def _read_stdin_command(name: str, fail_closed: bool = False) -> str | None:
     """Parse the tool command from hook stdin, or return None.
 
     Fail-open with telemetry: every anomalous stdin shape (oversize, unparseable
     JSON, non-object payload, missing/mistyped tool_input, missing/mistyped
     command) emits a structured ``EVENT=...`` fail-open line via _emit_fail_open
     and still returns None, preserving the framework's documented allow-but-observe
-    contract (see the module docstring, "Operations and telemetry"). The isatty
-    and empty-stdin paths are legitimate no-ops (interactive terminal, nothing
-    piped) and do NOT emit an event.
+    contract (see the module docstring, "Operations and telemetry"). Interactive
+    stdin is always a no-op. Empty non-interactive stdin is a no-op for advisory
+    guards and invalid input for strict guards.
     """
     if sys.stdin.isatty():
         return None
+    def invalid(detail: str) -> None:
+        if fail_closed:
+            raise _HookInputError(detail)
+        _emit_fail_open(name, "bad_stdin", detail)
+
     raw = sys.stdin.read(MAX_STDIN_BYTES + 1)
     if len(raw) > MAX_STDIN_BYTES:
-        _emit_fail_open(name, "bad_stdin", f"stdin exceeds {MAX_STDIN_BYTES} bytes")
+        invalid(f"stdin exceeds {MAX_STDIN_BYTES} bytes")
         return None
     if not raw.strip():
+        if fail_closed:
+            invalid("stdin empty")
         return None
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, ValueError) as exc:
-        _emit_fail_open(name, "bad_stdin", f"unparseable JSON: {type(exc).__name__}")
+        invalid(f"unparseable JSON: {type(exc).__name__}")
         return None
     if not isinstance(payload, dict):
-        _emit_fail_open(name, "bad_stdin", "payload not a JSON object")
+        invalid("payload not a JSON object")
         return None
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
-        _emit_fail_open(name, "bad_stdin", "tool_input missing/not object")
+        invalid("tool_input missing/not object")
         return None
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
-        _emit_fail_open(name, "bad_stdin", "command missing/not non-empty string")
+        invalid("command missing/not non-empty string")
         return None
     return command
 
@@ -477,6 +686,9 @@ def run_guard(
     globs: list[str],
     name: str,
     include_deletions: bool = False,
+    *,
+    project_only: bool = True,
+    fail_closed: bool = False,
 ) -> int:
     """Execute a pre-push guard.
 
@@ -489,14 +701,16 @@ def run_guard(
             deletion-only pushes still surface to the validator. Default
             ``False`` excludes deletions to protect validators that read
             the listed paths.
+        project_only: Skip outside the ai-agents repository when ``True``.
+        fail_closed: Block when hook input, Git state, or validation fails.
 
     Returns:
         Exit code: 0 to allow, 2 to block.
     """
-    if skip_if_consumer_repo(name):
+    if project_only and skip_if_consumer_repo(name):
         return 0
     try:
-        command = _read_stdin_command(name)
+        command = _read_stdin_command(name, fail_closed=fail_closed)
         if command is None:
             return 0
         # Defense in depth: even when the harness matcher is `Bash(git push*)`,
@@ -514,10 +728,24 @@ def run_guard(
             return 0
 
         project_dir = get_project_directory()
+        if fail_closed:
+            _validate_strict_push_command(command, project_dir)
+            _validate_strict_push_configuration(project_dir)
         all_changed = _changed_files(
-            project_dir, name=name, include_deletions=include_deletions
+            project_dir,
+            name=name,
+            include_deletions=include_deletions,
+            fail_closed=fail_closed,
         )
         if all_changed is None:
+            if fail_closed:
+                _emit_violations(
+                    name,
+                    ["Guard could not determine changed files."],
+                    0,
+                    0,
+                )
+                return 2
             return 0
 
         matching = _filter_by_globs(all_changed, globs)
@@ -531,7 +759,18 @@ def run_guard(
         _emit_violations(name, violations, len(matching), len(all_changed))
         return 2
 
+    except _HookInputError as exc:
+        _emit_violations(name, [f"Guard received invalid hook input: {exc}"], 0, 0)
+        return 2
     except Exception as exc:
+        if fail_closed:
+            _emit_violations(
+                name,
+                [f"Guard infrastructure failure: {type(exc).__name__}: {exc}"],
+                0,
+                0,
+            )
+            return 2
         print(
             f"{name} guard error: {type(exc).__name__}: {exc}; "
             f"check validator implementation and changed-file paths. "

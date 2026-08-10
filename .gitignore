@@ -200,3 +200,6 @@ evals/*/runs/sweep-*
 # named file there stays tracked. A tool invoked from a subdirectory still
 # produces an unignored `docs/~/...`; that hole is real and is not closed here.
 /~/
+
+# Vendored plugin assets (immutable, integrity-verified)
+!.claude/hooks/PreToolUse/_vendor/markdownlint/node_modules/
