@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: 9a0f4ce702dba1e28cf2ae00c595175a5086e06b
+qaCommit: 0e88151ee59f70e5384ae26fae78382700debfa0
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -13,9 +13,11 @@ changing any existing output, consumer, or check name. The duplicate
 authoritative pytest run is deliberately untouched, which is the phase 1
 contract.
 
-This revision covers commit 9a0f4ce7, which answers three review findings on
-top of the original 99a4ed73. Both commits are validated together below; every
-number in this report was re-measured at 9a0f4ce7.
+This revision covers commit 0e88151e, which simplifies the resolver and its
+tests to fit the 500-line file-size gate, on top of 9a0f4ce7, which answered
+three review findings on top of the original 99a4ed73. All three commits are
+validated together below. Every number was re-measured at 0e88151e, and the
+simplification is proven behaviour-preserving in "Revalidation at 0e88151e".
 
 ## Evidence
 
@@ -33,17 +35,17 @@ number in this report was re-measured at 9a0f4ce7.
 
 | Finding | Fix | Test that fails without it |
 | --- | --- | --- |
-| Sibling FAIL masked by an executor verdict | lower tiers escalate through `worst()` | `test_an_executor_pass_does_not_mask_a_pass_through_failure` |
-| Same, from a SKIPPED executor | as above | `test_an_executor_skip_does_not_mask_a_pass_through_failure` |
+| Sibling FAIL masked by an executor verdict | lower tiers escalate to the worst status | `test_an_executor_pass_does_not_mask_a_pass_through_failure` |
+| Same, from a SKIPPED executor | as above | `test_same_named_jobs_reduce_to_one_status[skip-hides-no-fail]` |
 | Runs matched on head SHA alone | candidates must bind to the requested PR number | `test_a_colliding_sibling_run_does_not_hide_our_own_run` |
-| Empty `pull_requests` opened a hole | same-repo proven against a trusted constant | `test_an_unlinked_fork_run_is_never_bound` |
+| Empty `pull_requests` opened a hole | same-repo proven against a trusted constant | `test_a_run_binds_only_when_it_provably_belongs_to_us[empty-list-fork]` |
 | Shadow could collect zero samples silently | every run emits one sample notice, no-sample warns | `test_every_invocation_emits_exactly_one_sample_marker` |
 
 The escalation fix carries an over-fire risk, since `pytest.yml` ships a real
 `skip-tests` job with empty steps that appears alongside a green executor. If
 SKIPPED escalated, every ordinary green PR would resolve SKIPPED. That inverse
-is pinned by `test_a_benign_sibling_does_not_disturb_an_executor_pass` and by a
-dedicated mutant below.
+is pinned by `test_same_named_jobs_reduce_to_one_status[benign-skipped-sibling]`
+and by a dedicated mutant below.
 
 ## Discrimination check
 
@@ -114,6 +116,48 @@ The empty `pull_requests` array is normal, not anomalous. Live reads on
 number, while every run of merged PR 4819 carries an empty list. Treating the
 empty list as a failure would therefore break the resolver on closed PRs, which
 is why the same-repo fallback exists.
+
+## Revalidation at 0e88151e
+
+Commit 0e88151e deletes code, not behaviour: the resolver falls from 729 to 494
+lines and the tests from 988 to 491, so both clear the 500-line gate that was
+blocking the build. Nothing above changed, and four independent checks say so.
+
+A differential run loaded the pre-change module and the post-change module side
+by side and drove both through 24 API scenarios (stale head, no run, pass,
+skipped, the green-but-unrun payload, sibling failure, benign sibling,
+cancelled, pending, unrecognised conclusion, unbound run, fork, empty links,
+push run, third attempt, and every unreadable or malformed response) crossed
+with 5 local statuses. It compared the status, the reason, stdout, stderr, and
+every emitted output key. Zero differences. A second differential drove `main`
+over 6 argument vectors including every rejected invocation: identical exit
+codes and streams. `--help` is byte-identical, so the command line surface did
+not move either.
+
+The suite still reports 83 cases. Test bodies that differed only in data became
+parametrize tables, which holds the case count while the line count falls: run
+binding 10 cases, job tier aggregation 15, unusable API data 7, compare 5,
+invalid invocations 5. The 31360441685 payload is still pinned verbatim.
+
+A 20-mutant battery run from a clean tree covers the whole contract: stale head,
+push filter, head SHA, PR binding, fork rejection, run and attempt selection,
+the skipped pytest step, pass-through tiering, incomplete jobs, tier precedence,
+sibling escalation and its benign inverse, unrecognised conclusions, unbound
+runs, the job-name filter, sanitation, config exit, and both unreadable-payload
+guards. All 20 DEAD, none survived.
+
+Re-measured: 83 focused tests pass, 637 across `tests/quality_gate/` and
+`tests/workflows/`, `pre_pr.py` passes, `ruff check`, `ruff format --check` and
+`mypy` clean on both files, and taste-lints reports 0 errors where it previously
+reported 2 file-size errors.
+
+Two internal surfaces did change, neither observable to a caller: `__all__` was
+deleted, so the module no longer curates a star-import list, and `gh_json` now
+returns the payload or None instead of a (bool, object) pair, which moved the
+non-Mapping guard out of `parse_runs` into the one place that reads the body.
+Cohesion remains 1.0 because that score is a function of file length and
+definition count alone, so only splitting the module can raise it, and the
+file budget for this change forbids a sixth file.
 
 ## Accepted residual risk
 

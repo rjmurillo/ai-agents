@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5. This evidence commit follows it because the QA report must bind to a full commit SHA and session-logs rules forbid amending. Not pushed, per instruction."
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, and the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending. Not pushed, per instruction."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583."
+        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -158,10 +158,19 @@
     {
       "action": "Validated the review fixes and committed as 9a0f4ce7",
       "result": "83 focused tests pass, up from 57. 637 pass across tests/quality_gate/ and tests/workflows/. pre_pr.py exits 0, which included fixing two mypy union-attr errors the ratchet caught in the test file: tests are type-checked even though mypy reports tests.* as an unused section. A usable_scan() helper now returns a non-optional RunScan and fails by name, leaving scan_runs() for the one test that asserts the None path. taste count ratchet 581 against baseline 583, unchanged. actionlint exit 0, yamllint adds no new warning. Three files changed, still five authored files total."
+    },
+    {
+      "action": "Simplified both authored files under the 500-line taste-lints gate, committed as 0e88151e",
+      "result": "The resolver fell from 729 to 494 lines and its tests from 988 to 491, clearing the two file-size errors that were blocking the build. The file budget forbade a sixth file, so the fix was deletion, not extraction: a 125-line module docstring that restated the workflow, three single-caller wrappers inlined into their only callers, four near-identical status functions collapsed into job_status(job, kind) driven by the _GREEN_STATUS table whose insertion order already encoded the tier order, gh_json returning the payload or None instead of a pair the callers re-validated, and the RunScan container, worst(), build_parser() and __all__ deleted. In the tests, repeated GhFake literals became one gh_stub() and families of one-line tests became dict-driven parametrize tables, which is why 83 cases survive a 497-line cut."
+    },
+    {
+      "action": "Proved the simplification changed no behaviour",
+      "result": "A differential harness loaded the pre-change and post-change modules side by side and compared status, reason, stdout, stderr and every output key across 24 API scenarios by 5 local statuses, plus main() over 6 argument vectors: zero differences, and --help is byte-identical. A 20-mutant battery covering the whole contract (stale head, push filter, head SHA, PR binding, fork rejection, run and attempt selection, the skipped pytest step, pass-through tiering, incomplete jobs, tier precedence, sibling escalation and its benign inverse, unrecognised conclusions, unbound runs, the job-name filter, sanitation, config exit, and both unreadable-payload guards) killed all 20 from a clean tree. Cohesion stays 1.0: that score is a function of file length and definition count, so only splitting the module can move it."
     }
   ],
-  "endingCommit": "9a0f4ce702dba1e28cf2ae00c595175a5086e06b",
+  "endingCommit": "0e88151ee59f70e5384ae26fae78382700debfa0",
   "nextSteps": [
+    "Re-review the shadow PR: the file-size simplification at 0e88151e rewrote both authored files, so the earlier review of their internals no longer describes the code on the branch.",
     "Push the branch and open the PR; collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",
     "Expect frequent PENDING versus PASS disagreements: pytest.yml has a 45 minute budget while ai-pr-quality-gate run-tests has 10 minutes. Measuring that rate is the point of phase 1.",
     "Confirm actions: read suffices for the workflow GITHUB_TOKEN; local runs used a personal token.",
