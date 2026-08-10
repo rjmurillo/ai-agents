@@ -12,6 +12,8 @@ Documentation-only change for issue #4820:
 - `.agents/SESSION-PROTOCOL.md`
 - `.agents/governance/GOTCHAS.md`
 - `.agents/critique/SESSION-PROTOCOL-merge-workflow-debate-log.md`
+- `.agents/retrospective/2026-08-09-trunk-ci-cancellation-incident.md`
+- three new CI Serena memories and one updated agent-behavior memory
 
 ## Live evidence
 
@@ -34,6 +36,10 @@ PRs; unrelated backlog work does not.
 The review panel evaluated strict and non-strict variants. The strict-off
 variant exposed a merge-time TOCTOU. The final design restores strict and keeps
 the one-front cost control. No P0/P1 issue remains in the final model.
+
+The retrospective runs Five Whys and fishbone analysis over the 820-run update
+and 818-run cancellation. Four learnings scored 75%, above the 70% persistence
+threshold, and were persisted to Serena with memory-index entries.
 
 ## Verdict
 

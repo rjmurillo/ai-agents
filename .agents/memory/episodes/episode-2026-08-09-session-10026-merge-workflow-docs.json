@@ -60,7 +60,8 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e011"
       ],
       "leads_to": [
         "e006"
@@ -128,6 +129,17 @@
         "e009"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran reflect and retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
     }
   ],

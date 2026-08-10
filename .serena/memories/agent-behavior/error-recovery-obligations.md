@@ -1,7 +1,7 @@
 # Agent Error Recovery Obligations
 
-**Last Updated**: 2026-04-10
-**Sessions Analyzed**: 1
+**Last Updated**: 2026-08-09
+**Sessions Analyzed**: 2
 
 ## Constraints (HIGH confidence)
 
@@ -12,3 +12,11 @@
 - When creating session logs, check the schema by reading an existing valid session log on the same branch, not by guessing fields. (Session 2, 2026-04-10)
   - Evidence: 2 failed commits due to missing session log fields (branchVerified, notOnMain, markdownLintRun, checklistComplete, changesCommitted, validationPassed, serenaMemoryUpdated)
   - Fix: Read a passing session log first, match its structure exactly
+
+- Read terminal async push output and verify the remote SHA before reporting
+  progress. (Trunk/CI cancellation incident, 2026-08-09)
+  - Evidence: Pushes rejected by pre-push validation were reported as still
+    running or successful, delaying repair and causing the user to discover
+    stale remote state.
+  - Fix: `read_bash` to completion, then compare local and remote refs before
+    claiming a push landed.
