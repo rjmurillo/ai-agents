@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: 2360162d7e93850cce70b450ff923c810bdaeafe
+qaCommit: f968dfc87b8f96923c84e500b00697c9fb1b7856
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -17,9 +17,14 @@ This revision covers review fix commit 2360162d7. It preserves missing local
 pytest output as unknown, accepts uppercase expected SHAs, validates subprocess
 timeouts, and sources the pull request number from the event payload.
 
+Commit f968dfc87 closes the final fail-open path. A completed-success
+unclassified sibling remains benign, while `action_required` and other
+unrecognized conclusions now escalate an executor PASS to UNKNOWN.
+
 ## Evidence
 
 - Focused tests: 86 passed in 0.49 seconds.
+- Final resolver tests: 88 passed in 0.49 seconds.
 - Neighbouring suites: 637 passed across `tests/workflows/` and
   `tests/quality_gate/`.
 - `ruff check` and `ruff format --check` clean on both Python files.
@@ -42,6 +47,7 @@ timeouts, and sources the pull request number from the event payload.
 | Direct uppercase expected SHA became stale | normalize at the `resolve` boundary | `test_an_upper_case_expected_head_is_not_stale` |
 | Invalid timeout escaped config validation | reject non-finite and non-positive values | `test_an_invalid_invocation_exits_config` |
 | Shadow step depended on inherited PR wiring | source the current event PR directly | `test_shadow_step_passes_missing_local_status_through` |
+| Blocking unknown sibling was treated as benign | separate completed-success unclassified jobs from public UNKNOWN | `test_same_named_jobs_reduce_to_one_status[blocking-unknown-sibling-holds-open]` |
 
 The escalation fix carries an over-fire risk, since `pytest.yml` ships a real
 `skip-tests` job with empty steps that appears alongside a green executor. If
@@ -167,6 +173,18 @@ The `skip-hides-no-fail` case now gives the executor a valid `success`
 conclusion and a skipped pytest step. It therefore exercises the intended
 successful executor plus failing sibling path. The 83 focused tests pass, Ruff
 passes, and taste-lints reports no blocking finding.
+
+## Revalidation at f968dfc87
+
+The resolver now uses an internal `UNCLASSIFIED` status only for jobs that
+completed successfully without a known pytest step. That status remains benign
+beside an executor PASS. Public UNKNOWN conclusions, including
+`action_required`, are no longer benign and hold the aggregate open.
+
+Two regressions pin both sides of the distinction. An executor PASS plus
+`action_required` resolves UNKNOWN. An unclassified deciding tier plus a
+failing sibling resolves FAIL. All 88 focused tests pass in 0.49 seconds. Ruff
+passes on both changed Python files. An independent code review returned PASS.
 
 ## Accepted residual risk
 

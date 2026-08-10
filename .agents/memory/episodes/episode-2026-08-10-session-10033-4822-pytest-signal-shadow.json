@@ -273,7 +273,9 @@
       "caused_by": [
         "e023"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e025"
+      ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
     {
@@ -288,14 +290,38 @@
         "e022"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T16:21:50+00:00",
+      "type": "milestone",
+      "content": "Closed the blocking sibling fail-open review finding",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-10T16:15:02+00:00",
+      "type": "commit",
+      "content": "Commit: f968dfc87b8f96923c84e500b00697c9fb1b7856",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 92,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 7
   },
   "lessons": []
