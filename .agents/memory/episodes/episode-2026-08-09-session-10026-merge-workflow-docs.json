@@ -75,6 +75,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T05:50:44+00:00",
+      "type": "commit",
+      "content": "Commit: 9670e5ecda0f8ac5132e0bc315fb34e9295587b7",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
     }
@@ -84,7 +97,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Documentation and debate evidence committed in 04dabef7d1c17f1bf7ce1ca316910543afec41a9; this follow-up updates QA and session markers only."
+        "Evidence": "Documentation merged with current main in 9670e5ecda0f8ac5132e0bc315fb34e9295587b7; this follow-up updates QA and session markers only."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,6 +116,6 @@
       "outcome": "Addressed temporal race, unattended-mode, evidence confidence, and categorical-prohibition findings before convergence."
     }
   ],
-  "endingCommit": "04dabef7d1c17f1bf7ce1ca316910543afec41a9",
+  "endingCommit": "9670e5ecda0f8ac5132e0bc315fb34e9295587b7",
   "nextSteps": []
 }
