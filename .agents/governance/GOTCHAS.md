@@ -1060,6 +1060,11 @@ cost. An `update-branch` 422 is not automatically a failure: reread the head
 and merge state, retry once if the head changed, and continue when GitHub says
 the branch is already current.
 
+Acquire `refs/heads/merge-drain-lock` before changing auto-merge state. GitHub
+ref creation is atomic; a concurrent session gets 422 and stops. A crash leaves
+the ref in place, so the lease fails closed. Only a human clears a stale lease
+after verifying no landing session is active.
+
 For dependent new work, use stacked PRs: base each child on its parent branch,
 then retarget or update the child after the parent merges. Do not stack
 unrelated backlog items.

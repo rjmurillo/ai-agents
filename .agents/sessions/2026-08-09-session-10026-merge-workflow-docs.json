@@ -126,6 +126,10 @@
     {
       "action": "Added atomic repository landing lease",
       "outcome": "Live-probed fixed Git ref acquisition: first create succeeded, concurrent create returned HTTP 422, and release removed the ref. Six reviewers accepted the final lease delta."
+    },
+    {
+      "action": "Regenerated final consensus record",
+      "outcome": "Replaced the pre-lease decision JSON with decision-2026-08-10T08-38-56-548676+00-00, containing six lease-aware unanimous votes."
     }
   ],
   "endingCommit": "ba101b48ba4fecc05cf71c954e963683ccd9fa51",

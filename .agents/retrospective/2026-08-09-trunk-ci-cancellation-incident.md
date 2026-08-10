@@ -170,7 +170,7 @@ cost model and recovery contract existed.
 | Keep | Strict freshness, independent review, negative controls |
 | Drop | Trunk.io, parallel backlog refresh, bulk required-run cancellation |
 | Add | One-front landing protocol, cancellation recovery memory, local prompt gate |
-| Modify | Push reporting, session completion, workflow `reopened` coverage |
+| Modify | Push reporting, session completion, workflow `reopened` coverage, atomic landing lease |
 
 ### SMART Validation
 

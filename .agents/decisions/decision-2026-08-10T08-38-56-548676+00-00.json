@@ -1,0 +1,55 @@
+{
+  "id": "decision-2026-08-10T08-38-56-548676+00-00",
+  "timestamp": "2026-08-10T08:38:56.548676+00:00",
+  "topic": "Strict freshness with one-front auto-merge and atomic landing lease",
+  "context": "ADR-094 final decision. User-owned repository without native merge queue. Trunk removed. Parallel refresh of 41 branches triggered 820 workflow runs and 818 cancellations. Fixed Git ref acquisition was live-probed: first create succeeded, second returned 422, release removed the ref.",
+  "votes": [
+    {
+      "agent": "architect",
+      "position": "approve",
+      "rationale": "Strict is the safety lock; the atomic Git-ref lease and one-front rule control concurrency and CI cost.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "critic",
+      "position": "approve",
+      "rationale": "The lease closes the check-then-arm race and the final protocol covers 422 recovery, stale branches, and post-merge health.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "independent-thinker",
+      "position": "approve",
+      "rationale": "The measured cost model, stacked PR boundary, and fail-closed lease are scoped correctly.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "security",
+      "position": "approve",
+      "rationale": "Git ref creation is atomic, concurrent acquisition fails 422, crash recovery fails closed, and governance auto-merge is prohibited.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "analyst",
+      "position": "approve",
+      "rationale": "Live strict state, lease probe, and all operational commands are verifiable.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "high-level-advisor",
+      "position": "approve",
+      "rationale": "Minimum mechanism: GitHub strict freshness, one fixed lock ref, no queue, bot, or daemon.",
+      "confidence": 1.0
+    }
+  ],
+  "result": {
+    "decision": "approved",
+    "algorithm": "unanimous",
+    "confidence_score": 1.0,
+    "votes_for": 6,
+    "votes_against": 0,
+    "abstentions": 0,
+    "summary": "Unanimous approval (6 agents)"
+  },
+  "escalated": false,
+  "escalation_rationale": ""
+}

@@ -63,7 +63,8 @@
         "e004",
         "e011",
         "e013",
-        "e018"
+        "e018",
+        "e021"
       ],
       "leads_to": [
         "e006"
@@ -255,6 +256,17 @@
         "e019"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated final consensus record",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
     }
   ],
