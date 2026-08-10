@@ -105,8 +105,12 @@ jobs:
         id: should-run
         env:
           HAS_CODE_CHANGES: ${{ needs.check-paths.outputs.has-code-changes }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          if [ "$HAS_CODE_CHANGES" != "true" ]; then
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipped - draft pull request"
+          elif [ "$HAS_CODE_CHANGES" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no code changes detected"
           fi
