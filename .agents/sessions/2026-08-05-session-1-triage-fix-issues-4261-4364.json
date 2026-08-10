@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-05",
+    "branch": "fix/4261-4364-encoding-debt-scope",
+    "startingCommit": "5ec85be51a",
+    "objective": "Triage and fix issues 4261 and 4364 encoding and debt scope"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools loaded via tool search; this Copilot harness exposes no activate_project verb."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions and loaded the Serena manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this JSON session log with the session-init skill."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Invoked the github skill; used GitHub REST via gh api per the user request for issue and PR operations."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage-mandatory Serena memory after memory-index retrieval."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md, GOTCHAS.md, TESTING-RIGOR.md, Python, CI script, testing, generated-artifact, Claude skill, plugin, and session rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index and usage-mandatory; later added validation/code-quality-changed-only-regression-gate.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4261-4364-encoding-debt-scope"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4261-4364-encoding-debt-scope"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before edits; worktree only held the session log before code changes."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5ec85be51a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified before final session commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Added .serena/memories/validation/code-quality-changed-only-regression-gate.md and indexed it in memory-index.md after Serena write_memory transport closed."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran npx markdownlint-cli2 --fix on changed memory Markdown paths; config excluded .serena and reported 0 files, exit 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Test change committed as 4ba87e6765; session log and memory changes are staged in the final session commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed after session log update."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session SQL todos updated through implementation, test, mutation, and push phases."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No retrospective needed for this small triage and test-hardening PR."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4610-encoding-debt-scope.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Fetched issues #4261 and #4364 plus comments from GitHub REST. Initial API calls hit a 403 limiter, slept 300 seconds, retried once, then cached the issue data in ~/src/scratch/encdebt-api-cache."
+    },
+    {
+      "time": "T1",
+      "entry": "Read the whole threads and linked items found in them. #4261 was already closed as implemented. #4364 was closed as unmerited, then gained later evidence about low-confidence heuristic deltas."
+    },
+    {
+      "time": "T2",
+      "entry": "Checked dirty ai-agents worktrees by newest file age and content. No live or abandoned worktree had relevant #4261 or #4364 changes to harvest."
+    },
+    {
+      "time": "T3",
+      "entry": "Reproduced #4261 current state: check_subprocess_encoding.py exists, is wired, and exits 0 on scripts/validation/."
+    },
+    {
+      "time": "T4",
+      "entry": "Reproduced #4364 current state: changed-only plus base returned exit 0 for unchanged legacy absolute debt and exit 10 for a real cohesion drop. The absolute-debt claim is stale on current main."
+    },
+    {
+      "time": "T5",
+      "entry": "Added tests/test_assess_regression.py coverage for the main branch point: existing absolute debt exits 0 and existing score drops exit 10."
+    },
+    {
+      "time": "T6",
+      "entry": "Validation passed: ruff on tests/test_assess_regression.py; pytest focused suites returned 42 passed, then 103 passed including the skill test file."
+    },
+    {
+      "time": "T7",
+      "entry": "Mutation proof passed. M1 changed-only absolute fallback died. M2 suppressed exit-10 died. M3 subprocess errors keyword mutant died. M4 cosmetic docstring wording survived."
+    }
+  ],
+  "endingCommit": "219437db2b65ad9e9a2bbf2a10047916a8e5871d",
+  "nextSteps": [
+    "Push fix/4261-4364-encoding-debt-scope and open the PR by REST with triage evidence and the mutation table."
+  ]
+}

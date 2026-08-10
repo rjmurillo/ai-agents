@@ -2369,6 +2369,11 @@ class TestHistoricalLogsAreExemptByConstruction:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", _no_base),
         ):
             git_hook_policy.validate_branch_sessions(paths, Path.cwd())
@@ -2381,6 +2386,31 @@ class TestHistoricalLogsAreExemptByConstruction:
     def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
         """No path list means no work. A directory fallback would fail 131 logs."""
         assert self._invoked_paths([]) == []
+
+    def test_git_hook_policy_skips_logs_already_on_main(self) -> None:
+        from scripts.validation import git_hook_policy
+
+        seen: list[str] = []
+
+        def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(command[1 + command.index("scripts/validate_session_json.py")])
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                side_effect=lambda _root, path: path == "old.json",
+            ),
+        ):
+            result = git_hook_policy.validate_branch_sessions(
+                ["old.json", "new.json"],
+                Path.cwd(),
+            )
+
+        assert result == 0
+        assert seen == ["new.json"]
 
     def test_workflow_validates_one_file_per_invocation(self) -> None:
         """One log per invocation, never a glob (ADR-006: logic lives in the script).
@@ -3139,6 +3169,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(tracked=("old.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
@@ -3156,6 +3191,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
@@ -3202,6 +3242,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
@@ -3223,6 +3268,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(tracked=("old.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())

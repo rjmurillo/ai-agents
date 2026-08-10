@@ -44,7 +44,7 @@
     "skills/github/scripts/pr/get_unresolved_review_threads.py": 1,
     "skills/github/scripts/pr/invoke_pr_comment_processing.py": 1,
     "skills/github/scripts/pr/merge_pr.py": 1,
-    "skills/github/scripts/pr/new_pr.py": 6,
+    "skills/github/scripts/pr/new_pr.py": 5,
     "skills/github/scripts/pr/post_pr_comment_reply.py": 1,
     "skills/github/scripts/pr/resolve_pr_review_thread.py": 1,
     "skills/github/scripts/pr/set_pr_auto_merge.py": 1,
