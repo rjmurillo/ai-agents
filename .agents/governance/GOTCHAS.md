@@ -1027,12 +1027,11 @@ that no longer existed. That remedy shipped: the setting is now `true`
 main can no longer land at all, so the two edits can no longer meet for the
 first time on main.
 
-What remains is the case strict does not cover. Ruleset 11104075 still has no
-`merge_queue` rule and no workflow handles a `merge_group` event, so admission
-is serialized only by the refresh requirement, not by testing the combined
-result before the merge. The exact-equality assertion above is therefore the
-gate that still catches a baseline and a count arriving out of step, and it
-fires locally on a tree nobody's diff touched.
+What remains is the case strict does not cover. Ruleset 11104075 intentionally
+has no merge queue. GitHub auto-merge serializes landing after the branch is
+current and all required checks pass, while the exact-equality assertion above
+catches a baseline and a count arriving out of step. It can still fire locally
+on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline
@@ -1049,6 +1048,35 @@ uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py
 
 Three seconds. Failing on your branch *and* on a pristine `origin/main` worktree
 means main is red and it is not yours to fix.
+## GitHub auto-merge is the landing workflow, not Trunk Merge Queue
+
+The canonical procedure is
+`.agents/SESSION-PROTOCOL.md` Phase 2.8. This entry records only the traps that
+made the procedure necessary.
+
+Initial proof: PR #4819 merged under strict freshness plus GitHub squash
+auto-merge on 2026-08-09. One merge proves the mechanism, not throughput under
+contention.
+
+Do not set strict to false to improve throughput. A Trunk Merge Queue trial
+did that and produced the opposite result in the incident window: 18 generated
+draft pull requests, 695 workflow runs, and zero merges. Each draft reran the
+pull request workflow set, including paid AI reviews, and generated metadata
+that several required checks could not satisfy. Issue #4815 and closed PR
+#4814 preserve the evidence. This was a failed Trunk configuration trial, not
+proof that every merge queue implementation is unsound. The trial was closed
+without merge and its remote branch was deleted.
+
+The expensive failure mode is discovering known gates remotely. Symptom:
+every loop costs the local pre-push suite plus another CI cycle, while the
+failure was already encoded in a prompt or validator in the repository. CI is
+a backstop. It is not the first place to run known checks.
+
+Enabling auto-merge is not the finish line. Another pull request can merge and
+make this branch stale again before GitHub lands it. Keep the task open until
+the pull request reaches `MERGED`; Phase 2.8 owns the measured timeout and
+handoff procedure.
+
 ## Merging main clears an inherited red; check that before debugging your diff
 
 A pre-push failure in tests your change never touched is usually a stale base,

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10026,
+    "date": "2026-08-09",
+    "branch": "docs/github-auto-merge-protocol",
+    "startingCommit": "3b3c53e2f",
+    "objective": "Document the proven GitHub auto-merge workflow and the rollback of the failed Trunk trial."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository memory context through the .serena/memories file fallback documented in AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md and path-scoped .agents governance instructions before editing protocol files."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The active session supplied the full Trunk incident timeline, rollback state, and chosen GitHub auto-merge workflow."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/sessions/2026-08-09-session-10026-merge-workflow-docs.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used doc-sync, adr-review, the ADR change detector, live GitHub API verification, and six review agents."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used gh for live ruleset and PR evidence and dedicated file tools for documentation changes."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied session-log, governance, universal, and ADR-review constraints."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the corrected strict-policy memory and incident evidence from issue #4815 and PR #4814."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/github-auto-merge-protocol in isolated worktree /tmp/wt-merge-docs."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All edits are on docs/github-auto-merge-protocol."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Live facts verified, six-role protocol debate completed, and documentation checks passed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not edited."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory was needed; SESSION-PROTOCOL.md and GOTCHAS.md are the cross-harness binding surfaces for this workflow."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdown validation runs before commit."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4820-merge-workflow-docs.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Documentation and debate evidence committed together; endingCommit recorded in a follow-up commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff --check, scoped markdown validation, session validation, and protocol review passed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified live landing policy",
+      "outcome": "Ruleset 11104075 reports strict=true and zero merge_queue rules; PR #4819 is merged; PR #4814 is closed without merge."
+    },
+    {
+      "action": "Updated canonical protocol",
+      "outcome": "Added a required GitHub auto-merge landing phase with local gates, QA evidence, unattended critic, and a wait-until-merged terminal condition."
+    },
+    {
+      "action": "Updated the failure catalog",
+      "outcome": "Replaced stale merge-queue language and recorded the measured Trunk trial failure, rollback, and local-first gate sequence."
+    },
+    {
+      "action": "Ran six-role protocol review",
+      "outcome": "Addressed temporal race, unattended-mode, evidence confidence, and categorical-prohibition findings before convergence."
+    }
+  ],
+  "endingCommit": "dc0f4b97fa93c8ec28db42caedb189db7332ebb4",
+  "nextSteps": []
+}

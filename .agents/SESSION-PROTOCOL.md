@@ -2,8 +2,8 @@
 <!-- # taste-lint: ignore file-size, canonical protocol must remain one document for validators and agents. -->
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-02-07
-> **Protocol Version**: 2.1
+> **Last Updated**: 2026-08-09
+> **Protocol Version**: 2.2
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -852,6 +852,83 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 - Session log records validation pass
 
 **Rationale:** PR #908 post-mortem revealed PRs with co-mingled changes and missing QA reports. Automated validation catches these issues before PR creation, reducing review burden and revert risk.
+
+### Phase 2.8: Pull Request Landing (REQUIRED)
+
+The repository uses GitHub auto-merge with strict branch freshness. It does
+not use an external merge queue.
+
+**Repository policy:**
+
+1. Ruleset `11104075` MUST keep
+   `strict_required_status_checks_policy: true`.
+2. Agents MUST NOT weaken strict freshness, add a merge queue, or install a
+   queue-specific required status without explicit user approval. This is the
+   current default, not a claim that no merge queue can work. Any future trial
+   MUST define a cost ceiling, success target, time limit, and rollback before
+   changing repository policy.
+3. A pull request MUST be `MERGEABLE`, have zero unresolved review threads,
+   carry valid `Fixes #N` or `Refs #N` linkage, and pass every required check
+   before an agent enables auto-merge.
+4. Agents MUST use squash auto-merge:
+
+   ```bash
+   gh pr merge <PR_NUMBER> --auto --squash
+   ```
+
+5. If `mergeStateStatus` is `BEHIND` or `DIRTY`, the agent MUST refresh and
+   merge main explicitly:
+
+   ```bash
+   git fetch origin main
+   git merge --no-edit origin/main
+   ```
+
+   The agent MUST resolve conflicts and rerun deterministic gates before
+   pushing.
+6. When the changed paths trigger AI quality workflows, the agent MUST run
+   the matching canonical prompts under
+   `.github/prompts/pr-quality-gate-*.md` locally against the complete final
+   diff before the final push. The QA report MUST record every axis verdict and
+   any supported finding that changed the branch. Remote CI is the backstop,
+   not the first review.
+7. Code-changing pull requests MUST carry their QA report and valid session
+   binding before the final push. Do not use remote `Validate PR` to discover
+   a missing report after a 15-minute CI run.
+8. If operating unattended, the agent MUST invoke critic before enabling
+   auto-merge, per the Unattended Execution Protocol.
+9. Enabling auto-merge is not completion. The agent MUST wait until the pull
+   request reaches `MERGED`. If it has not merged within 30 minutes, the agent
+   MUST keep the task incomplete and report the exact in-progress or failing
+   required checks from `gh pr checks --required`; the user MAY accept a
+   handoff instead. Basis: PR #4819's slowest required check completed in 1094
+   seconds (18 minutes 14 seconds), so 30 minutes leaves 11 minutes 46 seconds
+   before escalation. Re-measure when required checks change.
+
+**Initial proof:** PR #4819 merged on 2026-08-09 with strict freshness enabled,
+all required checks green, zero unresolved threads, and GitHub squash
+auto-merge. This proves the mechanism, not its throughput under contention.
+
+A Trunk Merge Queue trial immediately before it created 18 draft pull requests
+and 695 workflow runs in the measured incident window, merged zero pull
+requests, and was removed. Issue #4815 and closed PR #4814 preserve the
+root-cause evidence. The trial exposed configuration incompatibilities between
+draft-generated metadata and this repository's required checks; it does not
+prove every merge queue implementation will fail. Do not reintroduce that
+integration without a new user decision and a bounded experiment with a
+rollback criterion.
+
+**Verification checklist:**
+
+- [ ] Ruleset strict policy is `true`
+- [ ] Full PR thread and linked work items read
+- [ ] Zero unresolved review threads
+- [ ] Every required check passed or intentionally skipped by its contract
+- [ ] QA report and session binding present for code changes
+- [ ] Canonical local AI prompts run when their workflows apply
+- [ ] Unattended critic review complete when applicable
+- [ ] `gh pr merge --auto --squash` executed
+- [ ] Pull request reached `MERGED`, or user accepted an explicit handoff
 
 ### Phase 3: Git Operations (REQUIRED)
 
