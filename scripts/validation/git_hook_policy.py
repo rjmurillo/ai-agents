@@ -2776,7 +2776,22 @@ def _report_suppression_violations(
 
 
 def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
-    """CI backstop for the no-net-new suppression policy."""
+    """CI backstop for the no-net-new suppression policy.
+
+    History integrity is checked first because this gate resolves its range
+    through `git merge-base`, and a shallow clone answers that question wrongly
+    rather than failing. `_merge_base` returns None on a grafted clone, the
+    fallback below substitutes the base tip, and the range silently widens from
+    the push's own commits to the branch's entire history. Measured on a
+    complete clone of this repository: `git rev-list base..head` returned 0
+    commits, and 2263 after a single `git fetch --depth=1 origin main`.
+
+    `_push_updates` already gates the pre-push path on the same check. This
+    call is what wires this path to it (issue #4680).
+    """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     head_sha = _resolve_commit(repo_root, head)
     if head_sha is None:
         print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
@@ -3184,11 +3199,27 @@ def _added_suppression_violations_for_range(
 def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
     """CI mirror of security-suppressions-push: compares HEAD against base_ref.
 
+    History integrity is checked first. This gate measures a two-dot range, and
+    on a grafted clone that range silently widens instead of failing: git cannot
+    exclude the base's ancestry, so every file that differs between the base tip
+    and the branch enters the scan, including files the branch never touched.
+    Suppressions that trunk removed after the branch point then read as
+    additions. Measured on a complete clone of this repository, `git diff
+    --name-only base..HEAD` reported 0 paths before a `git fetch --depth=1
+    origin main` and 290 after it.
+
+    `_push_updates` already gates the pre-push path on the same check. This call
+    is what wires the CI path to it (issue #4680).
+
     Returns:
         0  no new security suppressions detected
         1  new security suppressions found
+        2  incomplete history, so the range cannot be measured
         3  git error (external failure)
     """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     range_spec = f"{base_ref}..HEAD"
     result = _run_git(
         repo_root,
