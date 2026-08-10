@@ -271,6 +271,12 @@ class TestMemoryValidation:
         assert step is not None
         return step
 
+    def _index_step(self) -> dict[str, Any]:
+        steps = _job_steps(self._workflow(), "validate-memories")
+        step = _find_step_by_run(steps, "memory_index.py")
+        assert step is not None
+        return step
+
     def test_verify_captures_exit_code_before_pipefail(self) -> None:
         run = self._verify_step()["run"]
         assert "set +e" in run
@@ -291,6 +297,22 @@ class TestMemoryValidation:
         rc, out, _ = _run_memory_parse(None)
         assert rc != 0
         assert "::error::memory-validation-results.json missing or empty" in out
+
+    def test_index_validation_uses_selected_base_ref(self) -> None:
+        step = self._index_step()
+
+        assert step["env"]["BASE_REF"] == (
+            "origin/${{ github.event.pull_request.base.ref "
+            "|| github.event.repository.default_branch }}"
+        )
+        assert '--base-ref "$BASE_REF"' in step["run"]
+
+    def test_index_validation_checkout_fetches_base_history(self) -> None:
+        steps = _job_steps(self._workflow(), "validate-memories")
+        checkout = _find_step_by_uses(steps, "actions/checkout@")
+
+        assert checkout is not None
+        assert checkout["with"]["fetch-depth"] == 0
 
 
 class TestDriftDetection:

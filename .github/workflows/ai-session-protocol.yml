@@ -13,6 +13,11 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -33,7 +38,7 @@ permissions:
 # Note: Matrix strategy with fail-fast: false allows independent validation
 
 concurrency:
-  group: session-protocol-${{ github.event.pull_request.number }}
+  group: session-protocol-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 env:
@@ -78,11 +83,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Identify Changed Session Files
         id: changed
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           GH_REPO: ${{ github.repository }}
           # Issue #215: Session End checklist requirement introduced 2025-12-21
           # Historical sessions before this date are exempt from validation
@@ -110,6 +117,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Fetch origin/main for HANDOFF validation
         run: |
@@ -129,6 +139,7 @@ jobs:
       - name: Validate Session Protocol
         id: validate
         env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SESSION_FILE: ${{ matrix.session_file }}
         run: uv run --frozen python3 scripts/ci/validate_session_protocol.py
 
@@ -163,32 +174,34 @@ jobs:
 # Aggregate results and post comment
 
   aggregate:
-    name: Aggregate Results
+    name: Session Protocol Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
-    needs: [detect-changes, validate]
+    needs: [check-changes, detect-changes, validate]
     # Always run to produce SUCCESS (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
-    if: always()
+    if: always() && !cancelled()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
       - name: Check if aggregation needed
         id: should-run-protocol
         env:
+          CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
+          SHOULD_RUN_PROTOCOL: ${{ needs.check-changes.outputs.should-run-protocol }}
+          DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
           HAS_SESSIONS: ${{ needs.detect-changes.outputs.has_sessions }}
-        run: |
-          if [ "$HAS_SESSIONS" != "true" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipped - no session file changes detected"
-          fi
-
-      - name: Checkout repository
-        if: steps.should-run-protocol.outputs.skip != 'true'
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          SESSION_FILES: ${{ needs.detect-changes.outputs.session_files }}
+        run: python3 scripts/ci/check_session_aggregation_needed.py
 
       - name: Download all validation artifacts
         if: steps.should-run-protocol.outputs.skip != 'true'
@@ -201,6 +214,9 @@ jobs:
       - name: Aggregate Verdicts
         if: steps.should-run-protocol.outputs.skip != 'true'
         id: aggregate
+        env:
+          EXPECTED_RESULTS: ${{ steps.should-run-protocol.outputs.expected_results }}
+          EXPECTED_ARTIFACTS: ${{ steps.should-run-protocol.outputs.expected_artifacts }}
         run: python3 .github/scripts/aggregate_session_verdicts.py
 
       - name: Generate Compliance Report
@@ -218,7 +234,7 @@ jobs:
         if: steps.should-run-protocol.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           python3 .github/scripts/run_with_retry.py -- \
