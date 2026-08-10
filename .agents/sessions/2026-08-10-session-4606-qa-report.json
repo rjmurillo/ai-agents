@@ -4,7 +4,7 @@
     "number": 4606,
     "date": "2026-08-10",
     "branch": "autofix-qa-4606",
-    "startingCommit": "399ba580b0271cb6d25aa7ebc799fdb00aacd143",
+    "startingCommit": "79d59f39f32d9046a06a4c318f5be6eee19aad31",
     "objective": "Add QA evidence for PR 4606 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "399ba580b0271cb6d25aa7ebc799fdb00aacd143"
+        "Evidence": "79d59f39f32d9046a06a4c318f5be6eee19aad31"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/test_check_review_thread_resolution_shas.py tests/test_check_suppressed_review_findings.py tests/build_scripts/test_generate_commands.py tests/build_scripts/test_validate_templates_schema.py -q passed with 72 passed in 0.46s."
+        "Evidence": "uv run --frozen pytest tests/test_check_review_thread_resolution_shas.py tests/test_check_suppressed_review_findings.py tests/build_scripts/test_generate_commands.py tests/build_scripts/test_validate_templates_schema.py -q passed with 72 passed in 0.54s after merging origin/main."
       },
       "qaValidation": {
         "level": "MUST",
@@ -115,6 +115,10 @@
     {
       "time": "2026-08-10T11:30:00Z",
       "entry": "Created QA report bound to pre-report code commit 399ba580b0271cb6d25aa7ebc799fdb00aacd143."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to 79d59f39f32d9046a06a4c318f5be6eee19aad31."
     }
   ],
   "endingCommit": "",
@@ -123,8 +127,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "972f7d1c9a2d5384ac09b990e5b06ffd776e2ae2",
-      "head": "399ba580b0271cb6d25aa7ebc799fdb00aacd143"
+      "base": "7f686ce9217c21bd5c346adfc511e8bc6546ccd3",
+      "head": "79d59f39f32d9046a06a4c318f5be6eee19aad31"
     }
   }
 }
