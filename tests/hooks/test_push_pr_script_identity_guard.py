@@ -1345,6 +1345,7 @@ def test_claude_allows_nonmatching_bash_when_group_is_called(
         "git log --oneline -5",
         "git commit --allow-empty -m test",
         "git fetch origin",
+        "git push origin HEAD",
         'bash -c "echo hello"',
         "sh -c 'ls'",
         'node -e "console.log(1)"',
@@ -1386,7 +1387,44 @@ def test_dispatchers_allow_commands_outside_guard_scope(
 @pytest.mark.parametrize(
     "command",
     [
+        "./attacker/pr/n{e..e..1}w_pr.py",
+        "./attacker/pr/n{e..e}w_pr.py",
+        "./attacker/pr/new_pr{.py,.txt}",
+        "./attacker/pr/n[e]w_pr.py",
+        "./attacker/pr/new_pr.py",
+    ],
+)
+def test_dispatchers_deny_direct_lookalike_execution(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    """A repository executable named new_pr.py is in scope however it is spelled.
+
+    Scope rules B and C do not apply to a direct launch: there is no Python
+    operand to resolve, and the lookalike's bytes differ from the trusted
+    script. Only the naming rule catches it, so every expansion form that
+    deterministically produces the name has to reach the policy.
+    """
+    repository, _ = _repository(tmp_path)
+    lookalike = repository / "attacker" / "pr" / "new_pr.py"
+    lookalike.parent.mkdir(parents=True)
+    lookalike.write_text("#!/bin/sh\necho pwned\n", encoding="utf-8")
+    lookalike.chmod(0o755)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2, f"{command}: allowed"
+    assert "push-pr script identity denied" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
         "cp file{1..1000}.txt dir/",
+        "echo {1..10000..7}",
+        "seq 1 10 | xargs -I{} echo {}",
         "mkdir -p build/{a,b,c}",
         "mv report{1..200}.csv archive/",
         "ls src/{lib,bin}/*.rs",
@@ -1426,6 +1464,12 @@ def test_dispatchers_allow_legitimate_brace_expansion(
         "python3 -I attacker/pr/new_pr{.,.}py",
         "pypy3 attacker/pr/n[e]w_[p]r.[p][y]",
         "python3 -I attacker/{new_,old_}pr.py",
+        # Bash's stepped range. Missing the step made _brace_alternatives read
+        # "e..e..1" as literal text, so ./attacker/pr/n{e..e..1}w_pr.py, which
+        # bash expands to the lookalike, skipped the guard entirely (#4825).
+        "python3 -I attacker/pr/n{e..e..1}w_pr.py",
+        "python3 -I attacker/pr/n{a..z..1}w_pr.py",
+        "python3 -I attacker/pr/n{1..3..1}ew_pr.py",
     ],
 )
 def test_dispatchers_deny_range_obfuscated_new_pr(
@@ -1445,33 +1489,6 @@ def test_dispatchers_deny_range_obfuscated_new_pr(
 
     assert result.returncode == 2, f"{command}: allowed"
     assert "push-pr script identity denied" in result.stderr
-
-
-@pytest.mark.parametrize(
-    "guard",
-    [
-        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
-        COPILOT_PLUGIN_ROOT
-        / "hooks"
-        / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
-    ],
-    ids=["claude", "copilot"],
-)
-def test_guards_allow_git_push_outside_scope(tmp_path: Path, guard: Path) -> None:
-    """`git push` is out of the identity guard's scope on both surfaces.
-
-    This runs the guard script directly rather than through a dispatcher. The
-    `Bash(git push*)` matcher also selects `invoke_markdownlint_guard`, whose
-    shim needs the installed plugin layout to import `_bootstrap` and so raises
-    under this harness on the Copilot side, independently of this guard. Going
-    straight to the guard keeps the assertion about the guard.
-    """
-    repository, _ = _repository(tmp_path)
-
-    result = _run_guard_script(guard, "git push origin HEAD", repository)
-
-    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
@@ -1869,3 +1886,79 @@ def test_copilot_dispatcher_allows_nonmatching_bash(tmp_path: Path) -> None:
     result = _run_copilot("git status --short", repository)
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "runner_lib",
+    [
+        REPO_ROOT / ".claude" / "lib" / "hook_dispatch_timeout.py",
+        COPILOT_PLUGIN_ROOT / "lib" / "hook_dispatch_timeout.py",
+    ],
+    ids=["claude", "copilot"],
+)
+def test_timed_shim_launcher_keeps_sibling_imports(runner_lib: Path) -> None:
+    """Timed shims must keep their own directory on sys.path.
+
+    `-I` implies `-P`, which drops the script's directory, and every timed shim
+    imports its sibling `_bootstrap`. Under `-I` the child died with
+    ModuleNotFoundError before its policy ran, so the markdownlint push guard
+    was disabled at runtime (issue #4825). `-E -s` keeps the injection
+    protection (no PYTHONPATH, no user site-packages) without dropping the
+    script directory.
+    """
+    source = runner_lib.read_text(encoding="utf-8")
+
+    assert '"-E", "-s"' in source, f"{runner_lib.name} lost the -E -s launcher flags"
+    assert '"-I", str(shim_path)' not in source, (
+        f"{runner_lib.name} launches timed shims with -I, which breaks sibling imports"
+    )
+
+
+def test_timed_shim_launcher_ignores_pythonpath(tmp_path: Path) -> None:
+    """The launcher flags still block PYTHONPATH injection.
+
+    Negative control for the flag change above: an attacker directory on
+    PYTHONPATH must not reach the child's sys.path.
+    """
+    attacker = tmp_path / "attacker"
+    attacker.mkdir()
+    probe = f"import sys;print(int({str(attacker)!r} in sys.path))"
+    env = _environment(PYTHONPATH=str(attacker))
+
+    isolated = subprocess.run(
+        [sys.executable, "-E", "-s", "-c", probe],
+        capture_output=True, encoding="utf-8", env=env, timeout=60, check=True,
+    ).stdout.strip()
+    control = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True, encoding="utf-8", env=env, timeout=60, check=True,
+    ).stdout.strip()
+
+    assert isolated == "0", "-E -s let PYTHONPATH through"
+    assert control == "1", "negative control did not honor PYTHONPATH"
+
+
+def test_push_pr_command_grants_no_unrestricted_write() -> None:
+    """/push-pr must not pre-approve unrestricted Write.
+
+    It reads untrusted repository diffs and already holds git add, commit and
+    push, so a pre-approved Write would let a prompt-injected diff redirect the
+    body write to a source or hook file and publish it (issue #4825). The host
+    prompts for the single .agents/scratch body write instead, which is the
+    posture this command shipped with before the scratch-path change.
+    """
+    for path in (
+        REPO_ROOT / ".claude" / "commands" / "push-pr.md",
+        COPILOT_PLUGIN_ROOT / "skills" / "push-pr" / "SKILL.md",
+    ):
+        line = next(
+            entry
+            for entry in path.read_text(encoding="utf-8").splitlines()
+            if entry.startswith("allowed-tools:")
+        )
+        granted = {item.strip() for item in line.removeprefix("allowed-tools:").split(",")}
+
+        assert "Write" not in granted, f"{path.name} pre-approves unrestricted Write"
+        assert "Bash(mkdir:-p .agents/scratch)" in granted, (
+            f"{path.name} lost the narrow scratch-directory grant"
+        )
