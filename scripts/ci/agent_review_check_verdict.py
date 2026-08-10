@@ -4,9 +4,9 @@
 Replaces the PowerShell 'Check verdict and fail if needed' block in
 .github/actions/agent-review/action.yml (ADR-006).
 
-Blocking verdicts: CRITICAL_FAIL, REJECTED, FAIL, NEEDS_REVIEW.
-Infrastructure failures (INFRASTRUCTURE_FAILURE=true) downgrade to
-a warning instead of failing the step.
+Blocking verdicts: FAIL_VERDICTS plus UNKNOWN, DID_NOT_RUN, and malformed tokens.
+Infrastructure failures (INFRASTRUCTURE_FAILURE=true) defer the merge decision
+to the aggregate gate instead of failing the per-agent step.
 
 ENV:
   AGENT                  - agent name
@@ -16,7 +16,7 @@ ENV:
   INFRASTRUCTURE_FAILURE - "true" if review failed due to infra issues
 
 EXIT CODES (ADR-035):
-  0 - verdict is not blocking, or blocking due to infra failure (downgraded)
+  0 - verdict is not blocking, or an infra failure is deferred to the aggregate
   1 - verdict is blocking and not an infra failure
 """
 
@@ -24,8 +24,17 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-_BLOCKING_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# The composite action executes this file directly, so bootstrap must precede
+# the package import when the repository is not installed.
+from scripts.ai_review_common import FAIL_VERDICTS, merge_verdicts  # noqa: E402
+
+_BLOCKING_VERDICTS = frozenset(FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"})
 _MAX_ANNOTATION_LENGTH = 180
 
 
@@ -46,17 +55,21 @@ def run(_argv: list[str] | None = None) -> int:
                 "::warning::Both verdict and findings are empty, treating as infrastructure failure"
             )
 
-    if verdict not in _BLOCKING_VERDICTS:
-        print(f"✅ {emoji} {agent} review passed with verdict: {verdict}")
+    # The aggregate owns the final gate decision for infrastructure failures.
+    if infra_failure == "true":
+        print(
+            f"::warning::[{agent}] Infrastructure failure (verdict: {verdict}). "
+            "Deferring PR status to AI Quality Gate Results."
+        )
+        print()
+        print(f"⚠️ {emoji} {agent} review did not run due to infrastructure failure")
+        print()
+        print("AI Quality Gate Results decides whether this blocks the PR.")
         return 0
 
-    # Infrastructure failures are non-blocking (aggregate handles downgrade)
-    if infra_failure == "true":
-        print(f"::warning::[{agent}] Infrastructure failure (verdict: {verdict}). Not blocking PR.")
-        print()
-        print(f"⚠️ {emoji} {agent} review had infrastructure failure (Copilot CLI unavailable)")
-        print()
-        print("Verdict downgraded by aggregate step. See workflow summary for details.")
+    normalized_verdict = merge_verdicts([verdict])
+    if normalized_verdict not in {"CRITICAL_FAIL", "UNKNOWN"}:
+        print(f"✅ {emoji} {agent} review passed with verdict: {verdict}")
         return 0
 
     # Blocking verdict - compute annotation
@@ -67,19 +80,6 @@ def run(_argv: list[str] | None = None) -> int:
         summary = findings.replace("\n", " ")
         if len(summary) > _MAX_ANNOTATION_LENGTH:
             summary = summary[: _MAX_ANNOTATION_LENGTH - 3] + "..."
-
-    # Check inner infra failure (preserved for behavioral parity even though
-    # the outer early-exit above makes it logically unreachable in practice)
-    if os.environ.get("INFRASTRUCTURE_FAILURE", "") == "true":
-        print(
-            f"::warning::[{agent}] {verdict}: {summary}"
-            " (infrastructure failure, downgrading to warning)"
-        )
-        print()
-        print(f"⚠️ {emoji} {agent} review had infrastructure failure (verdict: {verdict})")
-        print()
-        print("Infrastructure failures are non-blocking. See aggregate results for final verdict.")
-        return 0
 
     print(f"::error::[{agent}] {verdict}: {summary}")
     print()

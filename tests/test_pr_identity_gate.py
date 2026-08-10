@@ -50,40 +50,37 @@ def _agent_label(path: Path) -> str:
 
 
 class TestGitHubURLRoutingRule:
-    """The analyst agent must forbid web_fetch on GitHub URLs (#4229)."""
+    """The analyst agent must use declared GitHub tools, not web_fetch (#4229)."""
 
-    def test_no_web_fetch_on_github_urls_stated(self) -> None:
+    def test_no_web_access_stated(self) -> None:
         text = _analyst_text()
-        # The specific prohibition must appear: "Never call web_fetch on GitHub URLs"
-        # (backtick-quoted or plain)
         assert re.search(
-            r"[Nn]ever\s+call\s+`?web_fetch`?\s+on\s+GitHub\s+URL", text
+            r"no\s+web\s+access", text, re.IGNORECASE
         ), (
-            "analyst.md must contain 'Never call web_fetch on GitHub URLs' "
-            "(issue #4229: the hook blocks web_fetch and redirects to tools "
-            "not in the agent manifest, causing silent stall with no findings)"
+            "analyst.md must state the analyst has 'no web access' "
+            "(issue #4229: web_fetch is not available for GitHub URLs)"
         )
 
-    def test_github_url_intercept_skill_named(self) -> None:
+    def test_github_read_tools_declared(self) -> None:
         text = _analyst_text()
-        assert "github-url-intercept" in text, (
-            "analyst.md must name the github-url-intercept skill as the "
-            "routing mechanism for GitHub URLs (issue #4229)"
+        assert "pull_request_read" in text, (
+            "analyst.md must declare pull_request_read as the mechanism "
+            "for retrieving GitHub PR data (issue #4229)"
         )
 
-    def test_hook_redirect_consequence_documented(self) -> None:
+    def test_direct_retrieval_documented(self) -> None:
         text = _analyst_text()
-        # The instruction must state that the hook redirects to unavailable tools.
-        assert re.search(r"hook\b.*redirect|redirect.*agent", text, re.IGNORECASE), (
-            "analyst.md must document that the pre-tool hook redirects "
-            "web_fetch on GitHub URLs to tools not in the agent manifest "
-            "(issue #4229: agents that hit this are blocked silently)"
+        assert re.search(
+            r"retrieve.*directly|directly.*retrieve|declared.*read\s+tools",
+            text,
+            re.IGNORECASE,
+        ), (
+            "analyst.md must document that GitHub data is retrieved directly "
+            "via declared read tools (issue #4229)"
         )
 
     def test_blocked_fallback_for_github_urls(self) -> None:
         text = _analyst_text()
-        # When all GitHub API paths fail, the agent must return [BLOCKED], not
-        # substitute local content.
         assert "BLOCKED" in text, (
             "analyst.md must specify [BLOCKED] as the response when GitHub "
             "API is unreachable (issues #4221, #4229)"
