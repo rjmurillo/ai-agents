@@ -14,7 +14,7 @@
       "content": "Create memory-consolidate skill",
       "caused_by": [],
       "leads_to": [
-        "e004"
+        "e006"
       ],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
@@ -25,7 +25,7 @@
       "content": "Review and validate",
       "caused_by": [],
       "leads_to": [
-        "e004"
+        "e006"
       ],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
@@ -36,34 +36,43 @@
       "content": "Simplify tests",
       "caused_by": [],
       "leads_to": [
-        "e004"
+        "e006"
       ],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-10T05:35:18+00:00",
-      "type": "commit",
-      "content": "Commit: 83dd2a6031",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e006",
-        "e012"
-      ],
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Harden for shipping",
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e006"
       ],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-10T05:50:12+00:00",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate customer install",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T05:35:18+00:00",
       "type": "commit",
-      "content": "Commit: 2e83b2b1ffe9724a4695808fa5299c99285f5fef",
+      "content": "Commit: 83dd2a603153654699605eb0cb59e713df18bcb4",
       "caused_by": [
-        "e004"
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
       ],
       "leads_to": [
         "e007"
@@ -71,23 +80,12 @@
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
     {
-      "id": "e006",
-      "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Harden for shipping",
-      "caused_by": [],
-      "leads_to": [
-        "e004"
-      ],
-      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
-    },
-    {
       "id": "e007",
       "timestamp": "2026-08-10T05:50:12+00:00",
       "type": "commit",
-      "content": "Commit: 2e83b2b1ff",
+      "content": "Commit: 2e83b2b1ffe9724a4695808fa5299c99285f5fef",
       "caused_by": [
-        "e005"
+        "e006"
       ],
       "leads_to": [
         "e008"
@@ -98,7 +96,7 @@
       "id": "e008",
       "timestamp": "2026-08-10T06:12:40+00:00",
       "type": "commit",
-      "content": "Commit: 86b10f37fa",
+      "content": "Commit: 86b10f37faead2ca29f37c9819ce27b000fe327f",
       "caused_by": [
         "e007"
       ],
@@ -122,9 +120,9 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-10T06:29:16+00:00",
+      "timestamp": "2026-08-10T06:41:14+00:00",
       "type": "commit",
-      "content": "Commit: 5f157e8f6c",
+      "content": "Commit: fe24f1be224fd26debab6d63cef2b38e468b01ca",
       "caused_by": [
         "e009"
       ],
@@ -135,11 +133,24 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-10T06:41:14+00:00",
+      "timestamp": "2026-08-10T08:39:00+00:00",
       "type": "commit",
-      "content": "Commit: fe24f1be224fd26debab6d63cef2b38e468b01ca",
+      "content": "Commit: 154030efa281737a2c57f9be403c2d673820c168",
       "caused_by": [
         "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T08:42:22+00:00",
+      "type": "commit",
+      "content": "Commit: 6a1238f153ee5c1d6b6259656d6411a1bfe68f78",
+      "caused_by": [
+        "e011"
       ],
       "leads_to": [
         "e013"
@@ -147,23 +158,12 @@
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     },
     {
-      "id": "e012",
-      "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Validate customer install",
-      "caused_by": [],
-      "leads_to": [
-        "e004"
-      ],
-      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
-    },
-    {
       "id": "e013",
-      "timestamp": "2026-08-10T08:39:00+00:00",
+      "timestamp": "2026-08-10T08:56:36+00:00",
       "type": "commit",
-      "content": "Commit: 154030efa281737a2c57f9be403c2d673820c168",
+      "content": "Commit: 58323969fa12f49c1245750f51cad9388da97280",
       "caused_by": [
-        "e011"
+        "e012"
       ],
       "leads_to": [
         "e014"
@@ -172,9 +172,9 @@
     },
     {
       "id": "e014",
-      "timestamp": "2026-08-10T08:42:22+00:00",
+      "timestamp": "2026-08-10T09:34:30+00:00",
       "type": "commit",
-      "content": "Commit: 6a1238f153ee5c1d6b6259656d6411a1bfe68f78",
+      "content": "Commit: 8d1207b802540a3dc1c798795f2324459ef47a71",
       "caused_by": [
         "e013"
       ],
@@ -185,9 +185,9 @@
     },
     {
       "id": "e015",
-      "timestamp": "2026-08-10T08:56:36+00:00",
+      "timestamp": "2026-08-10T12:21:09+00:00",
       "type": "commit",
-      "content": "Commit: 58323969fa12f49c1245750f51cad9388da97280",
+      "content": "Commit: 7e7327a74d717dacef201976fb3717ba649c5f0e",
       "caused_by": [
         "e014"
       ],
@@ -198,37 +198,11 @@
     },
     {
       "id": "e016",
-      "timestamp": "2026-08-10T09:34:30+00:00",
-      "type": "commit",
-      "content": "Commit: 8d1207b802540a3dc1c798795f2324459ef47a71",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": [
-        "e017"
-      ],
-      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-08-10T12:21:09+00:00",
-      "type": "commit",
-      "content": "Commit: 7e7327a74d717dacef201976fb3717ba649c5f0e",
-      "caused_by": [
-        "e016"
-      ],
-      "leads_to": [
-        "e018"
-      ],
-      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
-    },
-    {
-      "id": "e018",
       "timestamp": "2026-08-10T12:26:08+00:00",
       "type": "commit",
       "content": "Commit: 3af524be8d7bc446909575c61c0272bc2bc8fa7e",
       "caused_by": [
-        "e017"
+        "e015"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
@@ -239,7 +213,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 11,
     "files_changed": 23
   },
   "lessons": []
