@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads.json
-qaCommit: 7ff4931e628b2ae6070434e6fbf0d8fccb0236cf
+qaCommit: feb0c72592b026d8eb9a72bc09f77e609f0394eb
 ---
 # Test Report: PR #4738 scope base review fixes
 
@@ -20,6 +20,7 @@ contract.
 | `uv run --frozen pytest tests/test_scope_pr_base_real_git.py tests/test_scope_pr_base_credibility.py tests/test_detect_scope_explosion.py tests/ci/test_pr_validation_workflow.py -q` | 175 passed |
 | `uv run --frozen pytest -m windows_path -q` | 1027 passed, 3 skipped, 24585 deselected |
 | `uv run --frozen pytest tests/test_detect_scope_explosion.py::TestIsAncestor -q` | 4 passed |
+| `uv run --frozen pytest tests/test_pr_autofix_late_live_state_gate.py -q` | 24 passed |
 | `uv run --frozen ruff check scripts/detect_scope_explosion.py scripts/scope_pr_base.py tests/test_scope_pr_base_credibility.py tests/test_detect_scope_explosion.py` | passed |
 
 ## Threads addressed
@@ -35,5 +36,5 @@ contract.
 ## Verdict
 
 PASS. The stacked-base fallback now fails closed, the citation contract matches
-current production code, and the targeted scope and Windows path suites pass
+current production code, and the targeted scope, Windows path, and pr-autofix monitor suites pass
 locally.

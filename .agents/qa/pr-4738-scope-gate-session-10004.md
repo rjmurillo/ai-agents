@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-07-session-10004-scope-gate-stacked-base.json
-qaCommit: 7ff4931e628b2ae6070434e6fbf0d8fccb0236cf
+qaCommit: feb0c72592b026d8eb9a72bc09f77e609f0394eb
 ---
 # Test Report: PR #4738 stacked-base scope gate session 10004
 
@@ -18,6 +18,7 @@ ancestry tests introduced on this PR.
 |---------|--------|
 | `uv run --frozen pytest tests/test_scope_pr_base_real_git.py tests/test_scope_pr_base_credibility.py tests/test_detect_scope_explosion.py tests/ci/test_pr_validation_workflow.py -q` | 175 passed |
 | `uv run --frozen pytest -m windows_path -q` | 1027 passed, 3 skipped, 24585 deselected |
+| `uv run --frozen pytest tests/test_pr_autofix_late_live_state_gate.py -q` | 24 passed |
 | `uv run --frozen ruff check scripts/detect_scope_explosion.py scripts/scope_pr_base.py tests/test_scope_pr_base_credibility.py tests/test_detect_scope_explosion.py` | passed |
 
 ## Verdict
