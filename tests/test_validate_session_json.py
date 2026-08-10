@@ -1977,7 +1977,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -1998,7 +2000,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), str(session_files[0])],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -3435,8 +3439,13 @@ class TestEndingCommitReachability:
 
         def git(*args: str) -> str:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True,
-                encoding="utf-8", check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
@@ -3482,7 +3491,9 @@ class TestEndingCommitReachability:
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
         assert (
@@ -3490,7 +3501,9 @@ class TestEndingCommitReachability:
                 ["git", "rev-parse", "--is-shallow-repository"],
                 cwd=shallow,
                 capture_output=True,
-                text=True, encoding="utf-8",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             ).stdout.strip()
             == "true"

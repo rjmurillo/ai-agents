@@ -52,6 +52,7 @@ with isolated_mutation_worktree(repo_root, [target]) as workspace:
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
 
@@ -82,6 +83,7 @@ with mutation_workspace.isolated_mutation_worktree(repo_root, [target]) as works
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
 

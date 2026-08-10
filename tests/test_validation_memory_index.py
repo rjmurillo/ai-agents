@@ -644,6 +644,7 @@ class TestCheckMemoryIndexReferences:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
             )
 
         def write_index(link_count: int) -> None:
@@ -660,6 +661,7 @@ class TestCheckMemoryIndexReferences:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
         git("config", "user.email", "test@example.com")
         git("config", "user.name", "Test User")
