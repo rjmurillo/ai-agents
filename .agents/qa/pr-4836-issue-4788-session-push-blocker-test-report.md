@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking.json
-qaCommit: a1bda218d4396fef2e957377eeeb36ff943221d4
+qaCommit: cf6afb684da2a4a1a5a8243f70fa3c448b972065
 ---
 # QA Report: PR 4836 session validation blockers
 
@@ -28,6 +28,7 @@ PASS. The PR 4836 CI fixes cover the reported Validate PR, Run Python Tests, Win
 | `uv run --frozen pytest tests/test_validate_session_json.py::TestSessionScopeIsDecidedOnceForBothCallSites tests/test_new_pr.py::test_session_log_temp_copy_preserves_the_original_basename tests/test_new_pr.py::TestRunValidations tests/test_new_pr.py::TestResolveValidationBase tests/test_new_pr.py::TestResolveValidationHead tests/test_new_pr.py::TestMainUsesResolvedValidationBase tests/test_push_range_filter.py::TestHandleSessions::test_a_committed_session_symlink_does_not_match_head tests/test_lefthook_integration.py -q` | 868 passed |
 | `uv run --frozen pytest tests/test_new_pr.py -q` | 88 passed |
 | `uv run --frozen pytest tests/test_new_pr.py tests/test_validation_pre_pr_session_scope.py tests/test_validation_pre_pr.py::TestValidateSessionEnd tests/test_validate_session_json.py::TestHistoricalLogsAreExemptByConstruction tests/test_validate_session_json.py::TestSessionScopeIsDecidedOnceForBothCallSites tests/test_validate_session_json.py::TestValidateQaReportEvidence -q` | 139 passed |
+| `uv run --frozen pytest tests/hooks/test_push_pr_script_identity_guard.py tests/test_lefthook_integration.py::test_pre_commit_session_policy_validates_changed_upstream_content tests/test_lefthook_integration.py::test_pre_commit_session_policy_validates_absent_upstream_path tests/test_lefthook_integration.py::test_pre_push_session_policy_validates_absent_upstream_path tests/mutation/test_mutate_debate_log_path.py::test_ic_comment_only_change_survives -q` | 913 passed |
 | `uv run --frozen pytest tests/test_validate_session_json.py -q` | 346 passed |
 | `uv run --frozen ruff check scripts/validation/checks_tooling.py tests/test_validation_pre_pr.py` | PASS |
 | `uv run --frozen pytest tests/test_validation_pre_pr.py::TestValidateSessionEnd -q` | 7 passed |

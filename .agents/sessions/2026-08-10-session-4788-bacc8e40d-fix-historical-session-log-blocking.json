@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800, bcb4c920, 0f3eee31, ea2844d3, a1bda218"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800, bcb4c920, 0f3eee31, ea2844d3, a1bda218, 76986026, cf6afb68"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed for changed Python files; focused new_pr and session validation suites passed 139 tests; merge-tree ratchet passed at a1bda218d4396fef2e957377eeeb36ff943221d4"
+        "Evidence": "Ruff passed for changed Python files; focused new_pr and session validation suites passed 139 tests; pre-push regression tests passed 913 tests; merge-tree ratchet passed at cf6afb684da2a4a1a5a8243f70fa3c448b972065"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -199,9 +199,13 @@
     {
       "task": "Merge push-pr trust boundary from main",
       "outcome": "Accepted the mainline no-repository-validator policy for /push-pr, kept validation-head resolution where still used, and 139 focused tests pass"
+    },
+    {
+      "task": "Align session validation with latest main",
+      "outcome": "Dropped obsolete push-pr validator changes, restored main pre-commit session behavior, and kept pre-push creation-mode for new branch logs; 913 regression tests pass"
     }
   ],
-  "endingCommit": "a1bda218d4396fef2e957377eeeb36ff943221d4",
+  "endingCommit": "cf6afb684da2a4a1a5a8243f70fa3c448b972065",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
