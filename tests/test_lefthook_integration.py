@@ -809,6 +809,11 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
+    assert pre_push_jobs["session-json-validation"]["use_stdin"] is True
+    session_validation_run = pre_push_jobs["session-json-validation"]["run"]
+    assert isinstance(session_validation_run, str)
+    assert "{push_files}" not in session_validation_run
+    assert "glob" not in pre_push_jobs["session-json-validation"]
     piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
@@ -824,6 +829,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
+        "session-json-validation",
     ]
     markdown_groups = [
         item["group"]
@@ -842,7 +848,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "python-type-check",
         "infrastructure-advisory",
         "workflow-local-run",
-        "session-json-validation",
         "observation-sync-advisory",
     ):
         run = pre_push_jobs[name]["run"]
