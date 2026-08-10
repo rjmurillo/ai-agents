@@ -30,6 +30,7 @@ _AGENTS = _mod._AGENTS
 _AGENT_DISPLAY_NAMES = _mod._AGENT_DISPLAY_NAMES
 _build_action_required_section = _mod._build_action_required_section
 _build_findings_sections = _mod._build_findings_sections
+_security_review_ran = _mod._security_review_ran
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -306,9 +307,8 @@ class TestBuildActionRequiredSection:
         assert "**Analyst**" not in result
 
     def test_excludes_infrastructure_failed_agent(self):
-        # An agent that never ran (Copilot CLI unavailable) is downgraded to a
-        # NEEDS_REVIEW verdict with category INFRASTRUCTURE. It must not appear
-        # in Action Required (issue #2818).
+        # An agent that never ran receives category INFRASTRUCTURE. It must not
+        # appear in Action Required (issue #2818).
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "NEEDS_REVIEW"
         categories = {a: "N/A" for a in _AGENTS}
@@ -331,13 +331,13 @@ class TestBuildActionRequiredSection:
 
 
 # ---------------------------------------------------------------------------
-# Tests: security did-not-run notice (issue #2821 option c)
+# Tests: security did-not-run notice (issue #4777)
 # ---------------------------------------------------------------------------
 
 
 class TestSecurityNotice:
     """The report renders a distinct CAUTION block when the security axis hit
-    an infrastructure failure (issue #2821, option c)."""
+    an infrastructure failure (issue #4777)."""
 
     def _render(self, tmp_path, monkeypatch, **argv_kwargs) -> str:
         output_file = _setup_output(tmp_path, monkeypatch)
@@ -362,7 +362,7 @@ class TestSecurityNotice:
         )
         assert "[!CAUTION]" in content
         assert "Security review did not run." in content
-        assert "#2821" in content
+        assert "#4777" in content
 
     def test_no_caution_block_when_security_ran(self, tmp_path, monkeypatch):
         content = self._render(tmp_path, monkeypatch)
@@ -380,6 +380,33 @@ class TestSecurityNotice:
         )
         assert "Security review did not run." not in content
 
+    def test_caution_block_for_invalid_security_verdict(
+        self, tmp_path, monkeypatch
+    ):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            final_verdict="UNKNOWN",
+            verdicts={"security": "FOOBAR"},
+            categories={"security": "CODE_QUALITY"},
+        )
+        assert "Security review did not run." in content
+        assert "did not produce a valid result" in content
+
+
+class TestSecurityReviewRan:
+    def test_pass_without_infrastructure_ran(self):
+        assert _security_review_ran("PASS", "N/A") is True
+
+    def test_pass_with_infrastructure_did_not_run(self):
+        assert _security_review_ran("PASS", "INFRASTRUCTURE") is False
+
+    def test_did_not_run_without_category_did_not_run(self):
+        assert _security_review_ran("DID_NOT_RUN", "CODE_QUALITY") is False
+
+    def test_unknown_did_not_run(self):
+        assert _security_review_ran("UNKNOWN", "CODE_QUALITY") is False
+
 
 class TestBuildFindingsSections:
     def test_infra_empty_file_shows_did_not_run(self, tmp_path, monkeypatch):
@@ -389,8 +416,9 @@ class TestBuildFindingsSections:
         (findings_dir / "security-findings.txt").write_text("")
         categories = {a: "N/A" for a in _AGENTS}
         categories["security"] = "INFRASTRUCTURE"
-        result = _build_findings_sections(categories)
-        assert "did not run: Copilot CLI unavailable" in result
+        result = _build_findings_sections(categories, security_review_ran=False)
+        assert "did not run: no valid security review result" in result
+        assert "Copilot CLI unavailable" not in result
         assert "No findings available (empty file)" not in result
 
     def test_non_infra_empty_file_shows_no_findings(self, tmp_path, monkeypatch):
@@ -399,7 +427,7 @@ class TestBuildFindingsSections:
         findings_dir.mkdir(parents=True, exist_ok=True)
         (findings_dir / "security-findings.txt").write_text("")
         categories = {a: "N/A" for a in _AGENTS}
-        result = _build_findings_sections(categories)
+        result = _build_findings_sections(categories, security_review_ran=True)
         assert "No findings available (empty file)" in result
         assert "did not run" not in result
 
@@ -407,5 +435,5 @@ class TestBuildFindingsSections:
         monkeypatch.chdir(tmp_path)
         Path("ai-review-results").mkdir(parents=True, exist_ok=True)
         categories = {a: "N/A" for a in _AGENTS}
-        result = _build_findings_sections(categories)
+        result = _build_findings_sections(categories, security_review_ran=True)
         assert "Findings file not found" in result
