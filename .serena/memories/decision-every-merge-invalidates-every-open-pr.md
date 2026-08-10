@@ -28,12 +28,11 @@ clears violations. So **every merge invalidates every other open PR**, and a
 drain of N PRs is not N independent units of work. It is a queue that re-dirties
 itself behind you.
 
-### The strict policy flipped on, which sharpens this rather than fixing it
+### The strict policy flipped on, then back off for the merge queue
 
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
-ever *required* to be current. That is no longer the configuration. Measured
-2026-08-08:
+ever *required* to be current. It was then flipped on. Measured 2026-08-08:
 
 ```
 gh api repos/rjmurillo/ai-agents/rules/branches/main \
@@ -42,23 +41,37 @@ gh api repos/rjmurillo/ai-agents/rules/branches/main \
   -> [true]
 ```
 
-This was a deliberate remedy, not configuration drift. Issue #3755, "Merge
-race: a pull request behind main can merge on a check that never saw main's
-content", argued that `strict_required_status_checks_policy = False` on ruleset
-11104075 let a green check describe a tree that no longer existed, and
-documented two PRs four minutes apart whose gate and prose met for the first
-time on main. It closed 2026-08-05. Enabling strict is the fix it asked for, so
-read the flip as that issue landing rather than as a setting someone toggled.
+**It is `false` again as of 2026-08-09.** Trunk Merge Queue was adopted, and
+Trunk documents that it is incompatible with requiring branches to be up to
+date, because the queue tests the merged result itself rather than making each
+branch current first. Re-measure before relying on either value; this setting
+has now changed twice in two days, in opposite directions, for unrelated
+reasons.
 
-Read the reversal carefully, because it inverts the operational conclusion
-without touching the root cause. Under `false`, a stale branch *could* still
-merge, so staleness cost you a spurious red and a re-measure. Under `true`,
-GitHub refuses the merge outright until the branch is current, so the
+The `true` flip was a deliberate remedy, not configuration drift. Issue #3755,
+"Merge race: a pull request behind main can merge on a check that never saw
+main's content", argued that `strict_required_status_checks_policy = False` on
+ruleset 11104075 let a green check describe a tree that no longer existed, and
+documented two PRs four minutes apart whose gate and prose met for the first
+time on main. It closed 2026-08-05.
+
+Read both reversals carefully, because the operational conclusion inverts each
+time without the root cause moving. Under `false`, a stale branch *could*
+still merge, so staleness cost you a spurious red and a re-measure. Under
+`true`, GitHub refuses the merge outright until the branch is current, so the
 invalidation is no longer advisory: after each landing, every other open PR is
 hard-blocked until someone refreshes it.
 
-The drain is therefore strictly serial. Measured the same day: four PRs landed
-(#4614, #4572, #4755, #4741) and the open count ended at 60, with every
+Under the current `false` plus a merge queue, the queue is supposed to carry
+the guarantee that strict used to: it tests each pull request against the tip
+before merging. That only holds while the queue actually works. Between
+2026-08-09 and PR #4814 it did not merge anything, so the repository briefly
+had neither guarantee, which is strictly weaker than either configuration
+alone. If the queue is removed, restore `strict` in the same change rather
+than leaving the gap open.
+
+Under `true`, the drain is strictly serial. Measured 2026-08-08: four PRs
+landed (#4614, #4572, #4755, #4741) and the open count ended at 60, with every
 remaining PR pushed back to `BEHIND` by the landings.
 
 Do not read that as "64 minus four equals 60". Reconstructing open-PR state

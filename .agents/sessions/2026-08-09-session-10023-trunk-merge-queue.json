@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10023,
+    "date": "2026-08-09",
+    "branch": "fix/trunk-merge-title-exemption",
+    "startingCommit": "1563725cf",
+    "objective": "Make Trunk Merge Queue able to complete and stop it re-running paid agent reviews."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository memory context through the .serena/memories file fallback documented in AGENTS.md Serena Init."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, .claude/rules, and the agent-harness-reference skill before changing any hook or workflow surface."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior session checkpoint supplied the Trunk adoption context and the required-context deadlock resolved earlier that day."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/sessions/2026-08-09-session-10023-trunk-merge-queue.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used agent-harness-reference for harness contract rules and scripts/validation/pre_pr.py for gating."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used gh for GitHub reads and the repository validators rather than ad hoc shell equivalents."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied .claude/rules/universal.md, including MUST 3 on closing keywords, which caught an invalid Fixes reference."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and decision-every-merge-invalidates-every-open-pr.md; searched the index for merge queue and strict status keywords."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/trunk-merge-title-exemption in isolated worktree /tmp/wt-trunk. One edit was made on the wrong branch in the primary checkout, detected by git branch --show-current, reverted, and reapplied in the worktree."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits on fix/trunk-merge-title-exemption."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Runtime verification, negative controls, and adversarial review completed and recorded."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not edited."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Corrected decision-every-merge-invalidates-every-open-pr.md, which recorded strict_required_status_checks_policy as true while the live ruleset reports false after the Trunk adoption."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the QA report; .agents/** is excluded by repository configuration, so 0 files linted."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4814-trunk-merge-queue-test-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Seven commits from 99212698e through ab65a471d; this commit adds QA and session evidence."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "365 workflow tests passed and scripts/validation/pre_pr.py reported all validations passed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Measured the Trunk adoption instead of assuming it worked",
+      "outcome": "18 draft pull requests, 0 merges, and 695 of roughly 1000 workflow runs in one window on trunk-merge branches."
+    },
+    {
+      "action": "Cancelled orphaned runs on closed drafts",
+      "outcome": "15 in-flight runs stopped, halting ongoing spend before making any config decision."
+    },
+    {
+      "action": "Diagnosed the blocking checks from Trunk's own failure tables and the jobs API",
+      "outcome": "Validate PR title fails by construction on Trunk's generated title. Validate PR fails at Check QA Report Exists because Trunk generates the body."
+    },
+    {
+      "action": "Verified expression semantics with act rather than from documentation",
+      "outcome": "Step-level if reads job-level env, the folded expression yields the string true, and actor matching is exact across five cases run against a fork payload."
+    },
+    {
+      "action": "Audited the repository against Trunk's documented setup requirements",
+      "outcome": "One ruleset where Trunk documents at least two, no push restriction, and an admin bypass set to always."
+    },
+    {
+      "action": "Scoped the queue gate in version control",
+      "outcome": ".trunk/trunk.yaml declares three checks that can pass on two pull requests apart and fail together, replacing the 16-context default."
+    },
+    {
+      "action": "Ran adversarial review and verified its findings independently",
+      "outcome": "Reviewer found Validate PR would still block the queue. Confirmed against job 93324296243 before acting, then removed it."
+    },
+    {
+      "action": "Corrected my own reporting errors",
+      "outcome": "Withdrew the claim that all non-title reds were cancellations, softened an unproven CodeQL claim in two places, and replaced an invalid Fixes #4747 reference with issue #4815."
+    }
+  ],
+  "endingCommit": "ab65a471d907911f8e3bbf1d68234eda74df453b",
+  "nextSteps": [
+    "Land PR #4814, then queue exactly one pull request to test the queue end to end.",
+    "If that pull request does not merge cleanly, remove Trunk and restore strict_required_status_checks_policy.",
+    "Re-evaluate whether Analyze (actions) and Analyze (python) report on a Trunk draft once one clean run exists.",
+    "Enable batching only after the queue completes once.",
+    "Add the push-restriction ruleset Trunk documents, and reconsider the always admin bypass."
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-08-09-session-10023-trunk-merge-queue",
+  "session": "2026-08-09-session-10023-trunk-merge-queue",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Make Trunk Merge Queue able to complete and stop it re-running paid agent reviews.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Measured the Trunk adoption instead of assuming it worked",
+      "chosen": "18 draft pull requests, 0 merges, and 695 of roughly 1000 workflow runs in one window on trunk-merge branches.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the Trunk adoption instead of assuming it worked",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cancelled orphaned runs on closed drafts",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the blocking checks from Trunk's own failure tables and the jobs API",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified expression semantics with act rather than from documentation",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited the repository against Trunk's documented setup requirements",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped the queue gate in version control",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review and verified its findings independently",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected my own reporting errors",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:27:13+00:00",
+      "type": "commit",
+      "content": "Commit: 99212698e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T02:43:18+00:00",
+      "type": "commit",
+      "content": "Commit: ab65a471d907911f8e3bbf1d68234eda74df453b",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10023-trunk-merge-queue"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
