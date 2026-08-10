@@ -64,16 +64,18 @@ STATUS_PENDING = "PENDING"
 STATUS_STALE = "STALE"
 STATUS_CANCELLED = "CANCELLED"
 STATUS_UNKNOWN = "UNKNOWN"
+STATUS_UNCLASSIFIED = "UNCLASSIFIED"
 
 # Worst wins. A sibling failure must never be masked by a sibling success, and
 # PASS is the only status that asserts the suite actually ran and was green.
 _SEVERITY = {
     STATUS_PASS: 0,
     STATUS_SKIPPED: 1,
-    STATUS_UNKNOWN: 2,
-    STATUS_PENDING: 3,
-    STATUS_CANCELLED: 4,
-    STATUS_FAIL: 5,
+    STATUS_UNCLASSIFIED: 2,
+    STATUS_UNKNOWN: 3,
+    STATUS_PENDING: 4,
+    STATUS_CANCELLED: 5,
+    STATUS_FAIL: 6,
 }
 
 AGREE = "AGREE"
@@ -101,14 +103,12 @@ KIND_UNCLASSIFIED = "unclassified"
 _GREEN_STATUS = {
     KIND_EXECUTOR: STATUS_PASS,
     KIND_PASS_THROUGH: STATUS_SKIPPED,
-    KIND_UNCLASSIFIED: STATUS_UNKNOWN,
+    KIND_UNCLASSIFIED: STATUS_UNCLASSIFIED,
 }
 
-# Statuses a lower-tier sibling may hold without disturbing the deciding tier:
-# the NORMAL outcomes of a job that did not run the suite. UNKNOWN is benign on
-# purpose, because "I could not classify this sibling" must never erase a PASS
-# an executor directly observed.
-BENIGN_SIBLING_STATUSES = frozenset({STATUS_PASS, STATUS_SKIPPED, STATUS_UNKNOWN})
+# Statuses a lower-tier sibling may hold without disturbing the deciding tier.
+# UNCLASSIFIED means the sibling completed successfully but proves nothing.
+BENIGN_SIBLING_STATUSES = frozenset({STATUS_PASS, STATUS_SKIPPED, STATUS_UNCLASSIFIED})
 
 REASON_STALE_HEAD = "the expected head sha is not the live pull request head"
 REASON_LIVE_HEAD_UNREADABLE = "the live pull request head could not be read"
@@ -345,6 +345,10 @@ def aggregate(jobs: Sequence[Job]) -> Resolution:
         if status not in BENIGN_SIBLING_STATUSES
     ]
     status = max([base, *unhealthy], key=_SEVERITY.__getitem__)
+    if status == STATUS_UNCLASSIFIED:
+        status = STATUS_UNKNOWN
+    if base == STATUS_UNCLASSIFIED:
+        base = STATUS_UNKNOWN
     reason = f"{len(deciding)} {kind} job(s) of {len(jobs)} matching job(s) resolve to {base}"
     if unhealthy:
         reason += f", raised to {status} by {len(unhealthy)} unhealthy sibling job(s)"
