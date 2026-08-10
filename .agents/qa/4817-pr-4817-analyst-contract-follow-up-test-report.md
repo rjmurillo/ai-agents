@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 1f776d469ed765603a9a92accf7ab09a2ec94e97
+qaCommit: 4060b157e8afd732129ddc620ac71f43601bb5e7
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
