@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4606-qa-report.json
-qaCommit: 79d59f39f32d9046a06a4c318f5be6eee19aad31
+qaCommit: 7692a151ab1795938e61838de3c8e4ef5868fbed
 ---
 
 # QA Report: PR 4606
@@ -10,7 +10,7 @@ qaCommit: 79d59f39f32d9046a06a4c318f5be6eee19aad31
 
 - PR: #4606
 - Branch: `fix/revthreads-completion-gate`
-- Pre-report code commit: `79d59f39f32d9046a06a4c318f5be6eee19aad31`
+- Pre-report code commit: `7692a151ab1795938e61838de3c8e4ef5868fbed`
 - Session log: `.agents/sessions/2026-08-10-session-4606-qa-report.json`
 - Change area: Review-thread completion gate checks and command generation mirrors.
 
@@ -34,4 +34,4 @@ qaCommit: 79d59f39f32d9046a06a4c318f5be6eee19aad31
 
 ## Verdict
 
-PASS. Targeted tests passed against pre-report code commit `79d59f39f32d`.
+PASS. Targeted tests passed against pre-report code commit `7692a151ab17`.
