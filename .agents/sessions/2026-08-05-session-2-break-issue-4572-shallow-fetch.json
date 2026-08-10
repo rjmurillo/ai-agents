@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work committed at 9ea5de87e2; session log completion committed separately."
+        "Evidence": "Implementation and follow-up validation commits are recorded through 7db7eff9fd6593f7105bc81ffd5a4fdec45cf491."
       },
       "validationPassed": {
         "level": "MUST",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "Serena memory records the durable shallow-fetch finding."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-10-pr-4642-original-session.md"
       }
     }
   },
@@ -131,6 +136,6 @@
       "evidence": "Mutation proof under ~/src/scratch/deadlock-mutations: M1, M2, M3 dead; M4 cosmetic survivor."
     }
   ],
-  "endingCommit": "9ea5de87e2",
+  "endingCommit": "7db7eff9fd6593f7105bc81ffd5a4fdec45cf491",
   "nextSteps": []
 }
