@@ -247,7 +247,11 @@ def _validate_routing_table(
                 # Alt is secondary in an " or " split - check parent row
                 continue
             pfx = (_MCP_PREFIX + expected_tool) if mcp_prefixed else expected_tool
-            if actual_tools and actual_tools[0] != pfx:
+            if len(actual_tools) > 1:
+                errors.append(
+                    f"{surface_label}: duplicate associations for alias '{alt}': {actual_tools}"
+                )
+            elif actual_tools and actual_tools[0] != pfx:
                 errors.append(
                     f"{surface_label}: non-path alias '{alt}' maps to "
                     f"'{actual_tools[0]}', expected '{pfx}'"
@@ -258,7 +262,12 @@ def _validate_routing_table(
             actual_tools = routes.get(alt, [])
             if actual_tools:
                 pfx = (_MCP_PREFIX + expected_tool) if mcp_prefixed else expected_tool
-                if actual_tools[0] != pfx:
+                if len(actual_tools) > 1:
+                    errors.append(
+                        f"{surface_label}: duplicate associations"
+                        f" for extra path '{alt}': {actual_tools}"
+                    )
+                elif actual_tools[0] != pfx:
                     errors.append(
                         f"{surface_label}: extra path '{alt}' maps to "
                         f"'{actual_tools[0]}', expected '{pfx}'"
@@ -635,3 +644,19 @@ def test_routing_multi_alternative_positive() -> None:
     assert "pr #n" in routes
     assert "issue #n" in routes
     assert "ci overview" in routes
+
+
+def test_routing_conflicting_duplicate_alias() -> None:
+    """Same alias mapped correctly then incorrectly must be caught."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` or `PR #N` | `pull_request_read` |\n"
+        "| `/issues/<N>` or `issue #N` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| `PR #N` | `issue_read` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "conflict-dup")
+    assert any("duplicate" in e.lower() for e in errors), f"Expected duplicate: {errors}"

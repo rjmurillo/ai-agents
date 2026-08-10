@@ -332,6 +332,8 @@ _TOOL_NAMES = (
     "list_workflow_runs",
     "get_workflow_run",
     "get_job_logs",
+    "get_file_contents",
+    "list_commits",
 )
 
 # Word-boundary regex matching any declared tool name, with optional mcp__github__ prefix.
@@ -373,13 +375,16 @@ _NON_DIRECTIVE = re.compile(
 )
 
 
-def _is_skippable_line(raw_line: str, stripped: str, in_fence: bool) -> bool:
+def _is_skippable_line(
+    raw_line: str, stripped: str, in_fence: bool, *, after_list: bool = False
+) -> bool:
     """Return True if line is structural markup, inside a fenced block,
     or inside a 4-space/tab indented code block."""
     if in_fence:
         return True
-    # Markdown indented code block: 4+ spaces or tab at start of raw line
-    if raw_line.startswith("    ") or raw_line.startswith("\t"):
+    # Markdown indented code block: 4+ spaces or tab at start of raw line.
+    # Per CommonMark, NOT a code block after a list item (continuation).
+    if (raw_line.startswith("    ") or raw_line.startswith("\t")) and not after_list:
         return True
     return (
         not stripped
@@ -390,7 +395,10 @@ def _is_skippable_line(raw_line: str, stripped: str, in_fence: bool) -> bool:
 
 
 def _is_markdown_list_item(stripped: str) -> bool:
-    return stripped.startswith(("- ", "* "))
+    """Recognize all CommonMark list markers: -, *, + (unordered); N. or N) (ordered)."""
+    if stripped.startswith(("- ", "* ", "+ ")):
+        return True
+    return bool(re.match(r"\d+[.)][\s]", stripped))
 
 
 def _append_logical_line(logical_lines: list[str], stripped: str) -> None:
@@ -477,11 +485,19 @@ def _is_affirmative_directive(line: str) -> bool:
     # boundary. The verb is intentionally open-ended so new actor clauses fail
     # closed instead of depending on a verb allowlist.
     new_subject_boundary = re.compile(
-        r"(?:,\s*|\band\b\s+|\bor\b\s+)"
+        r"(?:"
+        r"(?:,\s*|;\s*|\band\b\s+|\bor\b\s+)"
         r"(?:the\s+)?(?!analyst\b)"
-        r"(?:[a-z][\w-]*(?:-(?:bot|agent)|bot|agent|reviewer))"
-        r"\s+(?:directly\s+)?"
-        r"[a-z][\w-]*\b"
+        r"(?:"
+        r"[a-z][\w-]*(?:-(?:bot|agent)|bot|agent|reviewer)"  # suffixed
+        r"|"
+        r"[a-z][\w]*\s+[a-z]*(?:es|[^aeiou]s|ed|ing|ies)\b"  # verb-form
+        r")"
+        r"|"
+        r":\s*[a-z][\w-]*\s+[a-z]"  # colon clause
+        r"|"
+        r"\(\s*[a-z]"  # parenthetical
+        r")"
     )
     tool_subject_boundary = re.compile(
         r"(?:,\s*|\band\b\s+|\bor\b\s+)\s*(?:mcp__github__)?(?:"
@@ -559,7 +575,10 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             continue
-        if _is_skippable_line(line, stripped, in_fence):
+        _after_list = bool(
+            logical_lines and logical_lines[-1] and _is_markdown_list_item(logical_lines[-1])
+        )
+        if _is_skippable_line(line, stripped, in_fence, after_list=_after_list):
             # End current paragraph
             if logical_lines and logical_lines[-1] != "":
                 logical_lines.append("")
@@ -1430,3 +1449,116 @@ class TestPositiveListItems:
         )
         err = _check_retrieval_precedes_blocked(section)
         assert err is None, f"Wrapped continuation should pass: {err}"
+
+
+# --- Negative controls: structural boundary bypasses (review round) ---
+
+
+class TestNegativeStructuralBoundary:
+    """Non-suffixed actors, colon, parenthetical must be caught."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache: bot calls pull_request_read",
+            "The analyst retrieves cache (provided by compliance-bot using pull_request_read)",
+            "The analyst retrieves cache, coordinator documents pull_request_read",
+            "The analyst retrieves cache, platform advertises pull_request_read",
+            "The analyst retrieves cache, system makes pull_request_read available",
+            "The analyst retrieves cache; release-bot uses pull_request_read",
+            "The analyst retrieves cache, the compliance-bot provides pull_request_read",
+            "The analyst retrieves cache and the release-bot reads pull_request_read",
+            "The analyst retrieves cache, orchestrator owns pull_request_read",
+        ],
+        ids=[
+            "colon",
+            "parenthetical",
+            "documents",
+            "advertises",
+            "makes-available",
+            "semicolon",
+            "article-provides",
+            "conjunction-reads",
+            "owns",
+        ],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache (provided by compliance-bot using pull_request_read)",
+            "The analyst retrieves cache, platform advertises pull_request_read",
+            "The analyst retrieves cache: bot calls pull_request_read",
+        ],
+        ids=["parenthetical-wrap", "advertises-wrap", "colon-wrap"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        section = "\n### delegation contract\n" + line + ". Return [BLOCKED] only when missing.\n"
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+
+# --- Negative controls: CommonMark list markers ---
+
+
+class TestNegativeAllListMarkers:
+    """All CommonMark markers prevent cross-actor merging."""
+
+    @pytest.mark.parametrize(
+        "marker",
+        ["- ", "* ", "+ ", "1. ", "1) ", "2. ", "10) "],
+        ids=["dash", "star", "plus", "1dot", "1paren", "2dot", "10paren"],
+    )
+    def test_list_marker_cross_bind(self, marker: str) -> None:
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves cache\n"
+            f"{marker}compliance-bot calls pull_request_read\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+    def test_positive_wrapped_list_continuation(self) -> None:
+        """Indented continuation of a list item is joined correctly."""
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves PR context\n"
+            "  using pull_request_read directly.\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        assert _check_retrieval_precedes_blocked(section) is None
+
+
+# --- Positive: all 7 canonical tools ---
+
+
+class TestAllCanonicalTools:
+    """All 7 tools from analyst.shared.md accepted bare and MCP-prefixed."""
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "pull_request_read",
+            "issue_read",
+            "list_workflow_runs",
+            "get_workflow_run",
+            "get_job_logs",
+            "get_file_contents",
+            "list_commits",
+        ],
+    )
+    def test_bare(self, tool: str) -> None:
+        assert _is_affirmative_directive(f"The analyst retrieves context using {tool} directly.")
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "mcp__github__pull_request_read",
+            "mcp__github__get_file_contents",
+            "mcp__github__list_commits",
+        ],
+        ids=["pr-mcp", "file-mcp", "commits-mcp"],
+    )
+    def test_mcp_prefixed(self, tool: str) -> None:
+        assert _is_affirmative_directive(f"The analyst retrieves context using `{tool}` directly.")
