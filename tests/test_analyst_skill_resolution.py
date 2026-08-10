@@ -460,21 +460,20 @@ def _is_affirmative_directive(line: str) -> bool:
     # a clause boundary. Requires the new subject to be followed by a verb,
     # distinguishing "analyst retrieves data, bot reads tool" from
     # "analyst retrieves PR, issue, and CI context".
-    # Comma/and/or introducing a new subject (non-analyst word) followed
-    # by a common action verb signals a clause boundary. Comprehensive
-    # verb list avoids false positives on object lists like "PR, issue,
-    # and CI context" where nouns follow conjunctions.
+    # Comma/and/or introducing a bot or agent subject signals a clause
+    # boundary. The verb is intentionally open-ended so new actor clauses fail
+    # closed instead of depending on a verb allowlist.
     new_subject_boundary = re.compile(
         r"(?:,\s*|\band\b\s+|\bor\b\s+)"
-        r"(?:the\s+)?(?!analyst\b)([a-z][\w-]*)"
+        r"(?:the\s+)?(?!analyst\b)"
+        r"(?:[a-z][\w-]*(?:-(?:bot|agent)|bot|agent|reviewer))"
         r"\s+(?:directly\s+)?"
-        r"(retrieves?|uses?|calls?|invokes?|attempts?|reads?|fetches?"
-        r"|gets?|accesses?|queries|requests?|provides?|remains?"
-        r"|supplies?|delivers?|handles?|manages?|triggers?|sends?"
-        r"|returns?|passes?|forwards?|processes?|executes?|runs?"
-        r"|starts?|stops?|creates?|updates?|deletes?|removes?|sets?"
-        r"|enables?|activates?|loads?|imports?|exports?|checks?"
-        r"|monitors?|validates?|serves?|exposes?|publishes?|emits?)\b"
+        r"[a-z][\w-]*\b"
+    )
+    tool_subject_boundary = re.compile(
+        r"(?:,\s*|\band\b\s+|\bor\b\s+)\s*(?:mcp__github__)?(?:"
+        + "|".join(re.escape(tool) for tool in _TOOL_NAMES)
+        + r")\s+[a-z][\w-]*\b"
     )
 
     for i, clause in enumerate(clauses):
@@ -493,7 +492,15 @@ def _is_affirmative_directive(line: str) -> bool:
         # Use MASKED text for boundary detection (same offsets as verb_match).
         after_verb = clause[verb_match.end() :]
         main_frag = re.split(subord, after_verb)[0]
-        boundary = new_subject_boundary.search(main_frag)
+        boundaries = [
+            match
+            for match in (
+                new_subject_boundary.search(main_frag),
+                tool_subject_boundary.search(main_frag),
+            )
+            if match is not None
+        ]
+        boundary = min(boundaries, key=lambda match: match.start()) if boundaries else None
         frag_end = verb_match.end() + (boundary.start() if boundary else len(main_frag))
 
         # Search for tool in quote-masked text at the same offset range.
@@ -1307,21 +1314,28 @@ class TestNegativeControls:
         "Return [BLOCKED] only when missing.\n"
     )
 
-    # Fixture 57: mixed-actor "reads" after conjunction (HIGH 1)
+    # Fixture 57: mixed-actor with a verb not named in the old allowlist
+    TOOL_MIXED_OWNS = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, compliance-bot owns pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 58: mixed-actor "reads" after conjunction (HIGH 1)
     TOOL_MIXED_READS_CONJ = (
         "\n### delegation contract\n"
         "The analyst retrieves cache and the release-bot reads pull_request_read. "
         "Return [BLOCKED] only when missing.\n"
     )
 
-    # Fixture 58: tool as subject "remains" (HIGH 1)
+    # Fixture 59: tool as subject "remains" (HIGH 1)
     TOOL_REMAINS_AVAILABLE = (
         "\n### delegation contract\n"
         "The analyst retrieves cache, pull_request_read remains available. "
         "Return [BLOCKED] only when missing.\n"
     )
 
-    # Fixture 59: adjacent list items must not merge (HIGH 2)
+    # Fixture 60: adjacent list items must not merge (HIGH 2)
     TOOL_LIST_ITEMS_MERGED = (
         "\n### delegation contract\n"
         "- The analyst retrieves cache\n"
@@ -1335,6 +1349,14 @@ class TestNegativeControls:
         assert err is not None, "Should reject mixed-actor provides"
         assert not _is_affirmative_directive(
             "The analyst retrieves cache, compliance-bot provides pull_request_read"
+        )
+
+    def test_tool_mixed_owns_rejected(self) -> None:
+        """Any verb by another bot subject must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_OWNS)
+        assert err is not None, "Should reject mixed-actor owns"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, compliance-bot owns pull_request_read"
         )
 
     def test_tool_mixed_reads_conjunction_rejected(self) -> None:
