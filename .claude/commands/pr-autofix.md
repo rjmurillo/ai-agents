@@ -174,7 +174,6 @@ run_mutation_with_lease_monitor() {
             else
                 mutation_rc=$?
             fi
-            cleanup_pr_autofix
             return "$mutation_rc"
         fi
         sleep 0.01
