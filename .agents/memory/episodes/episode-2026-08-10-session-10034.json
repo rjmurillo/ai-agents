@@ -156,7 +156,8 @@
         "e009",
         "e010",
         "e011",
-        "e012"
+        "e012",
+        "e015"
       ],
       "leads_to": [
         "e014"
@@ -171,6 +172,30 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and resolved session artifact conflicts",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T08:05:51+00:00",
+      "type": "commit",
+      "content": "Commit: ec35fd00c475f444974415a075ac80ee21cd1a31",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10034"
     }
@@ -180,8 +205,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }

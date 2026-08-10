@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes complete through f9243b90334f6d176099ea79a0c1e96aadfb1498."
+        "Evidence": "Code and merge resolution complete through ec35fd00c475f444974415a075ac80ee21cd1a31."
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,9 +146,13 @@
     {
       "action": "Ran broader command to prove no contract loss: uv run --frozen python -m pytest tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short",
       "result": "26 passed in 154.05s (0:02:34); all mutation harness files (baseline-ratchet, debate-log-path, lefthook-ratchet-wiring, pr-description, validate-findings-scope) plus the skill-bundle suite file all pass together, confirming no cross-file regression from the changes."
+    },
+    {
+      "action": "Merged origin/main and resolved session artifact conflicts",
+      "result": "Preserved main session 10033, renumbered this branch session and episode to 10034, then passed 13 directly affected tests in 117.10 seconds."
     }
   ],
-  "endingCommit": "f9243b90334f6d176099ea79a0c1e96aadfb1498",
+  "endingCommit": "ec35fd00c475f444974415a075ac80ee21cd1a31",
   "nextSteps": [
     "Open an atomic pull request that fixes Issue #4826."
   ]

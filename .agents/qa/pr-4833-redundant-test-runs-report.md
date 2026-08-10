@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10034.json
-qaCommit: f9243b90334f6d176099ea79a0c1e96aadfb1498
+qaCommit: ec35fd00c475f444974415a075ac80ee21cd1a31
 ---
 
 # Issue #4826 redundant test-run removal validation
 
 ## Scope
 
-Implementer self-validation through commit
-`f9243b90334f6d176099ea79a0c1e96aadfb1498`
+Implementer self-validation through merge commit
+`ec35fd00c475f444974415a075ac80ee21cd1a31`
 against the acceptance criteria in Issue #4826. Independent qa/critic review
 is still recommended before merge; this report documents the evidence
 gathered during implementation, it does not replace that review.
@@ -48,6 +48,8 @@ contract named in the issue is unchanged.
   files: all checks passed, both already formatted.
 - `uv run --frozen python scripts/validation/pre_pr.py --quick`: RESULT
   All validations passed (46 passed, 0 failed, 4 skipped by `--quick`).
+- After merging `origin/main`, the 13 directly affected tests passed in
+  117.10 seconds. No conflict markers or unmerged files remained.
 
 ## Contract mapping (Issue #4826 acceptance criteria)
 
