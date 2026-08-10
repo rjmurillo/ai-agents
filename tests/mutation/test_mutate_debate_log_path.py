@@ -120,9 +120,15 @@ def _apply_positive_mutant(
 
     result = _run_tests_in(wt_path)
 
-    # Restore original bytes before asserting so the restore check below
-    # always runs against the unmodified file.
+    # Restore original bytes, then prove restoration with a cheap byte
+    # comparison (Issue #4826) instead of a second subprocess pytest run of
+    # the 807-test suite. The suite result recorded above already proves the
+    # mutant was detected; re-running it against byte-identical restored
+    # content would prove nothing new.
     wt_target.write_bytes(original)
+    assert wt_target.read_bytes() == original, (
+        f"{label}: scratch worktree target was not restored to original bytes"
+    )
 
     _assert_suite_ran(result, label)
 
@@ -180,13 +186,6 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M1"
-    # Restore check: suite passes against the unmodified tree.
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M1-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M1.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +210,6 @@ def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> No
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M2"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M2-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M2.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -244,12 +237,6 @@ def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) 
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M3"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M3-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M3.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ exactly the way these 82 directories did.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import shutil
@@ -60,8 +61,18 @@ def _suite_dirs(root: Path) -> list[Path]:
     return sorted(p for p in absolute.glob("*/tests") if p.is_dir())
 
 
+@functools.cache
 def _run_tree(root: Path) -> subprocess.CompletedProcess[str]:
-    """Run every bundle suite under one tree root in a dedicated subprocess."""
+    """Run every bundle suite under one tree root in a dedicated subprocess.
+
+    Memoized per root (Issue #4826): `test_bundle_tree_suite_passes` and
+    `test_bundle_tree_collects_tests` are both parametrized over the same
+    `_BUNDLE_TREE_ROOTS` and each independently checks a different property
+    (exit code vs. collected-test count) of the same subprocess result.
+    Without caching, every root's bundle suite ran twice per pytest session.
+    `functools.cache` keys on the `root` argument, which is a `Path` and
+    therefore hashable, so each unique root's subprocess runs at most once.
+    """
     targets = [str(p.relative_to(_REPO_ROOT)) for p in _suite_dirs(root)]
     temp_root = (
         outside_every_repository(_REPO_ROOT)
