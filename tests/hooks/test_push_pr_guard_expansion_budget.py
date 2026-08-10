@@ -24,6 +24,7 @@ about which machine it will fail on.
 from __future__ import annotations
 
 import importlib.util
+import sys
 import tracemalloc
 from pathlib import Path
 from types import ModuleType
@@ -34,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GUARD_PATH = (
     REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py"
 )
+EXPANSION_PATH = GUARD_PATH.parent / "_push_pr_guard_expansion.py"
 
 # Ceiling for peak allocation during one relevance decision. Set below the
 # 2,562,194 bytes the merged tree materialized for the reported 10,920-byte
@@ -45,7 +47,15 @@ BYTE_BUDGET_CEILING = 512 * 1024
 
 
 def _load_guard() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("push_pr_guard_under_test", GUARD_PATH)
+    """Load the expansion member of the guard's runtime unit.
+
+    The budget lives in ``_push_pr_guard_expansion``, which the dispatched
+    entrypoint imports. Loading that member directly keeps the assertions on
+    the function that owns the budget instead of on a re-export.
+    """
+    if str(GUARD_PATH.parent) not in sys.path:
+        sys.path.insert(0, str(GUARD_PATH.parent))
+    spec = importlib.util.spec_from_file_location("push_pr_guard_under_test", EXPANSION_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
