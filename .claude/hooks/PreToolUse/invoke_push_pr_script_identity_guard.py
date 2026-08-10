@@ -61,7 +61,6 @@ _PLUGIN_SCRIPT_REFERENCE = (
 _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
 _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
 _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
-_SHELL_SEGMENT = re.compile(r"\|\||&&|[;|&\n]")
 _NEW_PR_TARGET = "new_pr.py"
 _ANSI_C_QUOTED = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
 _MAX_BRACE_EXPANSIONS = 4096
@@ -764,31 +763,145 @@ def _execution_position_names_new_pr(tokens: list[ShellToken], cwd: Path) -> boo
     return False
 
 
+def _strip_unquoted_redirections(command: str) -> str:
+    """Remove redirections that sit outside quotes.
+
+    ``_split_command`` rejects ``<`` and ``>`` as policy, and a rejected
+    segment used to be skipped, so ``./attacker/pr/?ew_pr.py >out`` reached no
+    relevance rule (issue #4825). A redirection never changes which file runs,
+    so dropping it preserves execution position while letting the segment
+    parse. Quoted text is copied through untouched, because a redirection
+    operator inside quotes is data.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote is None and char == "\\":
+            out.append(char)
+            if index + 1 < len(command):
+                out.append(command[index + 1])
+                index += 2
+                continue
+            index += 1
+            continue
+        if quote is not None:
+            out.append(char)
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in "'\"":
+            quote = char
+            out.append(char)
+            index += 1
+            continue
+        if char in "<>":
+            while out and out[-1].isdigit():
+                out.pop()
+            while index < len(command) and command[index] in "<>&":
+                index += 1
+            while index < len(command) and command[index] in " \t":
+                index += 1
+            while index < len(command) and command[index] not in " \t;&|<>\n":
+                index += 1
+            out.append(" ")
+            continue
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _split_shell_segments(command: str) -> list[str]:
+    """Split on shell operators that sit outside quotes.
+
+    A regex split matched operators inside quoted arguments, so
+    ``./attacker/pr/?ew_pr.py "x && y"`` was torn into fragments that no longer
+    parsed and the execution was never classified (issue #4825).
+    """
+    segments: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if quote is None and char == "\\":
+            current.append(char)
+            if index + 1 < len(command):
+                current.append(command[index + 1])
+                index += 2
+                continue
+            index += 1
+            continue
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in "'\"":
+            quote = char
+            current.append(char)
+            index += 1
+            continue
+        if char in ";&|\n":
+            segments.append("".join(current))
+            current = []
+            if index + 1 < len(command) and command[index + 1] == char:
+                index += 1
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    segments.append("".join(current))
+    return segments
+
+
+def _segment_head_names_new_pr(segment: str) -> bool:
+    """Fail-closed backstop for a segment that still will not tokenize.
+
+    Keeps an unparseable but target-shaped execution in scope rather than
+    letting a quoting artifact decide relevance.
+    """
+    head = segment.strip().split(None, 1)
+    if not head:
+        return False
+    word = head[0].strip("'\"")
+    basename = word.rsplit("/", 1)[-1]
+    if not basename:
+        return False
+    if _names_new_pr(word):
+        return True
+    return any(marker in basename for marker in "?*[") and fnmatch.fnmatch(
+        _NEW_PR_TARGET, basename
+    )
+
+
 def _scope_segments(command: str) -> list[list[ShellToken]]:
     """Tokenize each shell segment for the relevance decision only.
 
-    ``_split_command`` rejects command substitution and shell operators as
-    policy. Those rejections must not decide relevance. Returning nothing on a
-    parse failure failed open: ``./attacker/pr/?ew_pr.py && true`` was rejected
-    for the operator, so the execution-position rules never ran and Bash went
-    on to execute the lookalike (issue #4825).
+    ``_split_command`` rejects command substitution, shell operators and
+    redirections as policy. Those rejections must not decide relevance:
+    returning nothing on a parse failure failed open, so appending ``&& true``
+    or ``>out`` defeated every execution-position rule (issue #4825).
 
-    Substitutions are neutralized to a plain parameter expansion so a
-    substitution-bearing script path is still recognized. The command is then
-    split on shell operators and each segment tokenized on its own, because
-    execution position is a per-segment property: the operand after ``&&`` is
-    its own command. A segment that still will not parse is skipped rather than
-    failing the whole decision.
+    Substitutions are neutralized, redirections dropped, and the command split
+    on unquoted operators, because execution position is a per-segment
+    property. A segment that still will not parse is reported through the
+    fail-closed backstop rather than silently skipped.
     """
     neutralized = _COMMAND_SUBSTITUTION.sub("$X", command)
     segments: list[list[ShellToken]] = []
-    for piece in _SHELL_SEGMENT.split(neutralized):
+    for piece in _split_shell_segments(_strip_unquoted_redirections(neutralized)):
         stripped = piece.strip()
         if not stripped:
             continue
         try:
             tokens = _split_command(stripped)
         except GuardViolationError:
+            if _segment_head_names_new_pr(stripped):
+                return [[ShellToken(_NEW_PR_TARGET, _NEW_PR_TARGET)]]
             continue
         if tokens:
             segments.append(tokens)

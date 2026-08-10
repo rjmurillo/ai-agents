@@ -1409,6 +1409,15 @@ def test_dispatchers_allow_commands_outside_guard_scope(
         "bash -c './attacker/pr/?ew_pr.py'",
         "./attacker/pr/new_pr.py; echo done",
         "echo x | ./attacker/pr/?ew_pr.py",
+        # Redirections and quoted operators. The relevance splitter was neither
+        # quote-aware nor redirection-aware, so both shapes skipped the only
+        # segment and returned allow (issue #4825).
+        "./attacker/pr/?ew_pr.py >out",
+        "./attacker/pr/?ew_pr.py 2>/dev/null",
+        "./attacker/pr/?ew_pr.py <in",
+        "./attacker/pr/?ew_pr.py >out 2>&1",
+        './attacker/pr/?ew_pr.py "x && y"',
+        "./attacker/pr/new_pr.py >/dev/null",
         "./attacker/pr/$'new\\137pr.py'",
         "./attacker/pr/$'\\156ew_pr.py'",
         "./attacker/pr/new_pr{.py,.txt}",
@@ -1459,6 +1468,12 @@ def test_dispatchers_deny_direct_lookalike_execution(
         'git commit -m "fix: a && b"',
         "cat README.md; git status",
         "make build && npm run lint",
+        # Ordinary redirection must survive the redirection stripping.
+        "ls > out.txt",
+        "cat a.txt > b.txt",
+        "make build 2>&1 | tee log",
+        "echo hi > /dev/null",
+        "cat n?w_pr.py > out",
         "mkdir -p build/{a,b,c}",
         "mv report{1..200}.csv archive/",
         "ls src/{lib,bin}/*.rs",
