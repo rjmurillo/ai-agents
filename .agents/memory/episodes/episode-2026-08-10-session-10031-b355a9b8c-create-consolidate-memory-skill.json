@@ -49,7 +49,8 @@
         "e001",
         "e002",
         "e003",
-        "e006"
+        "e006",
+        "e012"
       ],
       "leads_to": [
         "e005"
@@ -140,6 +141,30 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate customer install",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T08:39:00+00:00",
+      "type": "commit",
+      "content": "Commit: 154030efa281737a2c57f9be403c2d673820c168",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
     }
@@ -149,8 +174,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 12
+    "commits": 8,
+    "files_changed": 27
   },
   "lessons": []
 }
