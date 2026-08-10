@@ -88,6 +88,19 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T17:30:07+00:00",
+      "type": "commit",
+      "content": "Commit: 1a18a9ab06812ab2a784b8e8b66216081759b53d",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     }
@@ -97,7 +110,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 5
   },
   "lessons": []
