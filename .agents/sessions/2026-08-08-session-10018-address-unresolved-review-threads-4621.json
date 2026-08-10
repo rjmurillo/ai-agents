@@ -114,7 +114,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/4621-pr-review-thread-fixes-qa-report.md"
+        "Evidence": ".agents/qa/pr-4621-review-thread-fixes-qa-report.md"
       }
     }
   },
