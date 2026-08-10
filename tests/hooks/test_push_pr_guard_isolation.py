@@ -336,3 +336,37 @@ def test_guard_removes_its_module_directory_from_sys_path() -> None:
     assert result.stdout.strip() == "false", (
         f"guard left {guard_directory} on sys.path: {result.stdout!r}"
     )
+
+
+def test_guard_keeps_a_dispatcher_owned_sys_path_entry() -> None:
+    """Removing the entry unconditionally would consume one the guard did not add.
+
+    The Copilot dispatcher inserts the event directory itself before it runs
+    any shim, so in that arrangement the guard never inserts. A removal keyed
+    on position rather than on ownership deleted the dispatcher's entry, and
+    nothing broke only because `_dispatch.py` happens to insert it twice.
+    """
+    guard_directory = str(CLAUDE_GUARD.parent)
+    probe = (
+        "import json, sys;"
+        "sys.path.insert(0, sys.argv[2]);"
+        "spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location("
+        "'guard_under_test', sys.argv[1]);"
+        "module = __import__('importlib.util', fromlist=['util']).module_from_spec(spec);"
+        "spec.loader.exec_module(module);"
+        "print(json.dumps(sys.path.count(sys.argv[2])))"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", probe, str(CLAUDE_GUARD), guard_directory],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "1", (
+        f"guard consumed a sys.path entry it did not add: {result.stdout!r}"
+    )

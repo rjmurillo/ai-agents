@@ -51,7 +51,8 @@ from pathlib import Path
 # names the shim and the siblings still resolve. Stdlib imports above run
 # first so a sibling can never shadow one.
 _GUARD_DIRECTORY = str(Path(__file__).resolve().parent)
-if _GUARD_DIRECTORY not in sys.path:
+_GUARD_DIRECTORY_INSERTED = _GUARD_DIRECTORY not in sys.path
+if _GUARD_DIRECTORY_INSERTED:
     sys.path.insert(0, _GUARD_DIRECTORY)
 
 from _push_pr_guard_commands import (  # noqa: E402
@@ -86,13 +87,15 @@ from _push_pr_guard_lex import (  # noqa: E402
 from _push_pr_guard_scope import _command_is_in_scope  # noqa: E402
 from _push_pr_guard_tables import _EXPANSION_SAFE_COMMANDS, _SHELL_EVALUATORS  # noqa: E402
 
-# The entry is removed as soon as the unit is loaded. Every module above
+# The entry is removed only when this file added it. Every module above
 # imports its own dependencies at module scope, so nothing else needs to
 # resolve by name after this point, and Copilot CLI runs several shims inside
-# ONE process: leaving the hooks directory on sys.path would let a file
-# dropped there shadow a stdlib module for the shims that run next.
-if sys.path and sys.path[0] == _GUARD_DIRECTORY:
-    del sys.path[0]
+# ONE process: leaving an entry this file added would let a file dropped in
+# the hooks directory shadow a stdlib module for the shims that run next.
+# Removing unconditionally would instead consume the dispatcher's own entry,
+# which this guard does not own.
+if _GUARD_DIRECTORY_INSERTED and _GUARD_DIRECTORY in sys.path:
+    sys.path.remove(_GUARD_DIRECTORY)
 
 _MAX_STDIN_BYTES = 128 * 1024
 
