@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-08-09-session-10022-pr-4385-portability",
+  "session": "2026-08-09-session-10022-pr-4385-portability",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 4385 vendor portability CI drift.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed failing CI",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed source drift",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated mirrors and baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T05:04:21+00:00",
+      "type": "commit",
+      "content": "Commit: a28679145",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T05:05:40+00:00",
+      "type": "commit",
+      "content": "Commit: 9a1a358ad830189a7a098fdfbeef0c0b750d6907",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10022-pr-4385-portability"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}

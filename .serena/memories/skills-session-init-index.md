@@ -6,3 +6,4 @@
 | memory load monitoring classification status before gate | [session/init-003-memory-first-monitoring-gate](session/init-003-memory-first-monitoring-gate.md) |
 | branch declaration header session log explicit tracking accountability verification | [session/session-init-003-branch-declaration](session/session-init-003-branch-declaration.md) |
 | scope limit multi-issue confusion 2-issue maximum context session focus contamination | [session/session-scope-002-multi-issue-limit](session/session-scope-002-multi-issue-limit.md) |
+| session log evidence wording todo task list contradiction scanner | [session/session-writing-todo-in-evidence-trips-the-contradiction-scanner](session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md) |
