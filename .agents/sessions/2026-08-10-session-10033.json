@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No Markdown files changed."
+        "Evidence": "Scoped markdownlint ran; repository configuration excludes .agents/**, so zero files were selected."
       },
       "qaValidation": {
         "level": "MUST",
@@ -129,7 +129,7 @@
     },
     {
       "action": "Verified the fix",
-      "outcome": "42 targeted tests passed. Four xdist workers passed the 25,321-test non-integration partition in 315.53 seconds."
+      "outcome": "42 targeted tests passed. Four xdist workers passed the 25,321-test non-integration partition twice in 315.53 and 301.03 seconds."
     }
   ],
   "endingCommit": "4e7c0868f97104396b328cf9b6f08f2d8518afbe",

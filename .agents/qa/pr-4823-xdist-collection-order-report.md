@@ -17,8 +17,8 @@ across pytest-xdist workers.
 |---|---|
 | `uv run --frozen ruff check tests/test_feature_review.py` | Passed |
 | `uv run --frozen pytest tests/test_feature_review.py -q` | 42 passed |
-| Four-worker non-integration partition | 25,321 passed, 36 skipped |
-| Parallel partition wall time | 315.53 seconds |
+| Four-worker non-integration partition | 25,321 passed, 36 skipped, twice |
+| Parallel partition wall time | 315.53 and 301.03 seconds |
 | Worker crashes | None |
 | Collection mismatches | None |
 
