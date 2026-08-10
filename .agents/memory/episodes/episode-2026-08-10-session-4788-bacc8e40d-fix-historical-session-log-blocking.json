@@ -311,6 +311,19 @@
       "caused_by": [
         "e024"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T09:33:01+00:00",
+      "type": "commit",
+      "content": "Commit: 37fef984d041c7cb9c60dd7c586e3efb691ca7a9",
+      "caused_by": [
+        "e025"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     }
@@ -320,8 +333,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
-    "files_changed": 19
+    "commits": 11,
+    "files_changed": 44
   },
   "lessons": []
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking.json
-qaCommit: c7fb93a0e8f8c63075860433b3e1dc56b8336aac
+qaCommit: 37fef984d041c7cb9c60dd7c586e3efb691ca7a9
 ---
 # QA Report: issue 4788 session push blocker
 

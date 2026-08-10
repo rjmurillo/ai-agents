@@ -185,7 +185,7 @@
       "outcome": "The validator binds QA to the original .agents/sessions path while reading the branch-ref copy"
     }
   ],
-  "endingCommit": "c7fb93a0e8f8c63075860433b3e1dc56b8336aac",
+  "endingCommit": "37fef984d041c7cb9c60dd7c586e3efb691ca7a9",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
