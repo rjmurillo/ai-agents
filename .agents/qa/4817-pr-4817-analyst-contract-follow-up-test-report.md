@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: c7645d15c0ac599d4982e21ec73dc5392328eda4
+qaCommit: 519d72074aa2b9d9144da935471d0ca12f6cede5
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -31,9 +31,8 @@ PR #4817 hardens the analyst contract test suite with:
 ## Test Execution
 
 ```text
-tests/test_analyst_skill_resolution.py ........... 170 passed
-tests/build_scripts/test_github_url_routing_contract.py ........... 170 passed
-Total: 170 passed in 1.17s
+tests/test_analyst_skill_resolution.py ........... 202 passed
+tests/build_scripts/test_github_url_routing contract: 54 passed in 1.17s
 ```
 
 ## Reconciliation
@@ -97,7 +96,7 @@ Verification run in this session:
 
 ```text
 $ uv run --frozen pytest tests/test_analyst_skill_resolution.py -q
-============================= 118 passed in 0.49s ==============================
+============================= 202 passed in 0.49s ==============================
 
 $ uv run --frozen ruff check tests/test_analyst_skill_resolution.py
 All checks passed!
