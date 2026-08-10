@@ -409,6 +409,7 @@ def _original_main(stdin_bytes):
     """
 
 
+    import fnmatch
     import hashlib
     import json
     import os
@@ -1078,7 +1079,7 @@ def _original_main(stdin_bytes):
         # General shell globs: ? and [...] in executable-position operands can
         # expand to new_pr.py.  Extract path segments that contain glob chars and
         # fnmatch the protected basename against them.
-        for segment in _re.split(r'[\s;|&]+', command):
+        for segment in re.split(r'[\s;|&]+', command):
             segment = segment.strip()
             if not segment:
                 continue
@@ -1089,7 +1090,7 @@ def _original_main(stdin_bytes):
                 # non-trivial literal prefix with the protected basename.
                 prefix = basename.split("?")[0].split("*")[0].split("[")[0]
                 if len(prefix) >= 1 and _NEW_PR_TARGET.startswith(prefix):
-                    if _fnmatch.fnmatch(_NEW_PR_TARGET, basename):
+                    if fnmatch.fnmatch(_NEW_PR_TARGET, basename):
                         return True
         return False
 
