@@ -248,3 +248,109 @@ class TestInstalledHookEntrypoint:
         r = _run(["--candidate-root", "/tmp/empty-dir-nonexistent"])
         assert isinstance(r.returncode, int)
         assert r.returncode in (1, 2)
+# New test classes to append
+
+class TestMissingPinnedFile:
+    """Defect fix: missing pinned artifacts must be rejected, not silently skipped."""
+
+    def test_missing_bootstrap_rejected(self, tmp_path: Path) -> None:
+        """Candidate without _bootstrap.py fails authentication."""
+        root = tmp_path / "c"
+        root.mkdir()
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 1
+        assert "pinned file missing" in r.stdout
+
+    def test_vendor_artifact_absent_ok(self, tmp_path: Path) -> None:
+        """Vendor-only pins are allowed to be absent (not yet landed)."""
+        import shutil
+
+        from scripts.ci.validate_vendor_provenance import (
+            _PINNED_ARTIFACTS,
+            _is_vendor_only,
+        )
+        root = tmp_path / "c"
+        repo = Path(__file__).resolve().parents[2]
+        for rel, _sha, _label in _PINNED_ARTIFACTS:
+            if _is_vendor_only(rel):
+                continue  # Skip vendor-only
+            src = repo / rel
+            dst = root / rel
+            if src.is_file():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 0, f"Expected 0, got {r.returncode}:\n{r.stdout}"
+
+
+class TestSymlinkOnPinnedFile:
+    """Defect fix: symlinks on pinned files must be rejected."""
+
+    def test_symlink_bootstrap_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "c"
+        target = root / "real_bootstrap.py"
+        link = root / ".claude/hooks/PreToolUse/_bootstrap.py"
+        link.parent.mkdir(parents=True, exist_ok=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"# real content")
+        os.symlink(str(target), str(link))
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 1
+        assert "symlink" in r.stdout.lower()
+
+
+class TestLibImportClosureTamper:
+    """Defect fix: lib files must be pinned and tamper-detected."""
+
+    def test_tampered_lib_hook_dispatch_rejected(self, tmp_path: Path) -> None:
+        import shutil
+
+        from scripts.ci.validate_vendor_provenance import (
+            _PINNED_ARTIFACTS,
+            _is_vendor_only,
+        )
+        root = tmp_path / "c"
+        repo = Path(__file__).resolve().parents[2]
+        for rel, _sha, _label in _PINNED_ARTIFACTS:
+            if _is_vendor_only(rel):
+                continue
+            src = repo / rel
+            dst = root / rel
+            if src.is_file():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+        # Tamper a lib file
+        lib_file = root / ".claude/lib/hook_dispatch.py"
+        if lib_file.is_file():
+            lib_file.write_text("# TAMPERED\nimport os; os.system('evil')\n")
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 1
+        assert "mismatch" in r.stdout.lower()
+        assert "hook_dispatch.py" in r.stdout
+
+    def test_unpinned_new_lib_file_flagged(self, tmp_path: Path) -> None:
+        root = tmp_path / "c"
+        evil = root / ".claude/lib/evil_module.py"
+        evil.parent.mkdir(parents=True, exist_ok=True)
+        evil.write_text("# malicious import")
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 1
+        assert "Unpinned executable" in r.stdout
+        assert "evil_module.py" in r.stdout
+
+
+class TestWorkflowRelevanceDiff:
+    """Defect fix: relevance must use git diff, not candidate existence.
+
+    These tests validate the Python-level validator behavior. Workflow-level
+    diff logic runs in CI shell steps and is tested by CI itself.
+    The validator always runs when invoked; relevance is a workflow concern.
+    """
+
+    def test_validator_runs_on_empty_candidate(self, tmp_path: Path) -> None:
+        """Validator still returns errors for empty candidate (missing pins)."""
+        root = tmp_path / "c"
+        root.mkdir()
+        r = _run(["--candidate-root", str(root)])
+        assert r.returncode == 1
+        assert "pinned file missing" in r.stdout

@@ -45,22 +45,28 @@ jobs:
 
       - name: Check relevance
         id: relevance
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          cd /tmp/candidate
-          # Files whose modification triggers full validation
-          WATCHED=(
+          # Compute relevance from base-to-candidate diff pathspecs.
+          # This catches additions, modifications, deletions, renames,
+          # and type changes -- not just candidate-side existence.
+          WATCHED_PREFIXES=(
             ".claude/hooks/PreToolUse/"
+            ".claude/lib/"
             "src/copilot-cli/hooks/PreToolUse/"
+            "src/copilot-cli/lib/"
             "build/scripts/generate_hooks_events.py"
           )
           DOMINATED=false
-          for prefix in "${WATCHED[@]}"; do
-            if [ -d "$prefix" ] || [ -f "$prefix" ]; then
-              # Compare base vs candidate
-              if ! diff -rq "/home/runner/work/ai-agents/ai-agents/$prefix" "$prefix" > /dev/null 2>&1; then
-                DOMINATED=true
-                break
-              fi
+          # Use diff-tree against the fetched candidate commit vs merge base
+          MERGE_BASE=$(git merge-base "$BASE_SHA" "$PR_SHA" 2>/dev/null || echo "$BASE_SHA")
+          CHANGED_FILES=$(git diff-tree -r --name-only --diff-filter=ACDMRT "$MERGE_BASE" "$PR_SHA" 2>/dev/null || true)
+          for prefix in "${WATCHED_PREFIXES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^${prefix}"; then
+              DOMINATED=true
+              break
             fi
           done
           echo "dominated=$DOMINATED" >> "$GITHUB_OUTPUT"
