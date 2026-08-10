@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- single-file security boundary
+# taste-lint: ignore complexity -- security validators require complex auth logic
 """Trusted vendor provenance validator (base-branch owned, standalone).
 
 Runs from BASE branch via pull_request_target. Authenticates every
@@ -44,6 +45,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "06350d22bfe67737ffede2abd71dcd761d751dd41081da83d30254a8c14785ff",
         "Push guard base",
     ),
+    (
+        ".claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py",
+        "ea76024dc85d2847b1d6e7f286cc44ab1f2f04c7c7e586460f2b16459cd0da26",
+        "Push PR script identity guard",
+    ),
     # --- Generated counterparts (copilot-cli mirrors) ---
     (
         "src/copilot-cli/hooks/PreToolUse/_bootstrap.py",
@@ -54,6 +60,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "src/copilot-cli/hooks/PreToolUse/push_guard_base.py",
         "080ecaed5dfc7bc26db053ab824ed2f22b8f3b99d80e401bbd09e9a8d467f6ba",
         "Generated push_guard_base mirror",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+        "69e9be60e6e2eed2a730e5d11dcf24e288f7250ebc9dea7c537a51c051c8c54f",
+        "Generated push PR script identity guard mirror",
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
@@ -74,7 +85,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_dispatcher.py",
-        "855fdaec9696dd94b42d8d1de4401418a9a26892ed44be8606674183b6342018",
+        "0de2b8992132d74993f97f351cea2addf491e3e8d3da2f9e48fad28ae7e4bfed",
         "Build script (hooks generator import)",
     ),
     (
@@ -150,7 +161,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/invoke_dispatch_claude.py",
-        "4f12d6c35192e48622fc68661c73ffd5c534a4d875f5285f54edba44e561eb9d",
+        "421169b98d44b91ef0246a8427a036cc2fe40f8e2454469fac504c30eea2e136",
         "Hook executable",
     ),
     (
@@ -283,12 +294,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Hook wiring / config inputs ---
     (
         "src/copilot-cli/hooks/PreToolUse/_manifest.json",
-        "734872c7857f2fe6462ec6bf81446ef74ea5db0be6afb7ab525b71fab3008a4e",
+        "74adb01aca47b1a187b4a1314193485915a81b140e4f0f97a62b51571961c41a",
         "Hook wiring manifest",
     ),
     (
         ".claude/hooks/dispatch_groups.json",
-        "f65fb306f1aba2d657b6dab4e6b1102ee1a00c0b5366803fa3f64ca7404ec725",
+        "d89f1bc5020d03ac03457142620697f6910a0a9e6e3ba05716271a9914cbb483",
         "Hook wiring dispatch groups",
     ),
     (
@@ -308,7 +319,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/hooks.json",
-        "b3f062b9c829eebbe8fa0f17bc7221523c2200d6858efb2c84934f1ea974e8a8",
+        "7a6be388c997cbbefbf542a281bcf5d2e695a6bbee47eb3f9ab8ed072427fba9",
         "Hook wiring",
     ),
     (
@@ -318,7 +329,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/hooks.json",
-        "2cbf01abb6fa8da4f42afc719747924cedb1ee3ee50b93e49e1e1e265aec27a8",
+        "7e6d5a0a0bfb823ea967b049a5430c4f595733f808c1ca9f71243402ad7d2820",
         "Hook wiring",
     ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
@@ -384,12 +395,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/api.py",
-        "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
+        "d2a6232fd76f9bdafab255134137db1929d76a7e7ff9c486d854e53389d4208b",
         "Lib: .claude/lib/github_core/api.py",
     ),
     (
         ".claude/lib/github_core/bot_config.py",
-        "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
+        "4abe6cd8dcb35770ac9ecbe56df1692756c1371cdbbc21b4387ce768490f5415",
         "Lib: .claude/lib/github_core/bot_config.py",
     ),
     (
@@ -469,7 +480,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/hook_dispatch_timeout.py",
-        "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
+        "ef55506b44b412977fa5692ace50060a15ee7d42ff97991387d7138b78de9e23",
         "Lib: .claude/lib/hook_dispatch_timeout.py",
     ),
     (
@@ -579,12 +590,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/api.py",
-        "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
+        "d2a6232fd76f9bdafab255134137db1929d76a7e7ff9c486d854e53389d4208b",
         "Lib: src/copilot-cli/lib/github_core/api.py",
     ),
     (
         "src/copilot-cli/lib/github_core/bot_config.py",
-        "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
+        "4abe6cd8dcb35770ac9ecbe56df1692756c1371cdbbc21b4387ce768490f5415",
         "Lib: src/copilot-cli/lib/github_core/bot_config.py",
     ),
     (
@@ -664,7 +675,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/hook_dispatch_timeout.py",
-        "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
+        "ef55506b44b412977fa5692ace50060a15ee7d42ff97991387d7138b78de9e23",
         "Lib: src/copilot-cli/lib/hook_dispatch_timeout.py",
     ),
     (
