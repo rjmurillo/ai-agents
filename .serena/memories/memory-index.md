@@ -69,6 +69,7 @@
 |diff3 zdiff3 conflict markers base region checkout --merge conflict-marker-policy resolver: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
+|code quality changed-only regression gate absolute debt issue 4364 exit 10 threshold: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (503)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 
