@@ -422,21 +422,68 @@ def _original_main(stdin_bytes):
     from pathlib import Path
     from typing import BinaryIO, NamedTuple
 
+    # The guard ships as one runtime unit: this entrypoint plus the
+    # ``_push_pr_guard_*`` siblings the generator copies next to it. Resolving the
+    # directory from ``__file__`` is what makes the unit work on both harnesses.
+    # Claude runs this file directly; Copilot CLI inlines this body into a
+    # generated matcher shim that lives in the SAME directory, so ``__file__``
+    # names the shim and the siblings still resolve. Stdlib imports above run
+    # first so a sibling can never shadow one.
+    _GUARD_DIRECTORY = str(Path(__file__).resolve().parent)
+    if _GUARD_DIRECTORY not in sys.path:
+        sys.path.insert(0, _GUARD_DIRECTORY)
+    from _push_pr_guard_tables import (  # noqa: E402
+        _BUSYBOX_COMMANDS,
+        _COMMAND_DELEGATION_ENVIRONMENT,
+        _COMMAND_DELEGATION_OPTIONS,
+        _COMMAND_DELEGATORS,
+        _DANGEROUS_LOADER_ENVIRONMENT,
+        _DEBUG_EVALUATORS,
+        _DYNAMIC_EVALUATORS,
+        _ENV_COMMANDS,
+        _EXECUTION_INFLUENCING_VARIABLES,
+        _EXPANSION_SAFE_COMMANDS,
+        _LAUNCHER_COMMANDS,
+        _PROCESS_WRAPPER_FLAG_OPTIONS,
+        _PROCESS_WRAPPER_OPERAND_OPTIONS,
+        _SHELL_EVALUATORS,
+    )
+
     _MAX_STDIN_BYTES = 128 * 1024
+
+
     _SCRIPT_RELATIVE_PATH = Path("skills/github/scripts/pr/new_pr.py")
+
+
     _PLUGIN_SCRIPT_REFERENCE = (
         "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py"
     )
+
+
     _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
+
+
     _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
+
+
     # Bash extglob group: one of ? * + @ ! immediately followed by a
     # parenthesized alternation. Innermost only, so nesting is handled by repeated
     # application rather than by a recursive pattern.
     _EXTGLOB_GROUP = re.compile(r"([?*+@!])\(([^()]*)\)")
+
+
     _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
+
+
     _NEW_PR_TARGET = "new_pr.py"
+
+
     _ANSI_C_QUOTED = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
+
+
     _MAX_BRACE_EXPANSIONS = 4096
+
+
     # Total bytes one relevance decision may materialize across all brace
     # expansions. The count budget above cannot bound this: every expansion carries
     # a copy of the surrounding literal text, so cost is count times length. Issue
@@ -446,191 +493,22 @@ def _original_main(stdin_bytes):
     # far from both the host's 10s PreToolUse timeout (where a Copilot timeout
     # fails OPEN) and any meaningful RSS growth.
     _MAX_BRACE_EXPANDED_BYTES = 256 * 1024
+
+
     # Bound on innermost-first extglob rewrites, so a pathological nesting cannot
     # loop. Far above any real command; the canonical invocation has none.
     _MAX_EXTGLOB_REWRITES = 64
+
+
     _MAX_POLICY_TOKENS = 256
+
+
     _MAX_INTERPRETER_SEARCH = 64
+
+
     _DIGEST_CHUNK_BYTES = 1 << 20
-    _SHELL_EVALUATORS = frozenset(
-        {
-            "ash",
-            "bash",
-            "cmd",
-            "cmd.exe",
-            "csh",
-            "dash",
-            "elvish",
-            "es",
-            "eval",
-            "fish",
-            "ksh",
-            "mksh",
-            "nu",
-            "powershell",
-            "powershell.exe",
-            "pwsh",
-            "pwsh.exe",
-            "rc",
-            "rbash",
-            "rksh",
-            "rzsh",
-            "sh",
-            "tcsh",
-            "xonsh",
-            "yash",
-            "zsh",
-        }
-    )
-    _DYNAMIC_EVALUATORS = frozenset(
-        {
-            "awk",
-            "bpftrace",
-            "bb",
-            "bun",
-            "clisp",
-            "clojure",
-            "dc",
-            "deno",
-            "dotnet-script",
-            "ed",
-            "elixir",
-            "emacs",
-            "escript",
-            "ex",
-            "expect",
-            "gawk",
-            "ghci",
-            "gmake",
-            "groovy",
-            "guile",
-            "js",
-            "jsc",
-            "jshell",
-            "julia",
-            "kotlin",
-            "less",
-            "lua",
-            "luajit",
-            "make",
-            "mawk",
-            "man",
-            "mariadb",
-            "mysql",
-            "nawk",
-            "nim",
-            "node",
-            "nodejs",
-            "nvim",
-            "ocaml",
-            "perl",
-            "php",
-            "psql",
-            "qjs",
-            "r",
-            "racket",
-            "raku",
-            "ruby",
-            "rscript",
-            "sbcl",
-            "scala",
-            "sed",
-            "sqlite3",
-            "swift",
-            "tclsh",
-            "ts-node",
-            "tsx",
-            "vi",
-            "view",
-            "vim",
-            "wish",
-        }
-    )
-    _ENV_COMMANDS = frozenset({"env", "env.exe"})
-    _BUSYBOX_COMMANDS = frozenset({"busybox", "busybox.exe"})
-    _EXPANSION_SAFE_COMMANDS = frozenset({"printf"})
-    _COMMAND_DELEGATORS = frozenset(
-        {
-            "chrt",
-            "chroot",
-            "catchsegv",
-            "doas",
-            "flock",
-            "i386",
-            "i486",
-            "i586",
-            "i686",
-            "ionice",
-            "linux32",
-            "linux64",
-            "ltrace",
-            "nsenter",
-            "ncat",
-            "nc",
-            "numactl",
-            "parallel",
-            "perf",
-            "prlimit",
-            "proot",
-            "rsync",
-            "runuser",
-            "scp",
-            "script",
-            "setarch",
-            "setpriv",
-            "sftp",
-            "slogin",
-            "socat",
-            "ssh",
-            "sshpass",
-            "strace",
-            "su",
-            "sudo",
-            "taskset",
-            "torify",
-            "uname26",
-            "unshare",
-            "valgrind",
-            "watch",
-            "x86_64",
-            "xargs",
-        }
-    )
-    _DEBUG_EVALUATORS = frozenset({"gdb", "lldb"})
-    _COMMAND_DELEGATION_ENVIRONMENT = {
-        "tar": frozenset({"PATH", "TAR_OPTIONS"}),
-    }
-    _COMMAND_DELEGATION_OPTIONS = {
-        "find": frozenset({"-exec", "-execdir", "-ok", "-okdir"}),
-        "tar": frozenset(
-            {
-                "-F",
-                "-I",
-                "--checkpoint-action",
-                "--info-script",
-                "--new-volume-script",
-                "--rsh-command",
-                "--to-command",
-                "--use-compress-program",
-            }
-        ),
-    }
-    _PROCESS_WRAPPER_OPERAND_OPTIONS = {
-        "nice": frozenset({"-n", "--adjustment"}),
-        "stdbuf": frozenset({"-e", "-i", "-o", "--error", "--input", "--output"}),
-        "time": frozenset({"-f", "-o", "--format", "--output"}),
-        "timeout": frozenset({"-k", "-s", "--kill-after", "--signal"}),
-    }
-    _PROCESS_WRAPPER_FLAG_OPTIONS = {
-        "nice": frozenset(),
-        "nohup": frozenset(),
-        "setsid": frozenset({"-c", "-f", "-w", "--ctty", "--fork", "--keep-groups", "--wait"}),
-        "stdbuf": frozenset(),
-        "time": frozenset(
-            {"-a", "-p", "-q", "-v", "--append", "--portability", "--quiet", "--verbose"}
-        ),
-        "timeout": frozenset({"-v", "--foreground", "--preserve-status", "--verbose"}),
-    }
+
+
     _GIT_COMMAND_ENVIRONMENT = frozenset(
         {
             "EDITOR",
@@ -657,6 +535,8 @@ def _original_main(stdin_bytes):
             "XDG_CONFIG_HOME",
         }
     )
+
+
     _GIT_BUILTIN_COMMANDS = frozenset(
         {
             "add",
@@ -738,6 +618,8 @@ def _original_main(stdin_bytes):
             "write-tree",
         }
     )
+
+
     _GIT_GLOBAL_EXECUTION_OPTIONS = frozenset(
         {
             "-C",
@@ -751,6 +633,8 @@ def _original_main(stdin_bytes):
             "--work-tree",
         }
     )
+
+
     _GIT_GLOBAL_EXECUTION_PREFIXES = (
         "--attr-source=",
         "--config-env=",
@@ -759,6 +643,8 @@ def _original_main(stdin_bytes):
         "--namespace=",
         "--work-tree=",
     )
+
+
     _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND = {
         "archive": frozenset({"--exec"}),
         "clone": frozenset({"-c", "-u", "--config", "--template", "--upload-pack"}),
@@ -770,6 +656,8 @@ def _original_main(stdin_bytes):
         "pull": frozenset({"-s", "--strategy", "--upload-pack"}),
         "push": frozenset({"--exec", "--receive-pack"}),
     }
+
+
     _GIT_OPTION_OPERANDS_BY_SUBCOMMAND = {
         "clone": frozenset(
             {
@@ -789,14 +677,24 @@ def _original_main(stdin_bytes):
         "pull": frozenset({"-j", "--jobs", "--server-option", "--upload-pack"}),
         "push": frozenset({"-o", "--push-option", "--receive-pack", "--repo"}),
     }
+
+
     _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND = {
         "bisect": frozenset({"run"}),
     }
+
+
     _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND = {
         "grep": frozenset({"A", "B", "C", "e", "f", "m"}),
     }
+
+
     _GIT_SAFE_REMOTE_SCHEMES = frozenset({"git", "http", "https", "ssh"})
+
+
     _GIT_REMOTE_SUBCOMMANDS = frozenset({"clone", "fetch", "ls-remote", "pull", "push"})
+
+
     _GIT_CONFIG_READ_ACTIONS = frozenset(
         {
             "--get",
@@ -810,6 +708,8 @@ def _original_main(stdin_bytes):
             "list",
         }
     )
+
+
     _GIT_HOOK_FREE_SUBCOMMANDS = frozenset(
         {
             "annotate",
@@ -840,68 +740,8 @@ def _original_main(stdin_bytes):
             "whatchanged",
         }
     )
-    _DANGEROUS_LOADER_ENVIRONMENT = frozenset(
-        {
-            "CORECLR_ENABLE_PROFILING",
-            "CORECLR_PROFILER",
-            "COR_ENABLE_PROFILING",
-            "COR_PROFILER",
-            "DOTNET_STARTUP_HOOKS",
-            "LD_AUDIT",
-            "LD_LIBRARY_PATH",
-            "LD_PRELOAD",
-            "NODE_OPTIONS",
-            "PERL5OPT",
-            "PYTHONPATH",
-            "PYTHONSTARTUP",
-            "RUBYOPT",
-        }
-    )
-    # Assignments whose VALUE names a program the shell or interpreter executes,
-    # beyond the loader set above. Relevance inspects these because such a variable
-    # runs its value without the path ever appearing as a command operand
-    # (issue #4764).
-    # Commands that exist to RUN another program named in their arguments. Their
-    # operands are never data, so relevance keeps a new_pr.py reference in scope
-    # (issue #4764). Interpreters, shells, and evaluators are covered by the
-    # existing evaluator sets; this list is the remaining launchers.
-    #
-    # Omission fails closed only when the launcher is also unresolvable, so keep it
-    # current: a resolvable launcher missing from this list would let
-    # `<launcher> new_pr.py` read as data. `uv` is here because `uv run
-    # tools/copy.py` executes a renamed copy of new_pr.py, which is a measured
-    # vector in tests/hooks/test_push_pr_script_identity_guard.py.
-    _LAUNCHER_COMMANDS = frozenset(
-        {
-            "conda",
-            "doas",
-            "hatch",
-            "micromamba",
-            "nix-shell",
-            "parallel",
-            "pdm",
-            "pipenv",
-            "pipx",
-            "pixi",
-            "poetry",
-            "rye",
-            "sudo",
-            "tox",
-            "uv",
-            "uvx",
-            "xargs",
-        }
-    )
-    _EXECUTION_INFLUENCING_VARIABLES = frozenset(
-        {
-            "BASH_ENV",
-            "ENV",
-            "PAGER",
-            "PUSH_PR_SCRIPT",
-            "SHELL",
-            "VISUAL",
-        }
-    )
+
+
     _GIT_CONFIG_READ_MODIFIERS = frozenset(
         {
             "--fixed-value",
@@ -918,13 +758,17 @@ def _original_main(stdin_bytes):
             "--global",
         }
     )
+
+
     _TRUSTED_NEW_PR_SHA256 = "f9df25527cb27ec10c2eb70100d664165d81666a825eab848cd90609251dae26"
+
+
     _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
         "00f32287461be4a0d0b15b0b7fb8a870d3824fbe4a6427373376fb4c38bda9eb"
     )
-    _TRUSTED_PR_VALIDATIONS_SHA256 = (
-        "a58457c51dfc7f1dc95ba95870e0311cde158be6b35114acb1e36c300f968570"
-    )
+
+
+    _TRUSTED_PR_VALIDATIONS_SHA256 = "a58457c51dfc7f1dc95ba95870e0311cde158be6b35114acb1e36c300f968570"
 
 
     class GuardViolationError(ValueError):
@@ -1092,9 +936,7 @@ def _original_main(stdin_bytes):
                 if len(start) == 1 and len(end) == 1:
                     low, high = sorted((ord(start), ord(end)))
                     candidates = {
-                        chr(point)
-                        for point in range(low, high + 1)
-                        if chr(point) in _NEW_PR_TARGET
+                        chr(point) for point in range(low, high + 1) if chr(point) in _NEW_PR_TARGET
                     }
                     candidates.add(chr(low))
                     return sorted(candidates)
@@ -1442,9 +1284,7 @@ def _original_main(stdin_bytes):
         basename = word.rsplit("/", 1)[-1]
         if not basename:
             return False
-        return any(marker in basename for marker in "?*[") and fnmatch.fnmatch(
-            _NEW_PR_TARGET, basename
-        )
+        return any(marker in basename for marker in "?*[") and fnmatch.fnmatch(_NEW_PR_TARGET, basename)
 
 
     def _scope_segments(command: str) -> list[list[ShellToken]]:
@@ -1511,8 +1351,7 @@ def _original_main(stdin_bytes):
                     depth + 1,
                 )
         return command_name == "eval" and any(
-            _command_text_is_in_scope(token.value, cwd, depth + 1)
-            for token in tokens[index + 1 :]
+            _command_text_is_in_scope(token.value, cwd, depth + 1) for token in tokens[index + 1 :]
         )
 
 
@@ -1768,9 +1607,7 @@ def _original_main(stdin_bytes):
             value = token.value
             if value == "-c" and position + 1 < len(normalized):
                 configured = normalized[position + 1]
-                operands.append(
-                    ShellToken(configured.raw, configured.value.partition("=")[2])
-                )
+                operands.append(ShellToken(configured.raw, configured.value.partition("=")[2]))
                 position += 2
                 continue
             if value.startswith("-c") and len(value) > 2:
@@ -1888,9 +1725,7 @@ def _original_main(stdin_bytes):
     def _command_text_is_in_scope(command: str, cwd: Path, depth: int) -> bool:
         if depth > 4:
             return True
-        return any(
-            _segments_are_in_scope(tokens, cwd, depth) for tokens in _scope_segments(command)
-        )
+        return any(_segments_are_in_scope(tokens, cwd, depth) for tokens in _scope_segments(command))
 
 
     def _contains_active_parameter_expansion(raw: str) -> bool:
@@ -2656,10 +2491,7 @@ def _original_main(stdin_bytes):
             subcommand_index,
         ):
             return True
-        if (
-            subcommand not in _GIT_HOOK_FREE_SUBCOMMANDS
-            and _repository_has_active_git_hooks(cwd)
-        ):
+        if subcommand not in _GIT_HOOK_FREE_SUBCOMMANDS and _repository_has_active_git_hooks(cwd):
             return True
         if subcommand in _GIT_REMOTE_SUBCOMMANDS:
             remote = _git_remote_operand(tokens, subcommand_index)

@@ -52,6 +52,25 @@ from tests.hooks.push_pr_guard_harness import (
 
 IN_SCOPE_ASSIGNMENT = "PUSH_PR_SCRIPT=new_pr.py "
 
+# The guard ships as one runtime unit: the dispatched entrypoint plus the
+# ``_push_pr_guard_*`` siblings it imports (issue #4764). Anything that copies,
+# reads, or interpreter-checks "the guard" has to cover the whole unit, or it
+# checks a file that cannot run on its own.
+GUARD_MODULE_GLOB = "_push_pr_guard_*.py"
+
+
+def _guard_unit(guard: Path) -> tuple[Path, ...]:
+    """Return the entrypoint and every sibling module it imports."""
+    return (guard, *sorted(guard.parent.glob(GUARD_MODULE_GLOB)))
+
+
+def _install_guard_unit(guard: Path, destination: Path) -> Path:
+    """Copy the whole runtime unit next to ``destination`` and return the entry."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    for member in _guard_unit(guard):
+        shutil.copy2(member, destination.parent / member.name)
+    return destination.parent / guard.name
+
 
 def _in_scope(command: str) -> str:
     """Return ``command`` placed inside the guard's relevance scope."""
@@ -210,12 +229,18 @@ def test_guards_do_not_use_post_310_hashlib_api(guard: Path) -> None:
     The runtime test above skips when no 3.10 interpreter is installed, which
     is the common case on a 3.14 developer machine and in CI. This assertion
     always runs, so the regression cannot return unnoticed.
-    """
-    source = guard.read_text(encoding="utf-8")
 
-    assert "hashlib.file_digest(" not in source, (
-        f"{guard.name} calls hashlib.file_digest, which does not exist on Python 3.10"
-    )
+    Every member of the runtime unit is read, not just the entrypoint. The
+    digest code moved into ``_push_pr_guard_identity.py`` when the guard was
+    split, so an entrypoint-only check would now pass while the call it exists
+    to forbid sits one import away.
+    """
+    for member in _guard_unit(guard):
+        source = member.read_text(encoding="utf-8")
+
+        assert "hashlib.file_digest(" not in source, (
+            f"{member.name} calls hashlib.file_digest, which does not exist on Python 3.10"
+        )
 
 
 def test_trusted_digests_match_the_shipped_bundle() -> None:
@@ -225,11 +250,21 @@ def test_trusted_digests_match_the_shipped_bundle() -> None:
     or validate_pr_description.py digest differs from the pinned constant. A
     stale constant therefore wedges `/push-pr` for every user with no other
     signal, and nothing else in the tree recomputes it. This is that gate.
+
+    The constants live in the ``_push_pr_guard_identity`` member of the runtime
+    unit, so the search covers every member rather than the entrypoint alone.
     """
     expected = {
         "_TRUSTED_NEW_PR_SHA256": CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE,
         "_TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256": (
             CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE.parent / "validate_pr_description.py"
+        ),
+        # Joined the bundle in issue #4764 when new_pr.py was split for
+        # cohesion. new_pr.py loads it by absolute path at import time, so an
+        # unpinned sibling would be an unverified code path inside the script
+        # the guard exists to verify.
+        "_TRUSTED_PR_VALIDATIONS_SHA256": (
+            CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE.parent / "pr_validations.py"
         ),
     }
     guards = (
@@ -241,7 +276,7 @@ def test_trusted_digests_match_the_shipped_bundle() -> None:
     )
 
     for guard in guards:
-        source = guard.read_text(encoding="utf-8")
+        source = "\n".join(member.read_text(encoding="utf-8") for member in _guard_unit(guard))
         for constant, target in expected.items():
             match = re.search(rf'{constant} = \(?\s*"([0-9a-f]{{64}})"', source)
             assert match is not None, f"{guard.name} does not pin {constant}"
@@ -257,9 +292,8 @@ def test_guard_denies_modified_runtime_helper(tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime" / ".claude"
     guard = runtime_root / "hooks" / "PreToolUse" / ("invoke_push_pr_script_identity_guard.py")
     script_dir = runtime_root / SCRIPT_RELATIVE.parent
-    guard.parent.mkdir(parents=True)
     script_dir.mkdir(parents=True)
-    shutil.copy2(
+    _install_guard_unit(
         REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
         guard,
     )
@@ -278,6 +312,38 @@ def test_guard_denies_modified_runtime_helper(tmp_path: Path) -> None:
 
     assert result.returncode == 2
     assert "does not match the trusted plugin copy" in result.stderr
+
+
+def test_guard_fails_closed_without_its_runtime_modules(tmp_path: Path) -> None:
+    """An entrypoint installed without its siblings must block, never allow.
+
+    The split made the guard a multi-file unit, so a partial install is now
+    possible where it was not before. The generator publishes the owner and its
+    companions in one transaction to prevent that, but the runtime behavior
+    still has to be the safe one: an ImportError has to deny, because a guard
+    that cannot load has verified nothing.
+    """
+    repository, _ = _repository(tmp_path)
+    body_file = _body_file(repository)
+    runtime_root = tmp_path / "partial" / ".claude"
+    guard = runtime_root / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py"
+    guard.parent.mkdir(parents=True)
+    shutil.copy2(
+        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
+        guard,
+    )
+    script_dir = runtime_root / SCRIPT_RELATIVE.parent
+    script_dir.mkdir(parents=True)
+    shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, script_dir / "new_pr.py")
+
+    result = _run_guard_script(
+        guard,
+        f"python3 -I '{script_dir / 'new_pr.py'}' "
+        f"--title 'fix: partial install' --body-file {body_file}",
+        repository,
+    )
+
+    assert result.returncode != 0, "a guard that cannot import its own modules must not allow"
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
