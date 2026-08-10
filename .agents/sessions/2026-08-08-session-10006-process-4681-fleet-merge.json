@@ -145,9 +145,9 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "14f797392fba953bafb101c034a8ed961ce6485a",
-      "head": "19ce5539071cbae8095f7578af41dd6e0c36d0bf"
+      "head": "3ed1c6018a6a4744b6aafb9bba69c87196660088"
     }
   },
-  "endingCommit": "19ce5539071cbae8095f7578af41dd6e0c36d0bf",
+  "endingCommit": "3ed1c6018a6a4744b6aafb9bba69c87196660088",
   "nextSteps": []
 }

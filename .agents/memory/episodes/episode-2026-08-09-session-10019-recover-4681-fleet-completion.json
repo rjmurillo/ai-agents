@@ -50,9 +50,11 @@
       "type": "milestone",
       "content": "Run final local gates",
       "caused_by": [
-        "e005"
+        "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
     },
     {
@@ -64,8 +66,32 @@
         "e003"
       ],
       "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T03:07:45+00:00",
+      "type": "commit",
+      "content": "Commit: f9b65c1f6a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
         "e004"
       ],
+      "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:43:52+00:00",
+      "type": "commit",
+      "content": "Commit: 3ed1c6018a6a4744b6aafb9bba69c87196660088",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
     }
   ],
@@ -74,8 +100,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 8
   },
   "lessons": []
 }
