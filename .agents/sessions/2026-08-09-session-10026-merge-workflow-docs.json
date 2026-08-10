@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final serial workflow documentation and remote branch history merged in dac8dfa0f57d2953793ec7601fba7c6cbf0149a6; this follow-up updates evidence markers only."
+        "Evidence": "Final strict one-front protocol committed in 93692b15cbc16d5e5edfa81c3809151d13ca7a6d; this follow-up updates evidence markers only."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,6 +116,6 @@
       "outcome": "Reviewed strict and non-strict designs; the final model restores strict to close TOCTOU while retaining the measured one-front cost control."
     }
   ],
-  "endingCommit": "dac8dfa0f57d2953793ec7601fba7c6cbf0149a6",
+  "endingCommit": "93692b15cbc16d5e5edfa81c3809151d13ca7a6d",
   "nextSteps": []
 }
