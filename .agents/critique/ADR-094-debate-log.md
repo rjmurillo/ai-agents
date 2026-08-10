@@ -30,13 +30,14 @@ Unanimous consensus across six required roles.
 - Escalated: false
 
 Machine-readable record:
-[decision-2026-08-10T07-51-00-109946+00-00.json](../decisions/decision-2026-08-10T07-51-00-109946+00-00.json).
+[decision-2026-08-10T08-38-56-548676+00-00.json](../decisions/decision-2026-08-10T08-38-56-548676+00-00.json).
 
 ## Findings resolved
 
 1. Strict-off TOCTOU: resolved by restoring strict.
 2. Parallel CI cost: resolved by one-front landing.
-3. Concurrent arming: resolved by disabling all other auto-merge requests.
+3. Concurrent arming: resolved by atomic creation of the fixed
+   `refs/heads/merge-drain-lock` before any auto-merge mutation.
 4. Missing recovery after cancellation: tracked by issue #4835.
 5. Missing `reopened` triggers: tracked by issue #4827.
 6. Governance auto-merge conflict: governance changes require human approval.

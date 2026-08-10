@@ -44,15 +44,18 @@ Keep ruleset `11104075`
 
 Drain the backlog with one front PR at a time:
 
-1. Disable auto-merge on every other open PR.
-2. Update only the front PR to current main.
-3. Run local deterministic checks and canonical AI prompts.
-4. Let required CI finish.
-5. Enable GitHub squash auto-merge.
-6. If main moves, GitHub strict freshness blocks the merge. Refresh only the
+1. Acquire the fixed repository landing lease
+   `refs/heads/merge-drain-lock`.
+2. Disable auto-merge on every other open PR.
+3. Update only the front PR to current main.
+4. Run local deterministic checks and canonical AI prompts.
+5. Let required CI finish.
+6. Enable GitHub squash auto-merge.
+7. If main moves, GitHub strict freshness blocks the merge. Refresh only the
    front PR.
-7. Wait until the PR reaches `MERGED`.
-8. Require green push workflows on the new main commit before advancing.
+8. Wait until the PR reaches `MERGED`.
+9. Require green push workflows on the new main commit before advancing.
+10. Release the landing lease only after main is green.
 
 Dependent new changes should use stacked PRs. Unrelated backlog work must not
 be stacked.
@@ -113,6 +116,8 @@ parallel development for dependent work without arming unrelated PRs.
 
 - GitHub blocks stale merges at merge time.
 - Only one branch update and test matrix runs per merge attempt.
+- Atomic Git ref creation prevents two landing sessions from arming PRs
+  concurrently.
 - A red main push halts the drain before another PR lands.
 - Required CI cancellation is no longer part of normal backlog control.
 
@@ -135,6 +140,7 @@ parallel development for dependent work without arming unrelated PRs.
 | Serena CI memories | Direct | Remove active Trunk and strict-false guidance | High |
 | GitHub skill scripts | Indirect | Use existing merge and auto-merge commands | Low |
 | PR automation agents | Indirect | Arm at most one front PR | High |
+| Git refs | Direct | Add fixed fail-closed landing lease ref | Medium |
 
 ## Implementation Notes
 
@@ -145,7 +151,7 @@ parallel development for dependent work without arming unrelated PRs.
 - The formal review record is
   [ADR-094-debate-log.md](../critique/ADR-094-debate-log.md).
 - The machine-readable consensus is
-  [decision-2026-08-10T07-51-00-109946+00-00.json](../decisions/decision-2026-08-10T07-51-00-109946+00-00.json).
+  [decision-2026-08-10T08-38-56-548676+00-00.json](../decisions/decision-2026-08-10T08-38-56-548676+00-00.json).
 
 ## Related Decisions
 

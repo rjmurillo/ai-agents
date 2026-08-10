@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10026-merge-workflow-docs.json
-qaCommit: dd3a3eb8adb48d676c787d803efa41d21b832e2d
+qaCommit: c83fd9847c8f3070e42aadaa910477896a7f35e8
 ---
 # Test Report: Strict Serial Auto-Merge Protocol
 
@@ -13,7 +13,7 @@ Documentation-only change for issue #4820:
 - [`.agents/governance/GOTCHAS.md`](../governance/GOTCHAS.md)
 - [`.agents/architecture/ADR-094-strict-serial-auto-merge.md`](../architecture/ADR-094-strict-serial-auto-merge.md)
 - [`.agents/critique/ADR-094-debate-log.md`](../critique/ADR-094-debate-log.md)
-- [formal consensus decision](../decisions/decision-2026-08-10T07-51-00-109946+00-00.json)
+- [formal consensus decision](../decisions/decision-2026-08-10T08-38-56-548676+00-00.json)
 - [`.agents/retrospective/2026-08-09-trunk-ci-cancellation-incident.md`](../retrospective/2026-08-09-trunk-ci-cancellation-incident.md)
 - three new CI Serena memories and one updated agent-behavior memory
 
@@ -26,11 +26,13 @@ Documentation-only change for issue #4820:
 | Native queue unavailable | Repository is user-owned, not organization-owned |
 | Trunk removed | PR #4814 and issues #4815/#4818 closed |
 | Parallel update cost | 41 branch updates triggered 820 runs; 818 cancelled |
+| Atomic landing lease | First Git-ref create succeeded; second returned HTTP 422; release removed the ref |
 
 ## Procedure under test
 
 Strict freshness provides the server-side stale-merge guard. Cost stays bounded
-by updating and testing one front PR at a time. Dependent new work uses stacked
+by updating and testing one front PR at a time. A fixed Git ref provides atomic
+lease acquisition before auto-merge mutation. Dependent new work uses stacked
 PRs; unrelated backlog work does not.
 
 ## Review

@@ -62,7 +62,8 @@
         "e003",
         "e004",
         "e011",
-        "e013"
+        "e013",
+        "e018"
       ],
       "leads_to": [
         "e006"
@@ -216,6 +217,30 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added atomic repository landing lease",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T08:40:00+00:00",
+      "type": "commit",
+      "content": "Commit: c83fd9847c8f3070e42aadaa910477896a7f35e8",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
     }
@@ -225,7 +250,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 15
   },
   "lessons": []

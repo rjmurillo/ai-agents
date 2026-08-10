@@ -122,8 +122,12 @@
     {
       "action": "Created ADR-094 and formal consensus",
       "outcome": "Documented strict freshness plus one-front auto-merge, generated unanimous consensus JSON, and received 6/6 ADR acceptance with no P0/P1 findings."
+    },
+    {
+      "action": "Added atomic repository landing lease",
+      "outcome": "Live-probed fixed Git ref acquisition: first create succeeded, concurrent create returned HTTP 422, and release removed the ref. Six reviewers accepted the final lease delta."
     }
   ],
-  "endingCommit": "dd3a3eb8adb48d676c787d803efa41d21b832e2d",
+  "endingCommit": "c83fd9847c8f3070e42aadaa910477896a7f35e8",
   "nextSteps": []
 }

@@ -863,8 +863,24 @@ queue, and it does not use an external merge queue.
 
 1. Ruleset `11104075` MUST keep
    `strict_required_status_checks_policy: true`.
-2. Exactly one pull request MAY have auto-merge enabled at a time. Before
-   arming a pull request, the agent MUST disable auto-merge on every other open
+2. Before landing any non-governance PR, the agent MUST acquire the
+   repository landing lease. The fixed Git ref is an atomic compare-and-set:
+   only one session can create it.
+
+   ```bash
+   REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+   LEASE_REF=refs/heads/merge-drain-lock
+   MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+   gh api -X POST "repos/$REPO/git/refs" \
+     -f ref="$LEASE_REF" -f sha="$MAIN_SHA"
+   ```
+
+   A 422 response means another landing session holds the lease. Stop without
+   changing PR state. The lease fails closed: if a session crashes, the ref
+   remains. Only a human maintainer may clear a stale lease after verifying no
+   landing session is active and no PR has auto-merge enabled.
+3. Exactly one pull request MAY have auto-merge enabled at a time. After
+   acquiring the lease, the agent MUST disable auto-merge on every other open
    pull request and verify the count is zero:
 
    ```bash
@@ -881,12 +897,11 @@ queue, and it does not use an external merge queue.
    ```
 
    This single-front rule controls CI cost. GitHub strict freshness remains the
-   server-side safety lock. Two agent sessions MUST NOT execute this phase
-   concurrently.
-3. The front pull request MUST be `MERGEABLE`, have zero unresolved threads,
+   server-side safety lock.
+4. The front pull request MUST be `MERGEABLE`, have zero unresolved threads,
    carry valid `Fixes #N` or `Refs #N` linkage, and pass every required check
    before it merges.
-4. The agent MUST update only the front pull request to current main and let
+5. The agent MUST update only the front pull request to current main and let
    its checks run:
 
    ```bash
@@ -903,41 +918,41 @@ queue, and it does not use an external merge queue.
    - otherwise stop and surface the API response. Retry at most once.
 
    If the PR is `DIRTY`, resolve its conflicts before continuing.
-5. Dependent changes SHOULD use stacked PRs: base each child PR on its parent
+6. Dependent changes SHOULD use stacked PRs: base each child PR on its parent
    branch instead of opening every PR against main. Do not stack unrelated
    work. After the parent merges, retarget or update the child to main and
    process it as the next front.
-6. When the changed paths trigger AI quality workflows, the agent MUST run
+7. When the changed paths trigger AI quality workflows, the agent MUST run
    the matching canonical prompts under
    `.github/prompts/pr-quality-gate-*.md` locally against the complete final
    diff before the final push. The QA report MUST record every axis verdict and
    any supported finding that changed the branch. Remote CI is the backstop,
    not the first review.
-7. Code-changing pull requests MUST carry their QA report and valid session
+8. Code-changing pull requests MUST carry their QA report and valid session
    binding before the final push. Do not use remote `Validate PR` to discover
    a missing report after a 15-minute CI run.
-8. If main moves during testing, GitHub strict freshness blocks the merge.
-   Restart step 4 for this pull request only. Do not refresh the rest of the
+9. If main moves during testing, GitHub strict freshness blocks the merge.
+   Restart step 5 for this pull request only. Do not refresh the rest of the
    backlog.
-9. If operating unattended, the agent MUST invoke critic before enabling
+10. If operating unattended, the agent MUST invoke critic before enabling
    auto-merge, per the Unattended Execution Protocol.
-10. The agent MUST use squash auto-merge:
+11. The agent MUST use squash auto-merge:
 
    ```bash
    python3 "$SCRIPTS_DIR/pr/merge_pr.py" \
      --pull-request <PR_NUMBER> --strategy squash --auto
    ```
 
-11. Enabling auto-merge is not completion. The agent MUST wait until the pull
+12. Enabling auto-merge is not completion. The agent MUST wait until the pull
    request reaches `MERGED`. Poll `get_pr_context.py`; when
-   `merge_state_status` becomes `BEHIND`, repeat step 4. If it has not merged
+   `merge_state_status` becomes `BEHIND`, repeat step 5. If it has not merged
    within 30 minutes, the agent MUST keep the task incomplete and report the
    exact in-progress or failing required checks from `get_pr_checks.py`; the
    user MAY accept a handoff instead. Basis: PR #4819's slowest required check
    completed in 1094 seconds (18 minutes 14 seconds), so 30 minutes leaves
    11 minutes 46 seconds before escalation. Re-measure when required checks
    change.
-12. Before advancing to the next PR, the agent MUST inspect the push workflows
+13. Before advancing to the next PR, the agent MUST inspect the push workflows
     for the new main commit. Any red main check stops the drain: disable
     auto-merge everywhere, keep the task incomplete, and fix forward or revert
     before arming another PR.
@@ -949,7 +964,15 @@ queue, and it does not use an external merge queue.
 
     Wait for the relevant push workflows to complete. Any `failure`,
     `timed_out`, `action_required`, or `startup_failure` conclusion is red.
-13. Changes under `.agents/governance/**` require human maintainer approval
+14. After the PR merges and main is green, the lease holder MUST release the
+    landing lease:
+
+    ```bash
+    gh api -X DELETE "repos/$REPO/git/refs/heads/merge-drain-lock"
+    ```
+
+    Do not release the lease while a front PR is pending or main is red.
+15. Changes under `.agents/governance/**` require human maintainer approval
     and MUST NOT use auto-merge. After all checks pass, stop and request human
     review.
 
@@ -971,6 +994,7 @@ rollback criterion.
 **Verification checklist:**
 
 - [ ] Ruleset strict policy is `true`
+- [ ] Repository landing lease acquired
 - [ ] Exactly one or zero open PRs have auto-merge enabled
 - [ ] Full PR thread and linked work items read
 - [ ] Zero unresolved review threads
@@ -982,6 +1006,7 @@ rollback criterion.
 - [ ] `gh pr merge --auto --squash` executed
 - [ ] Pull request reached `MERGED`, or user accepted an explicit handoff
 - [ ] New main push checks are green before advancing
+- [ ] Repository landing lease released after green main
 
 ### Phase 3: Git Operations (REQUIRED)
 
