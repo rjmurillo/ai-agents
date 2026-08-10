@@ -173,21 +173,19 @@ def is_credible_rescope(
       The original branch's block clears on a number that was never measured
       against it. The branch name is already on the record, so comparing it
       is the whole fix.
-    * The file count is positive. ``get_index_files_against_ref`` returns
-      ``[]`` on any nonzero ``git diff``. Quoted rather than paraphrased,
-      because this branch is the whole reason the condition exists,
-      ``scripts/detect_scope_explosion.py:223-224``::
+    * The file count is positive. ``get_index_files_against_ref`` now raises
+      ``ScopeDetectionError`` on any nonzero ``git diff``. Quoted rather than
+      paraphrased, because this branch is the whole reason the condition exists,
+      ``scripts/detect_scope_explosion.py:197-199``::
 
           if result.returncode != 0:
-              return []
+              raise ScopeDetectionError(
+                  f"git diff --cached against {base_ref} failed (rc={result.returncode}): "
 
-      ``detect_scope`` turns that empty list into
-      ``ScopeResult(file_count=0)`` rather than None. A diff that fails against
-      an otherwise-resolvable ref (a missing tree in a partial clone, for
-      instance) therefore reads as "this PR changes nothing". A genuinely empty
-      result is indistinguishable from that failure at this call site, so both
-      are refused. That costs a branch whose only content is an empty commit,
-      which is not a branch a scope gate needs to unblock.
+      ``rescope_against_pr_base`` catches that exception and keeps the original
+      block, so a zero-file result now means a real empty diff rather than a
+      failed re-measurement. That still is not a branch a scope gate needs to
+      unblock, so zero is refused here too.
     * The two measurements forked from the same history, and the rescoped one
       forked later. See below.
 

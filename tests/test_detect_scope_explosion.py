@@ -1310,12 +1310,28 @@ class TestRescopeAgainstPrBase:
         ):
             assert rescope_against_pr_base(None, self._result(52)) is None
 
-    def test_refuses_a_zero_file_remeasurement(self) -> None:
-        """A failed git diff reads as zero files, which would clear the block.
+    def test_returns_none_when_remeasurement_raises(self) -> None:
+        """A failed re-measurement must preserve the original blocking result."""
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                side_effect=ScopeDetectionError("bad base"),
+            ),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
 
-        get_index_files_against_ref returns [] on any nonzero git diff and
-        detect_scope wraps that into ScopeResult(file_count=0) rather than
-        None, so this is the shape a broken diff actually takes.
+    def test_refuses_a_zero_file_remeasurement(self) -> None:
+        """A zero-file remeasurement still must not clear the block.
+
+        Diff failures now raise ScopeDetectionError and are caught before
+        this point. A zero count here therefore means a genuine empty diff,
+        which the gate still refuses to unblock.
         """
         with (
             self._no_merge(),

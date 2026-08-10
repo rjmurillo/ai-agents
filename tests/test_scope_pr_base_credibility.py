@@ -105,12 +105,11 @@ class TestIsCredibleRescope:
         assert calls == []
 
     def test_rejects_zero_files(self) -> None:
-        """A failed git diff reads as zero files, which would clear the block.
+        """A zero-file remeasurement must not clear the original block.
 
-        get_index_files_against_ref returns [] on any nonzero git diff and
-        detect_scope turns that into ScopeResult(file_count=0) rather than
-        None. A genuinely empty result is indistinguishable from that
-        failure at this call site, so both are refused.
+        Diff failures now raise ScopeDetectionError and are caught before
+        credibility is checked. A zero-file result therefore means a real
+        empty diff, which still is not a branch this gate needs to unblock.
         """
         ancestor, calls = self._ancestry(True)
         assert is_credible_rescope(self._rescoped(), self._blocked("a.py"), ancestor) is False
@@ -184,9 +183,13 @@ class TestDocstringCitationStaysAccurate:
     with the corrected line numbers rather than letting the claim rot.
     """
 
-    QUOTED = ("if result.returncode != 0:", "return []")
+    QUOTED = (
+        "if result.returncode != 0:",
+        "raise ScopeDetectionError(",
+        'f"git diff --cached against {base_ref} failed (rc={result.returncode}): "',
+    )
     CITED_PATH = "scripts/detect_scope_explosion.py"
-    CITED_LINES = (223, 224)
+    CITED_LINES = (197, 199)
 
     def _source_lines(self) -> list[str]:
         root = Path(__file__).resolve().parents[1]
@@ -206,7 +209,10 @@ class TestDocstringCitationStaysAccurate:
     def test_quoted_text_appears_exactly_once(self) -> None:
         """The quote is unambiguous, so a moved citation can be repointed."""
         lines = [line.strip() for line in self._source_lines()]
-        starts = [i for i in range(len(lines) - 1) if (lines[i], lines[i + 1]) == self.QUOTED]
+        starts = [
+            i for i in range(len(lines) - len(self.QUOTED) + 1)
+            if tuple(lines[i : i + len(self.QUOTED)]) == self.QUOTED
+        ]
         assert len(starts) == 1, (
             f"Expected one occurrence of the quoted branch in {self.CITED_PATH}, "
             f"found {len(starts)} at lines {[s + 1 for s in starts]}."
@@ -215,6 +221,6 @@ class TestDocstringCitationStaysAccurate:
     def test_docstring_contains_the_citation(self) -> None:
         """The docstring actually carries the path, the lines, and the quote."""
         doc = is_credible_rescope.__doc__ or ""
-        assert f"{self.CITED_PATH}:223-224" in doc
+        assert f"{self.CITED_PATH}:197-199" in doc
         for fragment in self.QUOTED:
             assert fragment in doc, f"docstring lost the quoted line {fragment!r}"

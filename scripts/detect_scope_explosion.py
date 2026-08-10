@@ -225,6 +225,17 @@ def get_head_files_against_ref(base_ref: str) -> list[str]:
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 
+def is_ancestor(commit: str, ref: str) -> bool:
+    """Return True when ``commit`` is an ancestor-or-equal of ``ref``."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, ref],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     """Detect scope explosion on the current branch.
 
@@ -323,7 +334,10 @@ def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) ->
         return None
     if pr_base == strip_remote_prefix(requested_base or "main"):
         return None
-    rescoped = detect_scope(pr_base)
+    try:
+        rescoped = detect_scope(pr_base)
+    except ScopeDetectionError:
+        return None
     if not is_credible_rescope(rescoped, blocked, is_ancestor):
         return None
     assert rescoped is not None  # narrowed by is_credible_rescope
