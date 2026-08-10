@@ -40,6 +40,7 @@ get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
 _resolve_validation_base = _mod._resolve_validation_base
+_session_log_for_validation = _mod._session_log_for_validation
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +50,22 @@ _resolve_validation_base = _mod._resolve_validation_base
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+
+def test_session_log_temp_copy_preserves_the_original_basename(tmp_path: Path) -> None:
+    session_log = ".agents/sessions/2026-08-10-session-42-example.json"
+    content = '{"session":{"number":42}}\n'
+    with patch.object(_mod.subprocess, "run", return_value=_completed(content)):
+        with _session_log_for_validation(
+            str(tmp_path),
+            "feature",
+            session_log,
+        ) as copied:
+            assert copied is not None
+            copied_path = Path(copied)
+            assert copied_path.name == Path(session_log).name
+            assert copied_path.read_text(encoding="utf-8") == content
+        assert not copied_path.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -613,11 +630,12 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/not-checked-out")
 
         assert len(validated_paths) == 1
-        # The validated path is ignored repo-local scratch, not the branch log path.
+        # The ignored repo-local scratch copy preserves the original basename,
+        # because QA binding and filename validation use that identity.
         assert Path(validated_paths[0]).parent == (
             tmp_path / ".agents" / "scratch" / "session-log-validation"
         )
-        assert not Path(validated_paths[0]).name.endswith("session-01.json")
+        assert Path(validated_paths[0]).name == "2025-01-01-session-01.json"
 
     def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
         """When the head ref lacks the log, do not validate a stale worktree copy."""

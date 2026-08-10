@@ -19,7 +19,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -269,18 +268,10 @@ def _session_log_for_validation(
             repo_root, ".agents", "scratch", "session-log-validation"
         )
         os.makedirs(scratch_dir, exist_ok=True)
-        tmp_name = ""
+        tmp_name = os.path.join(scratch_dir, os.path.basename(session_log))
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                suffix=".json",
-                prefix=".session-log-",
-                dir=scratch_dir,
-                delete=False,
-            ) as tmp:
+            with open(tmp_name, "w", encoding="utf-8") as tmp:
                 tmp.write(show.stdout)
-                tmp_name = tmp.name
             yield tmp_name
         finally:
             with contextlib.suppress(OSError):
