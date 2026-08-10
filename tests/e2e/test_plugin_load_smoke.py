@@ -113,6 +113,13 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "Glob",
         "Grep",
         "Read",
+        "mcp__github__issue_read",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_file_contents",
+        "mcp__github__list_commits",
+        "mcp__github__list_workflow_runs",
+        "mcp__github__get_workflow_run",
+        "mcp__github__get_job_logs",
         "mcp__context7__get_library_docs",
         "mcp__context7__resolve_library_id",
         "mcp__deepwiki__read_wiki_contents",
@@ -132,6 +139,13 @@ _COPILOT_ANALYST_TOOLS = frozenset(
     {
         "cognitionai/deepwiki/*",
         "context7/*",
+        "github/issue_read",
+        "github/pull_request_read",
+        "github/get_file_contents",
+        "github/list_commits",
+        "github/list_workflow_runs",
+        "github/get_workflow_run",
+        "github/get_job_logs",
         "read",
         "search",
         "serena/find_declaration",
@@ -659,13 +673,6 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
             "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
         ),
     )
-    analyst_github_events = _run_copilot_agent(
-        "analyst",
-        (
-            "Use github/issue_read to read issue 3918 in rjmurillo/ai-agents. "
-            "Do not use a substitute. If unavailable reply exactly GITHUB_UNAVAILABLE."
-        ),
-    )
     implementer_events = _run_copilot_agent(
         "implementer",
         (
@@ -689,10 +696,11 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
     )
     assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(analyst_shell_events))
     assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(analyst_shell_events)
-    assert not any(
-        "github" in tool.casefold() for tool in _copilot_tool_names(analyst_github_events)
-    )
-    assert "GITHUB_UNAVAILABLE" in _copilot_assistant_text(analyst_github_events)
+    # GitHub read tools are declared in the manifest (verified by analyst_tools
+    # exact-match above and by test_copilot_analyst_manifest_declares_github_tools).
+    # No GitHub MCP server runs in this test environment, so runtime tool calls
+    # are not possible.  Manifest declaration is the contract boundary; runtime
+    # connectivity is validated by integration tests with a live MCP server.
     assert "bash" in _copilot_tool_names(implementer_events), (
         "negative control failed: implementer did not execute the shell command"
     )
@@ -973,3 +981,65 @@ def test_empty_plugin_negative_control_skips_classified_block(
 
     with pytest.raises(pytest.skip.Exception):
         test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# GitHub tool declaration checks (always-on, no runtime needed)
+# ---------------------------------------------------------------------------
+
+_CLAUDE_GITHUB_TOOLS = frozenset(
+    {
+        "mcp__github__issue_read",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_file_contents",
+        "mcp__github__list_commits",
+        "mcp__github__list_workflow_runs",
+        "mcp__github__get_workflow_run",
+        "mcp__github__get_job_logs",
+    }
+)
+
+_COPILOT_GITHUB_TOOLS = frozenset(
+    {
+        "github/issue_read",
+        "github/pull_request_read",
+        "github/get_file_contents",
+        "github/list_commits",
+        "github/list_workflow_runs",
+        "github/get_workflow_run",
+        "github/get_job_logs",
+    }
+)
+
+
+def test_claude_analyst_frontmatter_declares_github_tools() -> None:
+    """Claude analyst must declare all GitHub MCP tools in its frontmatter.
+
+    The runtime smoke launches Claude with an empty MCP config, so GitHub tools
+    never appear at runtime.  This test verifies the frontmatter declarations
+    that control tool availability when a GitHub MCP server IS configured.
+    """
+    claude_analyst = _CLAUDE_PLUGIN_DIR / "agents" / "analyst.md"
+    text = claude_analyst.read_text(encoding="utf-8")
+    parts = text.split("---", 2)
+    frontmatter = parts[1] if len(parts) >= 3 else ""
+    missing = {tool for tool in _CLAUDE_GITHUB_TOOLS if tool not in frontmatter}
+    assert not missing, (
+        f"Claude analyst frontmatter missing GitHub tools: {sorted(missing)}"
+    )
+
+
+def test_copilot_analyst_manifest_declares_github_tools() -> None:
+    """Copilot analyst manifest must declare all GitHub read tools.
+
+    The runtime smoke may not have a GitHub MCP server, so this verifies the
+    manifest declarations that control tool availability in production.
+    """
+    copilot_analyst = _COPILOT_PLUGIN_DIR / "agents" / "analyst.agent.md"
+    text = copilot_analyst.read_text(encoding="utf-8")
+    parts = text.split("---", 2)
+    frontmatter = parts[1] if len(parts) >= 3 else ""
+    missing = {tool for tool in _COPILOT_GITHUB_TOOLS if tool not in frontmatter}
+    assert not missing, (
+        f"Copilot analyst frontmatter missing GitHub tools: {sorted(missing)}"
+    )

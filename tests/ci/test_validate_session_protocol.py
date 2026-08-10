@@ -102,6 +102,25 @@ class TestEscapesWorkspace:
         assert out.read_text(encoding="utf-8") == ""
 
 
+class TestSymlinkComponents:
+    def test_plain_path_has_no_symlink_component(self, tmp_path) -> None:
+        (tmp_path / "sessions").mkdir()
+        assert mod.has_symlink_component("sessions/x.json") is False
+
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_symlinked_parent_is_detected(
+        self,
+        tmp_path,
+        dangling: bool,
+    ) -> None:
+        target = tmp_path / "real-sessions"
+        if not dangling:
+            target.mkdir()
+        (tmp_path / "linked-sessions").symlink_to(target.name)
+
+        assert mod.has_symlink_component("linked-sessions/x.json") is True
+
+
 class TestMustFailureCount:
     def test_reads_the_count_from_the_summary(self) -> None:
         mod._SUMMARY.write_text(json.dumps({"must_failures": 3}), encoding="utf-8")
@@ -269,6 +288,37 @@ class TestMain:
     ) -> None:
         assert mod.main(["--session-file", "sessions/gone.json"]) == 0
         assert (mod._RESULTS / "sessions-gone-verdict.txt").read_text().strip() == "SKIPPED"
+
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_symlink_session_path_is_rejected(
+        self,
+        tmp_path,
+        dangling: bool,
+    ) -> None:
+        sessions = tmp_path / "sessions"
+        sessions.mkdir()
+        target = sessions / "target.json"
+        if not dangling:
+            target.write_text("{}", encoding="utf-8")
+        (sessions / "linked.json").symlink_to(target.name)
+
+        assert mod.main(["--session-file", "sessions/linked.json"]) == 2
+        assert not mod._RESULTS.exists()
+
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_symlinked_parent_session_path_is_rejected(
+        self,
+        tmp_path,
+        dangling: bool,
+    ) -> None:
+        target = tmp_path / "real-sessions"
+        if not dangling:
+            target.mkdir()
+            (target / "x.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "linked-sessions").symlink_to(target.name)
+
+        assert mod.main(["--session-file", "linked-sessions/x.json"]) == 2
+        assert not mod._RESULTS.exists()
 
     def test_a_deleted_file_still_sets_the_artifact_name(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch

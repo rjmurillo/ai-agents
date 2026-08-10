@@ -2,7 +2,7 @@
 name: session-log-fixer
 description: Fix session protocol validation failures in GitHub Actions. Use when
   a PR fails with "Session protocol validation failed", "MUST requirement(s) not met",
-  "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol
+  "NON_COMPLIANT" verdict, or "Session Protocol Results" job failure in the Session Protocol
   Validation workflow. With deterministic validation, failures show exact missing
   requirements directly in Job Summary - no artifact downloads needed.
   Do NOT use to complete a session log locally before commit (use session-end).

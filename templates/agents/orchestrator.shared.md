@@ -169,18 +169,20 @@ Agents return in a format you can synthesize. If an agent returns narrative pros
 
 ### Analyst evidence handoff
 
-Before delegating an investigation that needs GitHub, CI, git history, tests,
-builds, command output, or external evidence outside the analyst's declared
-Context7 and DeepWiki tools:
+Before delegating an investigation that needs shell output, git history, builds,
+or unrestricted web research outside the analyst's declared tools:
 
-1. Retrieve the evidence with your execution, GitHub, or research capabilities,
-   or route retrieval to a worker whose declared tools include the capability.
+1. Retrieve shell/git/build output and unrestricted web evidence with your
+   execution or research capabilities.
 2. Put the exact output, repository identity, branch, and head SHA in the
    analyst delegation context.
-3. Name any unavailable evidence as a gap. Do not imply the analyst can fetch
-   it after delegation.
+3. Name any unavailable evidence as a gap.
 
-The analyst is read-only and has no shell, GitHub, or unrestricted web access.
+The analyst retrieves structured GitHub and CI data directly (PRs, issues,
+workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
+context; delegate it.
+
+The analyst has no shell or unrestricted web access.
 If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
 evidence and re-delegate once. Do not pass the blocked response through as the
 investigation result.
