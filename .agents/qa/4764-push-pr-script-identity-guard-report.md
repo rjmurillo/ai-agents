@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python.json
-qaCommit: 3ddb305181362c27a316f28f3435f1a1002a3516
+qaCommit: 98c2346577eedd1319f75032701ddb02179fbe0c
 ---
 # Test Report: Issue #4764 Push-PR Script Identity Guard
 
@@ -13,20 +13,18 @@ qaCommit: 3ddb305181362c27a316f28f3435f1a1002a3516
 
 | Metric | Value |
 |--------|-------|
-| Identity Guard Suite | 298 passed, 0 failed, 0 skipped |
-| Hook Contract Suite | 150 passed, 0 failed, 0 skipped |
-| Hook Contract Knowledge Suite | 25 passed, 0 failed, 0 skipped |
-| new_pr Suite | 83 passed, 0 failed, 0 skipped |
-| Plugin Smoke Suite | 17 passed, 0 failed, 5 skipped |
-| Total Tests Verified | 573 |
-| Test Execution Time | 33.73s |
+| Identity Guard Suite | 672 passed, 0 failed, 0 skipped |
+| Dispatch Parity Suite | 13 passed, 0 failed, 0 skipped |
+| Plugin Path Suite | 7 passed, 0 failed, 0 skipped |
+| Total Tests Verified | 692 |
+| Test Execution Time | 81.91s |
 | Surfaces Covered | Claude + Copilot (parametrized) |
 
 ## Required Behavior Verification
 
 | Behavior | Status | Evidence |
 |----------|--------|----------|
-| Reject dynamic evaluator wrappers (lua, node, perl, php, ruby, sed) | [PASS] | `test_dispatchers_deny_dynamic_evaluator_wrappers` 12/12 cases |
+| Reject dynamic evaluator wrappers and aliases | [PASS] | Table-driven matrix covers interpreters, shells, loaders, command delegators, renamed binaries, and shebang wrappers |
 | Reject active unquoted brace expansion | [PASS] | `{e..e}`, `{p..p}` patterns denied in unsafe command shapes |
 | Reject active glob expansion | [PASS] | `[y]`, `*`, `?` patterns denied |
 | Reject active tilde expansion | [PASS] | `~` expansion denied in path contexts |
@@ -40,7 +38,7 @@ qaCommit: 3ddb305181362c27a316f28f3435f1a1002a3516
 | Preserve canonical python3 -I | [PASS] | `test_dispatchers_allow_canonical_push_pr_command` passes |
 | Symlinked/hardlinked scripts | [PASS] | Multiple dedicated tests pass |
 | Both surfaces (Claude + Copilot) | [PASS] | All parametrized with `_run_claude` and `_run_copilot` |
-| Fails closed on invalid input | [PASS] | 7 invalid input cases pass |
+| Fails closed on invalid input | [PASS] | Invalid payload, parser, wrapper, Git, and environment cases pass |
 | Hook contract metadata (shim coverage, exit-code docs, no duplicates) | [PASS] | `test_repo_hooks_pass_and_cover_every_shim` passes |
 
 ## Quality Gate Checklist
@@ -62,8 +60,8 @@ Promised: reject dynamic evaluator wrappers, active brace/glob/tilde expansion,
           quoted literal expansion text; reject env -S variants, shell wrappers,
           nested setsid/time, BusyBox; preserve canonical python3 -I; cover both
           surfaces; hook contract metadata complete; no Critical or High gaps
-Delivered: All behaviors verified passing across 573 tests (5 skipped due to
-           missing runtime environment, not regressions)
+Delivered: All behaviors verified passing across 692 post-merge runtime tests
+           with no failures or skips
 Gap: None
 Result: PASS
 ```
@@ -72,4 +70,4 @@ Result: PASS
 
 **QA COMPLETE**
 
-All required behaviors verified at commit 3ddb305181362c27a316f28f3435f1a1002a3516. Guard correctly rejects dynamic evaluator wrappers, active shell expansion injection, and noncanonical invocations while preserving benign data patterns and the canonical `python3 -I` form on both Claude and Copilot surfaces. Hook contract metadata is now complete with no duplicate registrations and exit-code documentation present. No Critical or High findings.
+All required behaviors verified at commit 98c2346577eedd1319f75032701ddb02179fbe0c. Guard rejects evaluator wrappers, command delegation, loader injection, Git execution channels, parser desynchronization, and noncanonical invocations while preserving benign commands and the canonical `python3 -I` form on both surfaces. Security review, independent GPT-5.6 Sol review, and five-axis code review returned approved with no Critical or High findings.

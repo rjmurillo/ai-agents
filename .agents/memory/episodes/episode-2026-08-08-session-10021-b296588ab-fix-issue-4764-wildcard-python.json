@@ -99,7 +99,9 @@
         "e007",
         "e011",
         "e012",
-        "e013"
+        "e013",
+        "e015",
+        "e016"
       ],
       "leads_to": [
         "e009"
@@ -173,6 +175,54 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recursive security hardening",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Post-merge validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T05:15:32+00:00",
+      "type": "commit",
+      "content": "Commit: aa1959cbff",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T05:16:27+00:00",
+      "type": "commit",
+      "content": "Commit: 98c2346577eedd1319f75032701ddb02179fbe0c",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
     }
@@ -182,8 +232,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 191
+    "commits": 6,
+    "files_changed": 192
   },
   "lessons": []
 }
