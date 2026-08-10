@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14653,
+    "date": "2026-08-10",
+    "branch": "fix/vendor-provenance-bootstrap",
+    "startingCommit": "5c8f5117b46f6370bf57888cc0aabff5873c6e4d",
+    "objective": "Bind QA evidence for PR #4828 vendor provenance review fixes"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions; activate_project is not exposed in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read summarized task context and repository instructions."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used GitHub PR helper scripts under .claude/skills/github/scripts/pr/."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-comment-responder skill."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents rules and session-log instructions for .agents artifacts."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No task-specific Serena memory was needed."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/vendor-provenance-bootstrap"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch was fix/vendor-provenance-bootstrap, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree clean before QA report creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5c8f5117b46f6370bf57888cc0aabff5873c6e4d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report created for PR #4828."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new convention required a Serena memory update."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr validation passed before QA report creation."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report binds code commit b203a9e8c8f77f14171949207c78943f519ac99a."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "36 targeted pytest tests passed and pre_pr passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4828-vendor-provenance-review-fixes.md"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4828 review thread task advanced."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not needed for this focused PR fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reverted the accidental PR #4651 merge commit from PR #4828.",
+      "result": "PR scope dropped to 3 files."
+    },
+    {
+      "action": "Fixed vendor provenance review feedback and PyYAML production execution.",
+      "result": "Validator now fails closed if PyYAML is unavailable and workflow runs it through uv."
+    },
+    {
+      "action": "Ran targeted pytest, ruff, py_compile, diff check, and pre_pr validation.",
+      "result": "All listed checks passed."
+    }
+  ],
+  "endingCommit": "b203a9e8c8f77f14171949207c78943f519ac99a",
+  "nextSteps": [
+    "Push QA report and session log, wait for required checks, then run completion gate."
+  ]
+}
