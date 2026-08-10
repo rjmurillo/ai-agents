@@ -150,9 +150,13 @@
     {
       "action": "Removed colliding session 10036 artifacts introduced during merge conflict recovery",
       "result": "Kept origin/main session numbering intact and moved this PR QA binding to session 10037."
+    },
+    {
+      "action": "Fixed CI fast-exit lease-loss race",
+      "result": "Actions observed the fast mutation before it became waitable. The monitor now rechecks for a completed or zombie child before terminating the mutation group."
     }
   ],
-  "endingCommit": "ee9f058bbdb88ca41475bf90f76964774f54e132",
+  "endingCommit": "d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]

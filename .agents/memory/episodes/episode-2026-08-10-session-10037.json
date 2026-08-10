@@ -97,7 +97,8 @@
         "e005",
         "e006",
         "e007",
-        "e010"
+        "e010",
+        "e011"
       ],
       "leads_to": [
         "e009"
@@ -112,7 +113,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-10-session-10037"
     },
     {
@@ -125,6 +128,28 @@
         "e008"
       ],
       "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed CI fast-exit lease-loss race",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T14:21:59+00:00",
+      "type": "commit",
+      "content": "Commit: d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10037"
     }
   ],
   "metrics": {
@@ -132,8 +157,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 9
+    "commits": 3,
+    "files_changed": 13
   },
   "lessons": []
 }
