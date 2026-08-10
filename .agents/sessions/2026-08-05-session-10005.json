@@ -84,12 +84,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix and tests committed; this log follows in its own commit."
+        "Evidence": "PR code validated at 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545 before QA evidence refresh."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean on all changed files. 123 gc tests pass across 6 files, including 8 real-git tests. Revert-sensitivity proved for all six halves of the redesign, failing 3, 5, 7, 1, 1 and 1 tests. Live dry run showed 62 stale entries correctly classified as prune candidates with zero git inspection failures."
+        "Evidence": "QA rerun after merging origin/main: pytest collected 296 and passed 296 for worktree GC targeted suites. Ruff passed on changed maintenance and GC test files."
       },
       "tasksUpdated": {
         "level": "MUST",
@@ -326,7 +326,7 @@
       "evidence": "Wrote .agents/retrospective/2026-08-06-squash-severed-stack-and-silent-reflog-defaults.md covering three failures classified against FAILURE-MODES.md: a delegated agent that reset and cleaned a shared worktree holding committed work (mode 7), two High silent-default defects in the reflog reader that 262 mock-based tests missed (mode 10), and reading git log as ancestry proof (mode 9). Zero em or en dashes, taste-lints clean."
     }
   ],
-  "endingCommit": "5585974bc3d9905ab3467a920bbdcc867f147c5f",
+  "endingCommit": "7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
