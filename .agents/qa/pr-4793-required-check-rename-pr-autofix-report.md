@@ -20,7 +20,7 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 - `uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py -q`: 37 passed in 0.74s.
 - `uv run --frozen python scripts/validation/pre_pr.py`: RESULT All validations passed, 50 passed, 0 failed, 0 skipped.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
-- Remote verification: local and remote branch SHA both equal `ee9f058bbdb88ca41475bf90f76964774f54e132`.
+- QA content commit: `ee9f058bbdb88ca41475bf90f76964774f54e132`. Later commits in this PR add QA evidence only under `.agents/`.
 
 ## Thread disposition
 

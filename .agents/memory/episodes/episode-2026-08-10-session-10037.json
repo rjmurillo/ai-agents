@@ -96,7 +96,8 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e010"
       ],
       "leads_to": [
         "e009"
@@ -112,6 +113,17 @@
         "e008"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed colliding session 10036 artifacts introduced during merge conflict recovery",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-10-session-10037"
     }
   ],
