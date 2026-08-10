@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10033,
+    "date": "2026-08-10",
+    "branch": "perf/4822-pytest-signal-shadow",
+    "startingCommit": "3b3c53e2f",
+    "objective": "Issue 4822 phase 1: resolve the authoritative pytest.yml verdict in shadow mode"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable in this Copilot session; repository files and live GitHub API data supplied the fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable; followed AGENTS.md and committed repository instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and get_issue_comments.py for issues 4822 and 1855."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Path-scoped rules read: universal, ci-scripts, python, security, testing, session-logs, plus frontmatter of every other rule file."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md, root CLAUDE.md, .github/AGENTS.md, and scripts/AGENTS.md read. .github/CLAUDE.md and scripts/CLAUDE.md are claude-mem stubs with no directives."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue 4822 and issue 1855 threads in full; 1855 edit log confirms the ADR acceptance criterion was removed on 2026-05-02, so no ADR was written."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/4822-pytest-signal-shadow"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/4822-pytest-signal-shadow, confirmed with git branch --show-current"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree at session start."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3b3c53e2f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end MUST items carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory written; the resolver docstring carries the canonical pytest.yml contract and the observed live payload shapes."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: this change adds no Markdown. The only .agents file is this JSON session log."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4822-shadow-pytest-signal-test-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5. This evidence commit follows it because the QA report must bind to a full commit SHA and session-logs rules forbid amending. Not pushed, per instruction."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4822 phase 1 scope only; the duplicate authoritative run is deliberately untouched."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred. Phase 1 is an observation-only proof of concept; the retrospective belongs after shadow data is collected."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Mirrored the canonical pytest.yml job contract",
+      "result": "yaml.safe_load confirmed two jobs both named Run Python Tests: test (line 111) owning the Run pytest step (line 260) and skip-tests (line 427) owning the skip step (line 441). A name match alone cannot decide a verdict, so classification is by step name."
+    },
+    {
+      "action": "Added scripts/quality_gate/resolve_pytest_signal.py",
+      "result": "Stdlib-only resolver. Validates a 40-hex expected head, re-reads the live head from refs/pull/N/head, rejects stale heads and push runs, picks the latest run attempt, classifies executor versus pass-through jobs by step name, applies worst-wins severity across duplicate job names, and returns PASS, FAIL, SKIPPED, PENDING, STALE, CANCELLED, or UNKNOWN with a fixed-vocabulary reason. Argv-list subprocess calls, no shell."
+    },
+    {
+      "action": "Verified the resolver against live GitHub API payloads",
+      "result": "Run 31360441685 reports run conclusion success with both Run Python Tests jobs success, yet the suite never ran; the resolver returns SKIPPED where a conclusion read would have returned PASS. Runs 31355229018, 31362376502, 31361938848, and 31360447277 resolve to PASS, CANCELLED, PENDING, and UNKNOWN respectively. End-to-end run against PR 4819 returned PASS with agreement AGREE."
+    },
+    {
+      "action": "Added tests/quality_gate/test_resolve_pytest_signal.py",
+      "result": "57 tests covering stale head, push rejection, latest attempt, sibling failure wins, pass-through-only SKIPPED, pending, no run, cancelled, 403, malformed data, output sanitation, and the CLI contract. Includes a regression pin built from the real green-but-unrun payload."
+    },
+    {
+      "action": "Added the shadow step to .github/workflows/ai-pr-quality-gate.yml",
+      "result": "One step appended to run-tests plus actions: read on that job. Existing outputs, step names, and check names are unchanged; the authoritative duplicate pytest run still executes. continue-on-error and an unconditional exit 0 keep the shadow step from changing any verdict."
+    }
+  ],
+  "endingCommit": "99a4ed7305830ac74a58532d7eab35f38dd749b5",
+  "nextSteps": [
+    "Push the branch and open the PR; collect shadow agreement data across real pull requests.",
+    "Expect frequent PENDING versus PASS disagreements: pytest.yml has a 45 minute budget while ai-pr-quality-gate run-tests has 10 minutes. Measuring that rate is the point of phase 1.",
+    "Confirm actions: read suffices for the workflow GITHUB_TOKEN; local runs used a personal token.",
+    "Phase 2, only after the disagreement rate is understood: consume the resolved status and retire the duplicate run."
+  ]
+}

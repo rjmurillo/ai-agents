@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-10-session-10033-4822-pytest-signal-shadow",
+  "session": "2026-08-10-session-10033-4822-pytest-signal-shadow",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue 4822 phase 1: resolve the authoritative pytest.yml verdict in shadow mode",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mirrored the canonical pytest.yml job contract",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added scripts/quality_gate/resolve_pytest_signal.py",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the resolver against live GitHub API payloads",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/quality_gate/test_resolve_pytest_signal.py",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the shadow step to .github/workflows/ai-pr-quality-gate.yml",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T07:05:51+00:00",
+      "type": "commit",
+      "content": "Commit: 99a4ed7305830ac74a58532d7eab35f38dd749b5",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
