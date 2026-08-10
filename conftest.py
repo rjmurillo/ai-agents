@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import tempfile
 import uuid
 import warnings
 from collections.abc import Iterator
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -39,12 +40,13 @@ def _git_env() -> dict[str, str]:
 
 
 def _project_git_dir() -> Path:
+    """Project git dir: `.git/` itself, or the gitdir a worktree's `.git` file points at."""
     dot_git = PROJECT_ROOT / ".git"
-    if dot_git.is_dir():
-        return dot_git.resolve()
     try:
+        if stat.S_ISDIR(dot_git.stat().st_mode):
+            return dot_git.resolve()
         git_dir_line = dot_git.read_text(encoding="utf-8").strip()
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise OSError("could not resolve project git directory") from exc
     prefix = "gitdir:"
     if not git_dir_line.startswith(prefix):
@@ -53,6 +55,132 @@ def _project_git_dir() -> Path:
     if not git_dir.is_absolute():
         git_dir = PROJECT_ROOT / git_dir
     return git_dir.resolve()
+
+
+class _HeadFastPathUnresolvedError(Exception):
+    """Fast path cannot prove HEAD; caller falls back to `git rev-parse HEAD`."""
+
+
+_OBJECT_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$|^[0-9a-f]{64}$")  # hex object id, man git-config
+_SYMBOLIC_HEAD_PATTERN = re.compile(r"^ref:\s*(\S+)$")  # e.g. "ref: refs/heads/main"
+
+# CWE-22, git-check-ref-format(1) rules 4 and 10: a ref name never contains ":" or "\"
+# anywhere. Rejecting both closes traversal forms `PurePosixPath` cannot see -- "\" segments
+# and UNC (`\\server\share`) -- plus Windows drive syntax (`C:\Windows`, `C:foo`), which
+# `PureWindowsPath.joinpath` would treat as a new anchor that discards the accumulated path.
+_UNSAFE_REF_NAME_CHARACTERS = frozenset("\\:")
+
+
+def _is_safe_ref_name(ref_name: str) -> bool:
+    """CWE-22 guard: accept only a `refs/heads/` branch target, before it is joined onto a
+    filesystem path. `man gitrepository-layout`'s `refs` entry lists `refs/bisect`,
+    `refs/rewritten`, and `refs/worktree` as per-worktree namespaces outside the shared
+    `common_dir` `_resolve_ref` reads from, so anything else falls back to Git as unproven.
+    """
+    if not ref_name.startswith("refs/heads/"):
+        return False
+    if any(character in ref_name for character in _UNSAFE_REF_NAME_CHARACTERS):
+        return False
+    candidate = PurePosixPath(ref_name)
+    return not candidate.is_absolute() and ".." not in candidate.parts
+
+
+def _fast_path_stat_mode(path: Path, error: str) -> int | None:
+    """`path`'s `stat().st_mode`, or None if absent.
+
+    Only `FileNotFoundError` means absent. `Path.exists()`/`is_dir()`/`is_file()` swallow every
+    `OSError` into False (`genericpath`, Python 3.14 stdlib), so an unreadable path would read
+    as "not there"; here any other `OSError` raises and the caller falls back to Git instead.
+    """
+    try:
+        return path.stat().st_mode
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise _HeadFastPathUnresolvedError(error) from exc
+
+
+def _read_optional_text(path: Path, error: str) -> str | None:
+    """`path`'s UTF-8 text, or None if absent (same absent/unreadable split as
+    `_fast_path_stat_mode`). Non-UTF-8 content (`UnicodeError`, e.g. `UnicodeDecodeError`) is
+    unproven, not absent: it raises rather than misreading foreign-encoded metadata as
+    missing."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeError) as exc:
+        raise _HeadFastPathUnresolvedError(error) from exc
+
+
+def _common_git_dir(git_dir: Path) -> Path:
+    """Resolve `git_dir`'s shared ref-storage dir via its `commondir` file (linked worktrees)."""
+    raw = _read_optional_text(git_dir / "commondir", "could not read commondir file")
+    if raw is None:
+        return git_dir
+    if not (target := raw.strip()):
+        raise _HeadFastPathUnresolvedError("commondir file is empty")
+    common_dir = (git_dir / target).resolve()  # an absolute `target` replaces `git_dir`
+    mode = _fast_path_stat_mode(common_dir, "commondir target is not accessible")
+    if mode is None or not stat.S_ISDIR(mode):
+        raise _HeadFastPathUnresolvedError("commondir target does not exist")
+    return common_dir
+
+
+def _resolve_ref(common_dir: Path, ref_name: str) -> str | None:
+    """Object id for `ref_name`'s loose ref file; None only for a genuinely unborn ref.
+
+    Never scans `packed-refs`: this runs in every test's autouse fixture, and parsing it to
+    find one ref costs an O(n) scan of every packed ref per test. A `packed-refs` file
+    existing makes the ref unprovable here, so we raise and fall back to Git; no such file
+    proves the ref absent everywhere at O(1) -- legal unborn HEAD (`man gitrepository-layout`,
+    `HEAD`: "legal if the named branch name does not (yet) exist").
+    """
+    ref_path = common_dir.joinpath(*ref_name.split("/"))
+    content = _read_optional_text(ref_path, "could not read loose ref file")
+    if content is not None:
+        content = content.strip()
+        if not _OBJECT_ID_PATTERN.match(content):
+            raise _HeadFastPathUnresolvedError("loose ref file does not hold a plain object id")
+        return content
+    packed_refs_mode = _fast_path_stat_mode(common_dir / "packed-refs", "packed-refs unreadable")
+    if packed_refs_mode is not None:
+        raise _HeadFastPathUnresolvedError("ref may be packed; not scanning packed-refs")
+    return None
+
+
+def _direct_read_repo_head() -> str | None:
+    """Resolve HEAD via direct filesystem reads: no subprocess for proven cases.
+
+    Raises `_HeadFastPathUnresolvedError` for anything unproven (reftable, malformed data, a
+    packed-only ref, any read failure) so the caller falls back to `git rev-parse HEAD`; `None`
+    means legal unborn HEAD. The reftable check runs first because such repos keep a dummy
+    `refs/heads/.invalid` HEAD (reftable.adoc, git/git) that would otherwise misread as unborn.
+    """
+    try:
+        git_dir = _project_git_dir()
+    except OSError as exc:
+        raise _HeadFastPathUnresolvedError("could not resolve project git directory") from exc
+    common_dir = _common_git_dir(git_dir)
+    if _fast_path_stat_mode(common_dir / "reftable", "reftable directory unreadable") is not None:
+        raise _HeadFastPathUnresolvedError("repository uses reftable ref storage")
+    head_content = _read_optional_text(git_dir / "HEAD", "could not read HEAD file")
+    if head_content is None:
+        raise _HeadFastPathUnresolvedError("could not read HEAD file")
+    head_content = head_content.strip()
+
+    if _OBJECT_ID_PATTERN.match(head_content):
+        return head_content  # detached HEAD
+
+    symbolic_match = _SYMBOLIC_HEAD_PATTERN.match(head_content)
+    if symbolic_match is None:
+        raise _HeadFastPathUnresolvedError("HEAD file content is not a recognized shape")
+
+    ref_name = symbolic_match.group(1)
+    if not _is_safe_ref_name(ref_name):
+        raise _HeadFastPathUnresolvedError("HEAD ref name is not a safe refs/heads/ path")
+
+    return _resolve_ref(common_dir, ref_name)  # None => unborn HEAD
 
 
 def _run_git_capture(*args: str) -> subprocess.CompletedProcess[str] | None:
@@ -72,6 +200,10 @@ def _run_git_capture(*args: str) -> subprocess.CompletedProcess[str] | None:
 
 
 def _real_repo_head() -> str | None:
+    try:
+        return _direct_read_repo_head()
+    except _HeadFastPathUnresolvedError:
+        pass  # unproven case: fail closed to the subprocess, never guess.
     out = _run_git_capture("rev-parse", "HEAD")
     return out.stdout.strip() if out is not None and out.returncode == 0 else None
 
@@ -84,14 +216,7 @@ def _real_repo_head_subject() -> str:
 
 def _reflog_contains_action(action: str) -> bool:
     """Return whether the project HEAD reflog contains this per-test action."""
-    out = _run_git_capture(
-        "reflog",
-        "HEAD",
-        "--format=%gs",
-        f"--grep-reflog={action}",
-        "-n",
-        "1",
-    )
+    out = _run_git_capture("reflog", "HEAD", "--format=%gs", f"--grep-reflog={action}", "-n", "1")
     if out is None or out.returncode != 0:
         raise OSError("could not read project HEAD reflog")
     return bool(out.stdout.strip())
@@ -248,31 +373,24 @@ def _successful_symbolic_ref_updates_head(session: dict[str, object]) -> bool:
     return positionals is not None and len(positionals) == 2 and positionals[0] == "HEAD"
 
 
+def _is_project_git_dir(candidate: str, base: object) -> bool:
+    """Whether `candidate` -- absolute, or relative to `base` -- is the project git dir."""
+    root = Path(base) if isinstance(base, str) else PROJECT_ROOT
+    return (root / candidate).resolve() == _project_git_dir()
+
+
 def _session_targets_project(session: dict[str, object]) -> bool:
     worktree = session.get("worktree")
-    argv = session.get("argv")
-    project_root = PROJECT_ROOT.resolve()
-    if isinstance(worktree, str) and Path(worktree).resolve() == project_root:
+    if isinstance(worktree, str) and Path(worktree).resolve() == PROJECT_ROOT.resolve():
         return True
     setup_git_dir = session.get("git_dir")
-    if isinstance(setup_git_dir, str):
-        git_dir = Path(setup_git_dir)
-        if not git_dir.is_absolute():
-            cwd = session.get("cwd")
-            base = Path(cwd) if isinstance(cwd, str) else PROJECT_ROOT
-            git_dir = base / git_dir
-        if git_dir.resolve() == _project_git_dir():
-            return True
+    if isinstance(setup_git_dir, str) and _is_project_git_dir(setup_git_dir, session.get("cwd")):
+        return True
+    argv = session.get("argv")
     if not isinstance(argv, list):
         return False
     git_dir_argument = _git_dir_argument(argv)
-    if git_dir_argument is None:
-        return False
-    git_dir = Path(git_dir_argument)
-    if not git_dir.is_absolute():
-        base = Path(worktree) if isinstance(worktree, str) else PROJECT_ROOT
-        git_dir = base / git_dir
-    return git_dir.resolve() == _project_git_dir()
+    return git_dir_argument is not None and _is_project_git_dir(git_dir_argument, worktree)
 
 
 def _trace_has_project_head_mutation(trace_path: Path) -> bool:
@@ -354,11 +472,6 @@ def _guard_real_repo_head() -> Iterator[None]:
             else:
                 os.environ[name] = value
     try:
-        _check_head_change(
-            before,
-            _real_repo_head(),
-            reflog_action,
-            trace_path,
-        )
+        _check_head_change(before, _real_repo_head(), reflog_action, trace_path)
     finally:
         trace_path.unlink(missing_ok=True)
