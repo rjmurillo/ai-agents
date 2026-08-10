@@ -1,0 +1,198 @@
+{
+  "id": "episode-2026-08-05-session-4656-absence-claims",
+  "session": "2026-08-05-session-4656-absence-claims",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the 2026-08-05 absence-claim failures, ship the knowledge-persistence rule that bans unverified absence claims, and repair the two git memories whose combined gap produced the in-flight push misread.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T16:40:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the retrospective's central claim after re-reading the saved push logs.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T16:55:00+00:00",
+      "type": "milestone",
+      "content": "Verified all four findings from the Gemini adversarial review; accepted one, refuted two, partially rejected one.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T17:05:00+00:00",
+      "type": "milestone",
+      "content": "Merged two overlapping sections of the push memory instead of splitting it, against the size tool's printed recommendation.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T17:20:00+00:00",
+      "type": "milestone",
+      "content": "Nearly reverted a correct rule because the harness-injected instruction snapshot contradicted the repository file.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T17:28:00+00:00",
+      "type": "milestone",
+      "content": "Ran a negative control on the memory index validator and found a reporting defect.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T17:32:00+00:00",
+      "type": "milestone",
+      "content": "Committed the branch in three atomic commits, each within the five-file limit.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T17:29:50+00:00",
+      "type": "commit",
+      "content": "Commit: 98526f68b",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T17:30:17+00:00",
+      "type": "commit",
+      "content": "Commit: b55e2e1d2",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T17:34:44+00:00",
+      "type": "commit",
+      "content": "Commit: 1bd3603443419715f1d51b2de3ada41b010c3f99",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T18:43:41+00:00",
+      "type": "commit",
+      "content": "Commit: 87886b9f8ca7f34551b3f879755d1ee218d6b902",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T19:55:03+00:00",
+      "type": "commit",
+      "content": "Commit: 82abfbf460f782026f85279921622ebe39c4c61d",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T20:55:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review of the PR #4669 body rejected three of five cited re-derivations as uncorroborated by session artifacts, and flagged the fifth as resting on an unstated harness premise. Corrected the body down to the three the retrospective records, and logged the rule that produced the miss.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T21:35:00+00:00",
+      "type": "milestone",
+      "content": "A second adversarial review, on the bullet that announces the new memory, found that bullet breaking the memory it describes. It asserted \"The facts held\" about three unrecorded re-derivations, while the memory itself suspends that question. Corrected the bullet to the memory wording and appended this entry immediately, which is the forward fix the memory prescribes.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-05T21:39:25+00:00",
+      "type": "commit",
+      "content": "Commit: e8c73f488a1a53e805b0ae74f55fb0e8be1c4d8d",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 295,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 5
+  },
+  "lessons": []
+}

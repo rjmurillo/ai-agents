@@ -5,21 +5,25 @@ mutating key exports and asserting tests detect the regressions.
 
 Rules:
 - Count each pattern; refuse if count != 1 (PATTERN-AMBIGUOUS).
-- sleep(1.1) after every file write to defeat 1-second bytecode mtime cache.
+- Delete bytecode caches before every test run.
 - Restore byte-identically and assert after every mutant.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_CORE = (
-    _REPO_ROOT
-    / ".claude"
+_CORE_REL = (
+    Path(".claude")
     / "skills"
     / "golden-principles"
     / "scripts"
@@ -31,7 +35,8 @@ _TESTS = [
 ]
 
 
-def _run_tests() -> int:
+def _run_tests(repo_root: Path) -> int:
+    purge_bytecode(repo_root)
     result = subprocess.run(
         [
             sys.executable,
@@ -41,8 +46,9 @@ def _run_tests() -> int:
             "-x",
             "-q",
         ],
-        cwd=_REPO_ROOT,
+        cwd=repo_root,
         capture_output=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     return result.returncode
 
@@ -58,8 +64,9 @@ def _apply_mutant(original: bytes, old: bytes, new: bytes) -> bytes:
     return original.replace(old, new, 1)
 
 
-def run_mutants() -> None:
-    original_bytes = _CORE.read_bytes()
+def run_mutants(repo_root: Path) -> None:
+    core = repo_root / _CORE_REL
+    original_bytes = core.read_bytes()
 
     mutants = [
         (
@@ -93,19 +100,19 @@ def run_mutants() -> None:
             print(f"  SKIP: {exc}")
             continue
 
-        _CORE.write_bytes(mutated)
-        time.sleep(1.1)
-
-        rc = _run_tests()
-        if rc == 0:
-            failures.append(f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected")
-            print("  FAIL: tests did not detect the mutation")
-        else:
-            print(f"  PASS: tests caught the mutation (exit {rc})")
-
-        _CORE.write_bytes(original_bytes)
-        time.sleep(1.1)
-        restored = _CORE.read_bytes()
+        core.write_bytes(mutated)
+        try:
+            rc = _run_tests(repo_root)
+            if rc == 0:
+                failures.append(
+                    f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected"
+                )
+                print("  FAIL: tests did not detect the mutation")
+            else:
+                print(f"  PASS: tests caught the mutation (exit {rc})")
+        finally:
+            core.write_bytes(original_bytes)
+        restored = core.read_bytes()
         assert restored == original_bytes, "Restore was not byte-identical!"
 
     if failures:
@@ -117,5 +124,10 @@ def run_mutants() -> None:
         print("\nAll mutants killed. Tests are load-bearing.")
 
 
+def main() -> None:
+    with isolated_mutation_worktree(_REPO_ROOT, [_CORE_REL]) as workspace:
+        run_mutants(workspace.root)
+
+
 if __name__ == "__main__":
-    run_mutants()
+    main()

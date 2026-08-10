@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10019,
+    "date": "2026-08-08",
+    "branch": "fix/mutation-harness-cluster",
+    "startingCommit": "8bf48558d",
+    "objective": "Complete issue 4346 mutation harness isolation and cleanup safety"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were available in project context; this server exposes no activate_project operation."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena initial_instructions and loaded the tool manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved its read-only state."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded session, GitHub, review, security, code quality, simplification, commit, and portability skills. Ran scoped validators."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and followed the skill-first workflow."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, PROJECT-CONSTRAINTS.md, SESSION-PROTOCOL.md, and path-scoped Python and test instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory memory. Serena mutation-topic search returned no existing memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/mutation-harness-cluster"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/mutation-harness-cluster"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified and reused /home/richard/src/GitHub/rjmurillo/wt-fix-4346. Only this session record remained untracked before finalization."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8bf48558d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, positive and negative tests, forced termination tests, mutation harnesses, independent review, QA, latest-main merge, and pre-PR validation completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory created. The durable behavior is encoded in mutation_workspace.py, mutation_workspace_git.py, and focused regression tests; duplicating it in memory would create drift."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped selection found 0 changed Markdown files relative to origin/main. NOT LINTED because no Markdown file changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, entrypoint portability repair, and the latest origin/main merge are reachable locally through c4d87f3ed. This final session record update is included in the next commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ruff passed. Final focused suite passed 128 tests. Independent QA passed 156 tests. All 63 load-bearing mutants died; 2 inverted controls survived as expected. Marker check and scratch registration check passed. After the final origin/main merge, entrypoint and mutation regression coverage passed 151 tests and pre_pr.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "SQL todo fix-4346 remains in_progress until PR 4571 merges, as required."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-08T06:28:39Z",
+      "entry": "Committed the core issue 4346 fix in 517be7add after reproducing that a forced baseline-harness exception left scripts/validation/portability_common.py modified in the active worktree."
+    },
+    {
+      "time": "2026-08-08T06:48:15Z",
+      "entry": "Commits through 0f213c804 migrated every located tracked-source mutation harness to detached scratch worktrees and shared the workspace helpers."
+    },
+    {
+      "time": "2026-08-08T09:43:12Z",
+      "entry": "Commits dbc6e93fb through 0eea6ec2f addressed independent review findings: rejected dirty, untracked, and inode-alias targets; pinned and sanitized Git state; closed signal transition gaps; preserved body errors; removed process-global CI runner state; split oversized modules and tests."
+    },
+    {
+      "time": "2026-08-08T10:04:18Z",
+      "entry": "Merged current origin/main without rewriting history in a340942a63."
+    },
+    {
+      "time": "2026-08-08T10:12:42Z",
+      "entry": "Full pre_pr.py validation exited 0. Scoped Markdown selection found 0 changed Markdown files, so lint was NOT LINTED."
+    },
+    {
+      "time": "2026-08-08T10:15:29Z",
+      "entry": "Recorded final validation: Ruff passed, 128 focused tests passed, 63 load-bearing mutants died, 2 inverted controls survived as expected, marker and scratch registration checks passed, final independent code and security rechecks returned clean, and independent QA passed 156 tests."
+    },
+    {
+      "time": "2026-08-08T10:53:38Z",
+      "entry": "The first pre-push full suite exposed four plain-script import failures added by current main. Commit 9bb9b545b bootstrapped the repository root in all four entrypoints; the entrypoint and mutation regression suite then passed 396 tests."
+    },
+    {
+      "time": "2026-08-08T11:20:06Z",
+      "entry": "Merged origin/main at ec9f6cb30 without rewriting history in c4d87f3ed. The post-merge entrypoint and mutation regression suite passed 151 tests in 267.62 seconds, and pre_pr.py exited 0."
+    }
+  ],
+  "endingCommit": "c4d87f3ed",
+  "nextSteps": [
+    "Commit this session record, push normally, verify commits are reachable, update PR 4571 evidence, retain auto-merge, monitor checks, and verify issue 4346 closes."
+  ]
+}

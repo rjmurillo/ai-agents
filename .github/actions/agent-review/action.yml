@@ -72,6 +72,19 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # Reserve 30 seconds of the 600-second job before this action and preserve
+    # 300 seconds for model invocation plus 60 seconds for result finalization.
+    # The context builder subtracts setup elapsed after this timestamp.
+    - name: Establish AI review action deadline
+      if: inputs.should-run == 'true'
+      shell: bash
+      env:
+        ACTION_BUDGET_SECONDS: '570'
+      run: |
+        if [[ -z "${AI_REVIEW_ACTION_DEADLINE_EPOCH:-}" ]]; then
+          echo "AI_REVIEW_ACTION_DEADLINE_EPOCH=$(( $(date +%s) + ACTION_BUDGET_SECONDS ))" >> "$GITHUB_ENV"
+        fi
+
     # CWE-22 mitigation: validate agent name before any file path usage
     - name: Validate agent name
       if: inputs.should-run == 'true'
