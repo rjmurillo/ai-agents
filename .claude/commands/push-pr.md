@@ -5,7 +5,7 @@ allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), 
 # diffs and already holds git add, commit and push, so a pre-approved
 # unrestricted Write would let a prompt-injected diff redirect the body write
 # to a source or hook file and publish it. The host prompts for the single
-# .agents/scratch body write instead. Issue #4825.
+# scratch body write instead. Issue #4825.
 ---
 
 # Push PR Command
