@@ -102,7 +102,7 @@
         "expected": "Use session-log-fixer skill. With deterministic validation, Job Summary lists exact MUST requirements that failed. No artifact downloads needed."
       },
       {
-        "prompt": "Aggregate Results job failed for session validation. What does the skill recommend?",
+        "prompt": "Session Protocol Results job failed for session validation. What does the skill recommend?",
         "expected": "Read the Job Summary from the failed run. Each missing requirement is named explicitly. Fix the session JSON locally, push, rerun."
       },
       {
@@ -119,7 +119,7 @@
       },
       {
         "prompt": "What error pattern does the fixer recognize?",
-        "expected": "MUST requirement(s) not met, NON_COMPLIANT verdict, Aggregate Results job failure in Session Protocol Validation workflow."
+        "expected": "MUST requirement(s) not met, NON_COMPLIANT verdict, Session Protocol Results job failure in Session Protocol Validation workflow."
       }
     ],
     "memory": [
