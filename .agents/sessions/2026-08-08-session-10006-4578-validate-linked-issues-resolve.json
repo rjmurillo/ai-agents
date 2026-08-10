@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": ".agents/retrospective/2026-08-09-pr-4578-recovery.md"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4578-session-10006-qa-report.md"
       }
     }
   },
@@ -140,6 +145,14 @@
       "result": "183 targeted tests passed. Ruff, taste ratchets, merge-tree ratchet, generated mirror check, and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "3881ea3c8c",
-  "nextSteps": []
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "54da2422fd84069420c982ba803c3e2e4853e712",
+      "head": "2651ad2c6b122cd9f2035d360c4cef075f4931d7"
+    }
+  }
 }

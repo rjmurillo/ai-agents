@@ -90,6 +90,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "157 targeted tests pass; ruff exits 0."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4578-session-4502-qa-report.md"
       }
     }
   },
@@ -148,6 +153,14 @@
       "result": "All 157 targeted tests pass. Ruff exits 0."
     }
   ],
-  "endingCommit": "5cc9c72dd3",
-  "nextSteps": []
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "54da2422fd84069420c982ba803c3e2e4853e712",
+      "head": "2651ad2c6b122cd9f2035d360c4cef075f4931d7"
+    }
+  }
 }
