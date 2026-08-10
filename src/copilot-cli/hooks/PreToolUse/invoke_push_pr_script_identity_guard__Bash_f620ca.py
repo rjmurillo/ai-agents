@@ -429,6 +429,7 @@ def _original_main(stdin_bytes):
     _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
     _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
     _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
+    _SHELL_SEGMENT = re.compile(r"\|\||&&|[;|&\n]")
     _NEW_PR_TARGET = "new_pr.py"
     _ANSI_C_QUOTED = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
     _MAX_BRACE_EXPANSIONS = 4096
@@ -1131,20 +1132,35 @@ def _original_main(stdin_bytes):
         return False
 
 
-    def _scope_tokens(command: str) -> list[ShellToken] | None:
-        """Tokenize for the relevance decision only, tolerating substitutions.
+    def _scope_segments(command: str) -> list[list[ShellToken]]:
+        """Tokenize each shell segment for the relevance decision only.
 
-        ``_split_command`` rejects command substitution as policy. That rejection
-        must not decide relevance, or a substitution-bearing script path would
-        escape the scope rules below. Neutralizing each substitution to a plain
-        parameter expansion keeps the token shape, so a Python script operand built
-        from ``$(...)`` or backticks is still recognized as unresolvable.
+        ``_split_command`` rejects command substitution and shell operators as
+        policy. Those rejections must not decide relevance. Returning nothing on a
+        parse failure failed open: ``./attacker/pr/?ew_pr.py && true`` was rejected
+        for the operator, so the execution-position rules never ran and Bash went
+        on to execute the lookalike (issue #4825).
+
+        Substitutions are neutralized to a plain parameter expansion so a
+        substitution-bearing script path is still recognized. The command is then
+        split on shell operators and each segment tokenized on its own, because
+        execution position is a per-segment property: the operand after ``&&`` is
+        its own command. A segment that still will not parse is skipped rather than
+        failing the whole decision.
         """
         neutralized = _COMMAND_SUBSTITUTION.sub("$X", command)
-        try:
-            return _split_command(neutralized)
-        except GuardViolationError:
-            return None
+        segments: list[list[ShellToken]] = []
+        for piece in _SHELL_SEGMENT.split(neutralized):
+            stripped = piece.strip()
+            if not stripped:
+                continue
+            try:
+                tokens = _split_command(stripped)
+            except GuardViolationError:
+                continue
+            if tokens:
+                segments.append(tokens)
+        return segments
 
 
     def _unresolvable_python_target(tokens: list[ShellToken], cwd: Path) -> bool:
@@ -1232,13 +1248,11 @@ def _original_main(stdin_bytes):
         """Non-blocking relevance gate. See the module docstring for the contract."""
         if _names_new_pr(command):
             return True
-        tokens = _scope_tokens(command)
-        if tokens is None:
-            return False
-        return (
+        return any(
             _unresolvable_python_target(tokens, cwd)
             or _execution_position_names_new_pr(tokens, cwd)
             or _operand_is_new_pr_copy(tokens, cwd)
+            for tokens in _scope_segments(command)
         )
 
 

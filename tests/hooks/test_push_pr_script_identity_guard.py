@@ -1401,6 +1401,13 @@ def test_dispatchers_allow_commands_outside_guard_scope(
         # compaction stripped the backslash without decoding the escape,
         # producing newx5fpr.py (issue #4825).
         "./attacker/pr/$'new\\x5fpr.py'",
+        # Compound commands. The relevance tokenizer rejects shell operators as
+        # policy, and returning nothing on that rejection failed open: the
+        # execution-position rules never ran (issue #4825).
+        "./attacker/pr/?ew_pr.py && true",
+        "true && ./attacker/pr/?ew_pr.py",
+        "./attacker/pr/new_pr.py; echo done",
+        "echo x | ./attacker/pr/?ew_pr.py",
         "./attacker/pr/$'new\\137pr.py'",
         "./attacker/pr/$'\\156ew_pr.py'",
         "./attacker/pr/new_pr{.py,.txt}",
@@ -1445,6 +1452,12 @@ def test_dispatchers_deny_direct_lookalike_execution(
         "cat n?w_pr.py",
         # Benign ANSI-C quoting outside an execution position stays allowed.
         "echo $'hello\\x20world'",
+        # Compound commands that cannot reach the script stay out of scope,
+        # including an operator inside a quoted argument.
+        "echo *.py && ls",
+        'git commit -m "fix: a && b"',
+        "cat README.md; git status",
+        "make build && npm run lint",
         "mkdir -p build/{a,b,c}",
         "mv report{1..200}.csv archive/",
         "ls src/{lib,bin}/*.rs",
