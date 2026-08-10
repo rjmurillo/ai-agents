@@ -1406,6 +1406,7 @@ def test_dispatchers_allow_commands_outside_guard_scope(
         # execution-position rules never ran (issue #4825).
         "./attacker/pr/?ew_pr.py && true",
         "true && ./attacker/pr/?ew_pr.py",
+        "bash -c './attacker/pr/?ew_pr.py'",
         "./attacker/pr/new_pr.py; echo done",
         "echo x | ./attacker/pr/?ew_pr.py",
         "./attacker/pr/$'new\\137pr.py'",
@@ -1564,9 +1565,17 @@ def test_dispatchers_deny_commands_inside_guard_scope(
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -I tools/trusted_helper.py --title fix",
+        "bash -c 'python3 -I tools/trusted_helper.py --title fix'",
+    ],
+)
 def test_dispatchers_deny_renamed_copy_by_content(
     tmp_path: Path,
     runner,
+    command: str,
 ) -> None:
     """Scope rule C: a byte-identical copy under another name is in scope."""
     repository, _ = _repository(tmp_path)
@@ -1574,10 +1583,13 @@ def test_dispatchers_deny_renamed_copy_by_content(
     copied.parent.mkdir(parents=True)
     shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, copied)
 
-    result = runner("python3 -I tools/trusted_helper.py --title fix", repository)
+    result = runner(command, repository)
 
     assert result.returncode == 2
-    assert "Python execution is limited" in result.stderr
+    if command.startswith("bash -c"):
+        assert "shell evaluator wrappers are not allowed" in result.stderr
+    else:
+        assert "Python execution is limited" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])

@@ -795,6 +795,38 @@ def _scope_segments(command: str) -> list[list[ShellToken]]:
     return segments
 
 
+def _shell_evaluator_argument_is_in_scope(
+    tokens: list[ShellToken],
+    cwd: Path,
+    depth: int,
+) -> bool:
+    index = _effective_command_index(tokens)
+    if index is None:
+        return False
+    command_name = _command_name(tokens[index].value)
+    unversioned_name = _unversioned_command_name(tokens[index].value)
+    if command_name not in _SHELL_EVALUATORS and unversioned_name not in _SHELL_EVALUATORS:
+        return False
+    for offset, token in enumerate(tokens[index + 1 :], start=index + 1):
+        value = token.value
+        if value == "-c":
+            return offset + 1 < len(tokens) and _command_text_is_in_scope(
+                tokens[offset + 1].value,
+                cwd,
+                depth + 1,
+            )
+        if value.startswith("-") and not value.startswith("--") and "c" in value[1:]:
+            return offset + 1 < len(tokens) and _command_text_is_in_scope(
+                tokens[offset + 1].value,
+                cwd,
+                depth + 1,
+            )
+    return command_name == "eval" and any(
+        _command_text_is_in_scope(token.value, cwd, depth + 1)
+        for token in tokens[index + 1 :]
+    )
+
+
 def _unresolvable_python_target(tokens: list[ShellToken], cwd: Path) -> bool:
     """Scope rule B: a Python script operand the guard cannot resolve."""
     arguments = _python_arguments(tokens, cwd)
@@ -878,12 +910,19 @@ def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
 
 def _command_is_in_scope(command: str, cwd: Path) -> bool:
     """Non-blocking relevance gate. See the module docstring for the contract."""
+    return _command_text_is_in_scope(command, cwd, 0)
+
+
+def _command_text_is_in_scope(command: str, cwd: Path, depth: int) -> bool:
+    if depth > 4:
+        return True
     if _names_new_pr(command):
         return True
     return any(
         _unresolvable_python_target(tokens, cwd)
         or _execution_position_names_new_pr(tokens, cwd)
         or _operand_is_new_pr_copy(tokens, cwd)
+        or _shell_evaluator_argument_is_in_scope(tokens, cwd, depth)
         for tokens in _scope_segments(command)
     )
 
