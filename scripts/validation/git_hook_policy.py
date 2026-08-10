@@ -6202,8 +6202,9 @@ def run_pytest(repo_root: Path) -> int:
                 consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
                 plural = "" if index == 1 else "s"
                 print(
-                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
-                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    "ERROR: pytest suite timed out, budget exhausted with "
+                    f"{remaining:g}s left of the "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
                     f"({consumed:g}s already consumed by {index} earlier "
                     f"command{plural} in the suite)",
                     file=sys.stderr,
@@ -6651,14 +6652,105 @@ def _handle_additions(args: argparse.Namespace) -> int:
     return additions_advisory(_repo_root(args))
 
 
+# ---------------------------------------------------------------------------
+# Push-range file filter for glob-triggered E2E jobs (#4492)
+#
+# lefthook computes {push_files} from @{push}...HEAD.  On the first push of a
+# new branch @{push} is unresolvable and lefthook falls back to a comparison
+# that can include files from upstream commits the branch never touched.  That
+# causes glob-gated E2E jobs to fire on unrelated upstream files.
+#
+# The fix: jobs that are triggered solely by glob matching (no {push_files}
+# argument) use `use_stdin: true` and call _push_range_changed_files() to
+# derive the actual changed file list from the push refs on stdin.  Only files
+# present in the real push range are compared against the job's globs.
+# ---------------------------------------------------------------------------
+
+
+def _push_range_changed_files(stream: TextIO, repo_root: Path) -> set[str] | None:
+    """Return the set of files actually changed in this push, or None on error.
+
+    Reads push refs from ``stream`` (pre-push stdin format), resolves the push
+    update for each ref using ``resolve_push_update``, and collects the changed
+    file paths from ``git diff --name-only <range_spec>``.  Returns ``None``
+    when the refs cannot be resolved so callers can fail open (run the job
+    unconditionally) rather than silently skip it.
+    """
+    try:
+        refs = parse_push_refs(stream)
+    except (ValueError, OSError):
+        return None
+    if not refs:
+        return None
+    changed: set[str] = set()
+    for ref in refs:
+        if ref.is_deletion:
+            continue
+        try:
+            update = resolve_push_update(ref, repo_root)
+        except (PushUpdateConfigError, ValueError):
+            return None
+        result = _run_git(repo_root, ["diff", "--name-only", update.range_spec])
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                changed.add(line)
+    return changed
+
+
+def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
+    """Return True when any file in ``files`` matches any of the given glob patterns."""
+    for path in files:
+        for pattern in globs:
+            if fnmatch(path, pattern):
+                return True
+    return False
+
+
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    push_files = getattr(args, "files", None)
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
+    # These mirror the glob: list for hook-anchoring-e2e in lefthook.yml.
+    # Keeping the list here (not in YAML) satisfies ADR-006: the guard logic
+    # lives in Python, and lefthook's glob is now a secondary filter only.
+    hook_e2e_globs = (
+        "build/scripts/generate_hooks.py",
+        "src/copilot-cli/hooks/**",
+        ".claude/hooks/**",
+        ".claude/settings.json",
+        "scripts/validation/validate_hook_anchoring.py",
+        "tests/e2e/test_cli_hook_e2e.py",
+        "tests/e2e/copilot_hook_probe.py",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is not None and not _any_glob_match(changed, hook_e2e_globs):
+        print("hook-anchoring-e2e skipped: no relevant files in push range")
+        return 0
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", repo_root)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    push_files = getattr(args, "files", None)
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
+    # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
+    plugin_e2e_globs = (
+        ".claude/.claude-plugin/plugin.json",
+        ".claude/commands/**",
+        ".claude/skills/**",
+        "src/copilot-cli/.claude-plugin/plugin.json",
+        "src/copilot-cli/skills/**",
+        "build/scripts/generate_commands.py",
+        "build/scripts/generate_skills.py",
+        "templates/platforms/copilot-cli.yaml",
+        "tests/e2e/test_plugin_load_smoke.py",
+        "tests/e2e/copilot_hook_probe.py",
+        ".github/workflows/nightly-cli-smoke.yml",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is not None and not _any_glob_match(changed, plugin_e2e_globs):
+        print("plugin-load-e2e skipped: no relevant files in push range")
+        return 0
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:

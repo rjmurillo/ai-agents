@@ -4,6 +4,8 @@ allowed-tools: Bash, Read, Edit, Write, Skill
 size-exception: true
 ---
 
+<!-- # taste-lint: ignore file-size, this command is one end-to-end PR workflow; splitting it would hide required lease and mutation gates from the agent. -->
+
 # /pr-autofix
 
 <!--
@@ -72,6 +74,143 @@ resolve_pr_scripts_dir() {
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
 # late-live-state-guard:start
+# lease-renewal:start
+LEASE_RENEW_PID=""
+LEASE_RENEW_FAILURE_FILE=""
+LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
+LEASE_CLEANUP_DONE=0
+
+renew_lease_once() {
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json >/dev/null
+}
+
+stop_lease_renewal() {
+    if [ -z "$LEASE_RENEW_PID" ]; then
+        return 0
+    fi
+    kill -- "-$LEASE_RENEW_PID" 2>/dev/null || true
+    kill "$LEASE_RENEW_PID" 2>/dev/null || true
+    wait "$LEASE_RENEW_PID" 2>/dev/null || true
+    LEASE_RENEW_PID=""
+}
+
+lease_renewal_failed() {
+    [ -n "$LEASE_RENEW_FAILURE_FILE" ] && [ -s "$LEASE_RENEW_FAILURE_FILE" ]
+}
+
+start_lease_renewal() {
+    stop_lease_renewal
+    LEASE_CLEANUP_DONE=0
+    LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
+    LEASE_RENEW_FAILURE_FILE="$(mktemp)"
+    (
+        current_child=""
+        stop_current_child() {
+            if [ -n "$current_child" ]; then
+                kill "$current_child" 2>/dev/null || true
+                wait "$current_child" 2>/dev/null || true
+            fi
+        }
+        trap stop_current_child EXIT INT TERM
+        while true; do
+            sleep "$LEASE_RENEW_INTERVAL_SECONDS" &
+            current_child=$!
+            wait "$current_child" || break
+            current_child=""
+            renew_lease_once >/dev/null &
+            current_child=$!
+            if ! wait "$current_child"; then
+                printf '%s\n' "renewal failed while holding the lease" > "$LEASE_RENEW_FAILURE_FILE"
+                break
+            fi
+            current_child=""
+        done
+    ) &
+    LEASE_RENEW_PID=$!
+    trap cleanup_pr_autofix EXIT
+    trap 'cleanup_pr_autofix; exit 130' INT
+    trap 'cleanup_pr_autofix; exit 143' TERM
+}
+
+cleanup_pr_autofix() {
+    if [ "$LEASE_CLEANUP_DONE" -eq 1 ]; then
+        return 0
+    fi
+    LEASE_CLEANUP_DONE=1
+    stop_lease_renewal
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+}
+
+release_pr_lease() {
+    cleanup_pr_autofix
+}
+
+prepare_lease_for_mutation() {
+    stop_lease_renewal
+    if ! renew_lease_once; then
+        printf '%s\n' "renewal failed before mutation" > "$LEASE_RENEW_FAILURE_FILE"
+        return 1
+    fi
+    start_lease_renewal
+}
+
+run_mutation_with_lease_monitor() {
+    local mutation_pid mutation_pgid mutation_rc start_attempt stop_attempt
+    python3 -c \
+        'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+        "$@" &
+    mutation_pid=$!
+    mutation_pgid=""
+    for start_attempt in 1 2 3 4 5 6 7 8 9 10; do
+        mutation_pgid=$(ps -o pgid= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+        if [ "$mutation_pgid" = "$mutation_pid" ]; then
+            break
+        fi
+        if ! kill -0 "$mutation_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.01
+    done
+    if [ "$mutation_pgid" != "$mutation_pid" ]; then
+        kill "$mutation_pid" 2>/dev/null || true
+        wait "$mutation_pid" 2>/dev/null || true
+        echo "Stopping mutation for #$PR: process group setup failed"
+        cleanup_pr_autofix
+        return 75
+    fi
+    while kill -0 "$mutation_pid" 2>/dev/null; do
+        if lease_renewal_failed; then
+            kill -TERM -- "-$mutation_pid" 2>/dev/null || true
+            for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
+                if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
+                    break
+                fi
+                sleep 0.05
+            done
+            kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+            wait "$mutation_pid" 2>/dev/null || true
+            echo "Stopping mutation for #$PR: lease ownership lost"
+            cleanup_pr_autofix
+            return 75
+        fi
+        sleep 0.05
+    done
+    if wait "$mutation_pid"; then
+        mutation_rc=0
+    else
+        mutation_rc=$?
+    fi
+    if lease_renewal_failed; then
+        echo "Mutation completed as lease ownership was lost for #$PR"
+        cleanup_pr_autofix
+        return 75
+    fi
+    return "$mutation_rc"
+}
+# lease-renewal:end
+
 recheck_pr_live_state() {
     local late_live late_rc late_action late_reason late_state late_head late_base
     if late_live=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
@@ -102,14 +241,23 @@ recheck_pr_live_state() {
         echo "Closed PR head SHA: $late_head"
         echo "Preserve unpushed commits or a net patch before leaving the old branch."
     fi
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    cleanup_pr_autofix
     return 75
 }
 
 run_pr_mutation_if_live() {
+    if lease_renewal_failed; then
+        echo "Skipping mutation for #$PR: lease renewal failed"
+        cleanup_pr_autofix
+        return 75
+    fi
+    if ! prepare_lease_for_mutation; then
+        echo "Skipping mutation for #$PR: lease renewal failed"
+        cleanup_pr_autofix
+        return 75
+    fi
     if recheck_pr_live_state; then
-        "$@"
+        run_mutation_with_lease_monitor "$@"
         return $?
     fi
     return 75
@@ -132,6 +280,7 @@ LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
     echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
     continue
 }
+start_lease_renewal
 
 # Step 2: Live-state gate (BLOCKING, issue #2455).
 LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
@@ -140,8 +289,7 @@ ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
     REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    cleanup_pr_autofix
     # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
@@ -151,8 +299,7 @@ EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
 EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
 if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
     echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    cleanup_pr_autofix
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
@@ -169,8 +316,7 @@ AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/d
 # that as "armed" would fire the disarm path on no evidence, so skip instead.
 if [ -z "$AUTO_MERGE" ]; then
     echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    cleanup_pr_autofix
     continue
 fi
 if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
@@ -183,9 +329,8 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
         MUTATION_RC=$?
         if [ "$MUTATION_RC" -ne 75 ]; then
             echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
-            python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-                --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
         fi
+        cleanup_pr_autofix
         continue
     fi
 fi
@@ -193,8 +338,7 @@ fi
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
 # Pattern:
 #   ... (tier actions) ...
-#   python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-#       --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+#   cleanup_pr_autofix
 ```
 
 Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
@@ -229,8 +373,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
     --json \
     --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
 
-python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-    --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+cleanup_pr_autofix
 ```
 
 ## Workflow
@@ -238,7 +381,7 @@ python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
-4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop.
+4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
 5. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
@@ -468,6 +611,7 @@ Per PR processed:
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
+- [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.

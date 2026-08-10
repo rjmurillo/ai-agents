@@ -50,18 +50,18 @@ gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status == "
 **Resolution:**
 Wait for runners to become available. If persistent, check GitHub Status.
 
-### 2. Skipped Aggregate Job
+### 2. Skipped Session Protocol Results Job
 
 **Symptoms:**
 
 - Individual jobs complete successfully
-- `Aggregate Results` shows as `skipped`
+- `Session Protocol Results` shows as `skipped`
 - Required check never passes
 
 **Diagnosis:**
 
 ```powershell
-gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.name | contains("Session Protocol")) | {name: .name, status: .status, conclusion: .conclusion}'
 ```
 
 **Common Causes:**
@@ -111,16 +111,16 @@ gh run view $RunId --log --job $JobId
 
 ## Session Protocol Validation Specific
 
-### Check Aggregate Results Status
+### Check Session Protocol Results Status
 
 ```powershell
 $runId = "20608909597"  # Example run ID
-gh api /repos/$Repo/actions/runs/$runId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
+gh api /repos/$Repo/actions/runs/$runId/jobs --jq '.jobs[] | select(.name | contains("Session Protocol")) | {name: .name, status: .status, conclusion: .conclusion}'
 ```
 
 ### Find NON_COMPLIANT Verdict
 
-The `Aggregate Results` job aggregates verdicts from validation jobs. Check artifacts:
+The `Session Protocol Results` job aggregates verdicts from validation jobs. Check artifacts:
 
 ```powershell
 gh run download $RunId --dir $env:TEMP/session-artifacts-$RunId
@@ -139,7 +139,7 @@ The `diagnose.ps1` script automates these patterns. Enhancements to consider:
 1. **Job-level status**: Show individual job statuses, not just run-level
 2. **Runner check**: Identify jobs waiting for runners
 3. **Stuck detection**: Flag jobs queued for >10 minutes
-4. **Skipped aggregate detection**: Alert when Aggregate Results is skipped
+4. **Skipped aggregate detection**: Alert when Session Protocol Results is skipped
 
 ---
 

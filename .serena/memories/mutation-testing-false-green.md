@@ -46,7 +46,43 @@ Prefer Python over `sed` when the pattern contains shell or regex
 metacharacters. `sed` has no delimiter that is safe against arbitrary content,
 and choosing one per pattern is how the collision happens.
 
-## Also mutate the weakening, not only the deletion
+## Pin only the bytes the mutation is about
+
+Observed 2026-08-03. `tests/ci/test_mutation_harness_ciperms.py::test_target_literal_is_present_exactly_once[M7]`
+failed on `origin/main` with `literal appears 0 times`. M7 exists to prove a
+test notices an `if:` guard re-added to the ADR-006 ratchet step, and its
+`old_bytes` pinned two lines:
+
+```text
+      - name: Run ADR-006 run-block ratchet
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
+```
+
+PR #4406 ratcheted `--max 58` to `--max 0`. The literal stopped matching and
+the mutation went un-runnable. Nothing about the guard changed.
+
+The obvious fix is to update the literal to `--max 0`. That fix is wrong: the
+whole point of a ratchet is that its value moves, so the mutation would break
+again on the next burn-down, and each break costs a red main plus a triage
+cycle. The `--max` value is not what M7 mutates.
+
+Anchor on the smallest span that is both unique and invariant. Here that is the
+step-name line alone, which the harness's own uniqueness test already enforces:
+
+```python
+old_bytes=b"      - name: Run ADR-006 run-block ratchet\n",
+new_bytes=(
+    b"      - name: Run ADR-006 run-block ratchet\n"
+    b"        if: steps.should-run.outputs.skip != 'true'\n"
+),
+```
+
+Before adding or repairing a mutation, read its literal and ask which bytes the
+mutation is actually about. Any threshold, budget, count, version, or SHA in
+the span is a scheduled failure. Step names, job names, and function names are
+stable and usually unique, which makes them the right anchors.
+
+
 
 Deleting a guard proves a test notices its absence. It does not prove the test
 notices a guard that is present but wrong. Run both mutations. On issue 4257
