@@ -115,10 +115,10 @@ python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-i
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request 50 --all
 
 # Reply to review thread by thread ID (GraphQL)
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."
 
 # Reply to thread and resolve in one operation
-python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --pull-request 50 --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve
 
 # Check if PR is ready to merge (threads resolved, CI passing)
 python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50

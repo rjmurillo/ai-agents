@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-08-05-session-10002-resolve-final-4545-ratchet-correctness",
+  "session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve final PR 4545 ratchet correctness findings",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T20:09:15+00:00",
+      "type": "milestone",
+      "content": "Triaged final PR 4545 correctness findings",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T20:17:14+00:00",
+      "type": "milestone",
+      "content": "Added aggregate ratchet registry and triggers",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T20:28:53+00:00",
+      "type": "milestone",
+      "content": "Replaced archive materialization and baseline ambiguity",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T20:34:15+00:00",
+      "type": "milestone",
+      "content": "Pinned a refreshed aggregate base",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T20:42:51+00:00",
+      "type": "milestone",
+      "content": "Completed final validation",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T20:40:16+00:00",
+      "type": "commit",
+      "content": "Commit: ae246e755",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10002-resolve-final-4545-ratchet-correctness"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 33,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 13
+  },
+  "lessons": [
+    "Give a synthetic merge tree its own Git index rather than reusing the checkout's. A temporary index plus explicit cleanup diagnostics, so a failed run cannot leave the real index rewritten",
+    "Resolve the base once and pass the same OID to every base-aware ratchet. One refreshed, pinned OID is handed to all of them, and a refresh error fails closed",
+    "Give ratchets a single ownership registry. One registry declares each ratchet's shell, baseline, and trigger globs, and a test compares it to the Lefthook jobs",
+    "Avoid: Treating a subprocess launch failure as a ratchet result. Launch failure returns rc 127 and is reported separately from a ratchet verdict"
+  ]
+}

@@ -18,6 +18,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.ci._session_artifact_name import artifact_name  # noqa: E402
+
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
 _RESULT_MD = Path("validation-result.md")
@@ -53,10 +59,10 @@ def escapes_workspace(session_file: str) -> bool:
     return candidate != root and root not in candidate.parents
 
 
-def artifact_name(session_file: str) -> str:
-    """Return a name unique across directories, not just across file stems."""
+def has_symlink_component(session_file: str) -> bool:
+    """Return True when the path or any parent component is a symlink."""
     path = Path(session_file)
-    return f"{path.parent.name}-{path.stem}"
+    return path.is_symlink() or any(parent.is_symlink() for parent in path.parents)
 
 
 def must_failure_count(exit_code: int) -> int:
@@ -97,20 +103,21 @@ def _emit_output(name: str) -> None:
             handle.write(f"artifact-name={name}\n")
 
 
-def validate(session_file: str) -> tuple[int, str]:
+def validate(session_file: str, validation_head: str = "") -> tuple[int, str]:
     """Run the validator. Returns (exit_code, findings)."""
     if Path(session_file).suffix != ".json":
         return 1, "\n".join(_MARKDOWN_UNSUPPORTED)
-    completed = _run(
-        [
-            sys.executable,
-            "./scripts/validate_session_json.py",
-            session_file,
-            "--scope-from-git",
-            "--json-output",
-            str(_SUMMARY),
-        ]
-    )
+    command = [
+        sys.executable,
+        "./scripts/validate_session_json.py",
+        session_file,
+        "--scope-from-git",
+        "--json-output",
+        str(_SUMMARY),
+    ]
+    if validation_head:
+        command.extend(["--validation-head", validation_head])
+    completed = _run(command)
     return completed.returncode, completed.stdout + completed.stderr
 
 
@@ -131,17 +138,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    session_path = Path(session_file)
+    if has_symlink_component(session_file):
+        print(
+            f"::error::Refusing a symlink session path: {session_file}",
+            file=sys.stderr,
+        )
+        return 2
+
     name = artifact_name(session_file)
     _emit_output(name)
 
-    if not Path(session_file).exists():
+    if not session_path.exists():
         print(f"File {session_file} was deleted - skipping validation")
         findings = f"# Session Validation: {session_file}\n\nResult: SKIPPED (file deleted)\n"
         _RESULT_MD.write_text(findings, encoding="utf-8")
         _write_results(name, "SKIPPED", 0, findings)
         return 0
 
-    exit_code, findings = validate(session_file)
+    exit_code, findings = validate(
+        session_file,
+        validation_head=os.environ.get("PR_HEAD_SHA", ""),
+    )
     verdict = "COMPLIANT" if exit_code == 0 else "NON_COMPLIANT"
     must_failures = must_failure_count(exit_code)
 

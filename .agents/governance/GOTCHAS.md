@@ -344,6 +344,128 @@ uv run --frozen python scripts/ci/taste_count_ratchet.py
 
 It reads `git ls-files`, so an unstaged new file is invisible to it and the
 count looks fine right up until the push.
+
+## A green pytest run is not a green push
+
+The pre-push hook runs roughly twenty jobs and pytest is one of them. A branch
+can pass every test and still be rejected by gates pytest never executes.
+
+Measured on one branch after a clean local run of 23,693 passed, 0 failed:
+
+```
+✔️ hook-anchoring-e2e   ✔️ plugin-load-e2e   ✔️ python-tests
+🥊 type-ignore-count-ratchet   🥊 python-type-check   🥊 merge-tree-ratchet
+🥊 workflow-local-run          🥊 pre-pr-validation
+error: failed to push some refs
+```
+
+The `python-type-check` failure was four trivial mypy errors in that branch's
+own new test files, three unguarded `re.match(...).group()` calls and one
+unparameterized `CompletedProcess`. No test could have caught them, because a
+passing test does not type-check itself.
+
+The cost is asymmetric. A rejected push takes about eleven minutes and
+truncates the failing gate's output, so it tells you **less** than running that
+gate directly. `python-type-check` above failed in 1.30 seconds.
+
+Verify against the gate set. `lefthook.yml` is the source of truth for how each
+job is invoked; do not invent invocations. The two cheapest and most commonly
+missed:
+
+```
+FILES=$(git diff --name-only origin/main -- '*.py' | tr '\n' ' ')
+uv run --frozen python scripts/validation/git_hook_policy.py mypy $FILES
+uv run --frozen python scripts/validation/pre_pr.py
+```
+
+The mypy gate refuses a bare invocation with `run_mypy called with no file
+arguments; refusing (bare mypy is a false green)`. That is correct behavior,
+not a broken gate; pass the changed-file list.
+
+When delegating, "run the full suite and confirm green" is insufficient and
+will produce a rejected push. Name the gate set.
+
+## A staged file in the shared checkout fakes a red main
+
+Whole-tree ratchets measure the tracked tree, and the tracked tree includes
+staged-but-uncommitted files. A `git add` that was never committed is invisible
+to `git log`, to `git diff HEAD` without `--cached`, and to a HEAD versus
+`origin/main` comparison, yet it moves the measurement.
+
+Measured: `tests/ci/test_count_ratchet_against_real_git.py` failed on a
+checkout whose HEAD was byte-identical to `origin/main`:
+
+```
+taste_count_baseline.txt: baseline is 583 but the tree measures 587:
+4 violation(s) were added. Remove them rather than raising the baseline.
+```
+
+`git status --porcelain | grep -v '^??'` returned 68 staged additions left by
+another agent. After `git restore --staged .`, the same test returned
+`12 passed`. Main was green throughout.
+
+Check the index before believing any whole-tree ratchet failure. Untracked
+(`??`) entries are usually harmless; staged entries are not. Clear them with
+`git restore --staged .`, which preserves the files. Never `git checkout` them,
+they may be someone else's work.
+
+## `core.bare=true` appears in `.git/config` and breaks every worktree
+
+Something during `git push` writes `core.bare = true` into the shared
+`.git/config`. A bare repository cannot have work trees, so every git command
+needing one fails:
+
+```
+fatal: this operation must be run in a work tree
+```
+
+Measured twice in one session. It broke the main checkout and three of five
+linked worktrees simultaneously, and it surfaced as four unrelated-looking
+failures: two portability checks in the pre-PR gate, a lefthook integration
+test, and plain `git status` inside a worktree. Three separate wrong diagnoses
+were attempted before the shared cause was found, including one issue filed and
+retracted.
+
+A serial `pytest tests/` run does **not** reproduce it, so the trigger involves
+the parallel pre-push stage rather than the suite alone.
+
+Repair: `git config core.bare false`.
+
+Immunize, so a mid-run flip cannot break you. This repository sets
+`extensions.worktreeConfig = true`, which makes `core.bare` worktree-specific,
+and worktree config wins over shared config:
+
+```
+git config --worktree core.bare false          # in the main checkout
+git -C <each linked worktree> config --worktree core.bare false
+```
+
+Verified by setting the shared value to `true` afterwards: all six worktrees
+kept working.
+
+Consequence worth internalizing: **the pre-push hook can corrupt the repository
+it is validating**, so a rejected push is not by itself evidence that the branch
+is bad. Check `git config core.bare` before believing a push failure, and
+re-verify against a repaired repository before attributing anything to your
+change. Tracked in issue #4698.
+
+## When several unrelated checks fail at once, suspect the substrate
+
+The `core.bare` incident above produced four plausible and independent-looking
+diagnoses, each of which invited its own investigation. All four were one cause.
+
+A related trap: comparing two runs that differ in more than one variable. A
+test that passed in three full-suite runs and failed when run alone looked
+order-dependent. Those runs differed in **time**, not ordering, and the config
+was corrupted in between. The order-dependence issue was filed and had to be
+closed as invalid.
+
+Before attributing several simultaneous failures to several causes, check the
+shared substrate: `git config core.bare`, `git status --porcelain` for staged
+entries, and `git rev-list --count HEAD..origin/main` for staleness.
+
+
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -725,6 +847,144 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+## An empty `endingCommit` breaks the episode store on the next push
+
+The pre-commit hook extracts an episode from every staged session log. It reads
+`files_changed` from the staged diff, but `commits` from the SHAs the log names,
+and a first commit has none: the commit being created has no SHA yet, and
+`endingCommit` is still `""`. The episode therefore ships with `commits: 0`
+beside a non-zero `files_changed`, which is exactly the pair
+`validate_metrics_consistency` rejects.
+
+Nothing fails at commit time. The push fails, minutes later, in the full suite:
+
+```text
+tests/skills/memory/test_extract_session_episode.py::
+  TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean
+AssertionError: metrics violations grew to 22 (was 21); new episodes with
+commits==0 but metrics.files_changed>0 must be fixed
+```
+
+That count is a ratchet, so raising it is not the fix. Record the SHA and let
+the extractor derive the number, which is what it is built to do:
+
+```bash
+# set "endingCommit" in the session log to the commit you just made, then
+uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
+  .agents/sessions/<log>.json --preserve
+```
+
+`--preserve` recomputes `metrics.commits` from the commit-event stream, so the
+value stays derived rather than hand-set. Commit the log and the regenerated
+episode together as the follow-up commit the section above already requires.
+
+Watch for the interaction: `session-policy` forces any `.agents/` change to
+stage a session log, so a governance or architecture edit cannot avoid creating
+an episode, and the first such commit on a branch always produces a violating
+one. The follow-up commit is not optional bookkeeping; it is what keeps the
+branch pushable.
+## Two green PRs can merge into a red main, and the count ratchets will not warn
+
+The count ratchets compare one scalar baseline against a count taken over the
+whole tree. Neither number is scoped to your diff, so the gate cannot tell
+"this branch added a violation" from "this branch lowered the allowance while
+somebody else added one." Each PR is measured only against the baseline in
+force while it is open.
+
+That leaves a race. On 2026-08-03, PR #4476 lowered the taste baseline from 596
+to 595 after removing a violation. PR #4414 grew `.agents/governance/GOTCHAS.md`
+past the 500-line ceiling, adding one. Both were green. Both merged. `main`
+went red at 596 against a baseline of 595, and neither author did anything
+wrong.
+
+This is a different failure from the branch-behind case above. There the branch
+is stale and merging main fixes it. Here main itself is broken, so merging main
+*imports* the failure. Every branch that syncs afterward fails a gate it never
+touched, and the message reads the same in both cases.
+
+Two consequences worth knowing before you spend an hour on it:
+
+Measure main before blaming your branch. A pristine worktree at `origin/main`
+answers this in seconds and is the only way to tell the two cases apart:
+
+```bash
+git worktree add --detach <path> origin/main
+cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+And the usual "diff my per-file counts against `origin/main`" recipe returns
+nothing when main is the thing that is red, because your branch and main are
+both at the higher number. Diff against the commit that last wrote the baseline
+file instead:
+
+```bash
+git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
+```
+
+Check out that commit in a detached worktree and diff its violation list
+against HEAD's. The offender is the one net-new entry.
+## Deleting code turns main red on the taste-count baseline
+
+The taste ratchet script passes on `count <= baseline`, so removing a violation
+looks free. A separate test does not:
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`
+asserts `count == baseline` exactly, because a baseline above the real count is
+dead allowance that lets violations creep back in unnoticed.
+
+The consequence is counter-intuitive and it has already landed on main twice.
+Anyone who deletes code, or adds a `taste-lint: ignore` directive, lowers the
+count and must lower `scripts/ci/taste_count_baseline.txt` in the same commit.
+Nobody expects a deletion to require a lint-baseline edit, and the pre-push
+ratchet stays green while it happens, so the failure surfaces only in the full
+suite after the merge.
+
+Measured on this repository:
+
+| Commit | Count | Baseline | Exact-match test |
+|---|---|---|---|
+| `a355a9e27^` | 594 | 595 | red |
+| `a355a9e27` (#4428, added an ignore and lowered the baseline) | 593 | 593 | green |
+| `ad61b51c4` (#4101, deleted a recovery path) | 592 | 593 | red |
+
+Check before you push with
+`uv run --frozen python scripts/ci/taste_count_ratchet.py`. It prints
+`OK (count == baseline N)` when the two agree and `OK. N violations <= baseline M`
+when they do not, and only the first form passes the test. Raising a baseline to
+clear a blocked push is still prohibited; this is the opposite direction.
+
+
+## Built-in `explore` and `research` subagent types cannot write anything
+
+The harness `task` tool offers agent types named `explore` and `research`.
+These are Copilot CLI product configuration, not anything this repository
+ships. They are read-only by design: no Bash, no session-state writes, no raw
+`gh`, no GitHub issue or pull request API.
+
+Nothing in this repository configures them, which is easy to confirm and worth
+confirming, because the names collide with things this repository does own:
+
+```bash
+grep -rl '"explore"' --include=*.json --include=*.md --include=*.yaml .
+```
+
+Zero hits outside session logs. The repository-owned `/research` command and
+the `analyst` agent are separate and do have execution tools. The names match;
+the capabilities do not.
+
+The failure mode is quiet. A fleet run assigns these types work that
+structurally cannot succeed, and the agents report back plausibly about what
+they would have done. Measured this session: sixteen triage agents dispatched
+as read-only types were told to record findings and update tracking state.
+None could. The work had to be rerouted, and nothing in the transcript said
+"permission denied," so the loss looked like agents being unhelpful rather
+than agents being unable.
+
+Use these types for reading and reporting only. Anything that must write a
+file, run a command, touch session state, or call the GitHub API needs
+`general-purpose` or a repository-owned agent. If a dispatched agent's
+deliverable is a change rather than an answer, it is the wrong type.
+
+Refs #4692.
 ## A count ratchet script can report OK on a tree its own test rejects
 
 The four commands above answer "did this branch add violations". They do not
@@ -760,9 +1020,19 @@ and the failure reproduces on a detached worktree at `origin/main`.
 **Why it recurs.** Lowering a violation count and lowering the baseline are two
 edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
-issue #3755; neither remedy proposed there has shipped, so
-`strict_required_status_checks_policy` is still false and ruleset 11104075 has
-no `merge_queue` rule.
+issue #3755, whose thesis was that
+`strict_required_status_checks_policy: false` let a green check describe a tree
+that no longer existed. That remedy shipped: the setting is now `true`
+(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
+main can no longer land at all, so the two edits can no longer meet for the
+first time on main.
+
+What remains is the case strict does not cover. Ruleset 11104075 still has no
+`merge_queue` rule and no workflow handles a `merge_group` event, so admission
+is serialized only by the refresh requirement, not by testing the combined
+result before the merge. The exact-equality assertion above is therefore the
+gate that still catches a baseline and a count arriving out of step, and it
+fires locally on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline

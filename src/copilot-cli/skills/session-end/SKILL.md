@@ -92,8 +92,7 @@ User Request: /session-end
     v
 +---------------------------------------------+
 | Phase 1: FIND SESSION LOG                    |
-| - Auto-detect most recent .json in           |
-|   .agents/sessions/                          |
+| - Auto-detect most recent session JSON       |
 | - Prefer today's sessions                    |
 | - Accept explicit -SessionPath               |
 +---------------------------------------------+
@@ -135,7 +134,7 @@ Completed Session Log (or actionable errors)
 
 | Field | Source | Level |
 |-------|--------|-------|
-| `endingCommit` | `git rev-parse --short HEAD` | Top-level |
+| `endingCommit` | Current HEAD when empty, or with explicit refresh | Top-level |
 | `handoffNotUpdated` | Check git diff for HANDOFF.md | MUST NOT |
 | `serenaMemoryUpdated` | Check .serena/memories/ changes | MUST |
 | `markdownLintRun` | Run markdownlint on changed .md files | MUST |
@@ -172,7 +171,36 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ses
 
 # Preview only
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --dry-run
+
+# Replace a stale endingCommit after the final work commit
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --refresh-ending-commit
+
+# Recheck committed Markdown while repairing session evidence
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --markdown-files docs/changed.md .serena/memories/memory-index.md
+
+# Record completed QA evidence through the session owner
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --qa-report .agents/qa/feature-validation.md
+
+# Record a policy-approved investigation-only QA exemption
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --qa-skip-reason investigation-only
 ```
+
+QA evidence files live under .agents/qa/ in the upstream repository.
+Each report must start with this machine-readable frontmatter:
+
+```yaml
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-02-07-session-05.json
+qaCommit: 0123456789abcdef0123456789abcdef01234567
+---
+```
+
+`qaSessionLog` must match the exact session log path. `qaCommit` must be the full
+40-character commit validated by QA. Only `PASS` satisfies mandatory QA.
+Deferred, failed, stale, abbreviated, or unrelated evidence is rejected.
+The owner supports `investigation-only` after its policy checker verifies every
+changed path. Docs-only exemptions still require separate measured evidence.
 
 ### Step 3: Address Any Failures
 
@@ -282,6 +310,10 @@ File: .agents/sessions/2026-02-07-session-05.json
 |-----------|------|----------|-------------|
 | `--session-path` | string | No | Path to session log. Auto-detects if omitted. |
 | `--dry-run` | flag | No | Preview changes without writing to file. |
+| `--refresh-ending-commit` | flag | No | Replace a stale value with current HEAD. |
+| `--markdown-files` | strings | No | Lint explicit Markdown paths. |
+| `--qa-report` | string | No | Record a completed report under the configured QA artifact root. |
+| `--qa-skip-reason` | enum | No | Verify and record an `investigation-only` QA exemption. |
 
 ---
 
@@ -297,14 +329,14 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/. A consumer repo without that path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. It also cites .agents/SESSION-PROTOCOL.md and scripts/validate_session_json.py as references. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/ and records QA reports under .agents/qa/. A consumer repo without the session path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. The --qa-report option rejects reports outside the configured QA artifact root. It also cites .agents/SESSION-PROTOCOL.md and scripts/validate_session_json.py as references. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
 
 | Path | Direction | Behavior when absent |
 |------|-----------|----------------------|
-| `.agents/sessions/` | write (session logs) | The completion script prints `[FAIL] No session log found in .agents/sessions/` and exits non-zero. Create the directory or set the session path explicitly. |
+| `.agents/sessions/` | write (session logs) | The completion script reports the missing session directory and exits non-zero. Create the directory or set the session path explicitly. |
 | `.agents/SESSION-PROTOCOL.md` | reference only | The protocol reference link is informational; absence does not block the skill. |
 
 The HTML comment above is the machine-readable declaration the

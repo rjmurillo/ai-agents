@@ -1,0 +1,196 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10017,
+    "date": "2026-08-08",
+    "branch": "fix/4349-pr-autofix-live-state",
+    "startingCommit": "4627d8482",
+    "objective": "Fix issue 4349 pr-autofix late live-state race end to end"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server active; initial instructions and memory calls succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only; no issue #4349 handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill loaded and its issue and PR scripts listed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS Skill Usage Constraints read; GitHub skill scripts used"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-autofix/pr-4323-late-base-refresh"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4349-pr-autofix-live-state"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4349-pr-autofix-live-state"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Isolated worktree status inspected before and after commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4627d8482"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Existing pr-autofix/pr-4323-late-base-refresh memory already records the durable race and recovery; no duplicate memory added"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only passed for 2 selected Markdown files: .claude/commands/pr-autofix.md and src/copilot-cli/skills/pr-autofix/SKILL.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commits b6d60e922, 43908b2d0, 8c634453d, d97f1141d, c9dbfe1a7, and 5bbda22c0"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "SQL todo fix-4349 remains in_progress until issue is merged or closed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: focused issue fix; existing memory already records the incident"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged issue #4349 and linked discussions",
+      "outcome": "P1 live race confirmed; direct chain and reviews read for #2455, #3913, #4323, #4455, and #4568; transitive traversal read 120 items before generic repository links expanded to 222 unrelated items"
+    },
+    {
+      "action": "Claimed issue and checked duplicate pull requests",
+      "outcome": "Issue assigned to rjmurillo; no open PR referenced #4349"
+    },
+    {
+      "action": "Reproduced current main behavior",
+      "outcome": "All six new race tests failed because the shipped pr-autofix surfaces had no executable late live-state guard"
+    },
+    {
+      "action": "Implemented guarded mutation protocol",
+      "outcome": "Each per-PR refresh or mutation rechecks live state; terminal and external failures release the advisory lease; ACT preserves the fail-open supersession contract"
+    },
+    {
+      "action": "Added terminal recovery identity",
+      "outcome": "check_pr_live_state now returns head_sha; live PR #4568 returned MERGED, SKIP, and d2c3f0cdeace56af7469af9f1c9932e12cd145d3"
+    },
+    {
+      "action": "Added positive, negative, edge, and race tests",
+      "outcome": "67 focused tests passed after the fix; 166 broader tests passed with one expected skip; ruff, diff check, and plugin version validation passed"
+    },
+    {
+      "action": "Ran independent review",
+      "outcome": "Reviewer found duplicate lease release and missing CLOSED coverage; sentinel exit 75 and CLOSED regression test resolved both findings"
+    },
+    {
+      "action": "Addressed PR review race findings",
+      "outcome": "A final GitHub query now runs after the slow supersession probe; merged, closed, head-change, base-ref, and base-tip races cannot return a stale verdict"
+    },
+    {
+      "action": "Expanded shipped-surface behavior tests",
+      "outcome": "All mutation guard cases now execute against both Claude and Copilot surfaces; 47 focused tests and 309 broader pr-autofix tests passed"
+    },
+    {
+      "action": "Ran follow-up independent review",
+      "outcome": "Reviewer identified the missing baseRefOid comparison; an executed regression reproduced the false SKIP, and the final query now treats base-tip drift as inconclusive ACT"
+    },
+    {
+      "action": "Ran full pre-PR validation",
+      "outcome": "All required validation gates passed, including mypy changed-files, generation parity, session validation, and plugin checks"
+    },
+    {
+      "action": "Addressed identity-drift review findings",
+      "outcome": "Observed head, base-ref, or base-tip changes now return SKIP and require fresh readiness gates; unchanged supersession probe failures remain fail-open ACT"
+    },
+    {
+      "action": "Re-ran race and pr-autofix validation",
+      "outcome": "48 focused tests and 311 broader pr-autofix tests passed after the identity-drift fix; mypy and ruff passed"
+    },
+    {
+      "action": "Bound late mutations to readiness identity",
+      "outcome": "Every late guard now compares the current head SHA, base ref, and base SHA with values captured by the same readiness cycle; changed identity returns SKIP while unchanged probe failures remain fail-open ACT"
+    },
+    {
+      "action": "Made lease release causal",
+      "outcome": "Each claim now has an immutable random ID; release tombstones match owner, session, base SHA, claim ID, and verified author, so delayed releases cannot clear newer or foreign claims"
+    },
+    {
+      "action": "Closed independent review findings",
+      "outcome": "Three review rounds found stale tombstone interleavings and an unbound fail-open harness; exact claim identity and populated expected identity resolved them, and the final independent review returned APPROVE"
+    },
+    {
+      "action": "Ran final validation",
+      "outcome": "445 broader pr-autofix tests passed with 1 expected skip; 114 final lease tests passed; ruff, Markdown lint for 2 files, generated artifact parity, diff check, and full pre_pr.py passed"
+    }
+  ],
+  "endingCommit": "5bbda22c0",
+  "nextSteps": [
+    "Push the readiness identity and causal lease commits, reply to and resolve all reachable threads",
+    "Retain auto-merge and drive PR #4769 to merge"
+  ]
+}

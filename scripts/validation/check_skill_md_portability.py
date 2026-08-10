@@ -91,7 +91,9 @@ from scripts.validation.check_skill_md_drift import (
 )
 from scripts.validation.portability_common import (
     build_portability_parser,
+    refuse_symlinked_scan_root,
     refuse_unsafe_baseline_write,
+    resolve_path_within_root,
     write_baseline_json,
 )
 from scripts.validation.portability_common import (
@@ -109,6 +111,7 @@ from scripts.validation.portability_common import (
 from scripts.validation.portability_floor import (
     read_previous_sections as _read_previous_sections,
 )
+from scripts.validation.tracked_paths import GitQueryError
 
 # Upstream-only runtime path prefixes. Companion to check_skill_portability.py
 # which covers script files; this validator covers .md files. The .claude/skills/
@@ -393,7 +396,40 @@ class MarkdownScan(NamedTuple):
     scanned: int
 
 
-def scan_skill_markdown(skills_dir: Path) -> MarkdownScan:
+def _refuse_markdown_escape(root_resolved: Path, path: Path, label: str) -> None:
+    if resolve_path_within_root(root_resolved, path) is not None:
+        return
+    raise OSError(f"{label} {path} resolves outside the repository root")
+
+
+def _iter_markdown_files(root: Path, scan_dir: Path) -> list[Path]:
+    root_resolved = root.resolve()
+    paths: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
+        directory = Path(dirpath)
+        _refuse_markdown_escape(root_resolved, directory, "Scan directory")
+        kept_dirs: list[str] = []
+        for name in sorted(dirnames):
+            if name == "__pycache__":
+                continue
+            candidate = directory / name
+            _refuse_markdown_escape(root_resolved, candidate, "Scan directory")
+            kept_dirs.append(name)
+        dirnames[:] = kept_dirs
+        for name in sorted(filenames):
+            path = directory / name
+            _refuse_markdown_escape(root_resolved, path, "Scan entry")
+            if path.suffix != MARKDOWN_SUFFIX:
+                continue
+            if path.is_symlink() and not path.exists():
+                raise OSError(f"Broken .md symlink (configuration error): {path}")
+            paths.append(path)
+    return paths
+
+
+def scan_skill_markdown(
+    skills_dir: Path, repo_root: Path | None = None
+) -> MarkdownScan:
     """Return offending counts and the scanned-file total for skill ``.md`` files.
 
     Paths in ``counts`` are relative to the skills dir's parent, so they begin
@@ -406,32 +442,24 @@ def scan_skill_markdown(skills_dir: Path) -> MarkdownScan:
     as clean; ``os.walk`` with a re-raising ``onerror`` refuses instead. A
     broken ``.md`` symlink is a configuration error, not a file to skip
     silently, because ``Path.is_file`` follows the link and returns False for a
-    dangling target, which would drop it from the scan unnoticed.
+    dangling target, which would drop it from the scan unnoticed. Descendant
+    symlinks that resolve outside the repository are refused before traversal or
+    read, because a child escape expands scan scope just like a symlinked root.
     """
     counts: dict[str, int] = {}
     scanned = 0
     base = skills_dir.parent
+    root = _common_resolve_root(repo_root, skills_dir, require_repo_marker=False)
 
-    def _reraise(error: OSError) -> None:
-        raise error
-
-    for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise):
-        dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-        directory = Path(dirpath)
-        for name in sorted(filenames):
-            path = directory / name
-            if path.suffix != MARKDOWN_SUFFIX:
-                continue
-            if path.is_symlink() and not path.exists():
-                raise OSError(f"Broken .md symlink (configuration error): {path}")
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-            scanned += 1
-            n = count_file_refs(text)
-            if n > 0:
-                counts[path.relative_to(base).as_posix()] = n
+    for path in _iter_markdown_files(root, skills_dir):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+        scanned += 1
+        n = count_file_refs(text)
+        if n > 0:
+            counts[path.relative_to(base).as_posix()] = n
     return MarkdownScan(counts, scanned)
 
 
@@ -463,7 +491,7 @@ def skills_dirs(root: Path) -> list[Path]:
         if not resolved.is_relative_to(repo_resolved):
             raise OSError(
                 f"Scan root {candidate} resolves to {resolved}, "
-                "which is outside the repository. "
+                "which is outside the repository root. "
                 "A symlinked scan root scans files git does not track. "
                 "Remove the symlink or redirect it inside the repository."
             )
@@ -498,7 +526,7 @@ def extra_scan_dirs(root: Path) -> list[Path]:
         if not resolved.is_relative_to(repo_resolved):
             raise OSError(
                 f"Extra scan dir {candidate} resolves to {resolved}, "
-                "which is outside the repository. "
+                "which is outside the repository root. "
                 "A symlinked scan dir scans files git does not track. "
                 "Remove the symlink or redirect it inside the repository."
             )
@@ -536,9 +564,17 @@ def scan_all(
     When check_drift is True, files with a vendor-portability marker are also
     checked for path drift (issue #4116). drift_failures is empty otherwise.
 
-    Keys in ref_counts and marker_counts are repo-relative posix paths. Keys in
+    Raises OSError when a scan root resolves outside the repository root. This
+    closes the symlink path-traversal risk: Path.is_dir() returns True through a
+    symlink and os.walk follows it, so a symlinked root could read external files
+    and count them as repository content (issue #4212).
+
+    Keys in ref_counts and marker_counts are repo-relative posix paths.
+    ``marker_counts`` covers plugin roots and extra scan dirs because
+    vendor-portability markers in ``.claude/commands`` and
+    ``templates/agents`` feed the same exact-count marker baseline. Keys in
     files_by_root are the posix path of the ``skills/`` dir relative to root,
-    covering plugin roots only (not extra scan dirs); coverage-check semantics
+    covering plugin roots only, not extra scan dirs. Coverage-check semantics
     are preserved from the original ``scanned_markdown_by_root``.
     """
     ref_counts: dict[str, int] = {}
@@ -560,44 +596,31 @@ def scan_all(
             drift_failures.extend(marker_path_drift(text, root, rel_key))
 
     for scan_dir in plugin_dirs:
+        if refuse_symlinked_scan_root(root, scan_dir):
+            raise OSError(f"Scan root {scan_dir} resolves outside the repository root")
         rel_parent = scan_dir.parent.relative_to(root)
         root_key = (rel_parent / scan_dir.name).as_posix()
-        scanned = 0
-        for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for fname in sorted(filenames):
-                path = directory / fname
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                scanned += 1
-                rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
-                _process_file(text, rel_key)
-        files_by_root[root_key] = scanned
+        paths = _iter_markdown_files(root, scan_dir)
+        files_by_root[root_key] = len(paths)
+        for path in paths:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+            rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
+            _process_file(text, rel_key)
 
     for extra_dir in extra_dirs:
+        if refuse_symlinked_scan_root(root, extra_dir):
+            raise OSError(f"Scan root {extra_dir} resolves outside the repository root")
         rel_parent = extra_dir.parent.relative_to(root)
-        for dirpath, dirnames, filenames in os.walk(extra_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for fname in sorted(filenames):
-                path = directory / fname
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
-                _process_file(text, rel_key)
+        for path in _iter_markdown_files(root, extra_dir):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+            rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
+            _process_file(text, rel_key)
 
     return ref_counts, marker_counts, files_by_root, drift_failures
 
@@ -720,9 +743,15 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     supplied ``--base-ref`` is the evidence source for the semantic-conflict
     guard; silently skipping it would recreate issue #4195.
     """
+    # Three-dot diff (base_ref...HEAD) uses the merge base as the starting
+    # point.  Two-dot (base_ref) would compare the working tree directly to
+    # base_ref, so if base_ref has advanced past the point where the branch
+    # was merged (e.g. main received new commits between the local merge and
+    # push), the diff runs in the wrong direction and includes main-side
+    # changes as apparent branch changes.  Issue #4474.
     try:
         diff_result = subprocess.run(
-            ["git", "diff", "--name-only", base_ref],
+            ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
             cwd=root,
             capture_output=True,
             text=True,
@@ -968,6 +997,11 @@ def _scan_current_counts(
         current, marker_current, scanned_by_root, drift = scan_all(
             root, check_drift=check_drift
         )
+    except GitQueryError:
+        # An external failure, not a scan result. Exit code 3 per
+        # .claude/rules/ci-scripts.md; returning None here would report it as
+        # a configuration error and hide that git itself failed.
+        raise
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return None
@@ -1210,7 +1244,6 @@ def _run_update_baseline(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    scanned = skills_dirs(root) + extra_scan_dirs(root)
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
@@ -1224,6 +1257,7 @@ def main(argv: list[str] | None = None) -> int:
     if counts is None:
         return 2
     current, marker_current, scanned_by_root, drift_failures = counts
+    scanned = [root / rel for rel in scanned_by_root]
     drift_current = _drift_counts_from_failures(drift_failures)
 
     if args.update_baseline:
@@ -1279,5 +1313,13 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if regressions else 0
 
 
+def _run(argv: list[str] | None = None) -> int:
+    try:
+        return main(argv)
+    except GitQueryError as exc:
+        print(f"External failure: {exc}", file=sys.stderr)
+        return 3
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_run())
