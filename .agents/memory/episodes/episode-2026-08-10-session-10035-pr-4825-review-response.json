@@ -93,7 +93,9 @@
         "e025",
         "e027",
         "e029",
-        "e032"
+        "e032",
+        "e034",
+        "e035"
       ],
       "leads_to": [
         "e009"
@@ -415,6 +417,41 @@
       "caused_by": [
         "e031"
       ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge main and reconcile its new gates",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Main changed both digest-pinned files, and the drift guard added earlier in this branch caught the stale pins as 10 failing guard tests rather than a silent /push-pr denial. Main also added a whole-tree subprocess encoding ratchet; three of my new test probes pinned encoding without errors and needed it. Full suite: 8451 passed, 11 skipped.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-10T16:47:52+00:00",
+      "type": "commit",
+      "content": "Commit: 48d98974aaea53b91977c5cfa3bca6d2c0748d4c",
+      "caused_by": [
+        "e033"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     }
@@ -424,7 +461,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 18,
+    "commits": 19,
     "files_changed": 30
   },
   "lessons": []

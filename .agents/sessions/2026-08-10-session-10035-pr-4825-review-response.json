@@ -178,9 +178,13 @@
     {
       "task": "Process round 7 of the recursive review",
       "outcome": "Relevance failed open whenever the tokenizer rejected a shell operator, so appending '&& true' defeated every position-based rule. Measured 5 compound leaks. Relevance is now decided per shell segment, since execution position is a per-segment property. 0 of 6 compound attacks leak and 0 of 6 ordinary compound commands are falsely denied."
+    },
+    {
+      "task": "Merge main and reconcile its new gates",
+      "outcome": "Main changed both digest-pinned files, and the drift guard added earlier in this branch caught the stale pins as 10 failing guard tests rather than a silent /push-pr denial. Main also added a whole-tree subprocess encoding ratchet; three of my new test probes pinned encoding without errors and needed it. Full suite: 8451 passed, 11 skipped."
     }
   ],
-  "endingCommit": "8cb44c28c81092b075fd4dc3d2c0daf93f5e931b",
+  "endingCommit": "48d98974aaea53b91977c5cfa3bca6d2c0748d4c",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
