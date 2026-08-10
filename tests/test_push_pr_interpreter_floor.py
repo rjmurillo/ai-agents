@@ -28,6 +28,7 @@ Measured on the merged tree at ``5cd72a7dad`` with CPython 3.10.20:
 
 from __future__ import annotations
 
+import ast
 import os
 import shutil
 import subprocess
@@ -142,16 +143,30 @@ def test_push_pr_scripts_avoid_post_310_datetime_alias(relative: Path) -> None:
     test protects nothing. This one always runs and pins the specific regression
     that shipped: ``datetime.UTC`` is 3.11+, while ``timezone.utc`` is available
     at every version this repository targets.
-    """
-    source = (REPO_ROOT / relative).read_text(encoding="utf-8")
 
-    assert "from datetime import UTC" not in source, (
-        f"{relative.as_posix()} imports datetime.UTC, which is Python 3.11+; "
-        "use timezone.utc for the 3.10 hook-portability floor"
-    )
-    assert "datetime.UTC" not in source, (
-        f"{relative.as_posix()} references datetime.UTC, which is Python 3.11+"
-    )
+    Asserts on the parsed syntax tree rather than on a substring of the source,
+    per ``.claude/rules/testing.md`` MUST 9. A substring check reports a hit
+    inside the comment that explains the fix, so it would fail on the fixed file
+    and could only be satisfied by deleting the explanation.
+    """
+    tree = ast.parse((REPO_ROOT / relative).read_text(encoding="utf-8"))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "datetime":
+            imported = {alias.name for alias in node.names}
+            assert "UTC" not in imported, (
+                f"{relative.as_posix()} imports datetime.UTC, which is Python 3.11+; "
+                "use timezone.utc for the 3.10 hook-portability floor"
+            )
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "UTC"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "datetime"
+        ):
+            raise AssertionError(
+                f"{relative.as_posix()} references datetime.UTC, which is Python 3.11+"
+            )
 
 
 def test_repository_development_floor_is_unchanged() -> None:

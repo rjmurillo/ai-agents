@@ -18,8 +18,25 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+# Python 3.10 compatibility (issue #4764). `datetime.UTC` is an alias for
+# `datetime.timezone.utc` that CPython added in 3.11, so
+# `from datetime import UTC` raises ImportError on 3.10:
+#
+#     ImportError: cannot import name 'UTC' from 'datetime'
+#
+# Measured on CPython 3.10.20 against this file at commit 5cd72a7dad. This
+# script runs on the HOST's ambient interpreter, not the repository's 3.14
+# development interpreter, and `.claude/rules/python.md` puts the
+# hook-portability floor at 3.10. `timezone.utc` is the same object and exists
+# at every version this repository targets, so it is the portable spelling
+# rather than a compatibility shim.
+#
+# The repository development floor is unchanged: pyproject.toml still declares
+# `requires-python = ">=3.14"`. Only host-executed scripts write to 3.10.
+_UTC = timezone.utc
 
 _CONVENTIONAL_COMMIT_PATTERN = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
@@ -245,6 +262,52 @@ def _report_not_run(validator: str) -> None:
     print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}; CI runs it from a trusted checkout.")
 
 
+class _WarningLog:
+    """Collect warning-level failures so the summary cannot contradict them.
+
+    Issue #4764: Validation 4 runs ``validate_pr_description.py`` in warning
+    mode, so a non-zero exit does not block PR creation. That policy is
+    unchanged. What was wrong is that the run then printed
+
+        Trusted pre-creation validations passed.
+
+    directly beneath the validator's own ``ERROR: invalid PR description``.
+    Measured against a stub validator exiting 1 at commit 5cd72a7dad.
+
+    The summary is the line a reader scans, so announcing a pass while a check
+    failed is a silent failure with extra output. Every warning path feeds this
+    log and the summary reports "completed with warnings" when it is non-empty.
+    Fixing only Validation 4 would leave the failed-``git diff`` and
+    missing-session-log paths equally invisible, which is the partial-guard
+    failure mode.
+    """
+
+    def __init__(self) -> None:
+        self._reasons: list[str] = []
+
+    def record(self, reason: str) -> None:
+        self._reasons.append(reason)
+
+    def __bool__(self) -> bool:
+        return bool(self._reasons)
+
+    def report(self) -> None:
+        """Print the closing summary, qualified by whether anything warned."""
+        not_run = ", ".join(_UNTRUSTED_REPOSITORY_VALIDATORS)
+        headline = (
+            "Trusted pre-creation validations completed with warnings."
+            if self._reasons
+            else "Trusted pre-creation validations passed."
+        )
+        print(
+            f"{headline} {len(_UNTRUSTED_REPOSITORY_VALIDATORS)} repository-local "
+            f"check(s) did not run: {not_run}."
+        )
+        print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}.")
+        for reason in self._reasons:
+            print(f"  Warning: {reason}")
+
+
 def run_validations(
     repo_root: str,
     base: str,
@@ -255,10 +318,12 @@ def run_validations(
     body_file: str = "",
 ) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
+    warnings = _WarningLog()
     try:
         os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
     except PermissionError as exc:
         print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
+        warnings.record(f"could not create .agents directory: {exc}")
 
     print("Running validations...")
     print()
@@ -282,6 +347,10 @@ def run_validations(
             "skipped, not treated as 'no changes'.",
             file=sys.stderr,
         )
+        warnings.record(
+            f"'git diff {base}...{head}' failed (exit {result.returncode}); "
+            "Validations 1 and 2 examined an unknown changed-file set"
+        )
     changed_files = result.stdout.strip().splitlines() if not diff_failed else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
@@ -293,6 +362,7 @@ def run_validations(
             _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[0])
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
+            warnings.record("no session log found but .agents/ files changed")
     elif diff_failed:
         print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:
@@ -342,7 +412,15 @@ def run_validations(
         # Print human-readable output (on stderr from validator)
         if val_result.stderr:
             print(val_result.stderr, end="", file=sys.stderr)
-        # Warning mode: don't fail on exit code
+        # Warning mode: a non-zero exit does NOT block creation. It is recorded
+        # so the closing summary cannot report an unqualified pass over it
+        # (issue #4764). Changing this to a block would be a policy change; the
+        # CI-side validator is the blocking layer.
+        if val_result.returncode != 0:
+            warnings.record(
+                f"validate_pr_description.py exited {val_result.returncode} "
+                "(warning mode: PR creation continues)"
+            )
     else:
         print("  Skipped (no title available or validator not found)")
 
@@ -362,6 +440,7 @@ def run_validations(
                 body_content = f.read()
         except OSError as exc:
             print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
+            warnings.record(f"could not read body file: {exc}")
     dash_violations: list[str] = []
     if _DASH_RE.search(title):
         dash_violations.append("title")
@@ -403,12 +482,7 @@ def run_validations(
     print("  Body line breaks are real newlines.")
 
     print()
-    print(
-        "Trusted pre-creation validations passed. "
-        f"{len(_UNTRUSTED_REPOSITORY_VALIDATORS)} repository-local check(s) did "
-        "not run: " + ", ".join(_UNTRUSTED_REPOSITORY_VALIDATORS) + "."
-    )
-    print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}.")
+    warnings.report()
     print()
 
 
@@ -425,8 +499,8 @@ def write_audit_log(
 
     username = os.environ.get("USERNAME") or os.environ.get("USER", "unknown")
 
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-    file_timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(_UTC).strftime("%Y-%m-%d %H:%M:%S")
+    file_timestamp = datetime.now(_UTC).strftime("%Y%m%d-%H%M%S")
 
     audit_entry = (
         f"Timestamp: {timestamp}\n"

@@ -856,7 +856,7 @@ def _original_main(stdin_bytes):
             "--global",
         }
     )
-    _TRUSTED_NEW_PR_SHA256 = "a2dc263b61b3c65ee6bc90b8f16927210b02fc060dd7081d0625b7846daa4ba1"
+    _TRUSTED_NEW_PR_SHA256 = "3b0347316180d2a8110474bdaa2479fbdc6d8feb69df3c3a194572aeccfa2fac"
     _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
         "00f32287461be4a0d0b15b0b7fb8a870d3824fbe4a6427373376fb4c38bda9eb"
     )
