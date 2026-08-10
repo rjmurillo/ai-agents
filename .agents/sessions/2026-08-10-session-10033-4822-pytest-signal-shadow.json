@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4822-shadow-pytest-signal-test-report.md"
+        "Evidence": ".agents/qa/pr-4845-shadow-pytest-signal-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",

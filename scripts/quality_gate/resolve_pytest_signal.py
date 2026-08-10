@@ -18,7 +18,7 @@ passed" or "the suite never ran" and only the step names tell those apart. Live
 run 31360441685 is the proof: run conclusion and both job conclusions are
 ``success`` while the executor's ``Run pytest`` step is ``skipped``. That shape
 and four other replayed runs are tabulated in
-``.agents/qa/pr-4822-shadow-pytest-signal-test-report.md`` and pinned as
+``.agents/qa/pr-4845-shadow-pytest-signal-test-report.md`` and pinned as
 fixtures in ``tests/quality_gate/test_resolve_pytest_signal.py``. The rules
 stricter than the name match live with the code that applies them: freshness in
 ``resolve``, pull request binding in ``binds_to_pr``, the never-ran executor in
