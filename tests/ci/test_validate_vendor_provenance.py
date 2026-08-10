@@ -7,13 +7,18 @@ modes/symlinks, and CLI exit codes.
 
 from __future__ import annotations
 
+import builtins
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from types import ModuleType
+from typing import Any
+from unittest.mock import patch
 
 SCRIPT = "scripts/ci/validate_vendor_provenance.py"
 
@@ -28,6 +33,17 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
         errors="replace",
 
     )
+
+
+def _load_validator() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "validate_vendor_provenance", SCRIPT,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _sha256(data: bytes) -> str:
@@ -360,6 +376,40 @@ class TestConfigSafety:
         assert r.returncode == 1
         assert "markdownItPlugins" in r.stdout
 
+    def test_explicit_mapping_key_rejected(self, tmp_path: Path) -> None:
+        """YAML explicit mapping keys must use the parser path."""
+        cfg = textwrap.dedent("""\
+            ? customRules
+            :
+              - ./evil.js
+        """)
+        root, _ = _build_candidate(tmp_path, config_content=cfg.encode())
+        r = _run([
+            "--candidate-root", str(root),
+            "--vendor-rel", "v",
+            "--verifier-rel", "verifier.py",
+            "--mirror-rel", "mirror.py",
+            "--config-rel", "config.yaml",
+        ])
+        assert r.returncode == 1
+        assert "customRules" in r.stdout
+
+    def test_yaml_parser_unavailable_fails_closed(self, tmp_path: Path) -> None:
+        """Missing PyYAML must not fall back to partial text scanning."""
+        root, _ = _build_candidate(tmp_path)
+        validator = _load_validator()
+        original_import = builtins.__import__
+
+        def fake_import(name: str, *args: Any, **kwargs: Any) -> object:
+            if name == "yaml":
+                raise ImportError("blocked")
+            return original_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            errors = validator._validate_config_safe(root / "config.yaml")
+
+        assert errors == ["PyYAML is required for config validation"]
+
     def test_clean_config_passes(self, tmp_path: Path) -> None:
         """Config with only rule settings passes."""
         cfg = textwrap.dedent("""\
@@ -674,6 +724,17 @@ class TestCopilotConfigMirrorParity:
 
 class TestWorkflowContract:
     """Verify the workflow YAML passes both Copilot mirror args."""
+
+    def test_workflow_sets_up_uv(self) -> None:
+        """vendor-provenance.yml must install uv before validation."""
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in wf
+
+    def test_workflow_runs_validator_with_uv_frozen(self) -> None:
+        """vendor-provenance.yml must run the validator in the uv env."""
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        assert "uv run --frozen python scripts/ci/validate_vendor_provenance.py" in wf
+        assert "python3 scripts/ci/validate_vendor_provenance.py" not in wf
 
     def test_workflow_passes_copilot_config_rel(self) -> None:
         """vendor-provenance.yml must pass --copilot-config-rel."""

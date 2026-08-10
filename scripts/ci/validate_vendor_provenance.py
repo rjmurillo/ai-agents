@@ -162,16 +162,12 @@ _EXECUTION_KEYS = frozenset((
 
 def _parse_yaml_safe(content: bytes) -> object:
     """Parse YAML using only the safe subset (no code execution)."""
-    # Use the stdlib-available yaml if present, otherwise fall-back to a
-    # minimal key scanner (the CI image ships PyYAML).
     try:
         import yaml
-
-        return yaml.safe_load(content)
     except ImportError:
-        # Fallback: cannot parse YAML without library.  Return None to
-        # signal that we should use the regex fallback.
-        return None
+        raise RuntimeError("PyYAML is required for config validation") from None
+
+    return yaml.safe_load(content)
 
 def _find_execution_keys_recursive(
     obj: object, path: str = "",
@@ -197,23 +193,10 @@ def _validate_config_safe(config_path: Path) -> list[str]:
     if not config_path.is_file():
         return [f"Config not found: {config_path.name}"]
     raw = config_path.read_bytes()
-    parsed = _parse_yaml_safe(raw)
-    if parsed is None:
-        # No YAML library: fall back to conservative regex scan.
-        # Match keys even inside flow mappings and quoted strings.
-        text = raw.decode("utf-8", errors="replace")
-        errors: list[str] = []
-        for key in _EXECUTION_KEYS:
-            # Match the key as a YAML mapping key in any style:
-            # block (key:), flow ({key:...}), or JSON ("key":)
-            pattern = (
-                rf"""(?:^|\{{|,)\s*['"]?{re.escape(key)}['"]?\s*:"""
-            )
-            if re.search(pattern, text, re.MULTILINE):
-                errors.append(
-                    f"Execution-capable key '{key}' in {config_path.name}"
-                )
-        return errors
+    try:
+        parsed = _parse_yaml_safe(raw)
+    except RuntimeError as exc:
+        return [str(exc)]
     return _find_execution_keys_recursive(parsed)
 
 # Mirror parity (byte-identical)
