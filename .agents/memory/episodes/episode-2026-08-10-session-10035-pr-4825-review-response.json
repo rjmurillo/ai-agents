@@ -95,7 +95,8 @@
         "e029",
         "e032",
         "e034",
-        "e035"
+        "e035",
+        "e037"
       ],
       "leads_to": [
         "e009"
@@ -452,6 +453,30 @@
       "caused_by": [
         "e033"
       ],
+      "leads_to": [
+        "e038"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fold in the concurrent session's nested-evaluator fix",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-10T17:00:40+00:00",
+      "type": "commit",
+      "content": "Commit: d47733a20a67c49d08ceb5b2d27dc2585d4cd530",
+      "caused_by": [
+        "e036"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     }
@@ -461,7 +486,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 19,
+    "commits": 20,
     "files_changed": 30
   },
   "lessons": []
