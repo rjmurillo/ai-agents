@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
@@ -787,7 +788,7 @@ class TestGetChangedFiles:
             "GIT_CONFIG_KEY_0": "core.fsmonitor",
             "GIT_CONFIG_VALUE_0": f"echo pwned > {sentinel}",
         }
-        old_vals = {}
+        old_vals: dict[str, str | None] = {}
         for k, v in injections.items():
             old_vals[k] = _os.environ.get(k)
             _os.environ[k] = v
@@ -805,10 +806,11 @@ class TestGetChangedFiles:
             ])
         finally:
             for k in injections:
-                if old_vals[k] is None:
+                old_value = old_vals[k]
+                if old_value is None:
                     _os.environ.pop(k, None)
                 else:
-                    _os.environ[k] = old_vals[k]
+                    _os.environ[k] = old_value
         assert exit_code == 0
         assert not sentinel.exists(), "fsmonitor injection executed despite env sanitization"
 
@@ -983,7 +985,7 @@ class TestGetChangedFiles:
             "GIT_REPLACE_REF_BASE": "refs/replace-evil/",
             "GIT_SHALLOW_FILE": "/nonexistent/shallow",
         }
-        old_vals = {}
+        old_vals: dict[str, str | None] = {}
         for k, v in overrides.items():
             old_vals[k] = _os.environ.get(k)
             _os.environ[k] = v
@@ -995,10 +997,11 @@ class TestGetChangedFiles:
             ])
         finally:
             for k in overrides:
-                if old_vals[k] is None:
+                old_value = old_vals[k]
+                if old_value is None:
                     _os.environ.pop(k, None)
                 else:
-                    _os.environ[k] = old_vals[k]
+                    _os.environ[k] = old_value
         assert exit_code == 0
 
     def test_git_env_sanitizes_local_and_config_vars_case_insensitively(
@@ -1020,17 +1023,18 @@ class TestGetChangedFiles:
                        "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
                        "Git_Config_Arbitrary", "git_config_key_99"]
         all_test = local_vars + prefix_vars
-        saved = {k: _os.environ.get(k) for k in all_test}
+        saved: dict[str, str | None] = {k: _os.environ.get(k) for k in all_test}
         for k in all_test:
             _os.environ[k] = "injected"
         try:
             env = _git_env()
         finally:
             for k in all_test:
-                if saved[k] is None:
+                saved_value = saved[k]
+                if saved_value is None:
                     _os.environ.pop(k, None)
                 else:
-                    _os.environ[k] = saved[k]
+                    _os.environ[k] = saved_value
         forced = {
             "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
             "GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_SHALLOW_FILE",
@@ -1314,7 +1318,7 @@ class TestRunCompilabilityCheck:
         assert result["findings"] == []
 
     def test_finds_unresolved_symbol(self) -> None:
-        assessment = {"source_symbols": []}
+        assessment: dict[str, Any] = {"source_symbols": []}
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1329,7 +1333,7 @@ class TestRunCompilabilityCheck:
         assert result["findings"][0]["category"] == "unresolved_symbol"
 
     def test_skips_framework_types(self) -> None:
-        assessment = {"source_symbols": []}
+        assessment: dict[str, Any] = {"source_symbols": []}
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
