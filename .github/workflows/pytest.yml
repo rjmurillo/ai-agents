@@ -257,6 +257,14 @@ jobs:
       # statement-only (no --cov-branch) by design; see that script's module
       # docstring for the coverage-combine design and the measured
       # line-vs-branch cost.
+      #
+      # Issue #4823: the four workers are literal and belong to this step
+      # alone. `-n auto` is out of scope (#4491): the count must not read the
+      # host. pytest-cov's DistMaster.finish() combines every worker's data
+      # into this step's COVERAGE_FILE before the job moves on, so the pins
+      # and the combine step below need no change. The two pin steps and the
+      # Windows job stay serial; tests/validation/test_pytest_parallelism_policy.py
+      # and tests/workflows/test_pytest_xdist_parallelism.py pin both halves.
       - name: Run pytest
         id: run-pytest
         if: steps.should-run.outputs.skip != 'true'
@@ -264,7 +272,8 @@ jobs:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: artifacts/.coverage.main
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=
+          uv run --frozen python scripts/ci/run_pytest_non_tmp.py -n 4 --dist loadfile
+          --cov --cov-report=
           --junitxml=artifacts/pytest-results.xml
           --ignore=tests/test_ai_review.py
           --ignore=tests/test_verdict.py
