@@ -1177,7 +1177,7 @@ def validate_session_log(
         if isinstance(protocol, dict)
         else None
     )
-    if not creation_mode and isinstance(session_end, dict):
+    if not existing_log and not creation_mode and isinstance(session_end, dict):
         validate_qa_report_evidence(
             data,
             session_end,

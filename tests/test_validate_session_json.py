@@ -1520,7 +1520,7 @@ class TestValidateQaReportEvidence:
 
         assert result.errors == ["Could not inspect commits after QA"]
 
-    def test_existing_log_still_validates_qa_report(
+    def test_existing_log_defers_qa_report_validation(
         self, tmp_path: Path
     ) -> None:
         qa_root = tmp_path / "qa"
@@ -1534,14 +1534,14 @@ class TestValidateQaReportEvidence:
         }
 
         with mock.patch(
-            "scripts.validate_session_json.artifact_dir",
-            return_value=qa_root,
-        ):
+            "scripts.validate_session_json.artifact_dir"
+        ) as artifact_dir_mock:
             result = validate_session_log(data, existing_log=True)
 
-        assert f"QA report not found: {missing_report.resolve()}" in result.errors
+        assert not any("QA report" in error for error in result.errors)
+        artifact_dir_mock.assert_not_called()
 
-    def test_existing_log_honors_explicit_validation_head(
+    def test_existing_log_ignores_explicit_validation_head(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1557,14 +1557,11 @@ class TestValidateQaReportEvidence:
         }
 
         with (
-            mock.patch(
-                "scripts.validate_session_json.artifact_dir",
-                return_value=qa_root,
-            ),
+            mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock,
             mock.patch(
                 "scripts.validate_session_json.post_qa_code_changes",
                 return_value=["scripts/new_code.py"],
-            ),
+            ) as post_qa_code_changes,
         ):
             result = validate_session_log(
                 data,
@@ -1573,10 +1570,9 @@ class TestValidateQaReportEvidence:
                 validation_head="b" * 40,
             )
 
-        assert (
-            "QA report is stale; code changed after its commit: "
-            "scripts/new_code.py"
-        ) in result.errors
+        assert not any("QA report" in error for error in result.errors)
+        artifact_dir_mock.assert_not_called()
+        post_qa_code_changes.assert_not_called()
 
     def test_creation_mode_defers_qa_report_validation(
         self, tmp_path: Path
