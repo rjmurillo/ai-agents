@@ -7,10 +7,10 @@ description: Reflective consolidation pass over Serena memory files, the fifth
   workflows) from dated context (projects, deadlines, one-off tasks), merges
   overlapping topic files onto the richer path, converts relative dates to
   absolute ones, and tidies memory-index.md so a future session orients fast
-  without re-asking. Use when you say `consolidate memory`, `clean up memory
-  files`, `merge memory files`, or `tidy the memory index`. Do NOT use for
-  Forgetful-store curation (use curating-memories) or health, token, or size
-  checks (use memory-maintenance).
+  without re-asking. Use when you say `consolidate memory`, `consolidate
+  Serena memory`, `merge memory files`, or `tidy the memory index`. Do NOT
+  use for Forgetful-store curation (use curating-memories) or health, token,
+  or size checks (use memory-maintenance).
 license: MIT
 metadata:
   adr: ADR-007, ADR-037, ADR-056, ADR-063
@@ -31,12 +31,17 @@ can orient on who the user works with, what they are focused on now, and how
 they like to work, by reading a small, current set of memories instead of
 re-deriving that context or re-asking the user.
 
+This is separate from `memory-maintenance`, which measures store health, and
+`curating-memories`, which curates the Forgetful store. It owns the reflective
+Serena file pass because neither sibling merges duplicate topic memories or
+separates durable user context from dated work.
+
 ## Triggers
 
 Use this skill when the user says:
 
 - `consolidate memory` for a full durable-versus-dated review and index tidy
-- `clean up memory files` for pruning stale or thin memories
+- `consolidate Serena memory` for pruning stale or thin Serena memory files
 - `merge memory files` for combining overlapping topic files
 - `tidy the memory index` for trimming `memory-index.md` alone
 
@@ -53,11 +58,11 @@ Each tier is tried before falling back to the next one:
    see `.serena/memories/README.md`, "Directory Structure" for the full
    contract; do not restate it here.
 3. **Direct directory access third.** Only when the above are unavailable,
-   read `.serena/memories/` and its topic subdirectories directly. This is
-   also the only tier that lists topic files an index has not yet linked
-   (for example, a file dropped into a subdirectory before its index was
-   updated). The directory and index contract is owned by
-   `.serena/memories/README.md`; do not restate it here, read it.
+   read `.serena/memories/` and its topic subdirectories directly. The one
+   exception is Phase 1's bounded stale-index audit, which always compares
+   relevant subdirectory filenames with their index entries, even when a
+   higher discovery tier succeeded. The directory and index contract is
+   owned by `.serena/memories/README.md`; do not restate it here, read it.
 
 These three tiers govern discovery only: how you find out which memory files
 exist. The canonical scripts in Phase 1 below (the supersession sweep, the
@@ -80,7 +85,11 @@ which tier surfaced that list.
    (`mcp__serena__read_memory("topic/memory-name.md")` or, as a fallback,
    direct file reads under `.serena/memories/topic/`). Fall back to listing a
    subdirectory's contents directly only when its index looks stale or
-   incomplete against what the directory actually holds.
+   incomplete against what the directory actually holds. Then perform one
+   bounded stale-index audit regardless of discovery tier: compare each
+   relevant topic directory's Markdown filenames with its `*-index.md`
+   entries. Add unindexed files to the Phase 1 inventory and record dangling
+   index entries as errors.
 2. Classify every topic file with the supersession sweep, without editing
    anything. Run this regardless of which discovery tier above produced the
    file list:
@@ -107,7 +116,7 @@ which tier surfaced that list.
    rather than eyeballing:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/count_memory_tokens.py" <file>
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/count_memory_tokens.py" "<file>"
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_size.py" .serena/memories --pattern "*.md"
    ```
 
@@ -118,9 +127,9 @@ Separate what you found in Phase 1 into two buckets:
 - **Durable**: preferences, working style, key relationships, recurring
   workflows. Keep these, and sharpen them: cut hedging, cut anything the
   sweep or your own read marked resolved, keep the current statement of the
-  preference or relationship. This is an in-place content edit under the
-  `memory` skill's own Serena Write Conventions; it needs no separate
-  ratification.
+  preference or relationship without changing its recorded meaning. This is
+  an in-place content edit under the `memory` skill's own Serena Write
+  Conventions; it needs no separate ratification.
 - **Dated**: projects, deadlines, one-off tasks. When a dated memory has
   passed or completed, propose archiving it, do not archive it yourself: the
   supersession sweep's `resolved-or-historical-but-present` bucket is the
@@ -164,6 +173,13 @@ skill proposes; it does not ratify.
   later, separately ratified change does remove a file, that change must
   update or delete every `supersedes` reference that pointed at it in the
   same change, so no reference is left dangling.
+
+  Apply each merge as a small recoverable transaction: update the survivor
+  first, run the size check, mark the poorer file as healthy-supersession,
+  then redirect the index last. If any write or check fails, restore every
+  touched file from its pre-edit content, leave the index unchanged, and
+  report the failure in `Error`. A rerun starts from the unchanged index and
+  repeats the same candidate.
 - **Convert relative dates to absolute dates, anchored on the observation's
   own timestamp, never on today's session date.** An observation written
   under the `memory` skill's Source Tracking convention carries a
@@ -189,10 +205,11 @@ skill proposes; it does not ratify.
 Update `.serena/memories/memory-index.md` in the same pass as the merges
 above, so the index and the files it points to never fall out of sync:
 
-- Keep the index under 200 lines and about 25 KB total. This is this skill's
-  own operational budget for the top-level index, separate from the
-  per-file atomicity thresholds quoted in Phase 1. Measure it, do not
-  eyeball it: `wc -l` and `wc -c` on `.serena/memories/memory-index.md`.
+- Keep the index under 200 lines and about 25 KB total. This user-set
+  heuristic is this skill's own operational budget for the top-level index,
+  not a repository-wide threshold. It is separate from the per-file
+  atomicity thresholds quoted in Phase 1. Measure it, do not eyeball it:
+  `wc -l` and `wc -c` on `.serena/memories/memory-index.md`.
 - Aim for one line per entry, each under about 150 characters, so the index
   stays scannable in a single read.
 - Point retired-in-place and merged entries at the survivor. A file marked
