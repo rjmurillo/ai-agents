@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-10-session-10033",
-  "session": "2026-08-10-session-10033",
+  "id": "episode-2026-08-10-session-10035-pr-4825-review-response",
+  "session": "2026-08-10-session-10035-pr-4825-review-response",
   "timestamp": "2026-08-10T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e002",
@@ -27,7 +27,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e003",
@@ -38,7 +38,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e004",
@@ -49,7 +49,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e005",
@@ -60,7 +60,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e006",
@@ -71,7 +71,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e007",
@@ -90,7 +90,7 @@
       "leads_to": [
         "e009"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e008",
@@ -101,7 +101,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     },
     {
       "id": "e009",
@@ -111,8 +111,21 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T09:27:37+00:00",
+      "type": "commit",
+      "content": "Commit: f9a9f61cffaac5877aa4367b2012ea0ec3e9687a",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
-      "_source_session": "2026-08-10-session-10033"
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     }
   ],
   "metrics": {
@@ -120,8 +133,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 14
+    "commits": 3,
+    "files_changed": 19
   },
   "lessons": []
 }

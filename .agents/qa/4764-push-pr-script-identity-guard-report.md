@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-10-session-10033.json
-qaCommit: b555a6cbbe6edf0a2014461e94bbd4866ef5b952
+qaSessionLog: .agents/sessions/2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python.json
+qaCommit: 98c2346577eedd1319f75032701ddb02179fbe0c
 ---
 # Test Report: Issue #4764 Push-PR Script Identity Guard
 
@@ -72,71 +72,4 @@ Result: PASS
 
 All required behaviors verified at commit 98c2346577eedd1319f75032701ddb02179fbe0c. Guard rejects evaluator wrappers, command delegation, loader injection, Git execution channels, parser desynchronization, and noncanonical invocations while preserving benign commands and the canonical `python3 -I` form on both surfaces. Security review, independent GPT-5.6 Sol review, and five-axis code review returned approved with no Critical or High findings.
 
-## Round 2: PR #4825 Copilot review 4894113215
-
-**Date**: 2026-08-10
-
-The review found two defects the first round missed and one stale document
-inventory. Each verdict was reverified against the tree before any prescribed
-fix was applied.
-
-### Finding 1: guard applied policy before relevance (CONFIRMED)
-
-Measured by driving the committed guard script with the host payload shape,
-22 commands unrelated to `new_pr.py` and 11 `new_pr.py` attempts.
-
-| Measurement | Before | After |
-|-------------|--------|-------|
-| Unrelated commands denied | 15 of 22 | 0 of 22 |
-| `new_pr.py` attempts denied | 11 of 11 | 11 of 11 |
-
-Denied before the fix: `git status && git diff`, `bash -c`, `sh -c`, `node -e`,
-`perl -e`, an unrelated `python3` script, `uv run pytest`, a pipeline,
-`git fetch`, `make`, `npm`, `eval`, an `LD_PRELOAD` prefix, a glob, `python -c`.
-Installing the plugin disabled normal Bash work outside `/push-pr`.
-
-The second row is the negative control: a scope gate that let a `new_pr.py`
-attempt through would show a nonzero allowed count there.
-
-### Finding 2: unrun validators reported as a clean pass (CONFIRMED)
-
-`new_pr.py` routed three repository-local detectors through a helper that
-ignored all three arguments and always returned `False`. Output claimed
-"scripts/ is changed or dirty" on a clean branch, recorded nothing, and
-summarized as "All pre-creation validations passed!".
-
-### Finding 3: local settings inventory overstated (CONFIRMED)
-
-Four documents claimed eight registrations across six events. The documented
-provenance command prints `.claude/settings.json 5 7`.
-
-### Verification
-
-| Suite | Result |
-|-------|--------|
-| `tests/hooks/` | pass |
-| `tests/build_scripts/` | pass |
-| `tests/test_plugin_path_resolution.py` | pass |
-| `tests/test_new_pr.py` | pass |
-| Combined | 3254 passed, 1 skipped |
-| `ruff check` on changed Python | clean |
-| `build/scripts/build_all.py --check` | exit 0 |
-
-### Coverage added
-
-- `test_dispatchers_allow_commands_outside_guard_scope` (22 commands, both surfaces)
-- `test_dispatchers_deny_commands_inside_guard_scope` (13 preserved bypass vectors, both surfaces)
-- `test_dispatchers_allow_dynamic_launcher_that_never_names_the_script` (pins the accepted residual)
-- `test_trusted_digests_match_the_shipped_bundle` (digest drift gate, both surfaces)
-- `TestRepositoryValidatorTrust` (clean branch, changed `scripts/`, summary text, no subprocess spawned)
-
-### Accepted residual
-
-A command that reconstructs the path at runtime without naming it is outside
-the detection surface. The guard bounds the identity of named push-pr
-invocations; it is not a Python or shell sandbox. An actor able to run
-arbitrary code does not need `new_pr.py` to open a pull request. Recorded in
-the guard module docstring, in `probe-evidence.md` section 7a, and pinned by a
-test so it stays a decision rather than a discovery.
-
-**Result**: PASS
+PR #4825 Copilot review 4894113215 later found two defects this round missed. See `.agents/qa/4825-review-4894113215-report.md`.
