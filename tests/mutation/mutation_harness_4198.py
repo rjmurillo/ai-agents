@@ -7,8 +7,9 @@ detect the regression.
 Rules:
 - Count each pattern; report DID-NOT-APPLY when count != 1.
 - cmp byte-identical after mutation to confirm the patch actually changed the file.
-- sleep(1.1) after every file write to defeat 1-second bytecode mtime cache.
+- Clear __pycache__ after every file write.
 - Assert byte-identical restore after every mutant.
+- Include one inverted control that must SURVIVE.
 - Three outcomes: DEAD (test caught it), SURVIVED (test missed it), DID-NOT-APPLY (pattern absent).
 """
 
@@ -16,51 +17,68 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = (
-    _REPO_ROOT / ".github" / "workflows" / "validate-vendor-portability.yml"
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_WORKFLOW_REL = Path(".github") / "workflows" / "validate-vendor-portability.yml"
 _TESTS = [
     "tests/ci/test_validate_vendor_portability_wiring.py",
 ]
 
-_MUTANTS: list[tuple[str, bytes, bytes]] = [
+_MUTANTS: list[tuple[str, bytes, bytes, str]] = [
     (
         "remove prose portability step from validate-portability job",
         (
             b"\n      - name: Check skill prose portability ratchet"
-            b"\n        run: python3 scripts/validation/check_skill_md_portability.py"
+            b"\n        run: uv run --frozen python"
+            b" scripts/validation/check_skill_md_portability.py"
         ),
         b"",
+        "DEAD",
     ),
     (
-        "remove check_skill_md_portability.py from paths-filter",
-        b"\n              - 'scripts/validation/check_skill_md_portability.py'",
-        b"",
+        "gate validation job on a change-detector result",
+        (b"  validate-portability:\n    name: Validate Vendor Portability\n"),
+        (
+            b"  validate-portability:\n"
+            b"    name: Validate Vendor Portability\n"
+            b"    if: needs.check-changes.outputs.skills == 'true'\n"
+        ),
+        "DEAD",
     ),
     (
-        "remove skill_md_portability_baseline.json from paths-filter",
-        b"\n              - 'scripts/validation/skill_md_portability_baseline.json'",
-        b"",
+        "add an event-level paths-ignore filter",
+        b"  push:\n    branches:\n      - main\n",
+        (b"  push:\n    branches:\n      - main\n    paths-ignore:\n      - 'docs/**'\n"),
+        "DEAD",
     ),
     (
         "replace run command with wrong script",
-        b"        run: python3 scripts/validation/check_skill_md_portability.py\n",
-        b"        run: python3 scripts/validation/XYZZY_WRONG_SCRIPT.py\n",
+        (b"        run: uv run --frozen python scripts/validation/check_skill_md_portability.py\n"),
+        (b"        run: uv run --frozen python scripts/validation/XYZZY_WRONG_SCRIPT.py\n"),
+        "DEAD",
+    ),
+    (
+        "inverted control: reword an unrelated workflow comment",
+        b"# run them because a per-change path filter can report green without measuring.\n",
+        b"# execute them because a path filter can report green without measuring.\n",
+        "SURVIVED",
     ),
 ]
 
 
-def _run_tests() -> int:
-    result = subprocess.run(
+def _run_tests(repo_root: Path) -> subprocess.CompletedProcess[bytes]:
+    purge_bytecode(repo_root)
+    return subprocess.run(
         [sys.executable, "-m", "pytest", *_TESTS, "-x", "-q"],
-        cwd=_REPO_ROOT,
+        cwd=repo_root,
         capture_output=True,
     )
-    return result.returncode
 
 
 def _apply_mutant(original: bytes, old: bytes, new: bytes) -> tuple[str, bytes]:
@@ -81,6 +99,8 @@ def _run_one_mutant(
     old: bytes,
     new: bytes,
     original_bytes: bytes,
+    expected: str,
+    repo_root: Path,
 ) -> str:
     """Apply one mutant, run tests, restore. Return outcome string."""
     outcome, mutated_bytes = _apply_mutant(original_bytes, old, new)
@@ -92,60 +112,60 @@ def _run_one_mutant(
         print("  DID-NOT-APPLY: file unchanged after patch")
         return "DID-NOT-APPLY"
 
-    _WORKFLOW.write_bytes(mutated_bytes)
-    time.sleep(1.1)
-    rc = _run_tests()
-    _WORKFLOW.write_bytes(original_bytes)
-    time.sleep(1.1)
-    restored = _WORKFLOW.read_bytes()
+    workflow = repo_root / _WORKFLOW_REL
+    try:
+        workflow.write_bytes(mutated_bytes)
+        result = _run_tests(repo_root)
+    finally:
+        workflow.write_bytes(original_bytes)
+    restored = workflow.read_bytes()
     assert restored == original_bytes, f"Restore not byte-identical for: {name!r}"
 
-    if rc == 0:
-        print("  SURVIVED: tests passed when they should have failed")
-        return "SURVIVED"
-    print(f"  DEAD: tests caught the mutation (exit {rc})")
-    return "DEAD"
+    output = result.stdout + result.stderr
+    if result.returncode not in (0, 1) or b"no tests ran" in output:
+        print("  HARNESS-ERROR: pytest did not run the target tests")
+        return "HARNESS-ERROR"
+
+    actual = "SURVIVED" if result.returncode == 0 else "DEAD"
+    print(f"  {actual}: expected {expected}, pytest exit {result.returncode}")
+    return actual
 
 
-def _print_summary(results: list[tuple[str, str]]) -> None:
-    """Print the results table and exit nonzero on survivors or DID-NOT-APPLY."""
+def _print_summary(results: list[tuple[str, str, str]]) -> None:
+    """Print results and exit nonzero when an outcome differs from expectation."""
     print("\n\n=== Mutant Results ===")
-    print(f"{'Mutant':<55} {'Result'}")
-    print("-" * 70)
-    for name, result in results:
-        print(f"{name:<55} {result}")
+    print(f"{'Mutant':<55} {'Expected':<10} {'Actual'}")
+    print("-" * 82)
+    for name, actual, expected in results:
+        print(f"{name:<55} {expected:<10} {actual}")
 
-    survivors = [n for n, r in results if r == "SURVIVED"]
-    did_not_apply = [
-        n for n, r in results
-        if r.startswith("DID-NOT-APPLY") or r.startswith("PATTERN")
+    failures = [
+        (name, expected, actual) for name, actual, expected in results if actual != expected
     ]
-    dead = [n for n, r in results if r == "DEAD"]
-    print(
-        f"\nDEAD: {len(dead)}, SURVIVED: {len(survivors)},"
-        f" DID-NOT-APPLY: {len(did_not_apply)}"
-    )
-    if survivors:
-        print("\nSURVIVING MUTANTS (tests are not load-bearing):")
-        for n in survivors:
-            print(f"  {n}")
-        sys.exit(1)
-    if did_not_apply:
-        print("\nDID-NOT-APPLY (patterns not found in target file):")
-        for n in did_not_apply:
-            print(f"  {n}")
+    if failures:
+        print("\nUNEXPECTED MUTATION OUTCOMES:")
+        for name, expected, actual in failures:
+            print(f"  {name}: expected {expected}, got {actual}")
         sys.exit(2)
-    print("\nAll mutants killed. Tests are load-bearing.")
+    print("\nAll load-bearing mutants died. Inverted control survived.")
 
 
-def run_mutants() -> None:
-    original_bytes = _WORKFLOW.read_bytes()
-    results: list[tuple[str, str]] = []
-    for name, old, new in _MUTANTS:
+def run_mutants(repo_root: Path) -> None:
+    original_bytes = (repo_root / _WORKFLOW_REL).read_bytes()
+    results: list[tuple[str, str, str]] = []
+    for name, old, new, expected in _MUTANTS:
         print(f"\n--- Mutant: {name} ---")
-        results.append((name, _run_one_mutant(name, old, new, original_bytes)))
+        actual = _run_one_mutant(
+            name, old, new, original_bytes, expected, repo_root
+        )
+        results.append((name, actual, expected))
     _print_summary(results)
 
 
+def main() -> None:
+    with isolated_mutation_worktree(_REPO_ROOT, [_WORKFLOW_REL]) as workspace:
+        run_mutants(workspace.root)
+
+
 if __name__ == "__main__":
-    run_mutants()
+    main()
