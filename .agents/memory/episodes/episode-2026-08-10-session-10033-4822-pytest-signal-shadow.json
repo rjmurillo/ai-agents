@@ -180,8 +180,7 @@
         "e011",
         "e012",
         "e013",
-        "e014",
-        "e022"
+        "e014"
       ],
       "leads_to": [
         "e016"
@@ -268,13 +267,13 @@
     },
     {
       "id": "e022",
-      "timestamp": "2026-08-10T00:00:00+00:00",
+      "timestamp": "2026-08-10T14:49:00+00:00",
       "type": "milestone",
       "content": "Resolved final PR 4845 review defects",
-      "caused_by": [],
-      "leads_to": [
-        "e015"
+      "caused_by": [
+        "e023"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
     {
@@ -285,7 +284,9 @@
       "caused_by": [
         "e021"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e022"
+      ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     }
   ],

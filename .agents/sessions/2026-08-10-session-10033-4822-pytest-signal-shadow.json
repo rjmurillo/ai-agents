@@ -176,6 +176,7 @@
       "result": "Merge commit c784dca71fe80d6fcd11f132f864ebde2e3cf75c imports the all-CPU pytest policy. The shadow resolver code is unchanged, and all 83 focused tests pass in 0.52 seconds."
     },
     {
+      "time": "2026-08-10T14:49:00Z",
       "action": "Resolved final PR 4845 review defects",
       "result": "Commit 2360162d7e93850cce70b450ff923c810bdaeafe preserves absent local pytest output as UNCOMPARED, normalizes uppercase expected SHAs inside resolve(), rejects non-finite and non-positive timeouts, and sources the PR number directly from the pull_request event. All 86 focused tests pass in 0.49 seconds. Ruff and actionlint pass. Security review reports no exploitable issue."
     }
