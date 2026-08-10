@@ -176,7 +176,7 @@
       "outcome": "ANSI-C quoting reconstructed the protected basename past the naming normalization: hex, octal and leading-escape forms all returned exit 0 against an executable lookalike. Added a decoded variant to scope rule A and a fail-closed on ANSI-C quoting in execution position to rule D. All three deny now; benign echo and printf ANSI-C usage stays allowed."
     }
   ],
-  "endingCommit": "9d6cfe4e686dfc02fa164719f1b744618ec0e22d",
+  "endingCommit": "923b109f0a4c09f45615d1578534aab0890f27bb",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
