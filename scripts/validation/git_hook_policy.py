@@ -852,6 +852,17 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     return result.stdout
 
 
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
     """Read a blob without letting text mode rewrite it.
 
@@ -1750,12 +1761,19 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    sessions = [
+    session_paths = [
         path
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
     if not sessions:
+        if session_paths:
+            return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     for session in sessions:
@@ -1772,6 +1790,21 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             _print_process_output(result)
             return result.returncode
     return 0
+
+
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -2743,7 +2776,22 @@ def _report_suppression_violations(
 
 
 def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
-    """CI backstop for the no-net-new suppression policy."""
+    """CI backstop for the no-net-new suppression policy.
+
+    History integrity is checked first because this gate resolves its range
+    through `git merge-base`, and a shallow clone answers that question wrongly
+    rather than failing. `_merge_base` returns None on a grafted clone, the
+    fallback below substitutes the base tip, and the range silently widens from
+    the push's own commits to the branch's entire history. Measured on a
+    complete clone of this repository: `git rev-list base..head` returned 0
+    commits, and 2263 after a single `git fetch --depth=1 origin main`.
+
+    `_push_updates` already gates the pre-push path on the same check. This
+    call is what wires this path to it (issue #4680).
+    """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     head_sha = _resolve_commit(repo_root, head)
     if head_sha is None:
         print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
@@ -3151,11 +3199,27 @@ def _added_suppression_violations_for_range(
 def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
     """CI mirror of security-suppressions-push: compares HEAD against base_ref.
 
+    History integrity is checked first. This gate measures a two-dot range, and
+    on a grafted clone that range silently widens instead of failing: git cannot
+    exclude the base's ancestry, so every file that differs between the base tip
+    and the branch enters the scan, including files the branch never touched.
+    Suppressions that trunk removed after the branch point then read as
+    additions. Measured on a complete clone of this repository, `git diff
+    --name-only base..HEAD` reported 0 paths before a `git fetch --depth=1
+    origin main` and 290 after it.
+
+    `_push_updates` already gates the pre-push path on the same check. This call
+    is what wires the CI path to it (issue #4680).
+
     Returns:
         0  no new security suppressions detected
         1  new security suppressions found
+        2  incomplete history, so the range cannot be measured
         3  git error (external failure)
     """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     range_spec = f"{base_ref}..HEAD"
     result = _run_git(
         repo_root,
@@ -6457,8 +6521,11 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
+        normalized = _safe_relative_path(path)
+        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+            continue
+        new_logs = new_session_logs(paths, repo_root)
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
