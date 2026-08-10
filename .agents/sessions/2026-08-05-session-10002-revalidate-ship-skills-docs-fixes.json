@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 40ec0b46f22dcb41346921a7ab12e078a365ac8a after conflict resolution and portability cleanup."
+        "Evidence": "PR code validated at 318ae2e09f35f07551954cd23dc65418569718e7 after portability and subprocess decoding cleanup."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after portability cleanup: pytest collected 264 and passed 264 with 1 warning for issue comments and GitHub core tests; pre_pr passed all checks after QA refresh."
+        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 353 and passed 353 for code-qualities, session-end, and deadlock tests; subprocess encoding count ratchet passed with 249 violations <= baseline 253."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -167,9 +167,13 @@
     {
       "phase": "qa-evidence-refresh",
       "summary": "Removed the GITHUB_WORKSPACE .claude/lib fallback from get_issue_comments.py, regenerated the Copilot mirror, reran targeted tests, and refreshed QA evidence for PR 4673."
+    },
+    {
+      "phase": "ci-ratchet-fix",
+      "summary": "Added errors=\"replace\" to branch-added UTF-8 text-mode subprocess calls in skill scripts and generated Copilot mirrors, then reran targeted tests and the subprocess encoding count ratchet."
     }
   ],
-  "endingCommit": "40ec0b46f22dcb41346921a7ab12e078a365ac8a",
+  "endingCommit": "318ae2e09f35f07551954cd23dc65418569718e7",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

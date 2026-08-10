@@ -93,7 +93,8 @@
         "e017",
         "e019",
         "e021",
-        "e025"
+        "e025",
+        "e027"
       ],
       "leads_to": [
         "e009"
@@ -324,6 +325,30 @@
       "caused_by": [
         "e024"
       ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added errors=\"replace\" to branch-added UTF-8 text-mode subprocess calls in skill scripts and generated Copilot mirrors, then reran targeted tests and the subprocess encoding count ratchet.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-10T17:44:35+00:00",
+      "type": "commit",
+      "content": "Commit: 318ae2e09f35f07551954cd23dc65418569718e7",
+      "caused_by": [
+        "e026"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -333,7 +358,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 42
   },
   "lessons": []
