@@ -132,6 +132,6 @@
       "outcome": "Replaced the pre-lease decision JSON with decision-2026-08-10T08-38-56-548676+00-00, containing six lease-aware unanimous votes."
     }
   ],
-  "endingCommit": "ba101b48ba4fecc05cf71c954e963683ccd9fa51",
+  "endingCommit": "28a2f2ca86d7092bddb90308940d934862b92e1f",
   "nextSteps": []
 }
