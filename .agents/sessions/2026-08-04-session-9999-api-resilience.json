@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Authored commits plus origin/main merges are on the feature branch through d7cb61ea5c8069b6f841721516c1188e3ef967ef."
+        "Evidence": "Session QA binding repointed to post-merge code commit f90f6e6ebfa29980e97a370e7fd4594e23f57d1d."
       },
       "validationPassed": {
         "level": "MUST",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No new retrospective artifact needed; mutation results recorded here and in PR body."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/4621-pr-api-resilience-qa-report.md"
       }
     }
   },
@@ -163,7 +168,7 @@
       "result": "Killed mutants for unknown-as-healthy, secondary-refusal-as-indeterminate, caller ignoring indeterminate, and success property treating indeterminate as pass. Cosmetic docstring control survived."
     }
   ],
-  "endingCommit": "d7cb61ea5c8069b6f841721516c1188e3ef967ef",
+  "endingCommit": "f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
   "nextSteps": [
     "Push fix/api-resilience-4547-4537-4536 and update PR #4621 with the final mutation table and rate-limit status evidence."
   ],

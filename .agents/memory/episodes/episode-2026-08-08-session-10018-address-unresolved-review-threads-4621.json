@@ -63,6 +63,19 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10018-address-unresolved-review-threads-4621"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T12:05:32+00:00",
+      "type": "commit",
+      "content": "Commit: f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10018-address-unresolved-review-threads-4621"
     }
@@ -72,8 +85,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 7
+    "commits": 3,
+    "files_changed": 14
   },
   "lessons": []
 }

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed as 27a1f370b, 704892444, and 6920cf98a. This commit records the remaining session artifact."
+        "Evidence": "Session QA binding repointed to post-merge code commit f90f6e6ebfa29980e97a370e7fd4594e23f57d1d."
       },
       "validationPassed": {
         "level": "MUST",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/4621-pr-review-thread-fixes-qa-report.md"
       }
     }
   },
@@ -127,7 +132,7 @@
       "result": "Commit 6920cf98a restored local validation parity and all full pre-PR checks passed."
     }
   ],
-  "endingCommit": "6920cf98a",
+  "endingCommit": "f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
   "nextSteps": [
     "Run the remote-SHA audit and push the branch without force.",
     "Re-check unresolved threads, live state, and required CI after the push.",
