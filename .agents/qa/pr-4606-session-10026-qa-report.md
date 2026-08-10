@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-04-session-10026-revthreads-completion-gate.json
-qaCommit: d45b29db6c97c4558f6c2de4e66ff26bf050e33a
+qaCommit: 7692a151ab1795938e61838de3c8e4ef5868fbed
 ---
 
 # QA Report: PR 4606 session 10026
