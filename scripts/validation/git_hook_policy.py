@@ -396,6 +396,24 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
+# Issue #4823: the bulk pre-push pytest partition runs on a fixed four
+# pytest-xdist workers. Four is measured, not derived: the same partition
+# (25,321 tests) passed twice at 315.53s and 301.03s with peak RSS of 600MB and
+# 553MB, against a serial cost of 1315s quiet and 1743s+ under contention
+# (issue #4491). `-n auto` is explicitly out of scope: #4491's closing comment
+# measured that scaling per host multiplies workers across concurrent pushes on
+# one shared machine and makes contention worse, so the count must not read the
+# CPU count.
+PYTEST_WORKER_COUNT_DEFAULT = 4
+# Local calibration only. Unset is the contract everywhere that matters: CI
+# passes the flags literally in `.github/workflows/pytest.yml`, and this
+# variable is not exported by any workflow or hook. It exists so a developer can
+# re-measure the default on different hardware without editing tracked code.
+PYTEST_WORKER_COUNT_ENV = "AI_AGENTS_PYTEST_WORKERS"
+# `loadfile` sends every test in one file to one worker. That is the weakest
+# distribution mode xdist offers and the point: module-scoped fixtures, module
+# state, and file-local temp directories keep behaving the way they do serially.
+PYTEST_DIST_MODE = "loadfile"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -6091,7 +6109,59 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
+def parse_pytest_worker_count(raw: str | None) -> int:
+    """Return the xdist worker count named by ``raw``, or the measured default.
+
+    ``None`` and an empty or whitespace-only string both mean "unset", which is
+    the normal case: every CI run and every uncalibrated local push takes
+    ``PYTEST_WORKER_COUNT_DEFAULT``.
+
+    Anything else must parse as a positive decimal integer. A malformed value
+    raises instead of falling back, because the only reason to set the variable
+    is to measure a different worker count: silently substituting 4 for
+    ``auto`` or ``0`` would report a four-worker run as if it were the
+    calibration the developer asked for. There is no upper bound by design; the
+    variable is a deliberate local knob, and the value that binds CI and every
+    unset run is the constant above.
+
+    Raises:
+        ValueError: ``raw`` is set to something other than a positive integer.
+    """
+    if raw is None:
+        return PYTEST_WORKER_COUNT_DEFAULT
+    candidate = raw.strip()
+    if not candidate:
+        return PYTEST_WORKER_COUNT_DEFAULT
+    rejection = f"{PYTEST_WORKER_COUNT_ENV} must be a positive integer, got {raw!r}"
+    try:
+        workers = int(candidate)
+    except ValueError:
+        raise ValueError(rejection) from None
+    if workers < 1:
+        raise ValueError(rejection)
+    return workers
+
+
+def _pytest_parallel_flags() -> list[str]:
+    """Return the xdist argv fragment for the bulk pre-push partition."""
+    workers = parse_pytest_worker_count(os.environ.get(PYTEST_WORKER_COUNT_ENV))
+    return ["-n", str(workers), "--dist", PYTEST_DIST_MODE]
+
+
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
+    """Return the pre-push pytest invocations, bulk partition first.
+
+    Only the first command runs in parallel. The second command targets exactly
+    one module, ``tests/test_safe_push_pr_branch.py``, and ``--dist loadfile``
+    routes a whole file to a single worker, so distributing it would buy zero
+    parallelism and pay the worker-startup cost anyway. It also carries the
+    narrower marker expression that deselects the real-transport tests, and
+    keeping it a plain serial pytest run keeps that safety property readable in
+    one line.
+
+    Raises:
+        ValueError: the worker-count override is set to a non-positive integer.
+    """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
     return [
         [
@@ -6100,6 +6170,7 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "pytest",
             "-m",
             "not integration",
+            *_pytest_parallel_flags(),
             str(repo_root / "tests"),
             "--ignore",
             str(safe_push_tests),
@@ -6129,12 +6200,17 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
+    try:
+        commands = _pytest_commands(repo_root)
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
     # command. Splitting the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for index, command in enumerate(_pytest_commands(repo_root)):
+    for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
