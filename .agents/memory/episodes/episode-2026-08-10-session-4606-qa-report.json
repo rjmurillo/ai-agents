@@ -93,7 +93,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-10-session-4606-qa-report"
     },
     {
@@ -108,14 +110,38 @@
         "e005"
       ],
       "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T14:30:00+00:00",
+      "type": "milestone",
+      "content": "Fixed fast mutation process-group race, regenerated command mirrors, reran targeted tests, and rebound QA report to 8f070f9f7ef85eb80d394f50420d3a447c1de87f.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T14:46:44+00:00",
+      "type": "commit",
+      "content": "Commit: 7692a151ab1795938e61838de3c8e4ef5868fbed",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4606-qa-report"
     }
   ],
   "metrics": {
-    "duration_minutes": 160,
+    "duration_minutes": 190,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []

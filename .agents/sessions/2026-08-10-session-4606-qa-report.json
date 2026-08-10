@@ -4,7 +4,7 @@
     "number": 4606,
     "date": "2026-08-10",
     "branch": "autofix-qa-4606",
-    "startingCommit": "7692a151ab1795938e61838de3c8e4ef5868fbed",
+    "startingCommit": "8f070f9f7ef85eb80d394f50420d3a447c1de87f",
     "objective": "Add QA evidence for PR 4606 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "7692a151ab1795938e61838de3c8e4ef5868fbed"
+        "Evidence": "8f070f9f7ef85eb80d394f50420d3a447c1de87f"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen mypy .claude/skills/github/scripts/pr/check_suppressed_review_findings.py passed; targeted pytest passed with 72 passed in 0.48s."
+        "Evidence": "uv run --frozen pytest tests/test_pr_autofix_late_live_state_gate.py tests/test_check_review_thread_resolution_shas.py tests/test_check_suppressed_review_findings.py tests/build_scripts/test_generate_commands.py tests/build_scripts/test_validate_templates_schema.py -q passed with 96 passed in 3.13s."
       },
       "qaValidation": {
         "level": "MUST",
@@ -123,6 +123,10 @@
     {
       "time": "2026-08-10T14:00:00Z",
       "entry": "Fixed mypy return type, reran targeted tests, and rebound QA report to 7692a151ab1795938e61838de3c8e4ef5868fbed."
+    },
+    {
+      "time": "2026-08-10T14:30:00Z",
+      "entry": "Fixed fast mutation process-group race, regenerated command mirrors, reran targeted tests, and rebound QA report to 8f070f9f7ef85eb80d394f50420d3a447c1de87f."
     }
   ],
   "endingCommit": "",
@@ -131,8 +135,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "393a4553ea2eaaef36fbbba01cd0869afb6dcee3",
-      "head": "7692a151ab1795938e61838de3c8e4ef5868fbed"
+      "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
+      "head": "8f070f9f7ef85eb80d394f50420d3a447c1de87f"
     }
   }
 }
