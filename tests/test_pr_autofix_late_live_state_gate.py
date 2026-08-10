@@ -161,6 +161,8 @@ def _run_race(
     late_state: str,
     guarded_doc: str,
     renewal_failure: bool = False,
+    immediate_lease_failure: bool = False,
+    mutation_command: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -177,6 +179,16 @@ def _run_race(
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
     mutation_sleep = "0.5" if renewal_failure else "0"
+    lease_failure_override = (
+        "lease_failure_checks=0\n"
+        "lease_renewal_failed() {\n"
+        "    lease_failure_checks=$((lease_failure_checks + 1))\n"
+        "    [ \"$lease_failure_checks\" -ge 2 ]\n"
+        "}\n"
+        if immediate_lease_failure
+        else ""
+    )
+    mutation_invocation = mutation_command or 'python3 "$SCRIPTS_DIR/mutation.py"'
 
     harness = f"""\
 set -u
@@ -196,10 +208,11 @@ EXPECTED_BASE_SHA=$(printf '%s' "$INITIAL" | jq -r '.Data.base_sha')
 
 printf '%s' {late_state} > "$PR_STATE_FILE"
 {guard}
+{lease_failure_override}
 
 LEASE_RENEWAL_INTERVAL_SECONDS={renewal_sleep}
 
-if run_pr_mutation_if_live python3 "$SCRIPTS_DIR/mutation.py"; then
+if run_pr_mutation_if_live {mutation_invocation}; then
     printf '%s\n' mutation-ran
 else
     printf 'mutation-skipped:%s\n' "$?"
@@ -427,3 +440,23 @@ def test_ownership_loss_during_mutation_stops_command(
     assert not (tmp_path / "mutation-child").exists()
     assert "Stopping mutation for #4349: lease ownership lost" in result.stdout
     assert "mutation-skipped:75" in result.stdout
+
+
+def test_fast_exit_reports_lease_loss_after_wait(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        mutation_command="true",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert not mutation_log.exists()
+    assert "Mutation completed as lease ownership was lost for #4349" in result.stdout
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout

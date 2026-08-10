@@ -177,8 +177,17 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
             break
         fi
         if ! kill -0 "$mutation_pid" 2>/dev/null; then
-            wait "$mutation_pid"
-            return $?
+            if wait "$mutation_pid"; then
+                mutation_rc=0
+            else
+                mutation_rc=$?
+            fi
+            if lease_renewal_failed; then
+                echo "Mutation completed as lease ownership was lost for #$PR"
+                cleanup_pr_autofix
+                return 75
+            fi
+            return "$mutation_rc"
         fi
         sleep 0.01
     done
