@@ -38,8 +38,6 @@ def _patch_node_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
             verifier, "_is_admin_owned_not_user_writable",
             lambda p: True,
         )
-
-
 class TestCleanMarkdown:
     """Clean Markdown must return 0."""
 
@@ -53,8 +51,6 @@ class TestCleanMarkdown:
 
     def test_nonexistent_file(self, tmp_path: Path) -> None:
         assert verifier.main([str(tmp_path / "missing.md")]) == 0
-
-
 class TestViolationDetection:
     """Violations must return 1."""
 
@@ -67,8 +63,6 @@ class TestViolationDetection:
         md = tmp_path / "bare_url.md"
         md.write_text("# Title\n\nVisit https://example.com today.\n")
         assert verifier.main([str(md)]) == 1
-
-
 class TestNoProductionEnvOverride:
     """_MARKDOWNLINT_TRUSTED_NODE must not exist in production code."""
 
@@ -88,8 +82,6 @@ class TestNoProductionEnvOverride:
         # Should still detect violation (real node) or fail closed
         result = verifier.main([str(md)])
         assert result in (1, 2)  # violation or fail-closed, never 0
-
-
 class TestFakeNodeNotInvoked:
     """Fake node in non-platform dirs must never execute."""
 
@@ -120,8 +112,6 @@ class TestFakeNodeNotInvoked:
         result = verifier.main([str(md)])
         assert result == 2  # fail closed
         assert not marker.exists(), "Fake node was invoked!"
-
-
 class TestFullIntegrityVerification:
     """Vendor tree integrity must verify ALL files."""
 
@@ -206,8 +196,6 @@ class TestFullIntegrityVerification:
             md.write_text("# Title\n\nText.\n")
             result = verifier.main([str(md)])
             assert result == 2
-
-
 class TestConsumerIsolation:
     """Consumer config and environment must not influence results."""
 
@@ -224,8 +212,6 @@ class TestConsumerIsolation:
         md = tmp_path / "clean.md"
         md.write_text("# Title\n\nClean paragraph.\n")
         assert verifier.main([str(md)]) == 0
-
-
 class TestFailClosed:
     """Infrastructure absence must fail closed (return 2)."""
 
@@ -252,8 +238,6 @@ class TestFailClosed:
         md = tmp_path / "test.md"
         md.write_text("# Title\n\nText.\n")
         assert verifier.main([str(md)]) == 2
-
-
 class TestHostileEnvironment:
     """Hostile PATH/npx must not be invoked."""
 
@@ -274,8 +258,6 @@ class TestHostileEnvironment:
             assert not marker.exists()
         finally:
             os.environ["PATH"] = old_path
-
-
 class TestManifestDigestPinning:
     """Manifest must be authenticated by pinned digest in source."""
 
@@ -300,8 +282,6 @@ class TestManifestDigestPinning:
         manifest_path = verifier._VENDOR / "INTEGRITY.json"
         if manifest_path.is_file():
             assert result is not None, "Authentic manifest must be accepted"
-
-
 class TestTOCTOUProtection:
     """Verify-then-execute uses materialized copy, not original path."""
 
@@ -386,8 +366,6 @@ class TestTOCTOUProtection:
         copied = dest / rel
         # File must not be writable
         assert not os.access(copied, os.W_OK)
-
-
 class TestSymlinkContainment:
     """Symlinks escaping vendor tree must be rejected."""
 
@@ -411,8 +389,6 @@ class TestSymlinkContainment:
         result = verifier._materialize_verified_copy(manifest, dest)
         assert result is not None
         assert "symlink escapes vendor" in result
-
-
 class TestCoTamperDetection:
     """Adversarial test: co-tampering JS + manifest + pinned digest fails."""
 
@@ -474,12 +450,16 @@ class TestCoTamperDetection:
         # would have original content. We verify the gate catches hash mismatch
         # by checking the manifest against "reconstructed" (original) content.
 
-        # Restore original as if npm ci reconstructed it
-        (nm / "index.js").write_bytes(original_js)
+        # Build a "reconstructed" tree with original content (as npm ci would)
+        import shutil as _sh
 
-        # Now run provenance validation - manifest says tampered_hash but
-        # actual file (from npm ci) has original_hash
-        errors = gate.validate_reconstruction(vendor)
+        reconstructed = tmp_path / "reconstructed"
+        _sh.copytree(vendor, reconstructed, symlinks=True)
+        r_nm = reconstructed / "node_modules" / "markdownlint-cli2"
+        (r_nm / "index.js").write_bytes(original_js)
+
+        # Compare tampered committed tree vs reconstructed: must detect mismatch
+        errors = gate._compare_vendor_trees(vendor, reconstructed)
         assert len(errors) > 0, (
             "Co-tampered vendor must fail provenance when compared "
             "against lockfile reconstruction"
@@ -501,6 +481,8 @@ class TestCoTamperDetection:
         verifier = tmp_path / "v.py"
         verifier.write_text('_INTEGRITY_SHA256 = "wrong_digest_here"\n')
 
-        errors = gate.validate_digest_pin(verifier, vendor)
+        errors = gate._authenticate_artifact(
+            vendor / "INTEGRITY.json", "wrong_digest_here", "INTEGRITY.json",
+        )
         assert len(errors) > 0
-        assert "not pinned" in errors[0].lower() or "co-tamper" in errors[0].lower()
+        assert "mismatch" in errors[0].lower()
