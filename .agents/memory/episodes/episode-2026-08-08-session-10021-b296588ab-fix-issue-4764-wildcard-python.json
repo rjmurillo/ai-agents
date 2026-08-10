@@ -1,0 +1,486 @@
+{
+  "id": "episode-2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python",
+  "session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4764 wildcard Python script identity vulnerability",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced command identity bypasses",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented root-cause guard fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expanded cross-harness runtime coverage",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "security-review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "GPT-5.6 Sol adversarial review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "qa validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T09:49:38+00:00",
+      "type": "commit",
+      "content": "Commit: eafff663db",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e011",
+        "e012",
+        "e013",
+        "e015",
+        "e016"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T10:01:14+00:00",
+      "type": "commit",
+      "content": "Commit: 5f1f139c5a",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T10:02:31+00:00",
+      "type": "commit",
+      "content": "Commit: 8e6b740aa5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recursive security review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Independent GPT-5.6 Sol review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-09T12:02:28+00:00",
+      "type": "commit",
+      "content": "Commit: 3ddb305181362c27a316f28f3435f1a1002a3516",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recursive security hardening",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Post-merge validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T05:15:32+00:00",
+      "type": "commit",
+      "content": "Commit: aa1959cbff",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T05:16:27+00:00",
+      "type": "commit",
+      "content": "Commit: 98c2346577eedd1319f75032701ddb02179fbe0c",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T05:16:27+00:00",
+      "type": "commit",
+      "content": "Commit: 98c2346577",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-10T09:37:22+00:00",
+      "type": "commit",
+      "content": "Commit: 15225f3c110397a4644cf4e59eea13d90f55c4b1",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T09:49:18+00:00",
+      "type": "commit",
+      "content": "Commit: c9813c0b58f127ae272957bee030ef70bf1290fd",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T09:52:52+00:00",
+      "type": "commit",
+      "content": "Commit: b3e8fecdcc83cc67aed51e109fae40b9db1e7a4f",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T10:37:36+00:00",
+      "type": "commit",
+      "content": "Commit: ca57c10ae5ecf35df291c899629f3a9f9362fec4",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T11:25:17+00:00",
+      "type": "commit",
+      "content": "Commit: ee62503ac8c2cab5e664c7cf2983bf811ae59af3",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-10T12:19:46+00:00",
+      "type": "commit",
+      "content": "Commit: 1f8fda765bf75708eb940338e70fb4fb0304ca6a",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T12:49:09+00:00",
+      "type": "commit",
+      "content": "Commit: 40138820ba2f1b9b3220ea4dbb2bc7c8ab915d9f",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-10T13:09:12+00:00",
+      "type": "commit",
+      "content": "Commit: 087a7aa1693b3183c33a15ff38719aca86009bab",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-10T13:46:40+00:00",
+      "type": "commit",
+      "content": "Commit: 5b97a6493a89e3f2081a0a99fee6d36f94f23cca",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-10T13:54:59+00:00",
+      "type": "commit",
+      "content": "Commit: ce3f4f65165effdd287f6cb0b82c62cf72ebc64d",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-10T14:20:48+00:00",
+      "type": "commit",
+      "content": "Commit: 44809942727f53a756dd21f09c336dfa4978f97c",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-10T14:42:12+00:00",
+      "type": "commit",
+      "content": "Commit: 467b271c096e8a832fefd4a8df1898e1b4bcf55f",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-10T15:10:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9d6cfe4e686dfc02fa164719f1b744618ec0e22d",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-10T15:23:10+00:00",
+      "type": "commit",
+      "content": "Commit: 923b109f0a4c09f45615d1578534aab0890f27bb",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-10T15:50:51+00:00",
+      "type": "commit",
+      "content": "Commit: 8cb44c28c81092b075fd4dc3d2c0daf93f5e931b",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-10T16:47:52+00:00",
+      "type": "commit",
+      "content": "Commit: 48d98974aaea53b91977c5cfa3bca6d2c0748d4c",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-10T17:00:40+00:00",
+      "type": "commit",
+      "content": "Commit: d47733a20a67c49d08ceb5b2d27dc2585d4cd530",
+      "caused_by": [
+        "e035"
+      ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-10T17:19:39+00:00",
+      "type": "commit",
+      "content": "Commit: 1d7213f787fab4961c985fc819b09abd99381497",
+      "caused_by": [
+        "e036"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 25,
+    "files_changed": 198
+  },
+  "lessons": []
+}

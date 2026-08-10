@@ -1,0 +1,178 @@
+{
+  "id": "episode-2026-08-05-session-4020-worktree-scope-clean",
+  "session": "2026-08-05-session-4020-worktree-scope-clean",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Rebase the review worktree-scope fix onto current main after issue #4377 closed upstream.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced #4020 in parent worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked #4377 against current main",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created clean current-main branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cherry-picked #4020 fix",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserved generated mirrors",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T11:37:27+00:00",
+      "type": "commit",
+      "content": "Commit: bd538ad5c",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T11:37:27+00:00",
+      "type": "commit",
+      "content": "Commit: ec7c9e75f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e008",
+        "e010",
+        "e012"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated clean branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T11:44:28+00:00",
+      "type": "commit",
+      "content": "Commit: fe66089b25f0087afa4e2feef260851c564328c1",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added PR QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T09:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: a6784b56ea778c79b5abef036c8a9ad3ca3c9cc5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and revalidated",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T11:42:04+00:00",
+      "type": "commit",
+      "content": "Commit: ff68ea01d175bb74a376f7befb70c5772f9c3f7a",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 8
+  },
+  "lessons": []
+}

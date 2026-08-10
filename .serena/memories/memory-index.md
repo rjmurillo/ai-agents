@@ -7,7 +7,7 @@
 
 [Index Catalog]
 |creator skill authoring frontmatter token efficiency test separation reference extraction: [creator-best-practices-index](creator-best-practices-index.md) (252), [skills-index](skills-index.md) (839)
-|learning retrospective best practices session notes: [learning-index](learning-index.md) (907), [retrospective-best-practices-index](retrospective-best-practices-index.md) (222)
+|learning retrospective best practices session notes: [learning-index](learning-index.md) (942), [retrospective-best-practices-index](retrospective-best-practices-index.md) (222)
 |pr comment navigation response templates review threads: [pr-comment-index](pr-comment-index.md) (258)
 
 [Decision Records]
@@ -22,7 +22,7 @@
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log skips every hook no commits between absence not failure slow push still running concurrent bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
-|git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
+|git diff origin main direction stale branch deletion behind predates restore: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
 |pr autofix late merge live state base refresh closed branch recovery: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |github pr issue cli gh api review comment batch response label milestone create tag priority: [skills-github-cli-index](skills-github-cli-index.md) (597), [skills-pr-review-index](skills-pr-review-index.md) (1096), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
@@ -43,7 +43,7 @@
 |eval harness enumerate scripts naming underscore hyphen glob baseline no-skill control arm fixtures: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
-|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1837)
+|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1992)
 |test exit code pytest pester error failed passed block commit: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |mutation testing false green sed delimiter guard load-bearing vacuous assert applied: [mutation-testing-false-green](mutation-testing-false-green.md) (908)
 |find existing test coverage by mutation not by name grep class renamed guardians: [find-coverage-by-mutation-not-by-name](find-coverage-by-mutation-not-by-name.md) (645)
@@ -58,6 +58,7 @@
 |adr decision record active proposed superseded rationale artifact amendment cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
 |always-on corpus membership applyTo mirror generated synthesized internal-only glob yaml block list frontmatter regex: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2162)
+|always-on rule edit invalidates corpus figures byte totals doctrine audit procedure re-measure multiplier prose hand-maintained no regenerator commit file count: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -69,6 +70,7 @@
 |diff3 zdiff3 conflict markers base region checkout --merge conflict-marker-policy resolver: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
+|code quality changed-only regression gate absolute debt issue 4364 exit 10 threshold: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (503)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 
@@ -100,6 +102,8 @@
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
 |doc-only repair prose shell snippet agent carrier no test does not survive merge executable guard pre-fix carriers failed passed split: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
+|python-lint-ratchet not a ratchet changed files zero tolerance no baseline pre-existing E402 ruff push blocked python-lint-count-ratchet lefthook 421 428 ruff_ratchet.py: [python/python-lint-ratchet-is-not-a-ratchet](python/python-lint-ratchet-is-not-a-ratchet.md) (970)
+|milestone tracking semver v-prefix silent no-op set_item_milestone missing-milestone-ok green five copies: [ci/milestone-tracking-v-prefix-fix](ci/milestone-tracking-v-prefix-fix.md) (408)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
@@ -111,7 +115,10 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (646)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (714)
+|git stash push -m after double dash parsed as pathspec silent no stash checkout destroys work verify refs/stash: [git/git-stash-m-after-double-dash-is-a-pathspec](git/git-stash-m-after-double-dash-is-a-pathspec.md) (678)
+|script absolute path wrong worktree repo_root __file__ validates own tree false pass token updater containment check candidate path: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
+|merge conflict resolve ours theirs convenience wrong side endingCommit session log stack last merge wins validator proves existence not correctness: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1185)
 |git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
@@ -134,7 +141,7 @@
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2519), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1133), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1133), [eval-multiprovider-transport](eval-multiprovider-transport.md) (712), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token efficiency: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
@@ -143,6 +150,7 @@
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
 |memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (1345)
+|memory size gate characters not bytes wc -c emoji UTF-8 validate_memory_sizes max-chars 10000 len content trim passes scripts/memory regenerator path: [memory/memory-size-gate-counts-characters-not-bytes](memory/memory-size-gate-counts-characters-not-bytes.md) (537)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
@@ -164,3 +172,4 @@
 |memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (484)
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
+|serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1170)

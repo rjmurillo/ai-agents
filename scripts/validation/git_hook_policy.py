@@ -396,6 +396,24 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
+# Issue #4823: the bulk pre-push pytest partition runs on pytest-xdist, and the
+# worker count is xdist's own `auto`, which is one worker per logical CPU. This
+# is deliberately not a number. No subtraction, no cap, and no fixed default, so
+# a 48-thread host spends 48 threads and a 4-thread laptop spends 4, without
+# anyone editing tracked code. The alternative, a hard-coded count, is wrong on
+# every machine that is not the machine it was measured on.
+PYTEST_WORKERS_AUTO = "auto"
+PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
+# Escape hatch, not a tuning knob. Unset is the contract everywhere that
+# matters: CI passes the flags literally in `.github/workflows/pytest.yml`, and
+# no workflow or hook exports this variable. It exists so a developer can pin a
+# specific worker count to reproduce a suspected concurrency bug, or to leave
+# cores free on a shared box.
+PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
+# `loadfile` sends every test in one file to one worker. That is the weakest
+# distribution mode xdist offers and the point: module-scoped fixtures, module
+# state, and file-local temp directories keep behaving the way they do serially.
+PYTEST_DIST_MODE = "loadfile"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -829,6 +847,17 @@ def _read_index_blob(repo_root: Path, relative_path: str) -> bytes | None:
 
 def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     result = _run_git_bytes(repo_root, ["show", f"HEAD:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
     if result.returncode != 0:
         return None
     return result.stdout
@@ -1732,12 +1761,19 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    sessions = [
+    session_paths = [
         path
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
     if not sessions:
+        if session_paths:
+            return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     for session in sessions:
@@ -1754,6 +1790,21 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             _print_process_output(result)
             return result.returncode
     return 0
+
+
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -6091,8 +6142,63 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
+def parse_pytest_workers(raw: str | None) -> str:
+    """Return the ``-n`` value named by ``raw``, or the default.
+
+    ``None`` and an empty or whitespace-only string both mean "unset", which is
+    the normal case: every CI run and every local push with nothing exported
+    takes ``PYTEST_WORKERS_DEFAULT``, so the worker count follows the machine.
+
+    Anything else must be ``auto`` (any capitalization) or a positive decimal
+    integer. Both are values pytest-xdist accepts for ``-n``; this function does
+    not compute a count, so there is no arithmetic here to get wrong. A
+    malformed value raises instead of falling back, because the only reason to
+    set the variable is to pin a specific count: silently substituting ``auto``
+    for ``0`` or ``half`` would run the whole machine when the developer asked
+    for something else and report it as the value they asked for. Integers pass
+    through ``int`` and back so the argv always carries a canonical decimal.
+
+    Raises:
+        ValueError: ``raw`` is set to something other than ``auto`` or a
+            positive integer.
+    """
+    if raw is None:
+        return PYTEST_WORKERS_DEFAULT
+    candidate = raw.strip()
+    if not candidate:
+        return PYTEST_WORKERS_DEFAULT
+    if candidate.lower() == PYTEST_WORKERS_AUTO:
+        return PYTEST_WORKERS_AUTO
+    rejection = f"{PYTEST_WORKERS_ENV} must be 'auto' or a positive integer, got {raw!r}"
+    try:
+        workers = int(candidate)
+    except ValueError:
+        raise ValueError(rejection) from None
+    if workers < 1:
+        raise ValueError(rejection)
+    return str(workers)
+
+
+def _pytest_parallel_flags() -> list[str]:
+    """Return the xdist argv fragment for the bulk pre-push partition."""
+    workers = parse_pytest_workers(os.environ.get(PYTEST_WORKERS_ENV))
+    return ["-n", workers, "--dist", PYTEST_DIST_MODE]
+
+
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
+    """Return the pre-push pytest invocations, bulk partition first.
+
+    Only the first command runs in parallel. The safe-push and pr-autofix
+    modules each run in a fresh serial pytest process. The latter can leave a
+    grandchild holding a subprocess pipe under heavy worker load, so sharing a
+    process with another test module also makes it flaky.
+
+    Raises:
+        ValueError: the worker override names something other than ``auto`` or
+            a positive integer.
+    """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
             sys.executable,
@@ -6100,9 +6206,12 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "pytest",
             "-m",
             "not integration",
+            *_pytest_parallel_flags(),
             str(repo_root / "tests"),
             "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(pr_autofix_tests),
         ],
         [
             sys.executable,
@@ -6111,6 +6220,14 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(pr_autofix_tests),
         ],
     ]
 
@@ -6129,12 +6246,17 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
+    try:
+        commands = _pytest_commands(repo_root)
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
     # command. Splitting the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for index, command in enumerate(_pytest_commands(repo_root)):
+    for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -6368,8 +6490,11 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
+        normalized = _safe_relative_path(path)
+        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+            continue
+        new_logs = new_session_logs(paths, repo_root)
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")

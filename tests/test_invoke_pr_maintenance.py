@@ -412,6 +412,27 @@ class TestMain:
             rc = main(["--owner", "o", "--repo", "r"])
         assert rc == 0
 
+    def test_indeterminate_rate_limit_exits_0_and_reports_gap(self, capsys):
+        from scripts.github_core import RateLimitResult, RateLimitStatus
+
+        result = RateLimitResult(
+            status=RateLimitStatus.COULD_NOT_DETERMINE,
+            core_remaining=4984,
+            resources={},
+            summary_markdown="",
+            probe_error="REST (`gh api meta`): probe call failed",
+        )
+        with patch(
+            "invoke_pr_maintenance.check_workflow_rate_limit",
+            return_value=result,
+        ):
+            rc = main(["--owner", "o", "--repo", "r"])
+
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "could_not_determine" in err
+        assert "probe call failed" in err
+
     def test_rate_limit_failure_exits_0(self):
         with patch(
             "invoke_pr_maintenance.check_workflow_rate_limit",

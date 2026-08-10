@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10036,
+    "date": "2026-08-10",
+    "branch": "fix/4848-serialize-pr-autofix-tests",
+    "startingCommit": "86180b919",
+    "objective": "Serialize flaky pr-autofix process tests under xdist"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP exposed no activate_project operation in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions loaded."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used session-init and session-end scripts. Generated mirrors with build/scripts/build_all.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded ai-agents-portability-campaign, session-init, and session-end."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, .agents/governance/PROJECT-CONSTRAINTS.md, scripts/AGENTS.md, and path-scoped Python, testing, CI, generated-artifact, and canonical-source rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/ci-infrastructure-observations.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4848-serialize-pr-autofix-tests"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4848-serialize-pr-autofix-tests"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree status checked before edits and commits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "86180b919"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end MUST items contain evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory added. Issue #4848 and regression tests carry the durable process-race facts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: no changed markdown files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4849-pr-autofix-process-isolation-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation changes committed (HEAD: 75c22a3e0)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "83 partition tests passed. All 24 process tests passed in ten consecutive runs and after the lease-lifetime review fix. Ruff and build_all.py --check passed. pre_pr.py passed all 49 non-session validations."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4848 updated with both observed process races and the implemented fix."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not needed for this five-file corrective PR."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced pr-autofix process test instability",
+      "result": "Three xdist runs hung in different cases. One isolated run returned process-group setup failure 75 after a fast successful mutation."
+    },
+    {
+      "action": "Isolated process-sensitive tests",
+      "result": "The bulk xdist command ignores test_pr_autofix_late_live_state_gate.py. A third serial pytest process runs that file alone."
+    },
+    {
+      "action": "Fixed fast mutation completion",
+      "result": "run_mutation_with_lease_monitor now waits for a mutation that exits before process-group observation and returns its actual status."
+    },
+    {
+      "action": "Regenerated the Copilot skill mirror",
+      "result": "build_all.py updated src/copilot-cli/skills/pr-autofix/SKILL.md from the canonical .claude command."
+    },
+    {
+      "action": "Addressed PR review lease-lifetime finding",
+      "result": "Removed the fast-success cleanup. A regression now proves the lease remains held until per-PR work ends."
+    }
+  ],
+  "endingCommit": "75c22a3e0fe768b600a93a40819a0789b7b286c4",
+  "nextSteps": [
+    "Merge this PR, then refresh PR #4845 from main and push it again."
+  ]
+}
