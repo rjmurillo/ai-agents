@@ -53,12 +53,6 @@
         1
       ]
     ],
-    "doc-accuracy/scripts/doc_accuracy.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "github/scripts/issue/edit_issue_body.py": [
       [
         "result = subprocess.run(",

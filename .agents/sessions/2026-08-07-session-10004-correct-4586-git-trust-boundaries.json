@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-07",
+    "branch": "fix/skill-doc-quality-gates",
+    "startingCommit": "5fa649031",
+    "objective": "Correct PR 4586 Git trust boundaries at exact remote head"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP repository context available; activate_project was not exposed"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/doc-accuracy/scripts/doc_accuracy.py identified"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS skill usage section and github skill loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-autofix/pr-4323-late-base-refresh read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/skill-doc-quality-gates"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/skill-doc-quality-gates"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree clean before protocol session log creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5fa649031"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory change needed; focused tests encode the Git trust-boundary behavior."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective path is excluded; markdownlint selected 0 of 1 file, NOT LINTED."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective staged with this session log; prior work committed through fa364d696bde8d17ac482679a2e15b4e72ee93f3."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo tracker updated through implementation, review, validation, and delivery."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-07-pr-4586-git-trust-boundaries.md records root causes, controls, and atomic learnings."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: .claude/skills/doc-accuracy/scripts/doc_accuracy.py edited 12 times\nrework-warning: src/copilot-cli/skills/doc-accuracy/scripts/doc_accuracy.py edited 12 times\nrework-warning: tests/skills/doc-accuracy/test_doc_accuracy.py edited 12 times"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Gated exact PR head",
+      "detail": "Acquired the PR lease, confirmed PR #4586 remained open, and verified remote head 14cce29c07ad6d2890088d44776877245300600c before mutation."
+    },
+    {
+      "action": "Reproduced both defects",
+      "detail": "At the exact remote head, repository, global, and system core.fsmonitor settings executed sentinels, while HEAD^{tree} and HEAD:README.md returned exit 3 instead of exit 2."
+    },
+    {
+      "action": "Isolated scanner Git commands",
+      "detail": "Canonical code now sanitizes Git environment keys case-insensitively and applies isolated config plus core.fsmonitor=false to every local Git invocation."
+    },
+    {
+      "action": "Corrected revision classification",
+      "detail": "Revision handling resolves the raw object, verifies object access, then resolves the commit peel so invalid and non-commit refs return exit 2 while missing objects and Git failures return exit 3."
+    },
+    {
+      "action": "Regenerated owned mirror",
+      "detail": "Ran the owning generator and confirmed the Copilot doc-accuracy script is byte-identical to the canonical source."
+    },
+    {
+      "action": "Added regression and mutation controls",
+      "detail": "Tests cover repository, global, and system fsmonitor settings, mixed-case Git environment keys, exact tree and blob expressions, missing objects, and every scanner Git call. Five behavior mutants were caught and one inverted control survived."
+    },
+    {
+      "action": "Validated implementation",
+      "detail": "Focused class passed 33 tests, full doc-accuracy file passed 83 tests, targeted Ruff passed, build and portability checks passed, and pre-PR passed 46 tests with 4 skips. Broader Ruff and pytest failures were pre-existing or caused by conflicting repository-local temp-root policy."
+    },
+    {
+      "action": "Completed independent review",
+      "detail": "GPT-5.6 Sol found one High missing-object classification defect. The fix added a real Git regression. Independent rereview returned CLEAN."
+    },
+    {
+      "action": "Commit: 3ab2df4c4",
+      "detail": "Committed the canonical fix, generated mirror, and focused tests as fix(doc-accuracy): isolate Git revision checks."
+    },
+    {
+      "action": "Completed retrospective",
+      "detail": "Classified both code defects as FM-9, recorded exact-head evidence, and captured three 100% atomic learnings without duplicating focused tests in Serena memory."
+    },
+    {
+      "action": "Handled push gate",
+      "detail": "The first authenticated push attempt used scanner config isolation and lost its credential helper. A later pre-push run required retrospective evidence. Neither attempt mutated the remote branch."
+    }
+  ],
+  "endingCommit": "fa364d696bde8d17ac482679a2e15b4e72ee93f3",
+  "nextSteps": []
+}
