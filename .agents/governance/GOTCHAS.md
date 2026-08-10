@@ -847,6 +847,111 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+## An empty `endingCommit` breaks the episode store on the next push
+
+The pre-commit hook extracts an episode from every staged session log. It reads
+`files_changed` from the staged diff, but `commits` from the SHAs the log names,
+and a first commit has none: the commit being created has no SHA yet, and
+`endingCommit` is still `""`. The episode therefore ships with `commits: 0`
+beside a non-zero `files_changed`, which is exactly the pair
+`validate_metrics_consistency` rejects.
+
+Nothing fails at commit time. The push fails, minutes later, in the full suite:
+
+```text
+tests/skills/memory/test_extract_session_episode.py::
+  TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean
+AssertionError: metrics violations grew to 22 (was 21); new episodes with
+commits==0 but metrics.files_changed>0 must be fixed
+```
+
+That count is a ratchet, so raising it is not the fix. Record the SHA and let
+the extractor derive the number, which is what it is built to do:
+
+```bash
+# set "endingCommit" in the session log to the commit you just made, then
+uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
+  .agents/sessions/<log>.json --preserve
+```
+
+`--preserve` recomputes `metrics.commits` from the commit-event stream, so the
+value stays derived rather than hand-set. Commit the log and the regenerated
+episode together as the follow-up commit the section above already requires.
+
+Watch for the interaction: `session-policy` forces any `.agents/` change to
+stage a session log, so a governance or architecture edit cannot avoid creating
+an episode, and the first such commit on a branch always produces a violating
+one. The follow-up commit is not optional bookkeeping; it is what keeps the
+branch pushable.
+## Two green PRs can merge into a red main, and the count ratchets will not warn
+
+The count ratchets compare one scalar baseline against a count taken over the
+whole tree. Neither number is scoped to your diff, so the gate cannot tell
+"this branch added a violation" from "this branch lowered the allowance while
+somebody else added one." Each PR is measured only against the baseline in
+force while it is open.
+
+That leaves a race. On 2026-08-03, PR #4476 lowered the taste baseline from 596
+to 595 after removing a violation. PR #4414 grew `.agents/governance/GOTCHAS.md`
+past the 500-line ceiling, adding one. Both were green. Both merged. `main`
+went red at 596 against a baseline of 595, and neither author did anything
+wrong.
+
+This is a different failure from the branch-behind case above. There the branch
+is stale and merging main fixes it. Here main itself is broken, so merging main
+*imports* the failure. Every branch that syncs afterward fails a gate it never
+touched, and the message reads the same in both cases.
+
+Two consequences worth knowing before you spend an hour on it:
+
+Measure main before blaming your branch. A pristine worktree at `origin/main`
+answers this in seconds and is the only way to tell the two cases apart:
+
+```bash
+git worktree add --detach <path> origin/main
+cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+And the usual "diff my per-file counts against `origin/main`" recipe returns
+nothing when main is the thing that is red, because your branch and main are
+both at the higher number. Diff against the commit that last wrote the baseline
+file instead:
+
+```bash
+git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
+```
+
+Check out that commit in a detached worktree and diff its violation list
+against HEAD's. The offender is the one net-new entry.
+## Deleting code turns main red on the taste-count baseline
+
+The taste ratchet script passes on `count <= baseline`, so removing a violation
+looks free. A separate test does not:
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`
+asserts `count == baseline` exactly, because a baseline above the real count is
+dead allowance that lets violations creep back in unnoticed.
+
+The consequence is counter-intuitive and it has already landed on main twice.
+Anyone who deletes code, or adds a `taste-lint: ignore` directive, lowers the
+count and must lower `scripts/ci/taste_count_baseline.txt` in the same commit.
+Nobody expects a deletion to require a lint-baseline edit, and the pre-push
+ratchet stays green while it happens, so the failure surfaces only in the full
+suite after the merge.
+
+Measured on this repository:
+
+| Commit | Count | Baseline | Exact-match test |
+|---|---|---|---|
+| `a355a9e27^` | 594 | 595 | red |
+| `a355a9e27` (#4428, added an ignore and lowered the baseline) | 593 | 593 | green |
+| `ad61b51c4` (#4101, deleted a recovery path) | 592 | 593 | red |
+
+Check before you push with
+`uv run --frozen python scripts/ci/taste_count_ratchet.py`. It prints
+`OK (count == baseline N)` when the two agree and `OK. N violations <= baseline M`
+when they do not, and only the first form passes the test. Raising a baseline to
+clear a blocked push is still prohibited; this is the opposite direction.
+
 
 ## Built-in `explore` and `research` subagent types cannot write anything
 
