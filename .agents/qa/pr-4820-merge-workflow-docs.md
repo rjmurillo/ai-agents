@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10026-merge-workflow-docs.json
-qaCommit: 911ddc67bde7dd3cbfe2ebc87f16ae85c947143e
+qaCommit: 24ad9ac43d0bd19c5f8fc489d6b59acbfa659c8f
 ---
 # Test Report: Strict Serial Auto-Merge Protocol
 
@@ -9,10 +9,12 @@ qaCommit: 911ddc67bde7dd3cbfe2ebc87f16ae85c947143e
 
 Documentation-only change for issue #4820:
 
-- `.agents/SESSION-PROTOCOL.md`
-- `.agents/governance/GOTCHAS.md`
-- `.agents/critique/SESSION-PROTOCOL-merge-workflow-debate-log.md`
-- `.agents/retrospective/2026-08-09-trunk-ci-cancellation-incident.md`
+- [`.agents/SESSION-PROTOCOL.md`](../SESSION-PROTOCOL.md)
+- [`.agents/governance/GOTCHAS.md`](../governance/GOTCHAS.md)
+- [`.agents/architecture/ADR-094-strict-serial-auto-merge.md`](../architecture/ADR-094-strict-serial-auto-merge.md)
+- [`.agents/critique/ADR-094-debate-log.md`](../critique/ADR-094-debate-log.md)
+- [formal consensus decision](../decisions/decision-2026-08-10T07-51-00-109946+00-00.json)
+- [`.agents/retrospective/2026-08-09-trunk-ci-cancellation-incident.md`](../retrospective/2026-08-09-trunk-ci-cancellation-incident.md)
 - three new CI Serena memories and one updated agent-behavior memory
 
 ## Live evidence

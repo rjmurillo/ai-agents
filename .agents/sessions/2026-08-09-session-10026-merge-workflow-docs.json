@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final protocol, retrospective, and Serena memories committed in 911ddc67bde7dd3cbfe2ebc87f16ae85c947143e; this follow-up updates evidence markers only."
+        "Evidence": "Final strict one-front protocol, ADR-094, retrospective, and memories committed through 24ad9ac43d0bd19c5f8fc489d6b59acbfa659c8f; this follow-up adds formal consensus and updates evidence markers."
       },
       "validationPassed": {
         "level": "MUST",
@@ -124,6 +124,6 @@
       "outcome": "Documented strict freshness plus one-front auto-merge, generated unanimous consensus JSON, and received 6/6 ADR acceptance with no P0/P1 findings."
     }
   ],
-  "endingCommit": "911ddc67bde7dd3cbfe2ebc87f16ae85c947143e",
+  "endingCommit": "24ad9ac43d0bd19c5f8fc489d6b59acbfa659c8f",
   "nextSteps": []
 }

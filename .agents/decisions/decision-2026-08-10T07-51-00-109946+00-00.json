@@ -1,0 +1,55 @@
+{
+  "id": "decision-2026-08-10T07-51-00-109946+00-00",
+  "timestamp": "2026-08-10T07:51:00.109946+00:00",
+  "topic": "Strict freshness with one-front GitHub auto-merge",
+  "context": "ADR-094. User-owned repository without native merge queue. Trunk removed. Parallel refresh of 41 branches triggered 820 workflow runs and 818 cancellations.",
+  "votes": [
+    {
+      "agent": "architect",
+      "position": "approve",
+      "rationale": "Strict provides the safety lock; one-front controls CI cost.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "critic",
+      "position": "approve",
+      "rationale": "Final model closes prior TOCTOU and parallel-cost findings.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "independent-thinker",
+      "position": "approve",
+      "rationale": "Cost model and stacked PR guidance are correctly scoped.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "security",
+      "position": "approve",
+      "rationale": "GitHub enforces freshness server-side with no bypass language.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "analyst",
+      "position": "approve",
+      "rationale": "Live strict state and commands are verifiable.",
+      "confidence": 1.0
+    },
+    {
+      "agent": "high-level-advisor",
+      "position": "approve",
+      "rationale": "Minimum mechanism with no custom queue or daemon.",
+      "confidence": 1.0
+    }
+  ],
+  "result": {
+    "decision": "approved",
+    "algorithm": "unanimous",
+    "confidence_score": 1.0,
+    "votes_for": 6,
+    "votes_against": 0,
+    "abstentions": 0,
+    "summary": "Unanimous approval (6 agents)"
+  },
+  "escalated": false,
+  "escalation_rationale": ""
+}
