@@ -32,7 +32,7 @@ A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maint
 
 ## SHOULD
 
-1. **One skill, one purpose**. Skills SHOULD do one thing well. Split multi-purpose skills.
+1. **One skill, one purpose**. A skill SHOULD name one primary trigger family and one primary output artifact in its `description`. If a `SKILL.md` describes unrelated trigger families or unrelated output artifacts, split the skill or add a `Rationale:` paragraph that explains why one workflow owns both.
 2. **Idempotent tools**. Skills that mutate state SHOULD be safe to re-run (or detect prior completion).
 3. **Invoke via the Skill tool**. Claude Code agents SHOULD invoke matching skills via the `Skill` tool, not inline equivalents.
 
