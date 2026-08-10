@@ -15,7 +15,7 @@ from scripts.ai_review_common.feature_review import (
 class TestGetFeatureReviewRecommendation:
     """Tests for get_feature_review_recommendation."""
 
-    @pytest.mark.parametrize("recommendation", list(VALID_RECOMMENDATIONS))
+    @pytest.mark.parametrize("recommendation", sorted(VALID_RECOMMENDATIONS))
     def test_extracts_explicit_recommendation(self, recommendation: str):
         output = f"RECOMMENDATION: {recommendation}\nRationale: some reason"
         result = get_feature_review_recommendation(output)
