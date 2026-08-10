@@ -91,6 +91,19 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T14:22:39+00:00",
+      "type": "commit",
+      "content": "Commit: ff19bf1c242377caeef795f2aad7655ac0c78169",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-09-session-10019-recover-4681-fleet-completion"
     }
@@ -100,8 +113,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 8
+    "commits": 4,
+    "files_changed": 14
   },
   "lessons": []
 }

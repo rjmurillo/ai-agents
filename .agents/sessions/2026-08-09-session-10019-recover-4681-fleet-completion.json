@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed at f9b65c1f6a; recovery artifacts staged for this follow-up commit"
+        "Evidence": "PR code validated at ff19bf1c242377caeef795f2aad7655ac0c78169 before QA evidence refresh."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "244 targeted tests, Ruff, full pre-PR validation, and full pre-push test suite passed"
+        "Evidence": "QA rerun after merging origin/main: pytest collected 5890 and passed 5890 with 10 skipped for tests/validation, tests/ci, and test_lefthook_integration. Ruff passed on changed files. Scoped mypy returned the same two no-any-return diagnostics on clean origin/main."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -140,6 +140,6 @@
       "outcome": "244 targeted tests, full pre-PR validation, and 24,832 full-suite tests passed"
     }
   ],
-  "endingCommit": "3ed1c6018a6a4744b6aafb9bba69c87196660088",
+  "endingCommit": "ff19bf1c242377caeef795f2aad7655ac0c78169",
   "nextSteps": []
 }
