@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validated code commit: 154030efa281737a2c57f9be403c2d673820c168"
+        "Evidence": "Latest validated code commit: 6a1238f153ee5c1d6b6259656d6411a1bfe68f78"
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,6 +140,6 @@
       "outcome": "Executed the installed skill in five isolated customer git fixtures, removed upstream governance and supersession overhead, and moved CI tests out of customer skill directories."
     }
   ],
-  "endingCommit": "154030efa281737a2c57f9be403c2d673820c168",
+  "endingCommit": "6a1238f153ee5c1d6b6259656d6411a1bfe68f78",
   "nextSteps": []
 }
