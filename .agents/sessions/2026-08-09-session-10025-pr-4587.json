@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final code and rationale commit is 544521f4f57006a8c668f591baa1ae05900649bd; this evidence commit adds no code."
+        "Evidence": "Final code and rationale commit is 8b86362522ff1491abadba99ec7d6cbbb0e4995d; this evidence commit adds no code."
       },
       "validationPassed": {
         "level": "MUST",
@@ -116,7 +116,7 @@
       "outcome": "79 affected tests and pre_pr.py pass."
     }
   ],
-  "endingCommit": "544521f4f57006a8c668f591baa1ae05900649bd",
+  "endingCommit": "8b86362522ff1491abadba99ec7d6cbbb0e4995d",
   "nextSteps": [
     "Push once and confirm Validate PR finds the QA report.",
     "Confirm Architect and aggregate AI Quality Gate results clear on the final SHA."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10025-pr-4587.json
-qaCommit: 544521f4f57006a8c668f591baa1ae05900649bd
+qaCommit: 8b86362522ff1491abadba99ec7d6cbbb0e4995d
 ---
 # Test Report: PR #4587 CI job hygiene
 
