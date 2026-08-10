@@ -257,6 +257,13 @@ jobs:
       # statement-only (no --cov-branch) by design; see that script's module
       # docstring for the coverage-combine design and the measured
       # line-vs-branch cost.
+      #
+      # Issue #4823: `-n auto` is xdist's own one-worker-per-logical-CPU, so
+      # this step scales with the runner instead of a hard-coded count. The
+      # flags belong to this step alone: pytest-cov's DistMaster.finish()
+      # merges worker data into this step's COVERAGE_FILE, so the pins and the
+      # combine step below need no change, and both pins plus the Windows job
+      # stay serial (pinned by the two xdist parallelism test modules).
       - name: Run pytest
         id: run-pytest
         if: steps.should-run.outputs.skip != 'true'
@@ -264,7 +271,8 @@ jobs:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: artifacts/.coverage.main
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=
+          uv run --frozen python scripts/ci/run_pytest_non_tmp.py -n auto --dist loadfile
+          --cov --cov-report=
           --junitxml=artifacts/pytest-results.xml
           --ignore=tests/test_ai_review.py
           --ignore=tests/test_verdict.py

@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-10-session-10033.json
+qaSessionLog: .agents/sessions/2026-08-10-session-10033-pr-4644-autofix.json
 qaCommit: b923f542d7123f616ed537a49ad9e0408a428aa9
 ---
 
@@ -27,7 +27,7 @@ over-limit slack failure path.
   76 passed in 1.86 seconds, with no failures or skips.
 - The new `test_run_blocks_a_baseline_with_too_much_slack` exercises the
   stale-baseline exit and diagnostic output.
-- The Ruff baseline change records the measured improvement from 43 to 31.
+- The Ruff baseline change records the measured improvement from 43 to 30.
 
 ## Local validation note
 

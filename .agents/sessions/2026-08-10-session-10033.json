@@ -3,27 +3,26 @@
   "session": {
     "number": 10033,
     "date": "2026-08-10",
-    "branch": "autofix/pr-4644-9b2d48cd",
+    "branch": "fix/4823-deterministic-test-collection",
     "startingCommit": "cefc2b0ed94e322624d4c41c0007822948ba2c81",
-    "objective": "Autofix PR 4644 Validate PR QA evidence",
-    "traceId": "9b2d48cd-c86d-460e-aba6-dc0f9dcce1ff"
+    "objective": "Fix xdist collection order for Issue 4823"
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena initial instructions loaded for the isolated PR worktree."
+        "Evidence": "Serena instructions were initialized in the parent session before worktree dispatch."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena Instructions Manual read."
+        "Evidence": "Serena toolbox instructions loaded before implementation."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md read and preserved as read-only."
+        "Evidence": ".agents/HANDOFF.md read as the read-only project dashboard."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -33,108 +32,108 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Used pr-autofix, context-mode, session-init, session-end, and repository PR scripts."
+        "Evidence": "Build, session-init, GitHub, test, and review skill routes identified."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/usage-mandatory.md read."
+        "Evidence": "AGENTS.md skill-first and issue-coordination requirements applied."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "AGENTS.md, CLAUDE.md, and .agents/governance/PROJECT-CONSTRAINTS.md read."
+        "Evidence": "Root, test, Python, testing, and session-log instructions applied."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Loaded the skill-first memory and live PR #4644 context."
+        "Evidence": "No separate memory was needed; Issue #4823 and the regression test retain the finding."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "autofix/pr-4644-9b2d48cd"
+        "Evidence": "fix/4823-deterministic-test-collection"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On autofix/pr-4644-9b2d48cd"
+        "Evidence": "On fix/4823-deterministic-test-collection"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Isolated worktree started at PR head b923f542d."
+        "Evidence": "git status inspected before and after the code commit."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR base cefc2b0ed94e322624d4c41c0007822948ba2c81"
+        "Evidence": "cefc2b0ed94e322624d4c41c0007822948ba2c81"
       }
     },
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All session MUST items carry evidence."
+        "Evidence": "All required start and end items recorded."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md was not modified."
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No durable memory update needed; the QA evidence is PR-specific."
+        "Evidence": "No memory update needed; the deterministic ordering rule lives in the test and Issue #4823."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA Markdown is scoped under .agents, which repository lint configuration excludes."
+        "Evidence": "Scoped markdownlint ran; repository configuration excludes .agents/**, so zero files were selected."
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-10-pr-4644-count-ratchet-baseline-health.md"
+        "Evidence": ".agents/qa/pr-4834-xdist-collection-order-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code changes are committed through b923f542d7123f616ed537a49ad9e0408a428aa9; this evidence-only follow-up is pending commit."
+        "Evidence": "Code committed as 4e7c0868f97104396b328cf9b6f08f2d8518afbe; this session record is the final documentation commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused count-ratchet suite passed 97 tests; independent QA passed 76 tests."
+        "Evidence": "ruff passed, targeted pytest passed, xdist partition passed, and session validation runs before commit."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #4644 Validate PR failure diagnosed and repaired with QA evidence."
+        "Evidence": "Fleet todo fix-xdist-collection-order updated after validation."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Not required for this narrow CI evidence repair."
+        "Evidence": ""
       }
     }
   },
   "workLog": [
     {
-      "action": "Diagnosed Validate PR",
-      "result": "Repository check-log scripts identified the sole failure: no QA report found for code changes."
+      "action": "Reproduced xdist collection mismatch",
+      "outcome": "Workers collected feature-review recommendation cases in different frozenset orders."
     },
     {
-      "action": "Validated PR changes",
-      "result": "Focused ratchet suite passed 97 tests; independent QA passed 76 tests."
+      "action": "Made parametrization deterministic",
+      "outcome": "Sorted VALID_RECOMMENDATIONS at the test boundary without changing production behavior."
     },
     {
-      "action": "Added QA evidence",
-      "result": "Created a PR-bound QA report and matching session evidence without changing source code."
+      "action": "Verified the fix",
+      "outcome": "42 targeted tests passed. Four xdist workers passed the 25,321-test non-integration partition twice in 315.53 and 301.03 seconds."
     }
   ],
-  "endingCommit": "b923f542d7123f616ed537a49ad9e0408a428aa9",
+  "endingCommit": "4e7c0868f97104396b328cf9b6f08f2d8518afbe",
   "nextSteps": [
-    "Commit and push the evidence-only fix, then verify Validate PR reruns successfully."
+    "Open an atomic pull request referencing Issue #4823."
   ]
 }

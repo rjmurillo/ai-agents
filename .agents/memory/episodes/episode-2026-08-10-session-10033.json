@@ -4,14 +4,14 @@
   "timestamp": "2026-08-10T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Autofix PR 4644 Validate PR QA evidence",
+  "task": "Fix xdist collection order for Issue 4823",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Diagnosed Validate PR",
+      "content": "Reproduced xdist collection mismatch",
       "caused_by": [],
       "leads_to": [
         "e004"
@@ -22,7 +22,7 @@
       "id": "e002",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Validated PR changes",
+      "content": "Made parametrization deterministic",
       "caused_by": [],
       "leads_to": [
         "e004"
@@ -33,7 +33,7 @@
       "id": "e003",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added QA evidence",
+      "content": "Verified the fix",
       "caused_by": [],
       "leads_to": [
         "e004"
@@ -42,9 +42,9 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-10T09:33:05+00:00",
+      "timestamp": "2026-08-10T06:42:16+00:00",
       "type": "commit",
-      "content": "Commit: b923f542d7123f616ed537a49ad9e0408a428aa9",
+      "content": "Commit: 4e7c0868f97104396b328cf9b6f08f2d8518afbe",
       "caused_by": [
         "e001",
         "e002",
@@ -60,7 +60,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 5
+    "files_changed": 1
   },
   "lessons": []
 }
