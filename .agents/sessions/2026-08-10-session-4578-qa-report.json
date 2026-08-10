@@ -4,7 +4,7 @@
     "number": 4578,
     "date": "2026-08-10",
     "branch": "autofix-qa-4578",
-    "startingCommit": "332ff6bcefe263198637733ab141fb0d855a62e9",
+    "startingCommit": "54da2422fd84069420c982ba803c3e2e4853e712",
     "objective": "Add QA evidence for PR 4578 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "332ff6bcefe263198637733ab141fb0d855a62e9"
+        "Evidence": "54da2422fd84069420c982ba803c3e2e4853e712"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/test_get_pr_checks.py tests/skills/github/test_why_pr_blocked.py tests/external_signals/test_gate_aggregator.py -q passed with 183 passed in 1.06s."
+        "Evidence": "uv run --frozen pytest tests/test_get_pr_checks.py tests/skills/github/test_why_pr_blocked.py tests/external_signals/test_gate_aggregator.py -q passed with 183 passed in 0.92s after merging origin/main."
       },
       "qaValidation": {
         "level": "MUST",
@@ -115,6 +115,10 @@
     {
       "time": "2026-08-10T11:30:00Z",
       "entry": "Created QA report bound to pre-report code commit 332ff6bcefe263198637733ab141fb0d855a62e9."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to 54da2422fd84069420c982ba803c3e2e4853e712."
     }
   ],
   "endingCommit": "",
@@ -123,8 +127,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "4fd14b8864858e9ca9412e0320edbb7ee01fc8d5",
-      "head": "332ff6bcefe263198637733ab141fb0d855a62e9"
+      "base": "7547a7971efea179553c9fd2cae3ea3dd791b93d",
+      "head": "54da2422fd84069420c982ba803c3e2e4853e712"
     }
   }
 }
