@@ -454,6 +454,14 @@ def _original_main(stdin_bytes):
     from _push_pr_guard_scope import _command_is_in_scope  # noqa: E402
     from _push_pr_guard_tables import _EXPANSION_SAFE_COMMANDS, _SHELL_EVALUATORS  # noqa: E402
 
+    # The entry is removed as soon as the unit is loaded. Every module above
+    # imports its own dependencies at module scope, so nothing else needs to
+    # resolve by name after this point, and Copilot CLI runs several shims inside
+    # ONE process: leaving the hooks directory on sys.path would let a file
+    # dropped there shadow a stdlib module for the shims that run next.
+    if sys.path and sys.path[0] == _GUARD_DIRECTORY:
+        del sys.path[0]
+
     _MAX_STDIN_BYTES = 128 * 1024
 
     _PLUGIN_SCRIPT_REFERENCE = (

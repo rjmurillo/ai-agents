@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    CLAUDE_GUARD,
     CLAUDE_PLUGIN_ROOT,
     COPILOT_PLUGIN_ROOT,
     PLUGIN_SCRIPT_REFERENCE,
@@ -297,3 +298,41 @@ def test_push_pr_command_grants_no_unrestricted_write() -> None:
         )
 
 
+
+
+def test_guard_removes_its_module_directory_from_sys_path() -> None:
+    """The guard must not leave the hooks directory importable after it loads.
+
+    Copilot CLI runs every registered shim for an event inside ONE process, so
+    a `sys.path` entry the guard adds outlives the guard. The hooks directory
+    holds files a plugin install writes, and leaving it ahead of the stdlib
+    would let a file dropped there shadow `hashlib` or `subprocess` for the
+    shims that run next.
+
+    The entry is needed only while the sibling modules import, and every one
+    of them imports its dependencies at module scope, so nothing resolves by
+    name afterward.
+    """
+    guard_directory = str(CLAUDE_GUARD.parent)
+    probe = (
+        "import json, sys;"
+        "spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location("
+        "'guard_under_test', sys.argv[1]);"
+        "module = __import__('importlib.util', fromlist=['util']).module_from_spec(spec);"
+        "spec.loader.exec_module(module);"
+        "print(json.dumps(sys.argv[2] in sys.path))"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", probe, str(CLAUDE_GUARD), guard_directory],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "false", (
+        f"guard left {guard_directory} on sys.path: {result.stdout!r}"
+    )
