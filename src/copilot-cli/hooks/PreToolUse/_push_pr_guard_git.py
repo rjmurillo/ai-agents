@@ -391,9 +391,20 @@ def _git_delegated_operands(
     if subcommand_index is not None:
         subcommand = normalized[subcommand_index].value.casefold()
         execution_options = _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND.get(subcommand, frozenset())
+        execution_operands = _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND.get(subcommand, frozenset())
         for offset, token in enumerate(
             normalized[subcommand_index + 1 :], start=subcommand_index + 1
         ):
+            # `git bisect run <cmd>` and `git submodule foreach <cmd>` name no
+            # option: the operand itself opens the command runner, and every
+            # word after it is the command line it runs. Relevance read only
+            # the option tables, so both were measured allowed while the merged
+            # tree denied them (issue #4764). The policy predicate already
+            # consulted this table; relevance short-circuits before policy, so
+            # it has to consult it too or the table is unreachable.
+            if token.value.casefold() in execution_operands:
+                operands.extend(normalized[offset + 1 :])
+                break
             if not _matches_git_option(subcommand, token.value, execution_options):
                 continue
             _key, separator, configured_option = token.value.partition("=")

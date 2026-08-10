@@ -178,14 +178,21 @@ def _strip_unquoted_redirections(command: str) -> str:
     return "".join(out)
 
 
-def _split_shell_segments(command: str) -> list[str]:
+def _split_shell_segments(command: str) -> list[tuple[str, str]]:
     """Split on shell operators that sit outside quotes.
 
     A regex split matched operators inside quoted arguments, so
     ``./attacker/pr/?ew_pr.py "x && y"`` was torn into fragments that no longer
     parsed and the execution was never classified (issue #4825).
+
+    Each entry pairs the segment text with the operator that FOLLOWS it, empty
+    for the last one. The operator is what tells a caller whether this
+    segment's stdout becomes the next segment's input: ``echo python3
+    .../new_pr.py | sh`` is one reader and one shell, and dropping the ``|``
+    left the reader's operands classified as data while the shell ran them
+    (issue #4764).
     """
-    segments: list[str] = []
+    segments: list[tuple[str, str]] = []
     current: list[str] = []
     quote: str | None = None
     index = 0
@@ -211,15 +218,17 @@ def _split_shell_segments(command: str) -> list[str]:
             index += 1
             continue
         if char in ";&|\n":
-            segments.append("".join(current))
-            current = []
+            operator = char
             if index + 1 < len(command) and command[index + 1] == char:
+                operator = char * 2
                 index += 1
+            segments.append(("".join(current), operator))
+            current = []
             index += 1
             continue
         current.append(char)
         index += 1
-    segments.append("".join(current))
+    segments.append(("".join(current), ""))
     return segments
 
 

@@ -37,6 +37,7 @@ from _push_pr_guard_evaluators import (
     _is_dynamic_evaluator_name,
 )
 from _push_pr_guard_expansion import (
+    _ExpansionBudget,
     _names_new_pr,
     _path_names_new_pr,
     _scope_segments,
@@ -253,7 +254,11 @@ def _operands_are_data(tokens: list[ShellToken], index: int, cwd: Path) -> bool:
     return not _token_is_python_interpreter(tokens, index, cwd)
 
 
-def _execution_capable_paths(tokens: list[ShellToken], cwd: Path) -> list[ShellToken]:
+def _execution_capable_paths(
+    tokens: list[ShellToken],
+    cwd: Path,
+    feeds_executor: bool = False,
+) -> list[ShellToken]:
     """Return the tokens whose VALUE is a path something could execute.
 
     Issue #4764 narrowed relevance to these positions. The previous rule placed
@@ -280,6 +285,12 @@ def _execution_capable_paths(tokens: list[ShellToken], cwd: Path) -> list[ShellT
     Doors 4 and 5 are additive and apply even to a reader, because they are how
     a command that otherwise only reads can still run a program.
 
+    ``feeds_executor`` closes door 3 for a reader whose stdout is a program's
+    input. A reader's operands are data to the reader and code to whatever
+    consumes them, so ``echo python3 .../new_pr.py | sh`` and ``echo
+    .../new_pr.py | xargs python3`` execute the path the reader printed. Both
+    were measured allowed while the merged tree denied them (issue #4764).
+
     What this removes is door 0 of the merged tree: "the command text mentions
     new_pr.py anywhere". That rule is what denied ``git diff`` and ``pytest``.
     """
@@ -295,7 +306,7 @@ def _execution_capable_paths(tokens: list[ShellToken], cwd: Path) -> list[ShellT
     )
     positions.extend(_git_delegated_operands(tokens, index, cwd))
 
-    if _operands_are_data(tokens, index, cwd):
+    if not feeds_executor and _operands_are_data(tokens, index, cwd):
         return positions
 
     # Not provably a reader, so every remaining word is a candidate path. This
@@ -359,11 +370,40 @@ def _command_is_in_scope(command: str, cwd: Path) -> bool:
     return _command_text_is_in_scope(command, cwd, 0)
 
 
-def _segments_are_in_scope(tokens: list[ShellToken], cwd: Path, depth: int) -> bool:
-    """Decide relevance for one shell segment."""
-    if any(_path_names_new_pr(token.value) for token in _execution_capable_paths(tokens, cwd)):
+def _segment_consumes_stdin_as_code(tokens: list[ShellToken], cwd: Path) -> bool:
+    """True when this segment can run what the previous one printed.
+
+    ``sh``, ``bash``, ``python3`` with no script, ``xargs`` and ``parallel``
+    all turn their standard input into a program or an argument vector. A
+    provable reader (``cat``, ``grep``, ``less``) does not, so a pipeline that
+    ends in one leaves the earlier segments' operands as data and
+    ``git diff -- .../new_pr.py | cat`` stays out of scope.
+
+    Reuses ``_operands_are_data`` rather than adding a second list of
+    executors, so the two answers cannot drift: anything that disqualifies a
+    command from being a reader also makes it a consumer of piped code, and an
+    unresolvable command fails closed in both.
+    """
+    index = _effective_command_index(tokens)
+    if index is None:
         return True
-    if any(_names_new_pr(text) for text in _execution_capable_code(tokens, cwd)):
+    return not _operands_are_data(tokens, index, cwd)
+
+
+def _segments_are_in_scope(
+    tokens: list[ShellToken],
+    cwd: Path,
+    depth: int,
+    feeds_executor: bool = False,
+    budget: _ExpansionBudget | None = None,
+) -> bool:
+    """Decide relevance for one shell segment."""
+    if any(
+        _path_names_new_pr(token.value, budget)
+        for token in _execution_capable_paths(tokens, cwd, feeds_executor)
+    ):
+        return True
+    if any(_names_new_pr(text, budget) for text in _execution_capable_code(tokens, cwd)):
         return True
     return (
         _unresolvable_python_target(tokens, cwd)
@@ -376,4 +416,40 @@ def _segments_are_in_scope(tokens: list[ShellToken], cwd: Path, depth: int) -> b
 def _command_text_is_in_scope(command: str, cwd: Path, depth: int) -> bool:
     if depth > 4:
         return True
-    return any(_segments_are_in_scope(tokens, cwd, depth) for tokens in _scope_segments(command))
+    # One allowance for the whole command. Every enumeration below charges the
+    # same budget, so a command cannot stay inside a per-call bound thousands
+    # of times over; see _ExpansionBudget.
+    budget = _ExpansionBudget()
+    segments = _scope_segments(command, budget)
+    for position, (tokens, _pipes_into_next) in enumerate(segments):
+        feeds_executor = _pipeline_reaches_executor(segments, position, cwd)
+        if _segments_are_in_scope(tokens, cwd, depth, feeds_executor, budget):
+            return True
+    return False
+
+
+def _pipeline_reaches_executor(
+    segments: list[tuple[list[ShellToken], bool]],
+    position: int,
+    cwd: Path,
+) -> bool:
+    """True when this segment's stdout eventually reaches a program runner.
+
+    Walks the pipeline forward rather than looking one segment ahead, because
+    a pass-through reader in the middle still carries the text: ``echo python3
+    .../new_pr.py | tee /dev/null | sh`` prints, copies, then runs. Stopping at
+    the first hop left that shape allowed while the two-segment form was
+    denied (issue #4764).
+
+    The walk ends at the first segment not piped onward, so ``git diff --
+    .../new_pr.py | cat`` and ``cat .../new_pr.py | head -20`` stay out of
+    scope.
+    """
+    index = position
+    while index < len(segments) and segments[index][1]:
+        index += 1
+        if index >= len(segments):
+            return False
+        if _segment_consumes_stdin_as_code(segments[index][0], cwd):
+            return True
+    return False

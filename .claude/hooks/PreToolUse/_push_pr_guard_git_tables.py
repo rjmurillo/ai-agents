@@ -151,12 +151,31 @@ _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND = {
     "archive": frozenset({"--exec"}),
     "clone": frozenset({"-c", "-u", "--config", "--template", "--upload-pack"}),
     "diff": frozenset({"--ext-diff"}),
+    "difftool": frozenset({"-x", "--extcmd"}),
     "fetch": frozenset({"--upload-pack"}),
+    # Every filter option takes a shell command Git runs once per commit.
+    "filter-branch": frozenset(
+        {
+            "--commit-filter",
+            "--env-filter",
+            "--index-filter",
+            "--msg-filter",
+            "--parent-filter",
+            "--subdirectory-filter",
+            "--tag-name-filter",
+            "--tree-filter",
+        }
+    ),
     "grep": frozenset({"-O", "--open-files-in-pager"}),
     "ls-remote": frozenset({"--upload-pack"}),
     "merge": frozenset({"-s", "--strategy"}),
+    "mergetool": frozenset({"-x", "--extcmd"}),
     "pull": frozenset({"-s", "--strategy", "--upload-pack"}),
     "push": frozenset({"--exec", "--receive-pack"}),
+    "rebase": frozenset({"-x", "--exec"}),
+    # --smtp-server accepts a program path instead of a host, and the *-cmd
+    # options are programs Git runs to produce recipients or headers.
+    "send-email": frozenset({"--cc-cmd", "--header-cmd", "--smtp-server", "--to-cmd"}),
 }
 
 
@@ -181,8 +200,12 @@ _GIT_OPTION_OPERANDS_BY_SUBCOMMAND = {
 }
 
 
+# Operands that turn a subcommand into a command runner: every word after one
+# of these is the command line Git executes. Unlike the option tables above,
+# the operand carries no leading dash, so `_matches_git_option` cannot see it.
 _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND = {
     "bisect": frozenset({"run"}),
+    "submodule": frozenset({"foreach"}),
 }
 
 

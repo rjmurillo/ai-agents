@@ -115,7 +115,40 @@ class _ExpansionBudgetError(Exception):
     """
 
 
-def _iter_brace_expansions(command: str) -> Iterator[str]:
+class _ExpansionBudget:
+    """One expansion allowance shared by every enumeration for one command.
+
+    A per-call budget bounds one enumeration and nothing else, and the guard
+    enumerates once per spelling variant, per token, per segment. Issue #4764
+    measured a 121 KiB command built from 4,600 copies of the 25-byte token
+    ``p{a..z}{a..z}{a..z}{a..z}``: every individual call stayed inside its own
+    budget while the run took 100.5 seconds, against 0.06 seconds on the
+    merged tree. The Copilot host's PreToolUse timeout is 10 seconds and a
+    Copilot timeout fails OPEN, so an allowance that only binds per call is
+    not an allowance at all.
+
+    One budget per relevance decision makes the total the thing that is
+    bounded. Exhaustion raises, and every caller reads a raise as "in scope",
+    so the expensive command is denied rather than timed out.
+    """
+
+    __slots__ = ("expanded_bytes", "expansions")
+
+    def __init__(self) -> None:
+        self.expansions = 0
+        self.expanded_bytes = 0
+
+    def spend(self, expansions: int, expanded_bytes: int) -> None:
+        """Charge work against the shared allowance, raising when it is gone."""
+        self.expansions += expansions
+        if self.expansions > _MAX_BRACE_EXPANSIONS:
+            raise _ExpansionBudgetError("brace expansion count budget exhausted")
+        self.expanded_bytes += expanded_bytes
+        if self.expanded_bytes > _MAX_BRACE_EXPANDED_BYTES:
+            raise _ExpansionBudgetError("brace expansion byte budget exhausted")
+
+
+def _iter_brace_expansions(command: str, budget: _ExpansionBudget | None = None) -> Iterator[str]:
     """Yield brace expansions of ``command``, innermost group first.
 
     Streams instead of materializing, and charges every projected byte against
@@ -133,13 +166,17 @@ def _iter_brace_expansions(command: str) -> Iterator[str]:
     the strings exist, since checking after allocation measures a spike that
     has already happened.
 
+    ``budget`` carries the allowance across every enumeration for one command.
+    Omitting it allocates a private one, which is right for a single-string
+    caller and wrong for a command walk; see :class:`_ExpansionBudget`.
+
     Raises ``_ExpansionBudgetError`` when either budget is exhausted. The
     enumeration is deliberately a superset of what a shell produces: relevance
     may over-include, never under-include.
     """
+    allowance = _ExpansionBudget() if budget is None else budget
     frontier = [command]
-    produced_bytes = len(command)
-    remaining = _MAX_BRACE_EXPANSIONS
+    allowance.spend(0, len(command))
     while frontier:
         candidate = frontier.pop()
         group = _INNERMOST_BRACE_GROUP.search(candidate)
@@ -147,13 +184,11 @@ def _iter_brace_expansions(command: str) -> Iterator[str]:
             yield candidate
             continue
         alternatives = _brace_alternatives(group.group(1))
-        remaining -= len(alternatives)
-        if remaining < 0:
-            raise _ExpansionBudgetError("brace expansion count budget exhausted")
         base_length = len(candidate) - (group.end() - group.start())
-        produced_bytes += sum(base_length + len(alternative) for alternative in alternatives)
-        if produced_bytes > _MAX_BRACE_EXPANDED_BYTES:
-            raise _ExpansionBudgetError("brace expansion byte budget exhausted")
+        allowance.spend(
+            len(alternatives),
+            sum(base_length + len(alternative) for alternative in alternatives),
+        )
         frontier.extend(
             candidate[: group.start()] + alternative + candidate[group.end() :]
             for alternative in alternatives
@@ -208,7 +243,7 @@ def _extglob_to_brace(text: str) -> str:
     return text
 
 
-def _spellings(text: str) -> set[str]:
+def _spellings(text: str, budget: _ExpansionBudget | None = None) -> set[str]:
     """Return the ways a shell could spell ``text`` before it reaches the OS.
 
     Collects the obfuscations the guard already knew about individually:
@@ -216,15 +251,22 @@ def _spellings(text: str) -> set[str]:
     (``$'new\\x5fpr.py'``), and extglob groups (``@(new)_pr.py``). Brace
     expansion is applied by the caller, because it is the only one that can
     exceed a budget.
+
+    Extglob rewriting charges the shared allowance for the text it produces.
+    The rewrite is bounded per call, and a command with thousands of tokens
+    calls it thousands of times, so the aggregate needs the same bound as the
+    brace expander it feeds.
     """
     unclassed = text.replace("[", "").replace("]", "")
     variants = {text, unclassed}
     variants |= {_ansi_c_decoded(variant) for variant in tuple(variants)}
     variants |= {_extglob_to_brace(variant) for variant in tuple(variants)}
+    if budget is not None:
+        budget.spend(0, sum(len(variant) for variant in variants))
     return variants
 
 
-def _names_new_pr(command: str) -> bool:
+def _names_new_pr(command: str, budget: _ExpansionBudget | None = None) -> bool:
     """True when ``command`` text can spell new_pr.py anywhere in it.
 
     Substring-based and position-blind. Used for CODE positions, where the text
@@ -233,18 +275,21 @@ def _names_new_pr(command: str) -> bool:
     ``_path_names_new_pr`` instead, because a substring test reports
     ``tests/test_new_pr.py`` as new_pr.py (issue #4764).
     """
-    for text in _spellings(command):
-        if _could_target_new_pr(text):
-            return True
-        try:
-            if any(_could_target_new_pr(candidate) for candidate in _iter_brace_expansions(text)):
+    try:
+        for text in _spellings(command, budget):
+            if _could_target_new_pr(text):
                 return True
-        except _ExpansionBudgetError:
-            return True
+            if any(
+                _could_target_new_pr(candidate)
+                for candidate in _iter_brace_expansions(text, budget)
+            ):
+                return True
+    except _ExpansionBudgetError:
+        return True
     return False
 
 
-def _path_names_new_pr(value: str) -> bool:
+def _path_names_new_pr(value: str, budget: _ExpansionBudget | None = None) -> bool:
     """True when ``value`` is a path whose final component is new_pr.py.
 
     Basename equality, not substring containment. Issue #4764 measured the
@@ -257,9 +302,13 @@ def _path_names_new_pr(value: str) -> bool:
     differs but whose bytes match is caught by ``_operand_is_new_pr_copy``,
     which compares content at execution positions.
     """
-    for text in _spellings(value):
+    try:
+        spellings = _spellings(value, budget)
+    except _ExpansionBudgetError:
+        return True
+    for text in spellings:
         try:
-            candidates = list(_iter_brace_expansions(text))
+            candidates = list(_iter_brace_expansions(text, budget))
         except _ExpansionBudgetError:
             return True
         for candidate in candidates:
@@ -300,7 +349,7 @@ def _ansi_c_decoded(text: str) -> str:
     return decoded
 
 
-def _segment_head_names_new_pr(segment: str) -> bool:
+def _segment_head_names_new_pr(segment: str, budget: _ExpansionBudget | None = None) -> bool:
     """Fail-closed backstop for a segment that still will not tokenize.
 
     Keeps an unparseable but target-shaped execution in scope rather than
@@ -318,7 +367,7 @@ def _segment_head_names_new_pr(segment: str) -> bool:
     stripped = segment.strip()
     if not stripped:
         return False
-    if _names_new_pr(stripped):
+    if _names_new_pr(stripped, budget):
         return True
     head = stripped.split(None, 1)
     word = head[0].strip("'\"")
@@ -328,7 +377,10 @@ def _segment_head_names_new_pr(segment: str) -> bool:
     return any(marker in basename for marker in "?*[") and fnmatch.fnmatch(_NEW_PR_TARGET, basename)
 
 
-def _scope_segments(command: str) -> list[list[ShellToken]]:
+def _scope_segments(
+    command: str,
+    budget: _ExpansionBudget | None = None,
+) -> list[tuple[list[ShellToken], bool]]:
     """Tokenize each shell segment for the relevance decision only.
 
     ``_split_command`` rejects command substitution, shell operators and
@@ -340,13 +392,20 @@ def _scope_segments(command: str) -> list[list[ShellToken]]:
     on unquoted operators, because execution position is a per-segment
     property. A segment that still will not parse is reported through the
     fail-closed backstop rather than silently skipped.
+
+    Each entry pairs the segment's tokens with whether its stdout is piped
+    into the next segment. A caller needs that flag because a pipeline's
+    reader and its executor are two segments: ``echo python3 .../new_pr.py |
+    sh`` puts the path in an operand of ``echo``, which reads its operands,
+    while ``sh`` runs the text ``echo`` prints (issue #4764).
     """
     neutralized = _COMMAND_SUBSTITUTION.sub("$X", command)
-    segments: list[list[ShellToken]] = []
-    for piece in _split_shell_segments(_strip_unquoted_redirections(neutralized)):
+    segments: list[tuple[list[ShellToken], bool]] = []
+    for piece, operator in _split_shell_segments(_strip_unquoted_redirections(neutralized)):
         stripped = piece.strip()
         if not stripped:
             continue
+        pipes_into_next = operator == "|"
         # Extglob groups become brace groups BEFORE tokenizing. `(` and `)` are
         # shell operators that _split_command rejects, so an extglob segment
         # used to fail to parse and fall through to the head-word backstop,
@@ -357,9 +416,9 @@ def _scope_segments(command: str) -> list[list[ShellToken]]:
         try:
             tokens = _split_command(rewritten)
         except GuardViolationError:
-            if _segment_head_names_new_pr(rewritten):
-                return [[ShellToken(_NEW_PR_TARGET, _NEW_PR_TARGET)]]
+            if _segment_head_names_new_pr(rewritten, budget):
+                return [([ShellToken(_NEW_PR_TARGET, _NEW_PR_TARGET)], False)]
             continue
         if tokens:
-            segments.append(tokens)
+            segments.append((tokens, pipes_into_next))
     return segments
