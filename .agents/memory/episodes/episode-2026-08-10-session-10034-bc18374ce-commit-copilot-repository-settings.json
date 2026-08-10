@@ -1,0 +1,54 @@
+{
+  "id": "episode-2026-08-10-session-10034-bc18374ce-commit-copilot-repository-settings",
+  "session": "2026-08-10-session-10034-bc18374ce-commit-copilot-repository-settings",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Commit Copilot repository settings",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated Copilot repository settings",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-10-session-10034-bc18374ce-commit-copilot-repository-settings"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed Copilot repository settings",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-10-session-10034-bc18374ce-commit-copilot-repository-settings"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T08:14:30+00:00",
+      "type": "commit",
+      "content": "Commit: 897cb7e7df",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10034-bc18374ce-commit-copilot-repository-settings"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 1
+  },
+  "lessons": []
+}
