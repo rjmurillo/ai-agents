@@ -146,11 +146,12 @@ plugin scripts. They use the documented plugin-root variables.
 The consolidated PreToolUse dispatcher has a host-timeout residual. The host
 owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
 timeout. No in-process watchdog is implemented. After the 2026-07-22 hook
-purge, the active manifest contains one shim with a 90-second configured
-timeout. The generated host entry requests 95 seconds, including five seconds
-of dispatcher headroom. A hung dispatcher can therefore allow the tool without
-completing the only active guard. The probe tested only 2 seconds. No evidence
-shows whether the host grants, caps, or enforces 95 seconds.
+purge and the issue #4764 identity gate, the active manifest contains two shims
+with 100 seconds of configured timeout. The generated host entry requests 105
+seconds, including five seconds of dispatcher headroom. A hung dispatcher can
+therefore allow the tool without completing every active guard. The probe tested
+only 2 seconds. No evidence shows whether the host grants, caps, or enforces 105
+seconds.
 
 Copilot parses at most one final JSON document per command hook. The active
 observe dispatcher captures nonblank stdout from one successful PostToolUse

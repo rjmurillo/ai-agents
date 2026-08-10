@@ -14,21 +14,36 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import contextlib
 import os
 import re
 import subprocess
 import sys
-import tempfile
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_pr_description import (
-    _CONVENTIONAL_COMMIT_PATTERN,
-    validate_no_escaped_newlines,
+_CONVENTIONAL_COMMIT_PATTERN = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
+    r"(\(.+\))?!?: .+"
 )
+
+
+def validate_no_escaped_newlines(body_content: str) -> None:
+    """Reject a body made from literal backslash-n sequences."""
+    escaped_count = body_content.count("\\n")
+    if not escaped_count or "\n" in body_content.strip():
+        return
+    print(
+        f"ERROR: Body carries {escaped_count} literal backslash-n"
+        " sequence(s) and no line break, so GitHub would render it as one"
+        " unbroken paragraph and drop every heading, list and table.",
+        file=sys.stderr,
+    )
+    print(
+        "  Write the body to a file and pass --body-file, which cannot"
+        " express this error.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 # Em/en-dash detection regex for Validation 5. Inlined here rather than
 # imported from scripts.validation.pr_description because:
@@ -109,44 +124,6 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
-    """Run a warning-only validator. Return its name when it failed to run.
-
-    Both detectors document exit 0 as "ran; findings are warnings" and any
-    non-zero exit as an error, so a non-zero code here means the validator did
-    not produce findings at all. Discarding it turned a validator that never
-    ran into success-shaped output: detect_test_coverage_gaps.py died on an
-    import error while this wrapper still printed "All pre-creation
-    validations passed" (issue #3391).
-    """
-    name = os.path.basename(argv[1]) if len(argv) > 1 else argv[0]
-    try:
-        result = subprocess.run(
-            argv,
-            timeout=timeout,
-            env=_git_env(),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        print(f"  ERROR: {name} could not be run: {exc}", file=sys.stderr)
-        return name
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
-    if result.returncode != 0:
-        print(
-            f"  ERROR: {name} exited {result.returncode}, so its findings are"
-            " unknown. This is a validator failure, not a clean scan.",
-            file=sys.stderr,
-        )
-        return name
-    return None
 
 
 def _git_env() -> dict[str, str]:
@@ -241,58 +218,31 @@ def _extract_validatable_session_logs(
     return [f for f in matched if f.endswith(".json")], bool(legacy_md)
 
 
-@contextlib.contextmanager
-def _session_log_for_validation(
-    repo_root: str, head: str, session_log: str
-) -> Iterator[str | None]:
-    """Yield a filesystem path to the session log to validate, or None.
+# Issue #4764: /push-pr must not execute repository-controlled Python to decide
+# whether to create a pull request. All three detectors named below live under
+# scripts/, which any branch can rewrite, so this script never runs them and
+# reports them as not run. CI runs them from a trusted checkout.
+#
+# Issue #4825 review 4894113215 finding 1: this was previously a helper that
+# ignored all three of its arguments and always returned False. It printed
+# "Skipped ... because scripts/ is changed or dirty" on a clean branch, did not
+# record the skip, and still summarized the run as "All pre-creation
+# validations passed!". The boundary is a constant policy, not a runtime
+# condition, so it is spelled as one.
+_UNTRUSTED_REPOSITORY_VALIDATORS = (
+    "Session End (scripts/validate_session_json.py)",
+    "skill violation (scripts/detect_skill_violation.py)",
+    "test coverage (scripts/detect_test_coverage_gaps.py)",
+)
+_UNTRUSTED_REPOSITORY_REASON = (
+    "repository-local Python is outside the trusted push-pr boundary"
+)
 
-    The changed-file list comes from ``git diff base...head`` (refs), so the
-    log lives at ``head:<path>`` in git history. For a branch that is not
-    checked out into the current worktree, ``repo_root/<path>`` does not
-    exist on disk, which produced an opaque "Session End validation failed"
-    (#2387). Read the content from the branch ref via ``git show`` into a
-    temp file under ignored ``.agents/scratch/session-log-validation`` and yield
-    that path. Yield None when the ref read fails, so stale working-tree files
-    cannot produce a false validation pass.
-    """
-    show = subprocess.run(
-        ["git", "show", f"{head}:{session_log}"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    if show.returncode == 0:
-        scratch_dir = os.path.join(
-            repo_root, ".agents", "scratch", "session-log-validation"
-        )
-        os.makedirs(scratch_dir, exist_ok=True)
-        tmp_name = ""
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                suffix=".json",
-                prefix=".session-log-",
-                dir=scratch_dir,
-                delete=False,
-            ) as tmp:
-                tmp.write(show.stdout)
-                tmp_name = tmp.name
-            yield tmp_name
-        finally:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp_name)
-        return
 
-    print(
-        f"  WARNING: session log {session_log} not found at {head}; "
-        "skipping Session End validation.",
-        file=sys.stderr,
-    )
-    yield None
+def _report_not_run(validator: str) -> None:
+    """Name a validator this script deliberately does not run."""
+    print(f"  Not run: {validator}.")
+    print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}; CI runs it from a trusted checkout.")
 
 
 def run_validations(
@@ -305,7 +255,6 @@ def run_validations(
     body_file: str = "",
 ) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
-    unrun_validators: list[str] = []
     try:
         os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
     except PermissionError as exc:
@@ -341,40 +290,7 @@ def run_validations(
             changed_files
         )
         if session_logs:
-            # Sort by (date, session_number_int) so non-zero-padded
-            # session numbers compare numerically. Lexical sort would
-            # put session-10 before session-9 (CodeRabbit finding).
-            def _session_sort_key(path: str) -> tuple[str, int]:
-                m = re.match(
-                    r"^\.agents/sessions/"
-                    r"(\d{4}-\d{2}-\d{2})-session-(\d+)",
-                    path,
-                )
-                if m is None:
-                    return ("", 0)
-                return (m.group(1), int(m.group(2)))
-            session_log = sorted(session_logs, key=_session_sort_key)[-1]
-            validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
-            if os.path.exists(validate_script):
-                with _session_log_for_validation(
-                    repo_root, head, session_log
-                ) as session_log_path:
-                    if session_log_path is not None:
-                        vresult = subprocess.run(
-                            [
-                                sys.executable,
-                                validate_script,
-                                session_log_path,
-                            ],
-                            capture_output=True,
-                            text=True,
-                            encoding="utf-8",
-                            errors="replace",
-                            timeout=60,
-                        )
-                        if vresult.returncode != 0:
-                            print("Session End validation failed", file=sys.stderr)
-                            raise SystemExit(1)
+            _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[0])
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
     elif diff_failed:
@@ -385,34 +301,22 @@ def run_validations(
     # Validation 2: Skill violation detection (WARNING)
     print()
     print("[2/6] Checking for skill violations...")
-    skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
-    if os.path.exists(skill_script) and scannable_files:
-        skill_args = [sys.executable, skill_script]
-        for changed_file in scannable_files:
-            skill_args.extend(["--file", changed_file])
-        failed = _run_warning_validator(skill_args, timeout=30)
-        if failed:
-            unrun_validators.append(failed)
-    elif os.path.exists(skill_script):
-        if diff_failed:
-            print("  Skipped: git diff failed, changed files unknown (see warning above).")
-        elif not changed_files:
-            print("  No changed files to check.")
-        else:
-            _exts = ", ".join(sorted(_SKILL_SCAN_EXTENSIONS))
-            print(f"  No changed files with a scannable extension ({_exts}).")
+    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[1])
+    if diff_failed:
+        print("  Scope: unknown, git diff failed (see warning above).")
+    elif not changed_files:
+        print("  Scope: no changed files.")
+    elif not scannable_files:
+        _exts = ", ".join(sorted(_SKILL_SCAN_EXTENSIONS))
+        print(f"  Scope: no changed file has a scannable extension ({_exts}).")
+    else:
+        print(f"  Scope: {len(scannable_files)} changed file(s) would have been scanned.")
 
     # Validation 3: Test coverage detection (WARNING)
     print()
     print("[3/6] Checking test coverage...")
-    test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
-    if os.path.exists(test_script):
-        failed = _run_warning_validator(
-            [sys.executable, test_script, "--staged-only"], timeout=30
-        )
-        if failed:
-            unrun_validators.append(failed)
+    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[2])
 
     # Validation 4: PR Description validation (WARNING)
     print()
@@ -422,7 +326,7 @@ def run_validations(
         "validate_pr_description.py",
     )
     if os.path.exists(validate_script) and title:
-        val_args = [sys.executable, validate_script, "--title", title]
+        val_args = [sys.executable, "-I", validate_script, "--title", title]
         if body:
             val_args.extend(["--body", body])
         elif body_file:
@@ -499,16 +403,12 @@ def run_validations(
     print("  Body line breaks are real newlines.")
 
     print()
-    if unrun_validators:
-        print(
-            "Validation incomplete: "
-            + ", ".join(sorted(set(unrun_validators)))
-            + " did not run. Fix the validator or re-run with"
-            ' --skip-validation --audit-reason "...".',
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print("All pre-creation validations passed!")
+    print(
+        "Trusted pre-creation validations passed. "
+        f"{len(_UNTRUSTED_REPOSITORY_VALIDATORS)} repository-local check(s) did "
+        "not run: " + ", ".join(_UNTRUSTED_REPOSITORY_VALIDATORS) + "."
+    )
+    print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}.")
     print()
 
 
