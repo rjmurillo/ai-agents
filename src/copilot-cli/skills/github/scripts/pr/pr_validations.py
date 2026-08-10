@@ -266,7 +266,15 @@ def run_validations(
         )
         if session_logs:
             _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[0])
-        elif not has_legacy_md:
+        elif has_legacy_md:
+            # A legacy .md log leaves nothing for this run to validate, so the
+            # summary must say so. Printing the warning without recording it
+            # reproduced the exact defect issue #4764 filed against Validation
+            # 4: a WARNING line on stderr under an unqualified pass headline.
+            warnings.record(
+                "only legacy .md session log(s) staged; no JSON session log was validated here"
+            )
+        else:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
             warnings.record("no session log found but .agents/ files changed")
     elif diff_failed:

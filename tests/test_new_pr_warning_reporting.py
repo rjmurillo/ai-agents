@@ -190,3 +190,53 @@ def test_dash_violation_still_blocks(tmp_path) -> None:
             )
 
     assert excinfo.value.code == 1
+
+
+def test_legacy_md_session_log_is_tracked_as_a_warning(tmp_path, capsys) -> None:
+    """A legacy .md session log leaves nothing validated, so the summary must say so.
+
+    ``_extract_validatable_session_logs`` prints ``WARNING: legacy .md session
+    log(s) staged``, then the caller took the branch that records nothing: it
+    neither validated a JSON log nor logged a warning, and the run closed with
+    the unqualified pass headline. That is the same shape as the Validation 4
+    defect this module was written for, one branch over, and it is why the
+    warning log is checked here rather than only where it was first missing.
+    """
+
+    def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
+        argv = [str(part) for part in cmd]
+        if argv[:3] == ["git", "diff", "--name-only"]:
+            return _completed(stdout=".agents/sessions/2026-01-01-session-01.md\n", rc=0)
+        return _completed(rc=0)
+
+    with patch("subprocess.run", side_effect=run):
+        run_validations(str(tmp_path), "main", "feat/branch", title="feat: x", body="body")
+
+    captured = capsys.readouterr()
+
+    assert "legacy .md session log(s) staged" in captured.err
+    assert PASS_SUMMARY not in captured.out
+    assert WARNING_SUMMARY in captured.out
+
+
+def test_validated_json_session_log_keeps_the_pass_summary(tmp_path, capsys) -> None:
+    """Inverse control: a JSON session log is the case that should stay a pass.
+
+    Without this, recording the legacy case could be satisfied by warning on
+    every ``.agents/`` change, which would make the summary meaningless.
+    """
+
+    def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
+        argv = [str(part) for part in cmd]
+        if argv[:3] == ["git", "diff", "--name-only"]:
+            return _completed(stdout=".agents/sessions/2026-01-01-session-01.json\n", rc=0)
+        return _completed(rc=0)
+
+    with patch("subprocess.run", side_effect=run):
+        run_validations(str(tmp_path), "main", "feat/branch", title="feat: x", body="body")
+
+    captured = capsys.readouterr()
+
+    assert "legacy .md session log(s) staged" not in captured.err
+    assert WARNING_SUMMARY not in captured.out
+    assert PASS_SUMMARY in captured.out
