@@ -396,9 +396,9 @@ def _git_delegated_operands(
         ):
             if not _matches_git_option(subcommand, token.value, execution_options):
                 continue
-            _key, separator, configured = token.value.partition("=")
+            _key, separator, configured_option = token.value.partition("=")
             if separator:
-                operands.append(ShellToken(token.raw, configured))
+                operands.append(ShellToken(token.raw, configured_option))
             elif offset + 1 < len(normalized):
                 operands.append(normalized[offset + 1])
     return operands

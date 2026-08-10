@@ -6,6 +6,12 @@
 .claude/skills/adr-review/scripts/detect_adr_changes.py
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
+# pr_validations.py: split out of new_pr.py (issue #4764). The scripts/ paths
+# are display strings in _UNTRUSTED_REPOSITORY_VALIDATORS, which names the three
+# repository-local validators /push-pr deliberately does not run. Naming them is
+# the point of the message, so the reference cannot be dropped, and no
+# portability helper applies to a string the script never opens.
+.claude/skills/github/scripts/pr/pr_validations.py
 .claude/skills/golden-principles/scripts/scan_principles.py
 .claude/skills/golden-principles/scripts/scan_principles_core.py
 .claude/skills/memory/memory_core/reflexion_memory.py
