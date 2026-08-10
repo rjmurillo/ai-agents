@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": "Not invoked; task requested implementation, push, and PR."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4601-session-10001-qa-report.md"
       }
     }
   },
@@ -145,6 +150,14 @@
       ]
     }
   ],
-  "endingCommit": "e7f1960cf539c44aaf302a1bd4edc482a91df642",
-  "nextSteps": []
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "48b23fe59bfbe10b2ee137f7060d8dc0451ad8a7",
+      "head": "20ff7382c51ab56761c36beed5865aba58b48f3c"
+    }
+  }
 }
