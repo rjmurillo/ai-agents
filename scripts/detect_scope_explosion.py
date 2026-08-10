@@ -50,6 +50,10 @@ BLOCK_THRESHOLD = 50
 TRUNK_BRANCHES = frozenset({"main", "master"})
 
 
+class ScopeDetectionError(RuntimeError):
+    """Raised when the scope gate cannot determine the branch delta."""
+
+
 @dataclass(frozen=True)
 class ScopeResult:
     """Result of scope explosion detection."""
@@ -117,42 +121,6 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
-def is_ancestor(commit: str, ref: str) -> bool:
-    """Return True if ``commit`` is reachable from ``ref`` (i.e. an ancestor).
-
-    ``git merge-base --is-ancestor A B`` exits 0 when A is an ancestor of B
-    (or equal to B) and 1 otherwise.  Exit 2+ signals an error (unknown ref,
-    repository problems) and is treated as False so the caller falls through to
-    the safe non-MERGE_HEAD path.
-
-    Used to distinguish the two MERGE_HEAD cases:
-
-    * MERGE_HEAD is upstream of HEAD (e.g. ``git merge origin/main``).
-      MERGE_HEAD is *ahead* of the base branch; it is NOT an ancestor of
-      ``origin/main``.  Counting staged files against MERGE_HEAD gives the
-      correct PR-only delta.
-    * MERGE_HEAD is the branch's own remote tip, which is *behind* main
-      (e.g. a non-fast-forward recovery via ``git merge origin/<same-branch>``).
-      MERGE_HEAD IS an ancestor of ``origin/main``.  Counting staged files
-      against it inflates the count by every file main gained since that tip
-      (Issue #4418: 635 reported when 17 were real).
-
-    Args:
-        commit: A commit SHA or ref to test.
-        ref: The ref to test reachability against.
-
-    Returns:
-        True when ``commit`` is an ancestor-or-equal of ``ref``.
-    """
-    result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, ref],
-        capture_output=True,
-        timeout=10,
-        check=False,
-    )
-    return result.returncode == 0
-
-
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -180,7 +148,7 @@ def resolve_base_ref(base_branch: str) -> str | None:
     return None
 
 
-def get_merge_base(base_branch: str) -> str | None:
+def get_merge_base(base_branch: str, base_ref: str | None = None) -> str | None:
     """Find the merge base between HEAD and the base branch.
 
     Prefers ``origin/<base_branch>`` over the local branch ref to avoid stale
@@ -189,11 +157,13 @@ def get_merge_base(base_branch: str) -> str | None:
 
     Args:
         base_branch: The branch to compare against (e.g. "main").
+        base_ref: The already-resolved ref to compare against.
 
     Returns:
         Merge base commit SHA, or None if not found.
     """
-    base_ref = resolve_base_ref(base_branch)
+    if base_ref is None:
+        base_ref = resolve_base_ref(base_branch)
     if base_ref is None:
         return None
     result = subprocess.run(
@@ -210,7 +180,11 @@ def get_merge_base(base_branch: str) -> str | None:
 
 
 def get_index_files_against_ref(base_ref: str) -> list[str]:
-    """Get staged result files that differ from a base ref."""
+    """Get staged result files that differ from a base ref.
+
+    Raises:
+        ScopeDetectionError: If the git diff command fails.
+    """
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", base_ref],
         capture_output=True,
@@ -221,7 +195,33 @@ def get_index_files_against_ref(base_ref: str) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        return []
+        raise ScopeDetectionError(
+            f"git diff --cached against {base_ref} failed (rc={result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
+    return [f.strip() for f in result.stdout.splitlines() if f.strip()]
+
+
+def get_head_files_against_ref(base_ref: str) -> list[str]:
+    """Get committed HEAD files that differ from a base ref.
+
+    Raises:
+        ScopeDetectionError: If the git diff command fails.
+    """
+    result = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ScopeDetectionError(
+            f"git diff against {base_ref}...HEAD failed (rc={result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 
@@ -235,42 +235,36 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         ScopeResult with file counts, or None if detection not applicable.
     """
     branch = get_current_branch()
-    if not branch or branch in TRUNK_BRANCHES:
+    if branch is None:
+        raise ScopeDetectionError("detached HEAD: scope check cannot determine the current branch")
+    if branch in TRUNK_BRANCHES:
         return None
 
     base_ref = resolve_base_ref(base_branch)
     if base_ref is None:
-        return None
+        raise ScopeDetectionError(f"could not resolve base branch {base_branch}")
 
     merge_head = get_merge_head_commit()
     if merge_head:
-        # During an in-progress merge, the staged index already contains every
-        # file from the upstream branch being merged. Counting that against the
-        # base ref would surface upstream files as if they were PR changes
-        # (Issue #2376 -- observed 86 files reported when the real PR diff was
-        # 13). Compare the staged result directly against MERGE_HEAD so we
-        # only count files this PR actually touches relative to what is being
-        # merged in.
-        #
-        # Exception (Issue #4418): when MERGE_HEAD is a proper ancestor of the
-        # base branch, the branch is merging its own old remote tip, not the
-        # upstream branch. MERGE_HEAD is behind main, so counting staged files
-        # against it inflates the count by every file main gained since that
-        # tip (observed: 635 reported when 17 were real). Fall through to the
-        # normal merge-base path in this case.
-        base_commit = get_ref_commit(base_ref)
-        if merge_head == base_commit or not is_ancestor(merge_head, base_ref):
-            files = sorted(set(get_index_files_against_ref(merge_head)))
-            return ScopeResult(
-                file_count=len(files),
-                merge_base=(base_commit or merge_head)[:12],
-                current_branch=branch,
-                files=tuple(files),
-            )
+        # During an in-progress merge, measure the final staged tree against
+        # the resolved PR base ref. This matches the eventual PR diff against
+        # that base, so branch-local staged work, local-main-only commits, and
+        # sibling-branch merges all count, while base-branch files already
+        # present on the resolved base stay out of scope. Do not require a
+        # merge-base here: unrelated-history merges still produce a valid
+        # staged diff against the base ref, and blocking on merge-base would
+        # turn a countable merge into a hard error.
+        files = sorted(set(get_index_files_against_ref(base_ref)))
+        return ScopeResult(
+            file_count=len(files),
+            merge_base=base_ref[:12],
+            current_branch=branch,
+            files=tuple(files),
+        )
 
-    merge_base = get_merge_base(base_branch)
+    merge_base = get_merge_base(base_branch, base_ref)
     if not merge_base:
-        return None
+        raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     # Count the final staged tree against the merge base, matching the
     # in-progress-merge path above. `git diff --cached --diff-filter=ACMR
@@ -459,7 +453,7 @@ def main() -> int:
 
         result = detect_scope(args.base_branch or "main")
         if result is None:
-            # Not on a feature branch or no merge base found
+            # Trunk branch only. Unknown scope raises ScopeDetectionError.
             return 0
 
         # Consult the PR base only when the cheap measurement is about to
@@ -473,6 +467,9 @@ def main() -> int:
         from_prepush = args.base_branch is not None
         return report(result, args.quiet, from_prepush=from_prepush)
 
+    except ScopeDetectionError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
     except subprocess.TimeoutExpired:
         print("ERROR: Git command timed out during scope detection", file=sys.stderr)
         return 2

@@ -16,10 +16,11 @@ EXIT_OK = 0
 EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 
-DEFAULT_OVERHEAD_MINUTES = 5
+DEFAULT_OVERHEAD_SECONDS = 5 * 60
 DEFAULT_AI_REVIEW_TIMEOUT_MINUTES = 5
-ATTEMPTS_PER_STEP = 3
-RETRY_DELAY_MINUTES = 1.5
+CONTEXT_RETRY_BUDGET_SECONDS = 210
+MINIMUM_MODEL_PROCESS_BUDGET_SECONDS = 5 * 60
+FINALIZATION_RESERVE_SECONDS = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,8 +63,13 @@ def _step_timeout(step: Mapping[str, object]) -> int | None:
 
 
 def required_job_timeout(step_timeouts: Sequence[int]) -> int:
-    worst_case = sum(ATTEMPTS_PER_STEP * timeout + RETRY_DELAY_MINUTES for timeout in step_timeouts)
-    return math.ceil(worst_case + DEFAULT_OVERHEAD_MINUTES)
+    action_budgets = sum(
+        CONTEXT_RETRY_BUDGET_SECONDS
+        + max(timeout * 60, MINIMUM_MODEL_PROCESS_BUDGET_SECONDS)
+        + FINALIZATION_RESERVE_SECONDS
+        for timeout in step_timeouts
+    )
+    return math.ceil((action_budgets + DEFAULT_OVERHEAD_SECONDS) / 60)
 
 
 def ai_review_step_timeouts(job: Mapping[object, object]) -> tuple[int, ...]:
