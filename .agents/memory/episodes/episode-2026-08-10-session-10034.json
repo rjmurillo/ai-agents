@@ -1,0 +1,128 @@
+{
+  "id": "episode-2026-08-10-session-10034",
+  "session": "2026-08-10-session-10034",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Enable bounded four-worker pytest-xdist parallelism for Issue 4823",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read Issue 4823, the prerequisite branch diff, and the matching rule files",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added pytest-xdist to both dev dependency tables and regenerated the lock",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a bounded worker-count parser to the pre-push gate",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the four-worker flags to the CI main pytest step",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the validation gates",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded one flaky failure seen in a parallel coverage run",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T07:07:14+00:00",
+      "type": "commit",
+      "content": "Commit: 5306e1d2e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T07:12:59+00:00",
+      "type": "commit",
+      "content": "Commit: 7d8aaa893",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T07:15:16+00:00",
+      "type": "commit",
+      "content": "Commit: 4599e70f8e28846f5f327a56baccf6c18b726d57",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10034"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 8
+  },
+  "lessons": []
+}
