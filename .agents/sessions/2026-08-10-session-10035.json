@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Three code commits, 5306e1d2e, 7d8aaa893, and 4599e70f8, plus this documentation commit."
+        "Evidence": "Feature commits through 953338d6fe8cfcd86206fb6a467060bb66d5693b, plus current main merge 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1 and this evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -194,9 +194,13 @@
     {
       "action": "Renumbered this session from 10034 to 10035 after main claimed 10034",
       "outcome": "origin/main advanced to d4cc52d5de0c and landed its own 2026-08-10-session-10034.json for branch perf/4826-redundant-test-runs on issue #4826, producing an add/add conflict. 10035 is free on main."
+    },
+    {
+      "action": "Merged current main after CI reported a stale lint baseline",
+      "outcome": "Merge commit 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1 imports baseline 30 from main. The local ratchet now reports 27 violations with 3 slack."
     }
   ],
-  "endingCommit": "953338d6fe8cfcd86206fb6a467060bb66d5693b",
+  "endingCommit": "51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1",
   "nextSteps": [
     "Push the branch and read the CI wall clock from the workflow run; the sub-10-minute target is unproven until then.",
     "File a separate issue for the pr-autofix lease-renewal grandchild that keeps the harness pipe open.",

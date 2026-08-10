@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035.json
-qaCommit: 953338d6fe8cfcd86206fb6a467060bb66d5693b
+qaCommit: 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1
 ---
 
 # QA Report: pytest-xdist Parallelism at Every Logical CPU
@@ -26,6 +26,9 @@ Commits under test:
 | `aaa1efa90` | Bulk pre-push partition scaled to every logical CPU |
 | `ea508b072` | CI `Run pytest` step scaled to every runner CPU |
 | `953338d6f` | Mutation marker assertions scoped to their own run |
+
+Merge commit `51a03ff77` imports current `main` to pick up the lowered lint
+baseline. The xdist changes listed above are unchanged.
 
 An earlier revision of this branch used a fixed four workers. The design changed
 to `-n auto` on instruction; the four-worker numbers are kept below only where

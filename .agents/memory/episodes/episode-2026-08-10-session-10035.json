@@ -300,7 +300,8 @@
         "e021",
         "e022",
         "e023",
-        "e024"
+        "e024",
+        "e029"
       ],
       "leads_to": [
         "e026"
@@ -341,6 +342,30 @@
       "caused_by": [
         "e027"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main after CI reported a stale lint baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-10T12:14:16+00:00",
+      "type": "commit",
+      "content": "Commit: 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035"
     }
@@ -350,8 +375,8 @@
     "tool_calls": null,
     "errors": 4,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 12
+    "commits": 5,
+    "files_changed": 15
   },
   "lessons": []
 }
