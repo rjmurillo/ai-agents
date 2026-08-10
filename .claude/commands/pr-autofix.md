@@ -169,7 +169,12 @@ run_mutation_with_lease_monitor() {
             break
         fi
         if ! kill -0 "$mutation_pid" 2>/dev/null; then
-            break
+            if wait "$mutation_pid"; then
+                mutation_rc=0
+            else
+                mutation_rc=$?
+            fi
+            return "$mutation_rc"
         fi
         sleep 0.01
     done

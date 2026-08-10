@@ -2,13 +2,14 @@
 """Validate that review-axis findings reference files in the PR diff.
 
 After each stage-2 axis returns, the orchestrator passes the axis text to
-this script.  The script extracts ``location:`` fields, strips line suffixes,
-and checks each path against the three-dot diff.
+this script.  The script extracts ``location:`` fields and free-form file
+paths, strips line suffixes, and checks each path against the three-dot diff.
 
 When one or more locations fall outside the diff, the script exits 1 and
-prints the out-of-scope paths to stderr.  The orchestrator is then responsible
-for prefixing those findings with ``[pre-existing - not in this PR diff]``.
-The script itself does NOT modify axis text.
+prints the out-of-scope paths to stderr.  With ``--emit-adjusted-text``, it
+also prints axis text whose out-of-scope location lines are marked
+``[pre-existing - not in this PR diff]`` and whose blocking verdict is
+downgraded to WARN when every cited location is outside the PR diff.
 
 When all locations are in scope (or the diff is empty/unavailable), the
 script exits 0 and the orchestrator records the axis output unmodified.
@@ -40,6 +41,24 @@ _LOCATION_FIELD_RE = re.compile(
     r"`?"                            # optional opening backtick
     r"([^\s``,\[|\]]+)"              # the path (stops at whitespace/comma/table char/backtick)
 )
+_PROSE_PATH_RE = re.compile(
+    r"(?<![\w./-])"
+    r"((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+"
+    r"\.(?:py|md|yml|yaml|json|ts|js|cs|ps1|sh))"
+    r"(?::\d+(?:-\d+)?)?"
+    r"(?![\w./-])"
+)
+
+_VERDICT_RE = re.compile(
+    r"(?im)^(?P<prefix>\s*(?:final\s+)?verdict\s*:\s*\[?)"
+    r"(?P<token>PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|"
+    r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)"
+    r"(?P<suffix>\]?.*)$"
+)
+_FAIL_VERDICTS = frozenset(
+    {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
+)
+_PRE_EXISTING_MARKER = "[pre-existing - not in this PR diff]"
 
 # A location value is a file path when it contains a path separator or a
 # known extension.  Values like ``line 42`` or ``N/A`` are not file paths.
@@ -101,12 +120,16 @@ def get_diff_files(worktree: str, base_branch: str) -> list[str] | None:
 
 
 def extract_locations(text: str) -> list[str]:
-    """Extract file paths from ``location:`` fields in *text*."""
+    """Extract file paths from ``location:`` fields and prose in *text*."""
     paths: list[str] = []
     for match in _LOCATION_FIELD_RE.finditer(text):
         raw = match.group(1).strip().strip("`").strip("'\"")
         path = _strip_line_suffix(raw)
         if _looks_like_path(path):
+            paths.append(path)
+    for match in _PROSE_PATH_RE.finditer(text):
+        path = _strip_line_suffix(match.group(1).strip().strip("`").strip("'\""))
+        if _looks_like_path(path) and path not in paths:
             paths.append(path)
     return paths
 
@@ -149,6 +172,91 @@ def validate_scope(text: str, diff_files: list[str]) -> tuple[list[str], list[st
     return in_scope, out_of_scope
 
 
+def extract_verdict(text: str) -> str | None:
+    """Return the first verdict token in *text*, if present."""
+    match = _VERDICT_RE.search(text)
+    return match.group("token") if match else None
+
+
+def scope_adjusted_verdict(text: str, diff_files: list[str]) -> str | None:
+    """Return the verdict after removing out-of-scope blocking weight.
+
+    If all cited file locations are outside the PR diff, a blocking verdict
+    cannot belong to this change. Downgrade it to WARN so the finding stays
+    visible without blocking the PR. Mixed in-scope and out-of-scope outputs
+    keep their original verdict because at least one cited finding belongs to
+    the reviewed diff.
+    """
+    verdict = extract_verdict(text)
+    if verdict is None:
+        return None
+    in_scope, out_of_scope = validate_scope(text, diff_files)
+    if out_of_scope and not in_scope and verdict in _FAIL_VERDICTS:
+        return "WARN"
+    return verdict
+
+
+def _replace_verdict(text: str, verdict: str) -> str:
+    """Replace the first verdict token in *text* with *verdict*."""
+    def replace(match: re.Match[str]) -> str:
+        return f"{match.group('prefix')}{verdict}{match.group('suffix')}"
+
+    return _VERDICT_RE.sub(replace, text, count=1)
+
+
+def _annotate_out_of_scope_lines(text: str, out_of_scope: list[str]) -> str:
+    if not out_of_scope:
+        return text
+
+    out_of_scope_set = set(out_of_scope)
+    lines: list[str] = []
+    for line in text.splitlines(keepends=True):
+        match = _LOCATION_FIELD_RE.search(line)
+        location = None
+        if match:
+            location = _strip_line_suffix(match.group(1).strip().strip("`").strip("'\""))
+        else:
+            prose_match = _PROSE_PATH_RE.search(line)
+            if prose_match:
+                location = _strip_line_suffix(
+                    prose_match.group(1).strip().strip("`").strip("'\"")
+                )
+        if location is None:
+            lines.append(line)
+            continue
+        if location in out_of_scope_set and _PRE_EXISTING_MARKER not in line:
+            newline = "\n" if line.endswith("\n") else ""
+            body = line[:-1] if newline else line
+            lines.append(f"{body} {_PRE_EXISTING_MARKER}{newline}")
+        else:
+            lines.append(line)
+    return "".join(lines)
+
+
+def format_scope_checked_text(text: str, diff_files: list[str]) -> str:
+    """Return axis text with out-of-scope findings marked and verdict adjusted."""
+    in_scope, out_of_scope = validate_scope(text, diff_files)
+    if not out_of_scope:
+        return text
+
+    adjusted_text = _annotate_out_of_scope_lines(text, out_of_scope)
+    original_verdict = extract_verdict(text)
+    adjusted_verdict = scope_adjusted_verdict(text, diff_files)
+    if (
+        original_verdict is not None
+        and adjusted_verdict is not None
+        and adjusted_verdict != original_verdict
+    ):
+        adjusted_text = _replace_verdict(adjusted_text, adjusted_verdict)
+        adjusted_text = (
+            adjusted_text.rstrip()
+            + "\n\nScope adjustment: original verdict "
+            + f"{original_verdict} downgraded to {adjusted_verdict} because "
+            + "every cited location is outside the PR diff.\n"
+        )
+    return adjusted_text
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate review-axis finding locations against the PR diff.",
@@ -167,6 +275,14 @@ def main(argv: list[str] | None = None) -> int:
         "--text",
         help="Axis output text to validate.  Reads from stdin when omitted.",
     )
+    parser.add_argument(
+        "--emit-adjusted-text",
+        action="store_true",
+        help=(
+            "Print axis text with out-of-scope findings marked and any "
+            "all-out-of-scope blocking verdict downgraded to WARN."
+        ),
+    )
     args = parser.parse_args(argv)
 
     text = args.text if args.text is not None else sys.stdin.read()
@@ -180,9 +296,13 @@ def main(argv: list[str] | None = None) -> int:
             f"in {worktree}; skipping scope check",
             file=sys.stderr,
         )
+        if args.emit_adjusted_text:
+            print(text, end="" if text.endswith("\n") else "\n")
         return 0
 
     in_scope, out_of_scope = validate_scope(text, diff_files)
+    if args.emit_adjusted_text:
+        print(format_scope_checked_text(text, diff_files), end="")
 
     if out_of_scope:
         unique_oos = sorted(set(out_of_scope))
