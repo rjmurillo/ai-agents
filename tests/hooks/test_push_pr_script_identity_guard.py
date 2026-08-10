@@ -178,6 +178,124 @@ def test_claude_allows_installed_plugin_reference(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
+def _minimum_supported_interpreter() -> str | None:
+    """Return a Python 3.10 interpreter path, or None when none is installed.
+
+    The generated launchers accept any interpreter at 3.10 or newer, so 3.10 is
+    the floor the shipped guard must actually run on.
+    """
+    for candidate in ("python3.10", "python3.11"):
+        resolved = shutil.which(candidate)
+        if resolved is not None:
+            return resolved
+    uv = shutil.which("uv")
+    if uv is None:
+        return None
+    result = subprocess.run(
+        [uv, "python", "find", "3.10"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+    path = result.stdout.strip()
+    return path if result.returncode == 0 and path and Path(path).is_file() else None
+
+
+@pytest.mark.parametrize(
+    ("guard", "plugin_root"),
+    [
+        (
+            REPO_ROOT
+            / ".claude"
+            / "hooks"
+            / "PreToolUse"
+            / "invoke_push_pr_script_identity_guard.py",
+            CLAUDE_PLUGIN_ROOT,
+        ),
+        (
+            COPILOT_PLUGIN_ROOT
+            / "hooks"
+            / "PreToolUse"
+            / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+            COPILOT_PLUGIN_ROOT,
+        ),
+    ],
+    ids=["claude", "copilot"],
+)
+def test_guards_run_on_the_minimum_supported_interpreter(
+    tmp_path: Path,
+    guard: Path,
+    plugin_root: Path,
+) -> None:
+    """The guard must run on Python 3.10, the floor the launchers accept.
+
+    `hashlib.file_digest` landed in 3.11. On 3.10 the digest check raised
+    AttributeError and the guard exited 1, which a PreToolUse host treats as a
+    hook error rather than a block, so the identity gate silently stopped
+    enforcing. Reproduced on cpython 3.10.20 before the fix (issue #4825).
+    """
+    interpreter = _minimum_supported_interpreter()
+    if interpreter is None:
+        pytest.skip("no Python 3.10 or 3.11 interpreter available")
+    version = subprocess.run(
+        [interpreter, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
+        capture_output=True, encoding="utf-8", check=True, timeout=60,
+    ).stdout.strip()
+    repository, _ = _repository(tmp_path)
+    # Each guard anchors trust to the plugin tree it ships in.
+    script = plugin_root / SCRIPT_RELATIVE
+    body_file = _body_file(repository)
+
+    cases = (
+        (f"python3 -I '{script}' --title 'fix: floor' --body-file {body_file}", 0),
+        ("python3 -I attacker/pr/new_pr.py", 2),
+        ("git status && git diff", 0),
+    )
+    for command, expected in cases:
+        result = subprocess.run(
+            [interpreter, "-I", str(guard)],
+            input=_payload(command, repository),
+            cwd=repository,
+            env=_environment(),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == expected, (
+            f"python {version}: {command} exited {result.returncode}: {result.stderr}"
+        )
+        assert "Traceback" not in result.stderr, f"python {version}: {result.stderr}"
+
+
+@pytest.mark.parametrize(
+    "guard",
+    [
+        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
+        COPILOT_PLUGIN_ROOT
+        / "hooks"
+        / "PreToolUse"
+        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+    ],
+    ids=["claude", "copilot"],
+)
+def test_guards_do_not_use_post_310_hashlib_api(guard: Path) -> None:
+    """Pin the specific API that broke the 3.10 floor.
+
+    The runtime test above skips when no 3.10 interpreter is installed, which
+    is the common case on a 3.14 developer machine and in CI. This assertion
+    always runs, so the regression cannot return unnoticed.
+    """
+    source = guard.read_text(encoding="utf-8")
+
+    assert "hashlib.file_digest(" not in source, (
+        f"{guard.name} calls hashlib.file_digest, which does not exist on Python 3.10"
+    )
+
+
 def test_trusted_digests_match_the_shipped_bundle() -> None:
     """The pinned digests must equal the files they gate, on both surfaces.
 

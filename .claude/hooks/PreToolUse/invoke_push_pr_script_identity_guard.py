@@ -50,7 +50,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import BinaryIO, NamedTuple
 
 _MAX_STDIN_BYTES = 128 * 1024
 _SCRIPT_RELATIVE_PATH = Path("skills/github/scripts/pr/new_pr.py")
@@ -63,6 +63,7 @@ _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
 _NEW_PR_TARGET = "new_pr.py"
 _MAX_BRACE_EXPANSIONS = 4096
 _MAX_SCOPE_OPERANDS = 64
+_DIGEST_CHUNK_BYTES = 1 << 20
 _SHELL_EVALUATORS = frozenset(
     {
         "ash",
@@ -867,6 +868,25 @@ def _is_python_interpreter(value: str) -> bool:
     )
 
 
+def _sha256_digest(stream: BinaryIO) -> hashlib._Hash:
+    """Hash a binary stream without ``hashlib.file_digest``.
+
+    ``hashlib.file_digest`` landed in Python 3.11, but the generated hook
+    launchers accept any interpreter at 3.10 or newer:
+
+        "$_c" -I -c "import sys;print(int(sys.version_info>=(3,10)))"
+
+    Calling it on 3.10 raised ``AttributeError`` and the guard exited 1, which
+    a PreToolUse host treats as a hook error rather than a block, so the
+    identity gate silently stopped enforcing on that interpreter. Reproduced on
+    cpython 3.10.20 against the canonical push-pr command (issue #4825).
+    """
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(_DIGEST_CHUNK_BYTES), b""):
+        digest.update(chunk)
+    return digest
+
+
 def _same_executable_content(left: Path, right: Path) -> bool:
     try:
         if left.samefile(right):
@@ -874,10 +894,7 @@ def _same_executable_content(left: Path, right: Path) -> bool:
         if left.stat().st_size != right.stat().st_size:
             return False
         with left.open("rb") as left_stream, right.open("rb") as right_stream:
-            return (
-                hashlib.file_digest(left_stream, "sha256").digest()
-                == hashlib.file_digest(right_stream, "sha256").digest()
-            )
+            return _sha256_digest(left_stream).digest() == _sha256_digest(right_stream).digest()
     except OSError:
         return False
 
@@ -1756,7 +1773,7 @@ def _regular_resolved_file(path: Path) -> Path | None:
 def _require_trusted_digest(path: Path, expected: str, label: str) -> None:
     try:
         with path.open("rb") as stream:
-            actual = hashlib.file_digest(stream, "sha256").hexdigest()
+            actual = _sha256_digest(stream).hexdigest()
     except OSError as exc:
         raise GuardViolationError(f"{label} is unreadable") from exc
     if actual != expected:
