@@ -571,8 +571,8 @@ pre-push:
 
           - name: session-json-validation
             timeout: 10m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions {push_files}
-            glob: ".agents/sessions/**/*.json"
+            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
+            use_stdin: true
 
           - name: observation-sync-advisory
             timeout: 5m
