@@ -6,6 +6,9 @@ with full integrity verification, environment scrubbing, and sterile temp
 dir isolation to prevent consumer config/plugin pickup.
 
 Security model:
+- Manifest digest pinned in this source file (outside vendor tree)
+- Vendor tree materialized into private sterile copy during verification
+- TOCTOU eliminated: hashes verified during copy, execution uses only the copy
 - System Node.js resolved from administrator-owned platform directories
 - Ownership and permission validation on resolved Node binary
 - Full vendor tree integrity verified (every file, symlink, executable mode)
@@ -30,9 +33,18 @@ from typing import Any
 
 _HERE = Path(__file__).resolve().parent
 _VENDOR = _HERE / "_vendor" / "markdownlint"
-_ENTRY = _VENDOR / "node_modules" / "markdownlint-cli2" / "markdownlint-cli2-bin.mjs"
+_ENTRY_REL = os.path.join(
+    "node_modules", "markdownlint-cli2", "markdownlint-cli2-bin.mjs",
+)
 _CONFIG = _HERE / "markdownlint-safe-config.yaml"
-_INTEGRITY = _VENDOR / "INTEGRITY.json"
+_INTEGRITY_REL = "INTEGRITY.json"
+
+# Pinned digest of INTEGRITY.json - authenticates the manifest from outside
+# the vendor tree. Regenerate with:
+#   sha256sum .claude/hooks/PreToolUse/_vendor/markdownlint/INTEGRITY.json
+_INTEGRITY_SHA256 = (
+    "9692e77adcc97ef41a1d4f36c04cced77326d0a3259805ca251de40bff0f9bb1"
+)
 
 _PLATFORM_NODE_DIRS: tuple[str, ...] = (
     "/usr/bin",
@@ -92,93 +104,110 @@ def _allowlisted_env(tmp_dir: str, node: Path) -> dict[str, str]:
     return env
 
 
-def _load_manifest() -> dict[str, Any] | None:
-    """Load and parse the integrity manifest. Returns None on failure."""
-    if not _INTEGRITY.is_file():
+def _authenticate_manifest() -> dict[str, Any] | None:
+    """Load manifest and verify its digest against pinned value."""
+    manifest_path = _VENDOR / _INTEGRITY_REL
+    if not manifest_path.is_file():
         return None
     try:
-        result: dict[str, Any] = json.loads(_INTEGRITY.read_text(encoding="utf-8"))
+        raw = manifest_path.read_bytes()
+    except OSError:
+        return None
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != _INTEGRITY_SHA256:
+        return None
+    try:
+        result: dict[str, Any] = json.loads(raw)
         return result
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, ValueError):
         return None
 
 
-def _collect_actual_tree() -> tuple[dict[str, str], dict[str, str]]:
-    """Walk vendor tree, return (files_with_hashes, symlinks)."""
-    actual_files: dict[str, str] = {}
-    actual_symlinks: dict[str, str] = {}
+def _safe_copy_file(src: Path, dst: Path) -> bytes:
+    """Read file without following symlinks, write to dst. Return content."""
+    fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        content = os.read(fd, 50_000_000)  # 50MB max
+    finally:
+        os.close(fd)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(content)
+    return content
+
+
+def _materialize_verified_copy(
+    manifest: dict[str, Any], dest: Path,
+) -> str | None:
+    """Copy vendor tree to dest, verifying integrity during copy.
+
+    Returns error string or None on success. Uses O_NOFOLLOW for regular
+    files to prevent symlink-swap TOCTOU attacks.
+    """
+    expected_files: dict[str, str] = manifest.get("files", {})
+    expected_symlinks: dict[str, str] = manifest.get("symlinks", {})
+    expected_execs: list[str] = manifest.get("executables", [])
+    all_expected = set(expected_files.keys()) | set(expected_symlinks.keys())
+
+    # Check for extra files/symlinks in source tree
+    actual_entries: set[str] = set()
     for item in sorted(_VENDOR.rglob("*")):
         rel = str(item.relative_to(_VENDOR))
-        if rel in ("INTEGRITY.json", "INTEGRITY.sha256"):
+        if rel == _INTEGRITY_REL:
             continue
-        if item.is_symlink():
-            actual_symlinks[rel] = os.readlink(item)
-        elif item.is_file():
-            actual_files[rel] = hashlib.sha256(item.read_bytes()).hexdigest()
-    return actual_files, actual_symlinks
-
-
-def _check_extra_or_missing(
-    actual: dict[str, str], expected: dict[str, str], label: str,
-) -> str | None:
-    """Check for extra or missing entries. Returns error or None."""
-    extra = set(actual.keys()) - set(expected.keys())
+        if item.is_symlink() or item.is_file():
+            actual_entries.add(rel)
+    extra = actual_entries - all_expected
     if extra:
-        return f"extra {label}: {sorted(extra)[:3]}"
-    missing = set(expected.keys()) - set(actual.keys())
+        return f"extra files in vendor tree: {sorted(extra)[:3]}"
+    missing = all_expected - actual_entries
     if missing:
-        return f"missing {label}: {sorted(missing)[:3]}"
-    return None
+        return f"missing files in vendor tree: {sorted(missing)[:3]}"
 
-
-def _check_hashes(
-    actual: dict[str, str], expected: dict[str, str],
-) -> str | None:
-    """Verify all file hashes match. Returns error or None."""
-    for rel, expected_hash in expected.items():
-        if actual.get(rel) != expected_hash:
+    # Copy and verify regular files
+    for rel, expected_hash in expected_files.items():
+        src = _VENDOR / rel
+        dst = dest / rel
+        try:
+            content = _safe_copy_file(src, dst)
+        except OSError as exc:
+            return f"cannot read {rel}: {exc}"
+        actual_hash = hashlib.sha256(content).hexdigest()
+        if actual_hash != expected_hash:
             return f"hash mismatch: {rel}"
-    return None
 
-
-def _check_symlinks(
-    actual: dict[str, str], expected: dict[str, str],
-) -> str | None:
-    """Verify symlink targets match. Returns error or None."""
-    for rel, target in expected.items():
-        if actual.get(rel) != target:
+    # Verify and recreate symlinks
+    for rel, expected_target in expected_symlinks.items():
+        src = _VENDOR / rel
+        if not src.is_symlink():
+            return f"expected symlink: {rel}"
+        actual_target = os.readlink(src)
+        if actual_target != expected_target:
             return f"symlink mismatch: {rel}"
-    return None
+        # Verify symlink is contained within vendor tree
+        resolved = (src.parent / actual_target).resolve()
+        if not str(resolved).startswith(str(_VENDOR)):
+            return f"symlink escapes vendor: {rel}"
+        dst = dest / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(actual_target, dst)
 
-
-def _verify_full_integrity() -> str | None:
-    """Verify every file, symlink, and mode in vendor tree."""
-    manifest = _load_manifest()
-    if manifest is None:
-        return "INTEGRITY.json not found or invalid"
-
-    expected_files = manifest.get("files", {})
-    expected_symlinks = manifest.get("symlinks", {})
-    actual_files, actual_symlinks = _collect_actual_tree()
-
-    err = _check_extra_or_missing(actual_files, expected_files, "files")
-    if err:
-        return err
-    err = _check_extra_or_missing(
-        actual_symlinks, expected_symlinks, "symlinks",
-    )
-    if err:
-        return err
-    err = _check_hashes(actual_files, expected_files)
-    if err:
-        return err
-    err = _check_symlinks(actual_symlinks, expected_symlinks)
-    if err:
-        return err
-
-    for rel in manifest.get("executables", []):
-        if not os.access(_VENDOR / rel, os.X_OK):
+    # Verify and set executable modes
+    for rel in expected_execs:
+        src = _VENDOR / rel
+        if not os.access(src, os.X_OK):
             return f"expected executable: {rel}"
+        dst = dest / rel
+        if dst.is_file():
+            dst.chmod(dst.stat().st_mode | stat.S_IXUSR)
+
+    # Make entire copy read-only
+    for item in dest.rglob("*"):
+        if item.is_file() and not item.is_symlink():
+            item.chmod(stat.S_IRUSR | stat.S_IRGRP)
+    for item in dest.rglob("*"):
+        if item.is_dir():
+            item.chmod(stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP)
+
     return None
 
 
@@ -186,11 +215,12 @@ def _check_prerequisites(node: Path | None) -> str | None:
     """Validate all prerequisites. Returns error message or None."""
     if node is None:
         return "No trusted system Node.js found"
-    if not _ENTRY.is_file():
-        return "Vendored markdownlint-cli2 not found"
     if not _CONFIG.is_file():
         return "Safe config not found"
-    return _verify_full_integrity()
+    manifest = _authenticate_manifest()
+    if manifest is None:
+        return "INTEGRITY.json missing, invalid, or digest mismatch"
+    return None
 
 
 def _copy_to_sterile_dir(
@@ -213,9 +243,9 @@ def _copy_to_sterile_dir(
 
 
 def _run_linter(
-    node: Path, tmp_files: list[str], tmp: str,
+    node: Path, entry: Path, tmp_files: list[str], tmp: str,
 ) -> int:
-    """Invoke markdownlint-cli2. Returns 0, 1, or 2."""
+    """Invoke markdownlint-cli2 from verified copy. Returns 0, 1, or 2."""
     tmp_path = Path(tmp)
     shutil.copy2(_CONFIG, tmp_path / ".markdownlint-cli2.yaml")
     env = _allowlisted_env(tmp, node)
@@ -223,7 +253,7 @@ def _run_linter(
 
     try:
         proc = subprocess.run(
-            [str(node), str(_ENTRY), "--config", config_path,
+            [str(node), str(entry), "--config", config_path,
              *tmp_files],
             cwd=tmp, capture_output=True, text=True,
             timeout=30, env=env, check=False,
@@ -254,13 +284,35 @@ def main(files: list[str]) -> int:
     if error:
         print(f"BLOCK: {error}", file=sys.stderr)
         return 2
+    assert node is not None  # guaranteed by _check_prerequisites
+
+    manifest = _authenticate_manifest()
+    assert manifest is not None  # guaranteed by _check_prerequisites
 
     with tempfile.TemporaryDirectory(prefix="mdlint-") as tmp:
-        tmp_files = _copy_to_sterile_dir(files, Path(tmp))
+        # Materialize verified vendor copy (eliminates TOCTOU)
+        vendor_copy = Path(tmp) / "_vendor"
+        vendor_copy.mkdir()
+        mat_error = _materialize_verified_copy(manifest, vendor_copy)
+        if mat_error:
+            print(f"BLOCK: integrity: {mat_error}", file=sys.stderr)
+            return 2
+
+        entry = vendor_copy / _ENTRY_REL
+        if not entry.is_file():
+            print("BLOCK: entry point missing in verified copy", file=sys.stderr)
+            return 2
+
+        # Make entry executable for Node
+        entry.chmod(stat.S_IRUSR | stat.S_IXUSR)
+
+        # Copy markdown files to separate sterile subdir
+        md_dir = Path(tmp) / "_md"
+        md_dir.mkdir()
+        tmp_files = _copy_to_sterile_dir(files, md_dir)
         if not tmp_files:
             return 0
-        assert node is not None  # guaranteed by _check_prerequisites
-        return _run_linter(node, tmp_files, tmp)
+        return _run_linter(node, entry, tmp_files, str(md_dir))
 
 
 if __name__ == "__main__":

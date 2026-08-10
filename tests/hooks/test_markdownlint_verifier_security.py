@@ -161,12 +161,21 @@ class TestFullIntegrityVerification:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
     ) -> None:
         """Missing files from manifest must cause integrity failure."""
-        # Load manifest and add a fake expected file
-        manifest = json.loads(verifier._INTEGRITY.read_text())
+        import hashlib as _hl
+        # Load real manifest and add a phantom file
+        manifest_path = verifier._VENDOR / verifier._INTEGRITY_REL
+        manifest = json.loads(manifest_path.read_bytes())
         manifest["files"]["node_modules/phantom.js"] = "a" * 64
-        fake_integrity = tmp_path / "INTEGRITY.json"
-        fake_integrity.write_text(json.dumps(manifest))
-        monkeypatch.setattr(verifier, "_INTEGRITY", fake_integrity)
+        # Write tampered manifest and patch pinned digest to match
+        fake_manifest = tmp_path / "INTEGRITY.json"
+        raw = json.dumps(manifest).encode()
+        fake_manifest.write_bytes(raw)
+        fake_digest = _hl.sha256(raw).hexdigest()
+        fake_vendor = tmp_path / "vendor"
+        fake_vendor.mkdir()
+        (fake_vendor / "INTEGRITY.json").write_bytes(raw)
+        monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+        monkeypatch.setattr(verifier, "_INTEGRITY_SHA256", fake_digest)
 
         md = tmp_path / "test.md"
         md.write_text("# Title\n\nText.\n")
@@ -176,15 +185,21 @@ class TestFullIntegrityVerification:
     def test_symlink_target_mismatch_detected(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
     ) -> None:
-        """Symlink target changes must cause integrity failure."""
-        manifest = json.loads(verifier._INTEGRITY.read_text())
+        """Symlink target changes must cause materialization failure."""
+        import hashlib as _hl
+        manifest_path = verifier._VENDOR / verifier._INTEGRITY_REL
+        manifest = json.loads(manifest_path.read_bytes())
         if manifest.get("symlinks"):
             # Corrupt a symlink target in manifest
             first_key = next(iter(manifest["symlinks"]))
             manifest["symlinks"][first_key] = "/etc/passwd"
-            fake_integrity = tmp_path / "INTEGRITY.json"
-            fake_integrity.write_text(json.dumps(manifest))
-            monkeypatch.setattr(verifier, "_INTEGRITY", fake_integrity)
+            raw = json.dumps(manifest).encode()
+            fake_vendor = tmp_path / "vendor"
+            fake_vendor.mkdir()
+            (fake_vendor / "INTEGRITY.json").write_bytes(raw)
+            fake_digest = _hl.sha256(raw).hexdigest()
+            monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+            monkeypatch.setattr(verifier, "_INTEGRITY_SHA256", fake_digest)
 
             md = tmp_path / "test.md"
             md.write_text("# Title\n\nText.\n")
@@ -231,7 +246,7 @@ class TestFailClosed:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            verifier, "_ENTRY", Path("/nonexistent/entry.mjs"),
+            verifier, "_VENDOR", Path("/nonexistent/vendor"),
         )
         md = tmp_path / "test.md"
         md.write_text("# Title\n\nText.\n")
@@ -258,3 +273,140 @@ class TestHostileEnvironment:
             assert not marker.exists()
         finally:
             os.environ["PATH"] = old_path
+
+
+class TestManifestDigestPinning:
+    """Manifest must be authenticated by pinned digest in source."""
+
+    def test_tampered_manifest_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Modified INTEGRITY.json (matching content but different digest) blocked."""
+        # Temporarily point verifier at a fake vendor with wrong manifest
+        fake_vendor = tmp_path / "vendor"
+        fake_vendor.mkdir(parents=True)
+        manifest: dict[str, object] = {"files": {}, "symlinks": {}, "executables": []}
+        (fake_vendor / "INTEGRITY.json").write_text(json.dumps(manifest))
+        monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+        # The pinned digest won't match this fake manifest
+        result = verifier._authenticate_manifest()
+        assert result is None, "Tampered manifest must be rejected"
+
+    def test_correct_pinned_digest_accepted(self) -> None:
+        """Real INTEGRITY.json passes authentication."""
+        result = verifier._authenticate_manifest()
+        # If vendor tree exists with correct manifest, should succeed
+        manifest_path = verifier._VENDOR / "INTEGRITY.json"
+        if manifest_path.is_file():
+            assert result is not None, "Authentic manifest must be accepted"
+
+
+class TestTOCTOUProtection:
+    """Verify-then-execute uses materialized copy, not original path."""
+
+    def test_concurrent_swap_after_verify_does_not_execute(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Simulates concurrent file swap during execution.
+
+        The verifier must execute from its private copy, so even if the
+        original vendor tree is modified after verification, the executed
+        code is the verified copy.
+        """
+        import threading
+
+        # Create a minimal vendor tree
+        fake_vendor = tmp_path / "vendor"
+        nm = fake_vendor / "node_modules" / "markdownlint-cli2"
+        nm.mkdir(parents=True)
+        entry_content = b'console.log("ORIGINAL");process.exit(0);\n'
+        entry = nm / "markdownlint-cli2-bin.mjs"
+        entry.write_bytes(entry_content)
+
+        # Build manifest for original content
+        import hashlib
+        rel = "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
+        manifest = {
+            "files": {rel: hashlib.sha256(entry_content).hexdigest()},
+            "symlinks": {},
+            "executables": [],
+        }
+
+        # Materialize into private copy
+        dest = tmp_path / "copy"
+        dest.mkdir()
+
+        swap_marker = tmp_path / "SWAP_HAPPENED"
+        malicious = b'import("fs").then(f=>f.writeFileSync("PWNED","x"))\n'
+
+        def swap_during_verify() -> None:
+            """Swap original file while copy is in progress."""
+            entry.write_bytes(malicious)
+            swap_marker.touch()
+
+        # Run swap concurrently
+        t = threading.Thread(target=swap_during_verify)
+        monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+        t.start()
+        # Materialize - should use content read at copy time
+        result = verifier._materialize_verified_copy(manifest, dest)
+        t.join()
+
+        # The copy must contain original OR fail integrity check
+        copied = dest / rel
+        if result is None:
+            # If materialization succeeded, content must be original
+            assert copied.read_bytes() == entry_content
+        else:
+            # If content changed mid-copy, hash mismatch blocks
+            assert "hash mismatch" in result or "cannot read" in result
+
+    def test_materialized_copy_is_readonly(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verified copy must be made non-writable."""
+        import hashlib
+        fake_vendor = tmp_path / "vendor"
+        nm = fake_vendor / "node_modules" / "test"
+        nm.mkdir(parents=True)
+        content = b"test content\n"
+        (nm / "file.js").write_bytes(content)
+        rel = "node_modules/test/file.js"
+        manifest = {
+            "files": {rel: hashlib.sha256(content).hexdigest()},
+            "symlinks": {},
+            "executables": [],
+        }
+        dest = tmp_path / "copy"
+        dest.mkdir()
+        monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+        result = verifier._materialize_verified_copy(manifest, dest)
+        assert result is None
+        copied = dest / rel
+        # File must not be writable
+        assert not os.access(copied, os.W_OK)
+
+
+class TestSymlinkContainment:
+    """Symlinks escaping vendor tree must be rejected."""
+
+    def test_symlink_escape_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Symlink pointing outside vendor tree is blocked."""
+        fake_vendor = tmp_path / "vendor"
+        fake_vendor.mkdir(parents=True)
+        # Create a symlink pointing outside
+        escape_link = fake_vendor / "escape.js"
+        os.symlink("/etc/passwd", escape_link)
+        manifest = {
+            "files": {},
+            "symlinks": {"escape.js": "/etc/passwd"},
+            "executables": [],
+        }
+        dest = tmp_path / "copy"
+        dest.mkdir()
+        monkeypatch.setattr(verifier, "_VENDOR", fake_vendor)
+        result = verifier._materialize_verified_copy(manifest, dest)
+        assert result is not None
+        assert "symlink escapes vendor" in result
