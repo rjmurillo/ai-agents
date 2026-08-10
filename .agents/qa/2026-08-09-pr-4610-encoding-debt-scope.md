@@ -1,29 +1,34 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-1-triage-fix-issues-4261-4364.json
-qaCommit: aab73143f57a781111f56c3bb64ff0f4536e6135
+qaCommit: 219437db2b65ad9e9a2bbf2a10047916a8e5871d
 ---
 # QA Report: PR #4610 Encoding Debt Scope
 
-**SHA**: aab73143f57a781111f56c3bb64ff0f4536e6135
-**Date**: 2026-08-09
-**Scope**: memory-index merge resolution after merging `origin/main` and changed-file type validation.
+**SHA**: 219437db2b65ad9e9a2bbf2a10047916a8e5871d
+**Date**: 2026-08-10
+**Scope**: Merge main, apply ruff formatter to test file, verify all PR tests pass.
 
 ## Verdict
 
-PASS. No blocking issue found in the merge-resolution delta.
+PASS. All PR-scoped tests pass. The single unrelated pre-existing failure on main (test_open_after_review_runs_mutation_and_keeps_lease process group setup) is not introduced by this PR.
 
 ## Evidence
 
 | Check | Result |
 |-------|--------|
-| conflict marker check across changed files | clean |
-| memory-index target uniqueness check | targets 153, unique 153 |
-| origin/main row preservation check | missing from origin/main 0, branch adds 1 target |
-| `uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet` | Passed |
-| `uv run --frozen python scripts/validation/pre_pr.py` mypy changed files section | Passed, 1 changed Python file |
-| `uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-05-session-1-triage-fix-issues-4261-4364.json` | Passed |
+| `uv run --frozen ruff format tests/test_assess_regression.py` | 1 file reformatted |
+| `uv run --frozen ruff check tests/test_assess_regression.py` | All checks passed |
+| `uv run --frozen pytest tests/test_assess_regression.py ...` | 107 passed in 1.42s |
+| Full test suite (25522 collected) | 25485 passed, 1 failed (pre-existing), 36 skipped in 924.78s |
+| Merge origin/main | Clean (auto-merged memory-index.md) |
+
+## Pre-existing failure (not introduced by this PR)
+
+- `tests/test_pr_autofix_late_live_state_gate.py::test_open_after_review_runs_mutation_and_keeps_lease[src/copilot-cli/skills/pr-autofix/SKILL.md]`
+- Cause: process group setup failed in test environment
+- Verified same failure on current main
 
 ## Notes
 
-The previous failure was missing `sessionEnd.qaValidation`. The reported mypy blocker is clear: the changed-file mypy section passed after redoing the merge. This report binds QA evidence to the merge-resolution commit. The session log records that SHA in `endingCommit`.
+Merged origin/main (d4cc52d5d) into PR branch. Applied ruff format to test_assess_regression.py (2 insertions, 3 deletions: blank line after section comment, method signature join). Ruff count ratchet baseline already synced to 30 via merge.

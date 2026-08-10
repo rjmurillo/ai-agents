@@ -152,7 +152,7 @@
       "entry": "Mutation proof passed. M1 changed-only absolute fallback died. M2 suppressed exit-10 died. M3 subprocess errors keyword mutant died. M4 cosmetic docstring wording survived."
     }
   ],
-  "endingCommit": "aab73143f57a781111f56c3bb64ff0f4536e6135",
+  "endingCommit": "219437db2b65ad9e9a2bbf2a10047916a8e5871d",
   "nextSteps": [
     "Push fix/4261-4364-encoding-debt-scope and open the PR by REST with triage evidence and the mutation table."
   ]
