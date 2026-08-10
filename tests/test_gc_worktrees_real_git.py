@@ -1,4 +1,14 @@
-"""Real git regression tests for worktree garbage collection."""
+"""Real git regression tests for worktree garbage collection: merge status.
+
+These build an actual repository with actual worktrees and run the real tool
+over it, because the safety contract is about what git reports, not about what
+a mock was told to report. A squash merge in particular breaks patch-id
+equivalence, so ``git cherry`` cannot see it and only a real repository proves
+the detection works.
+
+The stale-entry cases, where a worktree's directory is gone and its admin
+record is all that is left, live in ``test_gc_worktrees_real_git_stale.py``.
+"""
 
 from __future__ import annotations
 

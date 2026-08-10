@@ -4,7 +4,7 @@ When the ``AI PR Quality Gate`` workflow gets cancelled by concurrency
 (``cancel-in-progress: true``), the upstream review jobs end with
 ``cancelled``. If the ``aggregate`` job runs anyway (``if: always()``),
 its ``check_critical_failures`` step exits 1 because some verdicts are
-missing, and GitHub records ``Aggregate Results: failure`` against the
+missing, and GitHub records ``AI Quality Gate Results: failure`` against the
 PR head SHA. If the superseding run is itself cancelled before it
 completes, that stale failure persists and leaves the PR
 ``mergeStateStatus=BLOCKED`` until a no-op commit refreshes the SHA.
@@ -26,6 +26,9 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
+SESSION_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
+)
 
 
 @pytest.fixture(scope="module")
@@ -42,12 +45,29 @@ def aggregate_job(workflow: dict) -> dict:
 
 
 class TestAggregateCancelSkip:
+    def test_required_result_contexts_are_unique(self) -> None:
+        locations: dict[str, list[tuple[str, str]]] = {
+            "AI Quality Gate Results": [],
+            "Session Protocol Results": [],
+        }
+        workflows_dir = REPO_ROOT / ".github" / "workflows"
+        for path in sorted(workflows_dir.glob("*.y*ml")):
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            for job_id, job in (data.get("jobs") or {}).items():
+                if isinstance(job, dict) and job.get("name") in locations:
+                    locations[job["name"]].append((path.name, job_id))
+
+        assert locations == {
+            "AI Quality Gate Results": [("ai-pr-quality-gate.yml", "aggregate")],
+            "Session Protocol Results": [("ai-session-protocol.yml", "aggregate")],
+        }
+
     def test_aggregate_job_gate_skips_on_cancellation(self, aggregate_job: dict) -> None:
         """The aggregate job must skip when the workflow is being cancelled.
 
         Without ``!cancelled()`` a concurrency-cancelled run would still
         evaluate the aggregate step, find missing verdict artifacts, and
-        post ``Aggregate Results: failure`` to the PR head SHA -- which
+        post ``AI Quality Gate Results: failure`` to the PR head SHA -- which
         is the #2347 stale-blocked bug.
         """
         gate = aggregate_job.get("if", "")
@@ -60,6 +80,52 @@ class TestAggregateCancelSkip:
         ), (
             "aggregate gate must guard on !cancelled() to prevent #2347 "
             f"(stale BLOCKED status from concurrency-cancelled runs): {gate!r}"
+        )
+
+    def test_session_protocol_result_skips_on_cancellation(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        gate = session_workflow["jobs"]["aggregate"].get("if", "")
+        assert "always()" in gate
+        assert "!cancelled()" in gate or "cancelled() == false" in gate
+
+    def test_session_prerequisite_script_runs_after_checkout(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        steps = session_workflow["jobs"]["aggregate"]["steps"]
+        names = [step.get("name") for step in steps]
+        assert names.index("Checkout repository") < names.index(
+            "Check if aggregation needed"
+        )
+        checkout = next(step for step in steps if step.get("name") == "Checkout repository")
+        assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha || github.ref }}"
+
+    def test_session_prerequisite_outputs_are_wired(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        steps = session_workflow["jobs"]["aggregate"]["steps"]
+        prerequisite = next(
+            step for step in steps if step.get("name") == "Check if aggregation needed"
+        )
+        aggregate = next(
+            step for step in steps if step.get("name") == "Aggregate Verdicts"
+        )
+
+        assert prerequisite["env"]["VALIDATE_RESULT"] == "${{ needs.validate.result }}"
+        assert (
+            prerequisite["env"]["SESSION_FILES"]
+            == "${{ needs.detect-changes.outputs.session_files }}"
+        )
+        assert (
+            aggregate["env"]["EXPECTED_RESULTS"]
+            == "${{ steps.should-run-protocol.outputs.expected_results }}"
+        )
+        assert (
+            aggregate["env"]["EXPECTED_ARTIFACTS"]
+            == "${{ steps.should-run-protocol.outputs.expected_artifacts }}"
         )
 
     def test_concurrency_still_cancels_in_progress(self, workflow: dict) -> None:

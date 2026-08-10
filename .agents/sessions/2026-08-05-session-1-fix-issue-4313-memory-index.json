@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-05",
+    "branch": "fix/4313-memory-index-enforcement",
+    "startingCommit": "95ecfc3e9c",
+    "objective": "Fix issue 4313 memory index enforcement"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP transport closed on initial_instructions and read_memory; fallback files read directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP transport closed on initial_instructions; fallback repository instructions used."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/*.py with find; first entries included add_comment_reaction.py and check_existing_pr_for_issue.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read directly after Serena transport failure."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index excerpts and memory-index-validator-checks-one-direction-only.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4313-memory-index-enforcement"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4313-memory-index-enforcement"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before and after implementation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "95ecfc3e9c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required session checklist items completed or demoted with evidence where Serena transport failed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only and unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP transport closed; no .serena memory written to avoid creating an unindexed memory while fixing index enforcement."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "complete_session_log.py dry-run reported no markdown files changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work commit 6e85585cad fix(memory): enforce root memory index coverage."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest, ruff, coverage, command repro, and mutation proof passed; validate_session_json run after this edit."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todos updated after each major phase in session SQL tracker."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No retrospective needed for this issue fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Created worktree",
+      "details": "Created isolated worktree fix/4313-memory-index-enforcement from origin/main."
+    },
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Reproduced issue",
+      "details": "Adding quality/union-merge-hides-semantic-duplicates.md left memory-index.md without a row while both update_memory_index_tokens.py and memory_index_token_ratchet.py exited 0."
+    },
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Measured gap",
+      "details": "Measured root memory-index coverage on clean tree: 967 memory files, 128 root index references, 839 unindexed files, 0 stale references."
+    },
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Implemented fix",
+      "details": "Added shared root index coverage computation to scripts/update_memory_index_tokens.py and imported it from scripts/ci/memory_index_token_ratchet.py."
+    },
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Selected design",
+      "details": "Chose fail-closed ratchet instead of auto-adding rows because keyword rows carry retrieval semantics and generated keywords would hide low-quality indexing."
+    },
+    {
+      "timestamp": "2026-08-05T09:54:57Z",
+      "action": "Verified fix",
+      "details": "Verified with targeted pytest, ruff, coverage, command reproduction, mutation proof, and security review."
+    }
+  ],
+  "endingCommit": "6e85585cad",
+  "nextSteps": []
+}

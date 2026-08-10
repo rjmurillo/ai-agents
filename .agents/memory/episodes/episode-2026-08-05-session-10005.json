@@ -1,0 +1,318 @@
+{
+  "id": "episode-2026-08-05-session-10005",
+  "session": "2026-08-05-session-10005",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Make the worktree GC dry-run plan predict what --apply actually does, and stop it removing any worktree whose HEAD no ref contains",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "defect",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "correction",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "search-before-building",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "rejected",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "change",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "tests/test_gc_worktrees_stale.py, 23 tests across porcelain parsing, decide precedence, reachability fail-safe, apply behavior, and plan/apply consistency. Full gc suite 118 passed including test_gc_worktrees_real_git.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "error",
+      "content": "verify  Revert-sensitivity proved per half with byte-exact backups: parse-prunable 2 failed, decide-branch 3 failed, apply-skip-remove 5 failed, withhold-prune 2 failed, failsafe-error 1 failed. File restored byte-identical after every experiment.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lesson",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lesson",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "review",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verification",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "redesign",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "defect",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "incident",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verification",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lesson",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lesson",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "validation",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "ruff check passed on all changed files. Full gc suite 123 passed across 6 files, including 8 real-git tests that pin git's actual behavior rather than a mock. Revert-sensitivity re-proved across 6 halves on the redesign: 3, 5, 7, 1, 1 and 1 tests failed respectively, so every half is load-bearing. File restored byte-identical from backup afterward, verified with diff rather than git checkout.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "advisory",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lesson",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-05-session-10005"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-06T08:29:18+00:00",
+      "type": "commit",
+      "content": "Commit: 9baa6f704",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10005"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

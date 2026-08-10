@@ -20,7 +20,7 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - extraction complete
-  3 - external PR metadata lookup failed
+  3 - GitHub or incremental-scope subprocess failed
 """
 
 from __future__ import annotations
@@ -31,9 +31,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-class SpecReferenceError(RuntimeError):
-    """Raised when the script cannot enumerate PR text."""
+EXIT_OK = 0
+EXIT_EXTERNAL = 3
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -46,34 +45,38 @@ def write_github_output(key: str, value: str) -> None:
         print(f"{key}={value}")
 
 
-def _gh_pr_field(pr_number: str, repository: str, field: str) -> str:
+def _gh_pr_field(pr_number: str, repository: str, field: str) -> tuple[int, str]:
     """Fetch one field from a PR via gh CLI."""
-    result = subprocess.run(
-        [
-            "gh",
-            "pr",
-            "view",
-            pr_number,
-            "--repo",
-            repository,
-            "--json",
-            field,
-            "-q",
-            f".{field}",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() if result.stderr else "no stderr"
-        raise SpecReferenceError(
-            f"gh pr view failed for {field} "
-            f"(PR {pr_number} in {repository}): {detail}"
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--repo",
+                repository,
+                "--json",
+                field,
+                "-q",
+                f".{field}",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
         )
-    return result.stdout.strip()
+    except OSError as exc:
+        print(f"::error::failed to launch gh while reading {field}: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
+    if result.returncode != 0:
+        print(
+            f"::error::gh pr view failed while reading {field}: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL, ""
+    return EXIT_OK, result.stdout.strip()
 
 
 def _extract_spec_refs(combined: str) -> str:
@@ -106,17 +109,27 @@ def _extract_issue_refs(combined: str) -> str:
     return " ".join(results)
 
 
-def _extract_incremental_scope(pr_title: str) -> str:
+def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
     """Call extract_incremental_scope.py and return its output."""
-    result = subprocess.run(
-        [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    try:
+        result = subprocess.run(
+            [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"::error::failed to launch incremental scope parser: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
+    if result.returncode != 0:
+        print(
+            f"::error::incremental scope extraction failed: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL, ""
+    return EXIT_OK, result.stdout.strip()
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -127,13 +140,13 @@ def run(_argv: list[str] | None = None) -> int:
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
 
-    try:
-        if not pr_title and not pr_body and pr_number:
-            pr_title = _gh_pr_field(pr_number, repository, "title")
-            pr_body = _gh_pr_field(pr_number, repository, "body")
-    except SpecReferenceError as exc:
-        print(f"::error::{exc}", file=sys.stderr)
-        return 3
+    if not pr_title and not pr_body and pr_number:
+        exit_code, pr_title = _gh_pr_field(pr_number, repository, "title")
+        if exit_code != EXIT_OK:
+            return exit_code
+        exit_code, pr_body = _gh_pr_field(pr_number, repository, "body")
+        if exit_code != EXIT_OK:
+            return exit_code
 
     # Write to temp files (keeps contents safe from shell injection)
     title_file = Path(runner_temp) / f"pr-title-{os.environ.get('GITHUB_RUN_ID', '0')}.txt"
@@ -144,7 +157,11 @@ def run(_argv: list[str] | None = None) -> int:
     combined = f"{pr_body} {pr_title}"
     spec_refs = _extract_spec_refs(combined)
     issue_refs = _extract_issue_refs(combined)
-    incremental_scope = _extract_incremental_scope(pr_title)
+    exit_code, incremental_scope = _extract_incremental_scope(pr_title)
+    if exit_code != EXIT_OK:
+        title_file.unlink(missing_ok=True)
+        body_file.unlink(missing_ok=True)
+        return exit_code
 
     write_github_output("spec_refs", spec_refs)
     write_github_output("issue_refs", issue_refs)
@@ -164,7 +181,7 @@ def run(_argv: list[str] | None = None) -> int:
     title_file.unlink(missing_ok=True)
     body_file.unlink(missing_ok=True)
 
-    return 0
+    return EXIT_OK
 
 
 def main() -> int:

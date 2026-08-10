@@ -64,10 +64,10 @@ gh pr checks $PR_NUMBER --repo $REPO | grep -E "(pending|fail|skipping)"
 
 The principle above holds. Three of its specifics no longer match the repo:
 
-1. "Needs main merge" is wrong as a general unblock. The main ruleset sets
-   `strict_required_status_checks_policy: false`, so being behind main does not
-   block a merge. Merging main to unblock is cargo cult unless a workflow file
-   the PR needs actually changed on main.
+1. "Needs main merge" is now correct when a PR is behind main. The main ruleset
+   sets `strict_required_status_checks_policy: true`, so being behind main
+   blocks a merge. Refreshing the branch against main is required before the
+   remaining gates can clear.
 2. "Awaiting review" is rarely the answer. `required_approving_review_count`
    is 0. What does block is `required_review_thread_resolution: true`, so an
    unresolved thread, not a missing approval.
