@@ -330,14 +330,10 @@ _TOOL_NAMES = (
     "get_workflow_run", "get_job_logs",
 )
 
-_IMPERATIVES = re.compile(
-    r"\b(call|use|invoke|attempt|retrieve\s+.*?(?:via|using|with))\b",
-    re.IGNORECASE,
-)
-
 _NEGATIONS = re.compile(
-    r"\b(do\s+not|don[\u2019']?t|never|cannot|must\s+not|should\s+not|forbidden|"
-    r"deprecated|was\s+deprecated|is\s+not|prohibited)\b",
+    r"\b(do\s+not|don[\u2019']?t|never|cannot|can[\u2019']t|"
+    r"must\s+not|should\s+not|shall\s+not|will\s+not|may\s+not|"
+    r"forbidden|deprecated|was\s+deprecated|is\s+not|prohibited)\b",
     re.IGNORECASE,
 )
 
@@ -383,21 +379,23 @@ def _line_has_tool_reference(line: str) -> bool:
 
 
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive with analyst as actor.
+    """Return True if line is an affirmative directive with analyst as subject.
 
-    Requires the word "analyst" to appear as the grammatical subject/actor
-    of the directive. Bare imperatives without an explicit actor are rejected
-    (they could be addressed to any reader). Passive voice is rejected.
+    Requires "analyst" as the grammatical subject immediately governing
+    the retrieval verb. "The analyst retrieves X" passes; "coordinator
+    instructs analyst to retrieve X" does not (analyst is object, not
+    subject).
 
     Accepts:
     - "The analyst retrieves X using Y"
     - "The analyst uses X to retrieve"
 
     Rejects:
-    - Bare imperatives without actor: "use X to retrieve"
-    - Passive: "X should be used by the analyst"
-    - Other agents: "the orchestrator retrieves X"
-    - Negated: "the analyst should not call X"
+    - Bare imperatives: "use X to retrieve"
+    - Passive: "X is used by the analyst"
+    - Analyst as object: "coordinator instructs analyst"
+    - Negated: "the analyst should not/may not/will not call X"
+    - Other agents as subject: "the orchestrator retrieves X"
     """
     if _NON_DIRECTIVE.search(line):
         return False
@@ -406,23 +404,26 @@ def _is_affirmative_directive(line: str) -> bool:
     if _OTHER_AGENT.search(line):
         return False
 
-    lower = line.lower()
-    # Require "analyst" as the actor in the line
-    if "analyst" not in lower:
-        return False
+    # Strip quoted and inline-code spans
+    prose = re.sub(r"`[^`]*`", "", line)
+    prose = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", prose)
+    prose = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", "", prose)
+    lower = prose.lower()
 
-    # Reject passive voice (tool "is/are/be used/called/invoked")
+    # Reject passive voice
     if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
         return False
 
-    # Check if an affirmative verb exists in prose (outside inline-code spans)
-    prose = re.sub(r"`[^`]*`", "", line)
-    if _IMPERATIVES.search(prose):
+    # Require "analyst" as subject directly before a retrieval verb.
+    # Pattern: "analyst" followed (possibly with modals) by an active verb.
+    if re.search(
+        r"\banalyst\b\s+(?:directly\s+)?"
+        r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
+        lower,
+    ):
         return True
-    # Accept "analyst retrieves/uses" (present tense active voice)
-    if re.search(r"\banalyst\b.*\b(retrieves?|uses?|calls?|invokes?)\b", prose.lower()):
-        return True
-    if "retrieval via declared tools" in prose.lower():
+    # "retrieval via declared tools" with analyst context
+    if "analyst" in lower and "retrieval via declared tools" in lower:
         return True
     return False
 
@@ -712,6 +713,27 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 27: coordinator instructs analyst (analyst as object)
+    TOOL_ANALYST_AS_OBJECT = (
+        "\n### delegation contract\n"
+        "the coordinator instructs analyst to call pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 28: analyst may not (negated modal)
+    TOOL_ANALYST_MAY_NOT = (
+        "\n### delegation contract\n"
+        "the analyst may not invoke pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 29: analyst will not (negated modal)
+    TOOL_ANALYST_WILL_NOT = (
+        "\n### delegation contract\n"
+        "the analyst will not call pull_request_read directly. "
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -841,3 +863,18 @@ class TestNegativeControls:
         """'analyst should not' must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_NEGATED)
         assert err is not None, "Should reject negated analyst directive"
+
+    def test_tool_analyst_as_object_rejected(self) -> None:
+        """Analyst as object of another agent's verb must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_AS_OBJECT)
+        assert err is not None, "Should reject analyst-as-object"
+
+    def test_tool_analyst_may_not_rejected(self) -> None:
+        """'analyst may not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MAY_NOT)
+        assert err is not None, "Should reject 'may not' negation"
+
+    def test_tool_analyst_will_not_rejected(self) -> None:
+        """'analyst will not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_WILL_NOT)
+        assert err is not None, "Should reject 'will not' negation"
