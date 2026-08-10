@@ -73,4 +73,5 @@ jobs:
             --vendor-rel .claude/hooks/PreToolUse/_vendor/markdownlint \
             --verifier-rel .claude/hooks/PreToolUse/_markdownlint_verifier.py \
             --mirror-rel src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py \
-            --config-rel .claude/hooks/PreToolUse/markdownlint-safe-config.yaml
+            --config-rel .claude/hooks/PreToolUse/markdownlint-safe-config.yaml \
+            --cli2-config-rel .claude/hooks/PreToolUse/markdownlint-cli2.yaml
