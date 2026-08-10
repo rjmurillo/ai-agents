@@ -138,13 +138,34 @@
     {
       "action": "Added the shadow step to .github/workflows/ai-pr-quality-gate.yml",
       "result": "One step appended to run-tests plus actions: read on that job. Existing outputs, step names, and check names are unchanged; the authoritative duplicate pytest run still executes. continue-on-error and an unconditional exit 0 keep the shadow step from changing any verdict."
+    },
+    {
+      "action": "Review finding 1: closed sibling failure masking in aggregate()",
+      "result": "aggregate() returned inside the tier loop, so the first non-empty tier decided outright and an executor PASS or SKIPPED masked a lower-tier FAIL. The deciding tier now sets a base verdict and every lower-tier status outside BENIGN_SIBLING_STATUSES escalates it through worst(). Escalation is downward only because all jobs carry the same required check name, so an unhealthy sibling means that check is not green whatever the executor observed. PASS, SKIPPED and UNKNOWN stay benign: UNKNOWN so a failure to classify cannot erase a directly observed PASS, and SKIPPED because pytest.yml ships a real skip-tests job with empty steps, so escalating it would turn every ordinary green PR into SKIPPED. That inverse is pinned by test_a_benign_sibling_does_not_disturb_an_executor_pass and by a dedicated mutant. Two dead fallbacks were removed once every job was shown to classify into exactly one of three tiers."
+    },
+    {
+      "action": "Review finding 2: bound candidate runs to the requested pull request",
+      "result": "Runs were matched on head SHA alone, and a SHA can head more than one PR, so another PR's run could supply the verdict. binds_to_pr() now requires the number in the run pull_requests array, falling back to comparing head_repository.full_name against the already validated repository constant when GitHub omits the list. Live reads on 2026-08-10 proved that omission is normal rather than anomalous: open PRs 4832, 4833, 4834 and 4817 each carry their own number while every run of merged PR 4819 carries an empty list, so treating empty as failure would break the resolver on closed PRs. The fallback is a comparison against a trusted constant, never an ingestion, and a fork cannot match the upstream full name. Runs that match the SHA but bind to nothing now resolve UNKNOWN with REASON_RUN_NOT_BOUND, distinct from PENDING for no run at all. Proven on a real payload: the run for PR 4833 binds as 4833 and is rejected as 4834."
+    },
+    {
+      "action": "Review finding 3: made the shadow observable rather than silent",
+      "result": "A shadow that speaks only on disagreement cannot be told apart from a dead one. emit() now prints exactly one greppable ::notice::shadow-pytest-sample line on every invocation carrying status, agreement and compared, exposes shadow_pytest_compared as a fourth output for sample counting, and warns when no sample was collected. The workflow step condition moved to !cancelled() so a failing local pytest run still yields a sample while a cancelled job spends no API calls."
+    },
+    {
+      "action": "Extended the mutation harness from 9 to 18 mutants and found a real gap",
+      "result": "All 17 real mutants DEAD, control SURVIVED, restore byte-identical. The harness requires each needle to occur exactly once, which caught a genuine hole: the raw-agreement-reason mutant stopped applying once liveness gave its target two call sites, and splitting it per branch showed the sanitizer on the no-sample warning was unobserved. A mutant against that branch survived until test_the_no_sample_warning_sanitizes_the_reason_it_is_handed was added."
+    },
+    {
+      "action": "Validated the review fixes and committed as 9a0f4ce7",
+      "result": "83 focused tests pass, up from 57. 637 pass across tests/quality_gate/ and tests/workflows/. pre_pr.py exits 0, which included fixing two mypy union-attr errors the ratchet caught in the test file: tests are type-checked even though mypy reports tests.* as an unused section. A usable_scan() helper now returns a non-optional RunScan and fails by name, leaving scan_runs() for the one test that asserts the None path. taste count ratchet 581 against baseline 583, unchanged. actionlint exit 0, yamllint adds no new warning. Three files changed, still five authored files total."
     }
   ],
-  "endingCommit": "99a4ed7305830ac74a58532d7eab35f38dd749b5",
+  "endingCommit": "9a0f4ce702dba1e28cf2ae00c595175a5086e06b",
   "nextSteps": [
-    "Push the branch and open the PR; collect shadow agreement data across real pull requests.",
+    "Push the branch and open the PR; collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",
     "Expect frequent PENDING versus PASS disagreements: pytest.yml has a 45 minute budget while ai-pr-quality-gate run-tests has 10 minutes. Measuring that rate is the point of phase 1.",
     "Confirm actions: read suffices for the workflow GITHUB_TOKEN; local runs used a personal token.",
+    "Watch for shadow_pytest_compared=false runs. A sustained run of them means the resolver is not collecting data and phase 2 has no evidence base.",
     "Phase 2, only after the disagreement rate is understood: consume the resolved status and retire the duplicate run."
   ]
 }
