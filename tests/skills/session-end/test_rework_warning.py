@@ -345,12 +345,16 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
         """Build a minimal sessionEnd dict with all required MUST items."""
         required_items = [
             "handoffPreserved", "serenaMemoryUpdated", "markdownLintRun",
-            "changesCommitted", "validationPassed", "checklistComplete",
+            "qaValidation", "changesCommitted", "validationPassed",
+            "checklistComplete",
         ]
         section: dict[str, Any] = {
             name: {"Complete": True, "Evidence": "evidence", "level": "MUST"}
             for name in required_items
         }
+        section["qaValidation"]["Evidence"] = (
+            ".agents/qa/2026-08-07-pr-4735-closing-review.md"
+        )
         return section
 
     def test_rework_warning_evidence_persisted_on_new_log(self) -> None:
