@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653.json
-qaCommit: f03b39429800637d6186737b4825cd72e8f38adf
+qaCommit: 78aa7656791c3dbb5cba4a99cd6bc45c77f5ac1d
 ---
 
 # Issue 4842 QA

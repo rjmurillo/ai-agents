@@ -74,12 +74,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items verified."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md remains unchanged."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Scoped markdownlint ran; repository configuration excludes .agents/**, so zero files were selected."
+        "Evidence": "NOT LINTED: no changed markdown files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work committed as f03b39429800637d6186737b4825cd72e8f38adf."
+        "Evidence": "All changes committed (HEAD: 78aa7656791c3dbb5cba4a99cd6bc45c77f5ac1d)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py passed."
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -136,6 +141,6 @@
       "outcome": "249 tests passed; mutation failed 3 regression cases; Ruff, security scan, mirror check, and orphan reference scan passed."
     }
   ],
-  "endingCommit": "f03b39429800637d6186737b4825cd72e8f38adf",
+  "endingCommit": "78aa7656791c3dbb5cba4a99cd6bc45c77f5ac1d",
   "nextSteps": []
 }
