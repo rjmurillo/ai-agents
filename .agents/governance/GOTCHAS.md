@@ -1022,16 +1022,11 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped: the setting is now `true`
-(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
-main can no longer land at all, so the two edits can no longer meet for the
-first time on main.
-
-What remains is the case strict does not cover. Ruleset 11104075 intentionally
-has no merge queue. GitHub auto-merge serializes landing after the branch is
-current and all required checks pass, while the exact-equality assertion above
-catches a baseline and a count arriving out of step. It can still fire locally
-on a tree nobody's diff touched.
+that no longer existed. The setting was briefly changed to `true`, then
+restored to `false` when its O(N²) backlog cost was measured. The current
+control is procedural: one armed pull request at a time, updated to a recorded
+main SHA, with main checked again before auto-merge. The exact-equality
+assertion above remains the deterministic backstop for count drift.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline
@@ -1048,34 +1043,43 @@ uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py
 
 Three seconds. Failing on your branch *and* on a pristine `origin/main` worktree
 means main is red and it is not yours to fix.
-## GitHub auto-merge is the landing workflow, not Trunk Merge Queue
+## Serial GitHub auto-merge is the landing workflow
 
 The canonical procedure is
 `.agents/SESSION-PROTOCOL.md` Phase 2.8. This entry records only the traps that
 made the procedure necessary.
 
-Initial proof: PR #4819 merged under strict freshness plus GitHub squash
-auto-merge on 2026-08-09. One merge proves the mechanism, not throughput under
-contention.
+Do not update every behind branch at once. One attempted sweep updated 41
+branches and triggered 820 queued or in-progress workflow runs. The first merge
+would have made the other 40 matrices stale. Auto-merge was disabled on the
+other PRs and 818 runs were cancelled. That is the cost signature of the O(N²)
+approach.
 
-Do not set strict to false to improve throughput. A Trunk Merge Queue trial
-did that and produced the opposite result in the incident window: 18 generated
-draft pull requests, 695 workflow runs, and zero merges. Each draft reran the
-pull request workflow set, including paid AI reviews, and generated metadata
-that several required checks could not satisfy. Issue #4815 and closed PR
-#4814 preserve the evidence. This was a failed Trunk configuration trial, not
-proof that every merge queue implementation is unsound. The trial was closed
-without merge and its remote branch was deleted.
+Keep one front PR. Update it to the current main SHA, run one CI matrix, verify
+main did not move, merge it, then advance. With strict disabled this is O(N)
+CI work when each PR succeeds once, but only while exactly one PR is armed.
+
+This is not a platform lock. A human or second agent can still merge between
+the final main-SHA comparison and the auto-merge event. Two landing sessions
+must not run concurrently. Pause the drain when another actor is landing work.
+An `update-branch` 422 is not automatically a failure: reread the head and
+merge state, retry once if the head changed, and continue when GitHub says the
+branch is already current.
 
 The expensive failure mode is discovering known gates remotely. Symptom:
 every loop costs the local pre-push suite plus another CI cycle, while the
 failure was already encoded in a prompt or validator in the repository. CI is
 a backstop. It is not the first place to run known checks.
 
-Enabling auto-merge is not the finish line. Another pull request can merge and
-make this branch stale again before GitHub lands it. Keep the task open until
-the pull request reaches `MERGED`; Phase 2.8 owns the measured timeout and
-handoff procedure.
+Enabling auto-merge on many PRs defeats the serial control. The repository has
+no native merge queue because GitHub does not offer it to this user-owned
+repository, and the Trunk.io trial was removed. Phase 2.8 owns the single-front
+procedure, measured timeout, and handoff rule.
+
+The residual stale-base race is accepted, not solved. Main can move in the
+seconds between the final SHA check and GitHub's squash. After every merge,
+inspect the new main push workflows before arming the next PR. One red check
+halts the drain and limits the blast radius to one merge.
 
 ## Merging main clears an inherited red; check that before debugging your diff
 

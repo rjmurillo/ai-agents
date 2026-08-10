@@ -4,7 +4,7 @@
   "timestamp": "2026-08-09T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Document the proven GitHub auto-merge workflow and the rollback of the failed Trunk trial.",
+  "task": "Document the strict-off serial GitHub auto-merge workflow and the rollback of the failed parallel and Trunk trials.",
   "decisions": [],
   "events": [
     {

@@ -2,75 +2,65 @@
 
 ## Decision under review
 
-Document strict branch freshness plus GitHub squash auto-merge as the
-repository's default pull request landing workflow. Record the failed Trunk
-Merge Queue trial without claiming every queue implementation will fail.
+Document a serial GitHub auto-merge drain for a user-owned repository:
+
+- `strict_required_status_checks_policy: false`
+- no GitHub native merge queue
+- no external merge queue
+- one auto-merge front at a time
+- update and test only the front PR against a recorded main SHA
+- halt after any red main push
 
 ## Evidence
 
 | Claim | Evidence |
 |-------|----------|
-| Strict freshness enabled | Ruleset 11104075 API returned `strict: true` |
-| No merge queue rule | Ruleset 11104075 API returned zero `merge_queue` rules |
-| Auto-merge mechanism works | PR #4819 merged at `3b3c53e2f` |
-| Trunk trial did not merge | PR #4814 closed without merge; issue #4815 |
-| Trunk incident cost | 18 draft PRs and 695 workflow runs in the measured window |
-| Timeout basis | PR #4819 slowest required check: 1094 seconds |
+| Strict is disabled | Ruleset 11104075 API returned `strict: false` |
+| Native queue unavailable | GitHub merge queue requires an organization-owned repository |
+| Trunk removed | PR #4814 and issues #4815/#4818 closed; remote branches deleted |
+| Parallel refresh cost | 41 branch updates triggered 820 queued/in-progress runs |
+| Cost rollback | Auto-merge disabled on 41 PRs; 818 runs cancelled |
+| Serial invariant started | Exactly one PR, #4792, left armed |
 
-## Round 1
+## Review history
 
-| Reviewer | Vote | Blocking concern |
-|----------|------|------------------|
-| Architect | ACCEPT | None |
-| Critic | BLOCK | Auto-merge enablement could be mistaken for completion; unattended critic cross-reference missing |
-| Independent thinker | DISAGREE_AND_COMMIT | N=1 overclaimed; queue prohibition too broad; local prompt gate lacked evidence |
-| Security | Not counted | Reviewed unrelated files, so the result was discarded |
-| Analyst | ACCEPT | Metrics needed a durable citation; merge command should be explicit |
-| High-level advisor | BLOCK | Could not access the diff, so refused to fabricate a vote |
+The first two review rounds evaluated strict freshness plus auto-merge. That
+decision was abandoned after its O(N²) cost became concrete. The final round
+reviewed the materially different strict-off serial procedure.
 
-## Round 1 changes
+### Final-round findings
 
-1. Made `MERGED` the terminal condition. Auto-merge enablement is not task
-   completion.
-2. Added a 30-minute escalation rule using exact
-   `gh pr checks --required` blockers and user-accepted handoff.
-3. Cross-referenced the unattended critic requirement.
-4. Added explicit `git fetch origin main` and
-   `git merge --no-edit origin/main` commands.
-5. Required QA evidence for every locally-run quality axis.
-6. Reframed PR #4819 as initial mechanism proof, not throughput proof.
-7. Allowed future queue trials only by user decision with cost ceiling,
-   success target, time limit, and rollback.
-8. Cited issue #4815 and PR #4814, and described the Trunk result as a
-   configuration incompatibility rather than a category judgment.
+| Finding | Resolution |
+|---------|------------|
+| SHA check and merge are not atomic | Residual TOCTOU is explicitly accepted; concurrent landing sessions prohibited |
+| One-front rule is procedural | Exact disarm command and verify-zero assertion added |
+| `update-branch` can return 422 | Head reread, current-state check, one retry, then stop |
+| Parallel update claim said O(N) | Corrected to O(N × R), where R is attempts per PR |
+| Residual race could damage main | New main push workflows must be green before next PR; red halts drain |
+| Main-health step lacked a command | Added `gh run list --commit "$MAIN_SHA"` command |
 
-## Round 2
+## Final votes
 
 | Reviewer | Vote | Remaining P0/P1 |
 |----------|------|-----------------|
 | Architect | ACCEPT | None |
 | Critic | ACCEPT | None |
-| Independent thinker | ACCEPT | None |
+| Independent Thinker | ACCEPT | None |
 | Security | ACCEPT | None |
 | Analyst | ACCEPT | None |
-| High-level advisor | ACCEPT | None |
-
-The critic and advisor noted P2 duplication between the protocol and GOTCHAS.
-GOTCHAS now cross-references Phase 2.8 and retains only the incident trap and
-symptom. The advisor also asked for the 30-minute basis. PR #4819's slowest
-required check completed in 1094 seconds, leaving 706 seconds before
-escalation; the protocol records that measurement and requires remeasurement
-when required checks change.
+| High-Level Advisor | ACCEPT | None |
 
 ## Strategic lenses
 
 | Lens | Result |
 |------|--------|
-| Chesterton's Fence | PASS. The failed trial and rollback are preserved with evidence. |
-| Reversibility | PASS. Future bounded queue experiments remain possible by user decision. |
-| Core vs context | PASS with caution. Merge policy is context, but the incident cost justifies a compact guardrail. |
-| Second-system effect | PASS. No custom orchestrator or new merge service is introduced. |
+| Chesterton's Fence | PASS. The strict and Trunk experiments are preserved with measured costs. |
+| Reversibility | PASS. Strict is one ruleset field; serial drain can stop after any PR. |
+| Core vs context | PASS with caution. Merge orchestration is context, so the solution uses GitHub APIs rather than a custom service. |
+| Second-system effect | PASS. No queue, daemon, lock service, or repository bot is introduced. |
 
 ## Consensus
 
-Six of six reviewers ACCEPT. No P0 or P1 issues remain.
+Six of six reviewers ACCEPT. No P0 or P1 issues remain. The residual stale-base
+window is accepted, not hidden, and its blast radius is capped at one merge by
+the post-merge main-health gate.

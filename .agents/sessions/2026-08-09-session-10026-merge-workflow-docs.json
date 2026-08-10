@@ -5,7 +5,7 @@
     "date": "2026-08-09",
     "branch": "docs/github-auto-merge-protocol",
     "startingCommit": "3b3c53e2f",
-    "objective": "Document the proven GitHub auto-merge workflow and the rollback of the failed Trunk trial."
+    "objective": "Document the strict-off serial GitHub auto-merge workflow and the rollback of the failed parallel and Trunk trials."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -101,19 +101,19 @@
   "workLog": [
     {
       "action": "Verified live landing policy",
-      "outcome": "Ruleset 11104075 reports strict=true and zero merge_queue rules; PR #4819 is merged; PR #4814 is closed without merge."
+      "outcome": "Ruleset 11104075 reports strict=false and zero merge_queue rules; exactly one PR remained armed after the parallel sweep rollback."
     },
     {
       "action": "Updated canonical protocol",
-      "outcome": "Added a required GitHub auto-merge landing phase with local gates, QA evidence, unattended critic, and a wait-until-merged terminal condition."
+      "outcome": "Added a required single-front auto-merge phase with recorded base SHA, local gates, one armed PR, wait-until-merged, and post-merge main health checks."
     },
     {
       "action": "Updated the failure catalog",
-      "outcome": "Replaced stale merge-queue language and recorded the measured Trunk trial failure, rollback, and local-first gate sequence."
+      "outcome": "Recorded the Trunk rollback and the 41-branch parallel refresh that triggered 820 runs and required 818 cancellations."
     },
     {
       "action": "Ran six-role protocol review",
-      "outcome": "Addressed temporal race, unattended-mode, evidence confidence, and categorical-prohibition findings before convergence."
+      "outcome": "Re-ran review after the strict-off decision and addressed TOCTOU, concurrent-session, 422 recovery, cost-model, and main-health findings before 6/6 acceptance."
     }
   ],
   "endingCommit": "9670e5ecda0f8ac5132e0bc315fb34e9295587b7",

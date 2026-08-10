@@ -3,7 +3,7 @@ qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10026-merge-workflow-docs.json
 qaCommit: 9670e5ecda0f8ac5132e0bc315fb34e9295587b7
 ---
-# Test Report: Merge Workflow Protocol
+# Test Report: Serial Auto-Merge Protocol
 
 ## Scope
 
@@ -17,41 +17,57 @@ Documentation-only change for issue #4820:
 
 | Claim | Verified result |
 |-------|-----------------|
-| Strict branch freshness | Ruleset 11104075 returned `strict: true` |
+| Strict branch freshness | Ruleset 11104075 returned `strict: false` |
 | No merge queue | Ruleset 11104075 returned zero `merge_queue` rules |
-| GitHub auto-merge works | PR #4819 merged at `3b3c53e2f` |
-| Failed trial did not land | PR #4814 is closed with no merge commit |
-| Timeout basis | PR #4819 slowest required check completed in 1094 seconds |
+| Single armed PR | PR #4792 was the only open PR with auto-merge enabled |
+| Parallel update cost | 41 branches triggered 820 queued/in-progress runs |
+| Rollback | 41 auto-merge requests disabled; 818 runs cancelled |
+| Trunk removed | PR #4814 and issues #4815/#4818 closed; remote branches deleted |
+
+## Procedure under test
+
+The protocol requires one front PR at a time:
+
+1. Disable every other auto-merge request and verify zero remain.
+2. Record main SHA.
+3. Update only the front PR and run one CI matrix.
+4. Recheck main SHA before enabling squash auto-merge.
+5. Wait until `MERGED`.
+6. Inspect push workflows on the new main commit before advancing.
+
+The protocol states that strict-off leaves a TOCTOU window between the final
+SHA check and GitHub's merge. It accepts that residual risk to avoid the
+measured O(N²) cost, prohibits concurrent landing sessions, and limits blast
+radius to one merge by halting after any red main push.
 
 ## Review
 
-ADR review ran two rounds across Architect, Critic, Independent Thinker,
-Security, Analyst, and High-Level Advisor.
+The decision changed materially during review, so the six-role panel re-ran on
+the final strict-off serial design. Final votes:
 
-Round 1 found three P1 gaps:
+| Reviewer | Vote |
+|----------|------|
+| Architect | ACCEPT |
+| Critic | ACCEPT |
+| Independent Thinker | ACCEPT |
+| Security | ACCEPT |
+| Analyst | ACCEPT |
+| High-Level Advisor | ACCEPT |
 
-1. Auto-merge enablement could be mistaken for completion.
-2. Unattended critic review was not cross-referenced.
-3. One successful merge and one failed Trunk configuration were stated too
-   broadly.
-
-The protocol now requires the pull request to reach `MERGED`, reports exact
-required checks after a measured 30-minute threshold, requires unattended
-critic review, labels PR #4819 initial mechanism proof, and permits future
-bounded queue trials by user decision.
-
-Round 2 result: six of six ACCEPT, zero P0 or P1 findings.
+No P0 or P1 findings remain. The debate log records the TOCTOU, one-front
+enforcement, 422 recovery, cost-model, and main-health findings and fixes.
 
 ## Documentation checks
 
+- live ruleset and PR state read through GitHub API
+- commands are copy-pasteable and use repository-derived variables
 - `git diff --check`: passed
-- Prohibited dash scan: zero
-- Live commands and status names verified against GitHub API
-- GOTCHAS procedure reduced to a Phase 2.8 cross-reference plus trap-specific
-  symptoms
+- prohibited dash scan: zero
+- session JSON and QA binding: passed
+- `pre_pr.py`: passed after final marker update
 
 ## Verdict
 
-PASS. The documents match live policy and would have prevented the incident's
-two central failures: changing merge infrastructure without a bounded rollback
-and declaring completion before a pull request actually merged.
+PASS. The documentation matches the chosen non-strict serial workflow, states
+the residual race honestly, and encodes the controls needed to prevent another
+parallel CI explosion.

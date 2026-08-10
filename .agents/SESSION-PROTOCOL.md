@@ -855,59 +855,103 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 
 ### Phase 2.8: Pull Request Landing (REQUIRED)
 
-The repository uses GitHub auto-merge with strict branch freshness. It does
-not use an external merge queue.
+The repository uses a serial GitHub auto-merge drain with strict branch
+freshness disabled. This user-owned repository cannot use GitHub's native
+merge queue, and it does not use an external merge queue.
 
 **Repository policy:**
 
 1. Ruleset `11104075` MUST keep
-   `strict_required_status_checks_policy: true`.
-2. Agents MUST NOT weaken strict freshness, add a merge queue, or install a
-   queue-specific required status without explicit user approval. This is the
-   current default, not a claim that no merge queue can work. Any future trial
-   MUST define a cost ceiling, success target, time limit, and rollback before
-   changing repository policy.
-3. A pull request MUST be `MERGEABLE`, have zero unresolved review threads,
+   `strict_required_status_checks_policy: false`.
+2. Exactly one pull request MAY have auto-merge enabled at a time. Before
+   arming a pull request, the agent MUST disable auto-merge on every other open
+   pull request and verify the count is zero:
+
+   ```bash
+   for PR in $(gh pr list --state open --json number,autoMergeRequest \
+     --jq '.[] | select(.autoMergeRequest != null) | .number'); do
+     gh pr merge "$PR" --disable-auto
+   done
+   test "$(gh pr list --state open --json autoMergeRequest \
+     --jq '[.[] | select(.autoMergeRequest != null)] | length')" -eq 0
+   ```
+
+   This is a procedural control, not a GitHub lock. Two agent sessions MUST NOT
+   execute this phase concurrently. A human merge or another actor landing
+   work MUST pause the drain.
+3. The front pull request MUST be `MERGEABLE`, have zero unresolved threads,
    carry valid `Fixes #N` or `Refs #N` linkage, and pass every required check
-   before an agent enables auto-merge.
-4. Agents MUST use squash auto-merge:
+   before it merges.
+4. The agent MUST record the current main SHA, update only the front pull
+   request to that base, and let its checks run:
 
    ```bash
-   gh pr merge <PR_NUMBER> --auto --squash
+   REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+   BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+   HEAD_SHA=$(gh pr view <PR_NUMBER> --json headRefOid --jq .headRefOid)
+   gh api -X PUT "repos/$REPO/pulls/<PR_NUMBER>/update-branch" \
+     -f expected_head_sha="$HEAD_SHA"
    ```
 
-5. If `mergeStateStatus` is `BEHIND` or `DIRTY`, the agent MUST refresh and
-   merge main explicitly:
+   Use `$REPO` in the base-SHA command too. If the update returns 422:
+   - reread `headRefOid`; if it changed, restart this step with the new head;
+   - if `mergeStateStatus` is `CLEAN` or `UNSTABLE`, the branch is already
+     current enough to test, so continue;
+   - otherwise stop and surface the API response. Retry at most once.
 
-   ```bash
-   git fetch origin main
-   git merge --no-edit origin/main
-   ```
-
-   The agent MUST resolve conflicts and rerun deterministic gates before
-   pushing.
-6. When the changed paths trigger AI quality workflows, the agent MUST run
+   If the PR is `DIRTY`, resolve its conflicts before continuing.
+5. When the changed paths trigger AI quality workflows, the agent MUST run
    the matching canonical prompts under
    `.github/prompts/pr-quality-gate-*.md` locally against the complete final
    diff before the final push. The QA report MUST record every axis verdict and
    any supported finding that changed the branch. Remote CI is the backstop,
    not the first review.
-7. Code-changing pull requests MUST carry their QA report and valid session
+6. Code-changing pull requests MUST carry their QA report and valid session
    binding before the final push. Do not use remote `Validate PR` to discover
    a missing report after a 15-minute CI run.
+7. After required checks pass, the agent MUST compare current main with
+   `BASE_SHA`. If they differ, main moved during testing: restart step 4 for
+   this pull request only. Do not refresh the rest of the backlog.
 8. If operating unattended, the agent MUST invoke critic before enabling
    auto-merge, per the Unattended Execution Protocol.
-9. Enabling auto-merge is not completion. The agent MUST wait until the pull
+9. The agent MUST use squash auto-merge:
+
+   ```bash
+   gh pr merge <PR_NUMBER> --auto --squash
+   ```
+
+   Residual risk: strict is off, so a human or second agent can merge to main
+   between the SHA comparison and GitHub's merge. The single-front rule makes
+   this window small but cannot close it at the platform. This is accepted to
+   avoid the measured O(N²) CI cost. If any other actor is landing work, pause
+   the drain.
+
+10. Enabling auto-merge is not completion. The agent MUST wait until the pull
    request reaches `MERGED`. If it has not merged within 30 minutes, the agent
    MUST keep the task incomplete and report the exact in-progress or failing
    required checks from `gh pr checks --required`; the user MAY accept a
    handoff instead. Basis: PR #4819's slowest required check completed in 1094
    seconds (18 minutes 14 seconds), so 30 minutes leaves 11 minutes 46 seconds
    before escalation. Re-measure when required checks change.
+11. Before advancing to the next PR, the agent MUST inspect the push workflows
+    for the new main commit. Any red main check stops the drain: disable
+    auto-merge everywhere, keep the task incomplete, and fix forward or revert
+    before arming another PR. This limits a residual stale-base race to one
+    merge.
 
-**Initial proof:** PR #4819 merged on 2026-08-09 with strict freshness enabled,
-all required checks green, zero unresolved threads, and GitHub squash
-auto-merge. This proves the mechanism, not its throughput under contention.
+    ```bash
+    MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+    gh run list --commit "$MAIN_SHA" --json status,conclusion,name,url
+    ```
+
+    Wait for the relevant push workflows to complete. Any `failure`,
+    `timed_out`, `action_required`, or `startup_failure` conclusion is red.
+
+**Why serial:** Updating 41 branches in parallel on 2026-08-09 triggered 820
+queued or in-progress workflow runs. The first merge would have invalidated
+the other 40 test matrices. Auto-merge was disabled on those PRs and 818 runs
+were cancelled. A serial front keeps CI work O(N × R), where R is the number
+of retries for a PR: one branch update and one test matrix per attempt.
 
 A Trunk Merge Queue trial immediately before it created 18 draft pull requests
 and 695 workflow runs in the measured incident window, merged zero pull
@@ -920,15 +964,20 @@ rollback criterion.
 
 **Verification checklist:**
 
-- [ ] Ruleset strict policy is `true`
+- [ ] Ruleset strict policy is `false`
+- [ ] Exactly one or zero open PRs have auto-merge enabled
+- [ ] No second agent or human is landing another PR
 - [ ] Full PR thread and linked work items read
 - [ ] Zero unresolved review threads
+- [ ] Front PR updated to recorded `BASE_SHA`
 - [ ] Every required check passed or intentionally skipped by its contract
+- [ ] Current main still equals `BASE_SHA`
 - [ ] QA report and session binding present for code changes
 - [ ] Canonical local AI prompts run when their workflows apply
 - [ ] Unattended critic review complete when applicable
 - [ ] `gh pr merge --auto --squash` executed
 - [ ] Pull request reached `MERGED`, or user accepted an explicit handoff
+- [ ] New main push checks are green before advancing
 
 ### Phase 3: Git Operations (REQUIRED)
 
