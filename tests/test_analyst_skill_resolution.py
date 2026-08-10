@@ -516,6 +516,23 @@ def _is_affirmative_directive(line: str) -> bool:
         )
         if not verb_match:
             continue
+        # Reject analyst+verb inside subordinate/relative/parenthetical context.
+        # Leading subordinate conjunction before analyst makes it a dependent clause.
+        pre = clause[: verb_match.start()].strip()
+        _leading_subord = re.match(
+            r"^(when|if|where|while|although|unless|before|after|until)\b",
+            pre,
+            re.IGNORECASE,
+        )
+        if _leading_subord:
+            continue
+        # Relative pronoun (that/which/who) preceding analyst = relative clause.
+        if re.search(r"\S+\s+(?:that|which|who|whom)\b", pre):
+            continue
+        # Analyst inside parenthetical = not main-clause subject.
+        _open_parens = pre.count("(") - pre.count(")")
+        if _open_parens > 0:
+            continue
         # Tool must appear AFTER the analyst+verb as its direct argument,
         # not in a subordinate clause or after a new subject boundary.
         # Use MASKED text for boundary detection (same offsets as verb_match).
@@ -1562,3 +1579,68 @@ class TestAllCanonicalTools:
     )
     def test_mcp_prefixed(self, tool: str) -> None:
         assert _is_affirmative_directive(f"The analyst retrieves context using `{tool}` directly.")
+
+
+# --- Negative controls: subordinate/relative/parenthetical context ---
+
+
+class TestNegativeClauseContext:
+    """Analyst+verb in dependent context must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "When the analyst uses pull_request_read, return BLOCKED",
+            "If analyst retrieves pull_request_read, log the event",
+            "Where the analyst calls pull_request_read, caching applies",
+            "While analyst uses pull_request_read, monitor progress",
+            "Unless the analyst retrieves pull_request_read first, block",
+            "The tool that the analyst uses is pull_request_read",
+            "Data which the analyst retrieves via pull_request_read is cached",
+            "The process (analyst retrieves pull_request_read) is complex",
+            "Check (the analyst uses pull_request_read) before proceeding",
+        ],
+        ids=[
+            "when",
+            "if",
+            "where",
+            "while",
+            "unless",
+            "that-relative",
+            "which-relative",
+            "paren-embed",
+            "paren-article",
+        ],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "When the analyst uses pull_request_read, log the event",
+            "The tool that the analyst uses is pull_request_read",
+            "The process (analyst retrieves pull_request_read) is complex",
+        ],
+        ids=["when-wrap", "relative-wrap", "paren-wrap"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        section = "\n### delegation contract\n" + line + ".\nReturn [BLOCKED] only when missing.\n"
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+
+class TestPositiveMainClauseControls:
+    """Legitimate main-clause analyst directives remain accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves PR data using pull_request_read directly.",
+            "The analyst uses pull_request_read to fetch context.",
+            "The analyst retrieves data using pull_request_read so that it can proceed.",
+            "The analyst calls pull_request_read before returning results.",
+        ],
+        ids=["using", "to-fetch", "so-that", "before-return"],
+    )
+    def test_main_clause_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
