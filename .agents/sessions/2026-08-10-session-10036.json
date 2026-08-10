@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 10035,
+    "number": 10036,
     "date": "2026-08-10",
     "branch": "perf/4823-pytest-xdist",
     "startingCommit": "db8e9441ba9e2b9a21b598224d0501329ffdf1a3",
