@@ -17,7 +17,7 @@ These rules apply to every change in this repository.
 7. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 8. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
 9. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
-10. **Never attribute an action to a human from the author field alone.** Agents commit under the operator's identity, so `%an` says whose credentials ran, not who decided. Read the trailer first: `git show -s --format=%B <sha>`. A `Copilot-Session:` marker means an agent authored it; resolve that session in `~/.copilot/session-state/*/events.jsonl` before naming anyone. GitHub audit events carry the same blindness, so authorization must be written down, never inferred. Measured 2026-08-09: three such commits read as operator work, and one stalled `main` for five hours. Refs #4782.
+10. **Never attribute an action to a human from the git author field alone.** Agents commit under the operator's identity, so `%an` records whose credentials ran, not who decided. Check `git show -s --format=%B <sha>` for a `Copilot-Session:` trailer before naming anyone; its presence means an agent authored the change. Absence proves nothing, since most commits carry no trailer. GitHub audit events carry the same blindness, so authorization must be written down, never inferred from the actor. Refs #4782.
 
 ## SHOULD
 
