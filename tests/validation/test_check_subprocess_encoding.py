@@ -45,6 +45,7 @@ Coverage:
 - edge/errors-wrong-value: errors="strict" counts as present -> not flagged
 - edge/syntax-error: file with invalid Python -> returns empty list (no crash)
 - edge/empty-source: empty source -> no violations
+- edge/explicit-empty-scan: explicit paths with no scannable files -> failure
 - edge/invalid-root: non-existent directory -> exit 2
 - integration: no tracked file under scripts/ has a violation after the fix
 - cli/exit-zero: repo root with no violations -> main() returns 0
@@ -871,6 +872,18 @@ def test_validate_subprocess_encoding_returns_false_on_violation(tmp_path: Path)
         encoding="utf-8",
     )
     assert validate_subprocess_encoding(tmp_path) is False
+
+
+def test_validate_subprocess_encoding_fails_when_explicit_scan_is_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    notes = tmp_path / "notes.txt"
+    notes.write_text("not Python\n", encoding="utf-8")
+
+    result = validate_subprocess_encoding(tmp_path, [notes])
+
+    assert result is False
+    assert "no scannable Python files" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

@@ -41,13 +41,37 @@ def test_apply_mutation_rejects_ambiguous_target() -> None:
         _apply_mutation("needle\nneedle\n", "needle", "replacement")
 
 
-def _run_tests(repo_root: Path) -> int:
+def _write_isolated_test(repo_root: Path, checker_source: str) -> Path:
+    scratch = repo_root / ".pytest_tmp" / "subprocess-encoding-mutation"
+    shutil.rmtree(scratch, ignore_errors=True)
+    scratch.mkdir(parents=True)
+    (scratch / "check_subprocess_encoding.py").write_text(checker_source, encoding="utf-8")
+
+    test_source = (repo_root / "tests/validation/test_check_subprocess_encoding.py").read_text(
+        encoding="utf-8"
+    )
+    test_source = test_source.replace(
+        'REPO_ROOT = Path(__file__).resolve().parents[2]\n'
+        '_VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"',
+        f'REPO_ROOT = Path({str(repo_root)!r})\n'
+        '_VALIDATION_DIR = Path(__file__).resolve().parent',
+    )
+    isolated_test = scratch / "test_check_subprocess_encoding.py"
+    isolated_test.write_text(test_source, encoding="utf-8")
+    return isolated_test
+
+
+def _run_tests(repo_root: Path, checker_source: str | None = None) -> int:
+    test_target = "tests/validation/test_check_subprocess_encoding.py"
+    if checker_source is not None:
+        test_target = str(_write_isolated_test(repo_root, checker_source))
+
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            "tests/validation/test_check_subprocess_encoding.py",
+            test_target,
             "-x",
             "-q",
             "--tb=no",
@@ -81,13 +105,12 @@ def _run_mutation(
             failures.append(f"{name}: mutation did not apply (DID-NOT-APPLY)")
         return
 
-    checker.write_text(mutated, encoding="utf-8")
-    _purge_cache(repo_root)
+    scratch = repo_root / ".pytest_tmp" / "subprocess-encoding-mutation"
+    _purge_cache(scratch)
     try:
-        rc = _run_tests(repo_root)
+        rc = _run_tests(repo_root, mutated)
     finally:
-        checker.write_text(original_source, encoding="utf-8")
-        _purge_cache(repo_root)
+        shutil.rmtree(scratch, ignore_errors=True)
 
     restored = checker.read_text(encoding="utf-8")
     if restored != original_source:

@@ -1310,12 +1310,10 @@ def _collect_sources(repo_root: Path, explicit_paths: list[Path] | None = None) 
     return sorted(found)
 
 
-def find_all_violations(
-    repo_root: Path, explicit_paths: list[Path] | None = None
-) -> list[tuple[Path, int]]:
-    """Return ``(path, lineno)`` pairs for every flagged call site."""
+def _find_violations_in_sources(repo_root: Path, sources: list[Path]) -> list[tuple[Path, int]]:
+    """Return ``(path, lineno)`` pairs for every flagged source."""
     results: list[tuple[Path, int]] = []
-    for path in _collect_sources(repo_root, explicit_paths):
+    for path in sources:
         if not path.is_file():
             continue
         try:
@@ -1327,6 +1325,13 @@ def find_all_violations(
     return results
 
 
+def find_all_violations(
+    repo_root: Path, explicit_paths: list[Path] | None = None
+) -> list[tuple[Path, int]]:
+    """Return ``(path, lineno)`` pairs for every flagged call site."""
+    return _find_violations_in_sources(repo_root, _collect_sources(repo_root, explicit_paths))
+
+
 def validate_subprocess_encoding(
     repo_root: Path, explicit_paths: list[Path] | None = None
 ) -> bool:
@@ -1335,7 +1340,15 @@ def validate_subprocess_encoding(
     Entry point matching the ``validate_*(repo_root) -> bool`` contract used
     by ``pre_pr_sequence.py``.
     """
-    violations = find_all_violations(repo_root, explicit_paths)
+    sources = _collect_sources(repo_root, explicit_paths)
+    if explicit_paths is not None and not sources:
+        print(
+            "[FAIL] Explicit subprocess encoding scan found no scannable Python files.",
+            file=sys.stderr,
+        )
+        return False
+
+    violations = _find_violations_in_sources(repo_root, sources)
     if not violations:
         return True
     count = len(violations)

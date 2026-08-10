@@ -467,6 +467,7 @@ def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
         if cmd[0] == "git" and "rev-parse" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         kwargs.pop("encoding", None)
+        kwargs.pop("errors", None)
         return real_run(cmd, encoding="utf-8", errors="replace", **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _run)
