@@ -162,9 +162,13 @@
     {
       "action": "Fixed spawned-child lease-loss review thread",
       "result": "Added stop_mutation_group and coverage for a mutation leader that exits after spawning a delayed child; lease loss now terminates the whole process group before release."
+    },
+    {
+      "action": "Fixed slash command validation failure",
+      "result": "Added argument-hint to pr-autofix command frontmatter and regenerated the Copilot skill mirror."
     }
   ],
-  "endingCommit": "fcb82e727264ef61a41b90471234cf0f462996d0",
+  "endingCommit": "7ec7e6293b9b504319fdcc138cf1dcac7f95730e",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]

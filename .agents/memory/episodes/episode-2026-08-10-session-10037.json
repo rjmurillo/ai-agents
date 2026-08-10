@@ -100,7 +100,8 @@
         "e010",
         "e011",
         "e013",
-        "e015"
+        "e015",
+        "e017"
       ],
       "leads_to": [
         "e009"
@@ -198,6 +199,30 @@
       "caused_by": [
         "e014"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed slash command validation failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T15:18:40+00:00",
+      "type": "commit",
+      "content": "Commit: 7ec7e6293b9b504319fdcc138cf1dcac7f95730e",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10037"
     }
@@ -207,7 +232,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 13
   },
   "lessons": []
