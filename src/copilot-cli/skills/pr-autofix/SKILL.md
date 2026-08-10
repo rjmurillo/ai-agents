@@ -158,8 +158,20 @@ prepare_lease_for_mutation() {
     start_lease_renewal
 }
 
+stop_mutation_group() {
+    local mutation_pid=$1 stop_attempt
+    kill -TERM -- "-$mutation_pid" 2>/dev/null || true
+    for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.05
+    done
+    kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+}
+
 run_mutation_with_lease_monitor() {
-    local mutation_pid mutation_pgid mutation_rc mutation_state start_attempt stop_attempt
+    local mutation_pid mutation_pgid mutation_rc mutation_state start_attempt
     python3 -c \
         'import errno, os, sys
 try:
@@ -184,6 +196,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 mutation_rc=$?
             fi
             if lease_renewal_failed; then
+                stop_mutation_group "$mutation_pid"
                 echo "Mutation completed as lease ownership was lost for #$PR"
                 cleanup_pr_autofix
                 return 75
@@ -204,6 +217,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
             sleep 0.02
             mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
             if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
+                stop_mutation_group "$mutation_pid"
                 if wait "$mutation_pid"; then
                     mutation_rc=0
                 else
@@ -213,14 +227,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
-            kill -TERM -- "-$mutation_pid" 2>/dev/null || true
-            for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
-                if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
-                    break
-                fi
-                sleep 0.05
-            done
-            kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+            stop_mutation_group "$mutation_pid"
             wait "$mutation_pid" 2>/dev/null || true
             echo "Stopping mutation for #$PR: lease ownership lost"
             cleanup_pr_autofix
@@ -234,6 +241,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         mutation_rc=$?
     fi
     if lease_renewal_failed; then
+        stop_mutation_group "$mutation_pid"
         echo "Mutation completed as lease ownership was lost for #$PR"
         cleanup_pr_autofix
         return 75

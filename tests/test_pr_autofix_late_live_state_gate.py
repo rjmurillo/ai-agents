@@ -163,6 +163,7 @@ def _run_race(
     renewal_failure: bool = False,
     immediate_lease_failure: bool = False,
     mutation_command: str | None = None,
+    spawn_delayed_child: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -232,7 +233,9 @@ fi
         "LEASE_RENEW_COUNT_FILE": str(renew_count),
         "LEASE_RENEW_FAIL_AFTER": renewal_fail_after,
         "MUTATION_SLEEP_SECONDS": mutation_sleep,
-        "MUTATION_CHILD_LOG": str(mutation_child_log) if renewal_failure else "",
+        "MUTATION_CHILD_LOG": str(mutation_child_log)
+        if renewal_failure or spawn_delayed_child
+        else "",
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -466,3 +469,23 @@ def test_fast_exit_reports_lease_loss_after_wait(
     assert "Mutation completed as lease ownership was lost for #4349" in result.stdout
     assert "mutation-skipped:75" in result.stdout
     assert "mutation-ran" not in result.stdout
+
+
+def test_fast_exit_stops_delayed_child_after_lease_loss(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        spawn_delayed_child=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert mutation_log.read_text(encoding="utf-8") == "ran\n"
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout
+    assert not (tmp_path / "mutation-child").exists()
