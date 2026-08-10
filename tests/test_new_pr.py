@@ -40,7 +40,7 @@ get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
 _resolve_validation_base = _mod._resolve_validation_base
-_repository_validators_are_trusted = _mod._repository_validators_are_trusted
+_UNTRUSTED_REPOSITORY_VALIDATORS = _mod._UNTRUSTED_REPOSITORY_VALIDATORS
 
 
 # ---------------------------------------------------------------------------
@@ -53,25 +53,99 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 
 
 class TestRepositoryValidatorTrust:
-    def test_branch_changed_scripts_are_untrusted(self, tmp_path):
-        assert not _repository_validators_are_trusted(
-            str(tmp_path),
-            ["scripts/detect_test_coverage_gaps.py"],
-            diff_failed=False,
+    """The three repository-local detectors are never run from /push-pr.
+
+    Issue #4764 put repository-controlled Python outside the trust boundary.
+    Issue #4825 review 4894113215 finding 1 reported that the previous code
+    reached that outcome through a helper that ignored its arguments, always
+    returned False, printed "scripts/ is changed or dirty" on a clean branch,
+    and still summarized the run as "All pre-creation validations passed!".
+    These tests pin the replacement contract: the same three checks are named
+    as not run on every branch state, and the summary says so.
+    """
+
+    _EXPECTED = (
+        "Session End (scripts/validate_session_json.py)",
+        "skill violation (scripts/detect_skill_violation.py)",
+        "test coverage (scripts/detect_test_coverage_gaps.py)",
+    )
+
+    def test_untrusted_validator_inventory_is_explicit(self):
+        assert _UNTRUSTED_REPOSITORY_VALIDATORS == self._EXPECTED
+
+    def _run(self, tmp_path, changed, capsys, rc=0):
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=rc)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+        return capsys.readouterr().out
+
+    # A session log makes Validation 1 applicable, so all three slots report.
+    _SESSION_LOG = ".agents/sessions/2026-08-10-session-1-guard.json\n"
+
+    def test_clean_branch_reports_every_check_as_not_run(self, tmp_path, capsys):
+        """Positive case: no scripts/ change, nothing dirty, still not run."""
+        out = self._run(tmp_path, self._SESSION_LOG + "docs/guide.md\n", capsys)
+
+        for validator in self._EXPECTED:
+            assert f"Not run: {validator}." in out
+        assert "outside the trusted push-pr boundary" in out
+        assert "All pre-creation validations passed" not in out
+        assert "scripts/ is changed or dirty" not in out
+
+    def test_changed_scripts_branch_reports_the_same_outcome(self, tmp_path, capsys):
+        """Negative case: a scripts/ change does not change the outcome."""
+        out = self._run(
+            tmp_path,
+            self._SESSION_LOG + "scripts/detect_test_coverage_gaps.py\n",
+            capsys,
         )
 
-    def test_dirty_scripts_are_untrusted(self, tmp_path):
-        (tmp_path / ".git").mkdir()
+        for validator in self._EXPECTED:
+            assert f"Not run: {validator}." in out
+
+    def test_summary_names_the_checks_that_did_not_run(self, tmp_path, capsys):
+        out = self._run(tmp_path, "docs/guide.md\n", capsys)
+
+        assert "Trusted pre-creation validations passed." in out
+        assert "3 repository-local check(s) did not run" in out
+        for validator in self._EXPECTED:
+            assert validator in out
+
+    def test_no_repository_validator_subprocess_is_spawned(self, tmp_path):
+        """Edge case: the trust boundary is enforced by not executing, not by
+        executing and ignoring the result."""
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(
+                    stdout=".agents/sessions/2026-08-10-session-1-x.json\ndocs/a.md\n",
+                    rc=0,
+                )
+            return _completed(rc=0)
+
         (tmp_path / "scripts").mkdir()
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout="?? scripts/argparse.py\n"),
+        for name in (
+            "validate_session_json.py",
+            "detect_skill_violation.py",
+            "detect_test_coverage_gaps.py",
         ):
-            assert not _repository_validators_are_trusted(
-                str(tmp_path),
-                ["src/main.py"],
-                diff_failed=False,
-            )
+            (tmp_path / "scripts" / name).write_text("# mock", encoding="utf-8")
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        spawned = [
+            cmd
+            for cmd in calls
+            if any("scripts/" in str(part) and str(part).endswith(".py") for part in cmd)
+        ]
+        assert spawned == []
 
 
 # ---------------------------------------------------------------------------
@@ -473,7 +547,7 @@ class TestRunValidations:
 
         skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
         assert skill_calls == []
-        assert "scripts/ is changed or dirty" in capsys.readouterr().out
+        assert "outside the trusted push-pr boundary" in capsys.readouterr().out
 
     def test_skill_violation_scan_skipped_when_no_scannable_extension(
         self, tmp_path, capsys
@@ -497,7 +571,7 @@ class TestRunValidations:
 
         assert not any(len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls)
         captured = capsys.readouterr()
-        assert "repository-local validator" in captured.out
+        assert "Not run: skill violation (scripts/detect_skill_violation.py)." in captured.out
 
     def test_skill_violation_scan_skips_mixed_scripts_change(
         self, tmp_path, capsys
@@ -520,7 +594,7 @@ class TestRunValidations:
 
         skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
         assert skill_calls == []
-        assert "scripts/ is changed or dirty" in capsys.readouterr().out
+        assert "outside the trusted push-pr boundary" in capsys.readouterr().out
 
     def test_skill_scan_extensions_match_detector(self):
         """The local _SKILL_SCAN_EXTENSIONS constant must stay in sync with the
@@ -586,7 +660,10 @@ class TestRunValidations:
             return_value=_completed(stdout=changed, rc=0),
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
-        assert "repository-local Session End validator" in capsys.readouterr().out
+        assert (
+            "Not run: Session End (scripts/validate_session_json.py)."
+            in capsys.readouterr().out
+        )
 
     def test_session_log_read_from_branch_ref_not_working_tree(self, tmp_path):
         """Session log is validated from head:<path>, not the working tree (#2387).
@@ -646,7 +723,10 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
         assert validator_ran is False
-        assert "repository-local Session End validator" in capsys.readouterr().out
+        assert (
+            "Not run: Session End (scripts/validate_session_json.py)."
+            in capsys.readouterr().out
+        )
 
     def test_agents_changed_no_session_log_warns(self, tmp_path, capsys):
         changed = ".agents/HANDOFF.md\n"
@@ -852,8 +932,10 @@ class TestRepositoryValidatorsNeverExecute:
             for cmd in calls
         )
         output = capsys.readouterr().out
-        assert "repository-local validator" in output
-        assert "All pre-creation validations passed" in output
+        assert "Not run: skill violation (scripts/detect_skill_violation.py)." in output
+        assert "Not run: test coverage (scripts/detect_test_coverage_gaps.py)." in output
+        assert "Trusted pre-creation validations passed" in output
+        assert "All pre-creation validations passed" not in output
 
 
 class TestCapturedOutputPinsItsCodec:
