@@ -92,7 +92,8 @@
         "e016",
         "e017",
         "e019",
-        "e021"
+        "e021",
+        "e025"
       ],
       "leads_to": [
         "e009"
@@ -299,6 +300,30 @@
       "caused_by": [
         "e023"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the GITHUB_WORKSPACE .claude/lib fallback from get_issue_comments.py, regenerated the Copilot mirror, reran targeted tests, and refreshed QA evidence for PR 4673.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T16:01:12+00:00",
+      "type": "commit",
+      "content": "Commit: 40ec0b46f22dcb41346921a7ab12e078a365ac8a",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -308,8 +333,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
-    "files_changed": 41
+    "commits": 11,
+    "files_changed": 42
   },
   "lessons": []
 }
