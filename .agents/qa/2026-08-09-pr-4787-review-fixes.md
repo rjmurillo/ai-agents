@@ -1,49 +1,40 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10030-pr-4787-review-fixes.json
-qaCommit: 18fc02c7d80c4431b7e3c7cad88eed569e22e6dc
+qaCommit: 2f2bdfa7f477b1ae088941193462ed6314a3de1a
 ---
 
 # PR 4787 QA Report
 
 ## Result
 
-PASS. All three High defects from the independent review of PR #4570's merged
-code are resolved. Four additional review comments on test strength addressed.
+PASS. All High defects from independent reviews resolved across six review
+cycles. Main integrated (bdd4908b ancestor confirmed). Contract tests enforce
+strict affirmative-directive parsing and URL-type classification.
 
 ## Evidence
 
-- 63 targeted analyst/URL-routing tests pass locally.
-- 201 mirror/catalog validation tests pass locally.
-- 2 new frontmatter declaration tests pass (Claude + Copilot GitHub tools).
-- All pre-commit hooks pass on all 5 commits.
-- CI: 30/30 checks green on 7e99c910d (before review-fix commit).
-- Ruff F841 fixed (unused variable removed).
+- 134 targeted analyst/URL-routing/PR-identity tests pass locally.
+- 216 mirror/catalog validation tests pass locally.
+- Taste ratchet OK (count == baseline 583).
+- Ruff clean on all modified test files.
+- All pre-commit hooks pass.
+- 10 review threads: all resolved.
+- CI on head 2f2bdfa7f: 106 SUCCESS, 25 SKIPPED (3 FAILURE are
+  stale-QA/session checks that this commit fixes).
 
-## Changes Validated
+## Defects Fixed (cumulative)
 
-1. Legacy gates removed from analyst (template, Claude, generated mirrors).
-2. Orchestrator routing updated across all platforms.
-3. Contract tests strengthened: conditional BLOCKED language, exactly-1 identity
-   gate, frontmatter declaration assertions for GitHub tools.
-4. E2E smoke adapted: unused runtime probe removed, manifest declarations
-   verified via always-on unit tests.
+1. Analyst URL routing: explicit type classification (PR/issue/Actions/job).
+2. Retrieval guard: strict affirmative-directive parser rejects prohibitive
+   prose, quoted examples, contractions, table-only, orchestrator actor,
+   deprecated context.
+3. Job URL path: corrected to singular `/job/` per GitHub live shape.
+4. Taste ratchet: file-size ignore for contract test suite (>500 lines).
+5. Orchestrator evidence handoff: delegates GitHub/CI to analyst.
+6. All generated mirrors synchronized.
 
-## Re-validation after the base merge
+## Scope
 
-`origin/main` was merged into this branch to clear a BEHIND state. The merge
-was clean, no conflicts, no manual resolution, so the branch diff against the
-new base is unchanged in substance.
-
-Re-validated on the merged tree at b2a5c16e996eb74ca52a1996b69e5f353c6ce676:
-
-| Check | Result |
-|-------|--------|
-| Full pre-push suite, including `python-tests` | passed in 824s |
-| `build-all-check`, `path-normalization`, `python-type-check` | passed |
-| `taste-count-ratchet`, `merge-tree-ratchet`, `cli-exit-contract-ratchet` | passed |
-| `python-unreachable-statements`, `session-json-validation` | passed |
-
-The only remaining pre-push failure was this report's own staleness marker,
-which named files the base merge brought in rather than any change to the
-branch's work. This section and the commit pin below clear it.
+No shell, write, web, or filesystem access restored. Read-only GitHub/CI
+retrieval tools only. Contract tests enforce denial of prohibited access.
