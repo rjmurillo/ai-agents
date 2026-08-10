@@ -1,0 +1,88 @@
+# Vendor Provenance Gate (Trusted Base-Branch Validator)
+#
+# Security architecture:
+# - pull_request_target: workflow YAML executes from BASE branch (main)
+# - Validator script runs from base branch only; candidate data via git archive
+# - NO candidate code is ever executed
+# - persist-credentials: false on checkout
+# - Always emits the required check; unrelated PRs get a success no-op
+#
+# Once merged and configured as a required status check, this gate prevents
+# any PR from merging tampered hook or vendor content regardless of what
+# that PR modifies in its own workflow or validator copies.
+
+name: Vendor Provenance
+
+permissions:
+  contents: read
+
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  provenance:
+    name: Validate Vendor Provenance
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout trusted code (base branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.base_ref }}
+          persist-credentials: false
+
+      - name: Fetch candidate data via git archive
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
+        run: |
+          git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
+            fetch --depth=1 origin "$PR_SHA"
+          mkdir -p /tmp/candidate
+          git archive "$PR_SHA" | tar -x -C /tmp/candidate
+
+      - name: Check relevance
+        id: relevance
+        run: |
+          cd /tmp/candidate
+          # Files whose modification triggers full validation
+          WATCHED=(
+            ".claude/hooks/PreToolUse/"
+            "src/copilot-cli/hooks/PreToolUse/"
+            "build/scripts/generate_hooks_events.py"
+          )
+          DOMINATED=false
+          for prefix in "${WATCHED[@]}"; do
+            if [ -d "$prefix" ] || [ -f "$prefix" ]; then
+              # Compare base vs candidate
+              if ! diff -rq "/home/runner/work/ai-agents/ai-agents/$prefix" "$prefix" > /dev/null 2>&1; then
+                DOMINATED=true
+                break
+              fi
+            fi
+          done
+          echo "dominated=$DOMINATED" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Python
+        if: steps.relevance.outputs.dominated == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        if: steps.relevance.outputs.dominated == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Validate vendor provenance (trusted gate)
+        if: steps.relevance.outputs.dominated == 'true'
+        run: |
+          python3 scripts/ci/validate_vendor_provenance.py \
+            --candidate-root /tmp/candidate
+
+      - name: No-op for unrelated PRs
+        if: steps.relevance.outputs.dominated != 'true'
+        run: echo "No hook/vendor files changed. Provenance check not required."
