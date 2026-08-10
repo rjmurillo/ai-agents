@@ -1390,6 +1390,13 @@ def test_dispatchers_allow_commands_outside_guard_scope(
     [
         "./attacker/pr/n{e..e..1}w_pr.py",
         "./attacker/pr/n{e..e}w_pr.py",
+        # Leading-wildcard globs. A literal-prefix heuristic skipped these
+        # because the prefix is empty, and a direct launch misses scope rules
+        # B and C, so the guard returned 0 (issue #4825).
+        "./attacker/pr/?ew_pr.py",
+        "./attacker/pr/[!x]ew_pr.py",
+        "./attacker/pr/n?w_pr.py",
+        "./attacker/pr/*_pr.py",
         "./attacker/pr/new_pr{.py,.txt}",
         "./attacker/pr/n[e]w_pr.py",
         "./attacker/pr/new_pr.py",
@@ -1426,6 +1433,10 @@ def test_dispatchers_deny_direct_lookalike_execution(
         "cp file{1..1000}.txt dir/",
         "echo {1..10000..7}",
         "seq 1 10 | xargs -I{} echo {}",
+        # Data globs stay out of scope: an argument is not an execution
+        # position, however closely it resembles the protected name.
+        "ls src/*.py",
+        "cat n?w_pr.py",
         "mkdir -p build/{a,b,c}",
         "mv report{1..200}.csv archive/",
         "ls src/{lib,bin}/*.rs",

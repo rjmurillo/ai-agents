@@ -1076,22 +1076,25 @@ def _original_main(stdin_bytes):
                 return True
             if any(_could_target_new_pr(candidate) for candidate in expansions):
                 return True
-        # General shell globs: ? and [...] in executable-position operands can
-        # expand to new_pr.py.  Extract path segments that contain glob chars and
-        # fnmatch the protected basename against them.
-        for segment in re.split(r'[\s;|&]+', command):
-            segment = segment.strip()
-            if not segment:
+        return False
+
+
+    def _execution_position_names_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
+        """Scope rule D: an executed path is a glob that can expand to new_pr.py.
+
+        Position, not a literal prefix, separates a targeted glob from a data glob.
+        ``./attacker/pr/?ew_pr.py`` and ``./attacker/pr/[!x]ew_pr.py`` both expand
+        to the lookalike and both have an empty literal prefix, so a
+        prefix-threshold heuristic let them through while a direct launch missed
+        scope rules B and C (issue #4825). ``echo *.py`` stays out of scope because
+        an argument to ``echo`` is not an execution position.
+        """
+        for token in _execution_position_tokens(tokens, cwd):
+            basename = token.value.rsplit("/", 1)[-1]
+            if not basename or not any(marker in basename for marker in "?*["):
                 continue
-            basename = segment.rsplit("/", 1)[-1] if "/" in segment else segment
-            if ("?" in basename or "[" in basename or "*" in basename):
-                # Only flag targeted globs (e.g. n?w_pr.py), not broad data
-                # globs (e.g. *.py, echo *.txt).  A targeted glob shares a
-                # non-trivial literal prefix with the protected basename.
-                prefix = basename.split("?")[0].split("*")[0].split("[")[0]
-                if len(prefix) >= 1 and _NEW_PR_TARGET.startswith(prefix):
-                    if fnmatch.fnmatch(_NEW_PR_TARGET, basename):
-                        return True
+            if fnmatch.fnmatch(_NEW_PR_TARGET, basename):
+                return True
         return False
 
 
@@ -1199,7 +1202,11 @@ def _original_main(stdin_bytes):
         tokens = _scope_tokens(command)
         if tokens is None:
             return False
-        return _unresolvable_python_target(tokens, cwd) or _operand_is_new_pr_copy(tokens, cwd)
+        return (
+            _unresolvable_python_target(tokens, cwd)
+            or _execution_position_names_new_pr(tokens, cwd)
+            or _operand_is_new_pr_copy(tokens, cwd)
+        )
 
 
     def _contains_active_parameter_expansion(raw: str) -> bool:
