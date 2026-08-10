@@ -158,9 +158,13 @@
     {
       "task": "Process round 3 of the recursive review",
       "outcome": "Three findings, all confirmed. A stepped brace range let a direct lookalike launch skip the guard, a defect in the round 2 fix. The -I launcher flag dropped the script directory from sys.path and killed every timed shim before its policy ran, disabling the markdownlint push guard; I had wrongly filed that as a harness artifact earlier in this session. And this PR's bare Write grant paired unrestricted writes with git push on a command that reads untrusted diffs. Fixed all three with runtime verification and regression tests."
+    },
+    {
+      "task": "Process round 4 of the recursive review",
+      "outcome": "Scope rule C's fixed 64-token window was a fail-open bypass: env padding hid an executed byte-identical copy. Measured leaks at padding 63 and above. Rejected two repairs on measurement (full scan 5.6s, fail-closed budget 10.2s and false denials) and switched to inspecting execution positions, which padding cannot move. Also bounded the interpreter search, cutting an 87 KiB command from 10.2s to 0.088s against a 10s host timeout."
     }
   ],
-  "endingCommit": "087a7aa1693b3183c33a15ff38719aca86009bab",
+  "endingCommit": "5b97a6493a89e3f2081a0a99fee6d36f94f23cca",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
