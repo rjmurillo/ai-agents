@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 0e6b4bdc7e9d62acc258228f33c82f1824d4a995 after subprocess decoding test cleanup."
+        "Evidence": "PR code validated at 334acc95517d5ee0d5637963fc8f6346477d5f3e after merging current main and fixing regression fixtures."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after subprocess decoding test cleanup: pytest collected 89 and passed 89 for session-end canonical and mirror tests; subprocess encoding count ratchet passed with 249 violations <= baseline 253."
+        "Evidence": "QA rerun after current main merge: pytest collected 268 and passed 268 for assess regression plus canonical and Copilot mirror tests; subprocess encoding count ratchet passed with 249 violations <= baseline 253; skill portability passed with current_total 149 and baseline_total 149."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -175,9 +175,13 @@
     {
       "phase": "ci-test-fix",
       "summary": "Updated session-end canonical and Copilot mirror test expectations for errors=\"replace\", then reran session-end tests and the subprocess encoding count ratchet."
+    },
+    {
+      "phase": "main-merge-regression-fix",
+      "summary": "Merged current origin/main, aligned assess regression test fixtures with build_comparisons input collection, reran targeted tests, subprocess encoding ratchet, and skill portability validation."
     }
   ],
-  "endingCommit": "0e6b4bdc7e9d62acc258228f33c82f1824d4a995",
+  "endingCommit": "334acc95517d5ee0d5637963fc8f6346477d5f3e",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",
