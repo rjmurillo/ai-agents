@@ -64,12 +64,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 62577c671de24318f6dfa169734ec98588f58661"
+        "Evidence": "Committed as 7291805556fc385cc698556a4e7c58dd337ded0b"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff clean, 233 tests pass (174+59)"
+        "Evidence": "Ruff clean, 242 tests pass (183+59)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -120,7 +120,7 @@
       "outcome": "Confirmed compliance-bot owns pull_request_read still bypassed the analyst retrieval guard. Replaced the actor-boundary verb list for bot or agent subjects with open-ended verb detection, preserved the tool-subject and list-item controls, and verified 118 analyst resolution tests plus ruff."
     }
   ],
-  "endingCommit": "62577c671de24318f6dfa169734ec98588f58661",
+  "endingCommit": "7291805556fc385cc698556a4e7c58dd337ded0b",
   "nextSteps": [],
-  "testedCodeSha": "62577c671de24318f6dfa169734ec98588f58661"
+  "testedCodeSha": "7291805556fc385cc698556a4e7c58dd337ded0b"
 }

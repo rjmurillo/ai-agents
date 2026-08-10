@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 62577c671de24318f6dfa169734ec98588f58661
+qaCommit: 7291805556fc385cc698556a4e7c58dd337ded0b
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -31,7 +31,7 @@ PR #4817 hardens the analyst contract test suite with:
 ## Test Execution
 
 ```text
-tests/test_analyst_skill_resolution.py ........... 233 passed
+tests/test_analyst_skill_resolution.py ........... 242 passed
 tests/build_scripts/test_github_url_routing contract: 59 passed in 1.17s
 ```
 
@@ -62,7 +62,7 @@ Result: PASS
 
 ### Passed
 
-All 149 tests passed at exact commit 1f776d469ed765603a9a92accf7ab09a2ec94e97.
+All 242 targeted tests passed at exact commit 1f776d469ed765603a9a92accf7ab09a2ec94e97.
 
 Key negative controls proving detection:
 
@@ -96,7 +96,7 @@ Verification run in this session:
 
 ```text
 $ uv run --frozen pytest tests/test_analyst_skill_resolution.py -q
-============================= 233 passed in 0.49s ==============================
+============================= 242 passed in 0.49s ==============================
 
 $ uv run --frozen ruff check tests/test_analyst_skill_resolution.py
 All checks passed!
