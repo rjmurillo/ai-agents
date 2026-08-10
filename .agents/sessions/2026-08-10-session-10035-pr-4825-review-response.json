@@ -178,12 +178,12 @@
     {
       "task": "Process round 7 of the recursive review",
       "outcome": "Relevance failed open whenever the tokenizer rejected a shell operator, so appending '&& true' defeated every position-based rule. Measured 5 compound leaks. Relevance is now decided per shell segment, since execution position is a per-segment property. 0 of 6 compound attacks leak and 0 of 6 ordinary compound commands are falsely denied."
+    },
+    {
+      "task": "Process round 8 of the recursive review",
+      "outcome": "Confirmed nested shell evaluator operands could bypass relevance before shell-evaluator policy ran. Added relevance inspection for command-bearing shell operands, regenerated the Copilot shim, and verified 887 push-pr guard tests plus ruff."
     }
   ],
-  "endingCommit": "8cb44c28c81092b075fd4dc3d2c0daf93f5e931b",
-  "nextSteps": [
-    "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
-    "Re-fetch after 45 seconds and process any new actionable threads recursively",
-    "Verify CI and merge through the ship workflow once every required gate is green"
-  ]
+  "endingCommit": "74039ef93b98c6be01a42172796e65224b2aa663",
+  "nextSteps": []
 }

@@ -166,10 +166,12 @@
     {
       "action": "Post-merge validation",
       "result": "Merged current origin/main, generation check and Ruff passed, and 692 targeted runtime tests passed with no skips"
+    },
+    {
+      "task": "Rebind issue 4764 QA to PR 4825 round 8 guard changes",
+      "outcome": "The push-pr identity guard changed again for nested shell evaluator relevance. Bound the older issue QA report to the same verified code commit and pointed readers to the PR 4825 Round 8 evidence."
     }
   ],
-  "endingCommit": "8cb44c28c81092b075fd4dc3d2c0daf93f5e931b",
-  "nextSteps": [
-    "Push one PR, resolve review threads, merge, verify issue 4764 closure, and update todo status"
-  ]
+  "endingCommit": "74039ef93b98c6be01a42172796e65224b2aa663",
+  "nextSteps": []
 }
