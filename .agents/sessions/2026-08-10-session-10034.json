@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code and merge resolution complete through ec35fd00c475f444974415a075ac80ee21cd1a31."
+        "Evidence": "Code and review fixes complete through 92d1fdee3b5a8b9ebecce9a869aed8a54f20f545."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,9 +150,13 @@
     {
       "action": "Merged origin/main and resolved session artifact conflicts",
       "result": "Preserved main session 10033, renumbered this branch session and episode to 10034, then passed 13 directly affected tests in 117.10 seconds."
+    },
+    {
+      "action": "Addressed PR review findings",
+      "result": "Added a 300-second subprocess timeout and exception-safe byte restoration. Narrowed the QA claim and documented both the 12.74-second measured run and 12.46-second final verification. All 7 mutation tests passed in 100.56 seconds."
     }
   ],
-  "endingCommit": "ec35fd00c475f444974415a075ac80ee21cd1a31",
+  "endingCommit": "92d1fdee3b5a8b9ebecce9a869aed8a54f20f545",
   "nextSteps": [
     "Open an atomic pull request that fixes Issue #4826."
   ]

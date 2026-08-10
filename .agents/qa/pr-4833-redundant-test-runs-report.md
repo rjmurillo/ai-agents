@@ -1,24 +1,24 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10034.json
-qaCommit: ec35fd00c475f444974415a075ac80ee21cd1a31
+qaCommit: 92d1fdee3b5a8b9ebecce9a869aed8a54f20f545
 ---
 
 # Issue #4826 redundant test-run removal validation
 
 ## Scope
 
-Implementer self-validation through merge commit
-`ec35fd00c475f444974415a075ac80ee21cd1a31`
+Implementer self-validation through review-fix commit
+`92d1fdee3b5a8b9ebecce9a869aed8a54f20f545`
 against the acceptance criteria in Issue #4826. Independent qa/critic review
 is still recommended before merge; this report documents the evidence
 gathered during implementation, it does not replace that review.
 
 ## Result
 
-PASS. Both files still make every assertion they made before the change, at
-measured lower subprocess cost, and every mutant/isolation/inverted-control
-contract named in the issue is unchanged.
+PASS. The mutant-kill, isolation, inverted-control, bundle-pass, and collection
+contracts remain. Restoration is now proven by byte equality instead of three
+fresh post-restore suite runs.
 
 ## Evidence
 
@@ -34,11 +34,16 @@ contract named in the issue is unchanged.
   7.18s, collects_tests[.claude/skills] 6.34s,
   collects_tests[src/copilot-cli/skills] 6.22s (4 distinct `_run_tree`
   subprocess invocations).
-- Same file AFTER: 8 passed in 12.46s. Only 2 `_run_tree` subprocess
+- Same file AFTER (`uv run --frozen python -m pytest
+  tests/test_skill_bundle_suites_run.py -q --tb=short --durations=0`):
+  8 passed in 12.74s. Only 2 `_run_tree` subprocess
   durations reported (suite_passes[.claude/skills] 6.48s,
   suite_passes[src/copilot-cli/skills] 6.16s); the `collects_tests` cases
-  reuse the cached `CompletedProcess`. Savings ~14.97s (~55%). Test count
+  reuse the cached `CompletedProcess`. Savings ~14.69s (~54%). Test count
   unchanged.
+- Final verification after shortening the cache docstring:
+  `uv run --frozen pytest tests/test_skill_bundle_suites_run.py -q`:
+  8 passed in 12.46s.
 - Broader regression check: `uv run --frozen python -m pytest
   tests/mutation/ tests/test_skill_bundle_suites_run.py -q --tb=short`:
   26 passed in 154.05s, covering every mutation-harness file in the
@@ -50,6 +55,9 @@ contract named in the issue is unchanged.
   All validations passed (46 passed, 0 failed, 4 skipped by `--quick`).
 - After merging `origin/main`, the 13 directly affected tests passed in
   117.10 seconds. No conflict markers or unmerged files remained.
+- Review regression tests prove the subprocess uses a 300-second timeout and
+  restores original bytes when the subprocess raises. All 7 mutation tests
+  passed in 100.56 seconds.
 
 ## Contract mapping (Issue #4826 acceptance criteria)
 
