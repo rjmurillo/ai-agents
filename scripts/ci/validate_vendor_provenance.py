@@ -611,6 +611,28 @@ def _is_vendor_only(rel: str) -> bool:
 # ── Artifact authentication ──
 
 
+def _check_tree_entries(scan_dir: Path, candidate: Path, candidate_resolved: Path) -> list[str]:
+    """Check all entries in a watched tree for symlink violations."""
+    errors: list[str] = []
+    if not scan_dir.is_dir():
+        return errors
+    for item in sorted(scan_dir.rglob("*")):
+        if item.is_symlink() and item.is_dir():
+            rel = str(PurePosixPath(item.relative_to(candidate)))
+            errors.append(f"Directory symlink in watched tree: {rel}")
+        elif item.is_symlink():
+            target = (item.parent / os.readlink(item)).resolve()
+            if not str(target).startswith(str(candidate_resolved) + os.sep):
+                rel = str(PurePosixPath(item.relative_to(candidate)))
+                errors.append(f"Symlink escapes candidate root: {rel}")
+        elif item.is_file():
+            resolved = item.resolve()
+            if not str(resolved).startswith(str(candidate_resolved) + os.sep):
+                rel = str(PurePosixPath(item.relative_to(candidate)))
+                errors.append(f"Resolved path escapes candidate root: {rel}")
+    return errors
+
+
 def _check_path_component_symlinks(candidate: Path) -> list[str]:
     """Reject symlinks in any path component under watched directories.
 
@@ -642,30 +664,7 @@ def _check_path_component_symlinks(candidate: Path) -> list[str]:
                 )
                 break
         else:
-            # Walk all entries checking for directory symlinks
-            if scan_dir.is_dir():
-                for item in sorted(scan_dir.rglob("*")):
-                    if item.is_symlink() and item.is_dir():
-                        rel = str(PurePosixPath(item.relative_to(candidate)))
-                        errors.append(
-                            f"Directory symlink in watched tree: {rel}"
-                        )
-                    elif item.is_symlink():
-                        # Check containment of symlink target
-                        target = (item.parent / os.readlink(item)).resolve()
-                        if not str(target).startswith(str(candidate_resolved) + os.sep):
-                            rel = str(PurePosixPath(item.relative_to(candidate)))
-                            errors.append(
-                                f"Symlink escapes candidate root: {rel}"
-                            )
-                    elif item.is_file():
-                        # Verify resolved path is within candidate
-                        resolved = item.resolve()
-                        if not str(resolved).startswith(str(candidate_resolved) + os.sep):
-                            rel = str(PurePosixPath(item.relative_to(candidate)))
-                            errors.append(
-                                f"Resolved path escapes candidate root: {rel}"
-                            )
+            errors.extend(_check_tree_entries(scan_dir, candidate, candidate_resolved))
         if len(errors) >= 10:
             break
     return errors
