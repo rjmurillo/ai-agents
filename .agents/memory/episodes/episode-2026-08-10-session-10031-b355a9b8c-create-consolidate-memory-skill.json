@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill",
+  "session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Create memory-consolidate skill",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Create memory-consolidate skill",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review and validate",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Simplify tests",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T05:35:18+00:00",
+      "type": "commit",
+      "content": "Commit: 83dd2a6031",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T05:50:12+00:00",
+      "type": "commit",
+      "content": "Commit: 2e83b2b1ffe9724a4695808fa5299c99285f5fef",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 9
+  },
+  "lessons": []
+}
