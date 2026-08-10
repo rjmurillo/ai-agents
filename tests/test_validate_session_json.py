@@ -1977,7 +1977,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -1998,7 +2000,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), str(session_files[0])],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -2365,6 +2369,11 @@ class TestHistoricalLogsAreExemptByConstruction:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", _no_base),
         ):
             git_hook_policy.validate_branch_sessions(paths, Path.cwd())
@@ -2377,6 +2386,31 @@ class TestHistoricalLogsAreExemptByConstruction:
     def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
         """No path list means no work. A directory fallback would fail 131 logs."""
         assert self._invoked_paths([]) == []
+
+    def test_git_hook_policy_skips_logs_already_on_main(self) -> None:
+        from scripts.validation import git_hook_policy
+
+        seen: list[str] = []
+
+        def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(command[1 + command.index("scripts/validate_session_json.py")])
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                side_effect=lambda _root, path: path == "old.json",
+            ),
+        ):
+            result = git_hook_policy.validate_branch_sessions(
+                ["old.json", "new.json"],
+                Path.cwd(),
+            )
+
+        assert result == 0
+        assert seen == ["new.json"]
 
     def test_workflow_validates_one_file_per_invocation(self) -> None:
         """One log per invocation, never a glob (ADR-006: logic lives in the script).
@@ -3135,6 +3169,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(tracked=("old.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
@@ -3152,6 +3191,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
@@ -3198,6 +3242,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
@@ -3219,6 +3268,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         stub, _ = self._stub(tracked=("old.json",))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_is_session_on_upstream_default",
+                return_value=False,
+            ),
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
@@ -3435,8 +3489,13 @@ class TestEndingCommitReachability:
 
         def git(*args: str) -> str:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True,
-                encoding="utf-8", check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
@@ -3482,7 +3541,9 @@ class TestEndingCommitReachability:
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
         assert (
@@ -3490,7 +3551,9 @@ class TestEndingCommitReachability:
                 ["git", "rev-parse", "--is-shallow-repository"],
                 cwd=shallow,
                 capture_output=True,
-                text=True, encoding="utf-8",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             ).stdout.strip()
             == "true"
@@ -3544,6 +3607,26 @@ class TestEndingCommitReachability:
         log["endingCommit"] = "0" * 40
         assert any("issue #3618" in e for e in validate_session_log(log).errors), (
             "an unresolvable endingCommit must be reported as an error (#3883)"
+        )
+
+    def test_orphan_message_mentions_squash_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Error message must mention squash merge as a cause (#4312).
+
+        The repo uses squash-only merges, so squash is the most common reason an
+        endingCommit becomes unreachable. An error message that only lists amend
+        and rebase misleads contributors into looking in the wrong place.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        errors = validate_session_log(log).errors
+        assert any("squash" in e for e in errors), (
+            "error must mention squash merge as a possible cause (#4312)"
         )
 
     def test_a_sound_ending_commit_does_not_warn(
