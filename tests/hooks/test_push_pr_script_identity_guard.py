@@ -1397,6 +1397,12 @@ def test_dispatchers_allow_commands_outside_guard_scope(
         "./attacker/pr/[!x]ew_pr.py",
         "./attacker/pr/n?w_pr.py",
         "./attacker/pr/*_pr.py",
+        # ANSI-C quoting. Bash runs these as ./attacker/pr/new_pr.py while the
+        # compaction stripped the backslash without decoding the escape,
+        # producing newx5fpr.py (issue #4825).
+        "./attacker/pr/$'new\\x5fpr.py'",
+        "./attacker/pr/$'new\\137pr.py'",
+        "./attacker/pr/$'\\156ew_pr.py'",
         "./attacker/pr/new_pr{.py,.txt}",
         "./attacker/pr/n[e]w_pr.py",
         "./attacker/pr/new_pr.py",
@@ -1437,6 +1443,8 @@ def test_dispatchers_deny_direct_lookalike_execution(
         # position, however closely it resembles the protected name.
         "ls src/*.py",
         "cat n?w_pr.py",
+        # Benign ANSI-C quoting outside an execution position stays allowed.
+        "echo $'hello\\x20world'",
         "mkdir -p build/{a,b,c}",
         "mv report{1..200}.csv archive/",
         "ls src/{lib,bin}/*.rs",

@@ -41,6 +41,7 @@ unrelated Bash command, which is a larger, certain harm than the residual.
 
 from __future__ import annotations
 
+import codecs
 import fnmatch
 import hashlib
 import json
@@ -62,6 +63,7 @@ _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
 _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
 _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
 _NEW_PR_TARGET = "new_pr.py"
+_ANSI_C_QUOTED = re.compile(r"\$'((?:[^'\\]|\\.)*)'")
 _MAX_BRACE_EXPANSIONS = 4096
 _MAX_POLICY_TOKENS = 256
 _MAX_INTERPRETER_SEARCH = 64
@@ -695,12 +697,33 @@ def _brace_expanded(command: str) -> list[str] | None:
     return expansions
 
 
+def _ansi_c_decoded(text: str) -> str:
+    """Decode Bash ANSI-C ``$'...'`` segments so naming sees what runs.
+
+    Bash executes ``./attacker/pr/$'new\\x5fpr.py'`` as
+    ``./attacker/pr/new_pr.py``. The compaction below strips the backslash
+    without decoding the escape, producing ``newx5fpr.py``, so a direct launch
+    missed every relevance rule (issue #4825). Octal (``\\137``) has the same
+    shape.
+    """
+
+    def decode(match: re.Match[str]) -> str:
+        try:
+            return codecs.decode(match.group(1), "unicode_escape")
+        except (UnicodeDecodeError, ValueError):
+            return match.group(1)
+
+    return _ANSI_C_QUOTED.sub(decode, text)
+
+
 def _names_new_pr(command: str) -> bool:
     """Scope rule A: the command text can name new_pr.py."""
     # Single-character glob classes are a naming obfuscation, not a wildcard
     # search: n[e]w_[p]r.[p][y] names exactly new_pr.py.
     unclassed = command.replace("[", "").replace("]", "")
-    for text in {command, unclassed}:
+    variants = {command, unclassed}
+    variants |= {_ansi_c_decoded(variant) for variant in tuple(variants)}
+    for text in variants:
         if _could_target_new_pr(text):
             return True
         expansions = _brace_expanded(text)
@@ -712,7 +735,7 @@ def _names_new_pr(command: str) -> bool:
 
 
 def _execution_position_names_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
-    """Scope rule D: an executed path is a glob that can expand to new_pr.py.
+    """Scope rule D: an executed path is a glob or escape naming new_pr.py.
 
     Position, not a literal prefix, separates a targeted glob from a data glob.
     ``./attacker/pr/?ew_pr.py`` and ``./attacker/pr/[!x]ew_pr.py`` both expand
@@ -720,8 +743,14 @@ def _execution_position_names_new_pr(tokens: list[ShellToken], cwd: Path) -> boo
     prefix-threshold heuristic let them through while a direct launch missed
     scope rules B and C (issue #4825). ``echo *.py`` stays out of scope because
     an argument to ``echo`` is not an execution position.
+
+    ANSI-C quoting in an execution position fails closed. Decoding covers the
+    escapes ``unicode_escape`` knows; a path that runs and still needs
+    ``$'...'`` to spell itself is not a shape this guard can clear.
     """
     for token in _execution_position_tokens(tokens, cwd):
+        if "$'" in token.raw:
+            return True
         basename = token.value.rsplit("/", 1)[-1]
         if not basename or not any(marker in basename for marker in "?*["):
             continue
