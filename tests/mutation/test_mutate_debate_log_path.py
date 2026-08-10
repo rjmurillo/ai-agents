@@ -81,6 +81,7 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
             **__import__("os").environ,
             "PYTHONDONTWRITEBYTECODE": "1",
         },
+        timeout=300,
     )
 
 
@@ -118,17 +119,13 @@ def _apply_positive_mutant(
     wt_target = wt_path / _TARGET_REL
     wt_target.write_bytes(mutated)
 
-    result = _run_tests_in(wt_path)
-
-    # Restore original bytes, then prove restoration with a cheap byte
-    # comparison (Issue #4826) instead of a second subprocess pytest run of
-    # the 807-test suite. The suite result recorded above already proves the
-    # mutant was detected; re-running it against byte-identical restored
-    # content would prove nothing new.
-    wt_target.write_bytes(original)
-    assert wt_target.read_bytes() == original, (
-        f"{label}: scratch worktree target was not restored to original bytes"
-    )
+    try:
+        result = _run_tests_in(wt_path)
+    finally:
+        wt_target.write_bytes(original)
+        assert wt_target.read_bytes() == original, (
+            f"{label}: scratch worktree target was not restored to original bytes"
+        )
 
     _assert_suite_ran(result, label)
 
@@ -138,6 +135,39 @@ def _apply_positive_mutant(
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
     return _OUTCOME_DEAD
+
+
+def test_run_tests_uses_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        recorded.update(kwargs)
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    _run_tests_in(tmp_path)
+
+    assert recorded["timeout"] == 300
+
+
+def test_positive_mutant_restores_target_when_test_run_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original = b"before\n"
+    target = tmp_path / _TARGET_REL
+    target.parent.mkdir(parents=True)
+    target.write_bytes(original)
+
+    def raise_timeout(_wt_path: Path) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd="pytest", timeout=300)
+
+    monkeypatch.setattr(sys.modules[__name__], "_run_tests_in", raise_timeout)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        _apply_positive_mutant(tmp_path, original, b"before", b"after", "timeout")
+
+    assert target.read_bytes() == original
 
 
 @pytest.fixture()
