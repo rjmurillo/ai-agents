@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -1962,3 +1963,54 @@ def test_push_pr_command_grants_no_unrestricted_write() -> None:
         assert "Bash(mkdir:-p .agents/scratch)" in granted, (
             f"{path.name} lost the narrow scratch-directory grant"
         )
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("padding", [0, 40, 63, 70, 200])
+def test_dispatchers_deny_padded_renamed_copy(
+    tmp_path: Path,
+    runner,
+    padding: int,
+) -> None:
+    """Environment padding must not push an executed copy out of view.
+
+    Scope rule C once scanned a fixed 64-token window over all tokens, so a
+    command could pad itself past the cap with `env` assignments and hide a
+    byte-identical copy behind them. Measured: padding 63 and above returned
+    exit 0 (issue #4825). The rule now inspects execution positions, which
+    padding cannot move.
+    """
+    repository, _ = _repository(tmp_path)
+    copied = repository / "tools" / "helper.py"
+    copied.parent.mkdir(parents=True)
+    shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, copied)
+    prefix = " ".join(f"A{index}=1" for index in range(padding))
+    command = f"{prefix} python3 -I tools/helper.py --title x".strip()
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2, f"padding={padding}: allowed"
+    assert "Python execution is limited" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_allow_many_operands_without_hanging(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """A large out-of-scope command must stay fast and stay allowed.
+
+    Two earlier shapes of the fix above traded the leak for a hang or a false
+    denial: scanning every token cost 5.6s, and failing closed on an exhausted
+    budget denied ordinary commands and cost 10.2s on an 87 KiB input, past the
+    host's 10s timeout where a Copilot timeout fails open.
+    """
+    repository, _ = _repository(tmp_path)
+    command = "echo " + " ".join(f"f{index}.py" for index in range(2000))
+
+    start = time.monotonic()
+    result = runner(command, repository)
+    elapsed = time.monotonic() - start
+
+    assert result.returncode == 0, result.stderr
+    assert elapsed < 5, f"took {elapsed:.1f}s, host timeout is 10s"

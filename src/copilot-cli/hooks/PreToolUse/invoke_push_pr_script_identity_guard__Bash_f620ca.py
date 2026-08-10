@@ -430,7 +430,8 @@ def _original_main(stdin_bytes):
     _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
     _NEW_PR_TARGET = "new_pr.py"
     _MAX_BRACE_EXPANSIONS = 4096
-    _MAX_SCOPE_OPERANDS = 64
+    _MAX_POLICY_TOKENS = 256
+    _MAX_INTERPRETER_SEARCH = 64
     _DIGEST_CHUNK_BYTES = 1 << 20
     _SHELL_EVALUATORS = frozenset(
         {
@@ -1104,19 +1105,72 @@ def _original_main(stdin_bytes):
         return _contains_shell_expansion(target.raw) or _contains_shell_expansion(target.value)
 
 
+    def _execution_position_tokens(tokens: list[ShellToken], cwd: Path) -> list[ShellToken]:
+        """Return the tokens a file could actually execute from.
+
+        Only three positions run a file: the effective command, a Python
+        interpreter reached through wrappers, and that interpreter's script
+        operand. An operand sitting elsewhere is a filename argument, not an
+        execution, so it is not this guard's business.
+        """
+        index = _effective_command_index(tokens)
+        if index is None:
+            return []
+        positions = [tokens[index]]
+        arguments = _python_arguments(tokens, cwd)
+        if arguments is not None:
+            interpreter_index = len(tokens) - len(arguments) - 1
+            if 0 <= interpreter_index < len(tokens):
+                positions.append(tokens[interpreter_index])
+            target, dynamic = _execution_target(arguments)
+            if target is not None and not dynamic:
+                positions.append(target)
+        return positions
+
+
+    def _matches_trusted_file(
+        candidate: Path,
+        runtime_script: Path,
+        trusted: os.stat_result,
+    ) -> bool:
+        """Compare one operand against the trusted script with a single stat."""
+        try:
+            info = candidate.stat()
+        except OSError:
+            return False
+        if not stat.S_ISREG(info.st_mode):
+            return False
+        if (info.st_dev, info.st_ino) == (trusted.st_dev, trusted.st_ino):
+            return True
+        if info.st_size != trusted.st_size:
+            return False
+        return _same_executable_content(candidate, runtime_script)
+
+
     def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
-        """Scope rule C: an operand is a byte-identical copy of new_pr.py."""
+        """Scope rule C: an executed file is a byte-identical copy of new_pr.py.
+
+        This inspects execution positions, not every token. A fixed 64-token window
+        let a command pad itself past the cap with `env` assignments and hide a
+        byte-identical copy behind them (issue #4825). Raising or fail-closing the
+        cap traded that leak for denying large ordinary commands. Position is the
+        property that actually matters: a copy in argument slot 500 never runs.
+        """
         runtime_script = _runtime_script()
         if runtime_script is None:
             return False
-        for token in tokens[:_MAX_SCOPE_OPERANDS]:
+        try:
+            trusted = runtime_script.stat()
+        except OSError:
+            return False
+        for token in _execution_position_tokens(tokens, cwd):
             value = token.value
             if not value or value.startswith("-"):
                 continue
             candidate = Path(os.path.expanduser(value))
             if not candidate.is_absolute():
                 candidate = cwd / candidate
-            if _same_executable_content(candidate, runtime_script):
+            if _matches_trusted_file(candidate, runtime_script, trusted):
                 return True
         return False
 
@@ -1457,7 +1511,13 @@ def _original_main(stdin_bytes):
         index = _effective_command_index(tokens)
         if index is None:
             return None
-        for candidate_index in range(index, len(tokens)):
+        # Bounded search. _effective_command_index has already skipped assignments,
+        # `env`, and process wrappers, so an interpreter that is actually being
+        # invoked sits within a few tokens of here. Probing every token instead
+        # cost a shebang read each, and an 87 KiB command took 10.2s against the
+        # host's 10s timeout, where a Copilot timeout fails open (issue #4825).
+        limit = min(len(tokens), index + _MAX_INTERPRETER_SEARCH)
+        for candidate_index in range(index, limit):
             if _token_is_python_interpreter(tokens, candidate_index, cwd):
                 return tokens[candidate_index + 1 :]
         return None
@@ -2218,6 +2278,12 @@ def _original_main(stdin_bytes):
             if not _command_is_in_scope(command, cwd):
                 return 0
             tokens = _split_command(command)
+            if len(tokens) > _MAX_POLICY_TOKENS:
+                # In scope and too large to verify. The canonical invocation is
+                # seven tokens; nothing legitimate reaches this. Denying here keeps
+                # the policy off inputs that cost more than the host's 10s timeout,
+                # where a Copilot timeout fails open (issue #4825).
+                raise GuardViolationError("command has too many arguments to verify")
             if _contains_dangerous_loader_environment(tokens):
                 raise GuardViolationError("dynamic loader environment variables are not allowed")
             if _contains_shell_evaluator(tokens, cwd):
