@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill.json
-qaCommit: 7f86d6d54ca634b310c3e75d418be5debf1503a6
+qaCommit: e2c13b42ffaf381095799ef0e9e15cf6fc1b0335
 ---
 
 # Memory Consolidate Validation
@@ -17,3 +17,5 @@ qaCommit: 7f86d6d54ca634b310c3e75d418be5debf1503a6
 - Vendor simplification and test-placement policy reviews: passed.
 - Final safety review: all Critical and High findings resolved.
 - Current `main` merged and targeted skill tests still pass.
+- Live Serena discovery contract verified against nested memory paths.
+- Every deletion path now requires explicit human confirmation.
