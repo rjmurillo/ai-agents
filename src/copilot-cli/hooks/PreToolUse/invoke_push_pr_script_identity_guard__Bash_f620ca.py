@@ -432,6 +432,21 @@ def _original_main(stdin_bytes):
     _GUARD_DIRECTORY = str(Path(__file__).resolve().parent)
     if _GUARD_DIRECTORY not in sys.path:
         sys.path.insert(0, _GUARD_DIRECTORY)
+    from _push_pr_guard_git_tables import (  # noqa: E402
+        _GIT_BUILTIN_COMMANDS,
+        _GIT_COMMAND_ENVIRONMENT,
+        _GIT_CONFIG_READ_ACTIONS,
+        _GIT_CONFIG_READ_MODIFIERS,
+        _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND,
+        _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND,
+        _GIT_GLOBAL_EXECUTION_OPTIONS,
+        _GIT_GLOBAL_EXECUTION_PREFIXES,
+        _GIT_HOOK_FREE_SUBCOMMANDS,
+        _GIT_OPTION_OPERANDS_BY_SUBCOMMAND,
+        _GIT_REMOTE_SUBCOMMANDS,
+        _GIT_SAFE_REMOTE_SCHEMES,
+        _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND,
+    )
     from _push_pr_guard_tables import (  # noqa: E402
         _BUSYBOX_COMMANDS,
         _COMMAND_DELEGATION_ENVIRONMENT,
@@ -507,257 +522,6 @@ def _original_main(stdin_bytes):
 
 
     _DIGEST_CHUNK_BYTES = 1 << 20
-
-
-    _GIT_COMMAND_ENVIRONMENT = frozenset(
-        {
-            "EDITOR",
-            "GIT_ASKPASS",
-            "GIT_ALLOW_PROTOCOL",
-            "GIT_COMMON_DIR",
-            "GIT_DIR",
-            "GIT_EDITOR",
-            "GIT_EXEC_PATH",
-            "GIT_EXTERNAL_DIFF",
-            "GIT_PAGER",
-            "GIT_PROTOCOL_FROM_USER",
-            "GIT_PROXY_COMMAND",
-            "GIT_SEQUENCE_EDITOR",
-            "GIT_SSH",
-            "GIT_SSH_COMMAND",
-            "GIT_TEMPLATE_DIR",
-            "GIT_WORK_TREE",
-            "HOME",
-            "PAGER",
-            "PATH",
-            "SSH_ASKPASS",
-            "VISUAL",
-            "XDG_CONFIG_HOME",
-        }
-    )
-
-
-    _GIT_BUILTIN_COMMANDS = frozenset(
-        {
-            "add",
-            "am",
-            "annotate",
-            "apply",
-            "archive",
-            "bisect",
-            "blame",
-            "branch",
-            "bundle",
-            "checkout",
-            "cherry",
-            "cherry-pick",
-            "clean",
-            "clone",
-            "commit",
-            "config",
-            "count-objects",
-            "describe",
-            "diagnose",
-            "diff",
-            "fetch",
-            "format-patch",
-            "fsck",
-            "gc",
-            "grep",
-            "hash-object",
-            "init",
-            "log",
-            "ls-files",
-            "ls-remote",
-            "ls-tree",
-            "maintenance",
-            "merge",
-            "merge-base",
-            "merge-tree",
-            "mv",
-            "name-rev",
-            "notes",
-            "pack-objects",
-            "pack-refs",
-            "patch-id",
-            "prune",
-            "pull",
-            "push",
-            "range-diff",
-            "read-tree",
-            "reflog",
-            "repack",
-            "replace",
-            "request-pull",
-            "rerere",
-            "reset",
-            "restore",
-            "rev-list",
-            "rev-parse",
-            "revert",
-            "rm",
-            "shortlog",
-            "show",
-            "show-branch",
-            "show-ref",
-            "sparse-checkout",
-            "stage",
-            "stash",
-            "status",
-            "switch",
-            "symbol-ref",
-            "tag",
-            "update-index",
-            "update-ref",
-            "var",
-            "verify-commit",
-            "verify-tag",
-            "version",
-            "whatchanged",
-            "worktree",
-            "write-tree",
-        }
-    )
-
-
-    _GIT_GLOBAL_EXECUTION_OPTIONS = frozenset(
-        {
-            "-C",
-            "-p",
-            "--attr-source",
-            "--bare",
-            "--config-env",
-            "--git-dir",
-            "--namespace",
-            "--paginate",
-            "--work-tree",
-        }
-    )
-
-
-    _GIT_GLOBAL_EXECUTION_PREFIXES = (
-        "--attr-source=",
-        "--config-env=",
-        "--exec-path=",
-        "--git-dir=",
-        "--namespace=",
-        "--work-tree=",
-    )
-
-
-    _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND = {
-        "archive": frozenset({"--exec"}),
-        "clone": frozenset({"-c", "-u", "--config", "--template", "--upload-pack"}),
-        "diff": frozenset({"--ext-diff"}),
-        "fetch": frozenset({"--upload-pack"}),
-        "grep": frozenset({"-O", "--open-files-in-pager"}),
-        "ls-remote": frozenset({"--upload-pack"}),
-        "merge": frozenset({"-s", "--strategy"}),
-        "pull": frozenset({"-s", "--strategy", "--upload-pack"}),
-        "push": frozenset({"--exec", "--receive-pack"}),
-    }
-
-
-    _GIT_OPTION_OPERANDS_BY_SUBCOMMAND = {
-        "clone": frozenset(
-            {
-                "-b",
-                "-c",
-                "-o",
-                "-u",
-                "--branch",
-                "--config",
-                "--origin",
-                "--template",
-                "--upload-pack",
-            }
-        ),
-        "fetch": frozenset({"-j", "--jobs", "--server-option", "--upload-pack"}),
-        "ls-remote": frozenset({"--server-option", "--upload-pack"}),
-        "pull": frozenset({"-j", "--jobs", "--server-option", "--upload-pack"}),
-        "push": frozenset({"-o", "--push-option", "--receive-pack", "--repo"}),
-    }
-
-
-    _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND = {
-        "bisect": frozenset({"run"}),
-    }
-
-
-    _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND = {
-        "grep": frozenset({"A", "B", "C", "e", "f", "m"}),
-    }
-
-
-    _GIT_SAFE_REMOTE_SCHEMES = frozenset({"git", "http", "https", "ssh"})
-
-
-    _GIT_REMOTE_SUBCOMMANDS = frozenset({"clone", "fetch", "ls-remote", "pull", "push"})
-
-
-    _GIT_CONFIG_READ_ACTIONS = frozenset(
-        {
-            "--get",
-            "--get-all",
-            "--get-regexp",
-            "--list",
-            "-l",
-            "get",
-            "get-all",
-            "get-regexp",
-            "list",
-        }
-    )
-
-
-    _GIT_HOOK_FREE_SUBCOMMANDS = frozenset(
-        {
-            "annotate",
-            "blame",
-            "config",
-            "count-objects",
-            "describe",
-            "diff",
-            "fsck",
-            "grep",
-            "log",
-            "ls-files",
-            "ls-remote",
-            "ls-tree",
-            "merge-base",
-            "merge-tree",
-            "name-rev",
-            "patch-id",
-            "range-diff",
-            "rev-list",
-            "rev-parse",
-            "shortlog",
-            "show",
-            "show-branch",
-            "status",
-            "verify-commit",
-            "verify-tag",
-            "whatchanged",
-        }
-    )
-
-
-    _GIT_CONFIG_READ_MODIFIERS = frozenset(
-        {
-            "--fixed-value",
-            "--includes",
-            "--local",
-            "--name-only",
-            "--no-includes",
-            "--show-names",
-            "--show-origin",
-            "--show-scope",
-            "--system",
-            "--type",
-            "--worktree",
-            "--global",
-        }
-    )
 
 
     _TRUSTED_NEW_PR_SHA256 = "f9df25527cb27ec10c2eb70100d664165d81666a825eab848cd90609251dae26"
