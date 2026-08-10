@@ -62,6 +62,7 @@ from yaml_loader import ConfigError  # noqa: E402
 _COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
     "PreToolUse/invoke_push_pr_script_identity_guard.py": (
         "_push_pr_guard_git_tables.py",
+        "_push_pr_guard_identity.py",
         "_push_pr_guard_lex.py",
         "_push_pr_guard_tables.py",
     ),

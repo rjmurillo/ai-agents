@@ -410,7 +410,6 @@ def _original_main(stdin_bytes):
 
 
     import fnmatch
-    import hashlib
     import json
     import os
     import re
@@ -420,7 +419,6 @@ def _original_main(stdin_bytes):
     import sys
     from collections.abc import Iterator
     from pathlib import Path
-    from typing import BinaryIO
 
     # The guard ships as one runtime unit: this entrypoint plus the
     # ``_push_pr_guard_*`` siblings the generator copies next to it. Resolving the
@@ -446,6 +444,14 @@ def _original_main(stdin_bytes):
         _GIT_REMOTE_SUBCOMMANDS,
         _GIT_SAFE_REMOTE_SCHEMES,
         _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND,
+    )
+    from _push_pr_guard_identity import (  # noqa: E402
+        _SCRIPT_RELATIVE_PATH,
+        _matches_trusted_file,
+        _regular_resolved_file,
+        _runtime_script,
+        _same_executable_content,
+        _validate_runtime_bundle,
     )
     from _push_pr_guard_lex import (  # noqa: E402
         _NEW_PR_TARGET,
@@ -480,9 +486,6 @@ def _original_main(stdin_bytes):
     )
 
     _MAX_STDIN_BYTES = 128 * 1024
-
-
-    _SCRIPT_RELATIVE_PATH = Path("skills/github/scripts/pr/new_pr.py")
 
 
     _PLUGIN_SCRIPT_REFERENCE = (
@@ -528,20 +531,6 @@ def _original_main(stdin_bytes):
 
 
     _MAX_INTERPRETER_SEARCH = 64
-
-
-    _DIGEST_CHUNK_BYTES = 1 << 20
-
-
-    _TRUSTED_NEW_PR_SHA256 = "f9df25527cb27ec10c2eb70100d664165d81666a825eab848cd90609251dae26"
-
-
-    _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
-        "00f32287461be4a0d0b15b0b7fb8a870d3824fbe4a6427373376fb4c38bda9eb"
-    )
-
-
-    _TRUSTED_PR_VALIDATIONS_SHA256 = "a58457c51dfc7f1dc95ba95870e0311cde158be6b35114acb1e36c300f968570"
 
 
     def _read_request() -> tuple[str, Path]:
@@ -976,25 +965,6 @@ def _original_main(stdin_bytes):
         return positions
 
 
-    def _matches_trusted_file(
-        candidate: Path,
-        runtime_script: Path,
-        trusted: os.stat_result,
-    ) -> bool:
-        """Compare one operand against the trusted script with a single stat."""
-        try:
-            info = candidate.stat()
-        except OSError:
-            return False
-        if not stat.S_ISREG(info.st_mode):
-            return False
-        if (info.st_dev, info.st_ino) == (trusted.st_dev, trusted.st_ino):
-            return True
-        if info.st_size != trusted.st_size:
-            return False
-        return _same_executable_content(candidate, runtime_script)
-
-
     def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
         """Scope rule C: an executed file is a byte-identical copy of new_pr.py.
 
@@ -1362,37 +1332,6 @@ def _original_main(stdin_bytes):
                 name,
             )
         )
-
-
-    def _sha256_digest(stream: BinaryIO) -> hashlib._Hash:
-        """Hash a binary stream without ``hashlib.file_digest``.
-
-        ``hashlib.file_digest`` landed in Python 3.11, but the generated hook
-        launchers accept any interpreter at 3.10 or newer:
-
-            "$_c" -I -c "import sys;print(int(sys.version_info>=(3,10)))"
-
-        Calling it on 3.10 raised ``AttributeError`` and the guard exited 1, which
-        a PreToolUse host treats as a hook error rather than a block, so the
-        identity gate silently stopped enforcing on that interpreter. Reproduced on
-        cpython 3.10.20 against the canonical push-pr command (issue #4825).
-        """
-        digest = hashlib.sha256()
-        for chunk in iter(lambda: stream.read(_DIGEST_CHUNK_BYTES), b""):
-            digest.update(chunk)
-        return digest
-
-
-    def _same_executable_content(left: Path, right: Path) -> bool:
-        try:
-            if left.samefile(right):
-                return True
-            if left.stat().st_size != right.stat().st_size:
-                return False
-            with left.open("rb") as left_stream, right.open("rb") as right_stream:
-                return _sha256_digest(left_stream).digest() == _sha256_digest(right_stream).digest()
-        except OSError:
-            return False
 
 
     def _command_search_path(tokens: list[ShellToken], index: int) -> str:
@@ -2266,50 +2205,6 @@ def _original_main(stdin_bytes):
             raise GuardViolationError("new_pr.py body file must be an existing regular file") from exc
         if body_path.is_symlink() or not stat.S_ISREG(body_stat.st_mode) or body_stat.st_nlink != 1:
             raise GuardViolationError("new_pr.py body file must be a single-link regular file")
-
-
-    def _regular_resolved_file(path: Path) -> Path | None:
-        if path.is_symlink() or not path.is_file():
-            return None
-        try:
-            return path.resolve(strict=True)
-        except OSError:
-            return None
-
-
-    def _require_trusted_digest(path: Path, expected: str, label: str) -> None:
-        try:
-            with path.open("rb") as stream:
-                actual = _sha256_digest(stream).hexdigest()
-        except OSError as exc:
-            raise GuardViolationError(f"{label} is unreadable") from exc
-        if actual != expected:
-            raise GuardViolationError(f"{label} does not match the trusted plugin copy")
-
-
-    def _validate_runtime_bundle(script: Path) -> None:
-        """Verify every file new_pr.py executes or imports, as one unit.
-
-        ``pr_validations.py`` joined the bundle in issue #4764 when new_pr.py was
-        split for cohesion. It MUST be pinned here: new_pr.py loads it by absolute
-        path at import time, so an unpinned sibling would be an unverified code
-        path inside a script whose whole purpose here is to be verified. Pinning it
-        keeps the split from widening the trusted surface.
-        """
-        _require_trusted_digest(script, _TRUSTED_NEW_PR_SHA256, "new_pr.py")
-        for name, expected in (
-            ("validate_pr_description.py", _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256),
-            ("pr_validations.py", _TRUSTED_PR_VALIDATIONS_SHA256),
-        ):
-            helper = _regular_resolved_file(script.parent / name)
-            if helper is None:
-                raise GuardViolationError(f"{name} is missing, unreadable, or a symlink")
-            _require_trusted_digest(helper, expected, name)
-
-
-    def _runtime_script() -> Path | None:
-        runtime_root = Path(__file__).resolve().parents[2]
-        return _regular_resolved_file(runtime_root / _SCRIPT_RELATIVE_PATH)
 
 
     def _script_path(script_reference: ShellToken, cwd: Path) -> Path:
