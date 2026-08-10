@@ -517,6 +517,47 @@ def _report(errs: list[str], ok_msg: str) -> None:
     if not errs:
         print(f"  PASS: {ok_msg}")
 
+def _resolve_candidate_paths(
+    root: Path, args: argparse.Namespace,
+) -> tuple[dict[str, Path | None], list[str]]:
+    """Resolve all candidate-controlled paths and enforce containment.
+
+    Returns (resolved_paths_dict, errors). On error, no paths are safe to use.
+    Prevents CWE-59/CWE-22: symlinked vendor roots, pinned artifacts, or
+    prefix-collision attacks (e.g. /tmp/candidate/vendor-evil).
+    """
+    raw: dict[str, Path | None] = {
+        "vendor_dir": root / args.vendor_rel,
+        "verifier": root / args.verifier_rel,
+        "mirror": root / args.mirror_rel,
+        "config": root / args.config_rel,
+        "cli2_config": (
+            (root / args.cli2_config_rel) if args.cli2_config_rel else None
+        ),
+        "copilot_config": (
+            (root / args.copilot_config_rel)
+            if args.copilot_config_rel else None
+        ),
+        "copilot_cli2_config": (
+            (root / args.copilot_cli2_config_rel)
+            if args.copilot_cli2_config_rel else None
+        ),
+    }
+    resolved: dict[str, Path | None] = {}
+    errors: list[str] = []
+    for label, p in raw.items():
+        if p is None:
+            resolved[label] = None
+            continue
+        safe, err = _safe_resolve_within(p, root)
+        if err:
+            errors.append(f"{label}: {err}")
+            resolved[label] = None
+        else:
+            resolved[label] = safe
+    return resolved, errors
+
+
 def main() -> int:
     """Run all provenance checks on candidate vendor tree."""
     parser = argparse.ArgumentParser(
@@ -535,67 +576,16 @@ def main() -> int:
     try:
         root = args.candidate_root.resolve(strict=True)
     except OSError:
-        print(f"ERROR: candidate root not found: {args.candidate_root}", file=sys.stderr)
+        print(
+            f"ERROR: candidate root not found: {args.candidate_root}",
+            file=sys.stderr,
+        )
         return 2
     if not root.is_dir():
         print(f"ERROR: candidate root not a directory: {root}", file=sys.stderr)
         return 2
 
-    # Resolve all candidate-controlled paths and enforce containment under
-    # candidate root BEFORE any read, traversal, or subprocess.
-    # Prevents CWE-59/CWE-22: symlinked vendor roots, pinned artifacts, or
-    # prefix-collision attacks (e.g. /tmp/candidate/vendor-evil).
-    vendor_dir = root / args.vendor_rel
-    verifier = root / args.verifier_rel
-    mirror = root / args.mirror_rel
-    config = root / args.config_rel
-    cli2_config = (root / args.cli2_config_rel) if args.cli2_config_rel else None
-    copilot_config = (root / args.copilot_config_rel) if args.copilot_config_rel else None
-    copilot_cli2_config = (
-        (root / args.copilot_cli2_config_rel)
-        if args.copilot_cli2_config_rel
-        else None
-    )
-
-    containment_errors: list[str] = []
-    for label, p in [
-        ("vendor_dir", vendor_dir),
-        ("verifier", verifier),
-        ("mirror", mirror),
-        ("config", config),
-    ]:
-        resolved, err = _safe_resolve_within(p, root)
-        if err:
-            containment_errors.append(f"{label}: {err}")
-        else:
-            assert resolved is not None  # guaranteed by no-error
-            if label == "vendor_dir":
-                vendor_dir = resolved
-            elif label == "verifier":
-                verifier = resolved
-            elif label == "mirror":
-                mirror = resolved
-            elif label == "config":
-                config = resolved
-    if cli2_config is not None:
-        resolved, err = _safe_resolve_within(cli2_config, root)
-        if err:
-            containment_errors.append(f"cli2_config: {err}")
-        elif resolved is not None:
-            cli2_config = resolved
-    for label, p in [
-        ("copilot_config", copilot_config),
-        ("copilot_cli2_config", copilot_cli2_config),
-    ]:
-        if p is not None:
-            resolved, err = _safe_resolve_within(p, root)
-            if err:
-                containment_errors.append(f"{label}: {err}")
-            elif resolved is not None:
-                if label == "copilot_config":
-                    copilot_config = resolved
-                else:
-                    copilot_cli2_config = resolved
+    paths, containment_errors = _resolve_candidate_paths(root, args)
     if containment_errors:
         print("=== Path Containment ===")
         for e in containment_errors:
@@ -603,9 +593,20 @@ def main() -> int:
         print(f"\nBLOCKED: {len(containment_errors)} containment error(s)")
         return 1
 
+    # All paths verified safe; unpack for readability.
+    vendor_dir = paths["vendor_dir"]
+    verifier = paths["verifier"]
+    mirror = paths["mirror"]
+    config = paths["config"]
+    if vendor_dir is None or verifier is None or mirror is None or config is None:
+        # Should not happen: required args always resolve or produce errors.
+        print("ERROR: required path resolved to None", file=sys.stderr)
+        return 2
+
     all_errors = _run_checks(
-        root, vendor_dir, verifier, mirror, config, cli2_config,
-        copilot_config, copilot_cli2_config,
+        root, vendor_dir, verifier, mirror, config,
+        paths["cli2_config"], paths["copilot_config"],
+        paths["copilot_cli2_config"],
     )
     # Only run reconstruction if structural/policy checks passed; avoids
     # npm ci against a lockfile that already failed policy (CWE-918/CWE-59).
