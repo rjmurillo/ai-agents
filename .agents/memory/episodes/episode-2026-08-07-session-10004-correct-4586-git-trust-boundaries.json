@@ -1,0 +1,175 @@
+{
+  "id": "episode-2026-08-07-session-10004-correct-4586-git-trust-boundaries",
+  "session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct PR 4586 Git trust boundaries at exact remote head",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Gated exact PR head",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both defects",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolated scanner Git commands",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected revision classification",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated owned mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added regression and mutation controls",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated implementation",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit: 3ab2df4c4",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T03:44:24+00:00",
+      "type": "commit",
+      "content": "Commit: 3ab2df4c4b577dd9e86d03c6cf258aa1a1b4b757",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Handled push gate",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-07T03:51:42+00:00",
+      "type": "commit",
+      "content": "Commit: fa364d696bde8d17ac482679a2e15b4e72ee93f3",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004-correct-4586-git-trust-boundaries"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}
