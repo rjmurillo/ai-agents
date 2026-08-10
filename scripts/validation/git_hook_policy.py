@@ -853,6 +853,17 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     return result.stdout
 
 
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
     """Read a blob without letting text mode rewrite it.
 
@@ -1829,12 +1840,19 @@ def _precommit_session_command(
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    sessions = [
+    session_paths = [
         path
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
     if not sessions:
+        if session_paths:
+            return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     new_logs, has_session_deletion = session_change_scope(sessions, repo_root)
@@ -1863,6 +1881,21 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             _print_process_output(result)
             return result.returncode
     return 0
+
+
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -6246,19 +6279,17 @@ def _pytest_parallel_flags() -> list[str]:
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
     """Return the pre-push pytest invocations, bulk partition first.
 
-    Only the first command runs in parallel. The second command targets exactly
-    one module, ``tests/test_safe_push_pr_branch.py``, and ``--dist loadfile``
-    routes a whole file to a single worker, so distributing it would buy zero
-    parallelism and pay the worker-startup cost anyway. It also carries the
-    narrower marker expression that deselects the real-transport tests, and
-    keeping it a plain serial pytest run keeps that safety property readable in
-    one line.
+    Only the first command runs in parallel. The safe-push and pr-autofix
+    modules each run in a fresh serial pytest process. The latter can leave a
+    grandchild holding a subprocess pipe under heavy worker load, so sharing a
+    process with another test module also makes it flaky.
 
     Raises:
         ValueError: the worker override names something other than ``auto`` or
             a positive integer.
     """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
             sys.executable,
@@ -6270,6 +6301,8 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             str(repo_root / "tests"),
             "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(pr_autofix_tests),
         ],
         [
             sys.executable,
@@ -6278,6 +6311,14 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(pr_autofix_tests),
         ],
     ]
 
@@ -6546,6 +6587,9 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         compare_ref="HEAD",
     )
     for path in paths:
+        normalized = _safe_relative_path(path)
+        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+            continue
         command = [sys.executable, "scripts/validate_session_json.py", path]
         exists_at_head = _path_exists_at_head(path, repo_root)
         if exists_at_head is None:

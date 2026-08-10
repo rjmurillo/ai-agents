@@ -1712,6 +1712,16 @@ def _add_upstream_with(repo: Path, tracked: Path) -> None:
     _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", f"refs/remotes/origin/{default}")
 
 
+def _add_origin_main_with(repo: Path, tracked: Path) -> None:
+    """Give ``repo`` an ``origin/main`` and ``origin/HEAD`` containing ``tracked``."""
+    _add_upstream_with(repo, tracked)
+    remote = repo.parent / "remote.git"
+    default = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    _git(repo, "--git-dir", str(remote), "branch", "-f", "main", default)
+    _git(repo, "fetch", "-q", "origin", "main")
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+
+
 def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> None:
     """A committed merge of main must not wedge a branch that owns a log.
 
@@ -2021,6 +2031,199 @@ def test_session_policy_requires_and_validates_session(
         )
         == 0
     )
+
+
+def test_session_policy_skips_sessions_already_on_main(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
+    monkeypatch.setattr(policy, "_is_staged_session_on_upstream_default", lambda *_args: True)
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("upstream session was revalidated"),
+    )
+
+    assert (
+        policy.check_sessions(
+            [".agents/sessions/2026-07-19-session-1-test.json"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_pre_commit_session_policy_skips_identical_upstream_content(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _add_origin_main_with(repo, session)
+    original_run = policy._run_command
+
+    def _fail_on_validation(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" in command:
+            pytest.fail("identical staged session was revalidated")
+        return original_run(command, root)
+
+    with mock.patch.object(policy, "_run_command", _fail_on_validation):
+        assert policy.check_sessions([relative], repo) == 0
+
+
+def test_pre_commit_session_policy_validates_changed_upstream_content(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _add_origin_main_with(repo, session)
+    _write_file(repo, relative, "{not json")
+    _git(repo, "add", "--", relative)
+    commands: list[list[str]] = []
+    original_run = policy._run_command
+
+    def _reject_malformed(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" not in command:
+            return original_run(command, root)
+        commands.append(list(command))
+        assert policy._read_index_blob(repo, relative) == b"{not json"
+        return _completed(1, stderr="invalid JSON")
+
+    with mock.patch.object(policy, "_run_command", _reject_malformed):
+        assert policy.check_sessions([relative], repo) == 1
+
+    assert commands == [
+        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+    ]
+
+
+def test_pre_commit_session_policy_validates_absent_upstream_path(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    remote = repo.parent / "remote.git"
+    _git(repo, "clone", "-q", "--bare", str(repo), str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "fetch", "-q", "origin")
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _git(repo, "add", "--", relative)
+    commands: list[list[str]] = []
+    original_run = policy._run_command
+
+    def _record_validation(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" not in command:
+            return original_run(command, root)
+        commands.append(list(command))
+        return _completed(0)
+
+    with mock.patch.object(policy, "_run_command", _record_validation):
+        assert policy.check_sessions([relative], repo) == 0
+
+    assert commands == [
+        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+    ]
+
+
+def test_pre_push_session_policy_skips_identical_upstream_content(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _add_origin_main_with(repo, session)
+    original_run = policy._run_command
+
+    def _fail_on_validation(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" in command:
+            pytest.fail("identical HEAD session was revalidated")
+        return original_run(command, root)
+
+    with mock.patch.object(policy, "_run_command", _fail_on_validation):
+        assert policy.validate_branch_sessions([relative], repo) == 0
+
+
+def test_pre_push_session_policy_validates_changed_upstream_content(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _add_origin_main_with(repo, session)
+    _write_file(repo, relative, "{not json")
+    _git(repo, "add", "--", relative)
+    _git(repo, "commit", "-qm", "test: corrupt session log")
+    commands: list[list[str]] = []
+    original_run = policy._run_command
+
+    def _reject_malformed(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" not in command:
+            return original_run(command, root)
+        commands.append(list(command))
+        assert policy._read_head_blob(repo, relative) == b"{not json"
+        return _completed(1, stderr="invalid JSON")
+
+    with mock.patch.object(policy, "_run_command", _reject_malformed):
+        assert policy.validate_branch_sessions([relative], repo) == 1
+
+    assert commands == [
+        [sys.executable, "scripts/validate_session_json.py", relative, "--existing-log"]
+    ]
+
+
+def test_pre_push_session_policy_validates_absent_upstream_path(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    remote = repo.parent / "remote.git"
+    _git(repo, "clone", "-q", "--bare", str(repo), str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "fetch", "-q", "origin")
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feature/x")
+    session = _write_session_log(repo, branch="feature/x")
+    relative = session.relative_to(repo).as_posix()
+    _git(repo, "add", "--", relative)
+    _git(repo, "commit", "-qm", "test: add session log")
+    commands: list[list[str]] = []
+    original_run = policy._run_command
+
+    def _record_validation(
+        command: Sequence[str],
+        root: Path,
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if "scripts/validate_session_json.py" not in command:
+            return original_run(command, root)
+        commands.append(list(command))
+        return _completed(0)
+
+    with mock.patch.object(policy, "_run_command", _record_validation):
+        assert policy.validate_branch_sessions([relative], repo) == 0
+
+    assert commands == [
+        [sys.executable, "scripts/validate_session_json.py", relative, "--creation-mode"]
+    ]
 
 
 def test_session_policy_propagates_validator_failure_and_skips_merge(
@@ -7006,6 +7209,7 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
+    monkeypatch.setattr(policy, "_is_session_on_upstream_default", lambda *_args: False)
     assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
