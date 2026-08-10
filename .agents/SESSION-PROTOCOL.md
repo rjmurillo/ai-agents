@@ -868,12 +868,16 @@ queue, and it does not use an external merge queue.
    pull request and verify the count is zero:
 
    ```bash
-   for PR in $(gh pr list --state open --json number,autoMergeRequest \
-     --jq '.[] | select(.autoMergeRequest != null) | .number'); do
-     gh pr merge "$PR" --disable-auto
+   SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
+   for PR in $(python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" \
+     --state open --limit 100 | jq -r '.Data.PullRequests[].number'); do
+     python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" \
+       --pull-request "$PR" --disable
    done
-   test "$(gh pr list --state open --json autoMergeRequest \
-     --jq '[.[] | select(.autoMergeRequest != null)] | length')" -eq 0
+   for PR in $(python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" \
+     --state open --limit 100 | jq -r '.Data.PullRequests[].number'); do
+     python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request "$PR"
+   done
    ```
 
    This single-front rule controls CI cost. GitHub strict freshness remains the
@@ -920,16 +924,19 @@ queue, and it does not use an external merge queue.
 10. The agent MUST use squash auto-merge:
 
    ```bash
-   gh pr merge <PR_NUMBER> --auto --squash
+   python3 "$SCRIPTS_DIR/pr/merge_pr.py" \
+     --pull-request <PR_NUMBER> --strategy squash --auto
    ```
 
 11. Enabling auto-merge is not completion. The agent MUST wait until the pull
-   request reaches `MERGED`. If it has not merged within 30 minutes, the agent
-   MUST keep the task incomplete and report the exact in-progress or failing
-   required checks from `gh pr checks --required`; the user MAY accept a
-   handoff instead. Basis: PR #4819's slowest required check completed in 1094
-   seconds (18 minutes 14 seconds), so 30 minutes leaves 11 minutes 46 seconds
-   before escalation. Re-measure when required checks change.
+   request reaches `MERGED`. Poll `get_pr_context.py`; when
+   `merge_state_status` becomes `BEHIND`, repeat step 4. If it has not merged
+   within 30 minutes, the agent MUST keep the task incomplete and report the
+   exact in-progress or failing required checks from `get_pr_checks.py`; the
+   user MAY accept a handoff instead. Basis: PR #4819's slowest required check
+   completed in 1094 seconds (18 minutes 14 seconds), so 30 minutes leaves
+   11 minutes 46 seconds before escalation. Re-measure when required checks
+   change.
 12. Before advancing to the next PR, the agent MUST inspect the push workflows
     for the new main commit. Any red main check stops the drain: disable
     auto-merge everywhere, keep the task incomplete, and fix forward or revert
@@ -942,6 +949,9 @@ queue, and it does not use an external merge queue.
 
     Wait for the relevant push workflows to complete. Any `failure`,
     `timed_out`, `action_required`, or `startup_failure` conclusion is red.
+13. Changes under `.agents/governance/**` require human maintainer approval
+    and MUST NOT use auto-merge. After all checks pass, stop and request human
+    review.
 
 **Why serial:** Updating 41 branches in parallel on 2026-08-09 triggered 820
 queued or in-progress workflow runs. The first merge would have invalidated
@@ -1299,6 +1309,7 @@ audit sync coverage.
 | ADR-042 | Python for new scripts (not bash) | Phase 2: Quality Checks |
 | ADR-043 | Scoped tool execution (changed files only) | Phase 2: Quality Checks |
 | ADR-050 | ADR-to-Protocol sync process | This section |
+| ADR-094 | Strict freshness with one-front auto-merge | Phase 2.8: Pull Request Landing |
 
 **When creating or updating an ADR with MUST requirements**, update this table
 and the relevant protocol section. See ADR-050 for the full sync process.

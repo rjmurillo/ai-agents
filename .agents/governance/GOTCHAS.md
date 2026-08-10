@@ -1045,8 +1045,8 @@ means main is red and it is not yours to fix.
 ## Serial GitHub auto-merge is the landing workflow
 
 The canonical procedure is
-`.agents/SESSION-PROTOCOL.md` Phase 2.8. This entry records only the traps that
-made the procedure necessary.
+[`.agents/SESSION-PROTOCOL.md`](../SESSION-PROTOCOL.md) Phase 2.8. This entry
+records only the traps that made the procedure necessary.
 
 Do not update every behind branch at once. One attempted sweep updated 41
 branches and triggered 820 queued or in-progress workflow runs. The first merge

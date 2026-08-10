@@ -61,7 +61,8 @@
         "e002",
         "e003",
         "e004",
-        "e011"
+        "e011",
+        "e013"
       ],
       "leads_to": [
         "e006"
@@ -153,6 +154,17 @@
         "e010"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created ADR-094 and formal consensus",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-09-session-10026-merge-workflow-docs"
     }
   ],
