@@ -213,7 +213,9 @@
       "caused_by": [
         "e015"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     },
     {
@@ -228,6 +230,17 @@
         "e011"
       ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T10:39:39+00:00",
+      "type": "commit",
+      "content": "Commit: 369e60a955797d9059ecb2928c1989973d744a55",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     }
   ],
   "metrics": {
@@ -235,7 +248,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 4
   },
   "lessons": []

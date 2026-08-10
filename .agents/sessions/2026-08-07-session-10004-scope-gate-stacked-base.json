@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": ".agents/retrospective/2026-08-07-scope-gate-fail-open-rescope.md classifies the failure against FAILURE-MODES.md section 10"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4738-scope-gate-session-10004.md"
       }
     }
   },
@@ -180,10 +185,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "c65dc11eb2253b9440c10c5cc8532a731d6281fc",
-      "head": "9c0771fe788903c0d5171a62c158c4fd15b20789"
+      "head": "369e60a955797d9059ecb2928c1989973d744a55"
     }
   },
-  "endingCommit": "8d5d2b15757fbe6b25552d991462172b150197d4",
+  "endingCommit": "369e60a955797d9059ecb2928c1989973d744a55",
   "nextSteps": [
     "Wait for CI on PR #4738, then update the branch and take the server merge before any token recount",
     "Land the memory-index duplicate-dump fix (PR pending) that removes 102 rows PR #4592 appended",
