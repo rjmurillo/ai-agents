@@ -1,7 +1,7 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
 Issue #4823. Exactly one pytest invocation in this workflow runs on workers:
-the "Run pytest" step in job `test`, at a literal `-n 4 --dist loadfile`.
+the "Run pytest" step in job `test`, at `-n auto --dist loadfile`.
 Everything else stays serial:
 
 * both branch-coverage pin collection steps, whose 100% gates
@@ -11,10 +11,10 @@ Everything else stays serial:
 * the Windows path-contract job, whose marker-selected set is small and whose
   runner is the slowest and least parallel-friendly in the matrix.
 
-Four workers is a measured constant, not a function of the runner. Issue #4491
-ruled out `-n auto` for this suite: with several concurrent runs on one host
-each scaling to the full CPU count, contention gets worse rather than better.
-`test_main_run_never_asks_the_runner_how_many_workers_to_use` is the guard.
+`auto` is xdist's own "one worker per logical CPU". The workflow states no
+number, so a larger runner is spent rather than wasted and nothing has to be
+re-tuned when the runner size changes.
+`test_main_run_does_not_hard_code_a_worker_count` is the guard on that.
 
 Coverage needs no new step. pytest-cov 7.1.0's `DistMaster.finish()` (verbatim,
 `pytest_cov/engine.py`):
@@ -55,7 +55,7 @@ _SERIAL_STEPS = (
 _WINDOWS_JOB = "test-windows-pwsh"
 _WINDOWS_STEP = "Run Windows path-contract tests"
 
-_EXPECTED_WORKERS = "4"
+_EXPECTED_WORKERS = "auto"
 _EXPECTED_DIST = "loadfile"
 
 # Any argv spelling that starts workers or picks a distribution mode.
@@ -80,8 +80,8 @@ def _run(name: str, job: str = "test") -> str:
     return run
 
 
-def test_main_run_uses_four_workers_over_whole_files() -> None:
-    """The one parallel invocation, spelled literally.
+def test_main_run_uses_every_cpu_over_whole_files() -> None:
+    """The one parallel invocation, spelled out.
 
     `loadfile` sends every test in one file to one worker, which is the
     weakest distribution xdist offers and the point: module-scoped fixtures and
@@ -95,16 +95,20 @@ def test_main_run_uses_four_workers_over_whole_files() -> None:
     assert tokens[tokens.index("--dist") + 1] == _EXPECTED_DIST
 
 
-def test_main_run_never_asks_the_runner_how_many_workers_to_use() -> None:
-    """`-n auto` is out of scope for this suite (issue #4491's decision).
+def test_main_run_does_not_hard_code_a_worker_count() -> None:
+    """The inverse of the assertion above.
 
-    `auto` reads the runner CPU count, so concurrent runs on one host each
-    request every core and collapse into contention. The count stays literal.
+    A regression that swaps `auto` for a number still passes "there is a `-n`"
+    while capping a larger runner at whatever the author's machine had. The
+    workflow must name no count at all.
     """
     tokens = _run(_MAIN_STEP).split()
 
-    assert "auto" not in tokens
-    assert "logical" not in tokens
+    workers = tokens[tokens.index("-n") + 1]
+
+    assert not workers.lstrip("+-").isdigit(), (
+        f"worker count must stay runner-relative, got the literal {workers!r}"
+    )
 
 
 def test_main_run_keeps_its_coverage_and_ignore_contract() -> None:
