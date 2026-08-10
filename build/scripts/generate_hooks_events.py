@@ -63,6 +63,7 @@ _COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
     "PreToolUse/invoke_push_pr_script_identity_guard.py": (
         "_push_pr_guard_commands.py",
         "_push_pr_guard_expansion.py",
+        "_push_pr_guard_git.py",
         "_push_pr_guard_git_tables.py",
         "_push_pr_guard_identity.py",
         "_push_pr_guard_lex.py",
