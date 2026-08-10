@@ -336,14 +336,21 @@ _IMPERATIVES = re.compile(
 )
 
 _NEGATIONS = re.compile(
-    r"\b(do\s+not|don'?t|never|cannot|must\s+not|forbidden|"
+    r"\b(do\s+not|don[\u2019']?t|never|cannot|must\s+not|forbidden|"
     r"deprecated|was\s+deprecated|is\s+not|prohibited)\b",
     re.IGNORECASE,
 )
 
+# Agent attribution: if a named agent other than "analyst" is the subject,
+# the directive is not addressed to the analyst.
+_OTHER_AGENT = re.compile(
+    r"\b(orchestrator|reviewer|qa|security|implementer|release[- ]agent|"
+    r"critic|architect)\b(?!\s+tool)",
+    re.IGNORECASE,
+)
+
 _NON_DIRECTIVE = re.compile(
-    r"(orchestrator|qa\s+agent|security\s+agent|implementer|"
-    r"example:|e\.g\.|for example|"
+    r"(example:|e\.g\.|for example|"
     r"see\s+\w+\s+docs|endpoint\s+was)",
     re.IGNORECASE,
 )
@@ -364,28 +371,36 @@ def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
 def _line_has_tool_reference(line: str) -> bool:
     """Return True if line references a declared tool or 'declared tools'.
 
-    Tool names inside double-quoted, single-quoted strings, or inline-code
-    spans are NOT counted (they are examples).
+    Tool names inside ASCII or Unicode quoted strings are NOT counted.
     Bare backtick-wrapped tool names with imperative verbs in prose ARE valid.
     """
-    # Strip quoted strings and inline-code spans (examples)
-    stripped = re.sub(r'"[^"]*"', "", line)
-    stripped = re.sub(r"'[^']*'", "", stripped)
+    # Strip all quote forms: ASCII double/single + Unicode curly quotes
+    stripped = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", line)
+    stripped = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", "", stripped)
     if any(t in stripped for t in _TOOL_NAMES):
         return True
     return "retrieve" in stripped.lower() and "declared" in stripped.lower()
 
 
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive (not negated/example).
+    """Return True if line is an affirmative directive addressed to the analyst.
 
-    Rejects if the imperative verb is inside an inline-code span (the entire
-    directive is an example). Tool names in backticks with the verb in prose
-    are normal markdown formatting and are accepted.
+    Accepts:
+    - Bare imperatives (implied "you" = analyst): "use X to retrieve"
+    - Explicitly analyst-attributed: "the analyst should use X"
+
+    Rejects:
+    - Any other named agent as subject
+    - Example/documentation markers
+    - Negated verbs
+    - Imperative verbs only inside inline-code spans
     """
     if _NON_DIRECTIVE.search(line):
         return False
     if _NEGATIONS.search(line):
+        return False
+    # Reject if another agent is named (attribution to non-analyst)
+    if _OTHER_AGENT.search(line):
         return False
 
     # Check if imperative verb exists in prose (outside inline-code spans)
@@ -633,6 +648,27 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 20: directive attributed to reviewer (must reject)
+    TOOL_REVIEWER_AGENT = (
+        "\n### delegation contract\n"
+        "the reviewer will call pull_request_read for context. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 21: directive attributed to release-agent (must reject)
+    TOOL_RELEASE_AGENT = (
+        "\n### delegation contract\n"
+        "release-agent should invoke pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 22: tool in Unicode curly-quoted example (must reject)
+    TOOL_SMART_QUOTED = (
+        "\n### delegation contract\n"
+        "\u201cuse pull_request_read to retrieve data\u201d. "
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -727,3 +763,18 @@ class TestNegativeControls:
         """Directive inside ~~~ tilde fence must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_IN_TILDE_FENCE)
         assert err is not None, "Should reject directive inside tilde fence"
+
+    def test_tool_reviewer_agent_rejected(self) -> None:
+        """Directive attributed to reviewer must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_REVIEWER_AGENT)
+        assert err is not None, "Should reject reviewer-attributed directive"
+
+    def test_tool_release_agent_rejected(self) -> None:
+        """Directive attributed to release-agent must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_RELEASE_AGENT)
+        assert err is not None, "Should reject release-agent directive"
+
+    def test_tool_smart_quoted_rejected(self) -> None:
+        """Tool in Unicode curly-quoted example must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SMART_QUOTED)
+        assert err is not None, "Should reject smart-quoted example"
