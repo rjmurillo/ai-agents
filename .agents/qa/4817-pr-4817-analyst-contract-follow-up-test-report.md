@@ -1,41 +1,56 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 7aa4f47f0fda20b77fabcf08353dabb95a344412
+qaCommit: 1f776d469ed765603a9a92accf7ab09a2ec94e97
 ---
 
-# Test Report: PR #4817 -- Explicit Analyst Attribution and Strict Routing Validation
+# Test Report: PR #4817 -- Analyst Contract Follow-up
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 140 |
-| Passed | 140 |
+| Total Tests | 149 |
+| Passed | 149 |
 | Failed | 0 |
 | Skipped | 0 |
-| Duration | 0.75s |
+| Duration | 1.17s |
 
 ## Scope
 
-PR #4817 fixes two High defects from independent review of #4787 / #4570:
+PR #4817 hardens the analyst contract test suite with:
 
-1. Retrieval guard accepts actorless/passive directives. Fixed by requiring "analyst" as grammatical actor in `_is_affirmative_directive`.
-2. Routing parser uses substring matching. Fixed with `_parse_routing_table` returning a multimap and `_validate_routing_table` enforcing exact canonical patterns.
+1. Retrieval guard (`_is_affirmative_directive`): requires analyst as grammatical
+   subject (not hyphenated prefix), tool as direct verb argument (not in
+   subordinate when/where/if clauses), rejects mixed-actor comma/conjunction
+   clauses via new-actor-verb detection.
+2. Routing validator (`_validate_routing_table`): parses ALL tables in document,
+   validates tool bindings for allowed extra paths and non-path aliases, rejects
+   unrecognized non-path alternatives.
 
 ## Test Execution
 
 ```text
-tests/test_analyst_skill_resolution.py ........... 83 passed
-tests/build_scripts/test_github_url_routing_contract.py ........... 39 passed
-Total: 122 passed in 0.75s
+tests/test_analyst_skill_resolution.py ........... 99 passed
+tests/build_scripts/test_github_url_routing_contract.py ........... 50 passed
+Total: 149 passed in 1.17s
 ```
 
 ## Reconciliation
 
 ```text
-Promised: 4 negative controls (fixtures 23-26), 1 routing duplicate rejection, strict actor attribution, exact canonical routing
-Delivered: test_tool_bare_imperative_rejected, test_tool_passive_voice_rejected, test_tool_compliance_bot_rejected, test_tool_analyst_negated_rejected, test_routing_table_rejects_duplicate_rows, test_tool_analyst_as_object_rejected, test_tool_analyst_may_not_rejected, test_tool_analyst_will_not_rejected, test_routing_table_rejects_suffix_pattern, test_routing_table_rejects_noncanonical_placeholder, test_routing_table_validates_mcp_prefixed_tools
+Promised: subordinate-clause boundary, non-analyst prefix, mixed-actor detection,
+  multi-table parsing, tool-binding validation, non-path rejection
+Delivered:
+  - test_tool_in_when_clause_rejected (fixture 41)
+  - test_tool_non_analyst_prefix_rejected (fixture 42)
+  - test_tool_comma_mixed_actors_rejected (fixture 43)
+  - test_tool_and_mixed_actors_rejected (fixture 44)
+  - test_tool_comma_compliance_bot_rejected (fixture 45)
+  - test_routing_table_rejects_non_path_alternative
+  - test_routing_table_rejects_duplicate_across_tables
+  - test_routing_table_rejects_wrong_extra_path_tool
+  - test_routing_table_rejects_bare_alias_wrong_tool
 Gap: None
 Result: PASS
 ```
@@ -48,28 +63,23 @@ Result: PASS
 
 ### Passed
 
-All 122 tests passed. Key new negative controls:
+All 149 tests passed at exact commit 1f776d469ed765603a9a92accf7ab09a2ec94e97.
 
-- `test_tool_bare_imperative_rejected`: Rejects directives without explicit analyst actor.
-- `test_tool_passive_voice_rejected`: Rejects passive voice attribution.
-- `test_tool_compliance_bot_rejected`: Rejects arbitrary agent actors.
-- `test_tool_analyst_negated_rejected`: Rejects negated analyst modalities.
-- `test_tool_analyst_as_object_rejected`: Rejects analyst as grammatical object.
-- `test_tool_analyst_may_not_rejected`: Rejects "may not" negation.
-- `test_tool_analyst_will_not_rejected`: Rejects "will not" negation.
-- `test_routing_table_rejects_duplicate_rows`: Validates unique routing rows.
-- `test_routing_table_rejects_suffix_pattern`: Validates exact pattern matching.
-- `test_routing_table_rejects_noncanonical_placeholder`: Validates canonical placeholders.
-- `test_routing_table_validates_mcp_prefixed_tools`: Validates MCP prefix handling.
+Key negative controls proving detection:
+
+Retrieval guard (new):
+- `test_tool_in_when_clause_rejected`: tool in subordinate 'when' not direct arg
+- `test_tool_non_analyst_prefix_rejected`: hyphenated 'non-analyst' rejected
+- `test_tool_comma_mixed_actors_rejected`: comma-separated mixed actors
+- `test_tool_and_mixed_actors_rejected`: conjunction mixed actors
+- `test_tool_comma_compliance_bot_rejected`: compliance-bot mixed actor
+
+Routing validator (new):
+- `test_routing_table_rejects_non_path_alternative`: "run shell commands" rejected
+- `test_routing_table_rejects_duplicate_across_tables`: cross-table dupes caught
+- `test_routing_table_rejects_wrong_extra_path_tool`: wrong tool binding caught
+- `test_routing_table_rejects_bare_alias_wrong_tool`: arbitrary tool binding caught
 
 ### Failed
-
-None.
-
-### Skipped
-
-None.
-
-## Gaps Identified
 
 None.

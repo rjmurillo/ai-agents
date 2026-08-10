@@ -4,17 +4,17 @@
   "timestamp": "2026-08-10T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "QA validation for PR #4817: explicit analyst attribution and strict routing validation.",
+  "task": "Harden analyst retrieval guard and routing validator: fix subordinate-clause, non-analyst prefix, mixed-actor, multi-table, tool-binding, and non-path bypasses",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fetched PR #4817 metadata and CI failure details",
+      "content": "Fix retrieval guard bypasses",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     },
@@ -22,10 +22,10 @@
       "id": "e002",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created isolated worktree at /tmp/qa-pr-4817-worktree on fix/analyst-contract-follow-up",
+      "content": "Fix routing validator bypasses",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     },
@@ -33,70 +33,46 @@
       "id": "e003",
       "timestamp": "2026-08-10T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran pytest on both changed test files",
+      "content": "Add negative controls",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     },
     {
       "id": "e004",
       "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "test",
-      "content": "Ran pytest on both changed test files      122/122 passed in 0.75s",
+      "type": "milestone",
+      "content": "Regenerate QA evidence",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Created QA report with PASS verdict",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-08-10T13:24:34+00:00",
+      "timestamp": "2026-08-10T15:03:07+00:00",
       "type": "commit",
-      "content": "Commit: 7aa4f47f0fda20b77fabcf08353dabb95a344412",
+      "content": "Commit: 1f776d469ed765603a9a92accf7ab09a2ec94e97",
       "caused_by": [
         "e001",
         "e002",
         "e003",
-        "e004",
-        "e005",
-        "e007"
+        "e004"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-08-10T00:00:00+00:00",
-      "type": "test",
-      "content": "Ran pytest on both changed test files      140/140 passed in 0.67s",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
-    "tool_calls": null,
+    "duration_minutes": 0,
+    "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 6
+    "files_changed": 2
   },
   "lessons": []
 }

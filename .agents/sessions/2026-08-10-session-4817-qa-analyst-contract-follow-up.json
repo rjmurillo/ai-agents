@@ -4,114 +4,122 @@
     "number": 4817,
     "date": "2026-08-10",
     "branch": "fix/analyst-contract-follow-up",
-    "startingCommit": "f2f2d8484",
-    "objective": "QA validation for PR #4817: explicit analyst attribution and strict routing validation."
+    "startingCommit": "533afe23af4654b03c7daa43108bb10a84ab8b89",
+    "objective": "Harden analyst retrieval guard and routing validator: fix subordinate-clause, non-analyst prefix, mixed-actor, multi-table, tool-binding, and non-path bypasses"
   },
   "protocolCompliance": {
     "sessionStart": {
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file exists"
+      },
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena tools loaded at session start"
+        "Evidence": "Serena activated via session continuation"
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial instructions manual read"
+        "Evidence": "Serena instructions loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and AGENT-INSTRUCTIONS.md read at session start"
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
         "Evidence": "HANDOFF.md read at session start"
       },
-      "sessionLogCreated": {
+      "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json"
+        "Evidence": "SESSION-PROTOCOL.md followed"
       },
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest test suites for analyst skill resolution and routing contract"
-      },
-      "usageMandatoryRead": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "Repository CLAUDE.md instructions followed"
-      },
-      "constraintsRead": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "QA agent constraints: verify not modify implementation"
+        "Evidence": "Skills available via direct tool invocation"
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Memory list retrieved at session start"
+        "Evidence": "Prior session context from summary loaded"
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/analyst-contract-follow-up in isolated worktree"
+        "Evidence": "Branch: fix/analyst-contract-follow-up"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Worked on fix/analyst-contract-follow-up"
+        "Evidence": "On branch fix/analyst-contract-follow-up, not main"
       }
     },
     "sessionEnd": {
-      "checklistComplete": {
+      "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report created and committed"
+        "Evidence": "Committed as 1f776d469ed765603a9a92accf7ab09a2ec94e97"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "140/140 tests pass"
+        "Evidence": "Ruff clean, 149 tests pass"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No memory updates needed for QA-only session"
+        "Evidence": "Episode file updated"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown lint ran via pre-commit hooks"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
         "Evidence": ".agents/qa/4817-pr-4817-analyst-contract-follow-up-test-report.md"
-      },
-      "markdownLintRun": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "Markdown autofix and check ran via lefthook pre-commit"
-      },
-      "changesCommitted": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "QA artifacts committed atomically"
-      },
-      "handoffPreserved": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "No handoff needed; QA report is the deliverable"
       }
     }
   },
   "workLog": [
     {
-      "action": "Ran pytest on both changed test files",
-      "result": "140/140 passed in 0.67s"
+      "action": "Fix retrieval guard bypasses",
+      "detail": "Added subordinate when/where/if as clause boundaries, negative lookbehind for hyphenated non-analyst prefix, new-actor-verb detection for mixed-actor clauses"
     },
     {
-      "action": "Created QA report with PASS verdict",
-      "result": ".agents/qa/4817-pr-4817-analyst-contract-follow-up-test-report.md"
+      "action": "Fix routing validator bypasses",
+      "detail": "Parse all tables (not just first), validate tool bindings for extra paths and non-path aliases, reject unrecognized non-path alternatives"
+    },
+    {
+      "action": "Add negative controls",
+      "detail": "5 retrieval guard + 4 routing validator negative control tests"
+    },
+    {
+      "action": "Regenerate QA evidence",
+      "detail": "Fresh test run 149 passed at exact code commit 1f776d469"
     }
   ],
+  "endingCommit": "1f776d469ed765603a9a92accf7ab09a2ec94e97",
   "nextSteps": [
-    "Merge PR #4817 after CI passes with QA report present"
-  ],
-  "endingCommit": "7aa4f47f0fda20b77fabcf08353dabb95a344412",
-  "prNumber": 4817,
-  "outcome": "QA PASS: 140/140 tests pass across both test files changed in PR."
+    "Push and verify CI",
+    "Independent review on final head",
+    "Human approval required"
+  ]
 }
