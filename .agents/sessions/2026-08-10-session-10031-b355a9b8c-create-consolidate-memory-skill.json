@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commits 83dd2a6031 and 2e83b2b1ff"
+        "Evidence": "Implementation commits 83dd2a6031, 2e83b2b1ff, 86b10f37fa, and 5f157e8f6c"
       },
       "validationPassed": {
         "level": "MUST",
@@ -130,8 +130,12 @@
     {
       "task": "Simplify tests",
       "outcome": "Reduced the structural test module from 561 lines and 29 tests to 163 lines and 11 focused tests without losing regression coverage."
+    },
+    {
+      "task": "Harden for shipping",
+      "outcome": "Fixed vendor portability, stale-index detection, partial-write recovery, Serena-versus-Forgetful routing, command quoting, and edge-path activation coverage."
     }
   ],
-  "endingCommit": "2e83b2b1ffe9724a4695808fa5299c99285f5fef",
+  "endingCommit": "5f157e8f6c29a295ba489c72619e9694b55b6d16",
   "nextSteps": []
 }
