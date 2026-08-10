@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking.json
-qaCommit: 974c980041eeaf16f7ce8ab943ae65eaeb6655a8
+qaCommit: 0f3eee31fcaa2cf59887282c3fdd71c9a4eb10d7
 ---
 # QA Report: PR 4836 session validation blockers
 
@@ -30,6 +30,8 @@ PASS. The PR 4836 CI fixes cover the reported Validate PR, Run Python Tests, Win
 | `uv run --frozen pytest tests/test_validate_session_json.py -q` | 346 passed |
 | `uv run --frozen ruff check scripts/validation/checks_tooling.py tests/test_validation_pre_pr.py` | PASS |
 | `uv run --frozen pytest tests/test_validation_pre_pr.py::TestValidateSessionEnd -q` | 7 passed |
+| `uv run --frozen pytest tests/test_validation_pre_pr.py::TestValidateSessionEnd tests/test_validation_pre_pr_session_scope.py tests/test_validate_session_json.py::TestHistoricalLogsAreExemptByConstruction tests/test_validate_session_json.py::TestSessionScopeIsDecidedOnceForBothCallSites tests/test_validate_session_json.py::TestValidateQaReportEvidence -q` | 51 passed |
+| `uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main` | PASS |
 | `uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github.json --scope-from-git --validation-head HEAD` | PASS |
 | `uv run --frozen pytest tests/ -x -q --tb=short` | 25565 passed, 36 skipped, 2 warnings |
 | `uv run --frozen python build/scripts/build_all.py` | regenerated skill mirror, no drift after generation |

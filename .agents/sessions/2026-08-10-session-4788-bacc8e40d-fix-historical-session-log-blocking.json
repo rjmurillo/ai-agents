@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800, bcb4c920, 0f3eee31"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed for changed Python files; tests/test_validate_session_json.py passed 346 tests; TestValidateSessionEnd passed 7 tests; historical existing session log validation passed at a4d997704787a4954d7940f286f04cf0a58ecf04"
+        "Evidence": "Ruff passed for changed Python files; focused validator and pre-PR session tests passed 51 tests; merge-tree ratchet passed at 0f3eee31fcaa2cf59887282c3fdd71c9a4eb10d7"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -191,9 +191,13 @@
     {
       "task": "Bind pre-PR session scope to HEAD",
       "outcome": "Pre-PR session validation now keeps missing worktree copies in scope and computes newness from HEAD; 7 focused tests pass"
+    },
+    {
+      "task": "Merge main and clear merge-tree ratchet",
+      "outcome": "Merged origin/main, split pre-PR scope tests below taste limits, and merge-tree ratchet passed"
     }
   ],
-  "endingCommit": "974c980041eeaf16f7ce8ab943ae65eaeb6655a8",
+  "endingCommit": "0f3eee31fcaa2cf59887282c3fdd71c9a4eb10d7",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
