@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4586-qa-report.json
-qaCommit: ef4140558e8323c9bb176946f3cb89d06d2aa2a1
+qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
 ---
 
 # QA Report: PR 4586
@@ -10,7 +10,7 @@ qaCommit: ef4140558e8323c9bb176946f3cb89d06d2aa2a1
 
 - PR: #4586
 - Branch: `fix/skill-doc-quality-gates`
-- Pre-report code commit: `ef4140558e8323c9bb176946f3cb89d06d2aa2a1`
+- Pre-report code commit: `1dab2578057cf0c60985444ee200ac78d6a2f780`
 - Session log: `.agents/sessions/2026-08-10-session-4586-qa-report.json`
 - Change area: Doc accuracy checks and PR description validation.
 
@@ -33,4 +33,4 @@ qaCommit: ef4140558e8323c9bb176946f3cb89d06d2aa2a1
 
 ## Verdict
 
-PASS. Targeted tests passed against pre-report code commit `ef4140558e83`.
+PASS. Targeted tests passed against pre-report code commit `1dab2578057c`.
