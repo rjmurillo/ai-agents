@@ -78,6 +78,17 @@ def test_no_code_changes_still_sets_skip(should_run_step: dict) -> None:
     assert body.count("skip=true") == 2
 
 
+def test_workflow_reruns_when_a_draft_is_marked_ready(job: dict) -> None:
+    """The hole the draft skip would otherwise open. Without
+    `ready_for_review`, a draft reports success, the author marks it ready
+    without pushing, no new run fires, and the stale success stands as the
+    required check."""
+    data = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    # PyYAML 1.1 parses a bare `on` key as boolean True.
+    triggers = data.get("on", data.get(True))
+    assert "ready_for_review" in triggers["pull_request"]["types"]
+
+
 def test_failing_step_is_gated_on_the_skip(job: dict) -> None:
     """The only step that can fail the job honours the skip, so a skipped
     draft reports success rather than a red required context."""
