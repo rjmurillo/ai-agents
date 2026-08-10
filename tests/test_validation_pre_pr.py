@@ -339,3 +339,75 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result == 0
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_does_not_claim_push_success(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Issue #4506: success banner must not say 'Ready to create pull request!'."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_requires_remote_sha_to_match_head(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Issue #4506: verification must reject an existing but stale remote ref."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Verify the push landed" in out
+        assert "git rev-parse HEAD" in out
+        assert "git ls-remote origin <branch>" in out
+        assert "same SHA" in out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_failure_output_does_not_say_ready(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Edge case: a failed run must also not claim readiness."""
+        mock_run.return_value.returncode = 1
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = "error"
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+        assert "All validations passed" not in out
+        assert result != 0
