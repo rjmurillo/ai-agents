@@ -168,7 +168,8 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -184,6 +185,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
             ],
         ), patch("new_pr.run_validations"):
             rc = main([
@@ -199,6 +201,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
                 _completed(rc=1, stderr="error creating PR"),  # gh pr create
             ],
         ), patch("new_pr.run_validations"):
