@@ -6,6 +6,7 @@ unpinned executable detection, mirror parity, lockfile v1/v3, execution
 key rejection (block/quoted/flow/nested), symlink containment, .npmrc
 rejection, installed-hook entrypoint, and valid-candidate exit-0.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +25,9 @@ WT = Path(__file__).resolve().parents[2]
 def _run(extra: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(WT / SCRIPT), *extra],
-        capture_output=True, encoding="utf-8", errors="replace",
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
@@ -39,12 +42,14 @@ def _write(p: Path, content: bytes | str = b"") -> None:
 
 # ── CLI exit codes ──
 
+
 def test_missing_candidate_root_exits_nonzero() -> None:
     r = _run(["--candidate-root", "/nonexistent"])
     assert r.returncode != 0
 
 
 # ── Valid candidate exits 0 ──
+
 
 def test_valid_candidate_exits_zero(tmp_path: Path) -> None:
     """Candidate matching all pins and no vendor tree passes."""
@@ -59,6 +64,7 @@ def test_valid_candidate_exits_zero(tmp_path: Path) -> None:
         # Instead: write known content and validate directly.
     # Simpler: write the real files from main
     import shutil
+
     repo = Path(__file__).resolve().parents[2]
     for rel, _sha, _label in _PINNED_ARTIFACTS:
         src = repo / rel
@@ -79,6 +85,7 @@ def test_valid_candidate_exits_zero(tmp_path: Path) -> None:
 
 
 # ── Artifact authentication ──
+
 
 class TestArtifactAuthentication:
     def test_tampered_bootstrap_rejected(self, tmp_path: Path) -> None:
@@ -105,6 +112,7 @@ class TestArtifactAuthentication:
 
 # ── Unpinned executable detection ──
 
+
 class TestUnpinnedExecutables:
     def test_new_py_in_hook_dir_flagged(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
@@ -116,6 +124,7 @@ class TestUnpinnedExecutables:
 
 
 # ── Mirror parity ──
+
 
 class TestMirrorParity:
     def test_mismatched_bootstrap_mirror(self, tmp_path: Path) -> None:
@@ -129,6 +138,7 @@ class TestMirrorParity:
 
 # ── Lockfile policy ──
 
+
 class TestLockfilePolicy:
     def _vendor(self, root: Path) -> Path:
         return root / ".claude/hooks/PreToolUse/_vendor/markdownlint"
@@ -136,12 +146,16 @@ class TestLockfilePolicy:
     def test_lockfile_v1_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
         v = self._vendor(root)
-        lock = {"lockfileVersion": 1, "packages": {
-            "": {}, "node_modules/x": {
-                "resolved": "https://registry.npmjs.org/x/-/x-1.0.tgz",
-                "integrity": "sha512-" + "A" * 86 + "==",
+        lock = {
+            "lockfileVersion": 1,
+            "packages": {
+                "": {},
+                "node_modules/x": {
+                    "resolved": "https://registry.npmjs.org/x/-/x-1.0.tgz",
+                    "integrity": "sha512-" + "A" * 86 + "==",
+                },
             },
-        }}
+        }
         _write(v / "package-lock.json", json.dumps(lock))
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
@@ -150,12 +164,16 @@ class TestLockfilePolicy:
     def test_git_dep_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
         v = self._vendor(root)
-        lock = {"lockfileVersion": 3, "packages": {
-            "": {}, "node_modules/x": {
-                "resolved": "git+https://evil.com/r.git",
-                "integrity": "sha512-" + "A" * 86 + "==",
+        lock = {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {},
+                "node_modules/x": {
+                    "resolved": "git+https://evil.com/r.git",
+                    "integrity": "sha512-" + "A" * 86 + "==",
+                },
             },
-        }}
+        }
         _write(v / "package-lock.json", json.dumps(lock))
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
@@ -164,11 +182,15 @@ class TestLockfilePolicy:
     def test_missing_integrity_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
         v = self._vendor(root)
-        lock = {"lockfileVersion": 3, "packages": {
-            "": {}, "node_modules/x": {
-                "resolved": "https://registry.npmjs.org/x/-/x-1.0.tgz",
+        lock = {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {},
+                "node_modules/x": {
+                    "resolved": "https://registry.npmjs.org/x/-/x-1.0.tgz",
+                },
             },
-        }}
+        }
         _write(v / "package-lock.json", json.dumps(lock))
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
@@ -176,6 +198,7 @@ class TestLockfilePolicy:
 
 
 # ── Config authentication (hash-pinned, no YAML parser) ──
+
 
 class TestConfigHashAuthentication:
     """Config files are authenticated by SHA-256 hash pin, not content parsing.
@@ -238,6 +261,7 @@ class TestConfigHashAuthentication:
 
 # ── Symlink containment ──
 
+
 class TestSymlinkContainment:
     def test_escaping_symlink_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
@@ -251,6 +275,7 @@ class TestSymlinkContainment:
 
 # ── .npmrc rejection ──
 
+
 class TestNpmrcRejection:
     def test_npmrc_in_vendor_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
@@ -262,6 +287,7 @@ class TestNpmrcRejection:
 
 
 # ── Installed-hook entrypoint test ──
+
 
 class TestInstalledHookEntrypoint:
     """Verify the validator can be invoked as a subprocess (entrypoint test)."""
@@ -279,7 +305,10 @@ class TestInstalledHookEntrypoint:
         repo_root = Path(__file__).resolve().parents[2]
         r = _run(["--candidate-root", str(repo_root)])
         assert r.returncode == 0, f"valid tree must pass: {r.stdout}"
+
+
 # New test classes to append
+
 
 class TestMissingPinnedFile:
     """Defect fix: missing pinned artifacts must be rejected, not silently skipped."""
@@ -300,6 +329,7 @@ class TestMissingPinnedFile:
             _PINNED_ARTIFACTS,
             _is_vendor_only,
         )
+
         root = tmp_path / "c"
         repo = Path(__file__).resolve().parents[2]
         for rel, _sha, _label in _PINNED_ARTIFACTS:
@@ -340,6 +370,7 @@ class TestLibImportClosureTamper:
             _PINNED_ARTIFACTS,
             _is_vendor_only,
         )
+
         root = tmp_path / "c"
         repo = Path(__file__).resolve().parents[2]
         for rel, _sha, _label in _PINNED_ARTIFACTS:
@@ -516,6 +547,7 @@ class TestWorkflowContractRegression:
         """If entire watched dir is removed from candidate, validator catches it."""
         root = _make_valid_candidate(tmp_path)
         import shutil
+
         lib_dir = root / ".claude" / "lib"
         if lib_dir.is_dir():
             shutil.rmtree(lib_dir)
@@ -534,6 +566,7 @@ class TestWorkflowContractRegression:
 
 
 # ── Relevance check (exercises production helper) ──
+
 
 class TestRelevance:
     """Exercises check_relevance production function directly."""
@@ -628,7 +661,6 @@ class TestRelevance:
         assert r.returncode == 0
         assert r.stdout.strip() == "false"
 
-
     def test_top_level_hook_entrypoint_triggers(self) -> None:
         """Top-level .claude/hooks/invoke_dispatch_claude.py triggers relevance.
 
@@ -674,7 +706,6 @@ class TestRelevance:
         assert check_relevance(["src/copilot-cli/hooks/something.sh"]) is True
 
 
-
 class TestExportIgnoreBypass:
     """Proves export-ignore'd executables are still detected by validation.
 
@@ -705,6 +736,7 @@ class TestExportIgnoreBypass:
 
 # ── Import closure regression ──
 
+
 class TestImportClosurePins:
     """Verify all .py files under lib dirs and generator imports are pinned."""
 
@@ -728,9 +760,7 @@ class TestImportClosurePins:
                 rel = str(PurePosixPath(f.relative_to(repo)))
                 if rel not in pinned_rels:
                     missing.append(rel)
-        assert missing == [], (
-            f"Lib .py files not in _PINNED_ARTIFACTS: {missing}"
-        )
+        assert missing == [], f"Lib .py files not in _PINNED_ARTIFACTS: {missing}"
 
     def test_generator_import_closure_pinned(self) -> None:
         """All local imports of generate_hooks_events.py must be pinned."""
@@ -749,12 +779,11 @@ class TestImportClosurePins:
             "build/scripts/yaml_loader.py",
         ]
         missing = [f for f in expected if f not in pinned_rels]
-        assert missing == [], (
-            f"Generator imports not pinned: {missing}"
-        )
+        assert missing == [], f"Generator imports not pinned: {missing}"
 
 
 # ── Finding 1: Production tree happy-path ──
+
 
 class TestProductionTreePassesGate:
     """The real repository tree must pass all scans (pin scope = scan scope)."""
@@ -777,6 +806,7 @@ class TestProductionTreePassesGate:
 
 
 # ── Finding 2: Executable/config gap coverage ──
+
 
 class TestExtensionAndConfigGaps:
     """Scan must catch dotfiles, .cjs, .ts, extensionless, and config injections."""
@@ -846,9 +876,7 @@ class TestExtensionAndConfigGaps:
         errs = _reject_markdownlint_config_injection(tmp_path)
         assert any(".markdownlint.cjs" in e for e in errs)
 
-    def test_package_json_markdownlint_config_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_package_json_markdownlint_config_rejected(self, tmp_path: Path) -> None:
         """package.json with markdownlint-cli2 key is rejected."""
         from scripts.ci.validate_vendor_provenance import (
             _reject_markdownlint_config_injection,
@@ -856,14 +884,13 @@ class TestExtensionAndConfigGaps:
 
         d = tmp_path / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
         d.mkdir(parents=True)
-        (d / "package.json").write_text(
-            '{"markdownlint-cli2": {"config": {"default": true}}}'
-        )
+        (d / "package.json").write_text('{"markdownlint-cli2": {"config": {"default": true}}}')
         errs = _reject_markdownlint_config_injection(tmp_path)
         assert any("package.json" in e for e in errs)
 
 
 # ── Finding 3: Hook wiring inputs ──
+
 
 class TestHookWiringPins:
     """Hook wiring inputs must be pinned and trigger relevance."""
@@ -1201,6 +1228,7 @@ class TestRootMarkdownlintConfigInjection:
 
 # === Finding 1: Root markdownlint config relevance ===
 
+
 class TestMarkdownlintConfigRelevance:
     """Every rejected root markdownlint config name must trigger relevance."""
 
@@ -1210,25 +1238,29 @@ class TestMarkdownlintConfigRelevance:
             _MARKDOWNLINT_CONFIG_GLOBS,
             WATCHED_PREFIXES,
         )
-        for name in _MARKDOWNLINT_CONFIG_GLOBS:
-            assert name in WATCHED_PREFIXES, (
-                f"{name} rejected but not relevant"
-            )
 
-    @pytest.mark.parametrize("config_name", [
-        ".markdownlint-cli2.yaml",
-        ".markdownlint-cli2.cjs",
-        ".markdownlint-cli2.mjs",
-        ".markdownlint.cjs",
-        ".markdownlint.jsonc",
-    ])
+        for name in _MARKDOWNLINT_CONFIG_GLOBS:
+            assert name in WATCHED_PREFIXES, f"{name} rejected but not relevant"
+
+    @pytest.mark.parametrize(
+        "config_name",
+        [
+            ".markdownlint-cli2.yaml",
+            ".markdownlint-cli2.cjs",
+            ".markdownlint-cli2.mjs",
+            ".markdownlint.cjs",
+            ".markdownlint.jsonc",
+        ],
+    )
     def test_only_config_change_triggers_relevance(self, config_name):
         """A PR changing only a root markdownlint config must be relevant."""
         from scripts.ci.validate_vendor_provenance import check_relevance
+
         assert check_relevance([config_name]) is True
 
 
 # === Finding 2: Git mode authentication ===
+
 
 class TestGitModeAuthentication:
     """Authenticate Git file modes between base and candidate."""
@@ -1236,6 +1268,7 @@ class TestGitModeAuthentication:
     def test_executable_to_regular_rejected(self, tmp_path):
         """Changing 755 to 644 on a pinned file is rejected."""
         from scripts.ci.validate_vendor_provenance import _check_file_mode
+
         cand = tmp_path / "cand"
         base = tmp_path / "base"
         cand.mkdir()
@@ -1252,6 +1285,7 @@ class TestGitModeAuthentication:
     def test_regular_to_executable_rejected(self, tmp_path):
         """Changing 644 to 755 on a pinned file is rejected."""
         from scripts.ci.validate_vendor_provenance import _check_file_mode
+
         cand = tmp_path / "cand"
         base = tmp_path / "base"
         cand.mkdir()
@@ -1268,6 +1302,7 @@ class TestGitModeAuthentication:
     def test_matching_mode_passes(self, tmp_path):
         """Same mode between base and candidate passes."""
         from scripts.ci.validate_vendor_provenance import _check_file_mode
+
         cand = tmp_path / "cand"
         base = tmp_path / "base"
         cand.mkdir()
@@ -1283,6 +1318,7 @@ class TestGitModeAuthentication:
     def test_missing_base_bootstrap_passes(self, tmp_path):
         """When base lacks the file (bootstrap), no mode check."""
         from scripts.ci.validate_vendor_provenance import _check_file_mode
+
         cand = tmp_path / "cand"
         base = tmp_path / "base"
         cand.mkdir()
@@ -1296,12 +1332,14 @@ class TestGitModeAuthentication:
 
 # === Finding 3: Path-component symlinks for pinned artifacts ===
 
+
 class TestAncestorSymlinkPinned:
     """Path-component symlinks must be rejected for all pinned/TA paths."""
 
     def test_ancestor_symlink_in_pinned_artifact(self, tmp_path):
         """A symlinked ancestor directory causes rejection."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         cand.mkdir()
         real_dir = tmp_path / "real"
@@ -1317,6 +1355,7 @@ class TestAncestorSymlinkPinned:
     def test_absolute_symlink_ancestor(self, tmp_path):
         """Absolute symlink target in ancestor is rejected."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         cand.mkdir()
         (cand / ".github").symlink_to("/tmp")
@@ -1327,6 +1366,7 @@ class TestAncestorSymlinkPinned:
     def test_dangling_symlink_ancestor(self, tmp_path):
         """Dangling symlink ancestor is rejected."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         cand.mkdir()
         (cand / "src").symlink_to("/nonexistent/path")
@@ -1336,6 +1376,7 @@ class TestAncestorSymlinkPinned:
     def test_multi_hop_ancestor(self, tmp_path):
         """Multi-hop symlink (symlink -> symlink -> real) is rejected."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         cand.mkdir()
         real = tmp_path / "real"
@@ -1349,6 +1390,7 @@ class TestAncestorSymlinkPinned:
     def test_normal_directories_pass(self, tmp_path):
         """Normal (non-symlink) directories pass."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         (cand / ".claude" / "lib").mkdir(parents=True)
         (cand / ".claude" / "lib" / "x.py").write_text("x")
@@ -1358,6 +1400,7 @@ class TestAncestorSymlinkPinned:
     def test_sibling_prefix_no_false_positive(self, tmp_path):
         """A sibling with similar prefix does not trigger."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         (cand / ".claude" / "hooks").mkdir(parents=True)
         (cand / ".claude" / "hooks" / "x.py").write_text("x")
@@ -1369,20 +1412,20 @@ class TestAncestorSymlinkPinned:
     def test_trust_anchor_ancestor_symlink_to_base(self, tmp_path):
         """Symlink .github/workflows -> base path is rejected in TA check."""
         from scripts.ci.validate_vendor_provenance import _check_ancestors_not_symlink
+
         cand = tmp_path / "cand"
         base = tmp_path / "base"
         (base / ".github" / "workflows").mkdir(parents=True)
         (base / ".github" / "workflows" / "v.yml").write_text("trusted")
         cand.mkdir()
         (cand / ".github").symlink_to(base / ".github")
-        err = _check_ancestors_not_symlink(
-            cand, ".github/workflows/v.yml"
-        )
+        err = _check_ancestors_not_symlink(cand, ".github/workflows/v.yml")
         assert err is not None
         assert ".github" in err
 
 
 # === Finding 4: Workflow immutable base ref ===
+
 
 class TestWorkflowImmutableBaseRef:
     """Workflow validation must use immutable event SHAs for all comparisons.
@@ -1396,9 +1439,7 @@ class TestWorkflowImmutableBaseRef:
 
     def test_uses_immutable_base_sha_for_validation(self):
         """BASE_SHA env must reference immutable event base SHA."""
-        wf_path = Path(__file__).resolve().parents[2] / (
-            ".github/workflows/vendor-provenance.yml"
-        )
+        wf_path = Path(__file__).resolve().parents[2] / (".github/workflows/vendor-provenance.yml")
         content = wf_path.read_text()
         assert "github.event.pull_request.base.sha" in content, (
             "Validation must use immutable event SHA"
@@ -1406,10 +1447,157 @@ class TestWorkflowImmutableBaseRef:
 
     def test_uses_immutable_pr_sha_for_candidate(self):
         """PR_SHA env must reference immutable event head SHA."""
-        wf_path = Path(__file__).resolve().parents[2] / (
-            ".github/workflows/vendor-provenance.yml"
-        )
+        wf_path = Path(__file__).resolve().parents[2] / (".github/workflows/vendor-provenance.yml")
         content = wf_path.read_text()
         assert "github.event.pull_request.head.sha" in content, (
             "Candidate must use immutable event SHA"
         )
+
+
+# ── .npmrc relevance regression ──
+
+
+class TestNpmrcRelevance:
+    """Regression: .npmrc alone must trigger relevance."""
+
+    def test_npmrc_triggers_relevance(self):
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".npmrc"]) is True
+
+    def test_npmrc_only_change(self):
+        """A PR changing only .npmrc must not no-op."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".npmrc"]) is True
+        assert check_relevance(["package.json"]) is False
+
+
+# ── Trust anchor authentication regression ──
+
+
+class TestTrustAnchorAuth:
+    """Prove trust anchors are authenticated against base, not self-verifying."""
+
+    def test_modified_workflow_rejected(self, tmp_path):
+        candidate = tmp_path / "cand"
+        base = tmp_path / "base"
+        for root in (candidate, base):
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "vendor-provenance.yml").write_text("original")
+            sc = root / "scripts" / "ci"
+            sc.mkdir(parents=True)
+            (sc / "validate_vendor_provenance.py").write_text("validator")
+            tc = root / "tests" / "ci"
+            tc.mkdir(parents=True)
+            (tc / "test_validate_vendor_provenance.py").write_text("tests")
+        # Tamper candidate workflow
+        (candidate / ".github/workflows/vendor-provenance.yml").write_text("evil")
+        from scripts.ci.validate_vendor_provenance import _check_trust_anchor_integrity
+
+        errors = _check_trust_anchor_integrity(candidate, base)
+        assert any("modified" in e.lower() or "differ" in e.lower() for e in errors)
+
+    def test_deleted_workflow_rejected(self, tmp_path):
+        candidate = tmp_path / "cand"
+        base = tmp_path / "base"
+        for root in (candidate, base):
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "vendor-provenance.yml").write_text("original")
+            sc = root / "scripts" / "ci"
+            sc.mkdir(parents=True)
+            (sc / "validate_vendor_provenance.py").write_text("validator")
+            tc = root / "tests" / "ci"
+            tc.mkdir(parents=True)
+            (tc / "test_validate_vendor_provenance.py").write_text("tests")
+        # Delete candidate workflow
+        (candidate / ".github/workflows/vendor-provenance.yml").unlink()
+        from scripts.ci.validate_vendor_provenance import _check_trust_anchor_integrity
+
+        errors = _check_trust_anchor_integrity(candidate, base)
+        assert any("deleted" in e.lower() for e in errors)
+
+    def test_unchanged_anchor_passes(self, tmp_path):
+        candidate = tmp_path / "cand"
+        base = tmp_path / "base"
+        for root in (candidate, base):
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "vendor-provenance.yml").write_text("original")
+            sc = root / "scripts" / "ci"
+            sc.mkdir(parents=True)
+            (sc / "validate_vendor_provenance.py").write_text("validator")
+            tc = root / "tests" / "ci"
+            tc.mkdir(parents=True)
+            (tc / "test_validate_vendor_provenance.py").write_text("tests")
+        from scripts.ci.validate_vendor_provenance import _check_trust_anchor_integrity
+
+        errors = _check_trust_anchor_integrity(candidate, base)
+        assert errors == []
+
+    def test_bootstrap_absence_allowed(self, tmp_path):
+        """When base lacks anchors (bootstrap), candidate may have anything."""
+        candidate = tmp_path / "cand"
+        base = tmp_path / "base"
+        candidate.mkdir()
+        base.mkdir()
+        # Base has no trust anchors
+        wf = candidate / ".github" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "vendor-provenance.yml").write_text("new workflow")
+        from scripts.ci.validate_vendor_provenance import _check_trust_anchor_integrity
+
+        errors = _check_trust_anchor_integrity(candidate, base)
+        assert errors == []
+
+
+# ── Diff-tree empty collapse regression ──
+
+
+class TestDiffTreeEmptyCollapse:
+    """Prove that empty changed-file list returns false (no validation skip bug)."""
+
+    def test_empty_file_list_not_relevant(self):
+        """Empty diff-tree output correctly returns false (no files to validate)."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([]) is False
+
+    def test_diff_tree_failure_contract(self):
+        """Workflow must exit 1 on diff-tree failure, not collapse to empty list.
+
+        Verified by reading the workflow YAML for fail-closed pattern.
+        """
+        wf_path = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
+        content = wf_path.read_text()
+        # diff-tree failure must exit 1
+        assert "diff-tree failed" in content
+        assert "exit 1" in content
+
+
+# ── Pinned hook_utilities coverage ──
+
+
+class TestHookUtilitiesPinned:
+    """Verify hook_utilities modules are in the pinned closure."""
+
+    def test_hook_utilities_in_pins(self):
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned_paths = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        expected = [
+            ".claude/lib/hook_utilities/__init__.py",
+            ".claude/lib/hook_utilities/bootstrap.py",
+            ".claude/lib/hook_utilities/guards.py",
+        ]
+        for path in expected:
+            assert path in pinned_paths, f"hook_utilities module not pinned: {path}"
+
+    def test_hook_utilities_relevant(self):
+        """Changes to hook_utilities must trigger relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".claude/lib/hook_utilities/__init__.py"]) is True
+        assert check_relevance([".claude/lib/hook_utilities/bootstrap.py"]) is True

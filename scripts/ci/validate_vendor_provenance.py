@@ -10,6 +10,7 @@ PR merged into main.
 
 Exit codes: 0 = pass, 1 = blocked, 2 = infra error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,8 +56,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Generated push_guard_base mirror",
     ),
     (
-        "src/copilot-cli/hooks/PreToolUse/"
-        "invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
+        "src/copilot-cli/hooks/PreToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
         "2016218b8e3be302820c0b0c97cd7f95370381d6b171cb244919e9a2e3215e92",
         "Generated markdownlint guard mirror",
     ),
@@ -170,8 +170,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "PostToolUse dispatch",
     ),
     (
-        "src/copilot-cli/hooks/PostToolUse/"
-        "invoke_markdown_auto_lint__Write_Edit_c39898.py",
+        "src/copilot-cli/hooks/PostToolUse/invoke_markdown_auto_lint__Write_Edit_c39898.py",
         "c8ba3058ac761c38260ff88fa52dd128fd6f6f6487b37f82aee9656a32f0ee7c",
         "PostToolUse markdownlint guard",
     ),
@@ -323,240 +322,396 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Hook wiring",
     ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
-    (".claude/lib/ai_review_common/__init__.py",
-     "5417034baa3559df545628194476d4b69549b7636fbe06f56214fbd0d28493c6",
-     "Lib: .claude/lib/ai_review_common/__init__.py"),
-    (".claude/lib/ai_review_common/cache_guard.py",
-     "831609daa3a9693507ede9335562af1c3b2f85fc21491bcca96471cceef458c6",
-     "Lib: .claude/lib/ai_review_common/cache_guard.py"),
-    (".claude/lib/ai_review_common/feature_review.py",
-     "f1df8a966212a49fd3ce788d13523421904304b0a7d576bcdf9c946f6951f522",
-     "Lib: .claude/lib/ai_review_common/feature_review.py"),
-    (".claude/lib/ai_review_common/issue_triage.py",
-     "4ef473208dfacba52a514c4bc06155c9e877faf01bbb48bfdfb1795487e38061",
-     "Lib: .claude/lib/ai_review_common/issue_triage.py"),
-    (".claude/lib/ai_review_common/quality_gate.py",
-     "22ea33bd691f40861379bdfcd5cf2abfff61d49cf008c697818898224b114fc7",
-     "Lib: .claude/lib/ai_review_common/quality_gate.py"),
-    (".claude/lib/ai_review_common/retry.py",
-     "946e205f020fd5dd595bc19053d4b90dc344df5f8b1ea99571f072d5705eacf1",
-     "Lib: .claude/lib/ai_review_common/retry.py"),
-    (".claude/lib/ai_review_common/verdict.py",
-     "6b3475739059a19aef3022a05e7b77ff7f5add074b06310fbdb5d48fa61d60e1",
-     "Lib: .claude/lib/ai_review_common/verdict.py"),
-    (".claude/lib/ai_review_common/workflow.py",
-     "afc062433185e6daf4a066162000ab7a13caa0b4e33383ff2dd450065de240ea",
-     "Lib: .claude/lib/ai_review_common/workflow.py"),
-    (".claude/lib/bootstrap.py",
-     "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
-     "Lib: .claude/lib/bootstrap.py"),
-    (".claude/lib/claude_hook_dispatch.py",
-     "516aab08f8adbdd0234758762ac8fc91c9633e688fff343e96b4ac7fc5db5f75",
-     "Lib: .claude/lib/claude_hook_dispatch.py"),
-    (".claude/lib/claude_hook_protocol.py",
-     "7005a9db7fb91d3d286035606706ed152c7b3e725a988de52609956e596755b8",
-     "Lib: .claude/lib/claude_hook_protocol.py"),
-    (".claude/lib/github_core/__init__.py",
-     "0ce449b32d479955d1f453de05c830abe5192558a08424c5778756f86ea3a26d",
-     "Lib: .claude/lib/github_core/__init__.py"),
-    (".claude/lib/github_core/api.py",
-     "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
-     "Lib: .claude/lib/github_core/api.py"),
-    (".claude/lib/github_core/bot_config.py",
-     "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
-     "Lib: .claude/lib/github_core/bot_config.py"),
-    (".claude/lib/github_core/checks_rollup.py",
-     "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
-     "Lib: .claude/lib/github_core/checks_rollup.py"),
-    (".claude/lib/github_core/comment_classification.py",
-     "c17b44af346cca4f28fdd93db44ebccde3f373ab0142292c50fc0abba2eadf9b",
-     "Lib: .claude/lib/github_core/comment_classification.py"),
-    (".claude/lib/github_core/formatting.py",
-     "ed8945a7dfd0a16b514afb8f3b126bf5456b5c24afe55d6c36433352186b3bef",
-     "Lib: .claude/lib/github_core/formatting.py"),
-    (".claude/lib/github_core/gh_client.py",
-     "f7657ab90f92b9d45270388e6615e7e0ebc81329449aebfac3d4eda5618a5a16",
-     "Lib: .claude/lib/github_core/gh_client.py"),
-    (".claude/lib/github_core/log_safety.py",
-     "d4696f8fd629359f3749743a18a0aea99e5c83a5d8f56835fbb50f3c14e318a1",
-     "Lib: .claude/lib/github_core/log_safety.py"),
-    (".claude/lib/github_core/output.py",
-     "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
-     "Lib: .claude/lib/github_core/output.py"),
-    (".claude/lib/github_core/placeholder_identity.py",
-     "6e0246dd64011fdce3eeb1e8094471fecd3e2f8d6855899940acc57fd7447f1c",
-     "Lib: .claude/lib/github_core/placeholder_identity.py"),
-    (".claude/lib/github_core/protocol.py",
-     "76c0595da9bf62dbe6851c5ef98b2d32a8a75106eaafcbd9338ba03c92ed8c76",
-     "Lib: .claude/lib/github_core/protocol.py"),
-    (".claude/lib/github_core/rate_limit.py",
-     "2740751a1c9ce7a4514478c6cb510bdb1521bdd00a2d5323a0c46270598c84f3",
-     "Lib: .claude/lib/github_core/rate_limit.py"),
-    (".claude/lib/github_core/repo.py",
-     "189b9f3cfa59b9d185a0524db79b323a9c0368a0d5fe3236762b409c66eed47e",
-     "Lib: .claude/lib/github_core/repo.py"),
-    (".claude/lib/github_core/review_threads.py",
-     "4e0d629c358a40a0d20a73c5f40a9c85f3c11dd192fdeae0110dec9201288dcb",
-     "Lib: .claude/lib/github_core/review_threads.py"),
-    (".claude/lib/github_core/validation.py",
-     "8dc31f511595e06656a3ba3ffc3a403994808f0fb35537d0167bbc67935304c0",
-     "Lib: .claude/lib/github_core/validation.py"),
-    (".claude/lib/github_core/worktree_identity.py",
-     "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
-     "Lib: .claude/lib/github_core/worktree_identity.py"),
-    (".claude/lib/hook_dispatch.py",
-     "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
-     "Lib: .claude/lib/hook_dispatch.py"),
-    (".claude/lib/hook_dispatch_protocol.py",
-     "09eb4f18a2e00080b0ddf61ee08d1ab624b650dc8b15fb695bc827d4f354f9c6",
-     "Lib: .claude/lib/hook_dispatch_protocol.py"),
-    (".claude/lib/hook_dispatch_timeout.py",
-     "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
-     "Lib: .claude/lib/hook_dispatch_timeout.py"),
-    (".claude/lib/hook_utilities/__init__.py",
-     "046bf0c55e5e4143bfc5485009bf9cc1b7fd0c86a5fbf55a3dadfa69801464ca",
-     "Lib: .claude/lib/hook_utilities/__init__.py"),
-    (".claude/lib/hook_utilities/bootstrap.py",
-     "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
-     "Lib: .claude/lib/hook_utilities/bootstrap.py"),
-    (".claude/lib/hook_utilities/guards.py",
-     "7cef097821da9494ec4cc6fb0ad95223f0a92ad3f038b7c55c1a7b345f90d574",
-     "Lib: .claude/lib/hook_utilities/guards.py"),
-    (".claude/lib/hook_utilities/path_safety.py",
-     "5e74bbfd4a7a88137745cca178c34efe5632873fa0836d192f164074cfb03b10",
-     "Lib: .claude/lib/hook_utilities/path_safety.py"),
-    (".claude/lib/hook_utilities/utilities.py",
-     "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
-     "Lib: .claude/lib/hook_utilities/utilities.py"),
-    (".claude/lib/output_capture.py",
-     "dde31065769a49a0d66b63f4487e9dd1efbf7e82f9e3b6f42c31de2bc0047fc1",
-     "Lib: .claude/lib/output_capture.py"),
-    (".claude/lib/paths.py",
-     "0d11d6295855d9547e8316968a241de580159346cc92e1cca8708ba3e191bee1",
-     "Lib: .claude/lib/paths.py"),
-    (".claude/lib/qa_report.py",
-     "9cdcb33916e7ffcd2df84acefe8cc8706a1c32625b794196c315aebec2d31ae1",
-     "Lib: .claude/lib/qa_report.py"),
-    (".claude/lib/shim_loader.py",
-     "56d6dc47d0871278790690fe9cf78baad73a4f89540866bb14b430db28a56600",
-     "Lib: .claude/lib/shim_loader.py"),
-    ("src/copilot-cli/lib/ai_review_common/__init__.py",
-     "5417034baa3559df545628194476d4b69549b7636fbe06f56214fbd0d28493c6",
-     "Lib: src/copilot-cli/lib/ai_review_common/__init__.py"),
-    ("src/copilot-cli/lib/ai_review_common/cache_guard.py",
-     "831609daa3a9693507ede9335562af1c3b2f85fc21491bcca96471cceef458c6",
-     "Lib: src/copilot-cli/lib/ai_review_common/cache_guard.py"),
-    ("src/copilot-cli/lib/ai_review_common/feature_review.py",
-     "f1df8a966212a49fd3ce788d13523421904304b0a7d576bcdf9c946f6951f522",
-     "Lib: src/copilot-cli/lib/ai_review_common/feature_review.py"),
-    ("src/copilot-cli/lib/ai_review_common/issue_triage.py",
-     "4ef473208dfacba52a514c4bc06155c9e877faf01bbb48bfdfb1795487e38061",
-     "Lib: src/copilot-cli/lib/ai_review_common/issue_triage.py"),
-    ("src/copilot-cli/lib/ai_review_common/quality_gate.py",
-     "22ea33bd691f40861379bdfcd5cf2abfff61d49cf008c697818898224b114fc7",
-     "Lib: src/copilot-cli/lib/ai_review_common/quality_gate.py"),
-    ("src/copilot-cli/lib/ai_review_common/retry.py",
-     "946e205f020fd5dd595bc19053d4b90dc344df5f8b1ea99571f072d5705eacf1",
-     "Lib: src/copilot-cli/lib/ai_review_common/retry.py"),
-    ("src/copilot-cli/lib/ai_review_common/verdict.py",
-     "6b3475739059a19aef3022a05e7b77ff7f5add074b06310fbdb5d48fa61d60e1",
-     "Lib: src/copilot-cli/lib/ai_review_common/verdict.py"),
-    ("src/copilot-cli/lib/ai_review_common/workflow.py",
-     "afc062433185e6daf4a066162000ab7a13caa0b4e33383ff2dd450065de240ea",
-     "Lib: src/copilot-cli/lib/ai_review_common/workflow.py"),
-    ("src/copilot-cli/lib/bootstrap.py",
-     "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
-     "Lib: src/copilot-cli/lib/bootstrap.py"),
-    ("src/copilot-cli/lib/claude_hook_dispatch.py",
-     "516aab08f8adbdd0234758762ac8fc91c9633e688fff343e96b4ac7fc5db5f75",
-     "Lib: src/copilot-cli/lib/claude_hook_dispatch.py"),
-    ("src/copilot-cli/lib/claude_hook_protocol.py",
-     "7005a9db7fb91d3d286035606706ed152c7b3e725a988de52609956e596755b8",
-     "Lib: src/copilot-cli/lib/claude_hook_protocol.py"),
-    ("src/copilot-cli/lib/github_core/__init__.py",
-     "0ce449b32d479955d1f453de05c830abe5192558a08424c5778756f86ea3a26d",
-     "Lib: src/copilot-cli/lib/github_core/__init__.py"),
-    ("src/copilot-cli/lib/github_core/api.py",
-     "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
-     "Lib: src/copilot-cli/lib/github_core/api.py"),
-    ("src/copilot-cli/lib/github_core/bot_config.py",
-     "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
-     "Lib: src/copilot-cli/lib/github_core/bot_config.py"),
-    ("src/copilot-cli/lib/github_core/checks_rollup.py",
-     "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
-     "Lib: src/copilot-cli/lib/github_core/checks_rollup.py"),
-    ("src/copilot-cli/lib/github_core/comment_classification.py",
-     "c17b44af346cca4f28fdd93db44ebccde3f373ab0142292c50fc0abba2eadf9b",
-     "Lib: src/copilot-cli/lib/github_core/comment_classification.py"),
-    ("src/copilot-cli/lib/github_core/formatting.py",
-     "ed8945a7dfd0a16b514afb8f3b126bf5456b5c24afe55d6c36433352186b3bef",
-     "Lib: src/copilot-cli/lib/github_core/formatting.py"),
-    ("src/copilot-cli/lib/github_core/gh_client.py",
-     "f7657ab90f92b9d45270388e6615e7e0ebc81329449aebfac3d4eda5618a5a16",
-     "Lib: src/copilot-cli/lib/github_core/gh_client.py"),
-    ("src/copilot-cli/lib/github_core/log_safety.py",
-     "d4696f8fd629359f3749743a18a0aea99e5c83a5d8f56835fbb50f3c14e318a1",
-     "Lib: src/copilot-cli/lib/github_core/log_safety.py"),
-    ("src/copilot-cli/lib/github_core/output.py",
-     "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
-     "Lib: src/copilot-cli/lib/github_core/output.py"),
-    ("src/copilot-cli/lib/github_core/placeholder_identity.py",
-     "6e0246dd64011fdce3eeb1e8094471fecd3e2f8d6855899940acc57fd7447f1c",
-     "Lib: src/copilot-cli/lib/github_core/placeholder_identity.py"),
-    ("src/copilot-cli/lib/github_core/protocol.py",
-     "76c0595da9bf62dbe6851c5ef98b2d32a8a75106eaafcbd9338ba03c92ed8c76",
-     "Lib: src/copilot-cli/lib/github_core/protocol.py"),
-    ("src/copilot-cli/lib/github_core/rate_limit.py",
-     "2740751a1c9ce7a4514478c6cb510bdb1521bdd00a2d5323a0c46270598c84f3",
-     "Lib: src/copilot-cli/lib/github_core/rate_limit.py"),
-    ("src/copilot-cli/lib/github_core/repo.py",
-     "189b9f3cfa59b9d185a0524db79b323a9c0368a0d5fe3236762b409c66eed47e",
-     "Lib: src/copilot-cli/lib/github_core/repo.py"),
-    ("src/copilot-cli/lib/github_core/review_threads.py",
-     "4e0d629c358a40a0d20a73c5f40a9c85f3c11dd192fdeae0110dec9201288dcb",
-     "Lib: src/copilot-cli/lib/github_core/review_threads.py"),
-    ("src/copilot-cli/lib/github_core/validation.py",
-     "8dc31f511595e06656a3ba3ffc3a403994808f0fb35537d0167bbc67935304c0",
-     "Lib: src/copilot-cli/lib/github_core/validation.py"),
-    ("src/copilot-cli/lib/github_core/worktree_identity.py",
-     "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
-     "Lib: src/copilot-cli/lib/github_core/worktree_identity.py"),
-    ("src/copilot-cli/lib/hook_dispatch.py",
-     "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
-     "Lib: src/copilot-cli/lib/hook_dispatch.py"),
-    ("src/copilot-cli/lib/hook_dispatch_protocol.py",
-     "09eb4f18a2e00080b0ddf61ee08d1ab624b650dc8b15fb695bc827d4f354f9c6",
-     "Lib: src/copilot-cli/lib/hook_dispatch_protocol.py"),
-    ("src/copilot-cli/lib/hook_dispatch_timeout.py",
-     "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
-     "Lib: src/copilot-cli/lib/hook_dispatch_timeout.py"),
-    ("src/copilot-cli/lib/hook_utilities/__init__.py",
-     "046bf0c55e5e4143bfc5485009bf9cc1b7fd0c86a5fbf55a3dadfa69801464ca",
-     "Lib: src/copilot-cli/lib/hook_utilities/__init__.py"),
-    ("src/copilot-cli/lib/hook_utilities/bootstrap.py",
-     "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
-     "Lib: src/copilot-cli/lib/hook_utilities/bootstrap.py"),
-    ("src/copilot-cli/lib/hook_utilities/guards.py",
-     "7cef097821da9494ec4cc6fb0ad95223f0a92ad3f038b7c55c1a7b345f90d574",
-     "Lib: src/copilot-cli/lib/hook_utilities/guards.py"),
-    ("src/copilot-cli/lib/hook_utilities/path_safety.py",
-     "5e74bbfd4a7a88137745cca178c34efe5632873fa0836d192f164074cfb03b10",
-     "Lib: src/copilot-cli/lib/hook_utilities/path_safety.py"),
-    ("src/copilot-cli/lib/hook_utilities/utilities.py",
-     "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
-     "Lib: src/copilot-cli/lib/hook_utilities/utilities.py"),
-    ("src/copilot-cli/lib/output_capture.py",
-     "dde31065769a49a0d66b63f4487e9dd1efbf7e82f9e3b6f42c31de2bc0047fc1",
-     "Lib: src/copilot-cli/lib/output_capture.py"),
-    ("src/copilot-cli/lib/paths.py",
-     "0d11d6295855d9547e8316968a241de580159346cc92e1cca8708ba3e191bee1",
-     "Lib: src/copilot-cli/lib/paths.py"),
-    ("src/copilot-cli/lib/qa_report.py",
-     "9cdcb33916e7ffcd2df84acefe8cc8706a1c32625b794196c315aebec2d31ae1",
-     "Lib: src/copilot-cli/lib/qa_report.py"),
-    ("src/copilot-cli/lib/shim_loader.py",
-     "56d6dc47d0871278790690fe9cf78baad73a4f89540866bb14b430db28a56600",
-     "Lib: src/copilot-cli/lib/shim_loader.py"),
+    (
+        ".claude/lib/ai_review_common/__init__.py",
+        "5417034baa3559df545628194476d4b69549b7636fbe06f56214fbd0d28493c6",
+        "Lib: .claude/lib/ai_review_common/__init__.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/cache_guard.py",
+        "831609daa3a9693507ede9335562af1c3b2f85fc21491bcca96471cceef458c6",
+        "Lib: .claude/lib/ai_review_common/cache_guard.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/feature_review.py",
+        "f1df8a966212a49fd3ce788d13523421904304b0a7d576bcdf9c946f6951f522",
+        "Lib: .claude/lib/ai_review_common/feature_review.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/issue_triage.py",
+        "4ef473208dfacba52a514c4bc06155c9e877faf01bbb48bfdfb1795487e38061",
+        "Lib: .claude/lib/ai_review_common/issue_triage.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/quality_gate.py",
+        "22ea33bd691f40861379bdfcd5cf2abfff61d49cf008c697818898224b114fc7",
+        "Lib: .claude/lib/ai_review_common/quality_gate.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/retry.py",
+        "946e205f020fd5dd595bc19053d4b90dc344df5f8b1ea99571f072d5705eacf1",
+        "Lib: .claude/lib/ai_review_common/retry.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/verdict.py",
+        "6b3475739059a19aef3022a05e7b77ff7f5add074b06310fbdb5d48fa61d60e1",
+        "Lib: .claude/lib/ai_review_common/verdict.py",
+    ),
+    (
+        ".claude/lib/ai_review_common/workflow.py",
+        "afc062433185e6daf4a066162000ab7a13caa0b4e33383ff2dd450065de240ea",
+        "Lib: .claude/lib/ai_review_common/workflow.py",
+    ),
+    (
+        ".claude/lib/bootstrap.py",
+        "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
+        "Lib: .claude/lib/bootstrap.py",
+    ),
+    (
+        ".claude/lib/claude_hook_dispatch.py",
+        "516aab08f8adbdd0234758762ac8fc91c9633e688fff343e96b4ac7fc5db5f75",
+        "Lib: .claude/lib/claude_hook_dispatch.py",
+    ),
+    (
+        ".claude/lib/claude_hook_protocol.py",
+        "7005a9db7fb91d3d286035606706ed152c7b3e725a988de52609956e596755b8",
+        "Lib: .claude/lib/claude_hook_protocol.py",
+    ),
+    (
+        ".claude/lib/github_core/__init__.py",
+        "0ce449b32d479955d1f453de05c830abe5192558a08424c5778756f86ea3a26d",
+        "Lib: .claude/lib/github_core/__init__.py",
+    ),
+    (
+        ".claude/lib/github_core/api.py",
+        "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
+        "Lib: .claude/lib/github_core/api.py",
+    ),
+    (
+        ".claude/lib/github_core/bot_config.py",
+        "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
+        "Lib: .claude/lib/github_core/bot_config.py",
+    ),
+    (
+        ".claude/lib/github_core/checks_rollup.py",
+        "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
+        "Lib: .claude/lib/github_core/checks_rollup.py",
+    ),
+    (
+        ".claude/lib/github_core/comment_classification.py",
+        "c17b44af346cca4f28fdd93db44ebccde3f373ab0142292c50fc0abba2eadf9b",
+        "Lib: .claude/lib/github_core/comment_classification.py",
+    ),
+    (
+        ".claude/lib/github_core/formatting.py",
+        "ed8945a7dfd0a16b514afb8f3b126bf5456b5c24afe55d6c36433352186b3bef",
+        "Lib: .claude/lib/github_core/formatting.py",
+    ),
+    (
+        ".claude/lib/github_core/gh_client.py",
+        "f7657ab90f92b9d45270388e6615e7e0ebc81329449aebfac3d4eda5618a5a16",
+        "Lib: .claude/lib/github_core/gh_client.py",
+    ),
+    (
+        ".claude/lib/github_core/log_safety.py",
+        "d4696f8fd629359f3749743a18a0aea99e5c83a5d8f56835fbb50f3c14e318a1",
+        "Lib: .claude/lib/github_core/log_safety.py",
+    ),
+    (
+        ".claude/lib/github_core/output.py",
+        "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
+        "Lib: .claude/lib/github_core/output.py",
+    ),
+    (
+        ".claude/lib/github_core/placeholder_identity.py",
+        "6e0246dd64011fdce3eeb1e8094471fecd3e2f8d6855899940acc57fd7447f1c",
+        "Lib: .claude/lib/github_core/placeholder_identity.py",
+    ),
+    (
+        ".claude/lib/github_core/protocol.py",
+        "76c0595da9bf62dbe6851c5ef98b2d32a8a75106eaafcbd9338ba03c92ed8c76",
+        "Lib: .claude/lib/github_core/protocol.py",
+    ),
+    (
+        ".claude/lib/github_core/rate_limit.py",
+        "2740751a1c9ce7a4514478c6cb510bdb1521bdd00a2d5323a0c46270598c84f3",
+        "Lib: .claude/lib/github_core/rate_limit.py",
+    ),
+    (
+        ".claude/lib/github_core/repo.py",
+        "189b9f3cfa59b9d185a0524db79b323a9c0368a0d5fe3236762b409c66eed47e",
+        "Lib: .claude/lib/github_core/repo.py",
+    ),
+    (
+        ".claude/lib/github_core/review_threads.py",
+        "4e0d629c358a40a0d20a73c5f40a9c85f3c11dd192fdeae0110dec9201288dcb",
+        "Lib: .claude/lib/github_core/review_threads.py",
+    ),
+    (
+        ".claude/lib/github_core/validation.py",
+        "8dc31f511595e06656a3ba3ffc3a403994808f0fb35537d0167bbc67935304c0",
+        "Lib: .claude/lib/github_core/validation.py",
+    ),
+    (
+        ".claude/lib/github_core/worktree_identity.py",
+        "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
+        "Lib: .claude/lib/github_core/worktree_identity.py",
+    ),
+    (
+        ".claude/lib/hook_dispatch.py",
+        "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
+        "Lib: .claude/lib/hook_dispatch.py",
+    ),
+    (
+        ".claude/lib/hook_dispatch_protocol.py",
+        "09eb4f18a2e00080b0ddf61ee08d1ab624b650dc8b15fb695bc827d4f354f9c6",
+        "Lib: .claude/lib/hook_dispatch_protocol.py",
+    ),
+    (
+        ".claude/lib/hook_dispatch_timeout.py",
+        "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
+        "Lib: .claude/lib/hook_dispatch_timeout.py",
+    ),
+    (
+        ".claude/lib/hook_utilities/__init__.py",
+        "046bf0c55e5e4143bfc5485009bf9cc1b7fd0c86a5fbf55a3dadfa69801464ca",
+        "Lib: .claude/lib/hook_utilities/__init__.py",
+    ),
+    (
+        ".claude/lib/hook_utilities/bootstrap.py",
+        "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
+        "Lib: .claude/lib/hook_utilities/bootstrap.py",
+    ),
+    (
+        ".claude/lib/hook_utilities/guards.py",
+        "7cef097821da9494ec4cc6fb0ad95223f0a92ad3f038b7c55c1a7b345f90d574",
+        "Lib: .claude/lib/hook_utilities/guards.py",
+    ),
+    (
+        ".claude/lib/hook_utilities/path_safety.py",
+        "5e74bbfd4a7a88137745cca178c34efe5632873fa0836d192f164074cfb03b10",
+        "Lib: .claude/lib/hook_utilities/path_safety.py",
+    ),
+    (
+        ".claude/lib/hook_utilities/utilities.py",
+        "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
+        "Lib: .claude/lib/hook_utilities/utilities.py",
+    ),
+    (
+        ".claude/lib/output_capture.py",
+        "dde31065769a49a0d66b63f4487e9dd1efbf7e82f9e3b6f42c31de2bc0047fc1",
+        "Lib: .claude/lib/output_capture.py",
+    ),
+    (
+        ".claude/lib/paths.py",
+        "0d11d6295855d9547e8316968a241de580159346cc92e1cca8708ba3e191bee1",
+        "Lib: .claude/lib/paths.py",
+    ),
+    (
+        ".claude/lib/qa_report.py",
+        "9cdcb33916e7ffcd2df84acefe8cc8706a1c32625b794196c315aebec2d31ae1",
+        "Lib: .claude/lib/qa_report.py",
+    ),
+    (
+        ".claude/lib/shim_loader.py",
+        "56d6dc47d0871278790690fe9cf78baad73a4f89540866bb14b430db28a56600",
+        "Lib: .claude/lib/shim_loader.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/__init__.py",
+        "5417034baa3559df545628194476d4b69549b7636fbe06f56214fbd0d28493c6",
+        "Lib: src/copilot-cli/lib/ai_review_common/__init__.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/cache_guard.py",
+        "831609daa3a9693507ede9335562af1c3b2f85fc21491bcca96471cceef458c6",
+        "Lib: src/copilot-cli/lib/ai_review_common/cache_guard.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/feature_review.py",
+        "f1df8a966212a49fd3ce788d13523421904304b0a7d576bcdf9c946f6951f522",
+        "Lib: src/copilot-cli/lib/ai_review_common/feature_review.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/issue_triage.py",
+        "4ef473208dfacba52a514c4bc06155c9e877faf01bbb48bfdfb1795487e38061",
+        "Lib: src/copilot-cli/lib/ai_review_common/issue_triage.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/quality_gate.py",
+        "22ea33bd691f40861379bdfcd5cf2abfff61d49cf008c697818898224b114fc7",
+        "Lib: src/copilot-cli/lib/ai_review_common/quality_gate.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/retry.py",
+        "946e205f020fd5dd595bc19053d4b90dc344df5f8b1ea99571f072d5705eacf1",
+        "Lib: src/copilot-cli/lib/ai_review_common/retry.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/verdict.py",
+        "6b3475739059a19aef3022a05e7b77ff7f5add074b06310fbdb5d48fa61d60e1",
+        "Lib: src/copilot-cli/lib/ai_review_common/verdict.py",
+    ),
+    (
+        "src/copilot-cli/lib/ai_review_common/workflow.py",
+        "afc062433185e6daf4a066162000ab7a13caa0b4e33383ff2dd450065de240ea",
+        "Lib: src/copilot-cli/lib/ai_review_common/workflow.py",
+    ),
+    (
+        "src/copilot-cli/lib/bootstrap.py",
+        "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
+        "Lib: src/copilot-cli/lib/bootstrap.py",
+    ),
+    (
+        "src/copilot-cli/lib/claude_hook_dispatch.py",
+        "516aab08f8adbdd0234758762ac8fc91c9633e688fff343e96b4ac7fc5db5f75",
+        "Lib: src/copilot-cli/lib/claude_hook_dispatch.py",
+    ),
+    (
+        "src/copilot-cli/lib/claude_hook_protocol.py",
+        "7005a9db7fb91d3d286035606706ed152c7b3e725a988de52609956e596755b8",
+        "Lib: src/copilot-cli/lib/claude_hook_protocol.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/__init__.py",
+        "0ce449b32d479955d1f453de05c830abe5192558a08424c5778756f86ea3a26d",
+        "Lib: src/copilot-cli/lib/github_core/__init__.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/api.py",
+        "2c3c08cff721f6727ba1125d2b9c22e28f03b1bdd51b0d670fcb79be2db66feb",
+        "Lib: src/copilot-cli/lib/github_core/api.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/bot_config.py",
+        "321a0d5c13fc0f302677842c9cfb346cbd27750746cb9205a619e218428d806d",
+        "Lib: src/copilot-cli/lib/github_core/bot_config.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/checks_rollup.py",
+        "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
+        "Lib: src/copilot-cli/lib/github_core/checks_rollup.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/comment_classification.py",
+        "c17b44af346cca4f28fdd93db44ebccde3f373ab0142292c50fc0abba2eadf9b",
+        "Lib: src/copilot-cli/lib/github_core/comment_classification.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/formatting.py",
+        "ed8945a7dfd0a16b514afb8f3b126bf5456b5c24afe55d6c36433352186b3bef",
+        "Lib: src/copilot-cli/lib/github_core/formatting.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/gh_client.py",
+        "f7657ab90f92b9d45270388e6615e7e0ebc81329449aebfac3d4eda5618a5a16",
+        "Lib: src/copilot-cli/lib/github_core/gh_client.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/log_safety.py",
+        "d4696f8fd629359f3749743a18a0aea99e5c83a5d8f56835fbb50f3c14e318a1",
+        "Lib: src/copilot-cli/lib/github_core/log_safety.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/output.py",
+        "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
+        "Lib: src/copilot-cli/lib/github_core/output.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/placeholder_identity.py",
+        "6e0246dd64011fdce3eeb1e8094471fecd3e2f8d6855899940acc57fd7447f1c",
+        "Lib: src/copilot-cli/lib/github_core/placeholder_identity.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/protocol.py",
+        "76c0595da9bf62dbe6851c5ef98b2d32a8a75106eaafcbd9338ba03c92ed8c76",
+        "Lib: src/copilot-cli/lib/github_core/protocol.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/rate_limit.py",
+        "2740751a1c9ce7a4514478c6cb510bdb1521bdd00a2d5323a0c46270598c84f3",
+        "Lib: src/copilot-cli/lib/github_core/rate_limit.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/repo.py",
+        "189b9f3cfa59b9d185a0524db79b323a9c0368a0d5fe3236762b409c66eed47e",
+        "Lib: src/copilot-cli/lib/github_core/repo.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/review_threads.py",
+        "4e0d629c358a40a0d20a73c5f40a9c85f3c11dd192fdeae0110dec9201288dcb",
+        "Lib: src/copilot-cli/lib/github_core/review_threads.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/validation.py",
+        "8dc31f511595e06656a3ba3ffc3a403994808f0fb35537d0167bbc67935304c0",
+        "Lib: src/copilot-cli/lib/github_core/validation.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/worktree_identity.py",
+        "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
+        "Lib: src/copilot-cli/lib/github_core/worktree_identity.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_dispatch.py",
+        "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
+        "Lib: src/copilot-cli/lib/hook_dispatch.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_dispatch_protocol.py",
+        "09eb4f18a2e00080b0ddf61ee08d1ab624b650dc8b15fb695bc827d4f354f9c6",
+        "Lib: src/copilot-cli/lib/hook_dispatch_protocol.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_dispatch_timeout.py",
+        "1f27deac44f92df8904ba7c22fb916589ff20a009b8f5f9c4c93be46acebee0c",
+        "Lib: src/copilot-cli/lib/hook_dispatch_timeout.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_utilities/__init__.py",
+        "046bf0c55e5e4143bfc5485009bf9cc1b7fd0c86a5fbf55a3dadfa69801464ca",
+        "Lib: src/copilot-cli/lib/hook_utilities/__init__.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_utilities/bootstrap.py",
+        "f18044a4ab6383dd647b3616bacd01ae96145cf2a0107cb45b212a45a66279cc",
+        "Lib: src/copilot-cli/lib/hook_utilities/bootstrap.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_utilities/guards.py",
+        "7cef097821da9494ec4cc6fb0ad95223f0a92ad3f038b7c55c1a7b345f90d574",
+        "Lib: src/copilot-cli/lib/hook_utilities/guards.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_utilities/path_safety.py",
+        "5e74bbfd4a7a88137745cca178c34efe5632873fa0836d192f164074cfb03b10",
+        "Lib: src/copilot-cli/lib/hook_utilities/path_safety.py",
+    ),
+    (
+        "src/copilot-cli/lib/hook_utilities/utilities.py",
+        "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
+        "Lib: src/copilot-cli/lib/hook_utilities/utilities.py",
+    ),
+    (
+        "src/copilot-cli/lib/output_capture.py",
+        "dde31065769a49a0d66b63f4487e9dd1efbf7e82f9e3b6f42c31de2bc0047fc1",
+        "Lib: src/copilot-cli/lib/output_capture.py",
+    ),
+    (
+        "src/copilot-cli/lib/paths.py",
+        "0d11d6295855d9547e8316968a241de580159346cc92e1cca8708ba3e191bee1",
+        "Lib: src/copilot-cli/lib/paths.py",
+    ),
+    (
+        "src/copilot-cli/lib/qa_report.py",
+        "9cdcb33916e7ffcd2df84acefe8cc8706a1c32625b794196c315aebec2d31ae1",
+        "Lib: src/copilot-cli/lib/qa_report.py",
+    ),
+    (
+        "src/copilot-cli/lib/shim_loader.py",
+        "56d6dc47d0871278790690fe9cf78baad73a4f89540866bb14b430db28a56600",
+        "Lib: src/copilot-cli/lib/shim_loader.py",
+    ),
     # --- Vendor artifacts (added by vendor/runtime PR) ---
     # Placeholder hashes: presence of these files without a matching pin
     # hash will fail authentication (fail closed). Update pins when vendor PR
@@ -660,7 +815,8 @@ def _check_path_component_symlinks(candidate: Path) -> list[str]:
             check = check / part
             if check.is_symlink():
                 errors.append(
-                    f"Directory component is symlink: {PurePosixPath(*parts[:parts.index(part)+1])}"
+                    f"Directory component is symlink: "
+                    f"{PurePosixPath(*parts[: parts.index(part) + 1])}"
                 )
                 break
         else:
@@ -686,9 +842,7 @@ def _check_ancestors_not_symlink(root: Path, rel: str) -> str | None:
     return None
 
 
-def _check_file_mode(
-    candidate: Path, base: Path, rel: str, label: str
-) -> str | None:
+def _check_file_mode(candidate: Path, base: Path, rel: str, label: str) -> str | None:
     """Reject Git mode changes between base and candidate.
 
     Compares file permissions (executable bit). If base has 0o755 and
@@ -703,6 +857,7 @@ def _check_file_mode(
     base_mode = base_path.stat().st_mode
     # Reject symlink or submodule modes in candidate
     import stat as stat_mod
+
     if stat_mod.S_ISLNK(cand_mode):
         return f"{label} ({rel}): candidate has symlink mode"
     # Check executable bit consistency
@@ -710,11 +865,9 @@ def _check_file_mode(
     base_exec = bool(base_mode & 0o111)
     if cand_exec != base_exec:
         change = "executable->regular" if base_exec else "regular->executable"
-        return (
-            f"{label} ({rel}): mode changed ({change}); "
-            f"mode tampering rejected"
-        )
+        return f"{label} ({rel}): mode changed ({change}); mode tampering rejected"
     return None
+
 
 def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]:
     """Authenticate every pinned artifact against its trust anchor.
@@ -793,17 +946,12 @@ def _check_unpinned_executables(candidate: Path) -> list[str]:
             # Skip known non-executable data files
             if f.name == "CLAUDE.md":
                 continue
-            if f.suffix in (".md", ".txt", ".rst", ".cfg", ".ini", ".toml",
-                            ".lock", ".typed"):
+            if f.suffix in (".md", ".txt", ".rst", ".cfg", ".ini", ".toml", ".lock", ".typed"):
                 continue
             rel = str(PurePosixPath(f.relative_to(candidate)))
             if rel not in pinned_rels:
-                errors.append(
-                    f"Unpinned executable: {rel} "
-                    f"(sha256: {_sha256_file(f)[:16]}...)"
-                )
+                errors.append(f"Unpinned executable: {rel} (sha256: {_sha256_file(f)[:16]}...)")
     return errors
-
 
 
 # ── Markdownlint config auto-discovery rejection ──
@@ -847,21 +995,19 @@ def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
             if not f.is_file():
                 continue
             if f.name in _MARKDOWNLINT_CONFIG_GLOBS:
-                rel = str(__import__("pathlib").PurePosixPath(
-                    f.relative_to(candidate)))
+                rel = str(__import__("pathlib").PurePosixPath(f.relative_to(candidate)))
                 if rel not in pinned_rels:
                     errors.append(
-                        f"Unpinned markdownlint config: {rel} "
-                        f"(auto-discovery attack surface)"
+                        f"Unpinned markdownlint config: {rel} (auto-discovery attack surface)"
                     )
     # Also check for package.json markdownlint-cli2 config field in vendor
     pkg_json = (
-        candidate / ".claude" / "hooks" / "PreToolUse"
-        / "_vendor" / "markdownlint" / "package.json"
+        candidate / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint" / "package.json"
     )
     if pkg_json.is_file():
         try:
             import json
+
             data = json.loads(pkg_json.read_text())
             if "markdownlint-cli2" in data:
                 errors.append(
@@ -879,8 +1025,7 @@ def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
             rel = config_name
             if rel not in pinned_rels:
                 errors.append(
-                    f"Unpinned root markdownlint config: {rel} "
-                    f"(auto-discovery attack surface)"
+                    f"Unpinned root markdownlint config: {rel} (auto-discovery attack surface)"
                 )
     return errors
 
@@ -909,6 +1054,7 @@ def _check_mirror_parity(candidate: Path) -> list[str]:
 
 
 # ── Lockfile validation ──
+
 
 def _validate_package_entry(name: str, meta: dict[str, object]) -> list[str]:
     errors: list[str] = []
@@ -953,9 +1099,6 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
     return errors
 
 
-
-
-
 def _reject_settings_local(candidate: Path) -> list[str]:
     """Reject .claude/settings.local.json if present in candidate.
 
@@ -969,6 +1112,7 @@ def _reject_settings_local(candidate: Path) -> list[str]:
             "(hook override file must not be committed)"
         ]
     return []
+
 
 # ── Trust-anchor self-protection ──
 # Once the workflow and validator exist in the trusted base, candidate
@@ -998,8 +1142,7 @@ def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[st
         cand_path = candidate / rel
         if not cand_path.exists():
             errors.append(
-                f"Trust anchor deleted: {rel} (present in base, "
-                f"candidate deletion not permitted)"
+                f"Trust anchor deleted: {rel} (present in base, candidate deletion not permitted)"
             )
             continue
         if cand_path.is_symlink():
@@ -1017,12 +1160,13 @@ def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[st
         cand_hash = hashlib.sha256(cand_path.read_bytes()).hexdigest()
         if cand_hash != base_hash:
             errors.append(
-                f"Trust anchor modified: {rel} "
-                f"(candidate differs from base; requires bootstrap PR)"
+                f"Trust anchor modified: {rel} (candidate differs from base; requires bootstrap PR)"
             )
     return errors
 
+
 # ── Symlink containment ──
+
 
 def _check_symlink_containment(vendor_dir: Path) -> list[str]:
     if not vendor_dir.is_dir():
@@ -1033,15 +1177,14 @@ def _check_symlink_containment(vendor_dir: Path) -> list[str]:
         if item.is_symlink():
             target = (item.parent / os.readlink(item)).resolve()
             if not str(target).startswith(str(vr) + os.sep) and target != vr:
-                errors.append(
-                    f"Symlink escapes vendor: {item.relative_to(vendor_dir)}"
-                )
+                errors.append(f"Symlink escapes vendor: {item.relative_to(vendor_dir)}")
                 if len(errors) >= 5:
                     break
     return errors
 
 
 # ── .npmrc rejection ──
+
 
 def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
     if not vendor_dir.is_dir():
@@ -1059,11 +1202,13 @@ def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
 
 # ── Vendor reconstruction ──
 
+
 def _reconstruct_and_compare(vendor_dir: Path) -> list[str]:
     if not (vendor_dir / "package-lock.json").is_file():
         return []  # No vendor tree
     import shutil
     import tempfile
+
     nm = vendor_dir / "node_modules"
     if not nm.is_dir():
         return ["vendor has lockfile but no node_modules"]
@@ -1074,11 +1219,16 @@ def _reconstruct_and_compare(vendor_dir: Path) -> list[str]:
         try:
             proc = subprocess.run(
                 ["npm", "ci", "--ignore-scripts", "--audit=false"],
-                cwd=vendor_dir, capture_output=True,
-                encoding="utf-8", errors="replace",
+                cwd=vendor_dir,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=120,
-                env={**os.environ, "npm_config_fund": "false",
-                     "npm_config_registry": _CANONICAL_REGISTRY},
+                env={
+                    **os.environ,
+                    "npm_config_fund": "false",
+                    "npm_config_registry": _CANONICAL_REGISTRY,
+                },
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
             return [f"npm ci failed: {exc}"]
@@ -1149,6 +1299,7 @@ _EXTRA_WATCHED: tuple[str, ...] = (
     ".gitattributes",
     ".claude/settings.local.json",
     ".github/copilot/settings.json",
+    ".npmrc",
 )
 
 
@@ -1198,6 +1349,7 @@ def check_relevance(changed_files: list[str]) -> bool:
 
 # ── Main ──
 
+
 def _run_phase(label: str, errors: list[str]) -> None:
     print(f"\n=== {label} ===")
     for e in errors:
@@ -1209,10 +1361,16 @@ def _run_phase(label: str, errors: list[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Trusted vendor provenance gate")
     parser.add_argument("--candidate-root", type=Path)
-    parser.add_argument("--base-root", type=Path, default=None,
-                        help="Base (trusted) tree root for deletion detection")
     parser.add_argument(
-        "--check-relevance", nargs="*", metavar="FILE",
+        "--base-root",
+        type=Path,
+        default=None,
+        help="Base (trusted) tree root for deletion detection",
+    )
+    parser.add_argument(
+        "--check-relevance",
+        nargs="*",
+        metavar="FILE",
         help="Print 'true'/'false' for whether FILE list touches watched paths",
     )
     args = parser.parse_args()
