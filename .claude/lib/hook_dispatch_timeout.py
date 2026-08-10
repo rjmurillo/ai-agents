@@ -27,7 +27,13 @@ def run_timed_shim(
     """Run one timed shim in a child process so timeout can kill it."""
     try:
         completed = subprocess.run(
-            [sys.executable, "-I", str(shim_path)],
+            # -E -s, not -I. All three drop PYTHONPATH and user site-packages,
+            # which is the injection protection this launcher needs. -I also
+            # implies -P, which drops the script's own directory from sys.path,
+            # and every timed shim imports its sibling _bootstrap. Under -I the
+            # child died with ModuleNotFoundError before its policy ran, so the
+            # markdownlint push guard was disabled at runtime (issue #4825).
+            [sys.executable, "-E", "-s", str(shim_path)],
             input=raw_stdin,
             stdout=subprocess.PIPE if capture_stdout else None,
             stderr=subprocess.PIPE if capture_stderr else None,
