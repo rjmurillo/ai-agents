@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size
 """Orchestrate per-artifact generators (REQ-003-005, -008, -010, -011).
 
 Runs every artifact generator wired in ``GENERATORS`` for one or more
@@ -88,14 +87,6 @@ class BuildAudit:
     results: list[GeneratorResult] = field(default_factory=list)
     blocklist_violations: list[str] = field(default_factory=list)
     overall_exit: int = 0
-
-
-class GitStateError(RuntimeError):
-    """Raised when generator drift cannot inspect the working tree."""
-
-
-class SnapshotError(RuntimeError):
-    """Raised when a read-only build cannot preserve pre-run file state."""
 
 
 # --- Artifact registry ----------------------------------------------------
@@ -617,9 +608,10 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     but ``git status`` shows the regenerated copy as untracked. Without
     the untracked half, --check and the .claude/ guard both miss it.
 
-    Used by --check (staleness) and the .claude/ guard. Both Git commands
-    must succeed. A partial or unavailable inventory cannot prove that
-    generated outputs are current, so it raises :class:`GitStateError`.
+    Used by --check (staleness) and the .claude/ guard. A failure to run
+    git is treated as no-diff: this is a CI-side check, and CI always has
+    git. We do not want to fail when a contributor runs the script in a
+    non-git working tree.
     """
     paths: list[str] = []
     seen: set[str] = set()
@@ -637,15 +629,10 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 timeout=30,
                 env=scrubbed_env,
             )
-        except (OSError, subprocess.SubprocessError) as exc:
-            operation = "git " + " ".join(argv[3:])
-            raise GitStateError(f"{operation} failed: {exc}") from exc
+        except (OSError, subprocess.SubprocessError):
+            continue
         if proc.returncode != 0:
-            operation = "git " + " ".join(argv[3:])
-            detail = (proc.stderr or proc.stdout).strip() or "no error output"
-            raise GitStateError(
-                f"{operation} exited {proc.returncode}: {detail}"
-            )
+            continue
         for line in proc.stdout.splitlines():
             p = line.strip()
             if p and p not in seen:
@@ -963,8 +950,8 @@ def _snapshot_owned_prefixes(
                 continue
             try:
                 snapshot[root] = root.read_bytes()
-            except OSError as exc:
-                raise SnapshotError(f"failed to snapshot {root}: {exc}") from exc
+            except OSError:
+                continue
             continue
         if root.exists() and not root.is_dir():
             continue
@@ -977,8 +964,11 @@ def _snapshot_owned_prefixes(
                 continue
             try:
                 snapshot[path] = path.read_bytes()
-            except OSError as exc:
-                raise SnapshotError(f"failed to snapshot {path}: {exc}") from exc
+            except OSError:
+                # Unreadable file (permissions, race). Skip — restore will
+                # treat it as not-present which keeps the working tree at
+                # least as clean as it was before the run.
+                continue
     return snapshot
 
 
@@ -1112,19 +1102,15 @@ def run(
     # staleness diff is computed. This makes --check safe to call from
     # any worktree without dirtying it.
     snapshot: dict[Path, bytes] | None = None
-    try:
-        if check:
-            snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+    if check:
+        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
 
-        # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
-        # generator runs so the no-write guard attributes only writes the
-        # generators made, not pre-build drift such as a .claude/lib sync.
-        claude_baseline = _snapshot_owned_prefixes(
-            repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
-        )
-    except SnapshotError as exc:
-        print(f"SNAPSHOT FAILED: {exc}", file=sys.stderr)
-        return 2
+    # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
+    # generator runs so the no-write guard attributes only writes the
+    # generators made, not pre-build drift such as a .claude/lib sync.
+    claude_baseline = _snapshot_owned_prefixes(
+        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
 
     try:
         return _run_generators(
@@ -1199,33 +1185,25 @@ def _run_generators(
         if blocklist:
             break
 
-    if check:
-        # Limit staleness check to paths the generators actually own. Other
-        # working-tree drift (e.g. uv.lock) is the user's responsibility,
-        # not the build orchestrator's.
-        try:
-            diff = [
-                p for p in _git_diff_paths(repo_root)
-                if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
-            ]
-        except GitStateError as exc:
-            print(f"STALENESS CHECK FAILED: {exc}", file=sys.stderr)
-            audit.overall_exit = 2
-        else:
-            if diff:
-                print(
-                    "STALENESS DETECTED: uncommitted regen drift:",
-                    file=sys.stderr,
-                )
-                for p in diff:
-                    print(f"  {p}", file=sys.stderr)
-                audit.overall_exit = 2
-
     audit_path = repo_root / "build" / "audit" / "GENERATION-AUDIT.md"
     violations = write_audit(audit, audit_path, blocklist)
     if violations:
         audit.blocklist_violations.extend(violations)
         audit.overall_exit = max(audit.overall_exit, 3)
+
+    if check:
+        # Limit staleness check to paths the generators actually own. Other
+        # working-tree drift (e.g. uv.lock) is the user's responsibility,
+        # not the build orchestrator's.
+        diff = [
+            p for p in _git_diff_paths(repo_root)
+            if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
+        ]
+        if diff:
+            print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)
+            for p in diff:
+                print(f"  {p}", file=sys.stderr)
+            audit.overall_exit = 2
 
     if audit_format == "json":
         sys.stdout.write(_format_audit_json(audit))

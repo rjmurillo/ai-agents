@@ -1,9 +1,0 @@
-{
-  "name": "@ai-agents/markdownlint-vendor",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Pinned vendored markdownlint-cli2 for push-time validation",
-  "dependencies": {
-    "markdownlint-cli2": "0.23.1"
-  }
-}

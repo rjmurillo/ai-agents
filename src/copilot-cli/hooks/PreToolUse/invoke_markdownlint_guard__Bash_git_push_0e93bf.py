@@ -371,97 +371,135 @@ def _original_main(stdin_bytes):
     """Block git push on markdownlint violations in changed .md files.
 
     Thin adapter over :mod:`push_guard_base`. Activates on ``*.md`` files in
-    the push changeset and runs the co-located ``_markdownlint_verifier.py``
-    a pure-Python stdlib-only linter). No external
-    binaries, no registry downloads, no consumer configs or plugins.
+    the push changeset and runs ``markdownlint-cli2`` against them. Failures
+    of the binary itself (missing PATH entry, timeout, OSError) fail-open;
+    only real lint violations block.
 
     Customer value: prevents markdown lint failures from reaching consumer branches.
 
     Hook Type: PreToolUse
     Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-        0 = Allow (no .md files or markdownlint clean)
-        2 = Block (trusted verifier unavailable, failed, or reported violations)
+        0 = Allow (no .md files, binary missing, timeout, OSError, clean)
+        2 = Block (markdownlint reported violations)
     """
 
 
+    import shutil
     import subprocess
     import sys
-    from pathlib import Path
 
     from _bootstrap import ensure_plugin_paths
 
     ensure_plugin_paths()
 
     from hook_utilities import get_project_directory  # noqa: E402
-    from push_guard_base import run_guard  # noqa: E402
+    from push_guard_base import emit_fail_open, run_guard  # noqa: E402
 
     GUARD_NAME = "markdown-lint"
-    VERIFIER = Path(__file__).resolve().with_name("_markdownlint_verifier.py")
-    SAFE_CONFIG = Path(__file__).resolve().with_name("markdownlint-safe-config.yaml")
+    BINARY = "markdownlint-cli2"
     SUBPROCESS_TIMEOUT = 60
+    VERSION_TIMEOUT = 5
 
 
     def _resolve_invocation() -> list[str] | None:
-        """Return invocation args if shipped verifier and config exist."""
-        if VERIFIER.is_file() and SAFE_CONFIG.is_file():
-            return [sys.executable, "-I", "-S", str(VERIFIER)]
+        """Pick the markdownlint invocation per ADR-043 / SESSION-PROTOCOL.
+
+        Direct binary on PATH wins (works on dev machines with global install).
+        Falls back to ``npx markdownlint-cli2`` (the documented invocation for
+        fresh checkouts where only Node and the project's package.json are
+        available). Returns None if neither tool is on PATH; the caller
+        fail-opens in that case.
+        """
+        if shutil.which(BINARY) is not None:
+            return [BINARY]
+        if shutil.which("npx") is not None:
+            return ["npx", BINARY]
         return None
+
+
+    def _log_version(invocation: list[str]) -> None:
+        try:
+            proc = subprocess.run(
+                [*invocation, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=VERSION_TIMEOUT,
+                shell=False,
+                check=False,
+            )
+            version = (proc.stdout or proc.stderr).strip().splitlines()
+            first_line = version[0] if version else "(unknown)"
+            runner = invocation[0]
+            print(
+                f"[{GUARD_NAME}] using {runner} {BINARY} {first_line}",
+                file=sys.stderr,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            print(
+                f"[{GUARD_NAME}] could not determine {BINARY} version",
+                file=sys.stderr,
+            )
 
 
     def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
         invocation = _resolve_invocation()
         if invocation is None:
-            message = f"trusted verifier unavailable: {VERIFIER} or {SAFE_CONFIG} missing"
-            print(f"[{GUARD_NAME}] {message}; blocking push", file=sys.stderr)
-            return [message]
+            print(
+                f"[{GUARD_NAME}] neither {BINARY} nor npx found on PATH; "
+                f"allowing push (fail-open)",
+                file=sys.stderr,
+            )
+            emit_fail_open(GUARD_NAME, "binary_missing", f"{BINARY} and npx not on PATH")
+            return []
 
-        print(f"[{GUARD_NAME}] using trusted verifier {VERIFIER.name}", file=sys.stderr)
+        _log_version(invocation)
 
         project_dir = get_project_directory()
-        # Scrub PYTHON* vars so consumer sitecustomize/PYTHONPATH cannot inject.
-        env = {
-            k: v for k, v in __import__("os").environ.items()
-            if not k.startswith("PYTHON")
-        }
         try:
+            # --no-globs: lint only the explicit file args. Without this flag
+            # markdownlint-cli2 walks the repo's default **/*.md set and may
+            # report violations in files outside the changeset, which is
+            # exactly the noise the pre-push gate is meant to avoid.
             proc = subprocess.run(
-                [*invocation, "--markdown-lint-only", "--", *matching],
+                [*invocation, "--no-globs", *matching],
                 capture_output=True,
                 text=True,
                 timeout=SUBPROCESS_TIMEOUT,
                 shell=False,
                 check=False,
                 cwd=project_dir,
-                env=env,
             )
         except subprocess.TimeoutExpired:
-            message = f"{VERIFIER.name} exceeded {SUBPROCESS_TIMEOUT}s"
-            print(f"[TIMEOUT] {message}; blocking push", file=sys.stderr)
-            return [message]
+            print(
+                f"[TIMEOUT] {BINARY} exceeded {SUBPROCESS_TIMEOUT}s; "
+                f"allowing push",
+                file=sys.stderr,
+            )
+            emit_fail_open(GUARD_NAME, "timeout", f"{BINARY} exceeded {SUBPROCESS_TIMEOUT}s")
+            return []
         except OSError as exc:
-            message = f"{VERIFIER.name} failed to invoke: {exc}"
-            print(f"[OSError] {message}; blocking push", file=sys.stderr)
-            return [message]
+            print(
+                f"[OSError] {BINARY} failed to invoke: {exc}; allowing push",
+                file=sys.stderr,
+            )
+            emit_fail_open(GUARD_NAME, "oserror", f"{type(exc).__name__}: {exc}")
+            return []
 
         if proc.returncode == 0:
             return []
 
-        violations = [line for line in proc.stderr.splitlines() if line.strip()]
-        if not violations:
-            violations = [line for line in proc.stdout.splitlines() if line.strip()]
-        if not violations:
-            violations = [f"{VERIFIER.name} exited {proc.returncode} without diagnostics"]
+        violations = [
+            line for line in proc.stdout.splitlines() if line.strip()
+        ]
+        if not violations and proc.stderr.strip():
+            violations = [
+                line for line in proc.stderr.splitlines() if line.strip()
+            ]
         return violations
 
 
     def main() -> int:
-        return run_guard(
-            _validate,
-            ["*.md"],
-            GUARD_NAME,
-            project_only=False,
-            fail_closed=True,
-        )
+        return run_guard(_validate, ["*.md"], GUARD_NAME)
     return main()
 
 _shim_dispatch()

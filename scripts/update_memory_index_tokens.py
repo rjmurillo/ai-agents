@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-Repair or verify token counts in memory-index.md.
+Update token counts in memory-index.md.
 
 Reads memory-index.md, finds markdown links to memory files,
-counts tokens for each referenced file, and renders the expected inline
-token counts. Repair and check modes use the same rendering.
+counts tokens for each referenced file, and updates inline
+token counts. Uses tiktoken cache for performance.
+
+Gracefully degrades if tiktoken is not installed (warning only).
 
 Exit codes per ADR-035:
-  0 - Success (counts repaired or verified current)
-  1 - Logic or input error (stale counts, missing file, count failure)
-  2 - Configuration error (tiktoken not installed)
+  0 - Success (counts updated or already current)
+  1 - Error (file not found, parse failure)
+  2 - Configuration error (tiktoken not installed, counts skipped)
 """
 
 import argparse
 import re
 import sys
-from collections.abc import Sequence
 from pathlib import Path
 
 # Graceful tiktoken import
@@ -36,10 +37,9 @@ LINK_WITHOUT_COUNT = re.compile(
 )
 
 
-def update_line(line: str, memories_dir: Path) -> tuple[str, int]:
+def update_line(line: str, memories_dir: Path) -> str:
     """Update token counts for all memory links in a single line."""
     result = line
-    examined = 0
 
     # First pass: update existing counts
     for match in LINK_WITH_COUNT.finditer(line):
@@ -48,12 +48,14 @@ def update_line(line: str, memories_dir: Path) -> tuple[str, int]:
         old_count = int(match.group(3))
 
         file_path = memories_dir / link_target
-
         if not file_path.exists():
-            raise FileNotFoundError(f"referenced memory not found: {file_path}")
+            continue
 
-        new_count = get_memory_token_count(file_path)
-        examined += 1
+        try:
+            new_count = get_memory_token_count(file_path)
+        except (ImportError, OSError) as e:
+            print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
+            continue
         if new_count != old_count:
             old_str = f"[{link_text}]({link_target}) ({old_count})"
             new_str = f"[{link_text}]({link_target}) ({new_count})"
@@ -65,50 +67,29 @@ def update_line(line: str, memories_dir: Path) -> tuple[str, int]:
         link_target = match.group(2)
 
         file_path = memories_dir / link_target
-
         if not file_path.exists():
-            raise FileNotFoundError(f"referenced memory not found: {file_path}")
+            continue
 
-        count = get_memory_token_count(file_path)
-        examined += 1
+        try:
+            count = get_memory_token_count(file_path)
+        except (ImportError, OSError) as e:
+            print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
+            continue
         old_str = f"[{link_text}]({link_target})"
         new_str = f"[{link_text}]({link_target}) ({count})"
         result = result.replace(old_str, new_str, 1)
 
-    return result, examined
-
-
-def render_memory_index(index_path: Path, memories_dir: Path) -> tuple[str, int]:
-    """Return expected index content and the number of counted links."""
-    original = index_path.read_text(encoding="utf-8")
-    updated_lines: list[str] = []
-    examined = 0
-
-    for line in original.split("\n"):
-        if "[" in line and "](" in line and ".md)" in line:
-            updated_line, line_examined = update_line(line, memories_dir)
-            updated_lines.append(updated_line)
-            examined += line_examined
-        else:
-            updated_lines.append(line)
-
-    return "\n".join(updated_lines), examined
-
-
-def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
-    """Update token counts and return whether the file changed."""
-    original = index_path.read_text(encoding="utf-8")
-    updated, _examined = render_memory_index(index_path, memories_dir)
-
-    if updated != original:
-        index_path.write_text(updated, encoding="utf-8")
-        return True
-
-    return False
+    return result
 
 
 def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
-    """Return drifted token count descriptions without modifying the index."""
+    """Return lines describing drifted token counts without modifying the file.
+
+    Each entry in the returned list describes one row where the recorded count
+    differs from the computed count. An empty list means all counts are current.
+    This is the ``--check`` mode counterpart to ``update_memory_index``
+    (issue #4441).
+    """
     if not index_path.exists():
         print(f"Error: {index_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -123,7 +104,10 @@ def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
             file_path = memories_dir / link_target
             if not file_path.exists():
                 continue
-            actual = get_memory_token_count(file_path)
+            try:
+                actual = get_memory_token_count(file_path)
+            except (ImportError, OSError):
+                continue
             if actual != recorded:
                 drifted.append(
                     f"  {link_target}: recorded {recorded}, actual {actual}"
@@ -131,74 +115,92 @@ def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
     return drifted
 
 
-def run(index_path: Path, memories_dir: Path, *, check: bool) -> int:
-    """Repair or verify one memory index."""
-    if not memories_dir.exists():
-        print(f"Error: {memories_dir} not found", file=sys.stderr)
-        return 1
+def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
+    """
+    Update token counts in memory-index.md.
+
+    Returns True if file was modified.
+    """
     if not index_path.exists():
         print(f"Error: {index_path} not found", file=sys.stderr)
-        return 1
+        sys.exit(1)
 
-    try:
-        original = index_path.read_text(encoding="utf-8")
-        expected, examined = render_memory_index(index_path, memories_dir)
-    except (ImportError, OSError) as exc:
-        print(f"Error: token count failed: {exc}", file=sys.stderr)
-        return 1
+    original = index_path.read_text(encoding="utf-8")
+    lines = original.split("\n")
+    updated_lines = []
 
-    if examined == 0:
-        print(f"Error: no memory links found in {index_path}", file=sys.stderr)
-        return 1
+    for line in lines:
+        if "[" in line and "](" in line and ".md)" in line:
+            updated_lines.append(update_line(line, memories_dir))
+        else:
+            updated_lines.append(line)
 
-    if check:
-        if expected != original:
-            print(
-                f"Stale token counts in {index_path} "
-                f"({examined} memory links examined)",
-                file=sys.stderr,
-            )
-            return 1
-        print(f"Token counts current ({examined} memory links examined)")
-        return 0
+    updated = "\n".join(updated_lines)
 
-    if expected != original:
-        try:
-            index_path.write_text(expected, encoding="utf-8")
-        except OSError as exc:
-            print(f"Error: failed to update {index_path}: {exc}", file=sys.stderr)
-            return 1
-        print(f"Updated token counts ({examined} memory links examined)")
-    else:
-        print(f"Token counts already current ({examined} memory links examined)")
-    return 0
+    if updated != original:
+        index_path.write_text(updated, encoding="utf-8")
+        return True
+
+    return False
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Update or check token counts in memory-index.md."
+    )
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify counts without modifying memory-index.md.",
+        help=(
+            "Check mode: exit non-zero if any recorded count differs from the "
+            "computed count, printing drifted entries. Does not modify the file."
+        ),
     )
     return parser
 
 
-def main(
-    argv: Sequence[str] | None = None,
-    *,
-    repo_root: Path | None = None,
-) -> int:
-    args = build_parser().parse_args(argv)
+def main() -> int:
+    args = _build_parser().parse_args()
+
     if not HAS_TIKTOKEN:
-        print("Error: tiktoken not installed. Token counts not checked.", file=sys.stderr)
+        print("Warning: tiktoken not installed. Token counts not updated.", file=sys.stderr)
         print("  Install: uv pip install tiktoken", file=sys.stderr)
         return 2
 
-    root = repo_root or Path(__file__).resolve().parent.parent
-    memories_dir = root / ".serena" / "memories"
+    # Determine paths
+    repo_root = Path(__file__).resolve().parent.parent
+    memories_dir = repo_root / ".serena" / "memories"
     index_path = memories_dir / "memory-index.md"
-    return run(index_path, memories_dir, check=args.check)
+
+    if not memories_dir.exists():
+        print(f"Error: {memories_dir} not found", file=sys.stderr)
+        return 1
+
+    if not index_path.exists():
+        print(f"Error: {index_path} not found", file=sys.stderr)
+        return 1
+
+    if args.check:
+        drifted = check_memory_index(index_path, memories_dir)
+        if drifted:
+            print("memory-index.md token counts are stale:")
+            for line in drifted:
+                print(line)
+            print(
+                "Run `uv run python scripts/update_memory_index_tokens.py` to fix."
+            )
+            return 1
+        print("memory-index.md token counts are current")
+        return 0
+
+    modified = update_memory_index(index_path, memories_dir)
+
+    if modified:
+        print("Updated token counts in memory-index.md")
+    else:
+        print("Token counts in memory-index.md already current")
+
+    return 0
 
 
 if __name__ == "__main__":

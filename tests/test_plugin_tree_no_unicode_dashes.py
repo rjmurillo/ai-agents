@@ -50,7 +50,7 @@ _SCANNED_PREFIXES = (
 
 # universal.md carve-out: these fixtures intentionally carry the prohibited
 # bytes to exercise the detection logic.
-_EXCLUDED_PREFIXES = ("tests/hooks/fixtures/", ".claude/hooks/PreToolUse/_vendor/")
+_EXCLUDED_PREFIXES = ("tests/hooks/fixtures/",)
 
 
 def is_scanned(path: str) -> bool:

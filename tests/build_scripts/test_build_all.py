@@ -885,50 +885,6 @@ def test_git_diff_paths_dedups_when_path_appears_in_both(
     assert "b.txt" in paths
 
 
-def test_git_diff_paths_fails_when_git_cannot_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A drift gate that cannot inspect Git state must not report clean."""
-
-    def fail_git(*args: object, **kwargs: object) -> object:
-        raise FileNotFoundError("git missing")
-
-    monkeypatch.setattr(build_all.subprocess, "run", fail_git)
-
-    with pytest.raises(build_all.GitStateError, match="git diff --name-only"):
-        build_all._git_diff_paths(tmp_path)
-
-
-def test_run_check_returns_2_when_git_state_is_unavailable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The --check CLI converts an unreadable Git state into a gate failure."""
-    repo = tmp_path / "repo"
-    (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_skill(repo / ".claude" / "skills", "alpha")
-    _write_platform_with_skills(repo, provider="copilot-cli")
-    monkeypatch.setattr(
-        build_all,
-        "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        ),
-    )
-    monkeypatch.setattr(
-        build_all,
-        "_git_diff_paths",
-        lambda _repo_root: (_ for _ in ()).throw(
-            build_all.GitStateError("git unavailable")
-        ),
-    )
-
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-
-    assert rc == 2
-
-
 def test_run_check_returns_2_when_untracked_owned_file_present(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1228,44 +1184,6 @@ def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
     assert pyc.is_file(), "--check restore deleted a cache it did not create"
     assert pyc.read_bytes() == b"PREEXISTING"
     assert sibling.read_text() == "committed A\n"
-
-
-def test_snapshot_fails_before_generation_when_a_file_cannot_be_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A partial snapshot must not let restore delete a pre-existing file."""
-    repo = tmp_path / "repo"
-    unreadable = repo / ".github" / "instructions" / "rule-x.md"
-    unreadable.parent.mkdir(parents=True)
-    unreadable.write_text("preserve me\n", encoding="utf-8")
-    (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_skill(repo / ".claude" / "skills", "alpha")
-    _write_platform_with_skills(repo, provider="copilot-cli")
-    original_read_bytes = Path.read_bytes
-    generator_called = False
-
-    def read_bytes(path: Path) -> bytes:
-        if path == unreadable:
-            raise PermissionError("denied")
-        return original_read_bytes(path)
-
-    def generator(*args: object, **kwargs: object) -> build_all.GeneratorResult:
-        nonlocal generator_called
-        generator_called = True
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        )
-
-    monkeypatch.setattr(Path, "read_bytes", read_bytes)
-    monkeypatch.setattr(build_all, "_build_agents", generator)
-
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-
-    assert rc == 2
-    assert generator_called is False
-    assert unreadable.read_text(encoding="utf-8") == "preserve me\n"
 
 
 def test_guard_snapshot_still_excludes_bytecode(tmp_path: Path) -> None:

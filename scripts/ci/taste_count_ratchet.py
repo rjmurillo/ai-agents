@@ -93,7 +93,6 @@ def current_count(repo_root: Path) -> int | None:
     files = tracked_files(repo_root, ("*",))
     if files is None:
         return None
-    files = [f for f in files if "/_vendor/" not in f]
     if not files:
         return 0
 
@@ -254,7 +253,6 @@ def list_violations(
     files = tracked_files(repo_root, ("*",))
     if files is None:
         return None
-    files = [f for f in files if "/_vendor/" not in f]
     if not files:
         return []
 

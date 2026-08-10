@@ -6,13 +6,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
-
-@pytest.fixture(autouse=True)
-def _markdownlint_config(tmp_path: Path) -> None:
-    (tmp_path / ".markdownlint-cli2.yaml").write_text("config: {}\n", encoding="utf-8")
-
 
 class TestValidateMarkdownLint:
     """Markdown linting checks branch changes without masking unknown scope."""
@@ -43,14 +36,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            [
-                "npx",
-                "markdownlint-cli2@0.23.1",
-                "--fix",
-                "--",
-                "README.md",
-                "docs/guide.md",
-            ],
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "README.md", "docs/guide.md"],
             cwd=tmp_path,
         )
 
@@ -73,12 +59,7 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            [
-                "npx",
-                "markdownlint-cli2@0.23.1",
-                "--",
-                "README.md",
-            ],
+            ["npx", "markdownlint-cli2@0.23.1", "--", "README.md"],
             cwd=tmp_path,
         )
 
@@ -97,15 +78,10 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is False
 
         mock_run.assert_called_once_with(
-            [
-                "npx",
-                "markdownlint-cli2@0.23.1",
-                "--fix",
-                "--",
-                "**/*.md",
-            ],
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "**/*.md"],
             cwd=tmp_path,
         )
+
 
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""

@@ -47,10 +47,7 @@ def drifted_lines(index_text: str, memories_dir: Path) -> list[tuple[int, str, s
     for number, line in enumerate(index_text.split("\n"), start=1):
         if "[" not in line or "](" not in line or ".md)" not in line:
             continue
-        try:
-            expected, _examined = update_line(line, memories_dir)
-        except FileNotFoundError:
-            continue
+        expected = update_line(line, memories_dir)
         if expected != line:
             drifted.append((number, line.strip(), expected.strip()))
     return drifted

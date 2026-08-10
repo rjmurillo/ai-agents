@@ -102,8 +102,6 @@ skips = []
 # `ruff format` rewrite portable `except (A, B):` into PEP 758 `except A, B:`,
 # which the 3.10 floor gate rejects. See issue #3126.
 target-version = "py310"
-extend-exclude = [".claude/hooks/PreToolUse/_vendor"]
-force-exclude = true
 line-length = 100
 
 [tool.ruff.format]

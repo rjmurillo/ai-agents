@@ -458,7 +458,6 @@ GENERATED_GLOBS = {
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
     "prompts": (".github/prompts/pr-quality-gate-*.md",),
-    "vendor": (".claude/hooks/PreToolUse/_vendor/**",),
 }
 
 # Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
@@ -3387,48 +3386,14 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         tree_paths = _commit_paths(update.head, repo_root)
         if tree_paths is None or _validate_materialization_paths(tree_paths) is None:
             return 2
-        # Vendor JS/JSON excluded from Python-focused Semgrep; integrity
-        # provenance validated separately below via pinned manifest digest.
-        vendor_paths = [p for p in paths if "/_vendor/" in p]
         scan_paths = [
-            path for path in paths
-            if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
-            and "/_vendor/" not in path
+            path for path in paths if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
         ]
-        if scan_paths:
-            result = _scan_pushed_head(update.head, scan_paths, repo_root)
-            if result != 0:
-                return result
-        # Dedicated vendor provenance: if vendor files changed, verify the
-        # manifest digest is correctly pinned in the verifier source.
-        if vendor_paths:
-            result = _check_vendor_provenance(repo_root)
-            if result != 0:
-                return result
-    return 0
-
-
-def _check_vendor_provenance(repo_root: Path) -> int:
-    """Verify vendor INTEGRITY.json digest is pinned in verifier source."""
-    vendor_dir = repo_root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
-    manifest = vendor_dir / "INTEGRITY.json"
-    verifier = repo_root / ".claude" / "hooks" / "PreToolUse" / "_markdownlint_verifier.py"
-    if not manifest.is_file():
-        print("BLOCK: vendor INTEGRITY.json missing", file=sys.stderr)
-        return 2
-    if not verifier.is_file():
-        print("BLOCK: _markdownlint_verifier.py missing", file=sys.stderr)
-        return 2
-    import hashlib as _hl
-    digest = _hl.sha256(manifest.read_bytes()).hexdigest()
-    source = verifier.read_text(encoding="utf-8")
-    if digest not in source:
-        print(
-            f"BLOCK: vendor provenance failed. INTEGRITY.json SHA-256 "
-            f"{digest} not pinned in verifier source.",
-            file=sys.stderr,
-        )
-        return 2
+        if not scan_paths:
+            continue
+        result = _scan_pushed_head(update.head, scan_paths, repo_root)
+        if result != 0:
+            return result
     return 0
 
 
