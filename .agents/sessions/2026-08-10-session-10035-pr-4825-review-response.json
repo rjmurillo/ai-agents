@@ -170,9 +170,13 @@
     {
       "task": "Process round 5 of the recursive review",
       "outcome": "A leading-wildcard glob skipped the merged prefix heuristic and a direct launch missed scope rules B and C, so ?ew_pr.py, [!x]ew_pr.py and *_pr.py all returned exit 0 against an executable lookalike. Replaced the prefix threshold with execution-position classification, reusing the machinery rule C already needs. All four executable globs now deny while echo *.py, ls src/*.py and cat n?w_pr.py stay allowed."
+    },
+    {
+      "task": "Process round 6 of the recursive review",
+      "outcome": "ANSI-C quoting reconstructed the protected basename past the naming normalization: hex, octal and leading-escape forms all returned exit 0 against an executable lookalike. Added a decoded variant to scope rule A and a fail-closed on ANSI-C quoting in execution position to rule D. All three deny now; benign echo and printf ANSI-C usage stays allowed."
     }
   ],
-  "endingCommit": "467b271c096e8a832fefd4a8df1898e1b4bcf55f",
+  "endingCommit": "9d6cfe4e686dfc02fa164719f1b744618ec0e22d",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
