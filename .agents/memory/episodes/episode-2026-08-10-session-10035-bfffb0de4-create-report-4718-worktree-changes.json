@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes",
+  "session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Create QA report for PR 4718 GC worktree changes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created an isolated worktree and aligned it to the live PR head",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran PR coordination probes",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Executed the GC regression suite",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed the diff and wrote QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T09:33:03+00:00",
+      "type": "commit",
+      "content": "Commit: 7a04a4a683926fe27cf60b0aac8fcd1b0794232d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
