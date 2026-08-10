@@ -2,11 +2,11 @@
 
 Isolation model (Issues #4346, #4457)
 --------------------------------------
-Every mutation runs inside a temporary git worktree created from HEAD. The
+Every mutation runs inside a detached git worktree created from HEAD. The
 active worktree's tracked files are NEVER written. If the test process is
 killed at any point, the active worktree stays clean and `git status --short`
-remains empty. The scratch worktree is removed in a `finally` block; if that
-also fails, git expunges it when the caller runs `git worktree prune`.
+remains empty. A durable marker blocks pre-push after SIGKILL until the stale
+scratch worktree is recovered.
 
 Three mutants and one inverted control:
 
@@ -36,9 +36,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+from scripts.testing.mutation_workspace import isolated_mutation_worktree
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
@@ -48,29 +51,6 @@ _TESTS = ["tests/test_lefthook_integration.py"]
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
 _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
-
-
-def _add_scratch_worktree(base: Path) -> Path:
-    """Create a scratch worktree from HEAD. Returns the worktree path."""
-    wt_path = base / "mutation_wt"
-    result = subprocess.run(
-        ["git", "worktree", "add", "--detach", str(wt_path), "HEAD"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=str(REPO_ROOT),
-    )
-    assert result.returncode == 0, f"git worktree add failed:\n{result.stderr}"
-    return wt_path
-
-
-def _remove_scratch_worktree(wt_path: Path) -> None:
-    """Remove the scratch worktree. Tolerates errors (git prune will clean up)."""
-    subprocess.run(
-        ["git", "worktree", "remove", "--force", str(wt_path)],
-        capture_output=True,
-        cwd=str(REPO_ROOT),
-    )
 
 
 def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
@@ -101,6 +81,7 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
             **__import__("os").environ,
             "PYTHONDONTWRITEBYTECODE": "1",
         },
+        timeout=300,
     )
 
 
@@ -138,11 +119,13 @@ def _apply_positive_mutant(
     wt_target = wt_path / _TARGET_REL
     wt_target.write_bytes(mutated)
 
-    result = _run_tests_in(wt_path)
-
-    # Restore original bytes before asserting so the restore check below
-    # always runs against the unmodified file.
-    wt_target.write_bytes(original)
+    try:
+        result = _run_tests_in(wt_path)
+    finally:
+        wt_target.write_bytes(original)
+        assert wt_target.read_bytes() == original, (
+            f"{label}: scratch worktree target was not restored to original bytes"
+        )
 
     _assert_suite_ran(result, label)
 
@@ -154,14 +137,44 @@ def _apply_positive_mutant(
     return _OUTCOME_DEAD
 
 
+def test_run_tests_uses_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        recorded.update(kwargs)
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    _run_tests_in(tmp_path)
+
+    assert recorded["timeout"] == 300
+
+
+def test_positive_mutant_restores_target_when_test_run_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original = b"before\n"
+    target = tmp_path / _TARGET_REL
+    target.parent.mkdir(parents=True)
+    target.write_bytes(original)
+
+    def raise_timeout(_wt_path: Path) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd="pytest", timeout=300)
+
+    monkeypatch.setattr(sys.modules[__name__], "_run_tests_in", raise_timeout)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        _apply_positive_mutant(tmp_path, original, b"before", b"after", "timeout")
+
+    assert target.read_bytes() == original
+
+
 @pytest.fixture()
-def scratch_worktree(tmp_path: Path):
-    """Provide a scratch git worktree; remove it after the test."""
-    wt = _add_scratch_worktree(tmp_path)
-    try:
-        yield wt
-    finally:
-        _remove_scratch_worktree(wt)
+def scratch_worktree() -> Iterator[Path]:
+    """Provide a marked scratch git worktree; remove it after the test."""
+    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
+        yield workspace.root
 
 
 def _active_target_unmodified() -> bool:
@@ -203,13 +216,6 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M1"
-    # Restore check: suite passes against the unmodified tree.
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M1-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M1.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -234,12 +240,6 @@ def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> No
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M2"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M2-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M2.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -267,12 +267,6 @@ def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) 
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M3"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M3-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M3.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +328,7 @@ def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scratch_worktree_created_and_removed(tmp_path: Path) -> None:
+def test_scratch_worktree_created_and_removed() -> None:
     """The scratch worktree fixture creates an isolated tree and removes it.
 
     Verifies that:
@@ -342,8 +336,8 @@ def test_scratch_worktree_created_and_removed(tmp_path: Path) -> None:
     - A mutation written to the scratch worktree does NOT appear in the active tree.
     - After the fixture tears down, the scratch worktree directory is gone.
     """
-    wt = _add_scratch_worktree(tmp_path)
-    try:
+    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
+        wt = workspace.root
         wt_target = wt / _TARGET_REL
         assert wt_target.exists(), "Scratch worktree missing the target file"
 
@@ -355,9 +349,5 @@ def test_scratch_worktree_created_and_removed(tmp_path: Path) -> None:
         assert sentinel not in active_bytes, (
             "Writing to scratch worktree leaked into the active worktree"
         )
-    finally:
-        _remove_scratch_worktree(wt)
 
-    assert not (tmp_path / "mutation_wt").exists(), (
-        "Scratch worktree directory still exists after removal"
-    )
+    assert not wt.exists(), "Scratch worktree directory still exists after removal"

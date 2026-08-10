@@ -127,11 +127,11 @@ def test_non_cli_steps_receive_no_credentials(smoke_job: dict[str, Any]) -> None
 def test_plugin_load_gate_rejects_any_skipped_smoke(
     smoke_job: dict[str, Any],
 ) -> None:
-    """Edge: all three plugin-load cases must run, not only the negative control."""
+    """Edge: all five plugin and agent-contract cases must run."""
     gate = _step_by_name(smoke_job, "Assert the plugin-load smoke actually ran")
     arguments = shlex.split(gate["run"])
 
     assert arguments.count("--smoke-substr") == 1
     assert arguments[arguments.index("--smoke-substr") + 1] == "test_plugin_load_smoke"
     assert arguments.count("--expected-count") == 1
-    assert arguments[arguments.index("--expected-count") + 1] == "3"
+    assert arguments[arguments.index("--expected-count") + 1] == "5"
