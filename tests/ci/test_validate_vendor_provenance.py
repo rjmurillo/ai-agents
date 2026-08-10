@@ -888,6 +888,82 @@ class TestExtensionAndConfigGaps:
         errs = _reject_markdownlint_config_injection(tmp_path)
         assert any("package.json" in e for e in errs)
 
+    def test_nested_markdownlint_cli2_cjs_rejected(self, tmp_path: Path) -> None:
+        """docs/.markdownlint-cli2.cjs is rejected (nested auto-discovery)."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / ".markdownlint-cli2.cjs").write_text("module.exports = {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any("docs/.markdownlint-cli2.cjs" in e for e in errs)
+
+    def test_nested_markdownlint_cli2_mjs_rejected(self, tmp_path: Path) -> None:
+        """templates/.markdownlint-cli2.mjs is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / "templates"
+        d.mkdir()
+        (d / ".markdownlint-cli2.mjs").write_text("export default {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any("templates/.markdownlint-cli2.mjs" in e for e in errs)
+
+    def test_nested_markdownlint_cjs_rejected(self, tmp_path: Path) -> None:
+        """packages/x/.markdownlint.cjs is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / "packages" / "x"
+        d.mkdir(parents=True)
+        (d / ".markdownlint.cjs").write_text("module.exports = {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any("packages/x/.markdownlint.cjs" in e for e in errs)
+
+    def test_nested_markdownlint_mjs_rejected(self, tmp_path: Path) -> None:
+        """packages/y/.markdownlint.mjs is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / "packages" / "y"
+        d.mkdir(parents=True)
+        (d / ".markdownlint.mjs").write_text("export default {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any("packages/y/.markdownlint.mjs" in e for e in errs)
+
+    def test_pinned_root_config_allowed(self, tmp_path: Path) -> None:
+        """The pinned root .markdownlint-cli2.yaml is NOT rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        (tmp_path / ".markdownlint-cli2.yaml").write_text("default: true\n")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert not any(".markdownlint-cli2.yaml" in e for e in errs)
+
+    def test_nested_config_triggers_relevance(self) -> None:
+        """docs/.markdownlint-cli2.cjs triggers check_relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["docs/.markdownlint-cli2.cjs"]) is True
+
+    def test_deeply_nested_config_triggers_relevance(self) -> None:
+        """packages/x/y/.markdownlint.mjs triggers check_relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["packages/x/y/.markdownlint.mjs"]) is True
+
+    def test_non_config_not_triggered(self) -> None:
+        """A regular nested file does not trigger relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["docs/README.md"]) is False
+
 
 # ── Finding 3: Hook wiring inputs ──
 

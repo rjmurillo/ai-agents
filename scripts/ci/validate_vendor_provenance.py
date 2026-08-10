@@ -993,31 +993,25 @@ _MARKDOWNLINT_CONFIG_GLOBS: tuple[str, ...] = (
 
 
 def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
-    """Reject unpinned markdownlint config in hook/vendor directories.
+    """Reject unpinned markdownlint config anywhere in the candidate tree.
 
-    markdownlint-cli2 auto-discovers config by walking up from the target.
-    An attacker placing a config inside the vendor tree could override the
-    pinned safe config.  Reject any matching filename in watched dirs that
-    is not the pinned root config.
+    markdownlint-cli2 auto-discovers config by walking up from the linted
+    file. A config placed at ANY depth (docs/, packages/x/, templates/)
+    gains Node code execution when linting files in that subtree. Reject
+    every markdownlint config basename anywhere except the one pinned root
+    config (.markdownlint-cli2.yaml).
     """
     errors: list[str] = []
     pinned_rels = {rel for rel, _, _ in _PINNED_ARTIFACTS}
-    watched_dirs = [
-        candidate / ".claude" / "hooks",
-        candidate / "src" / "copilot-cli" / "hooks",
-    ]
-    for hdir in watched_dirs:
-        if not hdir.is_dir():
+    # Walk entire candidate tree for markdownlint config names
+    for f in sorted(candidate.rglob("*")):
+        if not f.is_file():
             continue
-        for f in sorted(hdir.rglob("*")):
-            if not f.is_file():
-                continue
-            if f.name in _MARKDOWNLINT_CONFIG_GLOBS:
-                rel = str(__import__("pathlib").PurePosixPath(f.relative_to(candidate)))
-                if rel not in pinned_rels:
-                    errors.append(
-                        f"Unpinned markdownlint config: {rel} (auto-discovery attack surface)"
-                    )
+        if f.name not in _MARKDOWNLINT_CONFIG_GLOBS:
+            continue
+        rel = str(__import__("pathlib").PurePosixPath(f.relative_to(candidate)))
+        if rel not in pinned_rels:
+            errors.append(f"Unpinned markdownlint config: {rel} (auto-discovery attack surface)")
     # Also check for package.json markdownlint-cli2 config field in vendor
     pkg_json = (
         candidate / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint" / "package.json"
@@ -1034,17 +1028,6 @@ def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
                 )
         except (json.JSONDecodeError, OSError):
             pass
-    # Check root-level markdownlint config injection.
-    # markdownlint-cli2 auto-discovers config from CWD upward. Any root-level
-    # config not pinned is an injection surface.
-    for config_name in _MARKDOWNLINT_CONFIG_GLOBS:
-        root_config = candidate / config_name
-        if root_config.exists():
-            rel = config_name
-            if rel not in pinned_rels:
-                errors.append(
-                    f"Unpinned root markdownlint config: {rel} (auto-discovery attack surface)"
-                )
     return errors
 
 
@@ -1362,6 +1345,10 @@ def check_relevance(changed_files: list[str]) -> bool:
         for prefix in WATCHED_PREFIXES:
             if prefix.endswith("/") and f.startswith(prefix):
                 return True
+        # Any markdownlint config name at any depth is relevant
+        basename = f.rsplit("/", 1)[-1] if "/" in f else f
+        if basename in _MARKDOWNLINT_CONFIG_GLOBS:
+            return True
     return False
 
 
