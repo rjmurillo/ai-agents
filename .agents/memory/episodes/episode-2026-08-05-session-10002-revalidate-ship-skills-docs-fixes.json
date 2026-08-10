@@ -91,7 +91,8 @@
         "e014",
         "e016",
         "e017",
-        "e019"
+        "e019",
+        "e021"
       ],
       "leads_to": [
         "e009"
@@ -248,6 +249,30 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main, fixed session-end subprocess encoding caught by the PR guard corpus, reran targeted tests and ruff, and added branch-specific QA report for PR 4673.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T12:52:24+00:00",
+      "type": "commit",
+      "content": "Commit: 6a7be9c626b1f766048d01093a72fc2d20d3cc80",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -257,8 +282,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 3
+    "commits": 8,
+    "files_changed": 33
   },
   "lessons": []
 }

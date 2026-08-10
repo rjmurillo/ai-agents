@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, CI remediation, and newest-main merge changes committed through afe6cb3dd."
+        "Evidence": "PR code validated at 6a7be9c626b1f766048d01093a72fc2d20d3cc80 before QA evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final full suite, focused tests, static gates, mutations, generators, drift, independent review, and pre_pr passed."
+        "Evidence": "QA rerun after merging origin/main and fixing session-end subprocess encoding: pytest collected 742 and passed 742 across quality assessment, GitHub discourse, guard diff, reviewer signal, GitHub core, and build gate tests. Ruff passed on changed Python files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "rework-warning: .claude/skills/code-qualities-assessment/scripts/assess.py edited 8 times\nrework-warning: src/copilot-cli/skills/code-qualities-assessment/scripts/assess.py edited 8 times\nrework-warning: .claude/skills/code-qualities-assessment/tests/test_assess.py edited 6 times\nrework-warning: .claude/skills/github/scripts/pr/get_pr_reviewers.py edited 6 times\nrework-warning: src/copilot-cli/skills/code-qualities-assessment/tests/test_assess.py edited 6 times\nrework-warning: src/copilot-cli/skills/github/scripts/pr/get_pr_reviewers.py edited 6 times\nrework-warning: tests/test_get_pr_reviewers.py edited 6 times"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4673-qa.md"
       }
     }
   },
@@ -154,9 +159,13 @@
     {
       "task": "Repair CI-only failure",
       "result": "Removed a duplicate historical-SHA rename test that failed in shallow CI, retained synthetic rename coverage, and updated the guard corpus after the author lookup moved to GraphQL."
+    },
+    {
+      "phase": "qa-evidence",
+      "summary": "Merged current origin/main, fixed session-end subprocess encoding caught by the PR guard corpus, reran targeted tests and ruff, and added branch-specific QA report for PR 4673."
     }
   ],
-  "endingCommit": "afe6cb3dd",
+  "endingCommit": "6a7be9c626b1f766048d01093a72fc2d20d3cc80",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",
