@@ -4,7 +4,7 @@
     "number": 4604,
     "date": "2026-08-10",
     "branch": "autofix-qa-4604",
-    "startingCommit": "cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40",
+    "startingCommit": "eb3171023b5e174e02d34cb67bd8fd479e3450a4",
     "objective": "Add QA evidence for PR 4604 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40"
+        "Evidence": "eb3171023b5e174e02d34cb67bd8fd479e3450a4"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/test_lefthook_integration.py -q passed with 824 passed in 27.83s."
+        "Evidence": "uv run --frozen pytest tests/test_lefthook_integration.py -q passed with 824 passed in 25.58s after merging origin/main."
       },
       "qaValidation": {
         "level": "MUST",
@@ -115,6 +115,10 @@
     {
       "time": "2026-08-10T11:30:00Z",
       "entry": "Created QA report bound to pre-report code commit cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to eb3171023b5e174e02d34cb67bd8fd479e3450a4."
     }
   ],
   "endingCommit": "",
@@ -123,8 +127,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "2e81f1ce3d246913b3161bb85a56598257b2fd47",
-      "head": "cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40"
+      "base": "65285ad8d162225e5e3f89f217d75a5a08d67c38",
+      "head": "eb3171023b5e174e02d34cb67bd8fd479e3450a4"
     }
   }
 }

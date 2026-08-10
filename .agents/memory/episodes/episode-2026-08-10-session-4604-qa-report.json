@@ -12,7 +12,9 @@
       "timestamp": "2026-08-10T11:20:00+00:00",
       "type": "milestone",
       "content": "Acquired pr_autofix lease for PR 4604 and live-state gate returned ACT.",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [
         "e002",
         "e003"
@@ -54,16 +56,40 @@
         "e002",
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4604-qa-report"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T12:50:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main, reran targeted tests, and rebound QA report to eb3171023b5e174e02d34cb67bd8fd479e3450a4.",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-10-session-4604-qa-report"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T09:33:08+00:00",
+      "type": "commit",
+      "content": "Commit: cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
       "_source_session": "2026-08-10-session-4604-qa-report"
     }
   ],
   "metrics": {
-    "duration_minutes": 10,
+    "duration_minutes": 90,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 2
   },
   "lessons": []

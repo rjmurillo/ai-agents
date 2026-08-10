@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4604-qa-report.json
-qaCommit: cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40
+qaCommit: eb3171023b5e174e02d34cb67bd8fd479e3450a4
 ---
 
 # QA Report: PR 4604
@@ -10,7 +10,7 @@ qaCommit: cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40
 
 - PR: #4604
 - Branch: `fix/root-scratch-guard`
-- Pre-report code commit: `cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40`
+- Pre-report code commit: `eb3171023b5e174e02d34cb67bd8fd479e3450a4`
 - Session log: `.agents/sessions/2026-08-10-session-4604-qa-report.json`
 - Change area: Root scratch guard in hook policy and lefthook integration.
 
@@ -24,7 +24,7 @@ qaCommit: cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40
 
 | Command | Result |
 |---------|--------|
-| `uv run --frozen pytest tests/test_lefthook_integration.py -q` | PASS, 824 passed in 27.83s |
+| `uv run --frozen pytest tests/test_lefthook_integration.py -q` | PASS, 824 passed in 25.58s |
 
 ## Validator evidence
 
@@ -33,4 +33,4 @@ qaCommit: cb4a5cd7bf2ee08e40b84683f5524cfbafc66c40
 
 ## Verdict
 
-PASS. Targeted tests passed against pre-report code commit `cb4a5cd7bf2e`.
+PASS. Targeted tests passed against pre-report code commit `eb3171023b5e`.
