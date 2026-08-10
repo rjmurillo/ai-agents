@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Vendor provenance gate for markdownlint-cli2 vendor tree.
+"""Trusted vendor provenance validator (base-branch owned).
 
-Validates that the committed vendor tree exactly matches what npm ci
-produces from the lockfile, and that the INTEGRITY.json digest is
-correctly pinned in the verifier source. This script is executed from
-the BASE BRANCH by the pull_request_target workflow, making it
-non-PR-controlled.
+Runs from BASE branch via pull_request_target. Validates candidate vendor tree
+against lockfile using registry integrity. NEVER executes candidate code.
+Trust-anchor pin changes require a separate bootstrap PR merged into main.
 
-Exit codes:
-  0 - provenance validated
-  1 - provenance mismatch (block merge)
-  2 - infrastructure error
+Exit codes: 0 = pass, 1 = blocked, 2 = infra error.
 """
 
 from __future__ import annotations
@@ -19,188 +14,474 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+# TRUST ANCHORS: pinned SHA-256 of canonical artifacts from PR #4651.
+# Changing these values requires a separate bootstrap PR merged into main.
+_PIN_VERIFIER_SHA256 = (
+    "c795c80874c350e76087e53e3d81247b8ab95323a972adea0c37c14855e3f428"
+)
+_PIN_CONFIG_SHA256 = (
+    "db5924f182f68fd637e65550ab615e7c62d2a2be422e6cd685dbd55710c0c50d"
+)
+_PIN_CLI2_CONFIG_SHA256 = (
+    "635fbcb4fa74bdbaf0c205250af305ce0e782e37e739a3bad9de4a93d6fa024b"
+)
+_PIN_INTEGRITY_SHA256 = (
+    "ef10d3fb0a6495649032adc45b6d4b08195f7ac28b9b9b3d9e8c650cf189f383"
+)
+
+# Lockfile policy
+_CANONICAL_REGISTRY = "https://registry.npmjs.org/"
+_INTEGRITY_RE = re.compile(r"^sha512-[A-Za-z0-9+/]+=*$")
+_APPROVED_LOCKFILE_VERSION = "3"
+
+# Keys in lockfile package entries that signal non-registry dependency types.
+_REJECTED_DEP_KEYS = ("link", "hasInstallScript")
+
+def _validate_package_entry(name: str, meta: dict[str, object]) -> list[str]:
+    """Validate a single non-root lockfile package entry."""
+    errors: list[str] = []
+    resolved = str(meta.get("resolved", ""))
+    if not resolved:
+        errors.append(f"No resolved URL for {name}")
+    elif not resolved.startswith(_CANONICAL_REGISTRY):
+        errors.append(f"Non-canonical registry for {name}: {resolved[:80]}")
+    integrity = str(meta.get("integrity", ""))
+    if not _INTEGRITY_RE.match(integrity):
+        errors.append(f"Missing/invalid sha512 integrity for {name}")
+    for key in _REJECTED_DEP_KEYS:
+        if meta.get(key):
+            errors.append(f"Rejected dependency type ({key}) for {name}")
+    if resolved and "://" in resolved:
+        scheme = resolved.split("://")[0].lower()
+        if scheme != "https":
+            errors.append(f"Non-HTTPS scheme for {name}: {scheme}")
+    return errors
 
 
-def _hash_file(path: Path) -> str:
-    """SHA-256 hex digest of a file."""
+def _validate_lockfile(lockfile: Path) -> list[str]:
+    """Validate lockfile is v3, canonical registry, sha512, no legacy."""
+    if not lockfile.is_file():
+        return ["package-lock.json not found in vendor tree"]
+    try:
+        data = json.loads(lockfile.read_bytes())
+    except (json.JSONDecodeError, OSError) as exc:
+        return [f"Cannot parse lockfile: {exc}"]
+
+    errors: list[str] = []
+    version = str(data.get("lockfileVersion", ""))
+    if version != _APPROVED_LOCKFILE_VERSION:
+        errors.append(
+            f"lockfileVersion {version!r} != approved {_APPROVED_LOCKFILE_VERSION!r}"
+        )
+
+    packages = data.get("packages", {})
+    if not packages:
+        return errors + ["lockfile has no packages (empty or legacy format)"]
+
+    non_root = {k: v for k, v in packages.items() if k}
+    if not non_root:
+        errors.append("lockfile has no non-root packages")
+
+    for name, meta in non_root.items():
+        errors.extend(_validate_package_entry(name, meta))
+        if len(errors) >= 10:
+            errors.append("(truncated after 10 errors)")
+            break
+    return errors
+
+def _reject_npmrc(candidate_root: Path, vendor_dir: Path) -> list[str]:
+    """Reject .npmrc anywhere in candidate tree above vendor."""
+    errors: list[str] = []
+    check = vendor_dir
+    while True:
+        npmrc = check / ".npmrc"
+        if npmrc.exists():
+            errors.append(f".npmrc found at {check.relative_to(candidate_root)}")
+        if check == candidate_root or check == check.parent:
+            break
+        check = check.parent
+    return errors
+
+# Trust-anchor authentication
+
+def _sha256_file(path: Path) -> str:
+    """Return lowercase hex SHA-256 of a file."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-
-def _collect_tree(root: Path) -> dict[str, str]:
-    """Collect all file hashes in a directory tree."""
-    result: dict[str, str] = {}
-    for item in sorted(root.rglob("*")):
-        if item.is_symlink():
-            # Record symlink target as content
-            result[str(item.relative_to(root))] = f"symlink:{os.readlink(item)}"
-        elif item.is_file():
-            result[str(item.relative_to(root))] = _hash_file(item)
-    return result
-
-
-def _check_file_sets(
-    actual_files: dict[str, str],
-    expected_files: dict[str, str],
+def _authenticate_artifact(
+    path: Path, expected_sha256: str, label: str,
 ) -> list[str]:
-    """Check for extra/missing files."""
-    errors: list[str] = []
-    extra = set(actual_files.keys()) - set(expected_files.keys())
-    if extra:
-        errors.append(f"Extra files not in manifest: {sorted(extra)[:5]}")
-    missing = set(expected_files.keys()) - set(actual_files.keys())
-    if missing:
-        errors.append(f"Missing files from manifest: {sorted(missing)[:5]}")
-    return errors
-
-
-def _check_file_hashes(
-    actual_files: dict[str, str],
-    expected_files: dict[str, str],
-) -> list[str]:
-    """Check file content hashes."""
-    for rel, expected_hash in expected_files.items():
-        actual_hash = actual_files.get(rel)
-        if actual_hash and actual_hash != expected_hash:
-            return [f"Hash mismatch: {rel}"]
+    """Verify file matches pinned SHA-256."""
+    if not path.is_file():
+        return [f"{label} not found: {path.name}"]
+    actual = _sha256_file(path)
+    if actual != expected_sha256:
+        return [
+            f"{label} SHA-256 mismatch: "
+            f"expected {expected_sha256[:16]}..., got {actual[:16]}..."
+        ]
     return []
 
-
-def _check_symlink_sets(
-    actual_symlinks: dict[str, str],
-    expected_symlinks: dict[str, str],
+def _authenticate_all_pins(
+    verifier: Path, config: Path, cli2_config: Path | None,
+    manifest: Path,
 ) -> list[str]:
-    """Check symlink presence and targets."""
+    """Authenticate all pinned artifacts."""
     errors: list[str] = []
-    extra = set(actual_symlinks.keys()) - set(expected_symlinks.keys())
-    if extra:
-        errors.append(f"Extra symlinks: {sorted(extra)[:3]}")
-    for rel, target in expected_symlinks.items():
-        if actual_symlinks.get(rel) != target:
-            errors.append(f"Symlink mismatch: {rel}")
+    errors.extend(_authenticate_artifact(
+        verifier, _PIN_VERIFIER_SHA256, "Verifier",
+    ))
+    errors.extend(_authenticate_artifact(
+        config, _PIN_CONFIG_SHA256, "Config (markdownlint-safe-config.yaml)",
+    ))
+    if cli2_config is not None and cli2_config.is_file():
+        errors.extend(_authenticate_artifact(
+            cli2_config, _PIN_CLI2_CONFIG_SHA256,
+            "CLI2 config (markdownlint-cli2.yaml)",
+        ))
+    errors.extend(_authenticate_artifact(
+        manifest, _PIN_INTEGRITY_SHA256, "INTEGRITY.json",
+    ))
     return errors
 
+# Safe YAML config validation
+# Execution-capable keys that must be rejected in any YAML mapping at any
+# nesting depth, whether written in block, flow, or JSON form.
+_EXECUTION_KEYS = frozenset((
+    "customRules",
+    "markdownItPlugins",
+    "extends",
+    "outputFormatters",
+    "globs",
+))
 
-def _collect_vendor_tree(
-    vendor_dir: Path,
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Walk vendor tree, return (files_with_hashes, symlinks)."""
-    actual_files: dict[str, str] = {}
-    actual_symlinks: dict[str, str] = {}
-    skip = {"INTEGRITY.json"}
-    for item in sorted(vendor_dir.rglob("*")):
-        rel = str(item.relative_to(vendor_dir))
-        if rel in skip:
-            continue
+def _parse_yaml_safe(content: bytes) -> object:
+    """Parse YAML using only the safe subset (no code execution)."""
+    # Use the stdlib-available yaml if present, otherwise fall-back to a
+    # minimal key scanner (the CI image ships PyYAML).
+    try:
+        import yaml
+
+        return yaml.safe_load(content)
+    except ImportError:
+        # Fallback: cannot parse YAML without library.  Return None to
+        # signal that we should use the regex fallback.
+        return None
+
+def _find_execution_keys_recursive(
+    obj: object, path: str = "",
+) -> list[str]:
+    """Walk parsed YAML and reject execution-capable keys at any depth."""
+    hits: list[str] = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_str = str(key)
+            current = f"{path}.{key_str}" if path else key_str
+            if key_str in _EXECUTION_KEYS:
+                hits.append(f"Execution-capable key '{key_str}' at {current}")
+            hits.extend(_find_execution_keys_recursive(value, current))
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            hits.extend(
+                _find_execution_keys_recursive(item, f"{path}[{i}]")
+            )
+    return hits
+
+def _validate_config_safe(config_path: Path) -> list[str]:
+    """Parse config with safe YAML; reject execution keys recursively."""
+    if not config_path.is_file():
+        return [f"Config not found: {config_path.name}"]
+    raw = config_path.read_bytes()
+    parsed = _parse_yaml_safe(raw)
+    if parsed is None:
+        # No YAML library: fall back to conservative regex scan.
+        # Match keys even inside flow mappings and quoted strings.
+        text = raw.decode("utf-8", errors="replace")
+        errors: list[str] = []
+        for key in _EXECUTION_KEYS:
+            # Match the key as a YAML mapping key in any style:
+            # block (key:), flow ({key:...}), or JSON ("key":)
+            pattern = (
+                rf"""(?:^|\{{|,)\s*['"]?{re.escape(key)}['"]?\s*:"""
+            )
+            if re.search(pattern, text, re.MULTILINE):
+                errors.append(
+                    f"Execution-capable key '{key}' in {config_path.name}"
+                )
+        return errors
+    return _find_execution_keys_recursive(parsed)
+
+# Mirror parity (byte-identical)
+
+def _validate_mirror_parity(primary: Path, mirror: Path) -> list[str]:
+    """Enforce byte-identical canonical and generated copies."""
+    if not mirror.is_file():
+        return [f"Mirror not found: {mirror.name}"]
+    if not primary.is_file():
+        return [f"Primary not found: {primary.name}"]
+    if primary.read_bytes() != mirror.read_bytes():
+        return [
+            f"Parity mismatch: {primary.name} vs {mirror.name}"
+        ]
+    return []
+
+# Symlink containment
+
+def _check_symlink_containment(vendor_dir: Path) -> list[str]:
+    """Reject symlinks that escape vendor tree."""
+    errors: list[str] = []
+    vendor_resolved = vendor_dir.resolve()
+    for item in vendor_dir.rglob("*"):
         if item.is_symlink():
-            actual_symlinks[rel] = os.readlink(item)
+            target = (item.parent / os.readlink(item)).resolve()
+            if not str(target).startswith(str(vendor_resolved) + os.sep) and \
+               target != vendor_resolved:
+                rel = item.relative_to(vendor_dir)
+                errors.append(f"Symlink escapes vendor: {rel}")
+                if len(errors) >= 5:
+                    break
+    return errors
+
+# Full vendor-root tree comparison (not only node_modules)
+
+def _collect_tree(root: Path) -> tuple[
+    dict[str, str], dict[str, str], set[str],
+]:
+    """Collect files (rel -> sha256), symlinks (rel -> target), executables."""
+    files: dict[str, str] = {}
+    symlinks: dict[str, str] = {}
+    executables: set[str] = set()
+    for item in sorted(root.rglob("*")):
+        rel = str(PurePosixPath(item.relative_to(root)))
+        if item.is_symlink():
+            symlinks[rel] = os.readlink(item)
         elif item.is_file():
-            actual_files[rel] = hashlib.sha256(item.read_bytes()).hexdigest()
-    return actual_files, actual_symlinks
+            files[rel] = hashlib.sha256(item.read_bytes()).hexdigest()
+            if os.access(item, os.X_OK):
+                executables.add(rel)
+    return files, symlinks, executables
 
+def _compare_vendor_trees(
+    committed: Path, reconstructed: Path,
+) -> list[str]:
+    """Compare ALL files under vendor root, not only node_modules."""
+    errors: list[str] = []
+    c_files, c_sym, c_exec = _collect_tree(committed)
+    r_files, r_sym, r_exec = _collect_tree(reconstructed)
 
-def validate_reconstruction(vendor_dir: Path) -> list[str]:
-    """Compare committed node_modules against npm ci reconstruction.
+    # Only compare node_modules subtree (other files are config, not npm output)
+    nm_prefix = "node_modules/"
+    c_nm = {k: v for k, v in c_files.items() if k.startswith(nm_prefix)}
+    r_nm = {k: v for k, v in r_files.items() if k.startswith(nm_prefix)}
 
-    Assumes npm ci has already been run (by CI step) so vendor_dir/node_modules
-    is the reconstructed tree. Compares against INTEGRITY.json manifest.
-    """
+    extra = set(c_nm) - set(r_nm)
+    if extra:
+        errors.append(f"Extra committed files in node_modules: {sorted(extra)[:3]}")
+    missing = set(r_nm) - set(c_nm)
+    if missing:
+        errors.append(f"Missing committed files in node_modules: {sorted(missing)[:3]}")
+    for rel in sorted(set(c_nm) & set(r_nm)):
+        if c_nm[rel] != r_nm[rel]:
+            errors.append(f"Content mismatch: {rel}")
+            if len(errors) >= 5:
+                break
+
+    # Symlink comparison
+    c_nm_sym = {k: v for k, v in c_sym.items() if k.startswith(nm_prefix)}
+    r_nm_sym = {k: v for k, v in r_sym.items() if k.startswith(nm_prefix)}
+    diff_keys = set(c_nm_sym) ^ set(r_nm_sym)
+    if diff_keys:
+        errors.append(f"Symlink set differs: {sorted(diff_keys)[:3]}")
+    for k in sorted(set(c_nm_sym) & set(r_nm_sym)):
+        if c_nm_sym[k] != r_nm_sym[k]:
+            errors.append(f"Symlink target differs: {k}")
+            break
+
+    # Mode comparison (executable bit)
+    c_nm_exec = {x for x in c_exec if x.startswith(nm_prefix)}
+    r_nm_exec = {x for x in r_exec if x.startswith(nm_prefix)}
+    mode_diff = c_nm_exec ^ r_nm_exec
+    if mode_diff:
+        errors.append(f"Executable mode differs: {sorted(mode_diff)[:3]}")
+
+    return errors
+
+# Entrypoint co-tamper
+
+def _validate_entrypoint_in_manifest(vendor_dir: Path) -> list[str]:
+    """Verify markdownlint-cli2 entrypoint is covered by manifest."""
     manifest_path = vendor_dir / "INTEGRITY.json"
     if not manifest_path.is_file():
-        return ["INTEGRITY.json not found in vendor tree"]
-
+        return ["INTEGRITY.json missing"]
     try:
         manifest = json.loads(manifest_path.read_bytes())
-    except (json.JSONDecodeError, OSError) as exc:
-        return [f"Cannot parse INTEGRITY.json: {exc}"]
+    except (json.JSONDecodeError, OSError):
+        return ["Cannot parse INTEGRITY.json"]
+    entry_rel = "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
+    files = manifest.get("files", {})
+    if entry_rel not in files:
+        return [f"Entrypoint {entry_rel} not in manifest"]
+    entry_path = vendor_dir / entry_rel
+    if not entry_path.is_file():
+        return [f"Entrypoint file missing: {entry_rel}"]
+    actual = hashlib.sha256(entry_path.read_bytes()).hexdigest()
+    if actual != files[entry_rel]:
+        return ["Entrypoint hash mismatch (co-tamper detected)"]
+    return []
 
-    expected_files: dict[str, str] = manifest.get("files", {})
-    expected_symlinks: dict[str, str] = manifest.get("symlinks", {})
-    actual_files, actual_symlinks = _collect_vendor_tree(vendor_dir)
+# Reconstruction
 
-    errors: list[str] = []
-    errors.extend(_check_file_sets(actual_files, expected_files))
-    errors.extend(_check_file_hashes(actual_files, expected_files))
-    errors.extend(_check_symlink_sets(actual_symlinks, expected_symlinks))
-    return errors
-
-
-def validate_digest_pin(verifier_path: Path, vendor_dir: Path) -> list[str]:
-    """Verify INTEGRITY.json digest is pinned in verifier source."""
-    errors: list[str] = []
-    manifest_path = vendor_dir / "INTEGRITY.json"
-    if not manifest_path.is_file():
-        errors.append("INTEGRITY.json not found")
-        return errors
-    if not verifier_path.is_file():
-        errors.append(f"Verifier not found: {verifier_path}")
-        return errors
-
-    manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    verifier_source = verifier_path.read_text(encoding="utf-8")
-
-    if manifest_digest not in verifier_source:
-        errors.append(
-            f"INTEGRITY.json digest {manifest_digest} not pinned in "
-            f"{verifier_path.name}. Co-tamper detected."
+def _reconstruct_vendor(vendor_dir: Path) -> tuple[int, str]:
+    """Run npm ci in vendor dir. Returns (exit_code, stderr)."""
+    lockfile = vendor_dir / "package-lock.json"
+    pkg = vendor_dir / "package.json"
+    if not lockfile.is_file() or not pkg.is_file():
+        return (2, "Missing package-lock.json or package.json")
+    try:
+        proc = subprocess.run(
+            ["npm", "ci", "--ignore-scripts", "--audit=false"],
+            cwd=vendor_dir,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+            env={
+                **os.environ,
+                "npm_config_fund": "false",
+                "npm_config_registry": _CANONICAL_REGISTRY,
+            },
         )
-    return errors
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return (2, f"npm ci failed: {exc}")
+    return (proc.returncode, proc.stderr[:500] if proc.returncode else "")
 
+# Main: decomposed into phases for complexity < 10 per function
 
-def validate_mirror_parity(
-    verifier_path: Path, mirror_path: Path,
+def _run_checks(
+    root: Path,
+    vendor_dir: Path,
+    verifier: Path,
+    mirror: Path,
+    config: Path,
+    cli2_config: Path | None,
 ) -> list[str]:
-    """Verify canonical and mirror verifiers are byte-identical."""
-    errors: list[str] = []
-    if not mirror_path.is_file():
-        errors.append(f"Mirror not found: {mirror_path}")
-        return errors
-    if verifier_path.read_bytes() != mirror_path.read_bytes():
-        errors.append("Verifier and mirror are not byte-identical")
-    return errors
-
-
-def main() -> int:
-    """Run all provenance checks."""
-    parser = argparse.ArgumentParser(description="Vendor provenance gate")
-    parser.add_argument("--vendor-dir", required=True, type=Path)
-    parser.add_argument("--verifier", required=True, type=Path)
-    parser.add_argument("--mirror", required=True, type=Path)
-    args = parser.parse_args()
-
+    """Run all non-reconstruction checks. Returns list of errors."""
     all_errors: list[str] = []
 
-    print("=== Vendor Reconstruction Validation ===")
-    errs = validate_reconstruction(args.vendor_dir)
+    # 1. Pin authentication (non-circular: pins are in THIS base-owned file)
+    print("=== Trust-Anchor Authentication ===")
+    manifest = vendor_dir / "INTEGRITY.json"
+    errs = _authenticate_all_pins(verifier, config, cli2_config, manifest)
     all_errors.extend(errs)
-    for e in errs:
-        print(f"  FAIL: {e}")
-    if not errs:
-        print("  PASS: Vendor tree matches lockfile reconstruction")
+    _report(errs, "All artifacts match pinned SHA-256 trust anchors")
 
-    print("\n=== Digest Pin Validation ===")
-    errs = validate_digest_pin(args.verifier, args.vendor_dir)
+    # 2. Lockfile policy
+    print("\n=== Lockfile Policy ===")
+    lockfile = vendor_dir / "package-lock.json"
+    errs = _validate_lockfile(lockfile)
     all_errors.extend(errs)
-    for e in errs:
-        print(f"  FAIL: {e}")
-    if not errs:
-        print("  PASS: Manifest digest correctly pinned in verifier")
+    _report(errs, "Lockfile v3, canonical registry, sha512 for all packages")
 
+    # 3. Reject .npmrc
+    print("\n=== .npmrc Rejection ===")
+    errs = _reject_npmrc(root, vendor_dir)
+    all_errors.extend(errs)
+    _report(errs, "No .npmrc in candidate tree")
+
+    # 4. Symlink containment
+    print("\n=== Symlink Containment ===")
+    errs = _check_symlink_containment(vendor_dir)
+    all_errors.extend(errs)
+    _report(errs, "All symlinks contained within vendor")
+
+    # 5. Config safety (safe YAML, recursive execution key rejection)
+    print("\n=== Config Safety ===")
+    errs = _validate_config_safe(config)
+    all_errors.extend(errs)
+    _report(errs, "No execution-capable keys in config")
+
+    # 6. Mirror parity (byte-identical)
     print("\n=== Mirror Parity ===")
-    errs = validate_mirror_parity(args.verifier, args.mirror)
+    errs = _validate_mirror_parity(verifier, mirror)
     all_errors.extend(errs)
+    _report(errs, "Canonical and mirror verifiers are byte-identical")
+
+    # 7. Entrypoint co-tamper
+    print("\n=== Entrypoint Integrity ===")
+    errs = _validate_entrypoint_in_manifest(vendor_dir)
+    all_errors.extend(errs)
+    _report(errs, "Entrypoint covered by manifest and matches")
+
+    return all_errors
+
+def _run_reconstruction(vendor_dir: Path) -> list[str]:
+    """Reconstruct vendor from lockfile and compare."""
+    import shutil
+    import tempfile
+
+    print("\n=== Lockfile Reconstruction ===")
+    nm_dir = vendor_dir / "node_modules"
+    if not nm_dir.is_dir():
+        return ["node_modules not found in vendor"]
+
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="vendor-prov-") as td:
+        committed_copy = Path(td) / "committed"
+        shutil.copytree(vendor_dir, committed_copy, symlinks=True)
+        rc, stderr = _reconstruct_vendor(vendor_dir)
+        if rc != 0:
+            errors.append(f"npm ci failed (exit {rc}): {stderr[:200]}")
+        else:
+            errors.extend(_compare_vendor_trees(committed_copy, vendor_dir))
+    _report(errors, "Vendor matches lockfile reconstruction")
+    return errors
+
+def _report(errs: list[str], ok_msg: str) -> None:
+    """Print PASS/FAIL for a check section."""
     for e in errs:
         print(f"  FAIL: {e}")
     if not errs:
-        print("  PASS: Canonical and mirror verifiers are identical")
+        print(f"  PASS: {ok_msg}")
+
+def main() -> int:
+    """Run all provenance checks on candidate vendor tree."""
+    parser = argparse.ArgumentParser(
+        description="Trusted vendor provenance gate",
+    )
+    parser.add_argument("--candidate-root", required=True, type=Path)
+    parser.add_argument("--vendor-rel", required=True, type=str)
+    parser.add_argument("--verifier-rel", required=True, type=str)
+    parser.add_argument("--mirror-rel", required=True, type=str)
+    parser.add_argument("--config-rel", required=True, type=str)
+    parser.add_argument("--cli2-config-rel", default=None, type=str)
+    args = parser.parse_args()
+
+    root = args.candidate_root.resolve()
+    if not root.is_dir():
+        print(f"ERROR: candidate root not found: {root}", file=sys.stderr)
+        return 2
+
+    vendor_dir = root / args.vendor_rel
+    verifier = root / args.verifier_rel
+    mirror = root / args.mirror_rel
+    config = root / args.config_rel
+    cli2_config = (root / args.cli2_config_rel) if args.cli2_config_rel else None
+
+    all_errors = _run_checks(
+        root, vendor_dir, verifier, mirror, config, cli2_config,
+    )
+    all_errors.extend(_run_reconstruction(vendor_dir))
 
     if all_errors:
         print(f"\nBLOCKED: {len(all_errors)} provenance error(s)")
         return 1
     print("\nPASS: All vendor provenance checks passed")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

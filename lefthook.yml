@@ -447,20 +447,14 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
             glob: [".serena/memories/**/*.md", "scripts/ci/memory_index_count_baseline.txt"]
-          - name: memory-index-token-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
-            glob: [".serena/memories/**/*.md"]
           - name: cli-exit-contract-ratchet
             timeout: 5m
             run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
             glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
-
-          - name: memory-token-check
+          - name: memory-index-token-ratchet
             timeout: 5m
-            run: uv run --frozen python scripts/update_memory_index_tokens.py --check
-            glob: ".serena/memories/**/*.md"
-
+            run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
+            glob: [".serena/memories/**/*.md"]
           - name: python-unreachable-statements
             timeout: 2m
             run: uv run --frozen python scripts/validation/check_unreachable_after_terminator.py .
@@ -543,7 +537,8 @@ pre-push:
 
           - name: hook-anchoring-e2e
             timeout: 20m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e --files {push_files}
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e
+            use_stdin: true
             glob:
               - "build/scripts/generate_hooks.py"
               - "src/copilot-cli/hooks/**"
@@ -555,7 +550,8 @@ pre-push:
 
           - name: plugin-load-e2e
             timeout: 20m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e --files {push_files}
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
+            use_stdin: true
             glob:
               - ".claude/.claude-plugin/plugin.json"
               - ".claude/commands/**"

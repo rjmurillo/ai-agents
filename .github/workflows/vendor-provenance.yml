@@ -1,16 +1,15 @@
-# Vendor Provenance Gate
+# Vendor Provenance Gate (Trusted Base-Branch Validator)
 #
-# Reconstructs the vendored markdownlint-cli2 tree from its package-lock.json
-# using npm ci with registry integrity verification, then compares
-# byte-for-byte against the committed vendor tree. Security model:
-# - npm ci verifies package tarballs against lockfile integrity hashes
-# - Reconstruction produces canonical content independent of PR changes
-# - If attacker tampers vendor JS, manifest, or pin, npm ci reconstruction
-#   will not match (lockfile integrity is registry-signed)
-# - Branch protection requires this check to pass before merge
+# Security architecture:
+# - Uses pull_request_target: workflow YAML executes from BASE branch (main)
+# - Validator script is from base branch checkout only
+# - Candidate data fetched via git (no actions/checkout for PR head)
+# - NO candidate code is ever executed
+# - persist-credentials: false on the single checkout
 #
-# Trigger: any change to vendor tree, lockfile, manifest, verifier, config,
-# generator, or mirror paths.
+# Once merged and configured as a required status check, this gate prevents
+# any PR from merging tampered vendor content regardless of what that PR
+# modifies in its own workflow or validator copies.
 
 name: Vendor Provenance
 
@@ -18,7 +17,7 @@ permissions:
   contents: read
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
     paths:
       - '.claude/hooks/PreToolUse/_vendor/**'
@@ -33,6 +32,7 @@ on:
     branches: [main]
     paths:
       - '.claude/hooks/PreToolUse/_vendor/**'
+      - 'scripts/ci/validate_vendor_provenance.py'
 
 jobs:
   provenance:
@@ -41,45 +41,37 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout repository
+      # Checkout base branch (trusted code only)
+      - name: Checkout trusted code (base branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.base_ref || github.ref_name }}
+          persist-credentials: false
 
-      # Network-dependent steps require npm registry access.
-      # Skipped under act (local runner) where registry is unreliable.
+      # Fetch candidate commit and extract data via git (no checkout action)
+      - name: Fetch candidate data via git
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Fine-grained PAT for cross-fork PR head fetches (rate limits, private forks).
+          # Falls back to implicit GITHUB_TOKEN when unset.
+          GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
+        run: |
+          git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}"             fetch --depth=1 origin "$PR_SHA"
+          mkdir -p /tmp/candidate
+          git archive "$PR_SHA" | tar -x -C /tmp/candidate
+
       - name: Setup Node.js
-        if: ${{ !env.ACT }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '20'
 
-      - name: Save committed vendor hashes
-        run: |
-          find .claude/hooks/PreToolUse/_vendor/markdownlint/node_modules -type f \
-            -exec sha256sum {} \; | sort > /tmp/committed-hashes.txt
-
-      - name: Reconstruct vendor from lockfile (integrity-verified)
-        if: ${{ !env.ACT }}
-        run: |
-          cd .claude/hooks/PreToolUse/_vendor/markdownlint
-          rm -rf node_modules
-          npm ci --ignore-scripts --audit=false
-        env:
-          npm_config_fund: 'false'
-
-      - name: Compare reconstruction against committed tree
-        if: ${{ !env.ACT }}
-        run: |
-          find .claude/hooks/PreToolUse/_vendor/markdownlint/node_modules -type f \
-            -exec sha256sum {} \; | sort > /tmp/reconstructed-hashes.txt
-          if ! diff /tmp/committed-hashes.txt /tmp/reconstructed-hashes.txt; then
-            echo "FAIL: Vendor tree does not match lockfile reconstruction"
-            exit 1
-          fi
-          echo "PASS: Vendor tree matches lockfile reconstruction"
-
-      - name: Validate manifest digest pinned in verifier
+      # Run trusted validator (from base branch) against candidate data
+      - name: Validate vendor provenance (trusted gate)
         run: |
           python3 scripts/ci/validate_vendor_provenance.py \
-            --vendor-dir .claude/hooks/PreToolUse/_vendor/markdownlint \
-            --verifier .claude/hooks/PreToolUse/_markdownlint_verifier.py \
-            --mirror src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py
+            --candidate-root /tmp/candidate \
+            --vendor-rel .claude/hooks/PreToolUse/_vendor/markdownlint \
+            --verifier-rel .claude/hooks/PreToolUse/_markdownlint_verifier.py \
+            --mirror-rel src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py \
+            --config-rel .claude/hooks/PreToolUse/markdownlint-safe-config.yaml \
+            --cli2-config-rel .claude/hooks/PreToolUse/markdownlint-cli2.yaml
