@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800, bcb4c920, 0f3eee31"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800, bcb4c920, 0f3eee31, ea2844d3, a1bda218"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed for changed Python files; focused validator and pre-PR session tests passed 51 tests; merge-tree ratchet passed at 0f3eee31fcaa2cf59887282c3fdd71c9a4eb10d7"
+        "Evidence": "Ruff passed for changed Python files; focused new_pr and session validation suites passed 139 tests; merge-tree ratchet passed at a1bda218d4396fef2e957377eeeb36ff943221d4"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -195,9 +195,13 @@
     {
       "task": "Merge main and clear merge-tree ratchet",
       "outcome": "Merged origin/main, split pre-PR scope tests below taste limits, and merge-tree ratchet passed"
+    },
+    {
+      "task": "Merge push-pr trust boundary from main",
+      "outcome": "Accepted the mainline no-repository-validator policy for /push-pr, kept validation-head resolution where still used, and 139 focused tests pass"
     }
   ],
-  "endingCommit": "0f3eee31fcaa2cf59887282c3fdd71c9a4eb10d7",
+  "endingCommit": "a1bda218d4396fef2e957377eeeb36ff943221d4",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"

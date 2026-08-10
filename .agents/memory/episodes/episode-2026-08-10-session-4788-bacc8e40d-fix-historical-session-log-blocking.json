@@ -197,7 +197,9 @@
         "e035",
         "e036",
         "e040",
-        "e041"
+        "e041",
+        "e045",
+        "e046"
       ],
       "leads_to": [
         "e017"
@@ -553,6 +555,67 @@
       "caused_by": [
         "e043"
       ],
+      "leads_to": [
+        "e047"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge push-pr trust boundary from main",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a1bda218dbeb32d6396c38078fbd5c5ff51a9a23",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-08-10T17:40:18+00:00",
+      "type": "commit",
+      "content": "Commit: 0f3eee31",
+      "caused_by": [
+        "e044"
+      ],
+      "leads_to": [
+        "e048"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-08-10T17:58:16+00:00",
+      "type": "commit",
+      "content": "Commit: ea2844d3",
+      "caused_by": [
+        "e047"
+      ],
+      "leads_to": [
+        "e049"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-08-10T18:17:13+00:00",
+      "type": "commit",
+      "content": "Commit: a1bda218d4396fef2e957377eeeb36ff943221d4",
+      "caused_by": [
+        "e048"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     }
@@ -562,7 +625,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 26,
+    "commits": 30,
     "files_changed": 46
   },
   "lessons": []
