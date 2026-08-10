@@ -14,7 +14,7 @@
       "content": "Mirrored the canonical pytest.yml job contract",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -25,7 +25,7 @@
       "content": "Added scripts/quality_gate/resolve_pytest_signal.py",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -36,7 +36,7 @@
       "content": "Verified the resolver against live GitHub API payloads",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -47,7 +47,7 @@
       "content": "Added tests/quality_gate/test_resolve_pytest_signal.py",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -58,7 +58,7 @@
       "content": "Added the shadow step to .github/workflows/ai-pr-quality-gate.yml",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -69,7 +69,7 @@
       "content": "Review finding 1: closed sibling failure masking in aggregate()",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -80,7 +80,7 @@
       "content": "Review finding 2: bound candidate runs to the requested pull request",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -91,7 +91,7 @@
       "content": "Review finding 3: made the shadow observable rather than silent",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -102,7 +102,7 @@
       "content": "Extended the mutation harness from 9 to 18 mutants and found a real gap",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -113,7 +113,7 @@
       "content": "Validated the review fixes and committed as 9a0f4ce7",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -124,7 +124,7 @@
       "content": "Simplified both authored files under the 500-line taste-lints gate, committed as 0e88151e",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -135,7 +135,7 @@
       "content": "Proved the simplification changed no behaviour",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
@@ -146,12 +146,23 @@
       "content": "Corrected the skipped-executor sibling-failure test input",
       "caused_by": [],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     },
     {
       "id": "e014",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged main after PR 4844 shipped pytest-xdist",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e015",
       "timestamp": "2026-08-10T07:05:51+00:00",
       "type": "commit",
       "content": "Commit: 99a4ed7305830ac74a58532d7eab35f38dd749b5",
@@ -168,19 +179,7 @@
         "e010",
         "e011",
         "e012",
-        "e013"
-      ],
-      "leads_to": [
-        "e015"
-      ],
-      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-08-10T07:42:42+00:00",
-      "type": "commit",
-      "content": "Commit: 9a0f4ce702dba1e28cf2ae00c595175a5086e06b",
-      "caused_by": [
+        "e013",
         "e014"
       ],
       "leads_to": [
@@ -190,9 +189,9 @@
     },
     {
       "id": "e016",
-      "timestamp": "2026-08-10T09:12:32+00:00",
+      "timestamp": "2026-08-10T07:42:42+00:00",
       "type": "commit",
-      "content": "Commit: 0e88151ee59f70e5384ae26fae78382700debfa0",
+      "content": "Commit: 9a0f4ce702dba1e28cf2ae00c595175a5086e06b",
       "caused_by": [
         "e015"
       ],
@@ -203,9 +202,9 @@
     },
     {
       "id": "e017",
-      "timestamp": "2026-08-10T09:56:01+00:00",
+      "timestamp": "2026-08-10T09:12:32+00:00",
       "type": "commit",
-      "content": "Commit: 34cf0678081c6e41041e464c8c098d6c8ef9b8af",
+      "content": "Commit: 0e88151ee59f70e5384ae26fae78382700debfa0",
       "caused_by": [
         "e016"
       ],
@@ -216,9 +215,9 @@
     },
     {
       "id": "e018",
-      "timestamp": "2026-08-10T11:33:40+00:00",
+      "timestamp": "2026-08-10T09:56:01+00:00",
       "type": "commit",
-      "content": "Commit: addd9410f09c00236f381bb7689c0d692e752b95",
+      "content": "Commit: 34cf0678081c6e41041e464c8c098d6c8ef9b8af",
       "caused_by": [
         "e017"
       ],
@@ -229,11 +228,37 @@
     },
     {
       "id": "e019",
+      "timestamp": "2026-08-10T11:33:40+00:00",
+      "type": "commit",
+      "content": "Commit: addd9410f09c00236f381bb7689c0d692e752b95",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e020",
       "timestamp": "2026-08-10T12:12:07+00:00",
       "type": "commit",
       "content": "Commit: 69f0d2f6a18e0ceb74820e4a354866333743bf60",
       "caused_by": [
-        "e018"
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T12:50:50+00:00",
+      "type": "commit",
+      "content": "Commit: c784dca71fe80d6fcd11f132f864ebde2e3cf75c",
+      "caused_by": [
+        "e020"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
@@ -244,7 +269,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 7
   },
   "lessons": []

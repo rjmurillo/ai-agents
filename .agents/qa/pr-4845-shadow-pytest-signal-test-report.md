@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: 69f0d2f6a18e0ceb74820e4a354866333743bf60
+qaCommit: c784dca71fe80d6fcd11f132f864ebde2e3cf75c
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -13,14 +13,15 @@ changing any existing output, consumer, or check name. The duplicate
 authoritative pytest run is deliberately untouched, which is the phase 1
 contract.
 
-This revision covers merge commit 69f0d2f6, which imports current `main` to
-pick up the lowered lint baseline. The shadow resolver runtime logic is
-unchanged. The focused suite and lint were re-run at 34cf0678. Earlier
-measurements remain bound to 0e88151e and are recorded below.
+This revision covers merge commit c784dca71, which imports current `main`
+after PR #4844 merged. The shadow resolver runtime logic is unchanged. The
+focused suite passed again at c784dca71. Earlier measurements remain bound to
+0e88151e and are recorded below.
 
 ## Evidence
 
 - Focused tests: 83 passed in `tests/quality_gate/test_resolve_pytest_signal.py`.
+- Post-merge focused run: 83 passed in 0.52 seconds.
 - Neighbouring suites: 637 passed across `tests/workflows/` and
   `tests/quality_gate/`.
 - `pre_pr.py` passed all validations.
