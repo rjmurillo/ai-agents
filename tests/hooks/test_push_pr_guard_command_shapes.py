@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    INVALID_REQUESTS,
     PLUGIN_SCRIPT_REFERENCE,
 )
 from tests.hooks.push_pr_guard_harness import (
@@ -27,6 +28,9 @@ from tests.hooks.push_pr_guard_harness import (
 )
 from tests.hooks.push_pr_guard_harness import (
     run_claude as _run_claude,
+)
+from tests.hooks.push_pr_guard_harness import (
+    run_claude_invalid as _run_claude_invalid,
 )
 from tests.hooks.push_pr_guard_harness import (
     run_copilot as _run_copilot,
@@ -251,34 +255,14 @@ def test_dispatchers_deny_unsafe_command_shapes(
     assert "push-pr script identity denied" in result.stderr
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        "",
-        "[]",
-        "{}",
-        '{"tool_input": {}}',
-        '{"tool_input": {"command": 7}}',
-        '{"tool_input": {"command": "python3 x/pr/new_pr.py"}, "cwd": 7}',
-        "x" * (128 * 1024 + 1),
-    ],
-    ids=[
-        "empty",
-        "array",
-        "object",
-        "missing-command",
-        "non-string-command",
-        "non-string-cwd",
-        "oversize",
-    ],
-)
+@pytest.mark.parametrize("request_id", sorted(INVALID_REQUESTS))
 def test_claude_fails_closed_on_invalid_hook_input(
     tmp_path: Path,
-    payload: str,
+    request_id: str,
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = _run_claude("", repository, request=payload)
+    result = _run_claude_invalid(request_id, repository)
 
     assert result.returncode == 2
 

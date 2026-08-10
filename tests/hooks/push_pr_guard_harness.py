@@ -33,6 +33,9 @@ COPILOT_DISPATCHER = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" 
 CLAUDE_PLUGIN_ROOT = REPO_ROOT / ".claude"
 COPILOT_PLUGIN_ROOT = REPO_ROOT / "src" / "copilot-cli"
 GROUP = "plugin-pretooluse-9-push_pr_script_identity"
+# Fixed argument vectors. Both runners execute one constant dispatcher path;
+# nothing a caller supplies reaches argv, only stdin, cwd, and the environment.
+_CLAUDE_ARGV = [sys.executable, "-I", str(CLAUDE_DISPATCHER), "--group", GROUP]
 SCRIPT_RELATIVE = Path("skills/github/scripts/pr/new_pr.py")
 REPOSITORY_SCRIPT = Path(".claude") / SCRIPT_RELATIVE
 PLUGIN_SCRIPT_REFERENCE = (
@@ -90,22 +93,60 @@ def environment(**updates: str) -> dict[str, str]:
     return env
 
 
+# Hook payloads the dispatcher must reject. They live here, with the code that
+# builds a well-formed payload, because the malformed shapes are defined by the
+# same contract: a test that spelled them inline would drift from `payload` the
+# first time that contract changed. Callers name a case by id, so nothing a
+# test supplies reaches a subprocess, which is also what keeps the taint
+# scanner's command-injection rule from firing on a stdin string.
+INVALID_REQUESTS: dict[str, str] = {
+    "empty": "",
+    "array": "[]",
+    "object": "{}",
+    "missing-command": '{"tool_input": {}}',
+    "non-string-command": '{"tool_input": {"command": 7}}',
+    "non-string-cwd": '{"tool_input": {"command": "python3 x/pr/new_pr.py"}, "cwd": 7}',
+    "oversize": "x" * (128 * 1024 + 1),
+}
+
+
+def run_claude_invalid(
+    request_id: str,
+    cwd: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Drive the Claude dispatcher with one named malformed payload."""
+    return subprocess.run(
+        _CLAUDE_ARGV,
+        input=INVALID_REQUESTS[request_id],
+        cwd=cwd,
+        env=environment(
+            CLAUDE_PROJECT_DIR=str(cwd),
+            CLAUDE_PLUGIN_ROOT=str(CLAUDE_PLUGIN_ROOT),
+        ),
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=20,
+        check=False,
+    )
+
+
 def run_claude(
     command: object,
     cwd: Path,
     *,
     env: dict[str, str] | None = None,
-    request: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    stdin = payload(command, cwd)
+    dispatch_environment = env or environment(
+        CLAUDE_PROJECT_DIR=str(cwd),
+        CLAUDE_PLUGIN_ROOT=str(CLAUDE_PLUGIN_ROOT),
+    )
     return subprocess.run(
-        [sys.executable, "-I", str(CLAUDE_DISPATCHER), "--group", GROUP],
-        input=request if request is not None else payload(command, cwd),
+        _CLAUDE_ARGV,
+        input=stdin,
         cwd=cwd,
-        env=env
-        or environment(
-            CLAUDE_PROJECT_DIR=str(cwd),
-            CLAUDE_PLUGIN_ROOT=str(CLAUDE_PLUGIN_ROOT),
-        ),
+        env=dispatch_environment,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
