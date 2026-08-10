@@ -292,6 +292,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Hook wiring dispatch groups",
     ),
     (
+        ".github/copilot/settings.json",
+        "c948f4c7e093f62a46c4cb9bcc2e6247ad722a9aa6baedc4bc123d6bddc89eef",
+        "GitHub Copilot settings (hook surface)",
+    ),
+    (
         ".claude/settings.json",
         "df35188ace8c127177e574aada1e262cf61598e8728c7e03d93836e4ab8a3013",
         "Claude settings (hook wiring)",
@@ -604,6 +609,66 @@ def _is_vendor_only(rel: str) -> bool:
 
 # ── Artifact authentication ──
 
+
+def _check_path_component_symlinks(candidate: Path) -> list[str]:
+    """Reject symlinks in any path component under watched directories.
+
+    Prevents bypass where .claude/lib -> /trusted/base causes leaf files
+    to resolve to valid base content while candidate controls the symlink.
+    Also enforces that every resolved path stays within candidate root.
+    """
+    errors: list[str] = []
+    candidate_resolved = candidate.resolve()
+    scan_dirs = [
+        candidate / ".claude" / "hooks",
+        candidate / ".claude" / "lib",
+        candidate / "src" / "copilot-cli" / "hooks",
+        candidate / "src" / "copilot-cli" / "lib",
+        candidate / "build" / "scripts",
+    ]
+    for scan_dir in scan_dirs:
+        if not scan_dir.exists():
+            continue
+        # Check the scan_dir itself
+        rel_scan = scan_dir.relative_to(candidate)
+        parts = list(rel_scan.parts)
+        check = candidate
+        for part in parts:
+            check = check / part
+            if check.is_symlink():
+                errors.append(
+                    f"Directory component is symlink: {PurePosixPath(*parts[:parts.index(part)+1])}"
+                )
+                break
+        else:
+            # Walk all entries checking for directory symlinks
+            if scan_dir.is_dir():
+                for item in sorted(scan_dir.rglob("*")):
+                    if item.is_symlink() and item.is_dir():
+                        rel = str(PurePosixPath(item.relative_to(candidate)))
+                        errors.append(
+                            f"Directory symlink in watched tree: {rel}"
+                        )
+                    elif item.is_symlink():
+                        # Check containment of symlink target
+                        target = (item.parent / os.readlink(item)).resolve()
+                        if not str(target).startswith(str(candidate_resolved) + os.sep):
+                            rel = str(PurePosixPath(item.relative_to(candidate)))
+                            errors.append(
+                                f"Symlink escapes candidate root: {rel}"
+                            )
+                    elif item.is_file():
+                        # Verify resolved path is within candidate
+                        resolved = item.resolve()
+                        if not str(resolved).startswith(str(candidate_resolved) + os.sep):
+                            rel = str(PurePosixPath(item.relative_to(candidate)))
+                            errors.append(
+                                f"Resolved path escapes candidate root: {rel}"
+                            )
+        if len(errors) >= 10:
+            break
+    return errors
+
 def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]:
     """Authenticate every pinned artifact against its trust anchor.
 
@@ -747,6 +812,18 @@ def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
                 )
         except (json.JSONDecodeError, OSError):
             pass
+    # Check root-level markdownlint config injection.
+    # markdownlint-cli2 auto-discovers config from CWD upward. Any root-level
+    # config not pinned is an injection surface.
+    for config_name in _MARKDOWNLINT_CONFIG_GLOBS:
+        root_config = candidate / config_name
+        if root_config.exists():
+            rel = config_name
+            if rel not in pinned_rels:
+                errors.append(
+                    f"Unpinned root markdownlint config: {rel} "
+                    f"(auto-discovery attack surface)"
+                )
     return errors
 
 
@@ -817,6 +894,70 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
             break
     return errors
 
+
+
+
+
+def _reject_settings_local(candidate: Path) -> list[str]:
+    """Reject .claude/settings.local.json if present in candidate.
+
+    This file can override hook behavior. Repository convention is to
+    not commit it. Presence in candidate tree is treated as tampering.
+    """
+    local_settings = candidate / ".claude" / "settings.local.json"
+    if local_settings.exists():
+        return [
+            ".claude/settings.local.json present in candidate "
+            "(hook override file must not be committed)"
+        ]
+    return []
+
+# ── Trust-anchor self-protection ──
+# Once the workflow and validator exist in the trusted base, candidate
+# modifications to them must be rejected. The validator runs FROM base,
+# so candidate changes only take effect after merge. Blocking here prevents
+# a weakened gate from ever landing.
+_TRUST_ANCHOR_SELF: tuple[str, ...] = (
+    ".github/workflows/vendor-provenance.yml",
+    "scripts/ci/validate_vendor_provenance.py",
+    "tests/ci/test_validate_vendor_provenance.py",
+)
+
+
+def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[str]:
+    """Reject candidate modification/deletion of trust anchors once base owns them.
+
+    Bootstrap: if base lacks a trust anchor, candidate may add or omit it.
+    Post-bootstrap: candidate must have identical bytes to base for each anchor.
+    """
+    if base is None:
+        return []  # Cannot compare without base tree
+    errors: list[str] = []
+    for rel in _TRUST_ANCHOR_SELF:
+        base_path = base / rel
+        if not base_path.is_file():
+            continue  # Bootstrap: base doesn't have it yet
+        cand_path = candidate / rel
+        if not cand_path.exists():
+            errors.append(
+                f"Trust anchor deleted: {rel} (present in base, "
+                f"candidate deletion not permitted)"
+            )
+            continue
+        if cand_path.is_symlink():
+            errors.append(f"Trust anchor is symlink: {rel}")
+            continue
+        if not cand_path.is_file():
+            errors.append(f"Trust anchor not a regular file: {rel}")
+            continue
+        base_hash = hashlib.sha256(base_path.read_bytes()).hexdigest()
+        cand_hash = hashlib.sha256(cand_path.read_bytes()).hexdigest()
+        if cand_hash != base_hash:
+            errors.append(
+                f"Trust anchor modified: {rel} "
+                f"(candidate differs from base; requires bootstrap PR)"
+            )
+    return errors
 
 # ── Symlink containment ──
 
@@ -943,6 +1084,8 @@ _EXTRA_WATCHED: tuple[str, ...] = (
     ".claude/settings.json",
     ".markdownlint-cli2.yaml",
     ".gitattributes",
+    ".claude/settings.local.json",
+    ".github/copilot/settings.json",
 )
 
 
@@ -1029,6 +1172,21 @@ def main() -> int:
 
     all_errors: list[str] = []
     vendor = root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
+
+    # 0a. Path-component symlink bypass check (before any file reads)
+    errs = _check_path_component_symlinks(root)
+    _run_phase("Path Component Symlinks", errs)
+    all_errors.extend(errs)
+
+    # 0b. Trust-anchor self-protection (workflow/validator immutability)
+    errs = _check_trust_anchor_integrity(root, base)
+    _run_phase("Trust-Anchor Self-Protection", errs)
+    all_errors.extend(errs)
+
+    # 0c. Reject .claude/settings.local.json
+    errs = _reject_settings_local(root)
+    _run_phase("Settings Local Rejection", errs)
+    all_errors.extend(errs)
 
     # 1. Authenticate pinned artifacts (including vendor deletion check)
     errs = _authenticate_pinned(root, base)
