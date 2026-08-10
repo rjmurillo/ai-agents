@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 318ae2e09f35f07551954cd23dc65418569718e7 after portability and subprocess decoding cleanup."
+        "Evidence": "PR code validated at 0e6b4bdc7e9d62acc258228f33c82f1824d4a995 after subprocess decoding test cleanup."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 353 and passed 353 for code-qualities, session-end, and deadlock tests; subprocess encoding count ratchet passed with 249 violations <= baseline 253."
+        "Evidence": "QA rerun after subprocess decoding test cleanup: pytest collected 89 and passed 89 for session-end canonical and mirror tests; subprocess encoding count ratchet passed with 249 violations <= baseline 253."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -171,9 +171,13 @@
     {
       "phase": "ci-ratchet-fix",
       "summary": "Added errors=\"replace\" to branch-added UTF-8 text-mode subprocess calls in skill scripts and generated Copilot mirrors, then reran targeted tests and the subprocess encoding count ratchet."
+    },
+    {
+      "phase": "ci-test-fix",
+      "summary": "Updated session-end canonical and Copilot mirror test expectations for errors=\"replace\", then reran session-end tests and the subprocess encoding count ratchet."
     }
   ],
-  "endingCommit": "318ae2e09f35f07551954cd23dc65418569718e7",
+  "endingCommit": "0e6b4bdc7e9d62acc258228f33c82f1824d4a995",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

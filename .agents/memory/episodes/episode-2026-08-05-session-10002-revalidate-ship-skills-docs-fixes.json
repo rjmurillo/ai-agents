@@ -94,7 +94,8 @@
         "e019",
         "e021",
         "e025",
-        "e027"
+        "e027",
+        "e029"
       ],
       "leads_to": [
         "e009"
@@ -349,6 +350,30 @@
       "caused_by": [
         "e026"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated session-end canonical and Copilot mirror test expectations for errors=\"replace\", then reran session-end tests and the subprocess encoding count ratchet.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-10T18:09:25+00:00",
+      "type": "commit",
+      "content": "Commit: 0e6b4bdc7e9d62acc258228f33c82f1824d4a995",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -358,7 +383,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 12,
+    "commits": 13,
     "files_changed": 42
   },
   "lessons": []
