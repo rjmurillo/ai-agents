@@ -101,6 +101,36 @@ def _stop_process(process: subprocess.Popen[str], signum: signal.Signals) -> int
     return process.wait(timeout=30)
 
 
+def _marker_for(scratch_root: Path) -> Path:
+    """Return the marker path that belongs to one scratch worktree.
+
+    Verbatim derivation from ``scripts/testing/mutation_workspace.py``'s
+    ``isolated_mutation_worktree``::
+
+        run_id = uuid.uuid4().hex
+        scratch_root = scratch_parent / run_id
+        marker_path = marker_directory(root) / f"{run_id}.json"
+
+    The two tests below never receive a ``MutationWorkspace``, because the
+    context manager raises before it yields, so they cannot read
+    ``workspace.marker_path`` the way the other nine tests in this module do.
+    Naming the file through the scratch directory is that same identity by a
+    different route, and each caller asserts the marker exists while the run is
+    live, so a wrong derivation fails loudly instead of passing vacuously
+    against a path that never existed.
+
+    This replaces ``assert not list(marker_directory(REPO_ROOT).iterdir())``,
+    which asserted the shared directory was globally empty. That directory is
+    repo-global and ``tests/test_mutation_workspace.py`` writes markers into it
+    too, so under ``--dist loadfile`` the sibling module runs on another xdist
+    worker at the same moment and the emptiness assertion fails on a file this
+    test never created (issue #4823, reproduced 3 of 3 runs at ``-n 2``).
+    Emptiness is a property no test can own while another worker runs; the
+    lifecycle of its own marker is.
+    """
+    return marker_directory(REPO_ROOT) / f"{scratch_root.name}.json"
+
+
 def test_interruption_during_worktree_add_cleans_partial_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -108,6 +138,9 @@ def test_interruption_during_worktree_add_cleans_partial_directory(
 
     def interrupt_add(_repo_root: Path, scratch_root: Path) -> None:
         observed["scratch"] = scratch_root
+        marker = _marker_for(scratch_root)
+        assert marker.is_file(), f"marker absent while the run is live: {marker}"
+        observed["marker"] = marker
         scratch_root.mkdir(parents=True)
         raise MutationInterrupted(128 + signal.SIGTERM)
 
@@ -118,7 +151,7 @@ def test_interruption_during_worktree_add_cleans_partial_directory(
             pytest.fail("interrupted setup yielded a workspace")
 
     assert not observed["scratch"].exists()
-    assert not list(marker_directory(REPO_ROOT).iterdir())
+    assert not observed["marker"].exists()
 
 
 def test_signal_after_worktree_add_still_runs_cleanup(
@@ -130,6 +163,9 @@ def test_signal_after_worktree_add_still_runs_cleanup(
     def add_then_signal(repo_root: Path, scratch_root: Path) -> None:
         add_worktree(repo_root, scratch_root)
         observed["scratch"] = scratch_root
+        marker = _marker_for(scratch_root)
+        assert marker.is_file(), f"marker absent while the run is live: {marker}"
+        observed["marker"] = marker
         os.kill(os.getpid(), signal.SIGTERM)
 
     monkeypatch.setattr(mutation_workspace, "_add_worktree", add_then_signal)
@@ -139,7 +175,7 @@ def test_signal_after_worktree_add_still_runs_cleanup(
             pytest.fail("signal after add yielded a workspace")
 
     assert not observed["scratch"].exists()
-    assert not list(marker_directory(REPO_ROOT).iterdir())
+    assert not observed["marker"].exists()
 
 
 def test_signal_at_cleanup_transition_still_runs_cleanup(

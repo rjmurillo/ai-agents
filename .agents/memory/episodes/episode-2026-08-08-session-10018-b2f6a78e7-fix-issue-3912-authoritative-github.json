@@ -110,6 +110,32 @@
         "e007",
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T19:59:16+00:00",
+      "type": "commit",
+      "content": "Commit: 2adcee4fba216a568db0c41e9dc178335ae3d717",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T21:06:07+00:00",
+      "type": "commit",
+      "content": "Commit: 5fd4db455ebfab510b7934e35c37161830e18261",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     }
@@ -119,8 +145,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 10
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": []
 }
