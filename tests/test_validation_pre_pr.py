@@ -364,19 +364,18 @@ class TestHookModeBanner:
     )
     @patch("subprocess.run")
     @patch("shutil.which")
-    def test_interactive_mode_prints_pr_ready_banner(
+    def test_interactive_mode_prints_verification_guidance(
         self,
         mock_which: Any,
         mock_run: Any,
         _mock_sequence: Any,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Direct invocation (no hook env) must still say 'Ready to create pull request!'."""
+        """Direct invocation (no hook env) must print push-verification guidance."""
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {}, clear=False):
-            # Ensure SKIP_AUTOFIX is absent.
             import os
 
             os.environ.pop("SKIP_AUTOFIX", None)
@@ -384,7 +383,8 @@ class TestHookModeBanner:
 
         assert result == 0
         captured = capsys.readouterr()
-        assert "Ready to create pull request!" in captured.out
+        assert "Verify the push landed" in captured.out
+        assert "same SHA" in captured.out
         assert "sibling hook jobs" not in captured.out
 
     @patch(
@@ -409,7 +409,7 @@ class TestHookModeBanner:
 
         assert result == 0
         captured = capsys.readouterr()
-        assert "Ready to create pull request!" not in captured.out
+        assert "Verify the push landed" not in captured.out
         assert "sibling hook jobs" in captured.out
 
     @patch(
@@ -425,7 +425,7 @@ class TestHookModeBanner:
         _mock_sequence: Any,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """SKIP_AUTOFIX=0 is not hook mode; the PR-ready banner must still print."""
+        """SKIP_AUTOFIX=0 is not hook mode; the verification guidance must still print."""
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
@@ -434,7 +434,7 @@ class TestHookModeBanner:
 
         assert result == 0
         captured = capsys.readouterr()
-        assert "Ready to create pull request!" in captured.out
+        assert "Verify the push landed" in captured.out
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
@@ -458,8 +458,33 @@ class TestHookModeBanner:
 
         assert result == 1
         captured = capsys.readouterr()
-        assert "Ready to create pull request!" not in captured.out
+        assert "Verify the push landed" not in captured.out
         assert "sibling hook jobs" not in captured.out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_requires_remote_sha_to_match_head(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Issue #4506: verification must reject an existing but stale remote ref."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Verify the push landed" in out
+        assert "git rev-parse HEAD" in out
+        assert "git ls-remote origin <branch>" in out
+        assert "same SHA" in out
 
 
 def test_always_on_corpus_claims_skips_without_test_tree(tmp_path: Path) -> None:

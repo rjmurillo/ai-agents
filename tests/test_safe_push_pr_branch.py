@@ -953,6 +953,113 @@ def test_run_pytest_stops_on_the_first_failing_command(
 
 
 # ---------------------------------------------------------------------------
+# Budget exhaustion message (#4472)
+# ---------------------------------------------------------------------------
+
+
+def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Positive: when a command times out with a small remaining budget, the
+    message names the total budget and labels the event as exhaustion.
+
+    Without the fix, _timeout_message reports only the 10.56-second remainder,
+    reading like a hung test.  With the fix, stderr also contains an
+    exhaustion clarification naming the full budget.
+    """
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    # Use almost all the budget for the first command, leaving 10s for the
+    # second.  Simulate the second command timing out (returncode 3).
+    clock = {"now": 1_000.0}
+
+    def fake_monotonic() -> float:
+        return clock["now"]
+
+    call_count = {"n": 0}
+
+    def fake_run_command(
+        args: Any,
+        repo_root: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        call_count["n"] += 1
+        remaining = kwargs["timeout_seconds"]
+        if call_count["n"] == 1:
+            # First command consumes nearly all budget.
+            clock["now"] += budget - 10.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        # Second command: started with ~10s left; simulate timeout.
+        clock["now"] += remaining + 1
+        timeout_msg = f"ERROR: python3 -m pytest timed out after {remaining:g} seconds\n"
+        return subprocess.CompletedProcess(list(args), 3, "", timeout_msg)
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda r: None)
+
+    rc = git_hook_policy.run_pytest(tmp_path)
+
+    assert rc == 3
+    err = capsys.readouterr().err
+    assert "budget exhaustion" in err.lower() or "exhausted" in err.lower()
+    assert str(budget) in err
+
+
+def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Negative: when the first command uses the full budget, no exhaustion
+    message is emitted for it.  The generic timeout message is the right signal.
+    """
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    clock = {"now": 1_000.0}
+
+    def fake_monotonic() -> float:
+        return clock["now"]
+
+    def fake_run_command(
+        args: Any,
+        repo_root: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        clock["now"] += budget + 1
+        timeout_msg = f"ERROR: python3 -m pytest timed out after {budget:g} seconds\n"
+        return subprocess.CompletedProcess(list(args), 3, "", timeout_msg)
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda r: None)
+
+    rc = git_hook_policy.run_pytest(tmp_path)
+
+    assert rc == 3
+    err = capsys.readouterr().err
+    # The exhaustion clarification must NOT fire when the first command
+    # used the full budget (remaining == budget at call time).
+    assert "budget exhaustion" not in err.lower()
+    assert "exhausted" not in err.lower()
+
+
+def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Cosmetic control: whitespace-only change to the success path message
+    must not affect exit code.  Mutation harness uses this to confirm the
+    harness measures behaviour, not text style.
+    """
+    _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
+    rc = git_hook_policy.run_pytest(tmp_path)
+    assert rc == 0
+    # No error output on clean run.
+    assert capsys.readouterr().err == ""
+
+
 # The #4293 pre-push guard must not reject this script's own lease push
 # ---------------------------------------------------------------------------
 

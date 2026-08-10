@@ -337,14 +337,17 @@ def main(argv: list[str] | None = None) -> int:
     print("RESULT: All validations passed")
     print()
     # When running as a lefthook job (SKIP_AUTOFIX=1), pre_pr.py is one parallel
-    # job among several. Printing "Ready to create pull request!" is false: this
-    # job only validated its own subset and has no visibility into sibling jobs
+    # job among several. Printing success guidance is false: this job only
+    # validated its own subset and has no visibility into sibling jobs
     # (python-tests, ratchets) that may still be running or may have failed.
     # Issue #4506.
     if os.environ.get("SKIP_AUTOFIX") == "1":
         print("pre_pr validations passed (push outcome depends on sibling hook jobs).")
     else:
-        print("Ready to create pull request!")
+        print("Pre-PR checks passed. Verify the push landed before opening a PR:")
+        print("  git rev-parse HEAD")
+        print("  git ls-remote origin <branch>")
+        print("The two commands must report the same SHA.")
     print()
     return 0
 
