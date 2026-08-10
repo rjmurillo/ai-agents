@@ -1,67 +1,49 @@
 """Tests for scripts/quality_gate/resolve_pytest_signal.py.
 
-The resolver reads the verdict ``pytest.yml`` produced for a pull request head
-so ``ai-pr-quality-gate.yml`` can stop re-running the suite (issue #4822).
-Every ``gh`` call is faked. The fake dispatches on the argument vector rather
-than on call order, so a branch that skips a call fails by name instead of
-silently consuming the next canned response (testing rule 11).
+Every ``gh`` call is faked, and the fake dispatches on the argument vector
+rather than on call order, so a branch that skips a call fails by name instead
+of silently consuming the next canned response (testing rule 11).
 
-The job fixtures mirror ``.github/workflows/pytest.yml`` as read on
-2026-08-09: jobs ``test`` (line 111) and ``skip-tests`` (line 427) both declare
-``name: Run Python Tests``, the first owning ``- name: Run pytest`` (line 260)
-and the second owning ``- name: Skip tests (no Python test inputs changed)``
-(line 441).
+The job fixtures mirror ``.github/workflows/pytest.yml`` as read on 2026-08-09:
+jobs ``test`` and ``skip-tests`` both declare ``name: Run Python Tests``, the
+first owning ``- name: Run pytest`` and the second ``- name: Skip tests (no
+Python test inputs changed)``.
 """
 
 from __future__ import annotations
 
 import json
 import subprocess
+from typing import Any
 
 import pytest
 
 from scripts.quality_gate import resolve_pytest_signal as mod
-from scripts.quality_gate.resolve_pytest_signal import (
-    AGREE,
-    DISAGREE,
-    EXIT_CONFIG,
-    EXIT_OK,
-    STATUS_CANCELLED,
-    STATUS_FAIL,
-    STATUS_PASS,
-    STATUS_PENDING,
-    STATUS_SKIPPED,
-    STATUS_STALE,
-    STATUS_UNKNOWN,
-    UNCOMPARED,
-    Job,
-    Run,
-    aggregate,
-    compare,
-    main,
-    sanitize,
-    select_latest_run,
-)
+from scripts.quality_gate.resolve_pytest_signal import Job, Resolution, Run
+
+AGREE, DISAGREE, UNCOMPARED = mod.AGREE, mod.DISAGREE, mod.UNCOMPARED
+EXIT_OK, EXIT_CONFIG = mod.EXIT_OK, mod.EXIT_CONFIG
+aggregate, compare, main, sanitize = mod.aggregate, mod.compare, mod.main, mod.sanitize
+select_latest_run, NO_RUN = mod.select_latest_run, mod.REASON_NO_RUN
+STATUS_PASS, STATUS_FAIL, STATUS_SKIPPED = mod.STATUS_PASS, mod.STATUS_FAIL, mod.STATUS_SKIPPED
+STATUS_PENDING, STATUS_STALE = mod.STATUS_PENDING, mod.STATUS_STALE
+STATUS_CANCELLED, STATUS_UNKNOWN = mod.STATUS_CANCELLED, mod.STATUS_UNKNOWN
+Capsys = pytest.CaptureFixture[str]
 
 REPO = "rjmurillo/ai-agents"
 PR = "4822"
 HEAD = "a" * 40
 OTHER_HEAD = "b" * 40
+CHECK = "Run Python Tests"
+SKIP_STEP = "Skip tests (no Python test inputs changed)"
 
 REF_PATH = f"repos/{REPO}/git/ref/pull/{PR}/head"
-RUNS_PATH = (
-    f"repos/{REPO}/actions/workflows/pytest.yml/runs"
-    f"?event=pull_request&head_sha={HEAD}&per_page=100"
-)
+_RUNS_QUERY = "actions/workflows/pytest.yml/runs?event=pull_request&head_sha="
+RUNS_PATH = f"repos/{REPO}/{_RUNS_QUERY}{HEAD}&per_page=100"
 
 
-def jobs_path(run_id: int, attempt: int) -> str:
-    return f"repos/{REPO}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"
-
-
-# ---------------------------------------------------------------------------
-# Fakes
-# ---------------------------------------------------------------------------
+def jobs_path(attempt: int = 1) -> str:
+    return f"repos/{REPO}/actions/runs/100/attempts/{attempt}/jobs?per_page=100"
 
 
 class GhFake:
@@ -73,916 +55,437 @@ class GhFake:
 
     def __call__(self, argv, *, timeout=None):  # a test double for run_gh
         assert list(argv)[0] == "api", f"unexpected gh subcommand {argv}"
-        path = list(argv)[-1]
-        self.paths.append(path)
-        if path not in self.responses:
-            raise AssertionError(f"unstubbed gh path {path}")
+        self.paths.append(path := list(argv)[-1])
+        assert path in self.responses, f"unstubbed gh path {path}"
         code, body = self.responses[path]
         return subprocess.CompletedProcess(["gh", *argv], code, stdout=body, stderr="")
 
 
-def ref_body(sha: str) -> str:
-    return json.dumps({"ref": f"refs/pull/{PR}/head", "object": {"sha": sha, "type": "commit"}})
+def run_entry(prs: tuple[int, ...] = (int(PR),), repo: str | None = REPO, **over: object) -> dict:
+    """One run entry, mirroring the live list endpoint read 2026-08-10.
 
-
-def runs_body(*runs: dict) -> str:
-    return json.dumps({"total_count": len(runs), "workflow_runs": list(runs)})
-
-
-def run_entry(
-    run_id: int = 100,
-    attempt: int = 1,
-    event: str = "pull_request",
-    head_sha: str = HEAD,
-    started_at: str = "2026-08-09T10:00:00Z",
-    pr_numbers: tuple[int, ...] = (int(PR),),
-    head_repo: str = REPO,
-) -> dict:
-    """One workflow run entry.
-
-    ``pull_requests`` and ``head_repository`` mirror the live list endpoint,
-    read 2026-08-10: runs for open pull requests carry their own number, and
-    same-repo runs report the upstream full name in ``head_repository``.
+    Runs of open pull requests carry their own number in ``pull_requests`` and
+    same-repo runs name the upstream in ``head_repository``; ``repo=None`` omits
+    that key, as a payload missing it would. Overrides use the live key names.
     """
     return {
-        "id": run_id,
-        "run_attempt": attempt,
-        "event": event,
-        "head_sha": head_sha,
-        "run_started_at": started_at,
+        "id": 100,
+        "run_attempt": 1,
+        "event": "pull_request",
+        "head_sha": HEAD,
+        "run_started_at": "2026-08-09T10:00:00Z",
         "head_branch": "feature-branch",
-        "pull_requests": [{"number": number} for number in pr_numbers],
-        "head_repository": {"full_name": head_repo},
+        "pull_requests": [{"number": number} for number in prs],
+        **({} if repo is None else {"head_repository": {"full_name": repo}}),
+        **over,
     }
 
 
-def scan_runs(payload: object, expected_sha: str = HEAD) -> mod.RunScan | None:
-    return mod.parse_runs(payload, expected_sha, pr=PR, repo=REPO)
+def executor(conclusion: str = "success", step: str = "success") -> dict:
+    steps = [{"name": "Check if tests needed", "conclusion": "success"}]
+    steps.append({"name": "Run pytest", "conclusion": step})
+    return {"name": CHECK, "status": "completed", "conclusion": conclusion, "steps": steps}
 
 
-def usable_scan(payload: object, expected_sha: str = HEAD) -> mod.RunScan:
-    """A scan the caller expects to be usable, failing by name when it is not."""
-    scan = scan_runs(payload, expected_sha)
-    assert scan is not None, "the payload should have parsed"
-    return scan
+def pass_through(conclusion: str = "success") -> dict:
+    steps = [{"name": "Harden Runner", "conclusion": "success"}]
+    steps.append({"name": SKIP_STEP, "conclusion": conclusion})
+    return {"name": CHECK, "status": "completed", "conclusion": conclusion, "steps": steps}
 
 
-def jobs_body(*jobs: dict) -> str:
-    return json.dumps({"total_count": len(jobs), "jobs": list(jobs)})
+def bare(status: str = "completed", conclusion: str | None = "success") -> dict:
+    """A job holding the required check name but no step this module knows."""
+    return {"name": CHECK, "status": status, "conclusion": conclusion}
 
 
-def executor_job(conclusion: str = "success", step_conclusion: str = "success") -> dict:
-    """The ``test`` job of pytest.yml, which owns the ``Run pytest`` step."""
-    return {
-        "name": "Run Python Tests",
-        "status": "completed",
-        "conclusion": conclusion,
-        "steps": [
-            {"name": "Check if tests needed", "conclusion": "success"},
-            {"name": "Run pytest", "conclusion": step_conclusion},
-        ],
-    }
+def parsed(*jobs: dict) -> list[Job]:
+    return [mod.parse_job(job) for job in jobs]
 
 
-def pass_through_job(conclusion: str = "success") -> dict:
-    """The ``skip-tests`` job of pytest.yml, which never runs the suite."""
-    return {
-        "name": "Run Python Tests",
-        "status": "completed",
-        "conclusion": conclusion,
-        "steps": [
-            {"name": "Harden Runner", "conclusion": "success"},
-            {"name": "Skip tests (no Python test inputs changed)", "conclusion": conclusion},
-        ],
-    }
+def gh_stub(
+    *,
+    ref: str = HEAD,
+    runs: list[dict] | None = None,
+    jobs: list[dict] | None = None,
+    attempt: int = 1,
+    raw: dict[str, tuple[int, str]] | None = None,
+) -> GhFake:
+    """Stub only the endpoints a test names; ``raw`` replaces one verbatim.
+
+    An unstubbed endpoint raises by path, so a resolver that queries what it
+    should have skipped fails loudly rather than silently.
+    """
+    responses = {REF_PATH: (0, json.dumps({"object": {"sha": ref, "type": "commit"}}))}
+    if runs is not None:
+        responses[RUNS_PATH] = (0, json.dumps({"workflow_runs": runs}))
+    if jobs is not None:
+        responses[jobs_path(attempt)] = (0, json.dumps({"jobs": jobs}))
+    return GhFake({**responses, **(raw or {})})
 
 
-def resolve_with(gh: GhFake) -> mod.Resolution:
+def resolve_with(gh) -> Resolution:
     return mod.resolve(
-        gh,
-        repo=REPO,
-        pr=PR,
-        expected_sha=HEAD,
-        workflow="pytest.yml",
-        job_name="Run Python Tests",
+        gh, repo=REPO, pr=PR, expected_sha=HEAD, workflow="pytest.yml", job_name=CHECK
     )
 
 
-# ---------------------------------------------------------------------------
-# Freshness: stale head and push rejection
-# ---------------------------------------------------------------------------
+def resolved(**stub: Any) -> Resolution:
+    return resolve_with(gh_stub(**stub))
+
+
+def scan(*runs: dict) -> tuple[tuple[Run, ...], int]:
+    """Parse a runs payload the caller expects to be usable, failing by name."""
+    result = mod.parse_runs({"workflow_runs": list(runs)}, HEAD, pr=PR, repo=REPO)
+    assert result is not None, "the payload should have parsed"
+    return result
+
+
+@pytest.fixture
+def cli(monkeypatch: pytest.MonkeyPatch):
+    """Invoke ``main`` against a stubbed ``gh``, with GITHUB_OUTPUT unset."""
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    def run(gh: GhFake, *extra: str) -> int:
+        monkeypatch.setattr(mod, "run_gh", gh)
+        return main(["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD, *extra])
+
+    return run
 
 
 class TestFreshness:
     def test_a_head_that_is_no_longer_live_is_stale(self) -> None:
-        gh = GhFake({REF_PATH: (0, ref_body(OTHER_HEAD))})
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_STALE
-        assert result.reason == mod.REASON_STALE_HEAD
+        assert resolved(ref=OTHER_HEAD) == Resolution(STATUS_STALE, mod.REASON_STALE_HEAD)
 
     def test_a_stale_head_never_queries_workflow_runs(self) -> None:
         """The run query is wasted work and could report another commit."""
-        gh = GhFake({REF_PATH: (0, ref_body(OTHER_HEAD))})
-
+        gh = gh_stub(ref=OTHER_HEAD)
         resolve_with(gh)
-
         assert gh.paths == [REF_PATH]
 
     def test_a_live_head_in_upper_case_is_not_stale(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD.upper())),
-                RUNS_PATH: (0, runs_body()),
-            }
-        )
-
-        assert resolve_with(gh).status == STATUS_PENDING
+        assert resolved(ref=HEAD.upper(), runs=[]).status == STATUS_PENDING
 
     def test_a_push_run_for_the_same_commit_is_rejected(self) -> None:
-        """pytest.yml also triggers on push (line 19) with a different job set."""
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry(event="push"))),
-            }
-        )
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_PENDING
-        assert result.reason == mod.REASON_NO_RUN
-
-    def test_a_run_for_a_different_commit_is_rejected(self) -> None:
-        payload = json.loads(runs_body(run_entry(head_sha=OTHER_HEAD)))
-
-        assert usable_scan(payload).bound == ()
+        """pytest.yml also triggers on push, with a different job set."""
+        assert resolved(runs=[run_entry(event="push")]) == Resolution(STATUS_PENDING, NO_RUN)
 
     def test_a_push_run_is_dropped_even_when_the_api_filter_is_ignored(self) -> None:
-        payload = json.loads(runs_body(run_entry(event="push"), run_entry(run_id=101)))
-
-        scan = usable_scan(payload)
-
-        assert [run.run_id for run in scan.bound] == [101]
-
-
-# ---------------------------------------------------------------------------
-# Pull request binding: one commit can head several pull requests
-# ---------------------------------------------------------------------------
+        """The query string asks for pull_request runs; this filter guarantees."""
+        bound, _ = scan(run_entry(event="push"), run_entry(id=101))
+        assert [run.run_id for run in bound] == [101]
 
 
 class TestPullRequestBinding:
-    def test_a_run_belonging_to_another_pull_request_is_not_bound(self) -> None:
-        """Same SHA, different pull request. The verdict is not ours to read."""
-        payload = json.loads(runs_body(run_entry(pr_numbers=(9999,))))
+    # GitHub empties pull_requests[] once a pull request closes: verified live
+    # 2026-08-10, where every run of the merged pull request 4819 reported an
+    # empty list while runs of the open 4832, 4833, and 4834 carried their own.
+    # An empty list is therefore normal and never a failure by itself, and the
+    # same-repo fallback holds because a fork cannot be named upstream. A run
+    # that binds to nobody is counted, not dropped, so the caller can tell
+    # "nothing has run yet" from "something ran for someone else".
+    _CASES = {
+        "another-pull-request": (run_entry(prs=(9999,)), 0, 1),
+        "several-including-ours": (run_entry(prs=(9999, int(PR))), 1, 0),
+        "empty-list-same-repo": (run_entry(prs=()), 1, 0),
+        "empty-list-fork": (run_entry(prs=(), repo="attacker/ai-agents"), 0, 1),
+        "empty-list-no-head-repository": (run_entry(prs=(), repo=None), 0, 1),
+        "malformed-link-falls-back": (run_entry(repo=None, pull_requests=["not a mapping"]), 0, 1),
+        "repo-case-differs": (run_entry(prs=(), repo=REPO.upper()), 1, 0),
+        "number-prefix-is-no-match": (run_entry(prs=(int(PR + "0"),)), 0, 1),
+        "another-commit": (run_entry(head_sha=OTHER_HEAD), 0, 0),
+        "non-numeric-run-id": (run_entry(id="not-a-number"), 0, 0),
+    }
 
-        scan = usable_scan(payload)
-
-        assert scan.bound == ()
-        assert scan.rejected == 1
+    @pytest.mark.parametrize(("entry", "bound", "rejected"), _CASES.values(), ids=_CASES)
+    def test_a_run_binds_only_when_it_provably_belongs_to_us(self, entry, bound, rejected) -> None:
+        found, refused = scan(entry)
+        assert len(found) == bound
+        assert refused == rejected
 
     def test_a_colliding_sibling_run_does_not_hide_our_own_run(self) -> None:
-        payload = json.loads(
-            runs_body(run_entry(run_id=101, pr_numbers=(9999,)), run_entry(run_id=100))
-        )
-
-        scan = usable_scan(payload)
-
-        assert [run.run_id for run in scan.bound] == [100]
-        assert scan.rejected == 1
+        bound, rejected = scan(run_entry(id=101, prs=(9999,)), run_entry(id=100))
+        assert [run.run_id for run in bound] == [100]
+        assert rejected == 1
 
     def test_only_another_pull_requests_run_resolves_unknown_not_pending(self) -> None:
         """ "Someone else's run" must not read as "nothing has run yet"."""
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry(pr_numbers=(9999,)))),
-            }
-        )
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_UNKNOWN
-        assert result.reason == mod.REASON_RUN_NOT_BOUND
-
-    def test_a_run_listing_several_pull_requests_binds_when_ours_is_present(self) -> None:
-        payload = json.loads(runs_body(run_entry(pr_numbers=(9999, int(PR)))))
-
-        scan = usable_scan(payload)
-
-        assert len(scan.bound) == 1
-
-    def test_an_empty_pull_request_list_binds_only_for_a_same_repo_run(self) -> None:
-        """GitHub empties pull_requests[] once a pull request closes.
-
-        Verified live 2026-08-10: every run of the merged pull request 4819
-        reported an empty list while runs of the open pull requests 4832, 4833,
-        and 4834 carried their own number. An empty list is therefore normal
-        and cannot be treated as a failure by itself.
-        """
-        payload = json.loads(runs_body(run_entry(pr_numbers=())))
-
-        scan = usable_scan(payload)
-
-        assert len(scan.bound) == 1
-
-    def test_an_unlinked_fork_run_is_never_bound(self) -> None:
-        """A fork cannot be named the upstream, so equality proves same-repo."""
-        payload = json.loads(runs_body(run_entry(pr_numbers=(), head_repo="attacker/ai-agents")))
-
-        scan = usable_scan(payload)
-
-        assert scan.bound == ()
-        assert scan.rejected == 1
-
-    def test_an_unlinked_run_with_no_head_repository_is_never_bound(self) -> None:
-        entry = run_entry(pr_numbers=())
-        del entry["head_repository"]
-
-        scan = usable_scan(json.loads(runs_body(entry)))
-
-        assert scan.bound == ()
-
-    def test_a_repository_name_differing_only_in_case_still_binds(self) -> None:
-        payload = json.loads(runs_body(run_entry(pr_numbers=(), head_repo=REPO.upper())))
-
-        scan = usable_scan(payload)
-
-        assert len(scan.bound) == 1
-
-    def test_a_pull_request_number_is_matched_exactly_not_by_prefix(self) -> None:
-        payload = json.loads(runs_body(run_entry(pr_numbers=(int(PR + "0"),))))
-
-        scan = usable_scan(payload)
-
-        assert scan.bound == ()
-
-    def test_a_malformed_pull_request_entry_does_not_bind(self) -> None:
-        entry = run_entry(pr_numbers=())
-        entry["pull_requests"] = ["not a mapping"]
-        entry["head_repository"] = {"full_name": "attacker/ai-agents"}
-
-        scan = usable_scan(json.loads(runs_body(entry)))
-
-        assert scan.bound == ()
-
-
-# ---------------------------------------------------------------------------
-# Attempt selection
-# ---------------------------------------------------------------------------
+        unbound = Resolution(STATUS_UNKNOWN, mod.REASON_RUN_NOT_BOUND)
+        assert resolved(runs=[run_entry(prs=(9999,))]) == unbound
 
 
 class TestAttemptSelection:
     def test_jobs_are_read_from_the_latest_attempt(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry(run_id=100, attempt=3))),
-                jobs_path(100, 3): (0, jobs_body(executor_job())),
-            }
-        )
-
+        gh = gh_stub(runs=[run_entry(run_attempt=3)], jobs=[executor()], attempt=3)
         assert resolve_with(gh).status == STATUS_PASS
-        assert jobs_path(100, 3) in gh.paths
+        assert jobs_path(3) in gh.paths
 
     def test_the_newest_run_wins_over_an_older_one(self) -> None:
-        runs = [
-            Run(run_id=100, attempt=4, started_at="2026-08-09T10:00:00Z"),
-            Run(run_id=200, attempt=1, started_at="2026-08-09T11:00:00Z"),
-        ]
-
-        assert select_latest_run(runs).run_id == 200
+        older = Run(run_id=100, attempt=4, started_at="2026-08-09T10:00:00Z")
+        newer = Run(run_id=200, attempt=1, started_at="2026-08-09T11:00:00Z")
+        assert select_latest_run([older, newer]).run_id == 200
 
     def test_the_highest_attempt_wins_when_start_times_tie(self) -> None:
-        runs = [
-            Run(run_id=100, attempt=1, started_at="2026-08-09T10:00:00Z"),
-            Run(run_id=100, attempt=3, started_at="2026-08-09T10:00:00Z"),
-        ]
-
-        assert select_latest_run(runs).attempt == 3
+        first = Run(run_id=100, attempt=1, started_at="2026-08-09T10:00:00Z")
+        rerun = Run(run_id=100, attempt=3, started_at="2026-08-09T10:00:00Z")
+        assert select_latest_run([first, rerun]).attempt == 3
 
     def test_a_missing_attempt_field_defaults_to_one(self) -> None:
         entry = run_entry()
         del entry["run_attempt"]
-        payload = json.loads(runs_body(entry))
-
-        scan = usable_scan(payload)
-
-        assert scan.bound[0].attempt == 1
-
-
-# ---------------------------------------------------------------------------
-# Executor and pass-through classification, duplicate-name severity
-# ---------------------------------------------------------------------------
+        assert scan(entry)[0][0].attempt == 1
 
 
 class TestJobAggregation:
-    def test_an_executor_pass_is_pass(self) -> None:
-        assert aggregate([mod.parse_job(executor_job())]).status == STATUS_PASS
+    # Every job here carries the required check name, so the first non-empty
+    # tier decides and a lower tier can overrule it downward but never upward.
+    # "benign-skipped-sibling" is the inverse guard, taken from the live shape
+    # of run 31355229018: were SKIPPED to escalate, every ordinary green pull
+    # request would resolve to SKIPPED.
+    _TIERS = {
+        "executor-pass": ([executor()], STATUS_PASS),
+        "sibling-failure-wins": ([executor("failure", "failure"), pass_through()], STATUS_FAIL),
+        "failing-executor-not-rescued": ([executor(), executor("failure", "failure")], STATUS_FAIL),
+        "pass-through-only-never-passes": ([pass_through()], STATUS_SKIPPED),
+        "green-executor-that-skipped": ([executor("success", "skipped")], STATUS_SKIPPED),
+        "executor-outranks-pass-through": ([executor(), pass_through("skipped")], STATUS_PASS),
+        "skip-hides-no-fail": ([executor("s", "skipped"), pass_through("failure")], STATUS_FAIL),
+        "executor-pass-hides-no-fail": ([executor(), bare(conclusion="failure")], STATUS_FAIL),
+        "pass-through-hides-no-fail": ([pass_through(), bare(conclusion="failure")], STATUS_FAIL),
+        "running-sibling-holds-open": ([executor(), bare("in_progress", None)], STATUS_PENDING),
+        "benign-skipped-sibling": ([executor(), bare(conclusion="skipped")], STATUS_PASS),
+        "unclassifiable-sibling-benign": ([executor(), bare()], STATUS_PASS),
+        "cancelled": ([executor("cancelled", "cancelled")], STATUS_CANCELLED),
+        "timed-out-is-a-failure": ([executor("timed_out", "failure")], STATUS_FAIL),
+        "no-known-step-cannot-pass": ([bare()], STATUS_UNKNOWN),
+    }
 
-    def test_a_sibling_failure_beats_a_sibling_success(self) -> None:
-        """Both jobs are named "Run Python Tests"; the worst outcome wins."""
-        jobs = [
-            mod.parse_job(executor_job(conclusion="failure", step_conclusion="failure")),
-            mod.parse_job(pass_through_job()),
-        ]
-
-        assert aggregate(jobs).status == STATUS_FAIL
-
-    def test_a_failing_executor_is_not_rescued_by_a_passing_executor(self) -> None:
-        jobs = [
-            mod.parse_job(executor_job()),
-            mod.parse_job(executor_job(conclusion="failure", step_conclusion="failure")),
-        ]
-
-        assert aggregate(jobs).status == STATUS_FAIL
-
-    def test_a_pass_through_only_run_is_skipped_never_pass(self) -> None:
-        """A green pass-through means the suite never ran (pytest.yml #1168)."""
-        assert aggregate([mod.parse_job(pass_through_job())]).status == STATUS_SKIPPED
-
-    def test_a_green_executor_whose_pytest_step_was_skipped_is_skipped(self) -> None:
-        job = mod.parse_job(executor_job(conclusion="success", step_conclusion="skipped"))
-
-        assert aggregate([job]).status == STATUS_SKIPPED
-
-    def test_the_real_green_but_unrun_payload_is_skipped(self) -> None:
-        """Regression pin taken from live API data, not from the fixtures above.
-
-        Captured 2026-08-09 from
-        ``GET /repos/rjmurillo/ai-agents/actions/runs/31360441685/attempts/1/jobs``.
-        That run reports ``conclusion: success`` at the run level and BOTH jobs
-        named "Run Python Tests" report ``conclusion: success``, yet the suite
-        never executed: the pass-through job ran its skip step and the executor
-        job ran with every step after "Check if tests needed" skipped. Any
-        resolver reading the run conclusion, or either job conclusion, would
-        report PASS for a commit nothing was tested on. Step names are the only
-        discriminator, so this payload is pinned verbatim.
-        """
-        real_pass_through = {
-            "name": "Run Python Tests",
-            "status": "completed",
-            "conclusion": "success",
-            "steps": [
-                {"name": "Set up job", "conclusion": "success"},
-                {"name": "Skip tests (no Python test inputs changed)", "conclusion": "success"},
-                {"name": "Complete job", "conclusion": "success"},
-            ],
-        }
-        real_executor = {
-            "name": "Run Python Tests",
-            "status": "completed",
-            "conclusion": "success",
-            "steps": [
-                {"name": "Set up job", "conclusion": "success"},
-                {"name": "Check if tests needed", "conclusion": "success"},
-                {"name": "Setup code environment", "conclusion": "skipped"},
-                {"name": "Run pytest", "conclusion": "skipped"},
-                {"name": "Upload test results", "conclusion": "skipped"},
-                {"name": "Complete job", "conclusion": "success"},
-            ],
-        }
-        jobs = [mod.parse_job(real_pass_through), mod.parse_job(real_executor)]
-
-        assert aggregate(jobs).status == STATUS_SKIPPED
-
-    def test_an_executor_decides_over_a_pass_through_sibling(self) -> None:
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(pass_through_job("skipped"))]
-
-        assert aggregate(jobs).status == STATUS_PASS
+    @pytest.mark.parametrize(("jobs", "status"), _TIERS.values(), ids=_TIERS)
+    def test_same_named_jobs_reduce_to_one_status(self, jobs: list[dict], status: str) -> None:
+        assert aggregate(parsed(*jobs)).status == status
 
     def test_an_executor_pass_does_not_mask_a_pass_through_failure(self) -> None:
-        """The deciding tier can be overruled downward, never upward.
-
-        Both jobs carry the required check name "Run Python Tests", so a failed
-        pass-through means GitHub is showing that check as red. Reporting PASS
-        there claimed a green check that did not exist.
-        """
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(pass_through_job("failure"))]
-
-        result = aggregate(jobs)
-
+        """A failed pass-through is a red check; PASS would claim a green one."""
+        result = aggregate(parsed(executor(), pass_through("failure")))
         assert result.status == STATUS_FAIL
         assert "unhealthy sibling" in result.reason
 
-    def test_an_executor_skip_does_not_mask_a_pass_through_failure(self) -> None:
-        jobs = [
-            mod.parse_job(executor_job(conclusion="success", step_conclusion="skipped")),
-            mod.parse_job(pass_through_job("failure")),
-        ]
+    def test_the_real_green_but_unrun_payload_is_skipped(self) -> None:
+        """Regression pin, verbatim from live API data rather than a fixture.
 
-        assert aggregate(jobs).status == STATUS_FAIL
-
-    def test_an_executor_pass_does_not_mask_an_unclassified_failure(self) -> None:
-        unclassified = {"name": "Run Python Tests", "status": "completed", "conclusion": "failure"}
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(unclassified)]
-
-        assert aggregate(jobs).status == STATUS_FAIL
-
-    def test_a_pass_through_verdict_does_not_mask_an_unclassified_failure(self) -> None:
-        """Escalation is not an executor-only rule; it applies to every tier."""
-        unclassified = {"name": "Run Python Tests", "status": "completed", "conclusion": "failure"}
-        jobs = [mod.parse_job(pass_through_job()), mod.parse_job(unclassified)]
-
-        assert aggregate(jobs).status == STATUS_FAIL
-
-    def test_a_still_running_sibling_holds_the_verdict_open(self) -> None:
-        running = {"name": "Run Python Tests", "status": "in_progress", "conclusion": None}
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(running)]
-
-        assert aggregate(jobs).status == STATUS_PENDING
-
-    def test_a_benign_sibling_does_not_disturb_an_executor_pass(self) -> None:
-        """The inverse guard: escalation must not fire on the normal shape.
-
-        This is the live shape of run 31355229018, where the pass-through job
-        is skipped outright and reports no steps at all. If SKIPPED escalated,
-        every ordinary green pull request would resolve to SKIPPED.
+        Captured 2026-08-09 from ``GET /repos/rjmurillo/ai-agents/actions/runs/
+        31360441685/attempts/1/jobs``. BOTH jobs named "Run Python Tests" report
+        ``conclusion: success``, as does the run, yet the suite never executed:
+        step names are the only discriminator, so this payload is pinned as it
+        arrived rather than rebuilt from the fixtures it would have to agree with.
         """
-        skipped_sibling = {
-            "name": "Run Python Tests",
-            "status": "completed",
-            "conclusion": "skipped",
-        }
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(skipped_sibling)]
-
-        assert aggregate(jobs).status == STATUS_PASS
-
-    def test_an_unclassifiable_sibling_does_not_erase_an_observed_pass(self) -> None:
-        """UNKNOWN is benign: not recognizing a sibling is not evidence of harm."""
-        mystery = {"name": "Run Python Tests", "status": "completed", "conclusion": "success"}
-        jobs = [mod.parse_job(executor_job()), mod.parse_job(mystery)]
-
-        assert aggregate(jobs).status == STATUS_PASS
+        payload = json.loads("""{"jobs": [
+          {"name": "Run Python Tests", "status": "completed", "conclusion": "success", "steps": [
+            {"name": "Set up job", "conclusion": "success"},
+            {"name": "Skip tests (no Python test inputs changed)", "conclusion": "success"},
+            {"name": "Complete job", "conclusion": "success"}]},
+          {"name": "Run Python Tests", "status": "completed", "conclusion": "success", "steps": [
+            {"name": "Set up job", "conclusion": "success"},
+            {"name": "Check if tests needed", "conclusion": "success"},
+            {"name": "Setup code environment", "conclusion": "skipped"},
+            {"name": "Run pytest", "conclusion": "skipped"},
+            {"name": "Upload test results", "conclusion": "skipped"},
+            {"name": "Complete job", "conclusion": "success"}]}]}""")
+        assert aggregate(parsed(*payload["jobs"])).status == STATUS_SKIPPED
 
     def test_an_incomplete_executor_is_pending(self) -> None:
-        job = Job(name="Run Python Tests", status="in_progress", conclusion="", steps=())
-
-        assert mod.executor_status(job) == STATUS_PENDING
-
-    def test_a_cancelled_job_is_cancelled(self) -> None:
-        job = mod.parse_job(executor_job(conclusion="cancelled", step_conclusion="cancelled"))
-
-        assert aggregate([job]).status == STATUS_CANCELLED
-
-    def test_a_timed_out_job_is_a_failure(self) -> None:
-        job = mod.parse_job(executor_job(conclusion="timed_out", step_conclusion="failure"))
-
-        assert aggregate([job]).status == STATUS_FAIL
-
-    def test_a_job_with_no_recognizable_steps_cannot_report_pass(self) -> None:
-        job = mod.parse_job(
-            {"name": "Run Python Tests", "status": "completed", "conclusion": "success"}
-        )
-
-        assert aggregate([job]).status == STATUS_UNKNOWN
+        job = Job(name=CHECK, status="in_progress", conclusion="", steps=())
+        assert mod.job_status(job, mod.KIND_EXECUTOR) == STATUS_PENDING
 
     def test_no_matching_job_is_unknown(self) -> None:
-        result = aggregate([])
+        assert aggregate([]) == Resolution(STATUS_UNKNOWN, mod.REASON_NO_JOB)
 
-        assert result.status == STATUS_UNKNOWN
-        assert result.reason == mod.REASON_NO_JOB
-
-    def test_an_unrecognized_conclusion_is_unknown_and_says_so(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        job = mod.parse_job(executor_job(conclusion="action_required"))
-
-        assert aggregate([job]).status == STATUS_UNKNOWN
+    def test_an_unrecognized_conclusion_is_unknown_and_says_so(self, capsys: Capsys) -> None:
+        assert aggregate(parsed(executor("action_required"))).status == STATUS_UNKNOWN
         assert "unrecognized job conclusion" in capsys.readouterr().err
 
     def test_only_jobs_carrying_the_check_name_are_considered(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry())),
-                jobs_path(100, 1): (
-                    0,
-                    jobs_body(
-                        {
-                            "name": "Python Security Checks",
-                            "status": "completed",
-                            "conclusion": "failure",
-                            "steps": [{"name": "Run Bandit", "conclusion": "failure"}],
-                        },
-                        executor_job(),
-                    ),
-                ),
-            }
-        )
-
-        assert resolve_with(gh).status == STATUS_PASS
-
-
-# ---------------------------------------------------------------------------
-# Missing, pending, and unusable API data
-# ---------------------------------------------------------------------------
+        other = {"name": "Python Security Checks", "status": "completed", "conclusion": "failure"}
+        result = resolved(runs=[run_entry()], jobs=[other, executor()])
+        assert result.status == STATUS_PASS
 
 
 class TestUnusableData:
+    # A 403 from a missing actions scope, a malformed body, and a body of the
+    # wrong shape are all "no usable data", never a verdict.
+    _MALFORMED = mod.REASON_LIVE_HEAD_MALFORMED
+    _CASES = {
+        "ref-forbidden": ({REF_PATH: (1, "")}, mod.REASON_LIVE_HEAD_UNREADABLE),
+        "ref-invalid-json": ({REF_PATH: (0, "not json at all")}, mod.REASON_LIVE_HEAD_UNREADABLE),
+        "ref-without-a-sha": ({REF_PATH: (0, '{"ref": "x"}')}, _MALFORMED),
+        "ref-sha-short": ({REF_PATH: (0, json.dumps({"object": {"sha": "a" * 39}}))}, _MALFORMED),
+        "runs-forbidden": ({RUNS_PATH: (1, '{"message": "no"}')}, mod.REASON_RUNS_UNREADABLE),
+        "runs-not-a-list": ({RUNS_PATH: (0, '{"workflow_runs": 1}')}, mod.REASON_RUNS_UNREADABLE),
+        "runs-not-an-object": ({RUNS_PATH: (0, '["a list"]')}, mod.REASON_RUNS_UNREADABLE),
+    }
+
+    @pytest.mark.parametrize(("raw", "reason"), _CASES.values(), ids=_CASES)
+    def test_unusable_api_data_is_unknown(self, raw, reason) -> None:
+        assert resolved(raw=raw) == Resolution(STATUS_UNKNOWN, reason)
+
     def test_no_run_yet_is_pending(self) -> None:
-        gh = GhFake({REF_PATH: (0, ref_body(HEAD)), RUNS_PATH: (0, runs_body())})
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_PENDING
-        assert result.reason == mod.REASON_NO_RUN
+        assert resolved(runs=[]) == Resolution(STATUS_PENDING, NO_RUN)
 
     def test_a_queued_job_is_pending(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry())),
-                jobs_path(100, 1): (
-                    0,
-                    jobs_body(
-                        {
-                            "name": "Run Python Tests",
-                            "status": "queued",
-                            "conclusion": None,
-                            "steps": [{"name": "Run pytest", "conclusion": None}],
-                        }
-                    ),
-                ),
-            }
-        )
-
-        assert resolve_with(gh).status == STATUS_PENDING
+        queued = {**bare("queued", None), "steps": [{"name": "Run pytest", "conclusion": None}]}
+        assert resolved(runs=[run_entry()], jobs=[queued]).status == STATUS_PENDING
 
     def test_a_cancelled_run_reports_cancelled(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry())),
-                jobs_path(100, 1): (
-                    0,
-                    jobs_body(executor_job(conclusion="cancelled", step_conclusion="cancelled")),
-                ),
-            }
-        )
+        jobs = [executor("cancelled", "cancelled")]
+        assert resolved(runs=[run_entry()], jobs=jobs).status == STATUS_CANCELLED
 
-        assert resolve_with(gh).status == STATUS_CANCELLED
-
-    def test_a_forbidden_run_query_is_unknown(self) -> None:
-        """A 403 from a missing actions scope must not read as a verdict."""
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (1, json.dumps({"message": "Resource not accessible"})),
-            }
-        )
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_UNKNOWN
-        assert result.reason == mod.REASON_RUNS_UNREADABLE
-
-    def test_a_forbidden_ref_query_is_unknown(self) -> None:
-        gh = GhFake({REF_PATH: (1, "")})
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_UNKNOWN
-        assert result.reason == mod.REASON_LIVE_HEAD_UNREADABLE
+    def test_a_job_list_that_is_not_a_list_is_unknown(self) -> None:
+        raw = {jobs_path(): (0, '{"jobs": {"name": "x"}}')}
+        assert resolved(runs=[run_entry()], raw=raw).reason == mod.REASON_JOBS_UNREADABLE
 
     def test_a_gh_binary_that_cannot_launch_is_unknown(self) -> None:
         def exploding(argv, *, timeout=None):
             raise FileNotFoundError("gh")
 
-        result = mod.resolve(
-            exploding,
-            repo=REPO,
-            pr=PR,
-            expected_sha=HEAD,
-            workflow="pytest.yml",
-            job_name="Run Python Tests",
-        )
-
-        assert result.status == STATUS_UNKNOWN
-
-    def test_invalid_json_is_unknown(self) -> None:
-        gh = GhFake({REF_PATH: (0, "not json at all")})
-
-        assert resolve_with(gh).status == STATUS_UNKNOWN
-
-    def test_a_ref_payload_without_a_sha_is_unknown(self) -> None:
-        gh = GhFake({REF_PATH: (0, json.dumps({"ref": "refs/pull/1/head"}))})
-
-        result = resolve_with(gh)
-
-        assert result.status == STATUS_UNKNOWN
-        assert result.reason == mod.REASON_LIVE_HEAD_MALFORMED
-
-    def test_a_truncated_sha_is_not_accepted_as_the_live_head(self) -> None:
-        gh = GhFake({REF_PATH: (0, ref_body("a" * 39))})
-
-        assert resolve_with(gh).reason == mod.REASON_LIVE_HEAD_MALFORMED
-
-    def test_a_run_list_that_is_not_a_list_is_unknown(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, json.dumps({"workflow_runs": "nope"})),
-            }
-        )
-
-        assert resolve_with(gh).reason == mod.REASON_RUNS_UNREADABLE
-
-    def test_a_job_list_that_is_not_a_list_is_unknown(self) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry())),
-                jobs_path(100, 1): (0, json.dumps({"jobs": {"name": "Run Python Tests"}})),
-            }
-        )
-
-        assert resolve_with(gh).reason == mod.REASON_JOBS_UNREADABLE
-
-    def test_a_run_entry_without_an_id_is_dropped(self) -> None:
-        entry = run_entry()
-        entry["id"] = "not-a-number"
-
-        assert usable_scan(json.loads(runs_body(entry))).bound == ()
-
-    def test_a_non_mapping_payload_is_unusable(self) -> None:
-        assert scan_runs(["a list"]) is None
+        assert resolve_with(exploding).status == STATUS_UNKNOWN
 
 
-# ---------------------------------------------------------------------------
-# Comparison against the local run
-# ---------------------------------------------------------------------------
+class TestReporting:
+    @pytest.mark.parametrize(
+        ("status", "local", "agreement"),
+        [
+            (STATUS_PASS, "PASS", AGREE),
+            (STATUS_PENDING, "PASS", DISAGREE),
+            (STATUS_PASS, "", UNCOMPARED),
+            (STATUS_PASS, "TOTALLY_MADE_UP", UNCOMPARED),
+            (STATUS_FAIL, " fail ", AGREE),
+        ],
+    )
+    def test_a_local_status_is_compared_with_the_resolved_one(self, status, local, agreement):
+        assert compare(status, local)[0] == agreement
 
-
-class TestCompare:
-    def test_matching_statuses_agree(self) -> None:
-        assert compare(STATUS_PASS, "PASS")[0] == AGREE
-
-    def test_differing_statuses_disagree(self) -> None:
-        assert compare(STATUS_PENDING, "PASS")[0] == DISAGREE
-
-    def test_a_missing_local_status_is_uncompared(self) -> None:
-        assert compare(STATUS_PASS, "")[0] == UNCOMPARED
-
-    def test_an_unknown_local_token_is_uncompared(self) -> None:
-        assert compare(STATUS_PASS, "TOTALLY_MADE_UP")[0] == UNCOMPARED
-
-    def test_a_lower_case_local_status_still_agrees(self) -> None:
-        assert compare(STATUS_FAIL, " fail ")[0] == AGREE
-
-
-# ---------------------------------------------------------------------------
-# Shadow liveness: a silent shadow is indistinguishable from a dead one
-# ---------------------------------------------------------------------------
-
-
-class TestLiveness:
-    def test_every_invocation_emits_exactly_one_sample_marker(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
-
-        assert capsys.readouterr().out.count(mod.SAMPLE_MARKER) == 1
-
-    def test_a_marker_is_emitted_even_when_nothing_could_be_compared(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    @pytest.mark.parametrize(
+        ("status", "agreement"), [(STATUS_PASS, AGREE), (STATUS_UNKNOWN, UNCOMPARED)]
+    )
+    def test_every_invocation_emits_exactly_one_sample_marker(self, status, agreement, capsys):
         """Zero samples must be countable, not invisible."""
-        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
-
+        mod.emit(Resolution(status, "reason"), agreement, "reason")
         assert capsys.readouterr().out.count(mod.SAMPLE_MARKER) == 1
 
-    def test_a_compared_run_reports_compared_true(self) -> None:
-        outputs = mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
+    @pytest.mark.parametrize(
+        ("agreement", "compared"), [(AGREE, "true"), (DISAGREE, "true"), (UNCOMPARED, "false")]
+    )
+    def test_the_compared_flag_counts_only_real_comparisons(self, agreement, compared) -> None:
+        """A disagreement is still a collected sample; an uncompared run is not."""
+        outputs = mod.emit(Resolution(STATUS_PASS, "reason"), agreement, "reason")
+        assert outputs["shadow_pytest_compared"] == compared
 
-        assert outputs["shadow_pytest_compared"] == "true"
+    def test_collecting_no_sample_is_warned_not_passed_over_quietly(self, capsys: Capsys) -> None:
+        mod.emit(Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
+        assert "::warning::Shadow pytest signal collected no sample." in capsys.readouterr().out
 
-    def test_a_disagreement_still_counts_as_a_collected_sample(self) -> None:
-        outputs = mod.emit(mod.Resolution(STATUS_FAIL, "reason"), DISAGREE, "differ")
-
-        assert outputs["shadow_pytest_compared"] == "true"
-
-    def test_an_uncompared_run_reports_compared_false(self) -> None:
-        outputs = mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
-
-        assert outputs["shadow_pytest_compared"] == "false"
-
-    def test_collecting_no_sample_is_warned_not_passed_over_quietly(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
-
-        out = capsys.readouterr().out
-        assert "::warning::Shadow pytest signal collected no sample." in out
-
-    def test_a_healthy_agreement_raises_no_warning(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_a_healthy_agreement_raises_no_warning(self, capsys: Capsys) -> None:
         """The inverse guard: liveness reporting must not become noise."""
-        mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
-
+        mod.emit(Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
         assert "::warning::" not in capsys.readouterr().out
 
-    def test_the_marker_line_carries_the_status_and_agreement(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        mod.emit(mod.Resolution(STATUS_SKIPPED, "reason"), DISAGREE, "differ")
+    def test_the_marker_line_carries_the_status_and_agreement(self, capsys: Capsys) -> None:
+        mod.emit(Resolution(STATUS_SKIPPED, "reason"), DISAGREE, "differ")
+        marker = f"::notice::{mod.SAMPLE_MARKER} status=SKIPPED agreement=DISAGREE"
+        assert marker in capsys.readouterr().out
 
-        out = capsys.readouterr().out
-        assert f"::notice::{mod.SAMPLE_MARKER} status=SKIPPED agreement=DISAGREE" in out
-
-    def test_the_no_sample_warning_sanitizes_the_reason_it_is_handed(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_the_no_sample_warning_sanitizes_the_reason_it_is_handed(self, capsys: Capsys) -> None:
         """The no-sample branch needs its own guard, not the disagree branch's.
 
-        Both warnings sanitize, but only a test that reaches THIS branch can
-        observe it. A mutant emitting the raw reason here survived until this
-        test existed, so the guard was untested on the path it protects.
+        A mutant emitting the raw reason here survived until this test existed,
+        so the guard was untested on the one path it protects.
         """
-        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "::error::title=x\nsecond")
-
+        mod.emit(Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "::error::title=x\nsecond")
         out = capsys.readouterr().out
         assert "::error::" not in out
         assert out.count("::warning::") == 1
         assert "errortitlex second" in out
 
-
-# ---------------------------------------------------------------------------
-# Output sanitation
-# ---------------------------------------------------------------------------
-
-
-class TestSanitation:
-    def test_workflow_command_syntax_cannot_survive(self) -> None:
-        assert "::" not in sanitize("::error::title=pwned")
-
-    def test_newlines_cannot_survive(self) -> None:
-        assert "\n" not in sanitize("first line\nsecond line")
-
-    def test_percent_escapes_cannot_survive(self) -> None:
-        assert "%" not in sanitize("%0A%0Dinjected")
+    @pytest.mark.parametrize(
+        ("hostile", "forbidden"),
+        [("::error::title=pwned", "::"), ("line one\nline two", "\n"), ("%0A%0Dinjected", "%")],
+    )
+    def test_injection_syntax_cannot_survive(self, hostile: str, forbidden: str) -> None:
+        assert forbidden not in sanitize(hostile)
 
     def test_output_is_truncated(self) -> None:
         assert len(sanitize("x" * 500)) == 160
 
-    def test_emit_sanitizes_a_reason_it_is_handed(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """The second line of defence, reached only if a reason ever carries text.
+    def test_emit_sanitizes_a_reason_it_is_handed(self, capsys: Capsys) -> None:
+        """The second line of defence, reached only if a reason carries text.
 
-        Every reason this module builds is already a fixed constant, so no
-        resolve-level input can exercise this. Constructing the Resolution
-        directly is the only input on which a sanitizing and a non-sanitizing
-        ``emit`` disagree, which is what makes the guard testable at all.
+        Every reason this module builds is a fixed constant, so constructing the
+        Resolution directly is the only input on which a sanitizing and a
+        non-sanitizing ``emit`` disagree, and so the only testable one.
         """
-        hostile = mod.Resolution(STATUS_FAIL, "::error::title=x\nsecond line")
-
+        hostile = Resolution(STATUS_FAIL, "::error::title=x\nsecond line")
         outputs = mod.emit(hostile, DISAGREE, "::error::agreement")
-
         printed = capsys.readouterr().out
         assert outputs["shadow_pytest_reason"] == "errortitlex second line"
         assert "::error::" not in printed
         assert printed.count("::warning::") == 1
 
-    def test_no_fork_controlled_text_reaches_the_outputs(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Branch, title, and commit text from the payload must never be emitted."""
+    def test_no_fork_controlled_text_reaches_the_outputs(self, cli, monkeypatch, tmp_path, capsys):
+        """Branch, title, and commit text are attacker-controlled on a fork."""
         poison = "::error::PWNED"
-        hostile_run = run_entry()
-        hostile_run["head_branch"] = f"{poison}-branch"
-        hostile_run["display_title"] = f"{poison}-title"
-        hostile_run["head_commit"] = {"message": f"{poison}-commit\nsecond line"}
-        hostile_job = executor_job()
-        hostile_job["workflow_name"] = f"{poison}-workflow"
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(hostile_run)),
-                jobs_path(100, 1): (0, jobs_body(hostile_job)),
-            }
-        )
-        monkeypatch.setattr(mod, "run_gh", gh)
-        output_file = tmp_path / "github_output"
-        monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+        run = run_entry(head_branch=poison, head_commit={"message": f"{poison}\nsecond line"})
+        job = {**executor(), "workflow_name": poison}
+        out_file = tmp_path / "github_output"
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
 
-        code = main(
-            ["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD, "--local-status", "PASS"]
-        )
+        assert cli(gh_stub(runs=[run], jobs=[job]), "--local-status", "PASS") == EXIT_OK
 
         captured = capsys.readouterr()
-        written = output_file.read_text(encoding="utf-8")
-        assert code == EXIT_OK
+        written = out_file.read_text(encoding="utf-8")
         for surface in (captured.out, captured.err, written):
-            assert "PWNED" not in surface
-            assert "::error::" not in surface
-        assert "shadow_pytest_status=PASS" in written
-        assert written.endswith("\n")
+            assert "PWNED" not in surface and "::error::" not in surface
+        assert "shadow_pytest_status=PASS" in written and written.endswith("\n")
         # Exactly the documented output keys, one per line, nothing smuggled in.
-        assert [line.split("=", 1)[0] for line in written.strip().splitlines()] == [
-            "shadow_pytest_status",
-            "shadow_pytest_reason",
-            "shadow_pytest_agreement",
-            "shadow_pytest_compared",
-        ]
-
-
-# ---------------------------------------------------------------------------
-# CLI contract
-# ---------------------------------------------------------------------------
+        keys = [line.split("=", 1)[0] for line in written.strip().splitlines()]
+        assert keys == [f"shadow_pytest_{n}" for n in "status reason agreement compared".split()]
 
 
 class TestMain:
-    def test_a_malformed_expected_sha_exits_config(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        code = main(["--repo", REPO, "--pr", PR, "--expected-head-sha", "abc123"])
+    _INVALID = {
+        "missing-sha": (["--expected-head-sha", ""], "40 hex"),
+        "malformed-sha": (["--expected-head-sha", "abc123"], "40 hex"),
+        "malformed-repo": (["--repo", "not-a-repo"], "owner/repo"),
+        "non-numeric-pr": (["--pr", "../../etc"], "positive integer"),
+        "workflow-with-a-path": (["--workflow", "../../etc/passwd"], "workflow file name"),
+    }
 
-        assert code == EXIT_CONFIG
-        assert "40 hex" in capsys.readouterr().err
+    @pytest.mark.parametrize(("extra", "message"), _INVALID.values(), ids=_INVALID)
+    def test_an_invalid_invocation_exits_config(self, extra, message, capsys):
+        base = ["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD]
+        assert main([*base, *extra]) == EXIT_CONFIG
+        assert message in capsys.readouterr().err
 
-    def test_a_missing_expected_sha_exits_config(self) -> None:
-        assert main(["--repo", REPO, "--pr", PR, "--expected-head-sha", ""]) == EXIT_CONFIG
-
-    def test_a_malformed_repo_exits_config(self) -> None:
-        argv = ["--repo", "not-a-repo", "--pr", PR, "--expected-head-sha", HEAD]
-
-        assert main(argv) == EXIT_CONFIG
-
-    def test_a_non_numeric_pr_exits_config(self) -> None:
-        argv = ["--repo", REPO, "--pr", "../../etc", "--expected-head-sha", HEAD]
-
-        assert main(argv) == EXIT_CONFIG
-
-    def test_a_workflow_name_with_a_path_exits_config(self) -> None:
-        argv = [
-            "--repo",
-            REPO,
-            "--pr",
-            PR,
-            "--expected-head-sha",
-            HEAD,
-            "--workflow",
-            "../../../etc/passwd",
-        ]
-
-        assert main(argv) == EXIT_CONFIG
-
-    def test_a_resolution_failure_still_exits_zero(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_a_resolution_failure_still_exits_zero(self, cli, capsys: Capsys) -> None:
         """Shadow mode observes. An API failure must not change the job outcome."""
-        gh = GhFake({REF_PATH: (1, "")})
-        monkeypatch.setattr(mod, "run_gh", gh)
-        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-
-        code = main(["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD])
-
-        assert code == EXIT_OK
+        assert cli(gh_stub(raw={REF_PATH: (1, "")})) == EXIT_OK
         assert "shadow_pytest_status=UNKNOWN" in capsys.readouterr().out
 
-    def test_a_disagreement_emits_a_warning_annotation(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        gh = GhFake({REF_PATH: (0, ref_body(HEAD)), RUNS_PATH: (0, runs_body())})
-        monkeypatch.setattr(mod, "run_gh", gh)
-        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-
-        main(["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD, "--local-status", "PASS"])
-
+    def test_a_disagreement_emits_a_warning_annotation(self, cli, capsys: Capsys) -> None:
+        cli(gh_stub(runs=[]), "--local-status", "PASS")
         out = capsys.readouterr().out
         assert "shadow_pytest_agreement=DISAGREE" in out
         assert "::warning::Shadow pytest signal disagreement." in out
 
-    def test_agreement_emits_no_warning(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        gh = GhFake(
-            {
-                REF_PATH: (0, ref_body(HEAD)),
-                RUNS_PATH: (0, runs_body(run_entry())),
-                jobs_path(100, 1): (0, jobs_body(executor_job())),
-            }
-        )
-        monkeypatch.setattr(mod, "run_gh", gh)
-        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-
-        main(["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD, "--local-status", "PASS"])
-
+    def test_agreement_emits_no_warning(self, cli, capsys: Capsys) -> None:
+        cli(gh_stub(runs=[run_entry()], jobs=[executor()]), "--local-status", "PASS")
         out = capsys.readouterr().out
         assert "shadow_pytest_agreement=AGREE" in out
         assert "::warning::" not in out
 
-    def test_env_vars_supply_the_defaults(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        gh = GhFake({REF_PATH: (0, ref_body(OTHER_HEAD))})
-        monkeypatch.setattr(mod, "run_gh", gh)
-        monkeypatch.setenv("GITHUB_REPOSITORY", REPO)
-        monkeypatch.setenv("PR_NUMBER", PR)
-        monkeypatch.setenv("EXPECTED_HEAD_SHA", HEAD)
-        monkeypatch.setenv("LOCAL_PYTEST_STATUS", "PASS")
+    def test_env_vars_supply_the_defaults(self, monkeypatch, capsys):
+        monkeypatch.setattr(mod, "run_gh", gh_stub(ref=OTHER_HEAD))
+        env = {"GITHUB_REPOSITORY": REPO, "PR_NUMBER": PR, "EXPECTED_HEAD_SHA": HEAD}
+        for name, value in {**env, "LOCAL_PYTEST_STATUS": "PASS"}.items():
+            monkeypatch.setenv(name, value)
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-
         assert main([]) == EXIT_OK
         assert "shadow_pytest_status=STALE" in capsys.readouterr().out
