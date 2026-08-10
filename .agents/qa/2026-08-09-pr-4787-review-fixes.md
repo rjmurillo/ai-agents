@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10030-pr-4787-review-fixes.json
-qaCommit: 2f2bdfa7f477b1ae088941193462ed6314a3de1a
+qaCommit: 1d91dbb4a9c5a91ff43a725135499f2579840a3c
 ---
 
 # PR 4787 QA Report
