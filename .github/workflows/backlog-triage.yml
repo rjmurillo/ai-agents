@@ -61,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: >-
-          uv run --frozen python scripts/issue_triage.py
+          uv run --frozen python -m scripts.issue_triage
           --limit "$BACKLOG_MAX_ISSUES"
           --ai
           --github-output "$GITHUB_OUTPUT"

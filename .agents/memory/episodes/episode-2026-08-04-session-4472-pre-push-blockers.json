@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-04-session-4472-pre-push-blockers",
+  "session": "2026-08-04-session-4472-pre-push-blockers",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix cluster of 7 pre-push reliability issues: #4366, #4472, #4474, #4501, #4503, #4506, #4507.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix #4506",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix #4472",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix #4503",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "docs #4366",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "tests",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T08:04:59+00:00",
+      "type": "commit",
+      "content": "Commit: ec4c15b089996213e840acab631defd950b49b2c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4472-pre-push-blockers"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

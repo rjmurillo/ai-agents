@@ -19,7 +19,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import isolated_mutation_worktree
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+TARGETS = (
+    Path("tests/ci/test_validation_scripts_are_reachable.py"),
+    Path("scripts/validation/git_hook_policy.py"),
+    Path(".claude/skills/session-end/scripts/complete_session_log.py"),
+)
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -63,14 +70,15 @@ def _restore(path: Path, backup: Path) -> None:
     )
 
 
-def _run_tests(test_paths: list[str]) -> bool:
+def _run_tests(repo_root: Path, test_paths: list[str]) -> bool:
     """Return True if the test suite passes."""
     result = _run(
         [
             sys.executable, "-m", "pytest",
             *test_paths,
             "-q", "--tb=no", "-x",
-        ]
+        ],
+        cwd=repo_root,
     )
     return result.returncode == 0
 
@@ -81,6 +89,7 @@ def _mutation(
     original: str,
     mutant: str,
     test_paths: list[str],
+    repo_root: Path,
 ) -> str:
     """Apply one mutation and return 'DEAD', 'SURVIVED', or 'DID-NOT-APPLY'."""
     count = _count_occurrences(target_path, original)
@@ -102,7 +111,7 @@ def _mutation(
         return "DID-NOT-APPLY"
 
     try:
-        suite_passed = _run_tests(test_paths)
+        suite_passed = _run_tests(repo_root, test_paths)
     finally:
         _restore(target_path, backup)
         backup.unlink()
@@ -115,12 +124,12 @@ def _mutation(
     return "DEAD"
 
 
-def main() -> int:
+def _run_mutations(repo_root: Path) -> int:
     mutations: list[tuple[str, Path, str, str, list[str]]] = [
         # Issue #4160: relative vs absolute path parts in skip filter
         (
             "#4160 relative-parts",
-            REPO_ROOT / "tests/ci/test_validation_scripts_are_reachable.py",
+            repo_root / "tests/ci/test_validation_scripts_are_reachable.py",
             "p.relative_to(_REPO_ROOT).parts",
             "p.parts",
             [
@@ -131,7 +140,7 @@ def main() -> int:
         # Issue #4194: _session_log_for_current_branch in check_adr_review_policy
         (
             "#4194 adr-uses-branch-log",
-            REPO_ROOT / "scripts/validation/git_hook_policy.py",
+            repo_root / "scripts/validation/git_hook_policy.py",
             "_session_log_for_current_branch(repo_root / \".agents\" / \"sessions\", repo_root)\n"
             "    if session_log is None or not _session_has_adr_review(session_log):",
             "_today_session_log(repo_root / \".agents\" / \"sessions\")\n"
@@ -144,7 +153,7 @@ def main() -> int:
         # Issue #4194: _session_log_for_current_branch in check_retrospective_evidence
         (
             "#4194 retro-uses-branch-log",
-            REPO_ROOT / "scripts/validation/git_hook_policy.py",
+            repo_root / "scripts/validation/git_hook_policy.py",
             "_session_log_for_current_branch(repo_root / \".agents\" / \"sessions\", repo_root)\n"
             "    if paths and _is_trivial_retrospective_session(session_log, paths):",
             "_today_session_log(repo_root / \".agents\" / \"sessions\")\n"
@@ -156,11 +165,10 @@ def main() -> int:
         ),
         # Issue #4194: _session_log_for_current_branch helper branch-first selection
         (
-            "#4194 helper-branch-first",
-            REPO_ROOT / "scripts/validation/git_hook_policy.py",
-            "        if log is not None:\n            return log\n    return _today_session_log",
-            "        if log is not None:\n            pass  # mutant: skip branch return\n"
-            "    return _today_session_log",
+            "#4194 helper-ignores-branch",
+            repo_root / "scripts/validation/git_hook_policy.py",
+            "    return _session_log_for_branch(sessions_dir, branch)\n",
+            "    return _today_session_log(sessions_dir)  # mutant: ignore branch\n",
             [
                 "tests/validation/test_session_log_branch_aware.py",
             ],
@@ -168,7 +176,7 @@ def main() -> int:
         # Issue #4161: branch-first selection in _find_current_session_log
         (
             "#4161 branch-match",
-            REPO_ROOT
+            repo_root
             / ".claude/skills/session-end/scripts/complete_session_log.py",
             "if _read_log_branch(full) == branch:",
             "if _read_log_branch(full) != branch:  # mutant: invert branch match",
@@ -179,7 +187,7 @@ def main() -> int:
         # Issue #4161: newest matching branch log wins when branch has multiple logs
         (
             "#4161 newest-branch-match",
-            REPO_ROOT
+            repo_root
             / ".claude/skills/session-end/scripts/complete_session_log.py",
             "sorted(candidates, key=lambda x: (x[0], x[2]), reverse=True)",
             "sorted(candidates, key=lambda x: x[2])",
@@ -190,7 +198,7 @@ def main() -> int:
         # Issue #4161: _get_current_branch empty-string guard
         (
             "#4161 empty-branch-guard",
-            REPO_ROOT
+            repo_root
             / ".claude/skills/session-end/scripts/complete_session_log.py",
             "return branch or None",
             "return branch",
@@ -208,7 +216,7 @@ def main() -> int:
 
     for label, path, original, mutant, tests in mutations:
         print(f"\nMutation: {label}")
-        outcome = _mutation(label, path, original, mutant, tests)
+        outcome = _mutation(label, path, original, mutant, tests, repo_root)
         results[outcome].append(label)
 
     print("\n" + "=" * 60)
@@ -236,6 +244,11 @@ def main() -> int:
 
     print("PASS: all mutants killed")
     return 0
+
+
+def main() -> int:
+    with isolated_mutation_worktree(REPO_ROOT, TARGETS) as workspace:
+        return _run_mutations(workspace.root)
 
 
 if __name__ == "__main__":

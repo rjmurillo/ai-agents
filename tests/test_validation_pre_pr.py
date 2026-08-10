@@ -207,6 +207,62 @@ class TestValidateSessionEnd:
                 with pytest.raises(MissingScriptSkip):
                     validate_session_end(tmp_path)
 
+    def test_changed_log_is_validated_through_current_head(
+        self, tmp_path: Path
+    ) -> None:
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        log = sessions / "2025-12-01-session-1.json"
+        log.write_text("{}", encoding="utf-8")
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        validator = scripts / "validate_session_json.py"
+        validator.write_text("", encoding="utf-8")
+        head = "c" * 40
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
+            seen.append(command)
+            if "diff" in command:
+                return 0, ".agents/sessions/2025-12-01-session-1.json\n", ""
+            if "rev-parse" in command:
+                return 0, f"{head}\n", ""
+            return 0, "", ""
+
+        with patch(
+            "checks_tooling._resolve_branch_base_ref",
+            return_value="origin/main",
+        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+            assert validate_session_end(tmp_path) is True
+
+        assert seen[-1][-2:] == ["--validation-head", head]
+
+    def test_unresolvable_head_fails_closed(self, tmp_path: Path) -> None:
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        log = sessions / "2025-12-01-session-1.json"
+        log.write_text("{}", encoding="utf-8")
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        (scripts / "validate_session_json.py").write_text("", encoding="utf-8")
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
+            seen.append(command)
+            if "diff" in command:
+                return 0, ".agents/sessions/2025-12-01-session-1.json\n", ""
+            if "rev-parse" in command:
+                return 1, "", "bad ref"
+            return 1, "", "invalid validation head"
+
+        with patch(
+            "checks_tooling._resolve_branch_base_ref",
+            return_value="origin/main",
+        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+            assert validate_session_end(tmp_path) is False
+
+        assert seen[-1][-2:] == ["--validation-head", "INVALID_HEAD"]
+
 
 class TestBuildParser:
     """Tests for CLI argument parsing."""
@@ -277,3 +333,75 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result == 0
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_does_not_claim_push_success(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Issue #4506: success banner must not say 'Ready to create pull request!'."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_requires_remote_sha_to_match_head(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Issue #4506: verification must reject an existing but stale remote ref."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Verify the push landed" in out
+        assert "git rev-parse HEAD" in out
+        assert "git ls-remote origin <branch>" in out
+        assert "same SHA" in out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_failure_output_does_not_say_ready(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Edge case: a failed run must also not claim readiness."""
+        mock_run.return_value.returncode = 1
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = "error"
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+        assert "All validations passed" not in out
+        assert result != 0
