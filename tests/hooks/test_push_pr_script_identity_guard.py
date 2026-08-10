@@ -242,7 +242,7 @@ def test_guards_run_on_the_minimum_supported_interpreter(
         pytest.skip("no Python 3.10 or 3.11 interpreter available")
     version = subprocess.run(
         [interpreter, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
-        capture_output=True, encoding="utf-8", check=True, timeout=60,
+        capture_output=True, encoding="utf-8", errors="replace", check=True, timeout=60,
     ).stdout.strip()
     repository, _ = _repository(tmp_path)
     # Each guard anchors trust to the plugin tree it ships in.
@@ -1960,11 +1960,13 @@ def test_timed_shim_launcher_ignores_pythonpath(tmp_path: Path) -> None:
 
     isolated = subprocess.run(
         [sys.executable, "-E", "-s", "-c", probe],
-        capture_output=True, encoding="utf-8", env=env, timeout=60, check=True,
+        capture_output=True, encoding="utf-8", errors="replace", env=env,
+        timeout=60, check=True,
     ).stdout.strip()
     control = subprocess.run(
         [sys.executable, "-c", probe],
-        capture_output=True, encoding="utf-8", env=env, timeout=60, check=True,
+        capture_output=True, encoding="utf-8", errors="replace", env=env,
+        timeout=60, check=True,
     ).stdout.strip()
 
     assert isolated == "0", "-E -s let PYTHONPATH through"
