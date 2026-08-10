@@ -1,17 +1,17 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10036-pr-4681-autofix.json
-qaCommit: 19ce5539071cbae8095f7578af41dd6e0c36d0bf
+qaCommit: 3ed1c6018a6a4744b6aafb9bba69c87196660088
 ---
 
 # PR 4681 shallow-graft suppression validation
 
 ## Scope
 
-This report records the existing validation evidence for PR 4681 at commit
-`19ce5539071cbae8095f7578af41dd6e0c36d0bf`. The autofix adds only QA/session
-evidence required by the `Validate PR` workflow; it does not change
-implementation code.
+This report records the existing validation evidence for PR 4681, whose
+implementation tip was `19ce5539071cbae8095f7578af41dd6e0c36d0bf`, after the
+guarded current-main merge at `3ed1c6018a6a4744b6aafb9bba69c87196660088`.
+The autofix changes no PR implementation code.
 
 ## Result
 
