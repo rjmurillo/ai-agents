@@ -18,7 +18,7 @@ permissions:
 
 on:
   pull_request_target:
-    branches: [main]
+    branches: [main, fix/vendor-provenance-bootstrap]
     paths:
       - '.claude/hooks/PreToolUse/_vendor/**'
       - '.claude/hooks/PreToolUse/_markdownlint_verifier.py'
