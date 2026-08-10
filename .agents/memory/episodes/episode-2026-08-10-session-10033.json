@@ -84,7 +84,32 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record the adr-review round for the ADR-068 Context correction",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10033"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T09:25:40+00:00",
+      "type": "commit",
+      "content": "Commit: b555a6cbbe6edf0a2014461e94bbd4866ef5b952",
+      "caused_by": [
+        "e007"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033"
@@ -95,8 +120,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 2,
+    "files_changed": 14
   },
   "lessons": []
 }

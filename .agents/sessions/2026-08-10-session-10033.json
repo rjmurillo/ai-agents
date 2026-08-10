@@ -142,9 +142,13 @@
     {
       "task": "Add a drift guard for the pinned bundle digests",
       "outcome": "Nothing recomputed _TRUSTED_NEW_PR_SHA256, so a stale constant would deny every /push-pr with no other signal. test_trusted_digests_match_the_shipped_bundle now gates both surfaces."
+    },
+    {
+      "task": "Record the adr-review round for the ADR-068 Context correction",
+      "outcome": "Six roles reviewed the one-sentence factual correction against the measured counts. 6 Accept, 0 Disagree-and-Commit, 0 Block, no Critical or High finding. Round appended to .agents/critique/ADR-068-debate-log.md."
     }
   ],
-  "endingCommit": "9f96e3fe4d0cf7065668538b35bf346965accb0b",
+  "endingCommit": "b555a6cbbe6edf0a2014461e94bbd4866ef5b952",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",

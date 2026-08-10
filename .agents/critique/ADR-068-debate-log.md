@@ -614,6 +614,46 @@ gate became the second PreToolUse shim.
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
+## 2026-08-10 Issue #4825 Local Settings Inventory Correction
+
+The six roles reviewed a factual correction to one Context sentence. The
+2026-08-09 amendment above stated eight registrations across six events for
+`.claude/settings.json`, including a PreToolUse key. The identity gate landed
+in the vendored plugin source, not in local settings, so both numbers and the
+event list were wrong. Copilot review 4894113215 on PR #4825 reported it.
+
+### Evidence verified
+
+Measured with the command the `ai-agents-architecture-contract` provenance
+table already documents:
+
+```text
+.claude/settings.json 5 7
+.claude/hooks/hooks.json 2 3
+src/copilot-cli/hooks/hooks.json 2 2
+```
+
+- `.claude/settings.json` has no `PreToolUse` key; its events are SessionStart,
+  UserPromptSubmit, PostToolUse, SessionEnd, PreCompact.
+- Per-event group counts are SessionStart 2, UserPromptSubmit 1, PostToolUse 2,
+  SessionEnd 1, PreCompact 1, totaling seven.
+- The unrelated statement at line 86, three vendored registrations across two
+  events, still matches `.claude/hooks/hooks.json` and is left unchanged.
+- The `.claude/settings.json` row in the component risk table carries no counts,
+  so it needed no edit.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | No decision changes; only a Context fact is corrected. |
+| critic | Accept | The corrected numbers reproduce from the documented command. |
+| independent-thinker | Accept | Removing the PreToolUse claim ends a contradiction with the vendored-source sentence. |
+| security | Accept | A registration count carries no security boundary. |
+| analyst | Accept | Live settings confirm five events and seven registrations. |
+| high-level-advisor | Accept | Proportionate: one sentence, no scope growth. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No Critical or High
+finding remained.
+
 ## References
 
 - `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`

@@ -89,8 +89,8 @@ shim. The generated Copilot plugin exposes one dispatcher entry for each event.
 Consolidation saves one host process start when both PreToolUse shims match.
 
 Local `.claude/settings.json` is a separate repository-only surface. It contains
-eight registrations across SessionStart, UserPromptSubmit, PostToolUse,
-SessionEnd, PreCompact, and PreToolUse. The Copilot plugin generator reads the
+seven registrations across SessionStart, UserPromptSubmit, PostToolUse,
+SessionEnd, and PreCompact. The Copilot plugin generator reads the
 vendored plugin source, not these local settings.
 
 The current PostToolUse producer, `invoke_markdown_auto_lint.py`, emits
