@@ -69,9 +69,13 @@ exist.
    `.serena/memories/topic/`). Fall back to listing a subdirectory's contents
    directly only when its index looks stale or incomplete against what the
    directory actually holds. Then perform one bounded stale-index audit
-   regardless of discovery tier: compare each relevant topic directory's
-   Markdown filenames with its `*-index.md` entries. Add unindexed files to
-   the Phase 1 inventory and record dangling index entries as errors.
+   regardless of discovery tier: enumerate every top-level topic directory
+   under `.serena/memories/` and compare its Markdown filenames with its
+   `*-index.md` entries. Add unindexed files to the Phase 1 inventory and
+   record dangling index entries as errors. If any directory cannot be
+   enumerated, report it and do not run any Phase 2 or Phase 3 writes. Audit
+   at most 500 memory files in one pass. If the tree exceeds that cap, report
+   the count and do not run any Phase 2 or Phase 3 writes.
 2. Skim each file for three signals: **overlap**
    (two or more files cover the same person, project, or preference),
    **staleness** (a one-off task that passed its date), and **thinness** (a
@@ -85,15 +89,17 @@ Separate what you found in Phase 1 into two buckets:
 - **Durable**: preferences, working style, key relationships, recurring
   workflows. Keep these, and sharpen them: cut hedging and resolved detail,
   while preserving the recorded meaning.
-- **Dated**: projects, deadlines, one-off tasks. When a dated memory has
-  passed or completed, delete it after folding any lasting takeaway into the
-  relevant durable memory. Git is the audit trail and recovery path. Do not
-  preserve a dead file just to explain the deletion.
+- **Dated**: projects, deadlines, one-off tasks. Delete one only when the file
+  contains explicit completion or resolution evidence. A passed date alone is
+  not completion evidence; retain and flag it as stale when status is unclear.
+  Before deletion, fold any lasting takeaway into the relevant durable memory.
+  Git is the audit trail and recovery path. Do not preserve a dead file just
+  to explain the deletion.
 
 Before editing, require no unrelated changes under `.serena/memories/`. This
 keeps the consolidation diff reviewable and makes any mistaken deletion
 recoverable from git without another agentic pass. If the memory tree is not
-tracked by git, do not delete files; report the prerequisite instead. Check
+tracked by git, do not modify files; report the prerequisite instead. Check
 the worktree and index before the first edit:
 
 ```bash
@@ -101,9 +107,14 @@ git status --short -- .serena/memories
 git ls-files --error-unmatch .serena/memories/memory-index.md
 ```
 
-Before deleting any file, also run
-`git ls-files --error-unmatch -- "<candidate>"`. If that candidate is
-untracked, leave it in place and report it instead of deleting it.
+Before any Phase 2 or Phase 3 write, run
+`git ls-files --error-unmatch -- "<target>"` for every file in the declared
+change set. If any target is untracked, do not write any files; report the
+missing rollback path. Before deleting a candidate, apply the same check to
+that candidate explicitly.
+Index paths must be relative, contain no `..` segment, and resolve under the
+real `.serena/memories/` root. Reject absolute paths and symlink escapes before
+reading, diffing, or deleting a candidate.
 
 - **Merge only genuine duplicates.** Two files are merge candidates only
   when they would both answer the same lookup query about the same person,
@@ -125,16 +136,20 @@ untracked, leave it in place and report it instead of deleting it.
 - **Convert relative dates to absolute dates, anchored on the observation's
   own timestamp, never on today's session date.** An observation written
   with a `[YYYY-MM-DD] [Source]: ...` stamp is anchored to that date; resolve
-  "next week", "this quarter", or "Friday" against the stamp. If an older
-  observation carries no stamp, use file history only when the introducing
-  commit plausibly represents the observation time. A bulk import, fixture
+  "next week" or another phrase only when its direction and meaning are
+  explicit. If an older observation carries no stamp, use file history only
+  when the introducing commit plausibly represents the observation time. A
+  bulk import, fixture
   creation, or commit date that conflicts with dates inside the file is not a
   valid anchor. Never resolve against the date this consolidation pass happens
   to run: a pass run months after the memory was written would silently shift
   every relative date forward by that gap and record a wrong date as if it
-  were exact. If neither an inline stamp nor trustworthy file history anchors
-  the phrase, do not guess: leave the relative date in place and flag it
-  inline, for example
+  were exact. Flag bare weekdays and unsupported relative phrases unless the
+  source states the exact direction or date. Also flag phrases that depend on
+  an undefined convention, such as fiscal versus calendar quarter, even when
+  the source date is known. If neither an inline stamp nor trustworthy file
+  history anchors the phrase, do not guess: leave the relative date in place
+  and flag it inline, for example
   `[AMBIGUOUS-DATE: no source stamp or file history for "next week"]`, for a
   human to resolve.
 - **Drop facts that are cheap to re-fetch** from a calendar, a doc, or a
@@ -148,8 +163,9 @@ untracked, leave it in place and report it instead of deleting it.
 Update `.serena/memories/memory-index.md` in the same pass as the merges
 above, so the index and the files it points to never fall out of sync:
 
-- Keep the index under 200 lines and about 25 KB total. Measure it, do not
-  eyeball it: `wc -l` and `wc -c` on `.serena/memories/memory-index.md`.
+- Keep the index at no more than 200 lines and 25,600 bytes. Measure it, do
+  not eyeball it: `wc -l` and `wc -c` on
+  `.serena/memories/memory-index.md`.
 - Aim for one line per entry, each under about 150 characters, so the index
   stays scannable in a single read.
 - Remove entries for deleted files and point useful keywords at the survivor.
@@ -171,14 +187,20 @@ Finish with a short summary:
 - Any unresolved `[AMBIGUOUS-DATE: ...]` flags or discovery failures.
 - Final index line count and byte size.
 
-## Verification
+## Verification Gate
+
+This gate is blocking. Before editing, record the current memory diff and the
+exact files expected to change or be deleted. After editing, paste the final
+diff and index counts into the summary. The actual changed-file set must match
+the declared set. If any check fails, restore every touched memory file from
+git and report the failure instead of claiming completion.
 
 | Operation | Verification |
 |-----------|---------------|
 | Merge | Survivor contains every unique fact, remains one focused topic, poorer file is deleted, and index keywords point at the survivor |
 | Deletion | `git diff -- .serena/memories/` shows only intended deletions and edits; deleted content remains recoverable from git |
-| Relative dates converted | Every "next week", "this quarter", or bare weekday name is either an absolute date anchored on its source stamp or file history, or an explicit `[AMBIGUOUS-DATE: ...]` flag; none are guessed |
-| Index tidy | `wc -l memory-index.md` <= 200 and `wc -c memory-index.md` <= ~25,600 (25 KB) |
+| Relative dates converted | Every relative date is absolute only when its anchor and meaning are unambiguous; otherwise it carries an `[AMBIGUOUS-DATE: ...]` flag |
+| Index tidy | `wc -l memory-index.md` <= 200 and `wc -c memory-index.md` <= 25,600 |
 | Summary produced | Final message states scanned, changed, and deleted counts, plus one line per changed file |
 
 ## Anti-Patterns
@@ -187,8 +209,9 @@ Finish with a short summary:
 |--------------|------------------|
 | Merging files that merely share a domain or index section | Merge only genuine duplicates about the same person, project, or preference; keep distinct atomic concepts separate |
 | Resolving a relative date against today's session date | Anchor on the observation's own `[YYYY-MM-DD]` stamp or file history; flag if neither exists |
-| Leaving "next week" or "this quarter" unresolved and unflagged | Resolve to an absolute date, or flag `[AMBIGUOUS-DATE: ...]` if no anchor exists |
+| Leaving a relative phrase unresolved and unflagged | Resolve only when its anchor and semantics are explicit; otherwise flag `[AMBIGUOUS-DATE: ...]` |
 | Growing the index with a fresh paragraph per entry | One line per entry, under about 150 characters, detail lives in the topic file |
 | Recording a fact the user can re-fetch from a calendar or doc | Keep only what is hard to re-derive: preferences, decision context, ownership |
 
-If the project has no Serena memory tree, stop with a no-op summary.
+Return a no-op only after confirming the Serena memory tree is absent. Treat
+permission, activation, and enumeration failures as errors, not absence.
