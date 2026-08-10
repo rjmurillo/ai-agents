@@ -166,9 +166,13 @@
     {
       "task": "Reconcile with a concurrent session working the same branch",
       "outcome": "Another session pushed two commits to this branch while I worked. Merged both. Kept its glob fix, which closes a residual I had documented rather than fixed. Superseded its 64-token fail-closed cap with the execution-position rule, because the cap was measured here to deny ordinary large commands and cost 10.2s against a 10s host timeout. Final combined probe on the merged tree: 0 of 7 bypasses leak, 0 of 10 ordinary commands denied, worst case 0.064s. I had also been pushing without the .claude/rules/push-lock.md flock, which is what let the races happen; subsequent pushes use the lock."
+    },
+    {
+      "task": "Process round 5 of the recursive review",
+      "outcome": "A leading-wildcard glob skipped the merged prefix heuristic and a direct launch missed scope rules B and C, so ?ew_pr.py, [!x]ew_pr.py and *_pr.py all returned exit 0 against an executable lookalike. Replaced the prefix threshold with execution-position classification, reusing the machinery rule C already needs. All four executable globs now deny while echo *.py, ls src/*.py and cat n?w_pr.py stay allowed."
     }
   ],
-  "endingCommit": "44809942727f53a756dd21f09c336dfa4978f97c",
+  "endingCommit": "467b271c096e8a832fefd4a8df1898e1b4bcf55f",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
