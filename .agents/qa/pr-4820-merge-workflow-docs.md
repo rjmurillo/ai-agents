@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10026-merge-workflow-docs.json
-qaCommit: c83fd9847c8f3070e42aadaa910477896a7f35e8
+qaCommit: ba101b48ba4fecc05cf71c954e963683ccd9fa51
 ---
 # Test Report: Strict Serial Auto-Merge Protocol
 

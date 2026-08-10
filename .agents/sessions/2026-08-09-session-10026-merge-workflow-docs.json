@@ -128,6 +128,6 @@
       "outcome": "Live-probed fixed Git ref acquisition: first create succeeded, concurrent create returned HTTP 422, and release removed the ref. Six reviewers accepted the final lease delta."
     }
   ],
-  "endingCommit": "c83fd9847c8f3070e42aadaa910477896a7f35e8",
+  "endingCommit": "ba101b48ba4fecc05cf71c954e963683ccd9fa51",
   "nextSteps": []
 }
