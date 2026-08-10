@@ -70,7 +70,8 @@
         "e008"
       ],
       "leads_to": [
-        "e007"
+        "e007",
+        "e009"
       ],
       "_source_session": "2026-08-10-session-4586-qa-report"
     },
@@ -93,7 +94,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-10-session-4586-qa-report"
     },
     {
@@ -108,6 +111,31 @@
         "e005"
       ],
       "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T13:35:00+00:00",
+      "type": "milestone",
+      "content": "Fixed mypy type annotations, reran targeted tests, and rebound QA report to d08463638b6f986d73892bb0e54177732086a768.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T15:58:44+00:00",
+      "type": "commit",
+      "content": "Commit: d08463638b6f986d73892bb0e54177732086a768",
+      "caused_by": [
+        "e007",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4586-qa-report"
     }
   ],
   "metrics": {
@@ -115,7 +143,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []
