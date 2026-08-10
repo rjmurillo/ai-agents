@@ -514,8 +514,10 @@ def _is_affirmative_directive(line: str) -> bool:
         # by hyphen, rejects "non-analyst", must be true word boundary).
         # Masking ensures analyst+verb inside code spans is not accepted.
         verb_match = re.search(
-            r"(?<![-])\banalyst\b\s+(?:(?:directly|then|also|always)\s+)?"
-            r"([a-z]{2,}(?:es|[^aeiou]s|ies)|retrieve|use|call|invoke|attempt|look)\b"
+            r"(?<![-])\banalyst\b\s+"
+            r"(?:(?:directly|then|also|always)\s+)?"
+            r"(?:(?:should|will|can|shall|would|could|might|must|may)\s+)?"
+            r"([a-z]{2,}(?:es|[^aeiou]s|ies)|[a-z]{3,})\b"
             r"(?:\s+(?:up|into|at|for|on)\b)?",
             clause,
         )
@@ -1692,3 +1694,45 @@ class TestPositiveStructuralVerbs:
     )
     def test_accepted(self, line: str) -> None:
         assert _is_affirmative_directive(line) is True
+
+
+class TestPositiveModalDirectives:
+    """Analyst with modal + base verb forms accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "analyst should read pull_request_read",
+            "analyst will call pull_request_read",
+            "analyst can query issue_read",
+            "The analyst must retrieve pull_request_read before proceeding",
+            "The analyst may use get_job_logs for CI context",
+            "The analyst shall invoke list_commits",
+        ],
+        ids=[
+            "should-read",
+            "will-call",
+            "can-query",
+            "must-retrieve",
+            "may-use",
+            "shall-invoke",
+        ],
+    )
+    def test_modal_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
+
+
+class TestNegativeModalCrossedActor:
+    """Modal directives attributed to non-analyst must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "coordinator should call pull_request_read",
+            "release-bot will invoke pull_request_read",
+            "the analyst retrieves data, coordinator can read pull_request_read",
+        ],
+        ids=["coordinator-should", "bot-will", "mixed-modal"],
+    )
+    def test_modal_rejected(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
