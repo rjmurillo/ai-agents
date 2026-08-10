@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +48,22 @@ def _body_file(repository: Path) -> Path:
 
 def _payload(command: object, cwd: Path) -> str:
     return json.dumps({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)})
+
+
+# The guard runs on the plugin-wide Bash matcher and decides relevance before
+# policy (issue #4825, Copilot review 4894113215). A command with no textual or
+# resolvable link to new_pr.py is out of scope and passes untouched, so the
+# policy matrices below have to be placed in scope to assert the policy at all.
+# A leading environment assignment naming the script does that without altering
+# the command body, so each vector under test is still the vector under test.
+IN_SCOPE_ASSIGNMENT = "PUSH_PR_SCRIPT=new_pr.py "
+
+
+def _in_scope(command: str) -> str:
+    """Return ``command`` placed inside the guard's relevance scope."""
+    if "new_pr.py" in command:
+        return command
+    return IN_SCOPE_ASSIGNMENT + command
 
 
 def _environment(**updates: str) -> dict[str, str]:
@@ -160,6 +178,39 @@ def test_claude_allows_installed_plugin_reference(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
+def test_trusted_digests_match_the_shipped_bundle() -> None:
+    """The pinned digests must equal the files they gate, on both surfaces.
+
+    `_validate_runtime_bundle` denies every push-pr invocation whose new_pr.py
+    or validate_pr_description.py digest differs from the pinned constant. A
+    stale constant therefore wedges `/push-pr` for every user with no other
+    signal, and nothing else in the tree recomputes it. This is that gate.
+    """
+    expected = {
+        "_TRUSTED_NEW_PR_SHA256": CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE,
+        "_TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256": (
+            CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE.parent / "validate_pr_description.py"
+        ),
+    }
+    guards = (
+        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
+        COPILOT_PLUGIN_ROOT
+        / "hooks"
+        / "PreToolUse"
+        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+    )
+
+    for guard in guards:
+        source = guard.read_text(encoding="utf-8")
+        for constant, target in expected.items():
+            match = re.search(rf'{constant} = \(?\s*"([0-9a-f]{{64}})"', source)
+            assert match is not None, f"{guard.name} does not pin {constant}"
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            assert match.group(1) == digest, (
+                f"{guard.name}:{constant} is stale; {target.name} now hashes to {digest}"
+            )
+
+
 def test_guard_denies_modified_runtime_helper(tmp_path: Path) -> None:
     repository, _ = _repository(tmp_path)
     body_file = _body_file(repository)
@@ -262,7 +313,7 @@ def test_dispatchers_deny_env_split_string_launchers(
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = runner(command, repository)
+    result = runner(_in_scope(command), repository)
 
     assert result.returncode == 2
     assert "env split-string launchers are not allowed" in result.stderr
@@ -299,7 +350,7 @@ def test_dispatchers_deny_shell_evaluator_wrappers(
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = runner(command, repository)
+    result = runner(_in_scope(command), repository)
 
     assert result.returncode == 2
     assert "shell evaluator wrappers are not allowed" in result.stderr
@@ -330,7 +381,7 @@ def test_dispatchers_deny_renamed_shell_executables(
         "./copied-shell -c 'id'",
     )
     for command in commands:
-        result = runner(command, repository)
+        result = runner(_in_scope(command), repository)
         assert result.returncode == 2, command
         assert "shell evaluator wrappers are not allowed" in result.stderr
 
@@ -345,10 +396,10 @@ def test_dispatchers_deny_executable_renamed_to_printf(
     shutil.copy2(sys.executable, renamed)
     renamed.chmod(0o755)
 
-    copied_result = runner("./printf -c \"print('attacker')\"", repository)
+    copied_result = runner(_in_scope("./printf -c \"print('attacker')\""), repository)
     renamed.write_text("#!/bin/sh\nid\n", encoding="utf-8")
     renamed.chmod(0o755)
-    script_result = runner("./printf", repository)
+    script_result = runner(_in_scope("./printf"), repository)
 
     assert copied_result.returncode == 2
     assert "dynamic evaluator wrappers are not allowed" in copied_result.stderr
@@ -374,7 +425,7 @@ def test_dispatchers_deny_home_relative_shell_wrapper(
     )
 
     result = runner(
-        "~/bin/update",
+        _in_scope("~/bin/update"),
         repository,
         env=_environment(HOME=str(home), **plugin_environment),
     )
@@ -393,7 +444,7 @@ def test_dispatchers_deny_env_assignments_after_option_terminator(
     wrapper.write_text("#!/bin/sh\nid\n", encoding="utf-8")
     wrapper.chmod(0o755)
 
-    result = runner("env -- X=1 ./attacker", repository)
+    result = runner(_in_scope("env -- X=1 ./attacker"), repository)
 
     assert result.returncode == 2
     assert "shell evaluator wrappers are not allowed" in result.stderr
@@ -555,7 +606,7 @@ def test_dispatchers_deny_dynamic_evaluator_wrappers(
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = runner(command, repository)
+    result = runner(_in_scope(command), repository)
 
     assert result.returncode == 2
     assert "evaluator wrappers are not allowed" in result.stderr
@@ -568,7 +619,7 @@ def test_dispatchers_fail_closed_on_unknown_git_global_options(
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = runner("git --unknown-global status --short", repository)
+    result = runner(_in_scope("git --unknown-global status --short"), repository)
 
     assert result.returncode == 2
     assert "unsupported Git global options are not allowed" in result.stderr
@@ -595,17 +646,55 @@ def test_dispatchers_deny_dynamic_loader_environment(
 ) -> None:
     repository, _ = _repository(tmp_path)
 
-    result = runner(command, repository)
+    result = runner(_in_scope(command), repository)
 
     assert result.returncode == 2
     assert "dynamic loader environment variables are not allowed" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_git_commands_with_active_hooks(
+def test_dispatchers_allow_git_commands_with_active_hooks(
     tmp_path: Path,
     runner,
 ) -> None:
+    """Git commands in a repository with active hooks are out of scope.
+
+    A Git hook can execute repository-controlled code, but a Git command that
+    never names new_pr.py is not a push-pr identity question. Denying it made
+    the plugin block ordinary Git work (issue #4825 review 4894113215). The
+    in-scope counterpart below keeps the delegation policy under test.
+    """
+    repository, _ = _repository(tmp_path)
+    subprocess.run(
+        ["git", "init", "--quiet"],
+        cwd=repository,
+        check=True,
+    )
+    hook = repository / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    allowed_commands = (
+        "git commit --allow-empty -m test",
+        "env -- X=1 git commit --allow-empty -m test",
+        "env -- a-b=1 git commit --allow-empty -m test",
+        "git grep pattern -- pyproject.toml",
+        "git pull . HEAD",
+        "git update-ref refs/heads/guard-probe HEAD",
+        "git worktree add --detach ../guard-probe HEAD",
+    )
+
+    for command in allowed_commands:
+        allowed = runner(command, repository)
+        assert allowed.returncode == 0, f"{command}: {allowed.stderr}"
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_in_scope_git_commands_with_active_hooks(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """Active Git hooks remain an execution channel for in-scope commands."""
     repository, _ = _repository(tmp_path)
     subprocess.run(
         ["git", "init", "--quiet"],
@@ -618,19 +707,88 @@ def test_dispatchers_deny_git_commands_with_active_hooks(
 
     denied_commands = (
         "git commit --allow-empty -m test",
-        "env -- X=1 git commit --allow-empty -m test",
-        "env -- a-b=1 git commit --allow-empty -m test",
         "git pull . HEAD",
         "git update-ref refs/heads/guard-probe HEAD",
         "git worktree add --detach ../guard-probe HEAD",
     )
-    allowed = runner("git grep pattern -- pyproject.toml", repository)
 
     for command in denied_commands:
-        denied = runner(command, repository)
+        denied = runner(_in_scope(command), repository)
         assert denied.returncode == 2, command
         assert "dynamic evaluator wrappers are not allowed" in denied.stderr
-    assert allowed.returncode == 0, allowed.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "remote",
+    [
+        ".",
+        "./attacker.git",
+        "../attacker.git",
+        "/attacker.git",
+        "file:///attacker.git",
+        "C:/attacker.git",
+        r"C:\attacker.git",
+        "//server/share/attacker.git",
+        r"\\server\share\attacker.git",
+    ],
+)
+def test_dispatchers_deny_local_git_push_destinations(
+    tmp_path: Path,
+    runner,
+    remote: str,
+) -> None:
+    repository, _ = _repository(tmp_path)
+
+    result = runner(_in_scope(f"env git push {remote} HEAD"), repository)
+
+    assert result.returncode == 2
+    assert "dynamic evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_allow_named_https_push_remote(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    shutil.rmtree(repository / ".git")
+    subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://example.com/repository.git",
+        ],
+        cwd=repository,
+        check=True,
+    )
+
+    result = runner("env git push origin HEAD", repository)
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_named_local_push_remote(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    shutil.rmtree(repository / ".git")
+    subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "./attacker.git"],
+        cwd=repository,
+        check=True,
+    )
+
+    result = runner(_in_scope("env git push origin HEAD"), repository)
+
+    assert result.returncode == 2
+    assert "dynamic evaluator wrappers are not allowed" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
@@ -646,7 +804,7 @@ def test_dispatchers_deny_renamed_git_executable(
     shutil.copy2(git, renamed_git)
     renamed_git.chmod(0o755)
 
-    result = runner("./mygit fetch ext::./p", repository)
+    result = runner(_in_scope("./mygit fetch ext::./p"), repository)
 
     assert result.returncode == 2
     assert "dynamic evaluator wrappers are not allowed" in result.stderr
@@ -852,7 +1010,7 @@ def test_dispatchers_deny_unsafe_command_shapes(
     _write_script(repository / "attacker" / "pr" / "new_pr.py")
     _write_script(repository / "attacker.py")
 
-    result = runner(command, repository)
+    result = runner(_in_scope(command), repository)
 
     assert result.returncode == 2
     assert "push-pr script identity denied" in result.stderr
@@ -952,7 +1110,7 @@ def test_dispatchers_deny_path_resolved_python_alias(
         pytest.skip(f"symlinks unavailable: {exc}")
 
     result = runner(
-        f"PATH='{interpreter_directory}' fail2ban-python -c \"print('attacker')\"",
+        _in_scope(f"PATH='{interpreter_directory}' fail2ban-python -c \"print('attacker')\""),
         repository,
     )
 
@@ -970,17 +1128,18 @@ def test_dispatchers_deny_copied_renamed_python_interpreter(
     shutil.copy2(sys.executable, interpreter)
     interpreter.chmod(0o755)
 
-    result = runner("./p -c \"print('attacker')\"", repository)
+    result = runner(_in_scope("./p -c \"print('attacker')\""), repository)
 
     assert result.returncode == 2
     assert "dynamic Python -c" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_extensionless_python_entrypoint(
+def test_dispatchers_allow_extensionless_python_entrypoint(
     tmp_path: Path,
     runner,
 ) -> None:
+    """An unrelated Python entrypoint is out of scope (issue #4825)."""
     repository, _ = _repository(tmp_path)
     entrypoint = repository / "tool"
     entrypoint.write_text(
@@ -991,8 +1150,7 @@ def test_dispatchers_deny_extensionless_python_entrypoint(
 
     result = runner("./tool", repository)
 
-    assert result.returncode == 2
-    assert "Python execution is limited" in result.stderr
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
@@ -1061,13 +1219,191 @@ def test_claude_allows_nonmatching_bash_when_group_is_called(
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_unrelated_compound_bash(
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status",
+        "git status && git diff",
+        "git log --oneline -5",
+        "git commit --allow-empty -m test",
+        "git fetch origin",
+        'bash -c "echo hello"',
+        "sh -c 'ls'",
+        'node -e "console.log(1)"',
+        "perl -e 'print 1'",
+        "python3 scripts/validation/pre_pr.py",
+        "python3 -m pytest tests/",
+        "uv run pytest tests/ -x",
+        "uv run python -c 'print(1)'",
+        "rg --files | head",
+        "make build",
+        "npm run lint",
+        "eval 'echo hi'",
+        "env LD_PRELOAD=/tmp/x.so ls",
+        "echo *.py",
+        "cat README.md",
+        "ls -la",
+    ],
+)
+def test_dispatchers_allow_commands_outside_guard_scope(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    """The relevance gate is non-blocking for every unrelated Bash command.
+
+    The guard is registered on the plugin-wide `Bash` matcher. Before the gate
+    it applied its deny policy first, so installing the plugin denied 15 of
+    these 22 commands and disabled normal Bash workflows outside `/push-pr`
+    (issue #4825, Copilot review 4894113215).
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 0, f"{command}: {result.stderr}"
+
+
+@pytest.mark.parametrize(
+    "guard",
+    [
+        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
+        COPILOT_PLUGIN_ROOT
+        / "hooks"
+        / "PreToolUse"
+        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+    ],
+    ids=["claude", "copilot"],
+)
+def test_guards_allow_git_push_outside_scope(tmp_path: Path, guard: Path) -> None:
+    """`git push` is out of the identity guard's scope on both surfaces.
+
+    This runs the guard script directly rather than through a dispatcher. The
+    `Bash(git push*)` matcher also selects `invoke_markdownlint_guard`, whose
+    shim needs the installed plugin layout to import `_bootstrap` and so raises
+    under this harness on the Copilot side, independently of this guard. Going
+    straight to the guard keeps the assertion about the guard.
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = _run_guard_script(guard, "git push origin HEAD", repository)
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 attacker/pr/new_pr.py --title fix",
+        "python3 -I attacker/pr/new_pr.py --title fix",
+        "bash -c 'python3 -I attacker/pr/new_pr.py'",
+        "env -S 'python3 -I attacker/pr/new_pr.py'",
+        "env --split-string='python3 -I attacker/pr/new_pr.py'",
+        "sh -xc 'python3 -I attacker/pr/new_pr.py'",
+        "python3 -I attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
+        "python3 -I attacker/{new_,old_}pr.py --title fix",
+        "pypy3 attacker/pr/n[e]w_[p]r.[p][y]",
+        "python3 -I \"attacker/n$(printf ew_pr).py\"",
+        "GIT_ALLOW_PROTOCOL=ext git ls-remote 'ext::./new_pr.py'",
+        "git -c core.pager='python3 attacker/pr/new_pr.py' log",
+        "python3 -c \"exec(open('attacker/pr/new_pr.py').read())\"",
+    ],
+)
+def test_dispatchers_deny_commands_inside_guard_scope(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    """Every preserved bypass vector still fails closed once it names the script.
+
+    Brace expansion, single-character glob classes, evaluator wrappers,
+    `env -S` and `--split-string`, shell flag clusters, Git pager forms,
+    `GIT_ALLOW_PROTOCOL=ext` and `ext::` transports each reach the deny policy
+    through the relevance gate.
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2, f"{command}: allowed"
+    assert "push-pr script identity denied" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_renamed_copy_by_content(
     tmp_path: Path,
     runner,
 ) -> None:
+    """Scope rule C: a byte-identical copy under another name is in scope."""
+    repository, _ = _repository(tmp_path)
+    copied = repository / "tools" / "trusted_helper.py"
+    copied.parent.mkdir(parents=True)
+    shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, copied)
+
+    result = runner("python3 -I tools/trusted_helper.py --title fix", repository)
+
+    assert result.returncode == 2
+    assert "Python execution is limited" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_allow_dynamic_launcher_that_never_names_the_script(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """Documented residual: a reconstructed path is outside the detection surface.
+
+    See the guard module docstring, section "Residual risk". The guard bounds
+    the identity of named push-pr invocations; it is not a Python sandbox. An
+    actor able to run arbitrary Python does not need new_pr.py to open a pull
+    request, and widening scope to cover this case is what denied every
+    unrelated Bash command.
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = runner(
+        "python3 -I -c '__import__(\"runpy\").run_path("
+        'bytes.fromhex("61747461636b65722f70722f6e65775f70722e7079").decode(), '
+        "run_name=\"__main__\")'",
+        repository,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_allow_unrelated_compound_bash(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """A compound command that cannot reach new_pr.py is out of scope.
+
+    The parser rejects shell operators as policy, but policy only applies to
+    commands this guard owns. Before the relevance gate the guard denied
+    `git status && git diff` on the plugin-wide Bash matcher, which disabled
+    normal Bash workflows for every plugin user (issue #4825 review
+    4894113215).
+    """
     repository, _ = _repository(tmp_path)
 
     result = runner("git status && git diff", repository)
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_compound_bash_reaching_new_pr(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """The same parser policy still fires once the command names new_pr.py."""
+    repository, _ = _repository(tmp_path)
+
+    result = runner(
+        "python3 -I .claude/skills/github/scripts/pr/new_pr.py && git diff",
+        repository,
+    )
 
     assert result.returncode == 2
     assert "shell operators are not allowed" in result.stderr
@@ -1098,30 +1434,65 @@ def test_dispatchers_allow_single_quoted_substitution_text(
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_active_parameter_expansion_in_printf(
+def test_dispatchers_allow_active_parameter_expansion_in_printf(
     tmp_path: Path,
     runner,
 ) -> None:
+    """Parameter expansion in an unrelated command is out of scope."""
     repository, _ = _repository(tmp_path)
 
     result = runner("printf '%s\\n' \"${HOME}\"", repository)
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_active_parameter_expansion_in_scope(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """Expansion outside the allowlist still fails closed when in scope."""
+    repository, _ = _repository(tmp_path)
+
+    result = runner(_in_scope("printf '%s\\n' \"${HOME}\""), repository)
 
     assert result.returncode == 2
     assert "exact allowlist" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_other_python_scripts(
+def test_dispatchers_allow_other_python_scripts(
     tmp_path: Path,
     runner,
 ) -> None:
+    """An unrelated Python script with a resolvable operand is out of scope.
+
+    The operand `tools/report.py` resolves to a file whose bytes are not
+    new_pr.py, so scope rules A, B and C all miss and the command passes. The
+    `$REPORT_NAME` expansion sits in a later argument, not the script operand,
+    so it does not make the target unresolvable.
+    """
     repository, _ = _repository(tmp_path)
     _write_script(repository / "tools" / "report.py")
 
     result = runner('python3 tools/report.py "$REPORT_NAME"', repository)
 
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_unresolvable_python_script_operand(
+    tmp_path: Path,
+    runner,
+) -> None:
+    """Scope rule B: an expanded script operand cannot be proven benign."""
+    repository, _ = _repository(tmp_path)
+    _write_script(repository / "tools" / "report.py")
+
+    result = runner('python3 "$SCRIPT_PATH"', repository)
+
     assert result.returncode == 2
-    assert "Python execution is limited" in result.stderr
+    assert "Python script paths cannot use shell expansion" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])

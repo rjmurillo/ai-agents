@@ -377,6 +377,35 @@ def _original_main(stdin_bytes):
     Exit codes:
         0 = allow
         2 = block
+
+    Scope (relevance gate, issue #4825 review 4894113215)
+    -----------------------------------------------------
+    The host registers this guard on the plugin-wide ``Bash`` matcher, so it runs
+    on every Bash command. It therefore decides relevance BEFORE it decides policy.
+    ``_command_is_in_scope`` runs first and returns 0 (allow, non-blocking) for any
+    command that cannot reach ``new_pr.py``. A command is in scope only when:
+
+    A. Its text names ``new_pr.py`` after line-continuation removal, quote,
+       whitespace, ``+`` and backslash compaction, path-separator normalization,
+       and bounded brace expansion; or
+    B. it is a Python invocation whose script operand carries shell expansion, so
+       the guard cannot statically prove the operand is not ``new_pr.py``; or
+    C. one of its operands resolves to a regular file whose bytes match the trusted
+       ``new_pr.py`` (a renamed copy).
+
+    Everything else, including ``git status && git diff``, ``bash -c``, Node, Perl,
+    unrelated Python scripts, ``python3 -m pytest`` and Git commands in a
+    repository with active hooks, is out of scope and passes untouched.
+
+    Residual risk (accepted, not a defect)
+    --------------------------------------
+    A command that reconstructs the path at runtime without naming it, for example
+    ``python3 -c`` with a hex-decoded path or ``git clone ext::sh -c <payload>``
+    that never spells ``new_pr.py``, is outside the detection surface. This guard
+    bounds the identity of *named* push-pr invocations. It is not a Python or shell
+    sandbox: an actor able to run arbitrary code does not need ``new_pr.py`` to
+    open a pull request. Widening the scope to cover that case is what wedged every
+    unrelated Bash command, which is a larger, certain harm than the residual.
     """
 
 
@@ -397,6 +426,11 @@ def _original_main(stdin_bytes):
         "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py"
     )
     _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
+    _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
+    _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
+    _MAX_BRACE_EXPANSIONS = 512
+    _MAX_BRACE_RANGE = 64
+    _MAX_SCOPE_OPERANDS = 64
     _SHELL_EVALUATORS = frozenset(
         {
             "ash",
@@ -740,7 +774,7 @@ def _original_main(stdin_bytes):
     _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND = {
         "grep": frozenset({"A", "B", "C", "e", "f", "m"}),
     }
-    _GIT_SAFE_REMOTE_SCHEMES = frozenset({"file", "git", "http", "https", "ssh"})
+    _GIT_SAFE_REMOTE_SCHEMES = frozenset({"git", "http", "https", "ssh"})
     _GIT_REMOTE_SUBCOMMANDS = frozenset({"clone", "fetch", "ls-remote", "pull", "push"})
     _GIT_CONFIG_READ_ACTIONS = frozenset(
         {
@@ -818,7 +852,7 @@ def _original_main(stdin_bytes):
             "--global",
         }
     )
-    _TRUSTED_NEW_PR_SHA256 = "f97ef04148e297d1a2aa1a9e157ca65009b8a6323e1dab4e23ddcf18c3a4c086"
+    _TRUSTED_NEW_PR_SHA256 = "c1f3117692d16198bf27c752beaaf035d19261c54c634a7462e6a8d41e7574a4"
     _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
         "2ccbe08d1084a1d5a3639645fa0cc7068e9f8e28e1aa17603c0e3d9c34b4bec2"
     )
@@ -952,6 +986,127 @@ def _original_main(stdin_bytes):
 
     def _contains_shell_expansion(value: str) -> bool:
         return any(marker in value for marker in _SHELL_EXPANSION_MARKERS)
+
+
+    def _brace_alternatives(body: str) -> list[str] | None:
+        """Return the alternatives a single innermost brace group can produce.
+
+        Returns None when the group is an unbounded or oversized range, which the
+        caller treats as "cannot enumerate" and therefore in scope.
+        """
+        start, separator, end = body.partition("..")
+        if separator and start and end:
+            if start.isdigit() and end.isdigit():
+                low, high = sorted((int(start), int(end)))
+                if high - low >= _MAX_BRACE_RANGE:
+                    return None
+                return [str(item) for item in range(low, high + 1)]
+            if len(start) == 1 and len(end) == 1:
+                low, high = sorted((ord(start), ord(end)))
+                if high - low >= _MAX_BRACE_RANGE:
+                    return None
+                return [chr(item) for item in range(low, high + 1)]
+        return body.split(",")
+
+
+    def _brace_expanded(command: str) -> list[str] | None:
+        """Enumerate brace expansions of ``command``, innermost group first.
+
+        Returns None when enumeration exceeds ``_MAX_BRACE_EXPANSIONS``; the caller
+        fails closed on that, because an expansion it cannot enumerate may name
+        new_pr.py. The enumeration is deliberately a superset of what a shell
+        produces: relevance only decides whether the strict policy applies.
+        """
+        frontier = [command]
+        expansions: list[str] = []
+        budget = _MAX_BRACE_EXPANSIONS
+        while frontier:
+            candidate = frontier.pop()
+            group = _INNERMOST_BRACE_GROUP.search(candidate)
+            if group is None:
+                expansions.append(candidate)
+                continue
+            alternatives = _brace_alternatives(group.group(1))
+            if alternatives is None:
+                return None
+            budget -= len(alternatives)
+            if budget < 0:
+                return None
+            frontier.extend(
+                candidate[: group.start()] + alternative + candidate[group.end() :]
+                for alternative in alternatives
+            )
+        return expansions
+
+
+    def _names_new_pr(command: str) -> bool:
+        """Scope rule A: the command text can name new_pr.py."""
+        # Single-character glob classes are a naming obfuscation, not a wildcard
+        # search: n[e]w_[p]r.[p][y] names exactly new_pr.py.
+        unclassed = command.replace("[", "").replace("]", "")
+        for text in {command, unclassed}:
+            if _could_target_new_pr(text):
+                return True
+            expansions = _brace_expanded(text)
+            if expansions is None:
+                return True
+            if any(_could_target_new_pr(candidate) for candidate in expansions):
+                return True
+        return False
+
+
+    def _scope_tokens(command: str) -> list[ShellToken] | None:
+        """Tokenize for the relevance decision only, tolerating substitutions.
+
+        ``_split_command`` rejects command substitution as policy. That rejection
+        must not decide relevance, or a substitution-bearing script path would
+        escape the scope rules below. Neutralizing each substitution to a plain
+        parameter expansion keeps the token shape, so a Python script operand built
+        from ``$(...)`` or backticks is still recognized as unresolvable.
+        """
+        neutralized = _COMMAND_SUBSTITUTION.sub("$X", command)
+        try:
+            return _split_command(neutralized)
+        except GuardViolationError:
+            return None
+
+
+    def _unresolvable_python_target(tokens: list[ShellToken], cwd: Path) -> bool:
+        """Scope rule B: a Python script operand the guard cannot resolve."""
+        arguments = _python_arguments(tokens, cwd)
+        if arguments is None:
+            return False
+        target, dynamic = _execution_target(arguments)
+        if target is None or dynamic:
+            return False
+        return _contains_shell_expansion(target.raw) or _contains_shell_expansion(target.value)
+
+
+    def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
+        """Scope rule C: an operand is a byte-identical copy of new_pr.py."""
+        runtime_script = _runtime_script()
+        if runtime_script is None:
+            return False
+        for token in tokens[:_MAX_SCOPE_OPERANDS]:
+            value = token.value
+            if not value or value.startswith("-"):
+                continue
+            candidate = Path(os.path.expanduser(value))
+            if not candidate.is_absolute():
+                candidate = cwd / candidate
+            if _same_executable_content(candidate, runtime_script):
+                return True
+        return False
+
+
+    def _command_is_in_scope(command: str, cwd: Path) -> bool:
+        """Non-blocking relevance gate. See the module docstring for the contract."""
+        if _names_new_pr(command):
+            return True
+        tokens = _scope_tokens(command)
+        if tokens is None:
+            return False
+        return _unresolvable_python_target(tokens, cwd) or _operand_is_new_pr_copy(tokens, cwd)
 
 
     def _contains_active_parameter_expansion(raw: str) -> bool:
@@ -1469,12 +1624,14 @@ def _original_main(stdin_bytes):
     def _is_literal_safe_git_remote(value: str) -> bool:
         if _has_unsafe_git_remote(value):
             return False
+        if re.match(r"^[A-Za-z]:", value) or value.startswith(("\\", "//")):
+            return False
         scheme_match = re.match(r"([A-Za-z][A-Za-z0-9+.-]*)://", value)
         if scheme_match is not None:
             return scheme_match.group(1).casefold() in _GIT_SAFE_REMOTE_SCHEMES
         if re.match(r"(?:[^/@:]+@)?[^/:]+:.+", value):
             return True
-        return value == "." or value.startswith(("/", "./", "../"))
+        return False
 
 
     def _git_remote_operand(
@@ -1685,7 +1842,10 @@ def _original_main(stdin_bytes):
             subcommand_index,
         ):
             return True
-        if subcommand not in _GIT_HOOK_FREE_SUBCOMMANDS and _repository_has_active_git_hooks(cwd):
+        if (
+            subcommand not in _GIT_HOOK_FREE_SUBCOMMANDS
+            and _repository_has_active_git_hooks(cwd)
+        ):
             return True
         if subcommand in _GIT_REMOTE_SUBCOMMANDS:
             remote = _git_remote_operand(tokens, subcommand_index)
@@ -2017,6 +2177,8 @@ def _original_main(stdin_bytes):
     def main() -> int:
         try:
             command, cwd = _read_request()
+            if not _command_is_in_scope(command, cwd):
+                return 0
             tokens = _split_command(command)
             if _contains_dangerous_loader_environment(tokens):
                 raise GuardViolationError("dynamic loader environment variables are not allowed")
