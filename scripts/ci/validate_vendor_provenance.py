@@ -139,7 +139,7 @@ def _authenticate_all_pins(
     errors.extend(_authenticate_artifact(
         config, _PIN_CONFIG_SHA256, "Config (markdownlint-safe-config.yaml)",
     ))
-    if cli2_config is not None and cli2_config.is_file():
+    if cli2_config is not None:
         errors.extend(_authenticate_artifact(
             cli2_config, _PIN_CLI2_CONFIG_SHA256,
             "CLI2 config (markdownlint-cli2.yaml)",
@@ -232,15 +232,46 @@ def _validate_mirror_parity(primary: Path, mirror: Path) -> list[str]:
 
 # Symlink containment
 
+def _safe_resolve_within(
+    path: Path, allowed_root: Path,
+) -> tuple[Path | None, str]:
+    """Resolve *path* and verify it is contained under *allowed_root*.
+
+    Returns (resolved_path, "") on success, or (None, error_message) on
+    failure.  Handles prefix-collision (e.g. ``/tmp/vendor-evil`` vs
+    ``/tmp/vendor``), broken symlinks, and symlinked parents.
+    """
+    root_resolved = allowed_root.resolve(strict=True)
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        return None, f"Cannot resolve {path}: {exc}"
+    # Use PurePath.is_relative_to for component-safe containment
+    # (immune to prefix-collision unlike str.startswith).
+    if not resolved.is_relative_to(root_resolved):
+        return None, (
+            f"Path escapes allowed root: {path} -> {resolved} "
+            f"(root: {root_resolved})"
+        )
+    return resolved, ""
+
+
 def _check_symlink_containment(vendor_dir: Path) -> list[str]:
     """Reject symlinks that escape vendor tree."""
     errors: list[str] = []
     vendor_resolved = vendor_dir.resolve()
     for item in vendor_dir.rglob("*"):
         if item.is_symlink():
-            target = (item.parent / os.readlink(item)).resolve()
-            if not str(target).startswith(str(vendor_resolved) + os.sep) and \
-               target != vendor_resolved:
+            raw_target = item.parent / os.readlink(item)
+            try:
+                target = raw_target.resolve(strict=True)
+            except OSError:
+                rel = item.relative_to(vendor_dir)
+                errors.append(f"Broken symlink in vendor: {rel}")
+                if len(errors) >= 5:
+                    break
+                continue
+            if not target.is_relative_to(vendor_resolved):
                 rel = item.relative_to(vendor_dir)
                 errors.append(f"Symlink escapes vendor: {rel}")
                 if len(errors) >= 5:
@@ -369,6 +400,8 @@ def _run_checks(
     mirror: Path,
     config: Path,
     cli2_config: Path | None,
+    copilot_config: Path | None = None,
+    copilot_cli2_config: Path | None = None,
 ) -> list[str]:
     """Run all non-reconstruction checks. Returns list of errors."""
     all_errors: list[str] = []
@@ -417,6 +450,42 @@ def _run_checks(
     all_errors.extend(errs)
     _report(errs, "Entrypoint covered by manifest and matches")
 
+    # 8. CLI2 config safety (if supplied)
+    if cli2_config is not None:
+        print("\n=== CLI2 Config Safety ===")
+        errs = _validate_config_safe(cli2_config)
+        all_errors.extend(errs)
+        _report(errs, "No execution-capable keys in CLI2 config")
+
+    # 9. Copilot config mirror parity (byte-identical to primary)
+    if copilot_config is not None:
+        print("\n=== Copilot Config Mirror Parity ===")
+        errs = _validate_mirror_parity(config, copilot_config)
+        all_errors.extend(errs)
+        _report(errs, "Copilot safe-config is byte-identical to primary")
+
+        # Also validate Copilot config for execution keys
+        print("\n=== Copilot Config Safety ===")
+        errs = _validate_config_safe(copilot_config)
+        all_errors.extend(errs)
+        _report(errs, "No execution-capable keys in Copilot config")
+
+    if copilot_cli2_config is not None:
+        print("\n=== Copilot CLI2 Config Mirror Parity ===")
+        if cli2_config is not None:
+            errs = _validate_mirror_parity(cli2_config, copilot_cli2_config)
+        else:
+            errs = [
+                "Copilot CLI2 config supplied but no primary CLI2 config to compare"
+            ]
+        all_errors.extend(errs)
+        _report(errs, "Copilot CLI2 config is byte-identical to primary")
+
+        print("\n=== Copilot CLI2 Config Safety ===")
+        errs = _validate_config_safe(copilot_cli2_config)
+        all_errors.extend(errs)
+        _report(errs, "No execution-capable keys in Copilot CLI2 config")
+
     return all_errors
 
 def _run_reconstruction(vendor_dir: Path) -> list[str]:
@@ -459,23 +528,89 @@ def main() -> int:
     parser.add_argument("--mirror-rel", required=True, type=str)
     parser.add_argument("--config-rel", required=True, type=str)
     parser.add_argument("--cli2-config-rel", default=None, type=str)
+    parser.add_argument("--copilot-config-rel", default=None, type=str)
+    parser.add_argument("--copilot-cli2-config-rel", default=None, type=str)
     args = parser.parse_args()
 
-    root = args.candidate_root.resolve()
+    try:
+        root = args.candidate_root.resolve(strict=True)
+    except OSError:
+        print(f"ERROR: candidate root not found: {args.candidate_root}", file=sys.stderr)
+        return 2
     if not root.is_dir():
-        print(f"ERROR: candidate root not found: {root}", file=sys.stderr)
+        print(f"ERROR: candidate root not a directory: {root}", file=sys.stderr)
         return 2
 
+    # Resolve all candidate-controlled paths and enforce containment under
+    # candidate root BEFORE any read, traversal, or subprocess.
+    # Prevents CWE-59/CWE-22: symlinked vendor roots, pinned artifacts, or
+    # prefix-collision attacks (e.g. /tmp/candidate/vendor-evil).
     vendor_dir = root / args.vendor_rel
     verifier = root / args.verifier_rel
     mirror = root / args.mirror_rel
     config = root / args.config_rel
     cli2_config = (root / args.cli2_config_rel) if args.cli2_config_rel else None
+    copilot_config = (root / args.copilot_config_rel) if args.copilot_config_rel else None
+    copilot_cli2_config = (
+        (root / args.copilot_cli2_config_rel)
+        if args.copilot_cli2_config_rel
+        else None
+    )
+
+    containment_errors: list[str] = []
+    for label, p in [
+        ("vendor_dir", vendor_dir),
+        ("verifier", verifier),
+        ("mirror", mirror),
+        ("config", config),
+    ]:
+        resolved, err = _safe_resolve_within(p, root)
+        if err:
+            containment_errors.append(f"{label}: {err}")
+        else:
+            assert resolved is not None  # guaranteed by no-error
+            if label == "vendor_dir":
+                vendor_dir = resolved
+            elif label == "verifier":
+                verifier = resolved
+            elif label == "mirror":
+                mirror = resolved
+            elif label == "config":
+                config = resolved
+    if cli2_config is not None:
+        resolved, err = _safe_resolve_within(cli2_config, root)
+        if err:
+            containment_errors.append(f"cli2_config: {err}")
+        elif resolved is not None:
+            cli2_config = resolved
+    for label, p in [
+        ("copilot_config", copilot_config),
+        ("copilot_cli2_config", copilot_cli2_config),
+    ]:
+        if p is not None:
+            resolved, err = _safe_resolve_within(p, root)
+            if err:
+                containment_errors.append(f"{label}: {err}")
+            elif resolved is not None:
+                if label == "copilot_config":
+                    copilot_config = resolved
+                else:
+                    copilot_cli2_config = resolved
+    if containment_errors:
+        print("=== Path Containment ===")
+        for e in containment_errors:
+            print(f"  FAIL: {e}")
+        print(f"\nBLOCKED: {len(containment_errors)} containment error(s)")
+        return 1
 
     all_errors = _run_checks(
         root, vendor_dir, verifier, mirror, config, cli2_config,
+        copilot_config, copilot_cli2_config,
     )
-    all_errors.extend(_run_reconstruction(vendor_dir))
+    # Only run reconstruction if structural/policy checks passed; avoids
+    # npm ci against a lockfile that already failed policy (CWE-918/CWE-59).
+    if not all_errors:
+        all_errors.extend(_run_reconstruction(vendor_dir))
 
     if all_errors:
         print(f"\nBLOCKED: {len(all_errors)} provenance error(s)")
