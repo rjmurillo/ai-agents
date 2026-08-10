@@ -14,17 +14,14 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_DISPATCHER = REPO_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py"
-COPILOT_DISPATCHER = (
-    REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
-)
+COPILOT_DISPATCHER = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
 CLAUDE_PLUGIN_ROOT = REPO_ROOT / ".claude"
 COPILOT_PLUGIN_ROOT = REPO_ROOT / "src" / "copilot-cli"
 GROUP = "plugin-pretooluse-9-push_pr_script_identity"
 SCRIPT_RELATIVE = Path("skills/github/scripts/pr/new_pr.py")
 REPOSITORY_SCRIPT = Path(".claude") / SCRIPT_RELATIVE
 PLUGIN_SCRIPT_REFERENCE = (
-    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/"
-    "skills/github/scripts/pr/new_pr.py"
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py"
 )
 
 
@@ -129,8 +126,7 @@ def test_claude_allows_runtime_script_literal(tmp_path: Path) -> None:
     body_file = _body_file(repository)
 
     result = _run_claude(
-        f"python3 -I '{script}' --title 'fix: identity gate' "
-        f"--body-file {body_file}",
+        f"python3 -I '{script}' --title 'fix: identity gate' --body-file {body_file}",
         repository,
     )
 
@@ -168,18 +164,12 @@ def test_guard_denies_modified_runtime_helper(tmp_path: Path) -> None:
     repository, _ = _repository(tmp_path)
     body_file = _body_file(repository)
     runtime_root = tmp_path / "runtime" / ".claude"
-    guard = runtime_root / "hooks" / "PreToolUse" / (
-        "invoke_push_pr_script_identity_guard.py"
-    )
+    guard = runtime_root / "hooks" / "PreToolUse" / ("invoke_push_pr_script_identity_guard.py")
     script_dir = runtime_root / SCRIPT_RELATIVE.parent
     guard.parent.mkdir(parents=True)
     script_dir.mkdir(parents=True)
     shutil.copy2(
-        REPO_ROOT
-        / ".claude"
-        / "hooks"
-        / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard.py",
+        REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
         guard,
     )
     shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, script_dir / "new_pr.py")
@@ -206,8 +196,7 @@ def test_guard_denies_modified_runtime_helper(tmp_path: Path) -> None:
         "--title 'fix: exfil' --body-file /etc/hosts",
         "--title 'fix: traversal' --body-file .agents/scratch/../../secret",
         "--title 'fix: nested' --body-file .agents/scratch/leak/hosts.md",
-        "--title 'fix: bypass' --body-file .agents/scratch/body.md "
-        "--skip-validation",
+        "--title 'fix: bypass' --body-file .agents/scratch/body.md --skip-validation",
     ],
 )
 def test_dispatchers_deny_noncanonical_new_pr_arguments(
@@ -286,6 +275,15 @@ def test_dispatchers_deny_env_split_string_launchers(
         "sh -xc 'python3 attacker/x'",
         "/bin/sh -ec 'python3 attacker/x'",
         "bash -lc 'python3 attacker/x'",
+        "rbash -c 'python3 attacker/x'",
+        "rksh -c 'python3 attacker/x'",
+        "rzsh -c 'python3 attacker/x'",
+        "mksh -c 'python3 attacker/x'",
+        "yash -c 'python3 attacker/x'",
+        "xonsh -c 'python3 attacker/x'",
+        "ksh93 -c 'python3 attacker/x'",
+        "ksh93u -c 'python3 attacker/x'",
+        "ksh2020 -c 'python3 attacker/x'",
         "env sh -xc 'python3 attacker/x'",
         "command -- sh -xc 'python3 attacker/x'",
         "timeout 5 sh -xc 'python3 attacker/x'",
@@ -308,17 +306,246 @@ def test_dispatchers_deny_shell_evaluator_wrappers(
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_renamed_shell_executables(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash unavailable")
+    interpreter_directory = repository / "attacker-bin"
+    interpreter_directory.mkdir()
+    versioned_shell = interpreter_directory / "bash-5.2"
+    copied_shell = repository / "copied-shell"
+    try:
+        versioned_shell.symlink_to(bash)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    shutil.copy2(bash, copied_shell)
+    copied_shell.chmod(0o755)
+
+    commands = (
+        f"PATH='{interpreter_directory}' bash-5.2 -c 'id'",
+        "./copied-shell -c 'id'",
+    )
+    for command in commands:
+        result = runner(command, repository)
+        assert result.returncode == 2, command
+        assert "shell evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_executable_renamed_to_printf(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    renamed = repository / "printf"
+    shutil.copy2(sys.executable, renamed)
+    renamed.chmod(0o755)
+
+    copied_result = runner("./printf -c \"print('attacker')\"", repository)
+    renamed.write_text("#!/bin/sh\nid\n", encoding="utf-8")
+    renamed.chmod(0o755)
+    script_result = runner("./printf", repository)
+
+    assert copied_result.returncode == 2
+    assert "dynamic evaluator wrappers are not allowed" in copied_result.stderr
+    assert script_result.returncode == 2
+    assert "shell evaluator wrappers are not allowed" in script_result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_home_relative_shell_wrapper(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    home = tmp_path / "home"
+    wrapper = home / "bin" / "update"
+    wrapper.parent.mkdir(parents=True)
+    wrapper.write_text("#!/bin/sh\nid\n", encoding="utf-8")
+    wrapper.chmod(0o755)
+    plugin_environment = (
+        {"CLAUDE_PLUGIN_ROOT": str(CLAUDE_PLUGIN_ROOT)}
+        if runner is _run_claude
+        else {"COPILOT_PLUGIN_ROOT": str(COPILOT_PLUGIN_ROOT)}
+    )
+
+    result = runner(
+        "~/bin/update",
+        repository,
+        env=_environment(HOME=str(home), **plugin_environment),
+    )
+
+    assert result.returncode == 2
+    assert "shell evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_env_assignments_after_option_terminator(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    wrapper = repository / "attacker"
+    wrapper.write_text("#!/bin/sh\nid\n", encoding="utf-8")
+    wrapper.chmod(0o755)
+
+    result = runner("env -- X=1 ./attacker", repository)
+
+    assert result.returncode == 2
+    assert "shell evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
 @pytest.mark.parametrize(
     "command",
     [
         "awk 'BEGIN { system(\"python3 -I attacker/pr/new_pr.py\") }'",
         "lua -e 'os.execute(\"python3 -I attacker/pr/new_pr.py\")'",
-        "node -e 'require(\"child_process\").execSync(\"python3 -I x\")'",
+        'node -e \'require("child_process").execSync("python3 -I x")\'',
         "perl -e 'exec q(python3),q(-I),pack(q(H42),"
         "q(61747461636b65722f70722f6e65775f70722e7079))'",
         "php -r 'system(\"python3 -I attacker/pr/new_pr.py\");'",
-        "ruby -e 'exec(\"python3\", \"-I\", \"attacker/pr/new_pr.py\")'",
+        'ruby -e \'exec("python3", "-I", "attacker/pr/new_pr.py")\'',
         "sed -n '1e python3 -I attacker/pr/new_pr.py'",
+        'strace node -e \'require("child_process").execSync("./p")\'',
+        "sudo perl -e 'system(\"./p\")'",
+        "valgrind ruby -e 'system(\"./p\")'",
+        'ltrace node -e \'require("child_process").execSync("./p")\'',
+        'perf stat node -e \'require("child_process").execSync("./p")\'',
+        'numactl node -e \'require("child_process").execSync("./p")\'',
+        'runuser -u nobody -- node -e \'require("child_process").execSync("./p")\'',
+        "scala -e 'sys.process.Process(\"./p\").!'",
+        "R -e 'system(\"./p\")'",
+        "julia -e 'run(`./p`)'",
+        "expect -c 'exec ./p'",
+        "bpftrace -e 'BEGIN { system(\"./p\") }'",
+        "ghci -e 'System.Process.callCommand \"./p\"'",
+        "nawk -f attacker.awk input",
+        "dc attacker.dc",
+        "sqlite3 :memory: '.shell ./p'",
+        "guile -c '(system \"./p\")'",
+        "elixir -e 'System.cmd(\"./p\", [])'",
+        'ts-node -e \'require("child_process").execSync("./p")\'',
+        'tsx -e \'require("child_process").execSync("./p")\'',
+        "emacs --batch --eval '(shell-command \"./p\")'",
+        "vim -es -c '!./p' -c qa",
+        "psql -c '\\! ./p'",
+        "gdb -ex 'shell python3 -I attacker/pr/new_pr.py' --batch",
+        "lldb -o 'platform shell python3 -I attacker/pr/new_pr.py' --batch",
+        "make -f attacker.mk",
+        "gmake -f attacker.mk",
+        "script -q -c 'python3 -I attacker/pr/new_pr.py' /dev/null",
+        "nsenter --target 1 --mount python3 -I attacker/pr/new_pr.py",
+        "ssh -F /dev/null -o ProxyCommand='./p' localhost true",
+        "scp -o ProxyCommand='./p' source localhost:target",
+        "sftp -o ProxyCommand='./p' localhost",
+        "rsync --rsh='./p' localhost:/source target",
+        "sshpass -p secret ssh localhost true",
+        "su -c './p'",
+        "sudo sh -c './p'",
+        "runuser -c './p'",
+        "parallel './p' ::: x",
+        "socat EXEC:'./p' STDIO",
+        "ncat --sh-exec './p' localhost 1",
+        "env -- X=1 sudo id",
+        "env -- 1abc=x sudo id",
+        "env a.b=1 ssh localhost true",
+        "git -c alias.x='!./p' x",
+        "git -calias.x='!./p' x",
+        "git -c core.sshCommand='./p' push origin HEAD",
+        "git -c include.path=attacker.gitconfig x",
+        "git --exec-path=attacker-bin x",
+        "git --git-dir=attacker.git x",
+        "git --git-dir attacker.git x",
+        "git -C attacker x",
+        "git --config-env=alias.x=PUSH_PR_ALIAS x",
+        "git -p status --short",
+        "git --paginate status --short",
+        "git archive --remote=. --exec=./p HEAD",
+        "git bisect run ./p",
+        "git clone --config=core.sshCommand=./p ssh://example.com/repo.git clone",
+        "git clone --conf=core.sshCommand=./p ssh://example.com/repo.git clone",
+        "git clone --template=attacker-template . clone",
+        "git clone -u ./p . clone",
+        "git fetch --upload-pack ./p .",
+        "git fetch --upload-p=./p .",
+        "git --no-optional-locks fetch --upload-pack=./p .",
+        "git ls-remote '--upload-pack=./p' .",
+        "git merge --strategy=./p HEAD",
+        "git pull --upload-pack=./p .",
+        "env git push --exec=./p origin HEAD",
+        "env git push --exe=./p origin HEAD",
+        "env git push --exec ./p origin HEAD",
+        "env git push --repo=pwn::target HEAD",
+        "env git push '--receive-pack=./p' origin HEAD",
+        "env git push '--receive-p=./p' origin HEAD",
+        "env git push -o ci.skip evil HEAD",
+        "env git push -oci.skip evil HEAD",
+        "env git push --push-option ci.skip evil HEAD",
+        "env git push --push-option=ci.skip evil HEAD",
+        "git diff --ext-diff HEAD",
+        "git diff --ext HEAD",
+        "git grep -O'./p' pattern -- pyproject.toml",
+        "git grep -O ./p pattern -- pyproject.toml",
+        "git grep -nO./p pattern -- pyproject.toml",
+        "command time -f label perl -e 'exec q(python3),q(-I),"
+        "pack(q(H42),q(61747461636b65722f70722f70722e7079))'",
+        "command time --for label perl -e 'print 1'",
+        "command time -pf label perl -e 'print 1'",
+        "command nice --adj 0 perl -e 'print 1'",
+        "command timeout --sig TERM 5 perl -e 'print 1'",
+        "command timeout -vs TERM 5 perl -e 'print 1'",
+        "command stdbuf --out L perl -e 'print 1'",
+        "xargs perl -e 'print 1'",
+        "find . -exec perl -e 'print 1' ';'",
+        "busybox env perl -e 'print 1'",
+        "busybox timeout 5 perl -e 'print 1'",
+        "tar --checkpoint=1 --checkpoint-action=exec=./p -cf archive.tar file",
+        "tar --use-compress-program=./p -cf archive.tar file",
+        "tar --use-compress-prog=./p -cf archive.tar file",
+        "tar -I ./p -cf archive.tar file",
+        "tar --to-command=./p -xf archive.tar",
+        "tar --rsh-command=./p -cf host:archive.tar file",
+        "tar -cI./p -f archive.tar file",
+        "tar Icf ./p archive.tar file",
+        "TAR_OPTIONS='--use-compress-program=./p' tar -cf archive.tar file",
+        "PATH=attacker /usr/bin/tar -czf archive.tar file",
+        "flock /dev/null perl -e 'print 1'",
+        "flock.exe /dev/null perl -e 'print 1'",
+        "taskset 1 perl -e 'print 1'",
+        "ionice perl -e 'print 1'",
+        "prlimit -- perl -e 'print 1'",
+        "setarch linux64 perl -e 'print 1'",
+        "chrt 1 perl -e 'print 1'",
+        "setpriv --no-new-privs perl -e 'print 1'",
+        "unshare perl -e 'print 1'",
+        "linux64 perl -e 'print 1'",
+        "watch -x -n 1 perl -e 'print 1'",
+        "GIT_ALLOW_PROTOCOL=ext git ls-remote 'ext::./p'",
+        "GIT_PROTOCOL_FROM_USER=1 git ls-remote 'ext::./p'",
+        "git ls-remote pwn::target HEAD",
+        "git ls-remote pwn://target HEAD",
+        "git fetch evil",
+        "git-fetch evil",
+        "env git push evil HEAD",
+        "git remote update evil",
+        "git archive --remote=pwn::target HEAD",
+        "git config --local alias.pwn '!./p'",
+        "git config core.fsmonitor ./p",
+        "git config core.fsmonitor get",
+        "git config core.sshCommand get",
+        "git pwn",
+        "git-push --exec=./p . HEAD",
+        "/usr/lib/git-core/git-fetch --upload-pack=./p .",
+        "git-archive --remote=. --exec=./p HEAD",
+        "EDITOR=./p git config --edit",
+        "VISUAL=./p git config --edit",
+        "GIT_CONFIG_GLOBAL=attacker.gitconfig git x",
+        "env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0='!./p' git x",
     ],
 )
 def test_dispatchers_deny_dynamic_evaluator_wrappers(
@@ -335,12 +562,125 @@ def test_dispatchers_deny_dynamic_evaluator_wrappers(
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_fail_closed_on_unknown_git_global_options(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+
+    result = runner("git --unknown-global status --short", repository)
+
+    assert result.returncode == 2
+    assert "unsupported Git global options are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "LD_PRELOAD=/attacker/owned.so git status --short",
+        "LD_AUDIT=/attacker/owned.so git status --short",
+        "LD_LIBRARY_PATH=/attacker git status --short",
+        "DYLD_INSERT_LIBRARIES=/attacker/owned.dylib git status --short",
+        "env DOTNET_STARTUP_HOOKS=/attacker/owned.dll git status --short",
+        "env -- LD_PRELOAD=/attacker/owned.so git status --short",
+        "env -- 9bad=1 LD_PRELOAD=/attacker/owned.so git status --short",
+        "env -- -x=y LD_PRELOAD=/attacker/owned.so git status --short",
+    ],
+)
+def test_dispatchers_deny_dynamic_loader_environment(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2
+    assert "dynamic loader environment variables are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_git_commands_with_active_hooks(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    subprocess.run(
+        ["git", "init", "--quiet"],
+        cwd=repository,
+        check=True,
+    )
+    hook = repository / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    denied_commands = (
+        "git commit --allow-empty -m test",
+        "env -- X=1 git commit --allow-empty -m test",
+        "env -- a-b=1 git commit --allow-empty -m test",
+        "git pull . HEAD",
+        "git update-ref refs/heads/guard-probe HEAD",
+        "git worktree add --detach ../guard-probe HEAD",
+    )
+    allowed = runner("git grep pattern -- pyproject.toml", repository)
+
+    for command in denied_commands:
+        denied = runner(command, repository)
+        assert denied.returncode == 2, command
+        assert "dynamic evaluator wrappers are not allowed" in denied.stderr
+    assert allowed.returncode == 0, allowed.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_renamed_git_executable(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git unavailable")
+    renamed_git = repository / "mygit"
+    shutil.copy2(git, renamed_git)
+    renamed_git.chmod(0o755)
+
+    result = runner("./mygit fetch ext::./p", repository)
+
+    assert result.returncode == 2
+    assert "dynamic evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
 @pytest.mark.parametrize(
     "command",
     [
         "env PUSH_PR_TEST=1 git status --short",
+        "git -c color.ui=never status --short",
+        "git --no-advice status --short",
+        "git --no-optional-locks status --short",
+        "git config --get user.name",
+        "git config --local --get user.name",
+        "git grep -n pattern -- pyproject.toml",
+        "git grep -in pattern -- pyproject.toml",
+        "git ls-remote https://example.com/repository.git HEAD",
+        "git fetch https://example.com/repository.git HEAD",
+        "env git push --repo=https://example.com/repository.git HEAD",
+        "env git push -o ci.skip https://example.com/repository.git HEAD",
+        "env git push --push-option ci.skip https://example.com/repository.git HEAD",
+        "git fetch -j 4 https://example.com/repository.git HEAD",
+        "git clone -b main https://example.com/repository.git clone",
+        "command time -f label git status --short",
+        "command nice --adjustment 0 git status --short",
+        "command timeout --signal TERM 5 git status --short",
+        "command stdbuf --output L git status --short",
+        "find . -name pyproject.toml -print",
+        "busybox env git status --short",
+        "tar -cf archive.tar file",
         "printf '%s\\n' '-S' '--split-string' '-xc'",
-        "printf '%s\\n' perl ruby node awk sed",
+        "printf '%s\\n' perl ruby node awk sed make gmake",
+        "printf '%s\\n' scala R julia expect bpftrace ghci",
     ],
 )
 def test_dispatchers_allow_benign_env_and_flag_text(
@@ -375,8 +715,7 @@ def test_dispatchers_deny_active_expansion_in_new_pr_arguments(
     body_file = _body_file(repository)
 
     result = runner(
-        f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" '
-        f"--title {title} --body-file {body_file}",
+        f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" --title {title} --body-file {body_file}',
         repository,
     )
 
@@ -430,14 +769,12 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
         "python3 -c\"exec(open('attacker/pr/new_pr.py').read())\"",
         "python3 \"-Icexec(open('attacker/pr/new_pr.py').read())\"",
         "python3 -I -c \"exec(open('attacker/pr/new_'+'pr.py').read())\"",
-        "python3 -I -c '__import__(\"runpy\").run_path("
-        "bytes.fromhex(\"61747461636b65722f70722f6e65775f70722e7079\")"
-        ".decode(), run_name=\"__main__\")'",
-        "python3 -I -c 'import runpy,sys;runpy.run_path(sys.argv[1])' "
-        "attacker/pr/new_pr.py",
+        'python3 -I -c \'__import__("runpy").run_path('
+        'bytes.fromhex("61747461636b65722f70722f6e65775f70722e7079")'
+        '.decode(), run_name="__main__")\'',
+        "python3 -I -c 'import runpy,sys;runpy.run_path(sys.argv[1])' attacker/pr/new_pr.py",
         "python3 -I -m cProfile attacker/pr/n[e]w_[p]r.[p][y]",
-        "python3 -I -m cProfile "
-        "attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
+        "python3 -I -m cProfile attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
         'python3 -I "attacker/new_$(printf pr).py"',
         'python3 -I "attacker/n$(printf ew_pr).py"',
         "python3 -I attacker/n`printf e`w_pr.py",
@@ -456,6 +793,12 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
         "py -c \"print('attacker')\"",
         "py -m site",
         "py.exe -c \"print('attacker')\"",
+        "python2 -c \"print('attacker')\"",
+        "python2.7 -c \"print('attacker')\"",
+        "python3.12.1 -c \"print('attacker')\"",
+        "pypy2 -c \"print('attacker')\"",
+        "pypy3.10 -c \"print('attacker')\"",
+        "pypy3.11 -c \"print('attacker')\"",
         "./attacker/pr/new_pr.py",
         "./p attacker/pr/new_pr.py",
         "env timeout 5 ./p attacker/pr/new_pr.py",
@@ -471,8 +814,7 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
         "command -- python3 -I attacker/pr/new_pr.py",
         "command -- python attacker/pr/new_pr.py",
         "command -- ${BASH_VERSION:+pyt}hon3 attacker/pr/new_pr.py",
-        "${BASH_VERSION:+pyt}hon3 "
-        "attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
+        "${BASH_VERSION:+pyt}hon3 attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
         "pyt$'hon3' attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
         "time python3 attacker/pr/new_pr.p{y..y}",
         "setsid python3 attacker/pr/new_pr.p[y]",
@@ -481,8 +823,7 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
         "setsid python3 -c \"print('attacker')\"",
         "bash -c 'python3 -I attacker/pr/new_pr.py'",
         "bash -c 'python3 -c \"print(1)\"'",
-        "bash -c '${BASH_VERSION:+pyt}hon3 "
-        "attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}'",
+        "bash -c '${BASH_VERSION:+pyt}hon3 attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}'",
         "sh -c 'pypy3 attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}'",
         "eval 'pypy3 attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}'",
         "python3 -I -X dev attacker/pr/new_pr.py",
@@ -495,8 +836,7 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
         "python3 .claude/skills/github/scripts/pr/new_pr.py > result.txt",
         "python3 .claude/skills/github/scripts/pr/new_pr.py $(echo bypass)",
         "python3 .claude/skills/github/scripts/pr/new_pr.py `echo bypass`",
-        'git status "$(pyt{h..h}on3 attacker/pr/'
-        'n{e..e}w_{p..p}r.{p..p}{y..y})"',
+        'git status "$(pyt{h..h}on3 attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y})"',
         "python3 .claude/skills/github/scripts/pr/new_pr.py --title '$HOME'",
         "python3 .claude/skills/github/scripts/pr/new_pr.py # comment",
         "python3 .claude/skills/github/scripts/pr/new_pr.py\npython3 attacker.py",
@@ -595,6 +935,29 @@ def test_dispatchers_deny_symlinked_python_interpreter(
     ):
         result = runner(command, repository)
         assert result.returncode == 2, command
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_deny_path_resolved_python_alias(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    interpreter_directory = repository / "attacker-bin"
+    interpreter_directory.mkdir()
+    interpreter = interpreter_directory / "fail2ban-python"
+    try:
+        interpreter.symlink_to(sys.executable)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    result = runner(
+        f"PATH='{interpreter_directory}' fail2ban-python -c \"print('attacker')\"",
+        repository,
+    )
+
+    assert result.returncode == 2
+    assert "dynamic Python -c and -m launchers are not allowed" in result.stderr
 
 
 @pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
@@ -868,9 +1231,7 @@ def test_isolated_description_validator_blocks_sibling_shadow(
     script_dir.mkdir()
     validator = script_dir / "validate_pr_description.py"
     shutil.copy2(
-        CLAUDE_PLUGIN_ROOT
-        / SCRIPT_RELATIVE.parent
-        / "validate_pr_description.py",
+        CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE.parent / "validate_pr_description.py",
         validator,
     )
     marker = tmp_path / "shadow-imported"

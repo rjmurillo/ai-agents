@@ -16,7 +16,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -24,8 +26,7 @@ from typing import NamedTuple
 _MAX_STDIN_BYTES = 128 * 1024
 _SCRIPT_RELATIVE_PATH = Path("skills/github/scripts/pr/new_pr.py")
 _PLUGIN_SCRIPT_REFERENCE = (
-    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/"
-    "skills/github/scripts/pr/new_pr.py"
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py"
 )
 _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
 _SHELL_EVALUATORS = frozenset(
@@ -36,50 +37,425 @@ _SHELL_EVALUATORS = frozenset(
         "cmd.exe",
         "csh",
         "dash",
+        "elvish",
+        "es",
         "eval",
         "fish",
         "ksh",
+        "mksh",
+        "nu",
         "powershell",
         "powershell.exe",
         "pwsh",
         "pwsh.exe",
+        "rc",
+        "rbash",
+        "rksh",
+        "rzsh",
         "sh",
         "tcsh",
+        "xonsh",
+        "yash",
         "zsh",
     }
 )
 _DYNAMIC_EVALUATORS = frozenset(
     {
         "awk",
+        "bpftrace",
+        "bb",
         "bun",
+        "clisp",
+        "clojure",
+        "dc",
         "deno",
+        "dotnet-script",
+        "ed",
+        "elixir",
+        "emacs",
+        "escript",
+        "ex",
+        "expect",
         "gawk",
+        "ghci",
+        "gmake",
         "groovy",
+        "guile",
         "js",
         "jsc",
+        "jshell",
+        "julia",
+        "kotlin",
+        "less",
         "lua",
         "luajit",
+        "make",
         "mawk",
+        "man",
+        "mariadb",
+        "mysql",
+        "nawk",
+        "nim",
         "node",
         "nodejs",
+        "nvim",
+        "ocaml",
         "perl",
         "php",
+        "psql",
+        "qjs",
+        "r",
+        "racket",
+        "raku",
         "ruby",
         "rscript",
+        "sbcl",
+        "scala",
         "sed",
+        "sqlite3",
+        "swift",
         "tclsh",
+        "ts-node",
+        "tsx",
+        "vi",
+        "view",
+        "vim",
         "wish",
     }
 )
 _ENV_COMMANDS = frozenset({"env", "env.exe"})
 _BUSYBOX_COMMANDS = frozenset({"busybox", "busybox.exe"})
 _EXPANSION_SAFE_COMMANDS = frozenset({"printf"})
-_TRUSTED_NEW_PR_SHA256 = (
-    "f97ef04148e297d1a2aa1a9e157ca65009b8a6323e1dab4e23ddcf18c3a4c086"
+_COMMAND_DELEGATORS = frozenset(
+    {
+        "chrt",
+        "chroot",
+        "catchsegv",
+        "doas",
+        "flock",
+        "i386",
+        "i486",
+        "i586",
+        "i686",
+        "ionice",
+        "linux32",
+        "linux64",
+        "ltrace",
+        "nsenter",
+        "ncat",
+        "nc",
+        "numactl",
+        "parallel",
+        "perf",
+        "prlimit",
+        "proot",
+        "rsync",
+        "runuser",
+        "scp",
+        "script",
+        "setarch",
+        "setpriv",
+        "sftp",
+        "slogin",
+        "socat",
+        "ssh",
+        "sshpass",
+        "strace",
+        "su",
+        "sudo",
+        "taskset",
+        "torify",
+        "uname26",
+        "unshare",
+        "valgrind",
+        "watch",
+        "x86_64",
+        "xargs",
+    }
 )
+_DEBUG_EVALUATORS = frozenset({"gdb", "lldb"})
+_COMMAND_DELEGATION_ENVIRONMENT = {
+    "tar": frozenset({"PATH", "TAR_OPTIONS"}),
+}
+_COMMAND_DELEGATION_OPTIONS = {
+    "find": frozenset({"-exec", "-execdir", "-ok", "-okdir"}),
+    "tar": frozenset(
+        {
+            "-F",
+            "-I",
+            "--checkpoint-action",
+            "--info-script",
+            "--new-volume-script",
+            "--rsh-command",
+            "--to-command",
+            "--use-compress-program",
+        }
+    ),
+}
+_PROCESS_WRAPPER_OPERAND_OPTIONS = {
+    "nice": frozenset({"-n", "--adjustment"}),
+    "stdbuf": frozenset({"-e", "-i", "-o", "--error", "--input", "--output"}),
+    "time": frozenset({"-f", "-o", "--format", "--output"}),
+    "timeout": frozenset({"-k", "-s", "--kill-after", "--signal"}),
+}
+_PROCESS_WRAPPER_FLAG_OPTIONS = {
+    "nice": frozenset(),
+    "nohup": frozenset(),
+    "setsid": frozenset({"-c", "-f", "-w", "--ctty", "--fork", "--keep-groups", "--wait"}),
+    "stdbuf": frozenset(),
+    "time": frozenset(
+        {"-a", "-p", "-q", "-v", "--append", "--portability", "--quiet", "--verbose"}
+    ),
+    "timeout": frozenset({"-v", "--foreground", "--preserve-status", "--verbose"}),
+}
+_GIT_COMMAND_ENVIRONMENT = frozenset(
+    {
+        "EDITOR",
+        "GIT_ASKPASS",
+        "GIT_ALLOW_PROTOCOL",
+        "GIT_COMMON_DIR",
+        "GIT_DIR",
+        "GIT_EDITOR",
+        "GIT_EXEC_PATH",
+        "GIT_EXTERNAL_DIFF",
+        "GIT_PAGER",
+        "GIT_PROTOCOL_FROM_USER",
+        "GIT_PROXY_COMMAND",
+        "GIT_SEQUENCE_EDITOR",
+        "GIT_SSH",
+        "GIT_SSH_COMMAND",
+        "GIT_TEMPLATE_DIR",
+        "GIT_WORK_TREE",
+        "HOME",
+        "PAGER",
+        "PATH",
+        "SSH_ASKPASS",
+        "VISUAL",
+        "XDG_CONFIG_HOME",
+    }
+)
+_GIT_BUILTIN_COMMANDS = frozenset(
+    {
+        "add",
+        "am",
+        "annotate",
+        "apply",
+        "archive",
+        "bisect",
+        "blame",
+        "branch",
+        "bundle",
+        "checkout",
+        "cherry",
+        "cherry-pick",
+        "clean",
+        "clone",
+        "commit",
+        "config",
+        "count-objects",
+        "describe",
+        "diagnose",
+        "diff",
+        "fetch",
+        "format-patch",
+        "fsck",
+        "gc",
+        "grep",
+        "hash-object",
+        "init",
+        "log",
+        "ls-files",
+        "ls-remote",
+        "ls-tree",
+        "maintenance",
+        "merge",
+        "merge-base",
+        "merge-tree",
+        "mv",
+        "name-rev",
+        "notes",
+        "pack-objects",
+        "pack-refs",
+        "patch-id",
+        "prune",
+        "pull",
+        "push",
+        "range-diff",
+        "read-tree",
+        "reflog",
+        "repack",
+        "replace",
+        "request-pull",
+        "rerere",
+        "reset",
+        "restore",
+        "rev-list",
+        "rev-parse",
+        "revert",
+        "rm",
+        "shortlog",
+        "show",
+        "show-branch",
+        "show-ref",
+        "sparse-checkout",
+        "stage",
+        "stash",
+        "status",
+        "switch",
+        "symbol-ref",
+        "tag",
+        "update-index",
+        "update-ref",
+        "var",
+        "verify-commit",
+        "verify-tag",
+        "version",
+        "whatchanged",
+        "worktree",
+        "write-tree",
+    }
+)
+_GIT_GLOBAL_EXECUTION_OPTIONS = frozenset(
+    {
+        "-C",
+        "-p",
+        "--attr-source",
+        "--bare",
+        "--config-env",
+        "--git-dir",
+        "--namespace",
+        "--paginate",
+        "--work-tree",
+    }
+)
+_GIT_GLOBAL_EXECUTION_PREFIXES = (
+    "--attr-source=",
+    "--config-env=",
+    "--exec-path=",
+    "--git-dir=",
+    "--namespace=",
+    "--work-tree=",
+)
+_GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND = {
+    "archive": frozenset({"--exec"}),
+    "clone": frozenset({"-c", "-u", "--config", "--template", "--upload-pack"}),
+    "diff": frozenset({"--ext-diff"}),
+    "fetch": frozenset({"--upload-pack"}),
+    "grep": frozenset({"-O", "--open-files-in-pager"}),
+    "ls-remote": frozenset({"--upload-pack"}),
+    "merge": frozenset({"-s", "--strategy"}),
+    "pull": frozenset({"-s", "--strategy", "--upload-pack"}),
+    "push": frozenset({"--exec", "--receive-pack"}),
+}
+_GIT_OPTION_OPERANDS_BY_SUBCOMMAND = {
+    "clone": frozenset(
+        {
+            "-b",
+            "-c",
+            "-o",
+            "-u",
+            "--branch",
+            "--config",
+            "--origin",
+            "--template",
+            "--upload-pack",
+        }
+    ),
+    "fetch": frozenset({"-j", "--jobs", "--server-option", "--upload-pack"}),
+    "ls-remote": frozenset({"--server-option", "--upload-pack"}),
+    "pull": frozenset({"-j", "--jobs", "--server-option", "--upload-pack"}),
+    "push": frozenset({"-o", "--push-option", "--receive-pack", "--repo"}),
+}
+_GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND = {
+    "bisect": frozenset({"run"}),
+}
+_GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND = {
+    "grep": frozenset({"A", "B", "C", "e", "f", "m"}),
+}
+_GIT_SAFE_REMOTE_SCHEMES = frozenset({"file", "git", "http", "https", "ssh"})
+_GIT_REMOTE_SUBCOMMANDS = frozenset({"clone", "fetch", "ls-remote", "pull", "push"})
+_GIT_CONFIG_READ_ACTIONS = frozenset(
+    {
+        "--get",
+        "--get-all",
+        "--get-regexp",
+        "--list",
+        "-l",
+        "get",
+        "get-all",
+        "get-regexp",
+        "list",
+    }
+)
+_GIT_HOOK_FREE_SUBCOMMANDS = frozenset(
+    {
+        "annotate",
+        "blame",
+        "config",
+        "count-objects",
+        "describe",
+        "diff",
+        "fsck",
+        "grep",
+        "log",
+        "ls-files",
+        "ls-remote",
+        "ls-tree",
+        "merge-base",
+        "merge-tree",
+        "name-rev",
+        "patch-id",
+        "range-diff",
+        "rev-list",
+        "rev-parse",
+        "shortlog",
+        "show",
+        "show-branch",
+        "status",
+        "verify-commit",
+        "verify-tag",
+        "whatchanged",
+    }
+)
+_DANGEROUS_LOADER_ENVIRONMENT = frozenset(
+    {
+        "CORECLR_ENABLE_PROFILING",
+        "CORECLR_PROFILER",
+        "COR_ENABLE_PROFILING",
+        "COR_PROFILER",
+        "DOTNET_STARTUP_HOOKS",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "NODE_OPTIONS",
+        "PERL5OPT",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "RUBYOPT",
+    }
+)
+_GIT_CONFIG_READ_MODIFIERS = frozenset(
+    {
+        "--fixed-value",
+        "--includes",
+        "--local",
+        "--name-only",
+        "--no-includes",
+        "--show-names",
+        "--show-origin",
+        "--show-scope",
+        "--system",
+        "--type",
+        "--worktree",
+        "--global",
+    }
+)
+_TRUSTED_NEW_PR_SHA256 = "f97ef04148e297d1a2aa1a9e157ca65009b8a6323e1dab4e23ddcf18c3a4c086"
 _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
     "2ccbe08d1084a1d5a3639645fa0cc7068e9f8e28e1aa17603c0e3d9c34b4bec2"
 )
+
+
 class GuardViolationError(ValueError):
     """A command shape the push-pr identity policy rejects."""
 
@@ -151,7 +527,7 @@ def _split_command(command: str) -> list[ShellToken]:
                 if index >= len(command):
                     raise GuardViolationError("command has incomplete shell quoting")
                 raw.append(command[index])
-                if command[index] in {'$', "`", '"', "\\"}:
+                if command[index] in {"$", "`", '"', "\\"}:
                     value.append(command[index])
                 else:
                     value.extend(("\\", command[index]))
@@ -260,9 +636,9 @@ def _requires_identity_check(command: str, cwd: Path) -> bool:
     if arguments is not None:
         return True
     if any(
-        Path(token.value).name in _SHELL_EVALUATORS
+        _command_name(token.value) in _SHELL_EVALUATORS
         and (
-            Path(token.value).name == "eval"
+            _command_name(token.value) == "eval"
             or any(option.value == "-c" for option in tokens[index + 1 :])
         )
         for index, token in enumerate(tokens)
@@ -270,20 +646,20 @@ def _requires_identity_check(command: str, cwd: Path) -> bool:
         return True
     if not _contains_shell_expansion(command):
         return False
-    effective_command = _effective_command(tokens)
-    if effective_command is None:
+    command_index = _effective_command_index(tokens)
+    if command_index is None:
         return True
+    effective_command = tokens[command_index]
     if _contains_shell_expansion(effective_command.raw):
         return True
-    if (
-        Path(effective_command.value).name.casefold()
-        not in _EXPANSION_SAFE_COMMANDS
+    if not _resolves_to_installed_command(
+        tokens,
+        command_index,
+        cwd,
+        _EXPANSION_SAFE_COMMANDS,
     ):
         return True
-    return any(
-        _contains_active_parameter_expansion(token.raw)
-        for token in tokens
-    )
+    return any(_contains_active_parameter_expansion(token.raw) for token in tokens)
 
 
 def _is_assignment(token: str) -> bool:
@@ -291,11 +667,34 @@ def _is_assignment(token: str) -> bool:
     return bool(separator and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name))
 
 
+def _contains_dangerous_loader_environment(tokens: list[ShellToken]) -> bool:
+    command_index = _effective_command_index(tokens)
+    if command_index is None:
+        return False
+    for token in tokens[:command_index]:
+        name, separator, _ = token.value.partition("=")
+        if separator and (name in _DANGEROUS_LOADER_ENVIRONMENT or name.startswith("DYLD_")):
+            return True
+    return False
+
+
+def _command_name(value: str) -> str:
+    return Path(value).name.casefold().removesuffix(".exe")
+
+
+def _unversioned_command_name(value: str) -> str:
+    return re.sub(
+        r"[._-]?\d+(?:\.\d+)*(?:[a-z][a-z0-9.-]*)?$",
+        "",
+        _command_name(value),
+    ).rstrip("._-")
+
+
 def _is_python_interpreter(value: str) -> bool:
     name = Path(value).name.casefold()
     return bool(
         re.fullmatch(
-            r"(?:python(?:3(?:\.\d+)?)?|pypy3?|py)(?:\.exe)?",
+            r"(?:python(?:[23](?:\.\d+)*)?|pypy(?:[23](?:\.\d+)*)?|py)(?:\.exe)?",
             name,
         )
     )
@@ -308,11 +707,93 @@ def _same_executable_content(left: Path, right: Path) -> bool:
         if left.stat().st_size != right.stat().st_size:
             return False
         with left.open("rb") as left_stream, right.open("rb") as right_stream:
-            return hashlib.file_digest(
-                left_stream, "sha256"
-            ).digest() == hashlib.file_digest(right_stream, "sha256").digest()
+            return (
+                hashlib.file_digest(left_stream, "sha256").digest()
+                == hashlib.file_digest(right_stream, "sha256").digest()
+            )
     except OSError:
         return False
+
+
+def _command_search_path(tokens: list[ShellToken], index: int) -> str:
+    search_path = os.environ.get("PATH", os.defpath)
+    for token in tokens[:index]:
+        value = token.value
+        if value in {"-i", "--ignore-environment"}:
+            search_path = os.defpath
+            continue
+        name, separator, configured_value = value.partition("=")
+        if separator and name == "PATH":
+            search_path = configured_value
+    return search_path
+
+
+def _resolved_command(
+    tokens: list[ShellToken],
+    index: int,
+    cwd: Path,
+) -> Path | None:
+    value = os.path.expanduser(tokens[index].value)
+    candidate = Path(value)
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        if not candidate.is_absolute():
+            candidate = cwd / candidate
+        try:
+            return candidate.resolve(strict=True)
+        except OSError:
+            return None
+    resolved = shutil.which(value, path=_command_search_path(tokens, index))
+    return Path(resolved).resolve() if resolved is not None else None
+
+
+def _resolves_to_known_command(
+    tokens: list[ShellToken],
+    index: int,
+    cwd: Path,
+    names: frozenset[str],
+) -> bool:
+    resolved = _resolved_command(tokens, index, cwd)
+    if resolved is None:
+        return False
+    if _command_name(resolved.name) in names or _unversioned_command_name(resolved.name) in names:
+        return True
+    try:
+        with resolved.open("rb") as stream:
+            shebang = stream.readline(4096).decode("utf-8", errors="ignore")
+    except OSError:
+        shebang = ""
+    if shebang.startswith("#!") and any(
+        _command_name(part) in names or _unversioned_command_name(part) in names
+        for part in shebang[2:].split()
+    ):
+        return True
+    for name in names:
+        known = shutil.which(name)
+        if known is not None and _same_executable_content(
+            resolved,
+            Path(known).resolve(),
+        ):
+            return True
+    return False
+
+
+def _resolves_to_installed_command(
+    tokens: list[ShellToken],
+    index: int,
+    cwd: Path,
+    names: frozenset[str],
+) -> bool:
+    resolved = _resolved_command(tokens, index, cwd)
+    if resolved is None:
+        return False
+    for name in names:
+        known = shutil.which(name)
+        if known is not None and _same_executable_content(
+            resolved,
+            Path(known).resolve(),
+        ):
+            return True
+    return False
 
 
 def _env_command_index(tokens: list[ShellToken], index: int) -> int | None:
@@ -337,8 +818,11 @@ def _env_command_index(tokens: list[ShellToken], index: int) -> int | None:
         if _is_env_split_string_option(value):
             raise GuardViolationError("env split-string launchers are not allowed")
         if value == "--":
-            return index + 1 if index + 1 < len(tokens) else None
-        if _is_assignment(value):
+            index += 1
+            while index < len(tokens) and "=" in tokens[index].value:
+                index += 1
+            return index if index < len(tokens) else None
+        if _is_env_assignment(value):
             index += 1
             continue
         if value in flag_options:
@@ -375,15 +859,20 @@ def _is_env_split_string_option(value: str) -> bool:
     return False
 
 
-def _token_is_python_interpreter(token: ShellToken, cwd: Path) -> bool:
+def _is_env_assignment(value: str) -> bool:
+    return "=" in value and not value.startswith("-")
+
+
+def _token_is_python_interpreter(
+    tokens: list[ShellToken],
+    index: int,
+    cwd: Path,
+) -> bool:
+    token = tokens[index]
     if _is_python_interpreter(token.value):
         return True
-    interpreter = Path(token.value)
-    if not interpreter.is_absolute():
-        interpreter = cwd / interpreter
-    try:
-        resolved_interpreter = interpreter.resolve(strict=True)
-    except OSError:
+    resolved_interpreter = _resolved_command(tokens, index, cwd)
+    if resolved_interpreter is None:
         return False
     try:
         with resolved_interpreter.open("rb") as stream:
@@ -391,15 +880,13 @@ def _token_is_python_interpreter(token: ShellToken, cwd: Path) -> bool:
     except OSError:
         shebang = b""
     if shebang.startswith(b"#!") and re.search(
-        rb"(?:^|[/\s])(?:python(?:3(?:\.\d+)?)?|pypy3?)(?:\s|$)",
+        rb"(?:^|[/\s])(?:python(?:[23](?:\.\d+)*)?|pypy(?:[23](?:\.\d+)*)?)(?:\s|$)",
         shebang,
         re.IGNORECASE,
     ):
         return True
     runtime_interpreter = Path(sys.executable).resolve()
-    return _is_python_interpreter(
-        resolved_interpreter.name
-    ) or _same_executable_content(
+    return _is_python_interpreter(resolved_interpreter.name) or _same_executable_content(
         resolved_interpreter,
         runtime_interpreter,
     )
@@ -410,7 +897,7 @@ def _python_arguments(tokens: list[ShellToken], cwd: Path) -> list[ShellToken] |
     if index is None:
         return None
     for candidate_index in range(index, len(tokens)):
-        if _token_is_python_interpreter(tokens[candidate_index], cwd):
+        if _token_is_python_interpreter(tokens, candidate_index, cwd):
             return tokens[candidate_index + 1 :]
     return None
 
@@ -431,62 +918,482 @@ def _skip_command_wrappers(tokens: list[ShellToken], index: int) -> int:
     return index
 
 
-def _skip_process_wrappers(tokens: list[ShellToken], index: int) -> int:
-    wrappers = {"nohup", "nice", "setsid", "stdbuf", "time", "timeout"}
-    operand_options = {
-        "nice": {"-n", "--adjustment"},
-        "stdbuf": {"-i", "-o", "-e", "--input", "--output", "--error"},
-        "timeout": {"-k", "-s", "--kill-after", "--signal"},
+def _resolve_wrapper_long_option(wrapper: str, value: str) -> tuple[str, bool]:
+    option_name, separator, _ = value.partition("=")
+    options = _PROCESS_WRAPPER_OPERAND_OPTIONS.get(
+        wrapper, frozenset()
+    ) | _PROCESS_WRAPPER_FLAG_OPTIONS.get(wrapper, frozenset())
+    candidates = {
+        option for option in options if option.startswith("--") and option.startswith(option_name)
     }
-    while index < len(tokens) and Path(tokens[index].value).name in wrappers:
-        wrapper = Path(tokens[index].value).name
-        index += 1
-        while index < len(tokens) and tokens[index].value.startswith("-"):
-            option = tokens[index].value
-            if option == "--":
+    if len(option_name) <= 2 or len(candidates) != 1:
+        raise GuardViolationError("unsupported process wrapper options are not allowed")
+    return candidates.pop(), bool(separator)
+
+
+def _skip_wrapper_short_options(
+    tokens: list[ShellToken],
+    index: int,
+    wrapper: str,
+) -> int:
+    value = tokens[index].value
+    operand_options = _PROCESS_WRAPPER_OPERAND_OPTIONS.get(wrapper, frozenset())
+    flag_options = _PROCESS_WRAPPER_FLAG_OPTIONS.get(wrapper, frozenset())
+    for option_index, option_name in enumerate(value[1:]):
+        option = f"-{option_name}"
+        if option in flag_options:
+            continue
+        if option not in operand_options:
+            raise GuardViolationError("unsupported process wrapper options are not allowed")
+        if option_index + 1 < len(value[1:]):
+            return index + 1
+        if index + 1 >= len(tokens):
+            raise GuardViolationError("process wrapper option requires an operand")
+        return index + 2
+    return index + 1
+
+
+def _skip_wrapper_options(
+    tokens: list[ShellToken],
+    index: int,
+    wrapper: str,
+) -> int:
+    operand_options = _PROCESS_WRAPPER_OPERAND_OPTIONS.get(wrapper, frozenset())
+    flag_options = _PROCESS_WRAPPER_FLAG_OPTIONS.get(wrapper, frozenset())
+    while index < len(tokens) and tokens[index].value.startswith("-"):
+        value = tokens[index].value
+        if value == "--":
+            return index + 1
+        if value.startswith("--"):
+            option, attached_operand = _resolve_wrapper_long_option(wrapper, value)
+            if option in flag_options:
                 index += 1
-                break
-            if option in operand_options.get(wrapper, set()):
+                continue
+            if attached_operand:
+                index += 1
+                continue
+            if option in operand_options and index + 1 < len(tokens):
                 index += 2
                 continue
-            index += 1
+            raise GuardViolationError("process wrapper option requires an operand")
+        index = _skip_wrapper_short_options(tokens, index, wrapper)
+    return index
+
+
+def _skip_process_wrappers(tokens: list[ShellToken], index: int) -> int:
+    wrappers = set(_PROCESS_WRAPPER_FLAG_OPTIONS)
+    while index < len(tokens):
+        wrapper = _command_name(tokens[index].value)
+        if wrapper not in wrappers:
+            break
+        index += 1
+        index = _skip_wrapper_options(tokens, index, wrapper)
         if wrapper == "timeout" and index < len(tokens):
             index += 1
     return index
 
 
-def _contains_shell_evaluator(tokens: list[ShellToken]) -> bool:
+def _contains_shell_evaluator(tokens: list[ShellToken], cwd: Path) -> bool:
     for index, token in enumerate(tokens):
-        command_name = Path(token.value).name.casefold()
-        if command_name in _SHELL_EVALUATORS:
+        command_name = _command_name(token.value)
+        unversioned_name = _unversioned_command_name(token.value)
+        if command_name in _SHELL_EVALUATORS or unversioned_name in _SHELL_EVALUATORS:
             return True
         if (
             command_name in _BUSYBOX_COMMANDS
             and index + 1 < len(tokens)
-            and Path(tokens[index + 1].value).name.casefold()
-            in _SHELL_EVALUATORS
+            and _command_name(tokens[index + 1].value) in _SHELL_EVALUATORS
+        ):
+            return True
+    command_index = _effective_command_index(tokens)
+    return command_index is not None and _resolves_to_known_command(
+        tokens,
+        command_index,
+        cwd,
+        _SHELL_EVALUATORS,
+    )
+
+
+def _is_dynamic_evaluator_name(value: str) -> bool:
+    command_name = _command_name(value)
+    unversioned_name = _unversioned_command_name(value)
+    return (
+        command_name in _DYNAMIC_EVALUATORS
+        or command_name in _DEBUG_EVALUATORS
+        or unversioned_name in _DYNAMIC_EVALUATORS
+        or unversioned_name in _DEBUG_EVALUATORS
+    )
+
+
+def _is_command_delegator(tokens: list[ShellToken], index: int) -> bool:
+    command_name = _command_name(tokens[index].value)
+    argument_index = index + 1
+    if command_name in _BUSYBOX_COMMANDS and argument_index < len(tokens):
+        command_name = _command_name(tokens[argument_index].value)
+        argument_index += 1
+    if command_name in _COMMAND_DELEGATORS:
+        return True
+    dangerous_environment = _COMMAND_DELEGATION_ENVIRONMENT.get(
+        command_name,
+        frozenset(),
+    )
+    for token in tokens[:index]:
+        name, separator, _ = token.value.partition("=")
+        if separator and name in dangerous_environment:
+            return True
+    delegation_options = _COMMAND_DELEGATION_OPTIONS.get(command_name, frozenset())
+    arguments = tokens[argument_index:]
+    for token in arguments:
+        value = token.value
+        option_name = value.partition("=")[0]
+        for option in delegation_options:
+            if value == option or value.startswith(f"{option}="):
+                return True
+            if (
+                option.startswith("--")
+                and option_name.startswith("--")
+                and len(option_name) > 2
+                and option.startswith(option_name)
+            ):
+                return True
+            if (
+                len(option) == 2
+                and option.startswith("-")
+                and not option.startswith("--")
+                and not value.startswith("--")
+                and value.startswith(option)
+            ):
+                return True
+    if command_name == "tar" and arguments:
+        first = arguments[0].value
+        if not first.startswith("-") and any(option in first for option in {"F", "I"}):
+            return True
+        if any(
+            token.value.startswith("-")
+            and not token.value.startswith("--")
+            and any(option in token.value[1:] for option in {"F", "I"})
+            for token in arguments
         ):
             return True
     return False
 
 
-def _is_dynamic_evaluator_name(value: str) -> bool:
-    command_name = Path(value).name.casefold().removesuffix(".exe")
-    unversioned_name = re.sub(r"\d+(?:\.\d+)*$", "", command_name)
-    return (
-        command_name in _DYNAMIC_EVALUATORS
-        or unversioned_name in _DYNAMIC_EVALUATORS
+def _is_safe_git_config(value: str) -> bool:
+    key, separator, configured_value = value.partition("=")
+    return bool(
+        separator
+        and key.casefold().startswith("color.")
+        and configured_value.casefold() in {"always", "auto", "false", "never", "true"}
     )
 
 
-def _contains_dynamic_evaluator(tokens: list[ShellToken]) -> bool:
+def _has_unsafe_git_remote(value: str) -> bool:
+    remote = value.partition("=")[2] or value
+    if re.match(r"[A-Za-z][A-Za-z0-9+.-]*::", remote):
+        return True
+    scheme_match = re.match(r"([A-Za-z][A-Za-z0-9+.-]*)://", remote)
+    return bool(
+        scheme_match is not None
+        and scheme_match.group(1).casefold() not in _GIT_SAFE_REMOTE_SCHEMES
+    )
+
+
+def _is_literal_safe_git_remote(value: str) -> bool:
+    if _has_unsafe_git_remote(value):
+        return False
+    scheme_match = re.match(r"([A-Za-z][A-Za-z0-9+.-]*)://", value)
+    if scheme_match is not None:
+        return scheme_match.group(1).casefold() in _GIT_SAFE_REMOTE_SCHEMES
+    if re.match(r"(?:[^/@:]+@)?[^/:]+:.+", value):
+        return True
+    return value == "." or value.startswith(("/", "./", "../"))
+
+
+def _git_remote_operand(
+    tokens: list[ShellToken],
+    subcommand_index: int,
+) -> str | None:
+    subcommand = tokens[subcommand_index].value.casefold()
+    operand_options = _GIT_OPTION_OPERANDS_BY_SUBCOMMAND.get(
+        subcommand,
+        frozenset(),
+    )
+    arguments = tokens[subcommand_index + 1 :]
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        value = token.value
+        if value in {"--remote", "--repo"}:
+            return arguments[index + 1].value if index + 1 < len(arguments) else None
+        if value.startswith(("--remote=", "--repo=")):
+            return value.partition("=")[2]
+        if value == "--":
+            return arguments[index + 1].value if index + 1 < len(arguments) else None
+        if value.startswith("--"):
+            option_name, separator, _ = value.partition("=")
+            matches = [
+                option
+                for option in operand_options
+                if option.startswith("--")
+                and (
+                    option_name == option
+                    or (len(option_name) > 2 and option.startswith(option_name))
+                )
+            ]
+            if len(matches) == 1:
+                index += 1 if separator else 2
+                continue
+            index += 1
+            continue
+        if value.startswith("-"):
+            consumed_next = False
+            for option_index, option in enumerate(value[1:]):
+                if f"-{option}" not in operand_options:
+                    continue
+                consumed_next = not value[option_index + 2 :]
+                break
+            index += 2 if consumed_next else 1
+            continue
+        if not value.startswith("-"):
+            return value
+        index += 1
+    return None
+
+
+def _git_subcommand_index(tokens: list[ShellToken], command_index: int) -> int | None:
+    index = command_index + 1
+    safe_flags = {
+        "-P",
+        "--glob-pathspecs",
+        "--icase-pathspecs",
+        "--literal-pathspecs",
+        "--no-lazy-fetch",
+        "--no-advice",
+        "--no-optional-locks",
+        "--no-pager",
+        "--no-replace-objects",
+        "--noglob-pathspecs",
+    }
+    while index < len(tokens):
+        value = tokens[index].value
+        if value == "-c":
+            index += 2
+            continue
+        if value.startswith("-c") and len(value) > 2:
+            index += 1
+            continue
+        if value in safe_flags:
+            index += 1
+            continue
+        if value.startswith("-"):
+            raise GuardViolationError("unsupported Git global options are not allowed")
+        return index
+    return None
+
+
+def _is_read_only_git_config(tokens: list[ShellToken], subcommand_index: int) -> bool:
+    for token in tokens[subcommand_index + 1 :]:
+        value = token.value
+        if value in _GIT_CONFIG_READ_MODIFIERS:
+            continue
+        return value in _GIT_CONFIG_READ_ACTIONS
+    return False
+
+
+def _matches_git_option(
+    subcommand: str,
+    value: str,
+    options: frozenset[str],
+) -> bool:
+    option_name = value.partition("=")[0]
+    for option in options:
+        if value == option or value.startswith(f"{option}="):
+            return True
+        if (
+            option.startswith("--")
+            and option_name.startswith("--")
+            and len(option_name) > 2
+            and option.startswith(option_name)
+        ):
+            return True
+        if option.startswith("-") and not option.startswith("--"):
+            if len(option) == 2 and not value.startswith("--") and value.startswith(option):
+                return True
+    if not value.startswith("-") or value.startswith("--"):
+        return False
+    dangerous_options = {
+        option[1]
+        for option in options
+        if len(option) == 2 and option.startswith("-") and not option.startswith("--")
+    }
+    operand_options = _GIT_SHORT_CLUSTER_OPERANDS_BY_SUBCOMMAND.get(
+        subcommand,
+        frozenset(),
+    )
+    for option in value[1:]:
+        if option in dangerous_options:
+            return True
+        if option in operand_options:
+            return False
+    return False
+
+
+def _repository_has_active_git_hooks(cwd: Path) -> bool:
+    git = shutil.which("git")
+    if git is None:
+        return False
+    try:
+        result = subprocess.run(
+            [git, "-C", str(cwd), "rev-parse", "--git-path", "hooks"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if result.returncode != 0:
+        return False
+    hooks_path = Path(result.stdout.strip())
+    if not hooks_path.is_absolute():
+        hooks_path = cwd / hooks_path
+    try:
+        hooks = hooks_path.resolve(strict=True).iterdir()
+    except OSError:
+        return False
+    for hook in hooks:
+        try:
+            mode = hook.stat().st_mode
+        except OSError:
+            continue
+        if (
+            hook.is_file()
+            and not hook.name.endswith(".sample")
+            and (os.name == "nt" or mode & stat.S_IXUSR)
+        ):
+            return True
+    return False
+
+
+def _contains_git_execution_delegation(
+    tokens: list[ShellToken],
+    command_index: int,
+    cwd: Path,
+) -> bool:
+    for token in tokens[:command_index]:
+        name, separator, _ = token.value.partition("=")
+        if not separator:
+            continue
+        if name.startswith("GIT_CONFIG_") or name in _GIT_COMMAND_ENVIRONMENT:
+            return True
+
+    index = command_index + 1
+    while index < len(tokens):
+        value = tokens[index].value
+        if value == "-c":
+            index += 1
+            if index >= len(tokens) or not _is_safe_git_config(tokens[index].value):
+                return True
+        elif value.startswith("-c") and len(value) > 2:
+            if not _is_safe_git_config(value[2:]):
+                return True
+        elif value in _GIT_GLOBAL_EXECUTION_OPTIONS:
+            return True
+        elif value.startswith(_GIT_GLOBAL_EXECUTION_PREFIXES):
+            return True
+        if _has_unsafe_git_remote(value):
+            return True
+        index += 1
+
+    subcommand_index = _git_subcommand_index(tokens, command_index)
+    if subcommand_index is None:
+        return False
+    subcommand = tokens[subcommand_index].value.casefold()
+    if subcommand not in _GIT_BUILTIN_COMMANDS:
+        return True
+    if subcommand == "config" and not _is_read_only_git_config(
+        tokens,
+        subcommand_index,
+    ):
+        return True
+    if subcommand not in _GIT_HOOK_FREE_SUBCOMMANDS and _repository_has_active_git_hooks(cwd):
+        return True
+    if subcommand in _GIT_REMOTE_SUBCOMMANDS:
+        remote = _git_remote_operand(tokens, subcommand_index)
+        if remote is None or not _is_literal_safe_git_remote(remote):
+            return True
+    execution_options = _GIT_EXECUTION_OPTIONS_BY_SUBCOMMAND.get(
+        subcommand,
+        frozenset(),
+    )
+    execution_operands = _GIT_EXECUTION_OPERANDS_BY_SUBCOMMAND.get(
+        subcommand,
+        frozenset(),
+    )
+    for token in tokens[subcommand_index + 1 :]:
+        if _matches_git_option(subcommand, token.value, execution_options):
+            return True
+        if token.value.casefold() in execution_operands:
+            return True
+    return False
+
+
+def _normalized_git_invocation(
+    tokens: list[ShellToken],
+    command_index: int,
+    cwd: Path,
+) -> tuple[list[ShellToken], int] | None:
+    command_name = _command_name(tokens[command_index].value)
+    if command_name == "git":
+        return tokens, command_index
+    if command_name.startswith("git-") and len(command_name) > 4:
+        subcommand = command_name.removeprefix("git-")
+        normalized = list(tokens)
+        normalized[command_index] = ShellToken("git", "git")
+        normalized.insert(command_index + 1, ShellToken(subcommand, subcommand))
+        return normalized, command_index
+    if _resolves_to_known_command(
+        tokens,
+        command_index,
+        cwd,
+        frozenset({"git"}),
+    ):
+        return tokens, command_index
+    return None
+
+
+def _contains_dynamic_evaluator(tokens: list[ShellToken], cwd: Path) -> bool:
     index = _effective_command_index(tokens)
     if index is None:
         return False
-    if _is_dynamic_evaluator_name(tokens[index].value):
+    command_name = _command_name(tokens[index].value)
+    if _resolves_to_known_command(
+        tokens,
+        index,
+        cwd,
+        _DYNAMIC_EVALUATORS | _DEBUG_EVALUATORS,
+    ):
+        return True
+    if _is_command_delegator(tokens, index):
+        return True
+    git_invocation = _normalized_git_invocation(tokens, index, cwd)
+    if git_invocation is not None and _contains_git_execution_delegation(
+        *git_invocation,
+        cwd,
+    ):
+        return True
+    if command_name in _EXPANSION_SAFE_COMMANDS:
+        return not _resolves_to_installed_command(
+            tokens,
+            index,
+            cwd,
+            _EXPANSION_SAFE_COMMANDS,
+        )
+    if any(_is_dynamic_evaluator_name(token.value) for token in tokens[index:]):
         return True
     return (
-        Path(tokens[index].value).name.casefold() in _BUSYBOX_COMMANDS
+        _command_name(tokens[index].value) in _BUSYBOX_COMMANDS
         and index + 1 < len(tokens)
         and _is_dynamic_evaluator_name(tokens[index + 1].value)
     )
@@ -506,7 +1413,10 @@ def _effective_command_index(tokens: list[ShellToken]) -> int | None:
         index = _skip_process_wrappers(tokens, index)
         if index >= len(tokens):
             return None
-        if Path(tokens[index].value).name.casefold() not in _ENV_COMMANDS:
+        if _command_name(tokens[index].value) in _BUSYBOX_COMMANDS:
+            index += 1
+            continue
+        if _command_name(tokens[index].value) not in _ENV_COMMANDS:
             return index
         command_index = _env_command_index(tokens, index + 1)
         if command_index is None:
@@ -539,11 +1449,7 @@ def _execution_target(
                     attached = cluster[option_index + 1 :]
                     if attached:
                         return ShellToken(attached, attached), True
-                    target = (
-                        arguments[index + 1]
-                        if index + 1 < len(arguments)
-                        else token
-                    )
+                    target = arguments[index + 1] if index + 1 < len(arguments) else token
                     return target, True
                 if option in {"W", "X"}:
                     index += 1 if cluster[option_index + 1 :] else 2
@@ -577,8 +1483,7 @@ def _targets_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
         ):
             return True
         if dynamic and any(
-            _could_target_new_pr(argument.value)
-            or _could_target_new_pr(argument.raw)
+            _could_target_new_pr(argument.value) or _could_target_new_pr(argument.raw)
             for argument in arguments
         ):
             return True
@@ -589,8 +1494,7 @@ def _targets_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
         )
 
     target_mentioned = any(
-        _could_target_new_pr(token.value) or _could_target_new_pr(token.raw)
-        for token in tokens
+        _could_target_new_pr(token.value) or _could_target_new_pr(token.raw) for token in tokens
     )
     python_mentioned = any(
         _is_python_interpreter(token.value)
@@ -599,8 +1503,7 @@ def _targets_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
         for token in tokens
     )
     dynamic_command = any(
-        any(marker in token.raw for marker in ("$", "*", "?", "[", "{", "\\\n"))
-        for token in tokens
+        any(marker in token.raw for marker in ("$", "*", "?", "[", "{", "\\\n")) for token in tokens
     )
     command = _effective_command(tokens)
     direct_command = command is not None and (
@@ -617,16 +1520,12 @@ def _script_reference(tokens: list[ShellToken]) -> ShellToken:
     if script_reference.value.startswith("-"):
         raise GuardViolationError("new_pr.py script path is missing")
     if script_reference.value != _PLUGIN_SCRIPT_REFERENCE and any(
-        marker in script_reference.raw
-        for marker in ("$", "`", "\\\n", "{", "[", "*", "?")
+        marker in script_reference.raw for marker in ("$", "`", "\\\n", "{", "[", "*", "?")
     ):
         raise GuardViolationError("new_pr.py script path cannot use shell expansion")
     if any(("$" in token.raw or "`" in token.raw) for token in tokens[3:]):
         raise GuardViolationError("argument substitution is not allowed")
-    if any(
-        _contains_active_shell_expansion(token.raw)
-        for token in tokens[3:]
-    ):
+    if any(_contains_active_shell_expansion(token.raw) for token in tokens[3:]):
         raise GuardViolationError("argument shell expansion is not allowed")
     return script_reference
 
@@ -637,9 +1536,7 @@ def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path) -> None:
     while index < len(tokens):
         option = tokens[index].value
         if option not in {"--title", "--body-file"}:
-            raise GuardViolationError(
-                "new_pr.py accepts only --title and --body-file here"
-            )
+            raise GuardViolationError("new_pr.py accepts only --title and --body-file here")
         if option in values or index + 1 >= len(tokens):
             raise GuardViolationError(
                 f"new_pr.py option {option} is duplicate or missing its value"
@@ -647,9 +1544,7 @@ def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path) -> None:
         values[option] = tokens[index + 1].value
         index += 2
     if set(values) != {"--title", "--body-file"}:
-        raise GuardViolationError(
-            "new_pr.py requires exactly --title and --body-file"
-        )
+        raise GuardViolationError("new_pr.py requires exactly --title and --body-file")
     if not values["--title"].strip():
         raise GuardViolationError("new_pr.py title cannot be empty")
 
@@ -661,33 +1556,20 @@ def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path) -> None:
         or body_reference.suffix.casefold() != ".md"
     ):
         raise GuardViolationError(
-            "new_pr.py body file must be one .md file directly under "
-            ".agents/scratch"
+            "new_pr.py body file must be one .md file directly under .agents/scratch"
         )
     if ".." in body_reference.parts:
-        raise GuardViolationError(
-            "new_pr.py body file cannot traverse parent directories"
-        )
+        raise GuardViolationError("new_pr.py body file cannot traverse parent directories")
     body_path = cwd / body_reference
     for parent in (cwd / ".agents", cwd / ".agents" / "scratch"):
         if parent.is_symlink():
-            raise GuardViolationError(
-                "new_pr.py body file parent cannot be a symlink"
-            )
+            raise GuardViolationError("new_pr.py body file parent cannot be a symlink")
     try:
         body_stat = body_path.lstat()
     except OSError as exc:
-        raise GuardViolationError(
-            "new_pr.py body file must be an existing regular file"
-        ) from exc
-    if (
-        body_path.is_symlink()
-        or not stat.S_ISREG(body_stat.st_mode)
-        or body_stat.st_nlink != 1
-    ):
-        raise GuardViolationError(
-            "new_pr.py body file must be a single-link regular file"
-        )
+        raise GuardViolationError("new_pr.py body file must be an existing regular file") from exc
+    if body_path.is_symlink() or not stat.S_ISREG(body_stat.st_mode) or body_stat.st_nlink != 1:
+        raise GuardViolationError("new_pr.py body file must be a single-link regular file")
 
 
 def _regular_resolved_file(path: Path) -> Path | None:
@@ -713,9 +1595,7 @@ def _validate_runtime_bundle(script: Path) -> None:
     _require_trusted_digest(script, _TRUSTED_NEW_PR_SHA256, "new_pr.py")
     helper = _regular_resolved_file(script.parent / "validate_pr_description.py")
     if helper is None:
-        raise GuardViolationError(
-            "validate_pr_description.py is missing, unreadable, or a symlink"
-        )
+        raise GuardViolationError("validate_pr_description.py is missing, unreadable, or a symlink")
     _require_trusted_digest(
         helper,
         _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256,
@@ -734,9 +1614,8 @@ def _script_path(script_reference: ShellToken, cwd: Path) -> Path:
             raise GuardViolationError(
                 "plugin script reference must use the exact double-quoted form"
             )
-        configured_root = (
-            os.environ.get("COPILOT_PLUGIN_ROOT")
-            or os.environ.get("CLAUDE_PLUGIN_ROOT")
+        configured_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get(
+            "CLAUDE_PLUGIN_ROOT"
         )
         root = Path(configured_root) if configured_root is not None else cwd / ".claude"
         if not root.is_absolute():
@@ -747,11 +1626,7 @@ def _script_path(script_reference: ShellToken, cwd: Path) -> Path:
             raise GuardViolationError("script path substitution is not allowed")
         path = Path(script_reference.value)
         runtime_script = _runtime_script()
-        if (
-            runtime_script is None
-            or not path.is_absolute()
-            or path != runtime_script
-        ):
+        if runtime_script is None or not path.is_absolute() or path != runtime_script:
             raise GuardViolationError(
                 "literal script path must be the exact runtime new_pr.py path"
             )
@@ -775,15 +1650,15 @@ def main() -> int:
     try:
         command, cwd = _read_request()
         tokens = _split_command(command)
-        if _contains_shell_evaluator(tokens):
+        if _contains_dangerous_loader_environment(tokens):
+            raise GuardViolationError("dynamic loader environment variables are not allowed")
+        if _contains_shell_evaluator(tokens, cwd):
             raise GuardViolationError("shell evaluator wrappers are not allowed")
-        if _contains_dynamic_evaluator(tokens):
+        if _contains_dynamic_evaluator(tokens, cwd):
             raise GuardViolationError("dynamic evaluator wrappers are not allowed")
         if not _requires_identity_check(command, cwd):
             return 0
-        if _contains_shell_expansion(command) and _python_arguments(
-            tokens, cwd
-        ) is None:
+        if _contains_shell_expansion(command) and _python_arguments(tokens, cwd) is None:
             raise GuardViolationError(
                 "shell-expanded commands outside the exact allowlist are not allowed"
             )
@@ -791,23 +1666,17 @@ def main() -> int:
         if arguments is not None:
             target, dynamic = _execution_target(arguments)
             if dynamic:
-                raise GuardViolationError(
-                    "dynamic Python -c and -m launchers are not allowed"
-                )
+                raise GuardViolationError("dynamic Python -c and -m launchers are not allowed")
             if (
                 target is not None
                 and not dynamic
                 and _contains_shell_expansion(target.raw)
                 and target.raw != f'"{_PLUGIN_SCRIPT_REFERENCE}"'
             ):
-                raise GuardViolationError(
-                    "Python script paths cannot use shell expansion"
-                )
+                raise GuardViolationError("Python script paths cannot use shell expansion")
         if not _targets_new_pr(tokens, cwd):
             if arguments is not None:
-                raise GuardViolationError(
-                    "Python execution is limited to the approved new_pr.py"
-                )
+                raise GuardViolationError("Python execution is limited to the approved new_pr.py")
             raise GuardViolationError(
                 "command references new_pr.py through an unsupported launcher"
             )

@@ -151,6 +151,8 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         # ADR-084 keeps customer-value markdown hooks plugin-only.
         "invoke_markdown_auto_lint.py",
         "invoke_markdownlint_guard.py",
+        # Gate groups do not take the plugin dispatcher's self-host bail.
+        "invoke_push_pr_script_identity_guard.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
