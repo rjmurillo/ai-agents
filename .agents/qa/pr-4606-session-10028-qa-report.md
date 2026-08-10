@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-10028-active-suppressed-findings.json
-qaCommit: 7692a151ab1795938e61838de3c8e4ef5868fbed
+qaCommit: 8f070f9f7ef85eb80d394f50420d3a447c1de87f
 ---
 
 # QA Report: PR 4606 session 10028
