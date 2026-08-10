@@ -1,0 +1,8 @@
+{
+  "effortLevel": "high",
+  "model": "gpt-5.6-sol",
+  "contextTier": "long_context",
+  "respectGitignore": true,
+  "mergeStrategy": "rebase",
+  "includeCoAuthoredBy": true
+}
