@@ -94,17 +94,17 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-10-issue-4788-session-push-blocker.md"
+        "Evidence": ".agents/qa/pr-4836-issue-4788-session-push-blocker-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: 2073efa92e807caa7542eec2f7ced47beeef2a17, 8220fd5a8cdccf8b612c7afd6e773dc298eca644, e144105aa35b45e2403d656ef219d0413a0d1284, 5544bbf2f52609d846d33e7f1ef4f6391c932b71, fc40bb5353edccb4b0d061d25cbbf04b2511ed23, e5d3691de27b8a07c651a051c82ad13bd364fbaf, 8e31cc6312e1a1ac94f9d2bbbdb8b55c903184d2, a0fca312c9da6b67af845c63df5445204cd42f1b, 82854503e40e813e2b3ba8ffbda004d05ce3999e, c7fb93a0e8f8c63075860433b3e1dc56b8336aac"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Clean-main negative control exits 1; repaired branch exits 0; 33 targeted tests pass; Ruff passes; full pre-PR gate passes; taste count is 582 against baseline 583"
+        "Evidence": "Ruff passed for changed Python files; targeted CI suites passed 868 tests; full pytest completed with 25565 passed in 885.51s"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -185,7 +185,7 @@
       "outcome": "The validator binds QA to the original .agents/sessions path while reading the branch-ref copy"
     }
   ],
-  "endingCommit": "37fef984d041c7cb9c60dd7c586e3efb691ca7a9",
+  "endingCommit": "0ec5463bbbafbfeed960aba73a076618b95f8435",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
