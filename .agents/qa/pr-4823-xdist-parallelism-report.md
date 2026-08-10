@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-10-session-10034.json
+qaSessionLog: .agents/sessions/2026-08-10-session-10035.json
 qaCommit: 953338d6fe8cfcd86206fb6a467060bb66d5693b
 ---
 
@@ -292,7 +292,8 @@ add/add conflict was on `.agents/sessions/2026-08-10-session-10033.json` and
 predated this branch.
 
 Merge commit `3d82967895dfd2adf2f3479726b0cb7546346c97` resolved it and
-preserved main's canonical session 10033; the xdist session remains 10034. The
+preserved main's canonical session 10033. The xdist session was renumbered
+to 10035 after main later landed its own 10034 for issue #4826. The
 check now exits 0 and reports that the merged tree passes every registered
 ratchet, with the cli exit contract ratchet at 27 against its budget of 27. The
 push blocker recorded earlier in this report is cleared.

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 10034,
+    "number": 10035,
     "date": "2026-08-10",
     "branch": "perf/4823-pytest-xdist",
     "startingCommit": "db8e9441ba9e2b9a21b598224d0501329ffdf1a3",
@@ -190,6 +190,10 @@
     {
       "action": "Confirmed the push blocker is cleared",
       "outcome": "scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main exits 0 and reports the merged tree passes every registered ratchet, with the cli exit contract ratchet at 27 against a budget of 27."
+    },
+    {
+      "action": "Renumbered this session from 10034 to 10035 after main claimed 10034",
+      "outcome": "origin/main advanced to d4cc52d5de0c and landed its own 2026-08-10-session-10034.json for branch perf/4826-redundant-test-runs on issue #4826, producing an add/add conflict. 10035 is free on main."
     }
   ],
   "endingCommit": "953338d6fe8cfcd86206fb6a467060bb66d5693b",
