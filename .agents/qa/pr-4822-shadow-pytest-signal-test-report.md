@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: 0e88151ee59f70e5384ae26fae78382700debfa0
+qaCommit: 34cf0678081c6e41041e464c8c098d6c8ef9b8af
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -13,11 +13,10 @@ changing any existing output, consumer, or check name. The duplicate
 authoritative pytest run is deliberately untouched, which is the phase 1
 contract.
 
-This revision covers commit 0e88151e, which simplifies the resolver and its
-tests to fit the 500-line file-size gate, on top of 9a0f4ce7, which answered
-three review findings on top of the original 99a4ed73. All three commits are
-validated together below. Every number was re-measured at 0e88151e, and the
-simplification is proven behaviour-preserving in "Revalidation at 0e88151e".
+This revision covers commit 34cf0678, which corrects one aggregation test input,
+on top of 0e88151e, which simplified the resolver and its tests. The resolver
+code is unchanged. The focused suite and lint were re-run at 34cf0678. Earlier
+measurements remain bound to 0e88151e and are recorded below.
 
 ## Evidence
 
@@ -158,6 +157,13 @@ non-Mapping guard out of `parse_runs` into the one place that reads the body.
 Cohesion remains 1.0 because that score is a function of file length and
 definition count alone, so only splitting the module can raise it, and the
 file budget for this change forbids a sixth file.
+
+## Revalidation at 34cf0678
+
+The `skip-hides-no-fail` case now gives the executor a valid `success`
+conclusion and a skipped pytest step. It therefore exercises the intended
+successful executor plus failing sibling path. The 83 focused tests pass, Ruff
+passes, and taste-lints reports no blocking finding.
 
 ## Accepted residual risk
 

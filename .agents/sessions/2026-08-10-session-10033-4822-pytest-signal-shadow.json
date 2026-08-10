@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, and the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending. Not pushed, per instruction."
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, and the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes."
+        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes. At 34cf0678, all 83 focused tests, Ruff, and taste-lints pass."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -166,9 +166,13 @@
     {
       "action": "Proved the simplification changed no behaviour",
       "result": "A differential harness loaded the pre-change and post-change modules side by side and compared status, reason, stdout, stderr and every output key across 24 API scenarios by 5 local statuses, plus main() over 6 argument vectors: zero differences, and --help is byte-identical. A 20-mutant battery covering the whole contract (stale head, push filter, head SHA, PR binding, fork rejection, run and attempt selection, the skipped pytest step, pass-through tiering, incomplete jobs, tier precedence, sibling escalation and its benign inverse, unrecognised conclusions, unbound runs, the job-name filter, sanitation, config exit, and both unreadable-payload guards) killed all 20 from a clean tree. Cohesion stays 1.0: that score is a function of file length and definition count, so only splitting the module can move it."
+    },
+    {
+      "action": "Corrected the skipped-executor sibling-failure test input",
+      "result": "The skip-hides-no-fail case now uses executor conclusion success with a skipped pytest step instead of the unrecognised conclusion s. All 83 focused tests pass, Ruff passes, and taste-lints has no blocking finding at 34cf0678."
     }
   ],
-  "endingCommit": "0e88151ee59f70e5384ae26fae78382700debfa0",
+  "endingCommit": "34cf0678081c6e41041e464c8c098d6c8ef9b8af",
   "nextSteps": [
     "Re-review the shadow PR: the file-size simplification at 0e88151e rewrote both authored files, so the earlier review of their internals no longer describes the code on the branch.",
     "Push the branch and open the PR; collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",
