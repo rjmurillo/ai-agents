@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-10-session-10032-bd348a5d1-remove-negativ
 qaCommit: 8384b9e45687b733b00ec036ade63d22da210caf
 ---
 
-# Velocity Accelerator removal validation
+# PR 4819 Velocity Accelerator removal validation
 
 ## Result
 

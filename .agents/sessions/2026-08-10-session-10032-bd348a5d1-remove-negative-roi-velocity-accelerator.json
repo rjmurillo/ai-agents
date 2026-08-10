@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/4816-remove-velocity-accelerator-test-report.md"
+        "Evidence": ".agents/qa/pr-4819-remove-velocity-accelerator-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -134,6 +134,6 @@
   ],
   "endingCommit": "8384b9e45687b733b00ec036ade63d22da210caf",
   "nextSteps": [
-    "Push the branch, create the pull request, and verify CI."
+    "Verify PR 4819 CI and merge readiness."
   ]
 }
