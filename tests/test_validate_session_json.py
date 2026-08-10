@@ -3227,7 +3227,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
         assert commands and "--existing-log" in commands[0]
 
-    def test_the_hook_fully_validates_a_new_log_already_at_head(self) -> None:
+    def test_the_hook_passes_creation_mode_for_a_new_log_at_head(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
@@ -3253,7 +3253,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
         assert commands and "--existing-log" not in commands[0]
-        assert "--creation-mode" not in commands[0]
+        assert "--creation-mode" in commands[0]
 
     def test_an_empty_batch_forks_no_git_at_all(self) -> None:
         from scripts.validation import git_hook_policy, session_scope

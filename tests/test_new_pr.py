@@ -40,7 +40,6 @@ get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
 _resolve_validation_base = _mod._resolve_validation_base
-_resolve_validation_head = _mod._resolve_validation_head
 _UNTRUSTED_REPOSITORY_VALIDATORS = _mod._UNTRUSTED_REPOSITORY_VALIDATORS
 
 
@@ -245,8 +244,7 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
-                _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
+                _completed(stdout="feat/branch\n", rc=0),  # git branch
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -262,7 +260,6 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
             ],
         ), patch("new_pr.run_validations"):
             rc = main([
@@ -278,7 +275,6 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
                 _completed(rc=1, stderr="error creating PR"),  # gh pr create
             ],
         ), patch("new_pr.run_validations"):
@@ -383,7 +379,6 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
             ],
         ), patch(
             "new_pr.run_validations",
@@ -401,7 +396,6 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
                 _completed(rc=0),  # gh --version
                 _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="a" * 40 + "\n", rc=0),  # git rev-parse --verify head
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -423,12 +417,8 @@ class TestMain:
             if len(calls) == 2:
                 return _completed(rc=0)  # gh --version
             if len(calls) == 3:
-                return _completed(rc=0)  # git rev-parse --verify origin/main
-            if len(calls) == 4:
-                return _completed(stdout="a" * 40 + "\n", rc=0)  # git rev-parse --verify head
-            if len(calls) == 5:
                 return _completed(stdout="", rc=0)  # git diff
-            if len(calls) == 6:
+            if len(calls) == 4:
                 return _completed(stdout="{}", stderr="", rc=0)  # PR description validation
             return _completed(rc=0)  # gh pr create
 
@@ -697,13 +687,7 @@ class TestRunValidations:
             if cmd[:2] == ["git", "show"]:
                 return _completed(stdout='{"session": 1}\n', rc=0)
             if cmd[0].endswith("python") or "validate_session_json.py" in " ".join(cmd):
-                validated_paths.append(cmd[2])
-                assert cmd[-4:] == [
-                    "--session-log-identity",
-                    ".agents/sessions/2025-01-01-session-01.json",
-                    "--validation-head",
-                    "feat/not-checked-out",
-                ]
+                validated_paths.append(cmd[-1])
                 return _completed(rc=0)
             return _completed(rc=0)
 
@@ -1308,19 +1292,6 @@ class TestResolveValidationBase:
         assert result == "origin/main"
 
 
-class TestResolveValidationHead:
-    """_resolve_validation_head binds validation to a commit when possible."""
-
-    def test_returns_resolved_commit(self):
-        sha = "a" * 40
-        with patch("subprocess.run", return_value=_completed(stdout=sha + "\n", rc=0)):
-            assert _resolve_validation_head("feature") == sha
-
-    def test_falls_back_to_ref_when_resolution_fails(self):
-        with patch("subprocess.run", return_value=_completed(rc=128)):
-            assert _resolve_validation_head("feature") == "feature"
-
-
 class TestMainUsesResolvedValidationBase:
     """main() passes the resolved validation base to run_validations, not args.base.
 
@@ -1332,7 +1303,6 @@ class TestMainUsesResolvedValidationBase:
             _completed(rc=0),        # gh --version
             _completed(stdout=branch + "\n"),  # git branch --show-current
             _completed(rc=0),        # git rev-parse --verify origin/main
-            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
         ]
 
     def test_validation_base_uses_origin_ref_not_local(self, tmp_path):
@@ -1347,7 +1317,6 @@ class TestMainUsesResolvedValidationBase:
 
         mock_val.assert_called_once()
         assert mock_val.call_args[0][1] == "origin/main"
-        assert mock_val.call_args[0][2] == "a" * 40
 
     def test_gh_pr_create_still_receives_bare_base(self, tmp_path):
         """gh pr create --base always gets the bare branch name, not origin/main."""
@@ -1376,7 +1345,6 @@ class TestMainUsesResolvedValidationBase:
         calls = [
             _completed(rc=0),         # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
-            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
             _completed(rc=0),         # gh pr create
         ]
 
@@ -1398,7 +1366,6 @@ class TestMainUsesResolvedValidationBase:
             _completed(rc=0),         # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
             _completed(rc=1),         # git rev-parse --verify origin/main: absent
-            _completed(stdout="a" * 40 + "\n"),  # git rev-parse --verify head
             _completed(rc=0),         # gh pr create
         ]
 

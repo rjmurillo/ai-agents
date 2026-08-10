@@ -121,22 +121,6 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
     return pr_base
 
 
-def _resolve_validation_head(head: str) -> str:
-    """Return the commit used for validations, falling back to ``head``."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--verify", f"{head}^{{commit}}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=10,
-        env=_git_env(),
-    )
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return head
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -253,6 +237,7 @@ _UNTRUSTED_REPOSITORY_VALIDATORS = (
 _UNTRUSTED_REPOSITORY_REASON = (
     "repository-local Python is outside the trusted push-pr boundary"
 )
+
 
 def _report_not_run(validator: str) -> None:
     """Name a validator this script deliberately does not run."""
@@ -547,7 +532,6 @@ def main(argv: list[str] | None = None) -> int:
         print()
     else:
         validation_base = _resolve_validation_base(args.base, args.validation_base)
-        validation_head = _resolve_validation_head(head)
         if validation_base != args.base:
             print(
                 f"  Note: validating diff against {validation_base!r} "
@@ -559,7 +543,7 @@ def main(argv: list[str] | None = None) -> int:
             run_validations(
                 repo_root,
                 validation_base,
-                validation_head,
+                head,
                 title=args.title,
                 body=args.body,
                 body_file=args.body_file,
