@@ -30,7 +30,7 @@ jobs:
       - name: Checkout trusted code (base branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
       - name: Materialize candidate and base trees
@@ -65,12 +65,13 @@ jobs:
             echo "ERROR: merge-base failed (insufficient history)" >&2
             exit 1
           fi
-          CHANGED_FILES=$(git diff-tree -r --name-only --diff-filter=ACDMRT "$MERGE_BASE" "$PR_SHA")
+          # NUL-delimited diff to handle tab/newline/quote in paths safely
+          DOMINATED=$(git diff-tree -r --name-only -z --diff-filter=ACDMRT "$MERGE_BASE" "$PR_SHA" \
+            | python3 scripts/ci/validate_vendor_provenance.py --check-relevance-stdin)
           if [ $? -ne 0 ]; then
-            echo "ERROR: diff-tree failed" >&2
+            echo "ERROR: relevance check failed" >&2
             exit 1
           fi
-          DOMINATED=$(python3 scripts/ci/validate_vendor_provenance.py --check-relevance $CHANGED_FILES)
           echo "dominated=$DOMINATED" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python

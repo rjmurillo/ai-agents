@@ -939,9 +939,15 @@ def _check_unpinned_executables(candidate: Path) -> list[str]:
         if not hdir.is_dir():
             continue
         for f in sorted(hdir.rglob("*")):
-            if not f.is_file() or f.is_symlink():
-                continue
             if "__pycache__" in str(f):
+                continue
+            # Reject any symlink (leaf or ancestor): import-through-symlink
+            # allows executing code outside the pinned closure.
+            if f.is_symlink():
+                rel = str(PurePosixPath(f.relative_to(candidate)))
+                errors.append(f"Symlink in executable root: {rel}")
+                continue
+            if not f.is_file():
                 continue
             # Skip known non-executable data files
             if f.name == "CLAUDE.md":
@@ -971,6 +977,7 @@ _MARKDOWNLINT_CONFIG_GLOBS: tuple[str, ...] = (
     ".markdownlint.json",
     ".markdownlint.jsonc",
     ".markdownlint.cjs",
+    ".markdownlint.mjs",
 )
 
 
@@ -1373,9 +1380,22 @@ def main() -> int:
         metavar="FILE",
         help="Print 'true'/'false' for whether FILE list touches watched paths",
     )
+    parser.add_argument(
+        "--check-relevance-stdin",
+        action="store_true",
+        help="Read NUL-delimited file list from stdin for relevance check",
+    )
     args = parser.parse_args()
 
     # Relevance-check mode: output true/false and exit
+    if args.check_relevance_stdin:
+        import sys as _sys
+
+        data = _sys.stdin.buffer.read()
+        # NUL-delimited; filter empty segments (trailing NUL)
+        files = [p for p in data.decode("utf-8", errors="surrogateescape").split("\0") if p]
+        print("true" if check_relevance(files) else "false")
+        return 0
     if args.check_relevance is not None:
         print("true" if check_relevance(args.check_relevance) else "false")
         return 0

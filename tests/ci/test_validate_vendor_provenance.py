@@ -1427,33 +1427,6 @@ class TestAncestorSymlinkPinned:
 # === Finding 4: Workflow immutable base ref ===
 
 
-class TestWorkflowImmutableBaseRef:
-    """Workflow validation must use immutable event SHAs for all comparisons.
-
-    The checkout step uses github.base_ref to materialize the trusted validator
-    script. This is acceptable because the validator then re-authenticates all
-    artifacts against immutable BASE_SHA. The semgrep baseline permits this
-    pattern. The security-critical invariant is that BASE_SHA (the immutable
-    event SHA) is used for all content validation, not the checkout ref.
-    """
-
-    def test_uses_immutable_base_sha_for_validation(self):
-        """BASE_SHA env must reference immutable event base SHA."""
-        wf_path = Path(__file__).resolve().parents[2] / (".github/workflows/vendor-provenance.yml")
-        content = wf_path.read_text()
-        assert "github.event.pull_request.base.sha" in content, (
-            "Validation must use immutable event SHA"
-        )
-
-    def test_uses_immutable_pr_sha_for_candidate(self):
-        """PR_SHA env must reference immutable event head SHA."""
-        wf_path = Path(__file__).resolve().parents[2] / (".github/workflows/vendor-provenance.yml")
-        content = wf_path.read_text()
-        assert "github.event.pull_request.head.sha" in content, (
-            "Candidate must use immutable event SHA"
-        )
-
-
 # ── .npmrc relevance regression ──
 
 
@@ -1566,14 +1539,15 @@ class TestDiffTreeEmptyCollapse:
         assert check_relevance([]) is False
 
     def test_diff_tree_failure_contract(self):
-        """Workflow must exit 1 on diff-tree failure, not collapse to empty list.
+        """Workflow must exit 1 on relevance/diff-tree failure, not collapse to empty list.
 
         Verified by reading the workflow YAML for fail-closed pattern.
         """
         wf_path = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
         content = wf_path.read_text()
-        # diff-tree failure must exit 1
-        assert "diff-tree failed" in content
+        # merge-base failure must exit 1
+        assert "merge-base failed" in content
+        assert "relevance check failed" in content
         assert "exit 1" in content
 
 
@@ -1601,3 +1575,138 @@ class TestHookUtilitiesPinned:
 
         assert check_relevance([".claude/lib/hook_utilities/__init__.py"]) is True
         assert check_relevance([".claude/lib/hook_utilities/bootstrap.py"]) is True
+
+
+# ── HIGH 2: Leaf symlink rejection in executable scan ──
+
+
+class TestSymlinkInExecutableRoot:
+    """Symlinks under watched dirs must be rejected, not skipped."""
+
+    def test_leaf_symlink_rejected(self, tmp_path):
+        """A symlink like build/scripts/yaml.py -> ../../payload.txt is caught."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        candidate = tmp_path / "candidate"
+        bdir = candidate / "build" / "scripts"
+        bdir.mkdir(parents=True)
+        # Create symlink that would allow import-through-symlink attack
+        target = tmp_path / "payload.txt"
+        target.write_text("malicious")
+        (bdir / "yaml.py").symlink_to(target)
+        errors = _check_unpinned_executables(candidate)
+        assert any("Symlink" in e and "yaml.py" in e for e in errors)
+
+    def test_regular_file_still_flagged_as_unpinned(self, tmp_path):
+        """Non-symlink unpinned file still fails."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        candidate = tmp_path / "candidate"
+        bdir = candidate / "build" / "scripts"
+        bdir.mkdir(parents=True)
+        (bdir / "evil.py").write_text("import os")
+        errors = _check_unpinned_executables(candidate)
+        assert any("Unpinned" in e and "evil.py" in e for e in errors)
+
+
+# ── HIGH 3: .markdownlint.mjs sole-change relevance ──
+
+
+class TestMarkdownlintMjsRelevance:
+    """Adding .markdownlint.mjs alone must trigger relevance."""
+
+    def test_mjs_triggers_relevance(self):
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".markdownlint.mjs"]) is True
+
+    def test_all_markdownlint_configs_trigger_relevance(self):
+        """Every config glob name at root triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_CONFIG_GLOBS,
+            check_relevance,
+        )
+
+        for name in _MARKDOWNLINT_CONFIG_GLOBS:
+            assert check_relevance([name]) is True, f"{name} not relevant"
+
+
+# ── MEDIUM: NUL-safe stdin relevance ──
+
+
+class TestCheckRelevanceStdin:
+    """--check-relevance-stdin reads NUL-delimited paths safely."""
+
+    def test_nul_delimited_input(self, tmp_path):
+        """Paths with special chars are handled via NUL delimiter."""
+        import subprocess
+
+        script = (
+            Path(__file__).resolve().parents[2] / "scripts" / "ci" / "validate_vendor_provenance.py"
+        )
+        # A watched path NUL-delimited
+        stdin_data = b".claude/hooks/invoke_dispatch_claude.py\x00"
+        result = subprocess.run(
+            ["python3", str(script), "--check-relevance-stdin"],
+            input=stdin_data,
+            capture_output=True,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == b"true"
+
+    def test_tab_in_filename_no_false_match(self, tmp_path):
+        """A path with tab that does NOT match watched prefix is false."""
+        import subprocess
+
+        script = (
+            Path(__file__).resolve().parents[2] / "scripts" / "ci" / "validate_vendor_provenance.py"
+        )
+        # Adversarial: tab in filename, not a watched path
+        stdin_data = b"unrelated/\tfoo.py\x00"
+        result = subprocess.run(
+            ["python3", str(script), "--check-relevance-stdin"],
+            input=stdin_data,
+            capture_output=True,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == b"false"
+
+    def test_newline_in_filename_no_bypass(self, tmp_path):
+        """Newline in path handled safely with NUL delimiter."""
+        import subprocess
+
+        script = (
+            Path(__file__).resolve().parents[2] / "scripts" / "ci" / "validate_vendor_provenance.py"
+        )
+        stdin_data = b"unrelated/\nfoo.py\x00"
+        result = subprocess.run(
+            ["python3", str(script), "--check-relevance-stdin"],
+            input=stdin_data,
+            capture_output=True,
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == b"false"
+
+
+# ── HIGH 1: Workflow uses immutable base SHA ──
+
+
+class TestWorkflowImmutableBaseRef:
+    """Workflow must use immutable event SHA, not mutable branch name."""
+
+    def test_checkout_uses_event_base_sha(self):
+        """The checkout ref must be the immutable base SHA."""
+        wf = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "vendor-provenance.yml"
+        content = wf.read_text()
+        assert "github.event.pull_request.base.sha" in content
+        # Must NOT use mutable base_ref for checkout
+        assert "ref: ${{ github.base_ref }}" not in content
+
+    def test_no_mutable_base_ref_in_trusted_checkout(self):
+        """No line should checkout a mutable branch ref for trusted code."""
+        wf = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "vendor-provenance.yml"
+        content = wf.read_text()
+        lines = content.splitlines()
+        for i, line in enumerate(lines):
+            if "ref:" in line and "base_ref" in line:
+                raise AssertionError(f"Line {i + 1} uses mutable base_ref: {line.strip()}")
