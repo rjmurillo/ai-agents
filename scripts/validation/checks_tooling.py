@@ -73,13 +73,18 @@ def _prepr_session_command(
 
 
 def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
-    """Return existing JSON session paths from NUL-delimited git output."""
+    """Return JSON session paths from NUL-delimited git output.
+
+    Pre-PR validates the committed branch state. A dirty worktree that removes a
+    changed session log must fail closed in validation, not disappear from the
+    candidate list because the local file is absent.
+    """
+    del repo_root
     return [
         path
         for path in output.split("\0")
         if path.startswith(".agents/sessions/")
         and path.endswith(".json")
-        and (repo_root / path).is_file()
     ]
 
 
@@ -108,7 +113,7 @@ def validate_session_end(repo_root: Path) -> bool:
     if not changed_paths:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
-    new_logs = new_session_logs(changed_paths, repo_root)
+    new_logs = new_session_logs(changed_paths, repo_root, compare_ref="HEAD")
 
     _, validation_head, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
