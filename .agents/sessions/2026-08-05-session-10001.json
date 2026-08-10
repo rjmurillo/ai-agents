@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work committed at 046a1b9466dfdb63c6ef9387949187d355bc8d78. This follow-up commit records that SHA per issue #3618."
+        "Evidence": "PR code validated at 2d757b2adec62f42f61586555c5f3e4d22836944 before QA evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest target set passed: 88 passed. Ruff passed on changed Python files. pre_pr.py passed all validations after fetching origin/main. Mutation proof: 2 DEAD, 1 SURVIVED control."
+        "Evidence": "QA rerun after merging origin/main: pytest collected 88 and passed 88 for PR description validation, new PR escaped newline validation, and GitHub core escaped newline wiring. Ruff passed on changed Python files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": "Not applicable for this audit session."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4665-qa.md"
       }
     }
   },
@@ -129,8 +134,12 @@
     {
       "phase": "verification",
       "summary": "Before fix, corrupt literal-backslash-n body exited 0. After fix it exits 1. Targeted pytest passed, ruff passed, and mutation proof killed the call-removal and guard-bypass mutants while the cosmetic control survived."
+    },
+    {
+      "phase": "qa-evidence",
+      "summary": "Merged current origin/main, reran targeted PR description tests, ran ruff on changed Python files, and added branch-specific QA report for PR 4665."
     }
   ],
-  "endingCommit": "046a1b9466dfdb63c6ef9387949187d355bc8d78",
+  "endingCommit": "2d757b2adec62f42f61586555c5f3e4d22836944",
   "nextSteps": []
 }
