@@ -281,11 +281,21 @@ class TestCapturedOutputPinsItsCodec:
     the codec is not its concern.
     """
 
+    # Every file in the push-pr bundle that spawns a capturing subprocess.
+    # pr_validations.py joined the list in issue #4764 when new_pr.py was split
+    # for cohesion: two capturing calls moved with the validation pipeline, and
+    # a mirror list that did not follow them would have silently stopped
+    # checking the moved code while every assertion here stayed green.
     _MIRRORS = (
         Path(__file__).resolve().parents[1]
         / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
         Path(__file__).resolve().parents[1]
         / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+        Path(__file__).resolve().parents[1]
+        / ".claude" / "skills" / "github" / "scripts" / "pr" / "pr_validations.py",
+        Path(__file__).resolve().parents[1]
+        / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr"
+        / "pr_validations.py",
     )
 
     @staticmethod
@@ -363,9 +373,18 @@ class TestCapturedOutputPinsItsCodec:
         )
 
     def test_the_check_finds_something_to_check(self):
-        """Vacuity control: an AST walk that matches nothing proves nothing."""
-        runs = self._capturing_runs(self._MIRRORS[0].read_text(encoding="utf-8"))
-        assert len(runs) >= 5
+        """Vacuity control: an AST walk that matches nothing proves nothing.
+
+        Counts across the whole bundle rather than one file. new_pr.py held six
+        capturing calls before issue #4764 split it; two moved to
+        pr_validations.py, so a per-file threshold would now fail for a reason
+        that has nothing to do with the property under test.
+        """
+        total = sum(
+            len(self._capturing_runs(mirror.read_text(encoding="utf-8")))
+            for mirror in self._MIRRORS
+        )
+        assert total >= 10, f"walker found only {total} capturing subprocess.run calls"
 
     def test_a_bare_text_run_is_reported(self):
         """Negative control on the walker itself."""

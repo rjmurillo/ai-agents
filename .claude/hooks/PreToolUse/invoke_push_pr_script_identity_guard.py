@@ -550,9 +550,12 @@ _GIT_CONFIG_READ_MODIFIERS = frozenset(
         "--global",
     }
 )
-_TRUSTED_NEW_PR_SHA256 = "3b0347316180d2a8110474bdaa2479fbdc6d8feb69df3c3a194572aeccfa2fac"
+_TRUSTED_NEW_PR_SHA256 = "f9df25527cb27ec10c2eb70100d664165d81666a825eab848cd90609251dae26"
 _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
     "00f32287461be4a0d0b15b0b7fb8a870d3824fbe4a6427373376fb4c38bda9eb"
+)
+_TRUSTED_PR_VALIDATIONS_SHA256 = (
+    "a58457c51dfc7f1dc95ba95870e0311cde158be6b35114acb1e36c300f968570"
 )
 
 
@@ -2563,15 +2566,23 @@ def _require_trusted_digest(path: Path, expected: str, label: str) -> None:
 
 
 def _validate_runtime_bundle(script: Path) -> None:
+    """Verify every file new_pr.py executes or imports, as one unit.
+
+    ``pr_validations.py`` joined the bundle in issue #4764 when new_pr.py was
+    split for cohesion. It MUST be pinned here: new_pr.py loads it by absolute
+    path at import time, so an unpinned sibling would be an unverified code
+    path inside a script whose whole purpose here is to be verified. Pinning it
+    keeps the split from widening the trusted surface.
+    """
     _require_trusted_digest(script, _TRUSTED_NEW_PR_SHA256, "new_pr.py")
-    helper = _regular_resolved_file(script.parent / "validate_pr_description.py")
-    if helper is None:
-        raise GuardViolationError("validate_pr_description.py is missing, unreadable, or a symlink")
-    _require_trusted_digest(
-        helper,
-        _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256,
-        "validate_pr_description.py",
-    )
+    for name, expected in (
+        ("validate_pr_description.py", _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256),
+        ("pr_validations.py", _TRUSTED_PR_VALIDATIONS_SHA256),
+    ):
+        helper = _regular_resolved_file(script.parent / name)
+        if helper is None:
+            raise GuardViolationError(f"{name} is missing, unreadable, or a symlink")
+        _require_trusted_digest(helper, expected, name)
 
 
 def _runtime_script() -> Path | None:
