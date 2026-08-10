@@ -49,7 +49,6 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import (
     _403_PATTERN,
-    _ALL_PRS_QUERY,
     REST_PAGE_PACE_SECONDS,
     REST_REFUSAL_BACKOFF_SECONDS,
     _retry_after_delay,
