@@ -465,14 +465,16 @@ def _is_affirmative_directive(line: str) -> bool:
     if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
         return False
 
-    # Split into clauses on semicolons and sentence boundaries.
+    # Split into clauses on semicolons, sentence boundaries, and slashes
+    # (used as alternatives/separators in prose).
     # Use fully masked text to find analyst+verb (not inside code/quotes).
     # Use quote_masked (quotes hidden, backticks preserved) for tool search
     # so backtick-formatted tools like `mcp__github__pull_request_read` are
     # found but quoted examples like "pull_request_read" are rejected.
-    clauses = re.split(r"[;.](?:\s|$)", lower)
+    clause_split = r"[;.](?:\s|$)|\s/\s"
+    clauses = re.split(clause_split, lower)
     tool_lower = quote_masked.lower()
-    tool_clauses = re.split(r"[;.](?:\s|$)", tool_lower)
+    tool_clauses = re.split(clause_split, tool_lower)
 
     # Subordinating conjunctions: boundaries for tool search scope
     subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
@@ -491,7 +493,9 @@ def _is_affirmative_directive(line: str) -> bool:
         r"(?:"
         r"[a-z][\w-]*(?:-(?:bot|agent)|bot|agent|reviewer)"  # suffixed
         r"|"
-        r"[a-z][\w]*\s+[a-z]*(?:es|[^aeiou]s|ed|ing|ies)\b"  # verb-form
+        r"[a-z][\w]*\s+(?:[a-z]*(?:es|[^aeiou]s|ed|ing|ies)"
+        r"|will|can|may|shall|would|could|might|must"
+        r"|has|have|had|does|did|is|are|was|were)\b"
         r")"
         r"|"
         r":\s*[a-z][\w-]*\s+[a-z]"  # colon clause
@@ -510,8 +514,9 @@ def _is_affirmative_directive(line: str) -> bool:
         # by hyphen, rejects "non-analyst", must be true word boundary).
         # Masking ensures analyst+verb inside code spans is not accepted.
         verb_match = re.search(
-            r"(?<![-])\banalyst\b\s+(?:directly\s+)?"
-            r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
+            r"(?<![-])\banalyst\b\s+(?:(?:directly|then|also|always)\s+)?"
+            r"([a-z]{2,}(?:es|[^aeiou]s|ies)|retrieve|use|call|invoke|attempt|look)\b"
+            r"(?:\s+(?:up|into|at|for|on)\b)?",
             clause,
         )
         if not verb_match:
@@ -556,6 +561,13 @@ def _is_affirmative_directive(line: str) -> bool:
 
         tool_match = _TOOL_RE.search(tool_frag)
         if tool_match:
+            return True
+
+        # Also search for tool BEFORE the analyst+verb in the same clause
+        # (handles "Using pull_request_read, the analyst retrieves context")
+        # Use fully-masked text so backtick code spans are excluded.
+        pre_tool_frag = clause[: verb_match.start()]
+        if _TOOL_RE.search(pre_tool_frag):
             return True
 
         # Also accept "declared tool" phrasing in masked fragment
@@ -1643,4 +1655,40 @@ class TestPositiveMainClauseControls:
         ids=["using", "to-fetch", "so-that", "before-return"],
     )
     def test_main_clause_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
+
+
+class TestNegativeMixedActorBoundary:
+    """Mixed-actor clauses with structural boundaries must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache, coordinator will expose pull_request_read.",
+            "The analyst retrieves cache / coordinator exposes pull_request_read",
+            "The analyst retrieves cache: system provides pull_request_read",
+            "The analyst retrieves cache, someone provides pull_request_read.",
+        ],
+        ids=["modal-boundary", "slash-boundary", "colon-boundary", "provides-boundary"],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+
+class TestPositiveStructuralVerbs:
+    """Analyst with structural verb forms (3rd-person-singular, phrasal) accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst fetches PR context using pull_request_read",
+            "The analyst consults pull_request_read for data",
+            "The analyst looks up pull_request_read",
+            "The analyst accesses pull_request_read directly",
+            "Using pull_request_read, the analyst retrieves context",
+            "Via pull_request_read the analyst accesses PR data",
+        ],
+        ids=["fetches", "consults", "looks-up", "accesses", "tool-before-actor", "via-tool"],
+    )
+    def test_accepted(self, line: str) -> None:
         assert _is_affirmative_directive(line) is True

@@ -139,15 +139,47 @@ def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
     and all_patterns is every normalized pattern found (including alternatives).
     Preserves EVERY data row and every alternative to enable strict validation.
     Parses all tables (not just first) so duplicates across tables are caught.
+    Skips tables inside fenced code blocks (``` or ~~~), 4-space/tab indented
+    code blocks, and HTML comments (<!-- ... -->).
     """
     routes: dict[str, list[str]] = {}
     all_patterns: list[str] = []
     lines = body.split("\n")
 
+    # Pre-compute which lines are inside non-operative Markdown contexts
+    in_fence = False
+    in_html_comment = False
+    operative = [True] * len(lines)
+    for idx, ln in enumerate(lines):
+        stripped_ln = ln.strip()
+        # HTML comment handling (may span multiple lines)
+        if in_html_comment:
+            operative[idx] = False
+            if "-->" in ln:
+                in_html_comment = False
+            continue
+        if "<!--" in ln:
+            if "-->" not in ln[ln.index("<!--") + 4 :]:
+                in_html_comment = True
+            operative[idx] = False
+            continue
+        # Fenced code blocks (``` or ~~~)
+        if stripped_ln.startswith("```") or stripped_ln.startswith("~~~"):
+            in_fence = not in_fence
+            operative[idx] = False
+            continue
+        if in_fence:
+            operative[idx] = False
+            continue
+        # 4-space/tab indented code block
+        if ln.startswith("    ") or ln.startswith("\t"):
+            operative[idx] = False
+            continue
+
     i = 0
     while i < len(lines):
         line = lines[i]
-        if line.strip().startswith("|") and "url pattern" in line.lower():
+        if operative[i] and line.strip().startswith("|") and "url pattern" in line.lower():
             # Found a table header
             data_start = i + 1
             if data_start < len(lines) and "---" in lines[data_start]:
@@ -660,3 +692,42 @@ def test_routing_conflicting_duplicate_alias() -> None:
     routes, all_pats = _parse_routing_table(table)
     errors = _validate_routing_table(routes, all_pats, "conflict-dup")
     assert any("duplicate" in e.lower() for e in errors), f"Expected duplicate: {errors}"
+
+
+class TestRoutingMarkdownContext:
+    """Tables inside non-operative Markdown contexts must be ignored."""
+
+    VALID_TABLE = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+
+    def test_backtick_fence_ignored(self) -> None:
+        body = "```\n" + self.VALID_TABLE + "```\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside backtick fence should be skipped"
+
+    def test_tilde_fence_ignored(self) -> None:
+        body = "~~~\n" + self.VALID_TABLE + "~~~\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside tilde fence should be skipped"
+
+    def test_indented_code_ignored(self) -> None:
+        body = "".join("    " + ln for ln in self.VALID_TABLE.splitlines(keepends=True))
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside indented code should be skipped"
+
+    def test_html_comment_ignored(self) -> None:
+        body = "<!--\n" + self.VALID_TABLE + "-->\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside HTML comment should be skipped"
+
+    def test_visible_table_accepted(self) -> None:
+        body = "## Routing\n\n" + self.VALID_TABLE
+        routes, _ = _parse_routing_table(body)
+        assert routes, "Visible table should be parsed"
+        assert "/pull/<n>" in routes
