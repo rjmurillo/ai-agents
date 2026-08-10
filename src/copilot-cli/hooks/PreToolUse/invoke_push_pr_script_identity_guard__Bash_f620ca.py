@@ -428,8 +428,8 @@ def _original_main(stdin_bytes):
     _SHELL_EXPANSION_MARKERS = ("$", "`", "\\\n", "{", "[", "*", "?")
     _INNERMOST_BRACE_GROUP = re.compile(r"\{([^{}]*)\}")
     _COMMAND_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
-    _MAX_BRACE_EXPANSIONS = 512
-    _MAX_BRACE_RANGE = 64
+    _NEW_PR_TARGET = "new_pr.py"
+    _MAX_BRACE_EXPANSIONS = 4096
     _MAX_SCOPE_OPERANDS = 64
     _SHELL_EVALUATORS = frozenset(
         {
@@ -988,24 +988,38 @@ def _original_main(stdin_bytes):
         return any(marker in value for marker in _SHELL_EXPANSION_MARKERS)
 
 
-    def _brace_alternatives(body: str) -> list[str] | None:
+    def _brace_alternatives(body: str) -> list[str]:
         """Return the alternatives a single innermost brace group can produce.
 
-        Returns None when the group is an unbounded or oversized range, which the
-        caller treats as "cannot enumerate" and therefore in scope.
+        A range is not materialized. Only values that can contribute a character
+        of the target matter for the relevance decision, so a range collapses to
+        at most the target's own alphabet plus one representative:
+
+        * Digits appear nowhere in "new_pr.py", so a numeric range can never supply
+          a character the target needs. It can only shift later text by its own
+          width, and the narrowest and widest values bound that.
+        * A character range can supply a needed character, so keep exactly the
+          characters the target contains, plus the low value to represent every
+          choice that lands outside a match.
+
+        Materializing instead would make ``touch log{0..99}.txt`` and
+        ``cp file{1..1000}.txt dir/`` exceed the expansion budget and fail closed,
+        which denied legitimate commands (measured 4 of 7 in a probe).
         """
         start, separator, end = body.partition("..")
         if separator and start and end:
             if start.isdigit() and end.isdigit():
                 low, high = sorted((int(start), int(end)))
-                if high - low >= _MAX_BRACE_RANGE:
-                    return None
-                return [str(item) for item in range(low, high + 1)]
+                return sorted({str(low), str(high)})
             if len(start) == 1 and len(end) == 1:
                 low, high = sorted((ord(start), ord(end)))
-                if high - low >= _MAX_BRACE_RANGE:
-                    return None
-                return [chr(item) for item in range(low, high + 1)]
+                candidates = {
+                    chr(point)
+                    for point in range(low, high + 1)
+                    if chr(point) in _NEW_PR_TARGET
+                }
+                candidates.add(chr(low))
+                return sorted(candidates)
         return body.split(",")
 
 
@@ -1027,8 +1041,6 @@ def _original_main(stdin_bytes):
                 expansions.append(candidate)
                 continue
             alternatives = _brace_alternatives(group.group(1))
-            if alternatives is None:
-                return None
             budget -= len(alternatives)
             if budget < 0:
                 return None

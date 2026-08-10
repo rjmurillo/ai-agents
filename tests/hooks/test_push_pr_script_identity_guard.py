@@ -1264,6 +1264,71 @@ def test_dispatchers_allow_commands_outside_guard_scope(
     assert result.returncode == 0, f"{command}: {result.stderr}"
 
 
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp file{1..1000}.txt dir/",
+        "mkdir -p build/{a,b,c}",
+        "mv report{1..200}.csv archive/",
+        "ls src/{lib,bin}/*.rs",
+        "git checkout -- {a,b}.txt",
+        "touch log{0..99}.txt",
+        "echo {1..10000}",
+    ],
+)
+def test_dispatchers_allow_legitimate_brace_expansion(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    """Ordinary brace usage stays out of scope, whatever the range size.
+
+    Materializing ranges made a large one exceed the expansion budget, and the
+    budget fails closed, so `touch log{0..99}.txt` and `cp file{1..1000}.txt`
+    were denied. A probe measured 4 of these 7 denied before
+    `_brace_alternatives` stopped materializing ranges.
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 0, f"{command}: {result.stderr}"
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 -I attacker/pr/n{e..e}w_{p..p}r.{p..p}{y..y}",
+        "python3 -I attacker/pr/n{a..z}w_pr.py",
+        "python3 -I attacker/pr/n{d..f}w_pr.py",
+        "python3 -I attacker/pr/ne{v..x}_pr.py",
+        "python3 -I attacker/{n..n}ew_pr.py",
+        "python3 -I attacker/pr/new_pr{.,.}py",
+        "pypy3 attacker/pr/n[e]w_[p]r.[p][y]",
+        "python3 -I attacker/{new_,old_}pr.py",
+    ],
+)
+def test_dispatchers_deny_range_obfuscated_new_pr(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    """Collapsing ranges must not lose a range that spells the target.
+
+    A character range can supply a character new_pr.py needs, so the collapse
+    keeps every character the target contains. `n{a..z}w_pr.py` and
+    `n{d..f}w_pr.py` both still resolve to new_pr.py through 'e'.
+    """
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2, f"{command}: allowed"
+    assert "push-pr script identity denied" in result.stderr
+
+
 @pytest.mark.parametrize(
     "guard",
     [
