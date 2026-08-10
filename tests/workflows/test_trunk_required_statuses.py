@@ -29,6 +29,19 @@ _WORKFLOWS = _ROOT / ".github" / "workflows"
 _TEMPLATED = re.compile(r"\$\{\{")
 
 
+def _expanded_job_names(job_id: str, job: dict) -> set[str]:
+    name = str(job.get("name", job_id))
+    strategy = job.get("strategy")
+    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+    includes = (matrix.get("include") or []) if isinstance(matrix, dict) else []
+    expanded = {
+        name.replace("${{ matrix.language }}", str(row["language"]))
+        for row in includes
+        if isinstance(row, dict) and "language" in row
+    }
+    return expanded or {name}
+
+
 @pytest.fixture(scope="module")
 def required_statuses() -> list[str]:
     data = yaml.safe_load(_CONFIG.read_text(encoding="utf-8"))
@@ -47,17 +60,20 @@ def job_names() -> set[str]:
             continue
         for job_id, job in (data.get("jobs") or {}).items():
             if isinstance(job, dict):
-                name = str(job.get("name", job_id))
-                strategy = job.get("strategy")
-                matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
-                includes = matrix.get("include", []) if isinstance(matrix, dict) else []
-                expanded = {
-                    name.replace("${{ matrix.language }}", str(row["language"]))
-                    for row in includes
-                    if isinstance(row, dict) and "language" in row
-                }
-                names.update(expanded or {name})
+                names.update(_expanded_job_names(job_id, job))
     return names
+
+
+def test_matrix_expansion_tolerates_null_include() -> None:
+    """Edge: YAML `include:` with no value parses as None. The drift guard
+    must keep the literal job name rather than crashing its module fixture."""
+    job = {
+        "name": "Analyze (${{ matrix.language }})",
+        "strategy": {"matrix": {"include": None}},
+    }
+    assert _expanded_job_names("analyze", job) == {
+        "Analyze (${{ matrix.language }})"
+    }
 
 
 def test_config_declares_a_non_empty_override(required_statuses: list[str]) -> None:
