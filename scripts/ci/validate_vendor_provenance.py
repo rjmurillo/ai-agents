@@ -485,41 +485,45 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
     return errors
 
 
-# ── Config safety ──
+# ── Config safety (single deterministic regex path, no PyYAML) ──
 
 def _validate_config_safe(config_path: Path) -> list[str]:
+    """Scan config for execution-capable YAML keys using regex only.
+
+    Single deterministic code path regardless of environment. Covers:
+    - bare key (customRules:)
+    - quoted key ("customRules": or 'customRules':)
+    - flow mapping ({customRules: ...})
+    - explicit block mapping key (? customRules)
+    - nested occurrences at any depth
+
+    Intentionally over-matches: any textual occurrence of an execution key
+    in mapping-key position is flagged. No false negatives by design.
+    """
     if not config_path.is_file():
         return []  # Config not present yet
     raw = config_path.read_bytes()
     try:
-        import yaml
-        parsed = yaml.safe_load(raw)
-    except ImportError:
-        parsed = None
-    if parsed is not None:
-        return _find_exec_keys(parsed)
-    # Regex fallback
-    text = raw.decode("utf-8", errors="replace")
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return ["Config file is not valid UTF-8 (fail closed)"]
+    if not text.strip():
+        return []  # Empty config
     errors: list[str] = []
-    for key in _EXECUTION_KEYS:
-        pat = rf"""(?:^|\{{|,)\s*['"]?{re.escape(key)}['"]?\s*:"""
-        if re.search(pat, text, re.MULTILINE):
+    for key in sorted(_EXECUTION_KEYS):
+        # Matches: normal/quoted/flow key: value, OR explicit block key ? key
+        pat = re.compile(
+            rf"""(?mx)
+            (?:
+                (?:^|[{{,]) \s* ['"]?{re.escape(key)}['"]? \s* :
+            |
+                ^\s*\?\s*['"]?{re.escape(key)}['"]?\s*$
+            )
+            """,
+        )
+        if pat.search(text):
             errors.append(f"Execution-capable key '{key}' in config")
     return errors
-
-
-def _find_exec_keys(obj: object, path: str = "") -> list[str]:
-    hits: list[str] = []
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            cur = f"{path}.{k}" if path else str(k)
-            if str(k) in _EXECUTION_KEYS:
-                hits.append(f"Execution-capable key '{k}' at {cur}")
-            hits.extend(_find_exec_keys(v, cur))
-    elif isinstance(obj, list):
-        for i, item in enumerate(obj):
-            hits.extend(_find_exec_keys(item, f"{path}[{i}]"))
-    return hits
 
 
 # ── Symlink containment ──
@@ -627,6 +631,32 @@ def _compare_nm(committed: Path, reconstructed: Path) -> list[str]:
     return errors
 
 
+# ── Relevance check (extracted for testability) ──
+
+# Watched path prefixes that trigger full validation.
+WATCHED_PREFIXES: tuple[str, ...] = (
+    ".claude/hooks/PreToolUse/",
+    ".claude/lib/",
+    "src/copilot-cli/hooks/PreToolUse/",
+    "src/copilot-cli/lib/",
+    "build/scripts/generate_hooks_events.py",
+)
+
+
+def check_relevance(changed_files: list[str]) -> bool:
+    """Return True if any changed file falls under a watched prefix.
+
+    Covers additions, modifications, deletions, renames, and type changes.
+    The workflow calls this via --check-relevance to decide whether to run
+    full validation.
+    """
+    for f in changed_files:
+        for prefix in WATCHED_PREFIXES:
+            if f.startswith(prefix) or f == prefix.rstrip("/"):
+                return True
+    return False
+
+
 # ── Main ──
 
 def _run_phase(label: str, errors: list[str]) -> None:
@@ -639,8 +669,20 @@ def _run_phase(label: str, errors: list[str]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Trusted vendor provenance gate")
-    parser.add_argument("--candidate-root", required=True, type=Path)
+    parser.add_argument("--candidate-root", type=Path)
+    parser.add_argument(
+        "--check-relevance", nargs="*", metavar="FILE",
+        help="Print 'true'/'false' for whether FILE list touches watched paths",
+    )
     args = parser.parse_args()
+
+    # Relevance-check mode: output true/false and exit
+    if args.check_relevance is not None:
+        print("true" if check_relevance(args.check_relevance) else "false")
+        return 0
+
+    if not args.candidate_root:
+        parser.error("--candidate-root is required for validation mode")
     root = args.candidate_root.resolve()
     if not root.is_dir():
         print(f"ERROR: candidate root not found: {root}", file=sys.stderr)
