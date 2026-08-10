@@ -33,9 +33,14 @@ Divergence from the canonical source (stricter than a plain name match):
   ``if: steps.should-run.outputs.skip != 'true'`` (pytest.yml line 262), so the
   job can succeed with the suite never executed.
 * Where duplicate job names disagree, the worst outcome wins. A sibling failure
-  is never masked by a sibling success.
+  is never masked by a sibling success. The tier that decides the verdict can
+  only be overruled downward: a failed, cancelled, or still-running sibling
+  carrying the same required check name escalates the result, because that
+  check is not green in GitHub no matter how well the executor did.
 * PASS is claimed only from an executor job. A pass-through-only run is
   SKIPPED, never PASS.
+* A run must bind to the requested pull request number, not merely to the head
+  SHA, because one commit can head several pull requests at once.
 
 Payload shapes observed against the live API on 2026-08-09, each confirmed to
 resolve as stated by running this module's parser over the captured response:
@@ -66,6 +71,7 @@ Freshness rules:
 * Only ``event == "pull_request"`` runs count. ``pytest.yml`` also triggers on
   ``push`` (line 19) and a push run of the same commit has a different job set,
   so accepting one would report a verdict for a different check.
+* A run must also bind to the requested pull request. See ``binds_to_pr``.
 
 Permissions. Listing workflow runs and jobs needs ``actions: read``. The live
 head is read through ``GET /repos/{owner}/{repo}/git/ref/pull/{n}/head``, a Git
@@ -88,6 +94,15 @@ Input env vars (all overridable by the matching CLI flag):
     EXPECTED_HEAD_SHA   - 40 hex head SHA the caller believes it tested.
     LOCAL_PYTEST_STATUS - status from the local ``Run pytest`` step.
     GITHUB_OUTPUT       - optional. Outputs are written when set.
+
+Outputs (named apart from the existing pytest_status/pytest_summary so no
+current consumer can pick them up by accident):
+    shadow_pytest_status     - the resolved status.
+    shadow_pytest_reason     - the sanitized fixed-vocabulary reason.
+    shadow_pytest_agreement  - AGREE, DISAGREE, or UNCOMPARED.
+    shadow_pytest_compared   - "true" only when a real comparison happened, so
+                               collected samples can be counted rather than
+                               assumed. See ``emit`` for why that matters.
 
 Exit codes (ADR-035):
     0 - a status was resolved and emitted. EVERY resolution outcome exits 0,
@@ -136,6 +151,10 @@ AGREE = "AGREE"
 DISAGREE = "DISAGREE"
 UNCOMPARED = "UNCOMPARED"
 
+# One greppable token per invocation, so "how many shadow samples did we
+# collect" is answerable from run logs without a consumer reading the outputs.
+SAMPLE_MARKER = "shadow-pytest-sample"
+
 # Vocabulary of scripts/quality_gate/run_pytest.py, the local step this shadow
 # signal is compared against.
 LOCAL_STATUSES = frozenset({STATUS_PASS, STATUS_FAIL, STATUS_SKIPPED, "ERROR"})
@@ -154,6 +173,9 @@ REASON_LIVE_HEAD_UNREADABLE = "the live pull request head could not be read"
 REASON_LIVE_HEAD_MALFORMED = "the live pull request head is not a 40 hex sha"
 REASON_RUNS_UNREADABLE = "the pytest workflow run list could not be read"
 REASON_NO_RUN = "no pytest pull_request run exists for the expected head sha"
+REASON_RUN_NOT_BOUND = (
+    "the pytest runs for the expected head sha belong to a different pull request"
+)
 REASON_JOBS_UNREADABLE = "the pytest workflow job list could not be read"
 REASON_NO_JOB = "the run has no job matching the pytest check name"
 
@@ -181,7 +203,9 @@ __all__ = [
     "Job",
     "Resolution",
     "Run",
+    "RunScan",
     "aggregate",
+    "binds_to_pr",
     "classify",
     "compare",
     "main",
@@ -291,11 +315,59 @@ def fetch_live_head(runner: GhRunner, repo: str, pr: str) -> tuple[str, Resoluti
     return sha.lower(), None
 
 
-def parse_runs(payload: object, expected_sha: str) -> list[Run] | None:
-    """Return the pull_request runs for ``expected_sha``, or None if unusable.
+def binds_to_pr(item: Mapping[str, object], pr: str, repo: str) -> bool:
+    """Whether a run provably belongs to the requested pull request.
+
+    A head SHA alone does not identify a pull request. The same commit can be
+    the head of several pull requests at once, so matching on SHA would let one
+    pull request's verdict be reported for another.
+
+    Primary binding is ``pull_requests[]``, which GitHub populates with the
+    pull requests a run belongs to. Observed live on 2026-08-10: runs for the
+    open pull requests 4832, 4833, 4834, and 4817 each carried exactly their
+    own number, and every run belonging to the merged pull request 4819
+    carried an EMPTY list. GitHub empties that array once the pull request
+    closes, and it is empty for fork runs, so an empty list is normal and
+    cannot be treated as a failure by itself.
+
+    The fallback for an empty list proves the run is same-repo by comparing
+    ``head_repository.full_name`` against the repository this module was
+    configured with. That is a comparison, never an ingestion: the value is
+    tested for equality with an already-validated constant and is never
+    emitted, stored, or used to build a request. A fork cannot satisfy it,
+    because a fork's full name is by definition not the upstream's.
+
+    Residual risk, accepted and bounded: when the array is empty, two same-repo
+    pull requests sharing one head commit are indistinguishable here. Both
+    would have run the identical tree, and the caller has already proved this
+    SHA is the live head of the requested pull request, so the verdict still
+    describes the code under test.
+    """
+
+    linked = item.get("pull_requests")
+    if isinstance(linked, list) and linked:
+        return any(isinstance(entry, Mapping) and _text(entry, "number") == pr for entry in linked)
+    head_repo = item.get("head_repository")
+    head_name = _text(head_repo, "full_name") if isinstance(head_repo, Mapping) else ""
+    return head_name.casefold() == repo.casefold()
+
+
+@dataclass(frozen=True, slots=True)
+class RunScan:
+    """Runs bound to the requested pull request, and how many did not bind."""
+
+    bound: tuple[Run, ...]
+    rejected: int
+
+
+def parse_runs(payload: object, expected_sha: str, *, pr: str, repo: str) -> RunScan | None:
+    """Return the runs for ``expected_sha`` bound to ``pr``, or None if unusable.
 
     Push runs are dropped here as well as in the query string, because the API
-    filter is a request and this filter is a guarantee.
+    filter is a request and this filter is a guarantee. Runs that match the SHA
+    but cannot be bound to this pull request are counted rather than silently
+    dropped, so the caller can tell "nothing has run yet" apart from "something
+    ran for a different pull request".
     """
 
     if not isinstance(payload, Mapping):
@@ -304,6 +376,7 @@ def parse_runs(payload: object, expected_sha: str) -> list[Run] | None:
     if not isinstance(raw, list):
         return None
     runs: list[Run] = []
+    rejected = 0
     for item in raw:
         if not isinstance(item, Mapping):
             continue
@@ -314,6 +387,9 @@ def parse_runs(payload: object, expected_sha: str) -> list[Run] | None:
         run_id = _text(item, "id")
         if not run_id.isdigit():
             continue
+        if not binds_to_pr(item, pr, repo):
+            rejected += 1
+            continue
         attempt = _text(item, "run_attempt")
         started = _text(item, "run_started_at") or _text(item, "created_at")
         runs.append(
@@ -323,7 +399,7 @@ def parse_runs(payload: object, expected_sha: str) -> list[Run] | None:
                 started_at=started,
             )
         )
-    return runs
+    return RunScan(bound=tuple(runs), rejected=rejected)
 
 
 def select_latest_run(runs: Sequence[Run]) -> Run:
@@ -429,6 +505,15 @@ _TIERS: tuple[tuple[str, Callable[[Job], str], str], ...] = (
     (KIND_UNCLASSIFIED, unclassified_status, KIND_UNCLASSIFIED),
 )
 
+# Statuses a lower-tier sibling may hold without disturbing the deciding tier.
+# PASS, SKIPPED, and UNKNOWN are the NORMAL outcomes of a job that did not run
+# the suite: pass-through jobs exist to be green without testing, and a skipped
+# or unrecognized job is not evidence of anything. UNKNOWN stays benign on
+# purpose, because "I could not classify this sibling" must never erase a PASS
+# an executor job directly observed. Everything else (PENDING, CANCELLED, FAIL)
+# means the check as a whole is not settled and green, so it escalates.
+BENIGN_SIBLING_STATUSES = frozenset({STATUS_PASS, STATUS_SKIPPED, STATUS_UNKNOWN})
+
 
 def worst(statuses: Iterable[str]) -> str:
     """Return the highest-severity status. Failure beats every sibling."""
@@ -436,25 +521,55 @@ def worst(statuses: Iterable[str]) -> str:
     return max(statuses, key=lambda status: _SEVERITY[status])
 
 
+def _tier_statuses(jobs: Sequence[Job]) -> list[tuple[str, list[str]]]:
+    """Per-tier statuses in tier order, skipping tiers with no jobs.
+
+    Every job lands in exactly one tier: ``classify`` returns one of the three
+    kinds and ``_TIERS`` covers all three, so a non-empty job list always
+    yields at least one non-empty tier.
+    """
+
+    tiers = [
+        (label, [mapper(job) for job in jobs if classify(job) == kind])
+        for kind, mapper, label in _TIERS
+    ]
+    return [(label, statuses) for label, statuses in tiers if statuses]
+
+
 def aggregate(jobs: Sequence[Job]) -> Resolution:
     """Reduce same-named jobs to one status, executors first.
 
-    Executor jobs decide the verdict when any exist, so a pass-through sibling
-    can neither rescue a failing suite nor manufacture a PASS. Only when no
-    executor ran at all does the pass-through tier speak, and the best it can
+    The first non-empty tier DECIDES the verdict, so a pass-through sibling can
+    neither rescue a failing suite nor manufacture a PASS, and only when no
+    executor ran at all does the pass-through tier speak, where the best it can
     say is SKIPPED.
+
+    Deciding is not the same as silencing. A lower tier cannot improve the
+    verdict, but it can still make it worse: every job here carries the same
+    required check name, so a failed, cancelled, or still-running sibling means
+    that check is not green no matter how well the executor did. Those statuses
+    escalate through ``worst``. Without this, an executor PASS masked a
+    pass-through FAIL and the resolver reported a green check that GitHub was
+    showing as red.
     """
 
     if not jobs:
         return Resolution(STATUS_UNKNOWN, REASON_NO_JOB)
-    for kind, mapper, label in _TIERS:
-        tier = [job for job in jobs if classify(job) == kind]
-        if not tier:
-            continue
-        status = worst(mapper(job) for job in tier)
-        reason = f"{len(tier)} {label} job(s) of {len(jobs)} matching job(s) resolve to {status}"
-        return Resolution(status, reason)
-    return Resolution(STATUS_UNKNOWN, REASON_NO_JOB)
+
+    tiers = _tier_statuses(jobs)
+    label, deciding = tiers[0]
+    base = worst(deciding)
+    unhealthy = [
+        status
+        for _, statuses in tiers[1:]
+        for status in statuses
+        if status not in BENIGN_SIBLING_STATUSES
+    ]
+    status = worst([base, *unhealthy])
+    reason = f"{len(deciding)} {label} job(s) of {len(jobs)} matching job(s) resolve to {base}"
+    if unhealthy:
+        reason += f", raised to {status} by {len(unhealthy)} unhealthy sibling job(s)"
+    return Resolution(status, reason)
 
 
 def resolve(
@@ -479,13 +594,15 @@ def resolve(
         f"?event=pull_request&head_sha={expected_sha}&per_page=100"
     )
     ok, payload = gh_json(runner, path, "the workflow runs")
-    runs = parse_runs(payload, expected_sha) if ok else None
-    if runs is None:
+    scan = parse_runs(payload, expected_sha, pr=pr, repo=repo) if ok else None
+    if scan is None:
         return Resolution(STATUS_UNKNOWN, REASON_RUNS_UNREADABLE)
-    if not runs:
+    if not scan.bound:
+        if scan.rejected:
+            return Resolution(STATUS_UNKNOWN, REASON_RUN_NOT_BOUND)
         return Resolution(STATUS_PENDING, REASON_NO_RUN)
 
-    jobs, failure = fetch_jobs(runner, repo, select_latest_run(runs), job_name)
+    jobs, failure = fetch_jobs(runner, repo, select_latest_run(scan.bound), job_name)
     if failure is not None:
         return failure
     return aggregate(jobs)
@@ -505,19 +622,41 @@ def compare(status: str, local_status: str) -> tuple[str, str]:
 
 
 def emit(resolution: Resolution, agreement: str, agreement_reason: str) -> dict[str, str]:
-    """Print the shadow result and return the sanitized output pairs."""
+    """Print the shadow result and return the sanitized output pairs.
 
+    Liveness. A shadow that only speaks when it disagrees is indistinguishable
+    from a shadow that never ran, so a workflow silently collecting zero
+    samples would look exactly like a healthy one. Every invocation therefore
+    prints exactly one ``SAMPLE_MARKER`` notice, which makes the sample count
+    greppable from run logs and annotations, and any invocation that produced
+    NO usable comparison says so as a warning rather than passing quietly.
+
+    Every value in the notice comes from this module's fixed vocabulary, so the
+    line cannot be forged by API data.
+    """
+
+    compared = agreement in (AGREE, DISAGREE)
     outputs = {
         "shadow_pytest_status": resolution.status,
         "shadow_pytest_reason": sanitize(resolution.reason),
         "shadow_pytest_agreement": agreement,
+        "shadow_pytest_compared": "true" if compared else "false",
     }
     for key, value in outputs.items():
         print(f"{key}={value}")
+    print(
+        f"::notice::{SAMPLE_MARKER} status={resolution.status} "
+        f"agreement={agreement} compared={outputs['shadow_pytest_compared']}"
+    )
     if agreement == DISAGREE:
         print(
             f"::warning::Shadow pytest signal disagreement. {sanitize(agreement_reason)}. "
             f"{sanitize(resolution.reason)}"
+        )
+    elif not compared:
+        print(
+            f"::warning::Shadow pytest signal collected no sample. "
+            f"{sanitize(agreement_reason)}. {sanitize(resolution.reason)}"
         )
     return outputs
 

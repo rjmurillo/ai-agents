@@ -252,9 +252,17 @@ jobs:
       # consumer reads it, and continue-on-error keeps the job outcome and
       # every existing check name unchanged. The duplicate run above stays
       # authoritative until the measured disagreement rate justifies the swap.
+      #
+      # Liveness: the script prints one "shadow-pytest-sample" notice per run
+      # and warns when it produced no comparison, so a phase that silently
+      # collects zero samples is distinguishable from a healthy one. The
+      # condition is !cancelled() rather than success() so a failed pytest step
+      # still yields a sample, which is the most interesting case to compare,
+      # while a cancelled job (this workflow sets cancel-in-progress) does not
+      # burn API calls.
       - name: Resolve shadow pytest signal
         id: shadow-signal
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}

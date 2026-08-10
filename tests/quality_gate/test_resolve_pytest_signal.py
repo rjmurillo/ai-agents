@@ -39,7 +39,6 @@ from scripts.quality_gate.resolve_pytest_signal import (
     aggregate,
     compare,
     main,
-    parse_runs,
     sanitize,
     select_latest_run,
 )
@@ -96,7 +95,15 @@ def run_entry(
     event: str = "pull_request",
     head_sha: str = HEAD,
     started_at: str = "2026-08-09T10:00:00Z",
+    pr_numbers: tuple[int, ...] = (int(PR),),
+    head_repo: str = REPO,
 ) -> dict:
+    """One workflow run entry.
+
+    ``pull_requests`` and ``head_repository`` mirror the live list endpoint,
+    read 2026-08-10: runs for open pull requests carry their own number, and
+    same-repo runs report the upstream full name in ``head_repository``.
+    """
     return {
         "id": run_id,
         "run_attempt": attempt,
@@ -104,7 +111,20 @@ def run_entry(
         "head_sha": head_sha,
         "run_started_at": started_at,
         "head_branch": "feature-branch",
+        "pull_requests": [{"number": number} for number in pr_numbers],
+        "head_repository": {"full_name": head_repo},
     }
+
+
+def scan_runs(payload: object, expected_sha: str = HEAD) -> mod.RunScan | None:
+    return mod.parse_runs(payload, expected_sha, pr=PR, repo=REPO)
+
+
+def usable_scan(payload: object, expected_sha: str = HEAD) -> mod.RunScan:
+    """A scan the caller expects to be usable, failing by name when it is not."""
+    scan = scan_runs(payload, expected_sha)
+    assert scan is not None, "the payload should have parsed"
+    return scan
 
 
 def jobs_body(*jobs: dict) -> str:
@@ -197,12 +217,115 @@ class TestFreshness:
     def test_a_run_for_a_different_commit_is_rejected(self) -> None:
         payload = json.loads(runs_body(run_entry(head_sha=OTHER_HEAD)))
 
-        assert parse_runs(payload, HEAD) == []
+        assert usable_scan(payload).bound == ()
 
     def test_a_push_run_is_dropped_even_when_the_api_filter_is_ignored(self) -> None:
         payload = json.loads(runs_body(run_entry(event="push"), run_entry(run_id=101)))
 
-        assert [run.run_id for run in parse_runs(payload, HEAD) or []] == [101]
+        scan = usable_scan(payload)
+
+        assert [run.run_id for run in scan.bound] == [101]
+
+
+# ---------------------------------------------------------------------------
+# Pull request binding: one commit can head several pull requests
+# ---------------------------------------------------------------------------
+
+
+class TestPullRequestBinding:
+    def test_a_run_belonging_to_another_pull_request_is_not_bound(self) -> None:
+        """Same SHA, different pull request. The verdict is not ours to read."""
+        payload = json.loads(runs_body(run_entry(pr_numbers=(9999,))))
+
+        scan = usable_scan(payload)
+
+        assert scan.bound == ()
+        assert scan.rejected == 1
+
+    def test_a_colliding_sibling_run_does_not_hide_our_own_run(self) -> None:
+        payload = json.loads(
+            runs_body(run_entry(run_id=101, pr_numbers=(9999,)), run_entry(run_id=100))
+        )
+
+        scan = usable_scan(payload)
+
+        assert [run.run_id for run in scan.bound] == [100]
+        assert scan.rejected == 1
+
+    def test_only_another_pull_requests_run_resolves_unknown_not_pending(self) -> None:
+        """ "Someone else's run" must not read as "nothing has run yet"."""
+        gh = GhFake(
+            {
+                REF_PATH: (0, ref_body(HEAD)),
+                RUNS_PATH: (0, runs_body(run_entry(pr_numbers=(9999,)))),
+            }
+        )
+
+        result = resolve_with(gh)
+
+        assert result.status == STATUS_UNKNOWN
+        assert result.reason == mod.REASON_RUN_NOT_BOUND
+
+    def test_a_run_listing_several_pull_requests_binds_when_ours_is_present(self) -> None:
+        payload = json.loads(runs_body(run_entry(pr_numbers=(9999, int(PR)))))
+
+        scan = usable_scan(payload)
+
+        assert len(scan.bound) == 1
+
+    def test_an_empty_pull_request_list_binds_only_for_a_same_repo_run(self) -> None:
+        """GitHub empties pull_requests[] once a pull request closes.
+
+        Verified live 2026-08-10: every run of the merged pull request 4819
+        reported an empty list while runs of the open pull requests 4832, 4833,
+        and 4834 carried their own number. An empty list is therefore normal
+        and cannot be treated as a failure by itself.
+        """
+        payload = json.loads(runs_body(run_entry(pr_numbers=())))
+
+        scan = usable_scan(payload)
+
+        assert len(scan.bound) == 1
+
+    def test_an_unlinked_fork_run_is_never_bound(self) -> None:
+        """A fork cannot be named the upstream, so equality proves same-repo."""
+        payload = json.loads(runs_body(run_entry(pr_numbers=(), head_repo="attacker/ai-agents")))
+
+        scan = usable_scan(payload)
+
+        assert scan.bound == ()
+        assert scan.rejected == 1
+
+    def test_an_unlinked_run_with_no_head_repository_is_never_bound(self) -> None:
+        entry = run_entry(pr_numbers=())
+        del entry["head_repository"]
+
+        scan = usable_scan(json.loads(runs_body(entry)))
+
+        assert scan.bound == ()
+
+    def test_a_repository_name_differing_only_in_case_still_binds(self) -> None:
+        payload = json.loads(runs_body(run_entry(pr_numbers=(), head_repo=REPO.upper())))
+
+        scan = usable_scan(payload)
+
+        assert len(scan.bound) == 1
+
+    def test_a_pull_request_number_is_matched_exactly_not_by_prefix(self) -> None:
+        payload = json.loads(runs_body(run_entry(pr_numbers=(int(PR + "0"),))))
+
+        scan = usable_scan(payload)
+
+        assert scan.bound == ()
+
+    def test_a_malformed_pull_request_entry_does_not_bind(self) -> None:
+        entry = run_entry(pr_numbers=())
+        entry["pull_requests"] = ["not a mapping"]
+        entry["head_repository"] = {"full_name": "attacker/ai-agents"}
+
+        scan = usable_scan(json.loads(runs_body(entry)))
+
+        assert scan.bound == ()
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +367,9 @@ class TestAttemptSelection:
         del entry["run_attempt"]
         payload = json.loads(runs_body(entry))
 
-        assert (parse_runs(payload, HEAD) or [])[0].attempt == 1
+        scan = usable_scan(payload)
+
+        assert scan.bound[0].attempt == 1
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +449,70 @@ class TestJobAggregation:
 
     def test_an_executor_decides_over_a_pass_through_sibling(self) -> None:
         jobs = [mod.parse_job(executor_job()), mod.parse_job(pass_through_job("skipped"))]
+
+        assert aggregate(jobs).status == STATUS_PASS
+
+    def test_an_executor_pass_does_not_mask_a_pass_through_failure(self) -> None:
+        """The deciding tier can be overruled downward, never upward.
+
+        Both jobs carry the required check name "Run Python Tests", so a failed
+        pass-through means GitHub is showing that check as red. Reporting PASS
+        there claimed a green check that did not exist.
+        """
+        jobs = [mod.parse_job(executor_job()), mod.parse_job(pass_through_job("failure"))]
+
+        result = aggregate(jobs)
+
+        assert result.status == STATUS_FAIL
+        assert "unhealthy sibling" in result.reason
+
+    def test_an_executor_skip_does_not_mask_a_pass_through_failure(self) -> None:
+        jobs = [
+            mod.parse_job(executor_job(conclusion="success", step_conclusion="skipped")),
+            mod.parse_job(pass_through_job("failure")),
+        ]
+
+        assert aggregate(jobs).status == STATUS_FAIL
+
+    def test_an_executor_pass_does_not_mask_an_unclassified_failure(self) -> None:
+        unclassified = {"name": "Run Python Tests", "status": "completed", "conclusion": "failure"}
+        jobs = [mod.parse_job(executor_job()), mod.parse_job(unclassified)]
+
+        assert aggregate(jobs).status == STATUS_FAIL
+
+    def test_a_pass_through_verdict_does_not_mask_an_unclassified_failure(self) -> None:
+        """Escalation is not an executor-only rule; it applies to every tier."""
+        unclassified = {"name": "Run Python Tests", "status": "completed", "conclusion": "failure"}
+        jobs = [mod.parse_job(pass_through_job()), mod.parse_job(unclassified)]
+
+        assert aggregate(jobs).status == STATUS_FAIL
+
+    def test_a_still_running_sibling_holds_the_verdict_open(self) -> None:
+        running = {"name": "Run Python Tests", "status": "in_progress", "conclusion": None}
+        jobs = [mod.parse_job(executor_job()), mod.parse_job(running)]
+
+        assert aggregate(jobs).status == STATUS_PENDING
+
+    def test_a_benign_sibling_does_not_disturb_an_executor_pass(self) -> None:
+        """The inverse guard: escalation must not fire on the normal shape.
+
+        This is the live shape of run 31355229018, where the pass-through job
+        is skipped outright and reports no steps at all. If SKIPPED escalated,
+        every ordinary green pull request would resolve to SKIPPED.
+        """
+        skipped_sibling = {
+            "name": "Run Python Tests",
+            "status": "completed",
+            "conclusion": "skipped",
+        }
+        jobs = [mod.parse_job(executor_job()), mod.parse_job(skipped_sibling)]
+
+        assert aggregate(jobs).status == STATUS_PASS
+
+    def test_an_unclassifiable_sibling_does_not_erase_an_observed_pass(self) -> None:
+        """UNKNOWN is benign: not recognizing a sibling is not evidence of harm."""
+        mystery = {"name": "Run Python Tests", "status": "completed", "conclusion": "success"}
+        jobs = [mod.parse_job(executor_job()), mod.parse_job(mystery)]
 
         assert aggregate(jobs).status == STATUS_PASS
 
@@ -515,10 +704,10 @@ class TestUnusableData:
         entry = run_entry()
         entry["id"] = "not-a-number"
 
-        assert parse_runs(json.loads(runs_body(entry)), HEAD) == []
+        assert usable_scan(json.loads(runs_body(entry))).bound == ()
 
     def test_a_non_mapping_payload_is_unusable(self) -> None:
-        assert parse_runs(["a list"], HEAD) is None
+        assert scan_runs(["a list"]) is None
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +730,83 @@ class TestCompare:
 
     def test_a_lower_case_local_status_still_agrees(self) -> None:
         assert compare(STATUS_FAIL, " fail ")[0] == AGREE
+
+
+# ---------------------------------------------------------------------------
+# Shadow liveness: a silent shadow is indistinguishable from a dead one
+# ---------------------------------------------------------------------------
+
+
+class TestLiveness:
+    def test_every_invocation_emits_exactly_one_sample_marker(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
+
+        assert capsys.readouterr().out.count(mod.SAMPLE_MARKER) == 1
+
+    def test_a_marker_is_emitted_even_when_nothing_could_be_compared(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Zero samples must be countable, not invisible."""
+        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
+
+        assert capsys.readouterr().out.count(mod.SAMPLE_MARKER) == 1
+
+    def test_a_compared_run_reports_compared_true(self) -> None:
+        outputs = mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
+
+        assert outputs["shadow_pytest_compared"] == "true"
+
+    def test_a_disagreement_still_counts_as_a_collected_sample(self) -> None:
+        outputs = mod.emit(mod.Resolution(STATUS_FAIL, "reason"), DISAGREE, "differ")
+
+        assert outputs["shadow_pytest_compared"] == "true"
+
+    def test_an_uncompared_run_reports_compared_false(self) -> None:
+        outputs = mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
+
+        assert outputs["shadow_pytest_compared"] == "false"
+
+    def test_collecting_no_sample_is_warned_not_passed_over_quietly(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "no local status")
+
+        out = capsys.readouterr().out
+        assert "::warning::Shadow pytest signal collected no sample." in out
+
+    def test_a_healthy_agreement_raises_no_warning(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The inverse guard: liveness reporting must not become noise."""
+        mod.emit(mod.Resolution(STATUS_PASS, "reason"), AGREE, "both report PASS")
+
+        assert "::warning::" not in capsys.readouterr().out
+
+    def test_the_marker_line_carries_the_status_and_agreement(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mod.emit(mod.Resolution(STATUS_SKIPPED, "reason"), DISAGREE, "differ")
+
+        out = capsys.readouterr().out
+        assert f"::notice::{mod.SAMPLE_MARKER} status=SKIPPED agreement=DISAGREE" in out
+
+    def test_the_no_sample_warning_sanitizes_the_reason_it_is_handed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The no-sample branch needs its own guard, not the disagree branch's.
+
+        Both warnings sanitize, but only a test that reaches THIS branch can
+        observe it. A mutant emitting the raw reason here survived until this
+        test existed, so the guard was untested on the path it protects.
+        """
+        mod.emit(mod.Resolution(STATUS_UNKNOWN, "reason"), UNCOMPARED, "::error::title=x\nsecond")
+
+        out = capsys.readouterr().out
+        assert "::error::" not in out
+        assert out.count("::warning::") == 1
+        assert "errortitlex second" in out
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +878,13 @@ class TestSanitation:
             assert "::error::" not in surface
         assert "shadow_pytest_status=PASS" in written
         assert written.endswith("\n")
-        assert len(written.strip().splitlines()) == 3
+        # Exactly the documented output keys, one per line, nothing smuggled in.
+        assert [line.split("=", 1)[0] for line in written.strip().splitlines()] == [
+            "shadow_pytest_status",
+            "shadow_pytest_reason",
+            "shadow_pytest_agreement",
+            "shadow_pytest_compared",
+        ]
 
 
 # ---------------------------------------------------------------------------
