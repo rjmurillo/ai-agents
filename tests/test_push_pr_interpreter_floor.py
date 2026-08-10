@@ -48,6 +48,16 @@ FLOOR_SCRIPTS = (
     Path("src/copilot-cli/skills/github/scripts/pr/validate_pr_description.py"),
 )
 
+# Bundle members that are libraries, not CLIs. They have no --help, so they are
+# checked by executing the module body, which is what actually fails on a
+# missing stdlib name.
+FLOOR_MODULES = (
+    Path(".claude/skills/github/scripts/pr/pr_validations.py"),
+    Path("src/copilot-cli/skills/github/scripts/pr/pr_validations.py"),
+)
+
+ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES
+
 
 def _discover_python310() -> str | None:
     """Return a CPython 3.10 executable, or None when the host has none.
@@ -113,6 +123,35 @@ def test_push_pr_scripts_import_on_python310(relative: Path) -> None:
 
 
 @requires_python310
+@pytest.mark.parametrize("relative", FLOOR_MODULES, ids=lambda path: path.as_posix())
+def test_push_pr_modules_execute_on_python310(relative: Path) -> None:
+    """A bundle library must execute its module body under the 3.10 floor.
+
+    ``pr_validations.py`` has no CLI, so ``--help`` proves nothing about it.
+    Executing the file is the equivalent check: every module-level import and
+    every module-level statement runs, which is exactly where the
+    ``from datetime import UTC`` class of defect fires.
+    """
+    assert PYTHON310 is not None
+    script = REPO_ROOT / relative
+
+    result = subprocess.run(
+        [PYTHON310, "-I", str(script)],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, (
+        f"{relative.as_posix()} failed on {PYTHON310}: {result.stderr.strip()}"
+    )
+    assert "Traceback" not in result.stderr
+
+
+@requires_python310
 def test_python310_is_actually_python310() -> None:
     """Negative control for the discovery helper.
 
@@ -135,7 +174,7 @@ def test_python310_is_actually_python310() -> None:
     )
 
 
-@pytest.mark.parametrize("relative", FLOOR_SCRIPTS, ids=lambda path: path.as_posix())
+@pytest.mark.parametrize("relative", ALL_FLOOR_FILES, ids=lambda path: path.as_posix())
 def test_push_pr_scripts_avoid_post_310_datetime_alias(relative: Path) -> None:
     """Static guard that runs even where no 3.10 interpreter is installed.
 
