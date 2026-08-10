@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated commit 7a04a4a683926fe27cf60b0aac8fcd1b0794232d. The follow-up evidence commit adds only the QA report and session log."
+        "Evidence": "PR code validated at 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545 before QA evidence refresh."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "297 targeted GC tests passed in 10.59s, the focused 127-test slice passed in 2.98s, and PR live state remained ACT."
+        "Evidence": "QA rerun after merging origin/main: pytest collected 296 and passed 296 for worktree GC targeted suites. Ruff passed on changed maintenance and GC test files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -136,7 +136,7 @@
       "outcome": "Confirmed the patch closes reflog, worktree-ref, and late-race loss channels without finding a correctness regression."
     }
   ],
-  "endingCommit": "7a04a4a683926fe27cf60b0aac8fcd1b0794232d",
+  "endingCommit": "7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545",
   "nextSteps": [
     "Commit the QA report and session log to the PR branch.",
     "Push the evidence commit and let Validate PR re-read the new QA report."

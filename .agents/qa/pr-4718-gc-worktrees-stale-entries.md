@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 7a04a4a683926fe27cf60b0aac8fcd1b0794232d
+qaCommit: 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
