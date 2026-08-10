@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10018,
+    "date": "2026-08-08",
+    "branch": "fix/3912-authoritative-pr-context",
+    "startingCommit": "a42cf47b6",
+    "objective": "Fix issue 3912 authoritative GitHub PR context metadata and merge one focused PR"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server active; initial instructions returned"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts/pr listed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded github/graphql-pr-operations and github/github-cli-pr-operations"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3912-authoritative-pr-context"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3912-authoritative-pr-context"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Focused worktree status inspected throughout"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a42cf47b6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session gates completed; implementation commit 8f490a083791"
+      },
+      "handoffNotUpdated": {
+        "level": "MUST NOT",
+        "Complete": false,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github/pr-context-authoritative-metadata written and indexed"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 reported no issues for canonical and generated API references"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4767-issue-3912-authoritative-pr-context-test-report.md PASS; 62 focused and 1337 broader tests"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commit 8f490a08379143d65bf8d12b7654974d96771feb"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py exit 0; focused pytest 66 passed; ruff and mypy passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "SQL todo remains in_progress until merge or closure"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: focused issue fix with no new process defect"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged issue #3912 and linked discussions",
+      "outcome": "P1 live defect confirmed on origin/main; direct issue chain read and transitive traversal covered 730 referenced items before bot-generated references expanded beyond issue scope"
+    },
+    {
+      "action": "Checked duplicate pull requests",
+      "outcome": "PR #4733 combines #3912 with four unrelated issues and cannot satisfy the one-issue scope"
+    },
+    {
+      "action": "Reproduced current behavior",
+      "outcome": "Helper omitted status_checks and review-thread total and unresolved counts"
+    },
+    {
+      "action": "Implemented authoritative PR metadata",
+      "outcome": "Added typed status records, counts, paginated review-thread totals, unresolved count, returned count, and completeness signal"
+    },
+    {
+      "action": "Added positive, negative, and edge tests",
+      "outcome": "60 focused tests pass with 94 percent branch-aware helper coverage"
+    },
+    {
+      "action": "Verified live GitHub behavior",
+      "outcome": "Canonical and generated helpers returned 144 status checks and 16 of 16 review threads on PR #4733"
+    },
+    {
+      "action": "Ran independent review and QA",
+      "outcome": "Blocking nullable-rollup finding fixed; follow-up review CLEAN; reviewer fixes validated; issue-scoped QA PASS with 1337 broader regression tests"
+    },
+    {
+      "action": "Documented output contract and durable metadata shapes",
+      "outcome": "API reference updated; Serena memory written and indexed"
+    }
+  ],
+  "endingCommit": "8f490a08379143d65bf8d12b7654974d96771feb",
+  "nextSteps": [
+    "Push focused branch",
+    "Close combined duplicate PR #4733",
+    "Open one PR for issue #3912, retain auto-merge, resolve threads, and drive to merge"
+  ]
+}

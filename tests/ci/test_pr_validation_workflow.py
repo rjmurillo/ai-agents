@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,66 @@ enforce_mod = _load_module("enforce_pr_validation")
 
 def _set_output(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
     monkeypatch.setenv("GITHUB_OUTPUT", str(path))
+
+
+def _write_qa_artifacts(
+    root: Path,
+    *,
+    verdict: str = "PASS",
+    session_log: str = ".agents/sessions/session.json",
+    report_commit: str = "a" * 40,
+    session_commit: str | None = None,
+) -> Path:
+    report_dir = root / ".agents" / "qa"
+    report_dir.mkdir(parents=True)
+    report = report_dir / "qa-pr-42.md"
+    report.write_text(
+        "---\n"
+        f"qaVerdict: {verdict}\n"
+        f"qaSessionLog: {session_log}\n"
+        f"qaCommit: {report_commit}\n"
+        "---\n"
+        "# QA\n",
+        encoding="utf-8",
+    )
+    session_path = root / ".agents" / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {
+                    "comparison": {
+                        "head": session_commit or report_commit,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return report
+
+
+def test_load_session_log_uses_configured_artifact_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    session_path = artifact_root / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps({"endingCommit": "a" * 40}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+    monkeypatch.chdir(tmp_path)
+
+    path, data = qa_mod._load_session_log(
+        ".agents/sessions/session.json"
+    )
+
+    assert path == session_path
+    assert data["endingCommit"] == "a" * 40
 
 
 @pytest.mark.parametrize(
@@ -90,29 +151,44 @@ def test_qa_report_detects_code_changes_and_existing_report(
     capsys: pytest.CaptureFixture[str],
 ):
     output = tmp_path / "github-output.txt"
-    report_dir = tmp_path / ".agents" / "qa"
-    report_dir.mkdir(parents=True)
-    (report_dir / "qa-pr-42.md").write_text("ok\n", encoding="utf-8")
+    _write_qa_artifacts(tmp_path)
+    (tmp_path / ".agents" / "sessions" / "duplicate-number.json").write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {"comparison": {"head": "c" * 40}},
+            }
+        ),
+        encoding="utf-8",
+    )
     _set_output(monkeypatch, output)
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
     monkeypatch.setenv("PR_NUMBER", "42")
     monkeypatch.chdir(tmp_path)
 
-    def fake_run(
-        args: list[str],
-        *,
-        check: bool,
-        stdout: int,
-        text: bool,
-        encoding: str,
-        errors: str,
-    ) -> subprocess.CompletedProcess[str]:
-        assert check is False
-        assert stdout is subprocess.PIPE
-        assert text is True
-        assert encoding == "utf-8"
-        assert errors == "replace"
-        return subprocess.CompletedProcess(args, 0, "src/app.py\n.agents/note.md\n")
+    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        assert kwargs["check"] is False
+        assert kwargs["stdout"] is subprocess.PIPE
+        assert kwargs["text"] is True
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                "src/app.py\n.agents/note.md\n",
+            )
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                ".agents/sessions/session.json\0.agents/qa/qa-pr-42.md\0",
+            )
+        raise AssertionError(f"Unexpected subprocess call: {args}")
 
     monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
 
@@ -123,6 +199,88 @@ def test_qa_report_detects_code_changes_and_existing_report(
         "qa_report=qa-pr-42.md\n"
     )
     assert "✓ QA report found: qa-pr-42.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("verdict", "session_log", "report_commit", "session_commit"),
+    [
+        ("DEFERRED", ".agents/sessions/session.json", "a" * 40, None),
+        ("FAIL", ".agents/sessions/session.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/unrelated.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/session.json", "b" * 40, "a" * 40),
+        ("PASS", ".agents/sessions/session.json", "abcdef1234", None),
+    ],
+)
+def test_qa_report_rejects_non_passing_or_unbound_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    verdict: str,
+    session_log: str,
+    report_commit: str,
+    session_commit: str | None,
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(
+        tmp_path,
+        verdict=verdict,
+        session_log=session_log,
+        report_commit=report_commit,
+        session_commit=session_commit,
+    )
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        qa_mod.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "src/app.py\n",
+        ),
+    )
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "::error::Invalid QA report:" in capsys.readouterr().out
+
+
+def test_qa_report_rejects_code_changed_after_qa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(tmp_path)
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(args, 0, "src/app.py\n")
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
+            return subprocess.CompletedProcess(args, 0, "scripts/new_code.py\0")
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "QA report is stale" in capsys.readouterr().out
 
 
 def test_qa_report_skips_when_only_agents_files_changed(
@@ -147,7 +305,44 @@ def test_qa_report_skips_when_only_agents_files_changed(
     )
 
 
-def test_qa_report_warns_when_code_changes_lack_report(
+@pytest.mark.parametrize(
+    "destination",
+    [
+        ".agents/qa/tool.py",
+        ".agents/sessions/tool.py",
+        ".agents/memory/episodes/tool.py",
+    ],
+)
+def test_qa_report_requires_qa_when_code_is_renamed_into_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    destination: str,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        assert args[-2] == "--jq"
+        assert "previous_filename" in args[-1]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            f"{destination}\nscripts/tool.py\n",
+        )
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+
+
+def test_qa_report_blocks_when_code_changes_lack_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -163,12 +358,12 @@ def test_qa_report_warns_when_code_changes_lack_report(
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, "workflow.yml\n"),
     )
 
-    assert qa_mod.main() == 0
+    assert qa_mod.main() == 1
     assert output.read_text(encoding="utf-8") == (
         "has_code_changes=True\n"
         "qa_report_exists=false\n"
     )
-    assert "::warning::No QA report found for code changes" in capsys.readouterr().out
+    assert "::error::No QA report found for code changes" in capsys.readouterr().out
 
 
 def test_report_builds_fail_status_and_outputs_status(
@@ -934,7 +1129,11 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
-            # Tool setup is throughput-only. It cannot validate repository contents.
+            # Tool setup is throughput-only. It cannot validate repository
+            # contents, so skipping it on a bot PR removes no measurement. That
+            # holds only because the unguarded half of this job installs uv for
+            # itself; `test_unguarded_uv_consumers_have_an_unguarded_install`
+            # enforces it, so this justification cannot rot silently.
             "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
@@ -947,6 +1146,7 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
+
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
@@ -965,6 +1165,86 @@ class TestBotSkipGuardClassification:
         assert "if" not in step, (
             f"ADR-006 ratchet must be unconditional, found: if: {step.get('if')!r}"
         )
+
+    def _assert_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """Assert `Setup uv` self-serves the unguarded half of the job.
+
+        The job installs uv twice on purpose. The guarded install serves the
+        guarded prefix; a second, unguarded install serves the unguarded
+        steps that follow it. That is what makes skipping the guarded one
+        harmless on a bot PR.
+
+        If someone deletes the second install as redundant, every unguarded
+        `uv` step breaks on bot PRs and the `Setup uv` allowlist entry stops
+        being justified. Pin the invariant rather than asserting it in a
+        comment nobody re-checks.
+        """
+        steps = self._host_steps()
+        installs = [
+            i
+            for i, step in enumerate(steps)
+            if "setup-uv" in str(step.get("uses", ""))
+            and not self._has_bot_skip_guard_component(step.get("if"))
+        ]
+        consumers = [
+            (i, str(step.get("name", "")))
+            for i, step in enumerate(steps)
+            if "uv " in str(step.get("run", ""))
+            and not self._has_bot_skip_guard_component(step.get("if"))
+        ]
+        assert consumers, "expected at least one unguarded uv consumer to protect"
+        assert installs, (
+            "no unguarded uv install in the job, so every unguarded uv step "
+            f"breaks when the bot-skip guard fires: {[n for _, n in consumers]!r}"
+        )
+        first_install = min(installs)
+        orphans = [name for i, name in consumers if i < first_install]
+        assert not orphans, (
+            f"unguarded uv steps run before the first unguarded uv install: {orphans!r}. "
+            "They inherit the guarded install and break on bot PRs."
+        )
+
+    def test_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """`Setup uv` is allowlisted only while the unguarded half self-serves."""
+        self._assert_unguarded_uv_consumers_have_an_unguarded_install()
+
+    def test_unguarded_uv_install_must_precede_its_consumers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: an install that lands after a consumer does not serve it.
+
+        Presence alone is not enough. A consumer sitting above the unguarded
+        install inherits the guarded one, so it still breaks on a bot PR.
+        """
+        steps = [
+            {"name": "Early consumer", "run": "uv run --frozen python x.py"},
+            {"name": "Setup uv late", "uses": "astral-sh/setup-uv@abc"},
+        ]
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
+
+        with pytest.raises(AssertionError, match="Early consumer"):
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
+
+    def test_unguarded_uv_check_requires_a_consumer_to_protect(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: with no unguarded consumer the check is vacuous, so it fails.
+
+        A job whose uv steps are all guarded would pass the install assertion
+        for the wrong reason. Fail instead, so the guard cannot quietly stop
+        measuring anything.
+        """
+        steps = [
+            {
+                "name": "Guarded consumer",
+                "run": "uv run --frozen python x.py",
+                "if": self.BOT_SKIP_GUARD,
+            }
+        ]
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
+
+        with pytest.raises(AssertionError, match="at least one unguarded uv consumer"):
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
 
     def test_no_security_gate_is_skip_guarded(self) -> None:
         """Negative: every skip-guarded step must be throughput-motivated.
