@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-07-session-10004-correct-4586-git-trust-boundaries.json
-qaCommit: 02c953409728ce3efa91e27ab6bf43c0c923a0de
+qaCommit: 1dab2578057cf0c60985444ee200ac78d6a2f780
 ---
 
 # QA Report: PR 4586 session 10004
