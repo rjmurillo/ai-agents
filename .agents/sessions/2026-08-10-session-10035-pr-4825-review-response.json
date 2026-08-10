@@ -148,7 +148,7 @@
       "outcome": "Six roles reviewed the one-sentence factual correction against the measured counts. 6 Accept, 0 Disagree-and-Commit, 0 Block, no Critical or High finding. Round appended to .agents/critique/ADR-068-debate-log.md."
     }
   ],
-  "endingCommit": "f9a9f61cffaac5877aa4367b2012ea0ec3e9687a",
+  "endingCommit": "15225f3c110397a4644cf4e59eea13d90f55c4b1",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
