@@ -164,7 +164,7 @@
       "outcome": "Scope rule C's fixed 64-token window was a fail-open bypass: env padding hid an executed byte-identical copy. Measured leaks at padding 63 and above. Rejected two repairs on measurement (full scan 5.6s, fail-closed budget 10.2s and false denials) and switched to inspecting execution positions, which padding cannot move. Also bounded the interpreter search, cutting an 87 KiB command from 10.2s to 0.088s against a 10s host timeout."
     }
   ],
-  "endingCommit": "5b97a6493a89e3f2081a0a99fee6d36f94f23cca",
+  "endingCommit": "ce3f4f65165effdd287f6cb0b82c62cf72ebc64d",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
