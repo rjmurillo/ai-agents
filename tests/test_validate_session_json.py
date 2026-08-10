@@ -1977,7 +1977,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -1998,7 +2000,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), str(session_files[0])],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -3435,8 +3439,13 @@ class TestEndingCommitReachability:
 
         def git(*args: str) -> str:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True,
-                encoding="utf-8", check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
@@ -3482,7 +3491,9 @@ class TestEndingCommitReachability:
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
         assert (
@@ -3490,7 +3501,9 @@ class TestEndingCommitReachability:
                 ["git", "rev-parse", "--is-shallow-repository"],
                 cwd=shallow,
                 capture_output=True,
-                text=True, encoding="utf-8",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             ).stdout.strip()
             == "true"
@@ -3544,6 +3557,26 @@ class TestEndingCommitReachability:
         log["endingCommit"] = "0" * 40
         assert any("issue #3618" in e for e in validate_session_log(log).errors), (
             "an unresolvable endingCommit must be reported as an error (#3883)"
+        )
+
+    def test_orphan_message_mentions_squash_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Error message must mention squash merge as a cause (#4312).
+
+        The repo uses squash-only merges, so squash is the most common reason an
+        endingCommit becomes unreachable. An error message that only lists amend
+        and rebase misleads contributors into looking in the wrong place.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        errors = validate_session_log(log).errors
+        assert any("squash" in e for e in errors), (
+            "error must mention squash merge as a possible cause (#4312)"
         )
 
     def test_a_sound_ending_commit_does_not_warn(

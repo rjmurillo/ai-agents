@@ -36,6 +36,9 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # Base package names (PEP 503 normalized) that both local commit/push gates and
 # CI require. A plain ``uv sync`` and ``uv pip install -e ".[dev]"`` must each
 # make all of these importable/runnable.
+#
+# ``pytest-xdist`` is required because both gates pass ``-n`` at the call site
+# and pytest exits 4 on an unrecognized flag (issue #4823).
 REQUIRED_DEV_TOOLS = frozenset(
     {
         "bandit",
@@ -45,6 +48,7 @@ REQUIRED_DEV_TOOLS = frozenset(
         "pytest",
         "pytest-cov",
         "pytest-timeout",
+        "pytest-xdist",
         "ruff",
         "semgrep",
     }
@@ -180,7 +184,7 @@ def test_missing_required_tools_flags_absent_tools() -> None:
 
     missing = missing_required_tools(group)
 
-    assert {"ruff", "mypy", "bandit", "pip-audit", "pytest"} <= missing
+    assert {"ruff", "mypy", "bandit", "pip-audit", "pytest", "pytest-xdist"} <= missing
     assert "pytest-cov" not in missing
 
 
@@ -189,6 +193,7 @@ def test_missing_required_tools_empty_when_all_present() -> None:
         "pytest>=9.0.3",
         "pytest-cov>=7.1.0",
         "pytest-timeout>=2.4.0",
+        "pytest-xdist>=3.8.0",
         "bandit[sarif]>=1.9.4",
         "lefthook==2.1.10",
         "pip-audit>=2.10.0",
