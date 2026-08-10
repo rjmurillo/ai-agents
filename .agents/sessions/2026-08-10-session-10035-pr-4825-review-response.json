@@ -146,9 +146,13 @@
     {
       "task": "Record the adr-review round for the ADR-068 Context correction",
       "outcome": "Six roles reviewed the one-sentence factual correction against the measured counts. 6 Accept, 0 Disagree-and-Commit, 0 Block, no Critical or High finding. Round appended to .agents/critique/ADR-068-debate-log.md."
+    },
+    {
+      "task": "Self-review the relevance gate before shipping it",
+      "outcome": "Probing ordinary brace usage found the gate denied 4 of 7 legitimate commands because materializing a large range exceeded the expansion budget, which fails closed. Collapsed ranges to the characters new_pr.py can use instead of enumerating them. Re-probed: 0 of 7 legitimate denied, 0 of 8 range-obfuscated attempts leaked, worst case 0.103s against the 10s hook timeout. Both bands are regression tests."
     }
   ],
-  "endingCommit": "15225f3c110397a4644cf4e59eea13d90f55c4b1",
+  "endingCommit": "c9813c0b58f127ae272957bee030ef70bf1290fd",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",

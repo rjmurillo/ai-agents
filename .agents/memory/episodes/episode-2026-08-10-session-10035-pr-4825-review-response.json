@@ -85,7 +85,8 @@
         "e004",
         "e005",
         "e006",
-        "e008"
+        "e008",
+        "e012"
       ],
       "leads_to": [
         "e009"
@@ -137,6 +138,30 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Self-review the relevance gate before shipping it",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T09:49:18+00:00",
+      "type": "commit",
+      "content": "Commit: c9813c0b58f127ae272957bee030ef70bf1290fd",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     }
@@ -146,8 +171,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 22
+    "commits": 5,
+    "files_changed": 24
   },
   "lessons": []
 }
