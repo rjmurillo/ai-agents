@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14653,
+    "date": "2026-08-10",
+    "branch": "fix/issue-4850-9d8546d8",
+    "startingCommit": "8f8b6696d",
+    "objective": "Own issue 4850 through reproduction, narrow fix, validation, and GitHub disposition"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project was not exposed; used the documented .serena/memories fallback in the isolated worktree."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed successfully."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded github, git-good, session-init, agent-harness-reference, and ai-agents-portability-campaign. Used GitHub issue and PR scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read agent mirror, generation edit location, parity gate, and eval fixture provenance memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4850-9d8546d8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4850-9d8546d8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree was clean on fix/issue-4850-9d8546d8 before session log creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8f8b6696d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed every required session-end item after implementation and validation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory was warranted. Existing agent mirror memories already document the verified two-pipeline recipe."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 reported 0 issues in 0 files because repository configuration excludes .github/agents/**/*.agent.md."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4850-qa-contract-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commit 63825dae3d7ee12e020dde8903988eb54a6f45f6 and main merge 472182f4cab5271aaa2fc82b6eca28952261ba37."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Focused regression, lint, type, strict drift, parity, and generation checks passed on the merged branch."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Checked ownership and existing work",
+      "result": "No open PR addressed issue 4850. GitHub assignment and claim-comment writes were denied for the authenticated Enterprise Managed User."
+    },
+    {
+      "action": "Read issue discourse and linked history",
+      "result": "Read the issue body, all three comments, and direct linked items. Recursive traversal reached 79 items before GitHub API rate limiting stopped comment retrieval."
+    },
+    {
+      "action": "Reproduced and assessed the claim",
+      "result": "The self-host Copilot QA prompt lacked five canonical sections while drift detection reported qa at 86.3 percent and exited 0. Priority P1 and fix merit confirmed."
+    },
+    {
+      "action": "Implemented the narrow prompt and gate fix",
+      "result": "Restored the five QA contract sections, made the two load-bearing sections mandatory, and added positive, omission, and 16-of-49 corpus tests across six prompt surfaces."
+    },
+    {
+      "action": "Validated the merged branch",
+      "result": "95 targeted tests passed. Ruff, mypy, strict drift at qa 94.0 percent, install parity, and generation checks passed."
+    }
+  ],
+  "endingCommit": "472182f4cab5271aaa2fc82b6eca28952261ba37",
+  "nextSteps": [
+    "GitHub issue and PR writes require a non-EMU credential with repository write access.",
+    "Full pre_pr.py is blocked because merge-tree-ratchet exceeds its 300-second local timeout on the shared machine."
+  ]
+}
