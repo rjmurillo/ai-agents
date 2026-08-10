@@ -48,6 +48,9 @@ jobs:
           ref: ${{ github.base_ref || github.ref_name }}
           persist-credentials: false
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+
       # Fetch candidate commit and extract data via git (no checkout action)
       - name: Fetch candidate data via git
         env:
@@ -56,23 +59,29 @@ jobs:
           # Falls back to implicit GITHUB_TOKEN when unset.
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
         run: |
+          CANDIDATE_ROOT="$RUNNER_TEMP/candidate"
           git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}"             fetch --depth=1 origin "$PR_SHA"
-          mkdir -p /tmp/candidate
-          git archive "$PR_SHA" | tar -x -C /tmp/candidate
+          uv run --frozen python - "$PR_SHA" "$CANDIDATE_ROOT" <<'PY'
+          from pathlib import Path
+          import sys
+
+          from scripts.ci.merge_tree_materialization import materialize_tree
+
+          if not materialize_tree(Path.cwd(), sys.argv[1], Path(sys.argv[2])):
+              raise SystemExit(1)
+          PY
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '20'
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
-
       # Run trusted validator (from base branch) against candidate data
       - name: Validate vendor provenance (trusted gate)
         run: |
+          CANDIDATE_ROOT="$RUNNER_TEMP/candidate"
           uv run --frozen python scripts/ci/validate_vendor_provenance.py \
-            --candidate-root /tmp/candidate \
+            --candidate-root "$CANDIDATE_ROOT" \
             --vendor-rel .claude/hooks/PreToolUse/_vendor/markdownlint \
             --verifier-rel .claude/hooks/PreToolUse/_markdownlint_verifier.py \
             --mirror-rel src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py \

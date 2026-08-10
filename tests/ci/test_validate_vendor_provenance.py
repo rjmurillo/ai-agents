@@ -736,6 +736,18 @@ class TestWorkflowContract:
         assert "uv run --frozen python scripts/ci/validate_vendor_provenance.py" in wf
         assert "python3 scripts/ci/validate_vendor_provenance.py" not in wf
 
+    def test_workflow_materializes_candidate_tree_without_archive(self) -> None:
+        """Candidate materialization must ignore export-ignore attributes."""
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        assert "materialize_tree(Path.cwd(), sys.argv[1], Path(sys.argv[2]))" in wf
+        assert "git archive" not in wf
+
+    def test_workflow_uses_runner_temp_candidate_root(self) -> None:
+        """Candidate root must come from runner temp, not a hard-coded path."""
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        assert 'CANDIDATE_ROOT="$RUNNER_TEMP/candidate"' in wf
+        assert '--candidate-root "$CANDIDATE_ROOT"' in wf
+
     def test_workflow_passes_copilot_config_rel(self) -> None:
         """vendor-provenance.yml must pass --copilot-config-rel."""
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
