@@ -90,6 +90,11 @@
         "level": "MUST",
         "complete": true,
         "evidence": "scripts/validate_session_json.py passed on the repaired 2026-08-05-session-10005.json with a negative control reproducing CI's original complaint. git_hook_policy.py retrospective passed with a two-direction control: exit 0 with the retrospective present, exit 1 with it moved aside."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/qa/2026-08-07-session-10007-stack-unblock.md"
       }
     }
   },
@@ -115,7 +120,7 @@
       "entry": "Compared git rev-parse against git ls-remote for all five stack branches. Three in sync, one diverged by a documented gh pr update-branch, one genuinely unpushed. Wrote the retrospective on the measurement defect."
     }
   ],
-  "endingCommit": "0070e6a42d9200a0ae4e713f2291118f367d7b49",
+  "endingCommit": "5585974bc3d9905ab3467a920bbdcc867f147c5f",
   "nextSteps": [
     "Merge the stack bottom-up once green: #4694, #4718, #4728, then #4726 and #4732.",
     "Read the Gemini adversarial review of the new script-root memory and apply any Critical or High findings.",

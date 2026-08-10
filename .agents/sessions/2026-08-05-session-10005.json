@@ -100,6 +100,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Merited and run. A revert experiment executed a real git worktree prune against the live repository, removing 62 stale admin entries. Blast radius verified zero: every affected HEAD was ref-contained beforehand and all 50 named branches survive. Root cause and prevention recorded in .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-05-session-10005-gc-worktrees-admin-anchors.md"
       }
     }
   },
@@ -321,7 +326,7 @@
       "evidence": "Wrote .agents/retrospective/2026-08-06-squash-severed-stack-and-silent-reflog-defaults.md covering three failures classified against FAILURE-MODES.md: a delegated agent that reset and cleaned a shared worktree holding committed work (mode 7), two High silent-default defects in the reflog reader that 262 mock-based tests missed (mode 10), and reading git log as ancestry proof (mode 9). Zero em or en dashes, taste-lints clean."
     }
   ],
-  "endingCommit": "cbed7c48f",
+  "endingCommit": "5585974bc3d9905ab3467a920bbdcc867f147c5f",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
