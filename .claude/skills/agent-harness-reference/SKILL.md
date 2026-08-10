@@ -103,9 +103,9 @@ that hangs is a gate that passes the call through.
   two PreToolUse and one PostToolUse.
 - Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: two dispatcher
   registrations, one per active event.
-- Local repository settings, `.claude/settings.json`: eight registrations across
-  SessionStart, UserPromptSubmit, PostToolUse, SessionEnd, PreCompact, and
-  PreToolUse. These do not feed the vendored Copilot plugin generator.
+- Local repository settings, `.claude/settings.json`: seven registrations across
+  SessionStart, UserPromptSubmit, PostToolUse, SessionEnd, and PreCompact.
+  These do not feed the vendored Copilot plugin generator.
 
 ### Event policy
 
