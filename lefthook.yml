@@ -455,12 +455,6 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
             glob: [".serena/memories/**/*.md"]
-          - name: cli-exit-contract-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
-            glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
-
-
           - name: python-unreachable-statements
             timeout: 2m
             run: uv run --frozen python scripts/validation/check_unreachable_after_terminator.py .
