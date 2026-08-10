@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validated code commit: 8d1207b802540a3dc1c798795f2324459ef47a71"
+        "Evidence": "Latest validated code commit: 7e7327a74d717dacef201976fb3717ba649c5f0e"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,9 +146,9 @@
       "kind": "githubPullRequest",
       "pullRequest": 4832,
       "base": "8108ebfea285f7030906a425be28d8707680d001",
-      "head": "8d1207b802540a3dc1c798795f2324459ef47a71"
+      "head": "7e7327a74d717dacef201976fb3717ba649c5f0e"
     }
   },
-  "endingCommit": "8d1207b802540a3dc1c798795f2324459ef47a71",
+  "endingCommit": "7e7327a74d717dacef201976fb3717ba649c5f0e",
   "nextSteps": []
 }
