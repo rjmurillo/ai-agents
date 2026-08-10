@@ -1,29 +1,52 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-pr-4609.json
-qaCommit: f963e3df0e314bc8e8f08a6558464e0e6cc29f0d
+qaCommit: 1d98e991648843b7a3352c566c6fe053ec99513f
 ---
-# QA Report: PR #4609 Portability Isolation Merge Repair
+# QA Report: PR #4609 Portability Isolation
 
-**SHA**: f963e3df0e314bc8e8f08a6558464e0e6cc29f0d
-**Date**: 2026-08-09
-**Scope**: portability isolation merge repair after merging `origin/main` and fixing changed-file type and lint failures.
+**SHA**: 1d98e991648843b7a3352c566c6fe053ec99513f
+**Date**: 2026-08-10
+**Scope**: portability git isolation and restore-mutant hardening (fixes #4524, #4497).
 
 ## Verdict
 
-PASS. No blocking issue found in the merge-resolution delta.
+PASS. 59/59 tests pass on live HEAD. No blocking issue found.
 
 ## Evidence
 
 | Check | Result |
 |-------|--------|
-| conflict marker check across changed files | clean |
-| memory-index target check | not changed versus `origin/main` |
-| `uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py -q` | 59 passed |
-| `uv run --frozen ruff check scripts/ci/mutation_harness_ciperms.py tests/ci/test_mutation_harness_ciperms.py` | Passed |
-| `uv run --frozen mypy scripts/ci/mutation_harness_ciperms.py tests/ci/test_mutation_harness_ciperms.py` | Passed |
-| `uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-05-session-9999-pr-4609.json` | Passed |
+| `uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py -q --no-header` | 59 passed in 22.62s |
+| `uv run --frozen ruff check scripts/ci/mutation_harness_ciperms.py tests/ci/test_mutation_harness_ciperms.py` | All checks passed |
+| conflict marker check | clean |
+| session JSON `sessionEnd.qaValidation` present | yes |
+
+## Metrics
+
+| Metric | Value |
+|--------|-------|
+| Total Tests | 59 |
+| Passed | 59 |
+| Failed | 0 |
+| Skipped | 0 |
+| Duration | 22.62s |
+
+## Reconciliation
+
+```text
+Promised: 59 targeted tests (test_mutation_harness_ciperms.py), ruff clean, session binding
+Delivered: 59 passed, ruff passed, session bound to 1d98e991
+Gap: none
+Result: PASS
+```
+
+## Status
+
+**QA COMPLETE**
 
 ## Notes
 
-The previous failures were missing `sessionEnd.qaValidation`, ruff F401 on `shutil`, and changed-file type risk after resolving the `_run_tests` signature conflict. This report binds QA evidence to the content commit. The session log records that SHA in `endingCommit`.
+Previous QA report bound to f963e3df (pre-merge-main). This refresh re-runs tests on
+live HEAD 1d98e991 (post merge-main + retrigger commit) and closes the session with
+`sessionEnd.qaValidation`.

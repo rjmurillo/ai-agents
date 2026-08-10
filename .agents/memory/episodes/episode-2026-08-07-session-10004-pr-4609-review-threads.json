@@ -51,6 +51,31 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10004-pr-4609-review-threads"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T04:06:00+00:00",
+      "type": "milestone",
+      "content": "QA report refreshed: 59/59 tests pass on HEAD 1d98e991; session closed with sessionEnd.qaValidation",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T09:33:07+00:00",
+      "type": "commit",
+      "content": "Commit: 1d98e991648843b7a3352c566c6fe053ec99513f",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10004-pr-4609-review-threads"
     }
@@ -60,8 +85,11 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 2,
+    "qa_tests_passed": 59,
+    "qa_verdict": "PASS",
+    "qa_validated_commit": "1d98e991648843b7a3352c566c6fe053ec99513f"
   },
   "lessons": []
 }
