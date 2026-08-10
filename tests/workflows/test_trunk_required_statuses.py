@@ -99,6 +99,15 @@ def test_checks_never_seen_on_a_trunk_draft_are_excluded(
     assert not overlap, f"these never report on a Trunk draft: {sorted(overlap)}"
 
 
+def test_metadata_only_checks_are_excluded(required_statuses: list[str]) -> None:
+    """`Validate PR` validates pull request metadata, not the merged tree, and
+    Trunk's generated body can never satisfy it. Measured on draft 4805: job
+    93324296243 failed at `Check QA Report Exists`, a real failure rather than
+    a cancellation. The name-existence test above passed while this check was
+    configured and broken, which is why this assertion is separate."""
+    assert "Validate PR" not in required_statuses
+
+
 def test_title_check_is_excluded(required_statuses: list[str]) -> None:
     """`Validate PR title` is exempt on trunk-merge branches by construction,
     so requiring it in the queue asserts nothing."""

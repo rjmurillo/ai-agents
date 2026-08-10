@@ -13,16 +13,29 @@ version: 0.1
 #
 #   Run Python Tests           tests that pass apart and fail together
 #   Validate Generated Files   both edit canonical sources, mirrors go stale
-#   Validate PR                repository-wide validation of the merged tree
 #   Validate memory citations  concurrent memory-index edits merge without a
 #                              conflict and still leave a broken citation
 #
 # Excluded deliberately. The six AI agent reviews (Analyst, Architect, DevOps,
 # QA, Roadmap, Security) and Validate Spec Coverage judge the change, not the
 # combination, and each costs AI credits per run. Validate PR title is exempt
-# on trunk-merge branches by construction. Analyze (actions) and Analyze
-# (python) have never been observed reporting on a Trunk draft, so requiring
-# them would hang the queue on a check that never arrives.
+# on trunk-merge branches by construction.
+#
+# Validate PR is excluded because it validates pull request metadata, not the
+# merged tree, and Trunk's generated body can never satisfy it. Measured on
+# draft 4805: job 93324296243 failed at `Check QA Report Exists`, a real
+# failure rather than a cancellation. Requiring it would block the queue on
+# every code-changing batch.
+#
+# Analyze (actions) and Analyze (python) are excluded, and this is the weakest
+# entry here. They were never observed reporting on a Trunk draft, but every
+# observation came from a run cancelled after another gate failed, so absence
+# is unproven rather than established. Requiring a check that never arrives
+# hangs the queue, so they stay out until one clean queue run shows whether
+# they report. The compensating control is that codeql-analysis.yml also runs
+# on push to main, so a regression created by combining two individually clean
+# pull requests is caught after the merge rather than before it. Re-evaluate
+# this entry once the queue completes end to end.
 #
 # Names must match the job `name:` exactly. Renaming one of these jobs is a
 # queue change as well as a branch-protection change; `.claude/rules/ci-scripts.md`
@@ -31,5 +44,4 @@ merge:
   required_statuses:
     - Run Python Tests
     - Validate Generated Files
-    - Validate PR
     - Validate memory citations

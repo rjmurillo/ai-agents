@@ -97,6 +97,21 @@ def test_failing_step_is_gated_on_the_skip(job: dict) -> None:
     assert failing[0]["if"].startswith(_SKIP_GUARD)
 
 
+def test_every_step_after_the_decision_is_gated_on_the_skip(job: dict) -> None:
+    """Positive, and broader than the failing step alone. Any step after
+    `should-run` that loses the guard could fail the job on a draft, which
+    would turn a required context red on every queued pull request. Asserting
+    only `Check for Failures` left that regression invisible."""
+    steps = job["steps"]
+    decision = next(i for i, s in enumerate(steps) if s.get("id") == "should-run")
+    unguarded = [
+        s.get("name")
+        for s in steps[decision + 1 :]
+        if _SKIP_GUARD not in str(s.get("if", ""))
+    ]
+    assert not unguarded, f"steps run on drafts and can fail the job: {unguarded}"
+
+
 def test_every_agent_step_is_gated_on_the_skip(job: dict) -> None:
     """Positive: the paid agent steps are what the draft skip exists to avoid
     paying for twice."""
