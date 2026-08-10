@@ -47,7 +47,16 @@ def job_names() -> set[str]:
             continue
         for job_id, job in (data.get("jobs") or {}).items():
             if isinstance(job, dict):
-                names.add(str(job.get("name", job_id)))
+                name = str(job.get("name", job_id))
+                strategy = job.get("strategy")
+                matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+                includes = matrix.get("include", []) if isinstance(matrix, dict) else []
+                expanded = {
+                    name.replace("${{ matrix.language }}", str(row["language"]))
+                    for row in includes
+                    if isinstance(row, dict) and "language" in row
+                }
+                names.update(expanded or {name})
     return names
 
 
@@ -89,17 +98,11 @@ def test_paid_ai_reviews_are_excluded(required_statuses: list[str]) -> None:
     assert not overlap, f"paid AI reviews must not gate the queue: {sorted(overlap)}"
 
 
-def test_checks_not_observed_reporting_on_a_draft_are_excluded(
-    required_statuses: list[str],
-) -> None:
-    """Edge: requiring a check that does not report on a draft hangs the queue
-    forever. These were not seen reporting on drafts 4796, 4803, or 4805, but
-    every one of those runs was cancelled after another gate failed, so their
-    absence is unproven rather than established. They stay excluded because
-    the downside is a hung queue; re-evaluate after one clean queue run."""
-    not_observed = {"Analyze (actions)", "Analyze (python)"}
-    overlap = not_observed.intersection(required_statuses)
-    assert not overlap, f"not observed reporting on a Trunk draft: {sorted(overlap)}"
+def test_codeql_matrix_checks_are_required(required_statuses: list[str]) -> None:
+    """Two individually clean changes can create a combined source-to-sink
+    flow. The CodeQL matrix runs on every pull request to main and emits these
+    expanded names even when path analysis is short-circuited."""
+    assert {"Analyze (actions)", "Analyze (python)"}.issubset(required_statuses)
 
 
 def test_metadata_only_checks_are_excluded(required_statuses: list[str]) -> None:

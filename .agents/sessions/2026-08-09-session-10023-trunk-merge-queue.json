@@ -136,7 +136,6 @@
   "nextSteps": [
     "Land PR #4814, then queue exactly one pull request to test the queue end to end.",
     "If that pull request does not merge cleanly, remove Trunk and restore strict_required_status_checks_policy.",
-    "Re-evaluate whether Analyze (actions) and Analyze (python) report on a Trunk draft once one clean run exists.",
     "Enable batching only after the queue completes once.",
     "Add the push-restriction ruleset Trunk documents, and reconsider the always admin bypass."
   ]

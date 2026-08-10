@@ -133,20 +133,12 @@ was broken:
 1. **No pull request has merged through the queue.** This is the only test
    that matters and it has not been run. Everything above shows the checks can
    now report correctly; none of it shows the queue completes end to end.
-2. **CodeQL is excluded from the queue gate on weak evidence.** `Analyze
-   (actions)` and `Analyze (python)` were not observed reporting on drafts
-   4796, 4803, or 4805, but every one of those runs was cancelled after
-   another gate failed, so absence is unproven. The exclusion stands on
-   asymmetric downside: a required check that never arrives hangs the queue,
-   while omitting one that does report loses pre-merge coverage that
-   `codeql-analysis.yml` still provides on push to `main`. Re-evaluate after
-   one clean queue run.
-3. **`act` is not GitHub.** It models expression evaluation and step gating,
+2. **`act` is not GitHub.** It models expression evaluation and step gating,
    which is what was tested. It does not model check-run reporting, so the
    claim that a job-level `if:` changes the reported conclusion is argued from
    the required-context deadlock of 2026-08-09, not measured here. The code
    avoids job-level `if:` on that basis and the tests pin the avoidance.
-4. **Queue-gate narrowing is a deliberate coverage reduction.** Ruleset
+3. **Queue-gate narrowing is a deliberate coverage reduction.** Ruleset
    11104075 still gates every source pull request on all 16 contexts. Only the
    subset re-verified against the merged result changed, from 16 to 3.
 
