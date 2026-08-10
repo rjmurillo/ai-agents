@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 4060b157e8afd732129ddc620ac71f43601bb5e7
+qaCommit: 9e5b71a4e3733ca20ec36e582ec9d5179d6c1711
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -51,7 +51,7 @@ Delivered:
   - test_routing_table_rejects_duplicate_across_tables
   - test_routing_table_rejects_wrong_extra_path_tool
   - test_routing_table_rejects_bare_alias_wrong_tool
-Gap: None
+Gap: See independent review
 Result: PASS
 ```
 
