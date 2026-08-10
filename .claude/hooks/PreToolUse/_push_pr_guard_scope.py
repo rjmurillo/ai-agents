@@ -164,7 +164,11 @@ def _execution_position_tokens(tokens: list[ShellToken], cwd: Path) -> list[Shel
     return positions
 
 
-def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
+def _operand_is_new_pr_copy(
+    tokens: list[ShellToken],
+    cwd: Path,
+    feeds_executor: bool = False,
+) -> bool:
     """Scope rule C: an executed file is a byte-identical copy of new_pr.py.
 
     This inspects execution positions, not every token. A fixed 64-token window
@@ -172,6 +176,12 @@ def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
     byte-identical copy behind them (issue #4825). Raising or fail-closing the
     cap traded that leak for denying large ordinary commands. Position is the
     property that actually matters: a copy in argument slot 500 never runs.
+
+    ``feeds_executor`` widens the window to every operand for a reader whose
+    stdout reaches a program runner, matching ``_execution_capable_paths``.
+    Without it the pipeline fix was name-only: ``echo python3 copy.py | sh``
+    ran a byte-identical copy under a different name, so the basename rule
+    missed it and this rule never looked, while the merged tree denied it.
     """
     runtime_script = _runtime_script()
     if runtime_script is None:
@@ -180,7 +190,12 @@ def _operand_is_new_pr_copy(tokens: list[ShellToken], cwd: Path) -> bool:
         trusted = runtime_script.stat()
     except OSError:
         return False
-    for token in _execution_position_tokens(tokens, cwd):
+    index = _effective_command_index(tokens)
+    if feeds_executor and index is not None:
+        candidates: list[ShellToken] = list(tokens[index:])
+    else:
+        candidates = list(_execution_position_tokens(tokens, cwd))
+    for token in candidates:
         value = token.value
         if not value or value.startswith("-"):
             continue
@@ -379,11 +394,16 @@ def _segment_consumes_stdin_as_code(tokens: list[ShellToken], cwd: Path) -> bool
     ends in one leaves the earlier segments' operands as data and
     ``git diff -- .../new_pr.py | cat`` stays out of scope.
 
+    An empty token list is a segment the lexer could not read, most often a
+    subshell. The guard cannot name what it runs, so it assumes the worst.
+
     Reuses ``_operands_are_data`` rather than adding a second list of
     executors, so the two answers cannot drift: anything that disqualifies a
     command from being a reader also makes it a consumer of piped code, and an
     unresolvable command fails closed in both.
     """
+    if not tokens:
+        return True
     index = _effective_command_index(tokens)
     if index is None:
         return True
@@ -408,7 +428,7 @@ def _segments_are_in_scope(
     return (
         _unresolvable_python_target(tokens, cwd)
         or _execution_position_names_new_pr(tokens, cwd)
-        or _operand_is_new_pr_copy(tokens, cwd)
+        or _operand_is_new_pr_copy(tokens, cwd, feeds_executor)
         or _shell_evaluator_argument_is_in_scope(tokens, cwd, depth)
     )
 

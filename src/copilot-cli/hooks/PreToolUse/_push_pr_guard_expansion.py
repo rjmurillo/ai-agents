@@ -418,6 +418,15 @@ def _scope_segments(
         except GuardViolationError:
             if _segment_head_names_new_pr(rewritten, budget):
                 return [([ShellToken(_NEW_PR_TARGET, _NEW_PR_TARGET)], False)]
+            # A segment the lexer rejects still occupies its place in the
+            # pipeline. Dropping it compacted the list, so a walk by index ran
+            # off the end and read "nothing consumes this" for a consumer that
+            # merely failed to tokenize: `echo python3 .../new_pr.py | (sh)`
+            # was allowed while the unparenthesized form was denied
+            # (issue #4764). An empty token list carries the position without
+            # claiming to know what the segment runs, and every consumer of
+            # this list treats that as unknown, which fails closed.
+            segments.append(([], pipes_into_next))
             continue
         if tokens:
             segments.append((tokens, pipes_into_next))

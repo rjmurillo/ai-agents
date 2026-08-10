@@ -13,10 +13,14 @@ A fix applied to only one surface is a half fix.
 
 from __future__ import annotations
 
+import shutil
+
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    CLAUDE_PLUGIN_ROOT,
     REPO_ROOT,
+    SCRIPT_RELATIVE,
     body_file,
     repository,
     run_claude,
@@ -287,3 +291,80 @@ def test_dispatchers_allow_pipelines_that_only_read(command) -> None:
 
     assert claude.returncode == 0, f"claude falsely denied a read pipeline: {claude.stderr}"
     assert copilot.returncode == 0, f"copilot falsely denied a read pipeline: {copilot.stderr}"
+
+
+# A consumer the lexer cannot tokenize still occupies its place in the
+# pipeline. `(` and `)` are shell operators `_split_command` rejects, so the
+# segment used to be dropped from the list, the index walk ran off the end,
+# and the pipe relation read as "nothing consumes this". Measured allowed on
+# both dispatchers here and denied by the merged guard; the pipeline does run:
+#
+#     $ bash -c 'echo python3 exectest/new_pr.py | (sh)'
+#     EXECUTED new_pr
+UNPARSEABLE_CONSUMER_EXECUTIONS = (
+    "echo python3 ./attacker/pr/new_pr.py | (sh)",
+    "echo python3 ./attacker/pr/new_pr.py | ( sh )",
+    "echo python3 ./attacker/pr/new_pr.py | (cat; sh)",
+    "echo python3 ./attacker/pr/new_pr.py | tee /dev/null | (sh)",
+    "echo python3 ./attacker/pr/new_pr.py | (sh) | cat",
+)
+
+
+@pytest.mark.parametrize("command", UNPARSEABLE_CONSUMER_EXECUTIONS)
+def test_dispatchers_deny_pipelines_into_an_unparseable_consumer(tmp_path, command) -> None:
+    """A pipeline consumer the guard cannot read must be assumed to execute.
+
+    The guard has no parser for a subshell, so it cannot name what the segment
+    runs. Reading that as "not an executor" sells an allow for one pair of
+    parentheses.
+    """
+    root, _ = repository(tmp_path)
+    body_file(root)
+
+    claude = run_claude(command, root)
+    copilot = run_copilot(command, root)
+
+    assert claude.returncode == 2, f"claude allowed a subshell consumer: {claude.stdout}"
+    assert copilot.returncode == 2, f"copilot allowed a subshell consumer: {copilot.stdout}"
+
+
+def test_dispatchers_allow_a_subshell_that_reaches_nothing(tmp_path) -> None:
+    """Inverse control: an unparseable segment is not itself a reason to deny.
+
+    Failing closed on the pipe relation must not turn every subshell into a
+    denial, or `(git status)` and `echo hi | (cat)` stop working.
+    """
+    root, _ = repository(tmp_path)
+    body_file(root)
+
+    for command in ("(git status)", "echo hi | (cat)", "(cd /tmp && ls)"):
+        claude = run_claude(command, root)
+        copilot = run_copilot(command, root)
+
+        assert claude.returncode == 0, f"claude denied {command}: {claude.stderr}"
+        assert copilot.returncode == 0, f"copilot denied {command}: {copilot.stderr}"
+
+
+def test_dispatchers_deny_a_renamed_copy_handed_to_a_pipeline(tmp_path) -> None:
+    """Scope rule C must see the operands the pipe rule opened up.
+
+    The pipe fix threaded the reader exemption into the path rule but not into
+    the byte-identical-copy rule, so renaming the copy defeated it: the
+    basename rule misses a different name and the copy rule was still looking
+    only at execution positions of the reader's own segment. Measured allowed
+    on both dispatchers and denied by the merged guard.
+    """
+    root, _ = repository(tmp_path)
+    body_file(root)
+    shutil.copy2(CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE, root / "tools_copy.py")
+
+    for command in (
+        "echo python3 tools_copy.py | sh",
+        "echo python3 tools_copy.py | bash",
+        "echo python3 tools_copy.py | tee /dev/null | sh",
+    ):
+        claude = run_claude(command, root)
+        copilot = run_copilot(command, root)
+
+        assert claude.returncode == 2, f"claude allowed a piped renamed copy: {claude.stdout}"
+        assert copilot.returncode == 2, f"copilot allowed a piped renamed copy: {copilot.stdout}"
