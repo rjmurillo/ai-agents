@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, and the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af, and the PR 4845 report discovery fix as addd9410f09c00236f381bb7689c0d692e752b95. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
       },
       "validationPassed": {
         "level": "MUST",
@@ -172,7 +172,7 @@
       "result": "The skip-hides-no-fail case now uses executor conclusion success with a skipped pytest step instead of the unrecognised conclusion s. All 83 focused tests pass, Ruff passes, and taste-lints has no blocking finding at 34cf0678."
     }
   ],
-  "endingCommit": "34cf0678081c6e41041e464c8c098d6c8ef9b8af",
+  "endingCommit": "addd9410f09c00236f381bb7689c0d692e752b95",
   "nextSteps": [
     "Re-review the shadow PR: the file-size simplification at 0e88151e rewrote both authored files, so the earlier review of their internals no longer describes the code on the branch.",
     "Push the branch and open the PR; collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",

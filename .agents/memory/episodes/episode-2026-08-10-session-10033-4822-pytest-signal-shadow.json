@@ -209,6 +209,19 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T11:33:40+00:00",
+      "type": "commit",
+      "content": "Commit: addd9410f09c00236f381bb7689c0d692e752b95",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033-4822-pytest-signal-shadow"
     }
@@ -218,8 +231,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 7
   },
   "lessons": []
 }

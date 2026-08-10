@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-4822-pytest-signal-shadow.json
-qaCommit: 34cf0678081c6e41041e464c8c098d6c8ef9b8af
+qaCommit: addd9410f09c00236f381bb7689c0d692e752b95
 ---
 
 # Issue 4822 phase 1 shadow pytest signal validation
@@ -13,9 +13,9 @@ changing any existing output, consumer, or check name. The duplicate
 authoritative pytest run is deliberately untouched, which is the phase 1
 contract.
 
-This revision covers commit 34cf0678, which corrects one aggregation test input,
-on top of 0e88151e, which simplified the resolver and its tests. The resolver
-code is unchanged. The focused suite and lint were re-run at 34cf0678. Earlier
+This revision covers commit addd9410f, which renames the report for PR 4845
+discovery and updates the resolver's report reference. Runtime logic is
+unchanged. The focused suite and lint were re-run at 34cf0678. Earlier
 measurements remain bound to 0e88151e and are recorded below.
 
 ## Evidence
