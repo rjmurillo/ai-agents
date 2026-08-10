@@ -23,6 +23,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class SourceSymbol:
     signature: str
     visibility: str = "public"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "kind": self.kind,
@@ -63,7 +64,7 @@ class DocFile:
     referenced_symbols: list[str]
     mapped_source_files: list[str]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
             "size_bytes": self.size_bytes,
@@ -87,7 +88,7 @@ class Claim:
     symbols_referenced: list[str]
     mapped_source: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "file": self.file,
@@ -111,10 +112,10 @@ class Finding:
     file: str
     line: int
     description: str
-    evidence: dict
+    evidence: dict[str, Any]
     suggested_fix: str = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "claim_id": self.claim_id,
@@ -615,7 +616,7 @@ def run_assessment(
     repo_root: Path,
     doc_globs: list[str] | None = None,
     diff_base: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Phase 1: Build assessment of documentation and source files."""
     if doc_globs is None:
         doc_globs = DOC_GLOBS
@@ -786,8 +787,8 @@ def _extract_quantitative_claims(line: str) -> list[str]:
 
 def run_claim_extraction(
     repo_root: Path,
-    assessment: dict,
-) -> dict:
+    assessment: dict[str, Any],
+) -> dict[str, Any]:
     """Phase 2: Extract verifiable claims from documentation files."""
     claims: list[Claim] = []
     claim_counter = 0
@@ -918,9 +919,9 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 
 def run_compilability_check(
-    assessment: dict,
-    claims_data: dict,
-) -> dict:
+    assessment: dict[str, Any],
+    claims_data: dict[str, Any],
+) -> dict[str, Any]:
     """Phase 3: Verify symbols in code examples exist in the codebase."""
     findings: list[Finding] = []
     finding_counter = 0
@@ -1041,9 +1042,9 @@ SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def check_gate(
-    compilability_data: dict | None,
+    compilability_data: dict[str, Any] | None,
     severity_threshold: str,
-) -> dict:
+) -> dict[str, Any]:
     """Evaluate findings against severity threshold.
 
     Returns a gate_result dict with verdict and counts.
@@ -1071,10 +1072,10 @@ def check_gate(
 
 
 def generate_markdown_report(
-    assessment: dict | None,
-    claims_data: dict | None,
-    compilability_data: dict | None,
-    gate_result: dict,
+    assessment: dict[str, Any] | None,
+    claims_data: dict[str, Any] | None,
+    compilability_data: dict[str, Any] | None,
+    gate_result: dict[str, Any],
     output_path: Path,
 ) -> None:
     """Write a markdown summary report to output_path."""
@@ -1130,10 +1131,10 @@ def generate_markdown_report(
 
 
 def _print_summary(
-    assessment: dict | None,
-    claims_data: dict | None,
-    compilability_data: dict | None,
-    gate_result: dict,
+    assessment: dict[str, Any] | None,
+    claims_data: dict[str, Any] | None,
+    compilability_data: dict[str, Any] | None,
+    gate_result: dict[str, Any],
 ) -> None:
     """Print a text summary to stdout."""
     print("\n--- Documentation Accuracy Summary ---")
@@ -1162,7 +1163,7 @@ def _print_summary(
     )
 
 
-def _load_json_artifact(path: Path, name: str) -> dict | None:
+def _load_json_artifact(path: Path, name: str) -> dict[str, Any] | None:
     """Load a JSON artifact file, returning None with error on failure."""
     if not path.exists():
         print(
@@ -1170,7 +1171,11 @@ def _load_json_artifact(path: Path, name: str) -> dict | None:
             file=sys.stderr,
         )
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        print(f"ERROR: {name} is not a JSON object.", file=sys.stderr)
+        return None
+    return cast(dict[str, Any], data)
 
 
 # ---------------------------------------------------------------------------
