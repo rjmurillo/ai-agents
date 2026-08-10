@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python.json
-qaCommit: 923b109f0a4c09f45615d1578534aab0890f27bb
+qaCommit: 8cb44c28c81092b075fd4dc3d2c0daf93f5e931b
 ---
 # Test Report: Issue #4764 Push-PR Script Identity Guard
 

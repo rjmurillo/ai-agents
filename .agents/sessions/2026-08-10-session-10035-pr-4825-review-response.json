@@ -174,9 +174,13 @@
     {
       "task": "Process round 6 of the recursive review",
       "outcome": "ANSI-C quoting reconstructed the protected basename past the naming normalization: hex, octal and leading-escape forms all returned exit 0 against an executable lookalike. Added a decoded variant to scope rule A and a fail-closed on ANSI-C quoting in execution position to rule D. All three deny now; benign echo and printf ANSI-C usage stays allowed."
+    },
+    {
+      "task": "Process round 7 of the recursive review",
+      "outcome": "Relevance failed open whenever the tokenizer rejected a shell operator, so appending '&& true' defeated every position-based rule. Measured 5 compound leaks. Relevance is now decided per shell segment, since execution position is a per-segment property. 0 of 6 compound attacks leak and 0 of 6 ordinary compound commands are falsely denied."
     }
   ],
-  "endingCommit": "923b109f0a4c09f45615d1578534aab0890f27bb",
+  "endingCommit": "8cb44c28c81092b075fd4dc3d2c0daf93f5e931b",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
