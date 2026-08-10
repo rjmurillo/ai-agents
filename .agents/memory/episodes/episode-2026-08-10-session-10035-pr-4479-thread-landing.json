@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-10-session-10035-pr-4479-thread-landing",
+  "session": "2026-08-10-session-10035-pr-4479-thread-landing",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land PR 4479 review-thread fixes and merge readiness",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied PR 4479 thread fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4479-thread-landing"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved merge and push blockers",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4479-thread-landing"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replied to review threads",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4479-thread-landing"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T12:26:01+00:00",
+      "type": "commit",
+      "content": "Commit: e036e7c11dc44ccb113a67a0c85076452f62a252",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10035-pr-4479-thread-landing"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 7
+  },
+  "lessons": []
+}
