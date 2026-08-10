@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed for changed Python files; targeted CI suites passed 868 tests; full pytest completed with 25565 passed in 885.51s"
+        "Evidence": "Ruff passed for changed Python files; tests/test_validate_session_json.py passed 346 tests; historical existing session log validation passed at a4d997704787a4954d7940f286f04cf0a58ecf04"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -183,9 +183,13 @@
     {
       "task": "Carry the logical session identity through ref-backed scratch validation",
       "outcome": "The validator binds QA to the original .agents/sessions path while reading the branch-ref copy"
+    },
+    {
+      "task": "Preserve record-only semantics for existing session logs",
+      "outcome": "Existing logs skip QA report freshness checks while new and current logs still validate QA evidence; 346 validator tests pass"
     }
   ],
-  "endingCommit": "0ec5463bbbafbfeed960aba73a076618b95f8435",
+  "endingCommit": "a4d997704787a4954d7940f286f04cf0a58ecf04",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"

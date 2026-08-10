@@ -192,7 +192,8 @@
         "e012",
         "e013",
         "e014",
-        "e015"
+        "e015",
+        "e032"
       ],
       "leads_to": [
         "e017"
@@ -389,6 +390,43 @@
       "caused_by": [
         "e030"
       ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserve record-only semantics for existing session logs",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-10T15:02:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0ec5463b",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-10T16:02:16+00:00",
+      "type": "commit",
+      "content": "Commit: a4d997704787a4954d7940f286f04cf0a58ecf04",
+      "caused_by": [
+        "e033"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     }
@@ -398,7 +436,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 16,
+    "commits": 18,
     "files_changed": 45
   },
   "lessons": []
