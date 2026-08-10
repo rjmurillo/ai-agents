@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: 2073efa92e807caa7542eec2f7ced47beeef2a17, 8220fd5a8cdccf8b612c7afd6e773dc298eca644"
+        "Evidence": "Commits: 2073efa92e807caa7542eec2f7ced47beeef2a17, 8220fd5a8cdccf8b612c7afd6e773dc298eca644, e144105aa35b45e2403d656ef219d0413a0d1284, 5544bbf2f52609d846d33e7f1ef4f6391c932b71"
       },
       "validationPassed": {
         "level": "MUST",
@@ -167,9 +167,13 @@
     {
       "task": "Preserve explicit CLI dispatch and factual historical episode metrics",
       "outcome": "Explicit paths bypass stdin reads; the historical episode records one commit and 10 changed files"
+    },
+    {
+      "task": "Update the full-suite invalid-log control to the NUL path contract",
+      "outcome": "The previously failing test now reaches and observes the validator failure"
     }
   ],
-  "endingCommit": "8220fd5a8cdccf8b612c7afd6e773dc298eca644",
+  "endingCommit": "5544bbf2f52609d846d33e7f1ef4f6391c932b71",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"

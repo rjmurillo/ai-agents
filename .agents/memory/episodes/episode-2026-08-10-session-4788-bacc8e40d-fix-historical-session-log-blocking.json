@@ -14,7 +14,7 @@
       "content": "Reproduce the session validation failure on clean main",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -25,7 +25,7 @@
       "content": "Apply the verified two-file repair",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -36,7 +36,7 @@
       "content": "Align pre-commit session policy with the existing pre-push modes",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -47,7 +47,7 @@
       "content": "Align pre-PR Session End Validation with the same mode split",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -58,7 +58,7 @@
       "content": "Close the creation-mode bypass for a committed branch log",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -69,7 +69,7 @@
       "content": "Return both gate orchestrators below complexity ten",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -80,7 +80,7 @@
       "content": "Scope pre-push validation to the real push range",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -91,7 +91,7 @@
       "content": "Bind pre-push validation to the pushed tree state",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -102,7 +102,7 @@
       "content": "Close remaining security path-identity gaps",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -113,7 +113,7 @@
       "content": "Close the branch-added low-similarity replacement bypass",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
@@ -124,12 +124,23 @@
       "content": "Preserve explicit CLI dispatch and factual historical episode metrics",
       "caused_by": [],
       "leads_to": [
-        "e012"
+        "e013"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
     {
       "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update the full-suite invalid-log control to the NUL path contract",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e013",
       "timestamp": "2026-08-10T04:39:14+00:00",
       "type": "commit",
       "content": "Commit: 2073efa92e807caa7542eec2f7ced47beeef2a17",
@@ -144,20 +155,47 @@
         "e008",
         "e009",
         "e010",
-        "e011"
+        "e011",
+        "e012"
       ],
       "leads_to": [
-        "e013"
+        "e014"
       ],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
     },
     {
-      "id": "e013",
+      "id": "e014",
       "timestamp": "2026-08-10T04:39:30+00:00",
       "type": "commit",
       "content": "Commit: 8220fd5a8cdccf8b612c7afd6e773dc298eca644",
       "caused_by": [
-        "e012"
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T04:40:47+00:00",
+      "type": "commit",
+      "content": "Commit: e144105aa35b45e2403d656ef219d0413a0d1284",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T05:11:58+00:00",
+      "type": "commit",
+      "content": "Commit: 5544bbf2f52609d846d33e7f1ef4f6391c932b71",
+      "caused_by": [
+        "e015"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
@@ -168,8 +206,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 8
+    "commits": 4,
+    "files_changed": 15
   },
   "lessons": []
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking.json
-qaCommit: 8220fd5a8cdccf8b612c7afd6e773dc298eca644
+qaCommit: 5544bbf2f52609d846d33e7f1ef4f6391c932b71
 ---
 # QA Report: issue 4788 session push blocker
 
@@ -61,6 +61,7 @@ by that range. A push-range resolution failure exits 2.
 | Ruff | all checks passed |
 | Taste count ratchet | 582 violations, 1 below baseline 583 |
 | Full pre-PR gate | all validations passed |
+| Full pre-push Python suite | original run found one stale fixture; corrected control passes |
 | Real first-push stdin control | selected only the two session logs changed by this branch |
 | Off-HEAD push control | exit 2 |
 | Dirty session file control | exit 2 |
@@ -69,7 +70,7 @@ by that range. A push-range resolution failure exits 2.
 | Security review | three data-integrity findings fixed |
 | Security re-review | NUL newness, symlink, and low-similarity replacement findings fixed |
 | Final security re-review | branch-added D+A session replacement gets full validation |
-| Episode validation | 2 distinct full-SHA commit events |
+| Episode validation | 4 distinct full-SHA commit events |
 | Ship review | explicit CLI dispatch and historical episode metrics fixed |
 
 The negative control used a detached clean-main worktree. The positive control
