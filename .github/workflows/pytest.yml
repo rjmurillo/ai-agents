@@ -4,7 +4,7 @@
 # Uses dorny/paths-filter to determine if tests should run or be skipped.
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual test execution when no Python files are changed.
+# but skips actual test execution when no Python test inputs are changed.
 #
 # Testable paths are defined in the check-paths job filters block.
 #
@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check for Python file changes
+      - name: Check for Python test input changes
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         if: github.event_name != 'workflow_dispatch'
@@ -73,6 +73,12 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.pyw'
+              # Canonical rules and both generated instruction trees are direct
+              # inputs to Python contract tests. Keep these roots explicit so
+              # unrelated Markdown, such as session logs, still skips pytest.
+              - '.claude/rules/**'
+              - '.github/instructions/**'
+              - 'src/copilot-cli/instructions/**'
               - 'scripts/ci/ruff_count_baseline.txt'
               - 'scripts/ci/subprocess_encoding_count_baseline.txt'
               - 'pyproject.toml'
@@ -100,7 +106,7 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Manual trigger - running all tests"
           else
-            echo "Python files changed: $PYTHON_CHANGED"
+            echo "Python test inputs changed: $PYTHON_CHANGED"
           fi
 
   test:
@@ -120,7 +126,7 @@ jobs:
         run: |
           if [ "$PYTHON_CHANGED" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No Python files changed - skipping tests"
+            echo "No Python test inputs changed - skipping tests"
           fi
 
       - name: Harden Runner
@@ -204,7 +210,18 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1. The checkout above already used fetch-depth: 0, so a
+          # depth-limited fetch saves nothing and writes .git/shallow, grafting
+          # the fetched tip parentless. This ratchet does need a merge base:
+          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
+          # sort branch-touched files first. That leg fails open, so a graft
+          # degrades the diagnostic instead of failing the step, which is the
+          # buried-violation problem the ordering exists to prevent, not a red
+          # check. The graft is written by whichever fetch runs first and a
+          # plain undepthed fetch does not clear it, only --unshallow does.
+          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
+          # which fails closed, and that is what cost a red required check.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run ruff count ratchet (whole tree, non-PR)
@@ -212,7 +229,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run subprocess encoding count ratchet (whole tree, pull request)
@@ -236,7 +254,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
@@ -244,42 +263,95 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
+      # --ignore's the two pins' five owned files (see the "Pin ..." steps
+      # below) so they run once, not twice. Each of the three pytest
+      # invocations here (main + two pins) gets its own COVERAGE_FILE;
+      # scripts/ci/combine_pin_coverage.py merges them below. This run stays
+      # statement-only (no --cov-branch) by design; see that script's module
+      # docstring for the coverage-combine design and the measured
+      # line-vs-branch cost.
       - name: Run pytest
+        id: run-pytest
         if: steps.should-run.outputs.skip != 'true'
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
-        run: uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
+          COVERAGE_FILE: artifacts/.coverage.main
+        run: >-
+          uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=
+          --junitxml=artifacts/pytest-results.xml
+          --ignore=tests/test_ai_review.py
+          --ignore=tests/test_verdict.py
+          --ignore=tests/test_quality_gate.py
+          --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
+          --ignore=tests/skills/session-end/test_rework_warning.py
 
-      # Issue #1963: test_ai_review.py was split by tested module into
-      # test_verdict.py (get_verdict, merge_verdicts, extract_verdict, verdict
-      # presentation helpers) and test_quality_gate.py (get_failure_category,
-      # spec_validation_failed). scripts.ai_review_common.verdict hosts all of
-      # those plus the label/milestone helpers that remain in test_ai_review.py,
-      # so the 100% gate must run all three files. Running test_ai_review.py
-      # alone now reports 63% and trips --cov-fail-under=100.
-      - name: Pin ai_review_common.verdict coverage at 100% (REQ-008-07)
-        if: steps.should-run.outputs.skip != 'true'
-        run: pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
+      # Issue #1963: verdict.py's 100% branch gate needs all three of
+      # test_ai_review.py, test_verdict.py, and test_quality_gate.py
+      # (test_ai_review.py alone reports 63%). Collects BROAD coverage (bare
+      # --cov, same source list as "Run pytest"); see
+      # scripts/ci/combine_pin_coverage.py's module docstring for why. The
+      # 100% gate itself is enforced by the next step, against this step's
+      # own data file.
+      - name: Pin ai_review_common.verdict coverage collection (REQ-008-07)
+        id: pin-verdict-collect
+        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        env:
+          COVERAGE_FILE: artifacts/.coverage.pin-verdict
+        run: pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov --cov-branch --cov-report=
 
-      # Issue #2063 (revised): module-name form is the canonical form for this
-      # repository. The file-path form (--cov=.claude/skills/.../*.py) was
-      # tested in PR #2078 and produces "Module never imported" + 0% coverage
-      # with pytest-cov 7.x on Python 3.14, tripping --cov-fail-under=100. The
-      # module-name form resolves correctly via conftest.py sys.path setup and
-      # reports the actual 100%. Do not switch forms without re-verifying both
-      # locally and in CI.
-      - name: "Pin REQ-009 module coverage at 100% (PR #1989 user requirement)"
-        if: steps.should-run.outputs.skip != 'true'
+      # Isolated 100% branch gate for scripts/ai_review_common/verdict.py via
+      # `coverage report --include`; see scripts/ci/combine_pin_coverage.py's
+      # module docstring for why the broad collection above cannot dilute or
+      # rescue this gate.
+      - name: Enforce ai_review_common.verdict coverage at 100% (REQ-008-07)
+        if: steps.should-run.outputs.skip != 'true' && steps.pin-verdict-collect.outcome != 'skipped' && !cancelled()
+        run: coverage report --data-file=artifacts/.coverage.pin-verdict --include=scripts/ai_review_common/verdict.py --fail-under=100
+
+      # Issue #2063: module-name --cov form fails for these two file-path
+      # targets ("Module never imported", PR #2078); the file-path form
+      # works fine in the separate `coverage report --include` gate step
+      # below instead. Collects BROAD coverage for the same reason as the
+      # verdict pin above; see scripts/ci/combine_pin_coverage.py's module
+      # docstring.
+      - name: "Pin REQ-009 module coverage collection (PR #1989 user requirement)"
+        id: pin-req009-collect
+        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        env:
+          COVERAGE_FILE: artifacts/.coverage.pin-req009
         run: |
           pytest \
             tests/skills/github/test_wait_for_unresolved_zero.py \
             tests/skills/session-end/test_rework_warning.py \
-            --cov=wait_for_unresolved_zero \
-            --cov=rework_warning \
-            --cov-branch --cov-fail-under=100
+            --cov --cov-branch --cov-report=
+
+      # Isolated 100% branch gate for the two REQ-009 modules (file-path
+      # form); same --include isolation as the verdict gate above.
+      - name: "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
+        if: steps.should-run.outputs.skip != 'true' && steps.pin-req009-collect.outcome != 'skipped' && !cancelled()
+        run: >-
+          coverage report --data-file=artifacts/.coverage.pin-req009
+          --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py,.claude/skills/session-end/scripts/rework_warning.py
+          --fail-under=100
+
+      # Merges the three isolated coverage data files (statement-only main +
+      # two BROAD branch-mode pin collections) into one
+      # artifacts/coverage.xml; `coverage combine` cannot do this directly.
+      # See scripts/ci/combine_pin_coverage.py's module docstring for the
+      # full design. Runs whenever "Run pytest" executed, pass or fail, but
+      # not when skipped or cancelled; does not gate anything itself.
+      - name: Combine coverage data
+        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        run: |
+          uv run --frozen python scripts/ci/combine_pin_coverage.py \
+            --main-data artifacts/.coverage.main \
+            --pin-data artifacts/.coverage.pin-verdict \
+            --pin-data artifacts/.coverage.pin-req009 \
+            --output-data artifacts/.coverage.combined
+          uv run --frozen coverage xml --data-file=artifacts/.coverage.combined -o artifacts/coverage.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -366,7 +438,7 @@ jobs:
           path: bandit.sarif
           retention-days: 7
 
-  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python test inputs changed.
   # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
   # See: Issue #1168
   skip-tests:
@@ -383,9 +455,9 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Skip tests (no Python files changed)
+      - name: Skip tests (no Python test inputs changed)
         run: |
-          echo "No Python files changed - skipping tests"
+          echo "No Python test inputs changed - skipping tests"
           echo ""
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
@@ -428,7 +500,7 @@ jobs:
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
-        run: uv run pytest -m windows_path -v
+        run: uv run --frozen pytest -m windows_path -v
 
   main-failure-alert:
     name: Main failure alert

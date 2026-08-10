@@ -42,6 +42,31 @@ domain indices. It is not the filesystem count, which is 948, and it is not the
 does not move it. A stable 305 across an edit is expected and says nothing about
 whether your entry landed.
 
+## The other direction is enforced, but not where you look
+
+Verified 2026-08-05 by negative control: point one `memory-index.md` link at a
+file that does not exist and the run flips to `Result: FAILED`. The check works.
+The reporting does not. The failure surfaces as a single line roughly 800 lines
+into the output:
+
+```
+- P1 VALIDITY: memory-index references non-existent file: <name>.md
+```
+
+while the summary block directly above the verdict still reads:
+
+```
+Files: 321 indexed, 0 missing
+```
+
+So `0 missing` and a missing file are simultaneously true, because that counter
+belongs to the domain-index check described above and not to this one. Anything
+that reads the counters, a `| tail -3`, a dashboard, a skim, sees all zeros on a
+failing run.
+
+Read the `Result:` line. It is the only field in the summary that reflects P1
+VALIDITY errors.
+
 ## Do this instead
 
 After adding any memory file, confirm your own entry by name rather than
