@@ -13,10 +13,16 @@ relevant function were stubbed to always return the "clean" value.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+
+_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git CLI not installed")
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
@@ -37,6 +43,66 @@ validate_scope = mod.validate_scope
 _looks_like_path = mod._looks_like_path
 _strip_line_suffix = mod._strip_line_suffix
 main = mod.main
+
+
+def _scope_checked_text(text: str, diff_files: list[str]) -> str:
+    formatter = getattr(mod, "format_scope_checked_text", None)
+    assert formatter is not None, "format_scope_checked_text is missing"
+    return formatter(text, diff_files)
+
+
+def _run_git(args: list[str], cwd: Path) -> None:
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "Scope Test",
+        "GIT_AUTHOR_EMAIL": "scope-test@example.com",
+        "GIT_COMMITTER_NAME": "Scope Test",
+        "GIT_COMMITTER_EMAIL": "scope-test@example.com",
+    }
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"git {' '.join(args)} failed in {cwd}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+
+
+def _create_two_worktrees() -> tuple[Path, Path, Path]:
+    workspace = Path(PROJECT_ROOT) / ".pytest_tmp" / f"review-scope-{os.getpid()}"
+    if workspace.exists():
+        shutil.rmtree(workspace)
+    workspace.mkdir(parents=True)
+
+    remote = workspace / "remote.git"
+    main_repo = workspace / "main"
+    requested = workspace / "requested"
+    other = workspace / "other"
+
+    _run_git(["init", "--bare", str(remote)], workspace)
+    _run_git(["init", "-b", "main", str(main_repo)], workspace)
+    (main_repo / "README.md").write_text("base\n", encoding="utf-8")
+    _run_git(["add", "README.md"], main_repo)
+    _run_git(["commit", "-m", "initial"], main_repo)
+    _run_git(["remote", "add", "origin", str(remote)], main_repo)
+    _run_git(["push", "-u", "origin", "main"], main_repo)
+    _run_git(["worktree", "add", "-b", "requested-branch", str(requested)], main_repo)
+    _run_git(["worktree", "add", "-b", "other-branch", str(other)], main_repo)
+
+    (requested / "requested.py").write_text("print('requested')\n", encoding="utf-8")
+    _run_git(["add", "requested.py"], requested)
+    _run_git(["commit", "-m", "requested change"], requested)
+
+    (other / "other.py").write_text("print('other')\n", encoding="utf-8")
+    _run_git(["add", "other.py"], other)
+    _run_git(["commit", "-m", "other change"], other)
+    return workspace, requested, other
 
 
 # ---------------------------------------------------------------------------
@@ -100,10 +166,7 @@ class TestExtractLocations:
         assert "scripts/foo.py" in result
 
     def test_multiple_locations(self) -> None:
-        text = (
-            "location: scripts/foo.py:10\n"
-            "location: tests/test_bar.py:20\n"
-        )
+        text = "location: scripts/foo.py:10\nlocation: tests/test_bar.py:20\n"
         result = extract_locations(text)
         assert "scripts/foo.py" in result
         assert "tests/test_bar.py" in result
@@ -118,6 +181,11 @@ class TestExtractLocations:
         result = extract_locations(text)
         assert "src/auth/login.ts" in result
 
+    def test_bold_location_field_extracts_extensionless_path(self) -> None:
+        text = "- **location**: `scripts/review-tool:47`\n"
+        result = extract_locations(text)
+        assert result == ["scripts/review-tool"]
+
     # Negative control: if extract_locations returned every token, prose
     # tokens like "N/A" would appear in the output.
     def test_negative_control_prose_excluded(self) -> None:
@@ -131,6 +199,10 @@ class TestExtractLocations:
     def test_no_location_field_returns_empty(self) -> None:
         text = "This axis found no issues in the PR.\nVerdict: PASS\n"
         assert extract_locations(text) == []
+
+    def test_free_form_file_path_is_extracted(self) -> None:
+        text = "The classifier reported tests/test_doc_interpreter.py outside the bundle.\n"
+        assert extract_locations(text) == ["tests/test_doc_interpreter.py"]
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +237,7 @@ class TestValidateScope:
         assert out_of_scope == []
 
     def test_mixed_in_and_out(self) -> None:
-        text = (
-            "location: scripts/foo.py:10\n"
-            "location: scripts/unrelated.py:5\n"
-        )
+        text = "location: scripts/foo.py:10\nlocation: scripts/unrelated.py:5\n"
         in_scope, out_of_scope = validate_scope(text, ["scripts/foo.py"])
         assert "scripts/foo.py" in in_scope
         assert "scripts/unrelated.py" in out_of_scope
@@ -180,6 +249,75 @@ class TestValidateScope:
         text = "location: completely-unrelated.py:1\n"
         _, out_of_scope = validate_scope(text, ["scripts/foo.py", "tests/bar.py"])
         assert len(out_of_scope) > 0
+
+
+class TestScopeAdjustedText:
+    def test_in_scope_critical_verdict_stays_critical(self) -> None:
+        text = (
+            "VERDICT: CRITICAL_FAIL\n"
+            "- severity: CRITICAL\n"
+            "  location: scripts/foo.py:10\n"
+            "  recommendation: fix it\n"
+        )
+
+        adjusted = _scope_checked_text(text, ["scripts/foo.py"])
+
+        assert "VERDICT: CRITICAL_FAIL" in adjusted
+        assert "[pre-existing - not in this PR diff]" not in adjusted
+
+    def test_out_of_scope_critical_verdict_downgrades_to_warn(self) -> None:
+        text = (
+            "VERDICT: CRITICAL_FAIL\n"
+            "- severity: CRITICAL\n"
+            "  location: scripts/unrelated.py:5\n"
+            "  recommendation: fix it elsewhere\n"
+        )
+
+        adjusted = _scope_checked_text(text, ["scripts/foo.py"])
+
+        assert "VERDICT: WARN" in adjusted
+        assert "[pre-existing - not in this PR diff]" in adjusted
+        assert "scripts/unrelated.py" in adjusted
+
+    def test_no_locations_preserves_pass_verdict(self) -> None:
+        text = "VERDICT: PASS\nNo findings.\n"
+
+        adjusted = _scope_checked_text(text, ["scripts/foo.py"])
+
+        assert adjusted == text
+
+    def test_free_form_out_of_scope_path_downgrades_blocking_verdict(self) -> None:
+        text = (
+            "VERDICT: CRITICAL_FAIL\n"
+            "The classifier reported tests/test_doc_interpreter.py, but the "
+            "requested PR diff does not include it.\n"
+        )
+
+        adjusted = _scope_checked_text(text, ["scripts/foo.py"])
+
+        assert "VERDICT: WARN" in adjusted
+        assert "[pre-existing - not in this PR diff]" in adjusted
+
+    @_needs_git
+    def test_two_real_worktrees_use_requested_worktree_diff(self) -> None:
+        workspace, requested, _other = _create_two_worktrees()
+        try:
+            diff_files = mod.get_diff_files(str(requested), "main")
+            assert diff_files == ["requested.py"]
+            text = (
+                "VERDICT: CRITICAL_FAIL\n"
+                "- severity: CRITICAL\n"
+                "  location: other.py:1\n"
+                "  recommendation: unrelated branch finding\n"
+            )
+
+            adjusted = _scope_checked_text(text, diff_files or [])
+
+            assert "VERDICT: WARN" in adjusted
+            assert "[pre-existing - not in this PR diff]" in adjusted
+            assert "other.py" in adjusted
+        finally:
+            shutil.rmtree(workspace)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +375,7 @@ SCRIPT_PATH = (
 )
 
 
+@_needs_git
 class TestCLISubprocess:
     """Exercise the script via subprocess to verify the exit-code contract."""
 
@@ -248,7 +387,9 @@ class TestCLISubprocess:
             [sys.executable, str(SCRIPT_PATH), "--base-branch", "nonexistent-branch-xyz"],
             input="No findings. Verdict: PASS\n",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         # git diff will fail for a nonexistent branch -> graceful degrade -> exit 0
         assert result.returncode == 0
@@ -257,7 +398,9 @@ class TestCLISubprocess:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
         assert "validate" in result.stdout.lower() or "worktree" in result.stdout.lower()
