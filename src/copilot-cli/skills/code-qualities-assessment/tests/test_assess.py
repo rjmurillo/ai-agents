@@ -70,6 +70,7 @@ def _run_git(repo: Path, *args: str) -> None:
         check=True,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
     )
 
 
