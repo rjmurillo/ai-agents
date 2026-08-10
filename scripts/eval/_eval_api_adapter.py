@@ -280,9 +280,10 @@ class AnthropicAPIAdapter:
     ) -> APICallResult:
         """Issue one API call (with up to `max_retries` retries on transient errors).
 
-        Returns `APICallResult` regardless of outcome, including the case
-        where transport construction itself fails (for example, no
-        `ANTHROPIC_API_KEY` available to `_default_transport_factory`).
+        For valid inputs, returns `APICallResult` regardless of provider
+        outcome, including the case where transport construction itself fails
+        (for example, no `ANTHROPIC_API_KEY` available to
+        `_default_transport_factory`).
         Construction failure is categorized as `auth` since the production
         transport's only resolve-time dependency is `load_api_key()`.
         Ordinary transport failures return a categorized result. Malformed
