@@ -334,10 +334,12 @@ _TOOL_NAMES = (
     "get_job_logs",
 )
 
-# Word-boundary regex matching any declared tool name.
+# Word-boundary regex matching any declared tool name, with optional mcp__github__ prefix.
 # Prevents substring matches like "not_pull_request_read".
 _TOOL_RE = re.compile(
-    r"(?<![a-zA-Z0-9_])(" + "|".join(re.escape(t) for t in _TOOL_NAMES) + r")(?![a-zA-Z0-9_])",
+    r"(?<![a-zA-Z0-9_])(?:mcp__github__)?("
+    + "|".join(re.escape(t) for t in _TOOL_NAMES)
+    + r")(?![a-zA-Z0-9_])",
 )
 
 _NEGATIONS = re.compile(
@@ -458,12 +460,21 @@ def _is_affirmative_directive(line: str) -> bool:
     # a clause boundary. Requires the new subject to be followed by a verb,
     # distinguishing "analyst retrieves data, bot reads tool" from
     # "analyst retrieves PR, issue, and CI context".
+    # Comma/and/or introducing a new subject (non-analyst word) followed
+    # by a common action verb signals a clause boundary. Comprehensive
+    # verb list avoids false positives on object lists like "PR, issue,
+    # and CI context" where nouns follow conjunctions.
     new_subject_boundary = re.compile(
         r"(?:,\s*|\band\b\s+|\bor\b\s+)"
-        r"(?!analyst\b)([a-z][\w-]*)"
+        r"(?:the\s+)?(?!analyst\b)([a-z][\w-]*)"
         r"\s+(?:directly\s+)?"
         r"(retrieves?|uses?|calls?|invokes?|attempts?|reads?|fetches?"
-        r"|gets?|accesses?|queries|requests?)\b"
+        r"|gets?|accesses?|queries|requests?|provides?|remains?"
+        r"|supplies?|delivers?|handles?|manages?|triggers?|sends?"
+        r"|returns?|passes?|forwards?|processes?|executes?|runs?"
+        r"|starts?|stops?|creates?|updates?|deletes?|removes?|sets?"
+        r"|enables?|activates?|loads?|imports?|exports?|checks?"
+        r"|monitors?|validates?|serves?|exposes?|publishes?|emits?)\b"
     )
 
     for i, clause in enumerate(clauses):
@@ -533,8 +544,11 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
             if logical_lines and logical_lines[-1] != "":
                 logical_lines.append("")
             continue
+        # Markdown list items start new paragraphs (never merge with previous)
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            logical_lines.append(stripped)
         # Continuation: append to current paragraph
-        if logical_lines and logical_lines[-1] != "":
+        elif logical_lines and logical_lines[-1] != "":
             logical_lines[-1] += " " + stripped
         else:
             logical_lines.append(stripped)
@@ -1285,3 +1299,106 @@ class TestNegativeControls:
         assert err is not None, "Should reject backtick-span tool"
         line = "`" + "x" * 32 + " pull_request_read` The analyst retrieves cache"
         assert not _is_affirmative_directive(line)
+
+    # Fixture 56: mixed-actor "provides" verb (HIGH 1)
+    TOOL_MIXED_PROVIDES = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, compliance-bot provides pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 57: mixed-actor "reads" after conjunction (HIGH 1)
+    TOOL_MIXED_READS_CONJ = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache and the release-bot reads pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 58: tool as subject "remains" (HIGH 1)
+    TOOL_REMAINS_AVAILABLE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, pull_request_read remains available. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 59: adjacent list items must not merge (HIGH 2)
+    TOOL_LIST_ITEMS_MERGED = (
+        "\n### delegation contract\n"
+        "- The analyst retrieves cache\n"
+        "- compliance-bot calls pull_request_read\n"
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    def test_tool_mixed_provides_rejected(self) -> None:
+        """'provides' by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_PROVIDES)
+        assert err is not None, "Should reject mixed-actor provides"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, compliance-bot provides pull_request_read"
+        )
+
+    def test_tool_mixed_reads_conjunction_rejected(self) -> None:
+        """'reads' after 'and' by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_READS_CONJ)
+        assert err is not None, "Should reject mixed-actor reads conjunction"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache and the release-bot reads pull_request_read"
+        )
+
+    def test_tool_remains_available_rejected(self) -> None:
+        """Tool as subject with 'remains' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_REMAINS_AVAILABLE)
+        assert err is not None, "Should reject tool-remains-available"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, pull_request_read remains available"
+        )
+
+    def test_list_items_not_merged(self) -> None:
+        """Adjacent list items must stay as separate paragraphs."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_LIST_ITEMS_MERGED)
+        assert err is not None, "Should reject merged list items"
+
+
+class TestPositiveMcpPrefix:
+    """MCP-prefixed tool names must be accepted in affirmative directives."""
+
+    def test_mcp_prefixed_tool_accepted(self) -> None:
+        """Backtick-wrapped mcp__github__pull_request_read is valid."""
+        assert _is_affirmative_directive(
+            "The analyst retrieves PR data using mcp__github__pull_request_read"
+        )
+
+    def test_mcp_prefixed_in_section(self) -> None:
+        """Full section with mcp-prefixed tool passes wrapper."""
+        section = (
+            "\n### delegation contract\n"
+            "The analyst retrieves PR data using `mcp__github__pull_request_read`. "
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"MCP-prefixed tool should pass: {err}"
+
+
+class TestPositiveListItems:
+    """Positive: analyst directive in a list item should pass."""
+
+    def test_list_item_with_tool_passes(self) -> None:
+        """Single list item with analyst+verb+tool passes."""
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves PR data using pull_request_read\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"Single list item should pass: {err}"
+
+    def test_wrapped_continuation_passes(self) -> None:
+        """Genuine wrapped line (non-list) continuation still merges."""
+        section = (
+            "\n### delegation contract\n"
+            "The analyst retrieves PR data\n"
+            "using pull_request_read for context.\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"Wrapped continuation should pass: {err}"

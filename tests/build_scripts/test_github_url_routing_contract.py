@@ -169,9 +169,9 @@ def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
                 # Parse ALL alternatives separated by " or "
                 alternatives = [a.strip().strip("`").lower() for a in raw_pattern.split(" or ")]
 
-                # Use first alternative as the canonical key
-                first_alt = alternatives[0]
-                routes.setdefault(first_alt, []).append(tool_cell)
+                # Store EVERY alternative -> tool mapping (not just first)
+                for alt in alternatives:
+                    routes.setdefault(alt, []).append(tool_cell)
 
                 # Record all alternatives for validation
                 all_patterns.extend(alternatives)
@@ -581,3 +581,57 @@ def test_routing_table_rejects_bare_alias_wrong_tool() -> None:
     assert any("non-path alias" in e and "expected" in e for e in errors), (
         f"Expected binding error: {errors}"
     )
+
+
+def test_routing_table_rejects_crossed_alternatives() -> None:
+    """Crossed alias like '/pull/<N> or issue #N' must be rejected."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` or `issue #N` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "crossed")
+    # "issue #n" maps to pull_request_read but should map to issue_read
+    assert any("issue #n" in e.lower() and "expected" in e for e in errors), (
+        f"Expected binding error for crossed alias: {errors}"
+    )
+
+
+def test_routing_table_rejects_duplicate_across_rows() -> None:
+    """Second row with same /pull/<N> pattern must be caught as duplicate."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "dup-rows")
+    assert any("duplicate" in e for e in errors), f"Expected duplicate error: {errors}"
+
+
+def test_routing_multi_alternative_positive() -> None:
+    """Valid multi-alternative row stores all alternatives."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` or `PR #N` | `pull_request_read` |\n"
+        "| `/issues/<N>` or `issue #N` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `CI overview` | `list_workflow_runs` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "multi-alt")
+    assert not errors, f"Valid multi-alt table should pass: {errors}"
+    # All alternatives stored
+    assert "pr #n" in routes
+    assert "issue #n" in routes
+    assert "ci overview" in routes
