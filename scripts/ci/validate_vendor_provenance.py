@@ -111,6 +111,211 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "d2163ab8468da3dc905f2403088d5d617b803d7a28c48cbfd0b12d7bdb10b950",
         "Build script (hooks generator import)",
     ),
+    # --- Hook executables (non-PreToolUse) ---
+    (
+        ".claude/hooks/PostToolUse/invoke_markdown_auto_lint.py",
+        "d8272d9117378cb185e1bbb0d059ad819dbbd2c0249ed221c31cd7de1820fcd4",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/PostToolUse/invoke_memory_capture.py",
+        "4451f09219df715d35a25df7fabc87e0e9d4bbd463f084c43728cef968681dd2",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/PostToolUse/invoke_observation_sync.py",
+        "9e0200aae4f31a9df5f1069220ba01ae8ef458ef35a886bf7083afb99c2f4a25",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+        "087a81091cdd9e193a89525958762e7823e55c095f5ef54e8651f131406742f3",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/SessionEnd/invoke_memory_reflection.py",
+        "a37caa77432d54e4c39b9127fc9369795199b819a1fea9c88e779698d7a92992",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/SessionStart/invoke_context_loader.py",
+        "d4e25686953f52ac7f85bdf1b33d4f196ba0d1d44f91210b2082a13e7fe88d38",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/UserPromptSubmit/invoke_memory_recall.py",
+        "eb1ba8bea43c4785d0a2c82d8a996672026d0f14e40b5aaea2595d331dc79235",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/invoke_dispatch_claude.py",
+        "4f12d6c35192e48622fc68661c73ffd5c534a4d875f5285f54edba44e561eb9d",
+        "Hook executable",
+    ),
+    (
+        ".claude/hooks/session-start.sh",
+        "a0e973a02ac898d1880f9a9965f850f5f5cc34de4d1f152c5158f5261921f2b7",
+        "Hook executable",
+    ),
+    # --- Generated PostToolUse ---
+    (
+        "src/copilot-cli/hooks/PostToolUse/_bootstrap.py",
+        "8f1af9122ae5d58e6b4ccd2c9918005c0832bb6b8e4c16cf449c2f53420ccbf1",
+        "PostToolUse bootstrap",
+    ),
+    (
+        "src/copilot-cli/hooks/PostToolUse/_dispatch.py",
+        "74aa15ca89fe3cefb5b659fd4c04a28d2d73119c448e79736c6cf9f0a5ec93a8",
+        "PostToolUse dispatch",
+    ),
+    (
+        "src/copilot-cli/hooks/PostToolUse/"
+        "invoke_markdown_auto_lint__Write_Edit_c39898.py",
+        "c8ba3058ac761c38260ff88fa52dd128fd6f6f6487b37f82aee9656a32f0ee7c",
+        "PostToolUse markdownlint guard",
+    ),
+    # --- Build scripts (full closure) ---
+    (
+        "build/scripts/__init__.py",
+        "692bbfdaae4de1ca66daf44c0a6c4acf74d533326c35539c0ba80ea4aa83bf62",
+        "Build script",
+    ),
+    (
+        "build/scripts/aggregate_guard_intercepts.py",
+        "31decd248bf6234e3370f529ef8eec67f2dcfe4591a431b11fd641be413a3752",
+        "Build script",
+    ),
+    (
+        "build/scripts/build_all.py",
+        "edaacad18930c3570d072a3bc2180d34bd6941cc2e321a14080b0e4f485d6058",
+        "Build script",
+    ),
+    (
+        "build/scripts/check_agent_content_parity.py",
+        "d006ad536bec11c746dbad3a15a2e9553923093ff215719869a322d782d77203",
+        "Build script",
+    ),
+    (
+        "build/scripts/check_plugin_manifest_parity.py",
+        "dc8398eb3080a078afcaa492c0bd267ed209bee89da65d47544df78f43d58ef9",
+        "Build script",
+    ),
+    (
+        "build/scripts/classify_guard_maturity.py",
+        "557052b0f769d86ecc07ac8be8f7270143e84a36facc2eb35d6fe3006139e09f",
+        "Build script",
+    ),
+    (
+        "build/scripts/copilot_body_translation.py",
+        "ec9ce73359ee526e8729d3aba183ca5551d143b204baff8c30429b58a035add4",
+        "Build script",
+    ),
+    (
+        "build/scripts/detect_agent_drift.py",
+        "d7665b0d05bad8b293dc149990abb65773cef42cfb45b4e5d7744d875d689803",
+        "Build script",
+    ),
+    (
+        "build/scripts/generate_commands.py",
+        "79e70b84cab1bdbfc023efe3c47710df009cf98b6436910af27251f09ca38479",
+        "Build script",
+    ),
+    (
+        "build/scripts/generate_hooks.py",
+        "4292203a0900c075fb600c49954b98d4f00f030d49c205659858cab5e3a49572",
+        "Build script",
+    ),
+    (
+        "build/scripts/generate_pr_quality_prompts.py",
+        "ed8647159295166e8bd69c975ad98aea97f8bb1586ab51cb2e1237040970758f",
+        "Build script",
+    ),
+    (
+        "build/scripts/generate_rules.py",
+        "46798995f522870007ff67dfb549e4e2e42024eb93da94d91fb1763e7355378a",
+        "Build script",
+    ),
+    (
+        "build/scripts/generate_skills.py",
+        "7e97a6e4291b1af5a0b4b3bd14c1a8d46e328bde6cbb947ae1ed8be8f340e032",
+        "Build script",
+    ),
+    (
+        "build/scripts/run_drift_check_ci.py",
+        "d8a5d3b6251cc5a5cd8294e38aa83153eb1b86fb50f541e18a4f48047c53f12c",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_agent_matrix_refs.py",
+        "2332dc799bc0f21e7bb2522cd655ad0ebd522da3924bdd8d9a4ef223f0c0363c",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_install_parity.py",
+        "5f1a89be3ea0faa2fad23ecb01e45ee497da0ba0e9c33a802b04e3354e6d2bbf",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_path_normalization.py",
+        "6df72f760a853388f9b1b81b151d772179ea3007a95cba3709a6cdfa905d4868",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_planning_artifacts.py",
+        "638889ac130e2a00787ad24fad53ab9780b6bcbe0b452893b3aa5429cb35019b",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_plugin_manifests.py",
+        "edf1cc6730fc580b4ee5578a3b785f5e7ce84f41b84ad413ea1f281ae1978fe9",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_plugin_version_bump.py",
+        "ba1b1cbeadd5345c8b255ca61a38106f9bcba37acf0749ba21d98f9e100a1c04",
+        "Build script",
+    ),
+    (
+        "build/scripts/validate_templates_schema.py",
+        "f7855bd0f22d2ede12aadade0891e8d2318d2157d8f12a7aacf0d8907b0cfbee",
+        "Build script",
+    ),
+    # --- Hook wiring / config inputs ---
+    (
+        "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+        "734872c7857f2fe6462ec6bf81446ef74ea5db0be6afb7ab525b71fab3008a4e",
+        "Hook wiring manifest",
+    ),
+    (
+        ".claude/hooks/dispatch_groups.json",
+        "f65fb306f1aba2d657b6dab4e6b1102ee1a00c0b5366803fa3f64ca7404ec725",
+        "Hook wiring dispatch groups",
+    ),
+    (
+        ".claude/settings.json",
+        "df35188ace8c127177e574aada1e262cf61598e8728c7e03d93836e4ab8a3013",
+        "Claude settings (hook wiring)",
+    ),
+    (
+        ".markdownlint-cli2.yaml",
+        "db5924f182f68fd637e65550ab615e7c62d2a2be422e6cd685dbd55710c0c50d",
+        "Markdownlint config (pinned safe config)",
+    ),
+    (
+        ".claude/hooks/hooks.json",
+        "b3f062b9c829eebbe8fa0f17bc7221523c2200d6858efb2c84934f1ea974e8a8",
+        "Hook wiring",
+    ),
+    (
+        "src/copilot-cli/hooks/PostToolUse/_manifest.json",
+        "2775f6d04e41938b1497386ba1bc0d51fb0704569f22221fd2f22dacc5375364",
+        "Hook wiring",
+    ),
+    (
+        "src/copilot-cli/hooks/hooks.json",
+        "2cbf01abb6fa8da4f42afc719747924cedb1ee3ee50b93e49e1e1e265aec27a8",
+        "Hook wiring",
+    ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
     (".claude/lib/ai_review_common/__init__.py",
      "5417034baa3559df545628194476d4b69549b7636fbe06f56214fbd0d28493c6",
@@ -462,9 +667,11 @@ def _check_unpinned_executables(candidate: Path) -> list[str]:
                 continue
             if "__pycache__" in str(f):
                 continue
-            if f.suffix not in (".py", ".sh", ".mjs", ".js"):
+            # Skip known non-executable data files
+            if f.name == "CLAUDE.md":
                 continue
-            if f.name.startswith(".") or f.name == "CLAUDE.md":
+            if f.suffix in (".md", ".txt", ".rst", ".cfg", ".ini", ".toml",
+                            ".lock", ".typed"):
                 continue
             rel = str(PurePosixPath(f.relative_to(candidate)))
             if rel not in pinned_rels:
@@ -472,6 +679,74 @@ def _check_unpinned_executables(candidate: Path) -> list[str]:
                     f"Unpinned executable: {rel} "
                     f"(sha256: {_sha256_file(f)[:16]}...)"
                 )
+    return errors
+
+
+
+# ── Markdownlint config auto-discovery rejection ──
+
+# markdownlint-cli2 auto-discovers config from these names.  Only the
+# pinned root config is acceptable.  Any other file matching these patterns
+# in watched directories is rejected.
+_MARKDOWNLINT_CONFIG_GLOBS: tuple[str, ...] = (
+    ".markdownlint-cli2.yaml",
+    ".markdownlint-cli2.yml",
+    ".markdownlint-cli2.jsonc",
+    ".markdownlint-cli2.json",
+    ".markdownlint-cli2.cjs",
+    ".markdownlint-cli2.mjs",
+    ".markdownlint.yaml",
+    ".markdownlint.yml",
+    ".markdownlint.json",
+    ".markdownlint.jsonc",
+    ".markdownlint.cjs",
+)
+
+
+def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
+    """Reject unpinned markdownlint config in hook/vendor directories.
+
+    markdownlint-cli2 auto-discovers config by walking up from the target.
+    An attacker placing a config inside the vendor tree could override the
+    pinned safe config.  Reject any matching filename in watched dirs that
+    is not the pinned root config.
+    """
+    errors: list[str] = []
+    pinned_rels = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+    watched_dirs = [
+        candidate / ".claude" / "hooks",
+        candidate / "src" / "copilot-cli" / "hooks",
+    ]
+    for hdir in watched_dirs:
+        if not hdir.is_dir():
+            continue
+        for f in sorted(hdir.rglob("*")):
+            if not f.is_file():
+                continue
+            if f.name in _MARKDOWNLINT_CONFIG_GLOBS:
+                rel = str(__import__("pathlib").PurePosixPath(
+                    f.relative_to(candidate)))
+                if rel not in pinned_rels:
+                    errors.append(
+                        f"Unpinned markdownlint config: {rel} "
+                        f"(auto-discovery attack surface)"
+                    )
+    # Also check for package.json markdownlint-cli2 config field in vendor
+    pkg_json = (
+        candidate / ".claude" / "hooks" / "PreToolUse"
+        / "_vendor" / "markdownlint" / "package.json"
+    )
+    if pkg_json.is_file():
+        try:
+            import json
+            data = json.loads(pkg_json.read_text())
+            if "markdownlint-cli2" in data:
+                errors.append(
+                    "package.json contains markdownlint-cli2 config "
+                    "(embedded config override attack surface)"
+                )
+        except (json.JSONDecodeError, OSError):
+            pass
     return errors
 
 
@@ -669,6 +944,22 @@ WATCHED_PREFIXES: tuple[str, ...] = (
     ".github/workflows/vendor-provenance.yml",
     "scripts/ci/validate_vendor_provenance.py",
     "tests/ci/test_validate_vendor_provenance.py",
+    # Hook wiring and config inputs
+    "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+    "src/copilot-cli/hooks/PostToolUse/_manifest.json",
+    ".claude/hooks/dispatch_groups.json",
+    ".claude/hooks/hooks.json",
+    "src/copilot-cli/hooks/hooks.json",
+    ".claude/settings.json",
+    ".markdownlint-cli2.yaml",
+    # All hook dirs (non-PreToolUse)
+    ".claude/hooks/PostToolUse/",
+    ".claude/hooks/PreCompact/",
+    ".claude/hooks/SessionEnd/",
+    ".claude/hooks/SessionStart/",
+    ".claude/hooks/UserPromptSubmit/",
+    "src/copilot-cli/hooks/PostToolUse/",
+    "build/scripts/",
 )
 
 
@@ -754,12 +1045,17 @@ def main() -> int:
     _run_phase("Symlink Containment", errs)
     all_errors.extend(errs)
 
-    # 6. .npmrc rejection
+    # 6. Markdownlint config injection
+    errs = _reject_markdownlint_config_injection(root)
+    _run_phase("Markdownlint Config Injection", errs)
+    all_errors.extend(errs)
+
+    # 7. .npmrc rejection
     errs = _reject_npmrc(root, vendor)
     _run_phase(".npmrc Rejection", errs)
     all_errors.extend(errs)
 
-    # 7. Vendor reconstruction (npm ci)
+    # 8. Vendor reconstruction (npm ci)
     # ABORT if any preflight error: never execute npm with tainted inputs.
     if all_errors:
         print("\n  SKIP: Vendor reconstruction skipped (preflight errors)")

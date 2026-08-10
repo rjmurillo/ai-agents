@@ -574,11 +574,11 @@ class TestRelevance:
 
         assert check_relevance(["build/scripts/generate_hooks_events.py"]) is True
 
-    def test_build_script_subpath_no_trigger(self) -> None:
-        """Only pinned build scripts, not arbitrary build/scripts/ files."""
+    def test_build_script_triggers(self) -> None:
+        """All build/scripts/ files trigger relevance (full closure watched)."""
         from scripts.ci.validate_vendor_provenance import check_relevance
 
-        assert check_relevance(["build/scripts/other.py"]) is False
+        assert check_relevance(["build/scripts/other.py"]) is True
 
     def test_trust_anchor_workflow_triggers(self) -> None:
         """Workflow file change triggers relevance (trust-anchor surface)."""
@@ -666,3 +666,169 @@ class TestImportClosurePins:
         assert missing == [], (
             f"Generator imports not pinned: {missing}"
         )
+
+
+# ── Finding 1: Production tree happy-path ──
+
+class TestProductionTreePassesGate:
+    """The real repository tree must pass all scans (pin scope = scan scope)."""
+
+    def test_real_tree_zero_unpinned(self) -> None:
+        """_check_unpinned_executables returns no errors on the real tree."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        repo = Path(__file__).resolve().parents[2]
+        errs = _check_unpinned_executables(repo)
+        assert errs == [], f"Unpinned in real tree: {errs}"
+
+    def test_real_tree_auth_passes(self) -> None:
+        """_authenticate_pinned returns no errors on the real tree."""
+        from scripts.ci.validate_vendor_provenance import _authenticate_pinned
+
+        repo = Path(__file__).resolve().parents[2]
+        errs = _authenticate_pinned(repo)
+        assert errs == [], f"Auth errors on real tree: {errs}"
+
+
+# ── Finding 2: Executable/config gap coverage ──
+
+class TestExtensionAndConfigGaps:
+    """Scan must catch dotfiles, .cjs, .ts, extensionless, and config injections."""
+
+    def test_dotfile_py_detected(self, tmp_path: Path) -> None:
+        """A dotfile like .evil.py in watched dir is flagged as unpinned."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        d = tmp_path / ".claude" / "hooks" / "PreToolUse"
+        d.mkdir(parents=True)
+        (d / ".evil.py").write_text("import os")
+        errs = _check_unpinned_executables(tmp_path)
+        assert any(".evil.py" in e for e in errs)
+
+    def test_cjs_detected(self, tmp_path: Path) -> None:
+        """A .cjs file in watched dir is flagged."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        d = tmp_path / "build" / "scripts"
+        d.mkdir(parents=True)
+        (d / "evil.cjs").write_text("module.exports = {}")
+        errs = _check_unpinned_executables(tmp_path)
+        assert any("evil.cjs" in e for e in errs)
+
+    def test_ts_detected(self, tmp_path: Path) -> None:
+        """A .ts file in watched dir is flagged."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        d = tmp_path / ".claude" / "lib"
+        d.mkdir(parents=True)
+        (d / "exploit.ts").write_text("export default {}")
+        errs = _check_unpinned_executables(tmp_path)
+        assert any("exploit.ts" in e for e in errs)
+
+    def test_extensionless_detected(self, tmp_path: Path) -> None:
+        """An extensionless file in watched dir is flagged."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        d = tmp_path / "src" / "copilot-cli" / "hooks"
+        d.mkdir(parents=True)
+        f = d / "backdoor"
+        f.write_text("#!/bin/sh\necho pwned")
+        errs = _check_unpinned_executables(tmp_path)
+        assert any("backdoor" in e for e in errs)
+
+    def test_markdownlint_cli2_cjs_rejected(self, tmp_path: Path) -> None:
+        """A .markdownlint-cli2.cjs in hooks dir is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / ".claude" / "hooks" / "PreToolUse"
+        d.mkdir(parents=True)
+        (d / ".markdownlint-cli2.cjs").write_text("module.exports = {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any(".markdownlint-cli2.cjs" in e for e in errs)
+
+    def test_markdownlint_cjs_rejected(self, tmp_path: Path) -> None:
+        """A .markdownlint.cjs in hooks dir is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+        d.mkdir(parents=True)
+        (d / ".markdownlint.cjs").write_text("module.exports = {}")
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any(".markdownlint.cjs" in e for e in errs)
+
+    def test_package_json_markdownlint_config_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """package.json with markdownlint-cli2 key is rejected."""
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        d = tmp_path / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
+        d.mkdir(parents=True)
+        (d / "package.json").write_text(
+            '{"markdownlint-cli2": {"config": {"default": true}}}'
+        )
+        errs = _reject_markdownlint_config_injection(tmp_path)
+        assert any("package.json" in e for e in errs)
+
+
+# ── Finding 3: Hook wiring inputs ──
+
+class TestHookWiringPins:
+    """Hook wiring inputs must be pinned and trigger relevance."""
+
+    def test_manifest_json_pinned(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        assert "src/copilot-cli/hooks/PreToolUse/_manifest.json" in pinned
+
+    def test_dispatch_groups_pinned(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        assert ".claude/hooks/dispatch_groups.json" in pinned
+
+    def test_settings_json_pinned(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        assert ".claude/settings.json" in pinned
+
+    def test_hooks_json_pinned(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        assert ".claude/hooks/hooks.json" in pinned
+        assert "src/copilot-cli/hooks/hooks.json" in pinned
+
+    def test_wiring_triggers_relevance(self) -> None:
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".claude/hooks/dispatch_groups.json"])
+        assert check_relevance([".claude/settings.json"])
+        assert check_relevance(["src/copilot-cli/hooks/PreToolUse/_manifest.json"])
+        assert check_relevance([".markdownlint-cli2.yaml"])
+        assert check_relevance([".claude/hooks/hooks.json"])
+
+    def test_wiring_mismatch_fails_closed(self, tmp_path: Path) -> None:
+        """Tampered wiring file fails authentication."""
+        from scripts.ci.validate_vendor_provenance import (
+            _PINNED_ARTIFACTS,
+            _authenticate_pinned,
+        )
+
+        # Build minimal candidate with one wiring file tampered
+        for rel, _sha, _label in _PINNED_ARTIFACTS:
+            if rel == ".claude/hooks/dispatch_groups.json":
+                f = tmp_path / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text('{"TAMPERED": true}')
+                break
+        errs = _authenticate_pinned(tmp_path)
+        assert any("dispatch_groups.json" in e for e in errs)
