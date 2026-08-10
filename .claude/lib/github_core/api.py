@@ -97,7 +97,10 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 # Repository
 # ---------------------------------------------------------------------------
 
-_GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/]+)")
+_GITHUB_REMOTE_PATTERN = re.compile(
+    r"^(?:(?:https?|git|ssh)://(?:git@)?|git@)?"
+    r"github\.com[:/]([^/]+)/([^/]+)$"
+)
 
 
 def get_repo_info() -> RepoInfo | None:

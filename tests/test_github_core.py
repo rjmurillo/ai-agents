@@ -474,8 +474,15 @@ class TestGetRepoInfo:
             info = get_repo_info()
         assert info == RepoInfo(owner="myorg", repo="myrepo")
 
-    def test_returns_none_for_non_github_remote(self):
-        stdout = "https://gitlab.com/rjmurillo/moq.analyzers.git\n"
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://gitlab.com/rjmurillo/moq.analyzers.git\n",
+            "https://notgithub.com/rjmurillo/moq.analyzers.git\n",
+            "https://evil.example/github.com/rjmurillo/moq.analyzers.git\n",
+        ],
+    )
+    def test_returns_none_for_non_github_remote(self, stdout):
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             assert get_repo_info() is None
 
