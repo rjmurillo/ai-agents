@@ -158,9 +158,13 @@
     {
       "action": "Merged current origin/main after Validate PR conflict failure",
       "result": "Resolved pr-autofix command and generated skill conflicts, regenerated mirrors, and reran pr-autofix tests after the merge."
+    },
+    {
+      "action": "Fixed spawned-child lease-loss review thread",
+      "result": "Added stop_mutation_group and coverage for a mutation leader that exits after spawning a delayed child; lease loss now terminates the whole process group before release."
     }
   ],
-  "endingCommit": "75489ac95c2dc3500dc2c8b473c3094cdf02fb76",
+  "endingCommit": "fcb82e727264ef61a41b90471234cf0f462996d0",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]
