@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545 before QA evidence refresh."
+        "Evidence": "PR code validated at 49a0cc9224b49d2def524d44406aa108045c893d after subprocess decoding cleanup."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after merging origin/main: pytest collected 296 and passed 296 for worktree GC targeted suites. Ruff passed on changed maintenance and GC test files."
+        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 64 and passed 64 for GC anchor and real-git stale suites; subprocess encoding count ratchet passed with 236 violations <= baseline 253."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -134,11 +134,14 @@
     {
       "action": "Reviewed the diff and wrote QA evidence",
       "outcome": "Confirmed the patch closes reflog, worktree-ref, and late-race loss channels without finding a correctness regression."
+    },
+    {
+      "action": "Fixed CI subprocess encoding ratchet",
+      "outcome": "Added errors=\"replace\" to branch-added text-mode subprocess calls in GC real-git tests, then reran the targeted GC suite and subprocess encoding count ratchet."
     }
   ],
-  "endingCommit": "7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545",
+  "endingCommit": "49a0cc9224b49d2def524d44406aa108045c893d",
   "nextSteps": [
-    "Commit the QA report and session log to the PR branch.",
-    "Push the evidence commit and let Validate PR re-read the new QA report."
+    "Push the QA refresh and wait for required CI to pass before restoring auto-merge."
   ]
 }

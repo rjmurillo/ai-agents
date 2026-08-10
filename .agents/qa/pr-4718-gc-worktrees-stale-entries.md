@@ -1,69 +1,44 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 7519dcefd5d4ae78cb01eaf63b2b5c886d5b8545
+qaCommit: 49a0cc9224b49d2def524d44406aa108045c893d
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`7a04a4a683926fe27cf60b0aac8fcd1b0794232d`, against merge-base
-`cefc2b0ed94e322624d4c41c0007822948ba2c81`.
+`49a0cc9224b49d2def524d44406aa108045c893d`, against current `origin/main`.
 
-The diff changes 27 GC files, 3099 insertions and 783 deletions. It splits
-worktree-only anchor readers into dedicated helpers, tightens stale-worktree
-probes, and adds real-git regression coverage for the commit-loss paths.
+The follow-up change fixes the required `Run Python Tests` failure from the
+subprocess encoding count ratchet. It adds `errors="replace"` to branch-added
+text-mode subprocess calls in the GC real-git tests.
 
 ## Live state and setup
 
-- Acquired the PR lease with `pr_autofix_lease.py` for `session-10035`.
+- Acquired the PR lease with `pr_autofix_lease.py` for `autofix-qa-c-4718`.
 - `check_pr_live_state.py` returned `ACT` for PR #4718, head
-  `7a04a4a683926fe27cf60b0aac8fcd1b0794232d`, base `main` at
-  `cefc2b0ed94e322624d4c41c0007822948ba2c81`.
-- The first worktree checkout landed on stale local commit
-  `7617a6d03031590b45dab6a17e1709bb902fbc3e`. I reset the worktree to
-  `origin/fix/gc-worktrees-stale-entries` before testing. This report applies
-  to `7a04a4a683926fe27cf60b0aac8fcd1b0794232d`.
+  `6bfd506f5fb0d2d60719d4a034579c825eda9d31`, base `main` at
+  `b5f79b4f0423b062576776b71d01c17b0694e404`, before the CI fix.
+- Reproduced the CI failure locally with
+  `uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD`.
 
 ## Test execution results
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest -q tests/gc_real_git.py tests/gc_stale_unit.py tests/test_gc_anchor_readers.py tests/test_gc_stale_probes.py tests/test_gc_worktrees.py tests/test_gc_worktrees_cli.py tests/test_gc_worktrees_occupancy.py tests/test_gc_worktrees_real_git.py` | 127 passed in 2.98s |
-| `uv run pytest -q tests/test_gc*.py` | 297 passed in 10.59s |
-| `python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 4718 --required-only --output-format json` | `Validate PR` failed, five required checks were pending, failure matched the missing-QA state described in the PR context |
+| `uv run --frozen pytest -q tests/test_gc_anchor_readers.py tests/test_gc_worktrees_real_git_anchors.py tests/test_gc_worktrees_real_git_healthy.py tests/test_gc_worktrees_real_git_stale.py` | 64 collected, 64 passed |
+| `uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD` | Passed, 236 violations <= baseline 253 |
 
 ## Code review summary
 
-Reviewed the GC maintenance diff and its new tests.
+Reviewed the subprocess decoding diff. The change only adds the missing
+`errors="replace"` keyword to existing text-mode subprocess calls. It does not
+change command arguments, assertions, or fixture behavior.
 
-- `scripts/maintenance/_gc_anchors.py` adds tri-state readers for reflogs and
-  worktree-local refs. Unreadable or malformed anchors return unknown, not an
-  empty safe result.
-- `scripts/maintenance/_gc_stale.py` now combines reflog and per-worktree ref
-  anchors in `unreachable_admin_commits`, and tightens
-  `linked_checkout_present` so the checkout at a path must still match the
-  recorded admin entry.
-- `scripts/maintenance/_gc_apply.py` adds last-moment rechecks before removal:
-  compare HEAD against the recheck result, rerun the reflog-only orphan probe,
-  rerun the suspended-operation probe, and re-verify checkout identity. This
-  closes the race where HEAD returns to the same value or a commit lands during
-  the orphan probe.
-- New tests in `tests/test_gc_anchor_readers.py`,
-  `tests/test_gc_worktrees_real_git_anchors.py`,
-  `tests/test_gc_worktrees_real_git_apply.py`,
-  `tests/test_gc_worktrees_real_git_stale.py`,
-  `tests/test_gc_worktrees_stale.py`,
-  `tests/test_gc_worktrees_stale_apply.py`, and
-  `tests/test_gc_worktrees_stale_warnings.py` pin both positive loss channels
-  and negative controls.
-
-I did not find a correctness regression in the reviewed paths. The new tests
-match the failure modes the patch is trying to close.
+- Current session reran `uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD` and got 236 violations <= baseline 253.
 
 ## Verdict
 
-PASS. The targeted GC suite passed, the PR remained actionable during the run,
-and the diff closes the reported worktree-only anchor loss paths with matching
-unit and real-git coverage.
+PASS. The targeted GC suite passed, and the failed CI ratchet now passes against
+current `origin/main`.

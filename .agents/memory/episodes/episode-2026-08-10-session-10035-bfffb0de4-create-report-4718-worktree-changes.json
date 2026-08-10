@@ -60,7 +60,8 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e007"
       ],
       "leads_to": [
         "e006"
@@ -75,6 +76,30 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed CI subprocess encoding ratchet",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T16:37:28+00:00",
+      "type": "commit",
+      "content": "Commit: 49a0cc9224b49d2def524d44406aa108045c893d",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
     }
@@ -84,7 +109,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 3
   },
   "lessons": []
