@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/4825-review-4894113215-report.md"
+        "Evidence": ".agents/qa/pr-4825-review-4894113215-report.md"
       },
       "changesCommitted": {
         "level": "MUST",

@@ -72,4 +72,4 @@ Result: PASS
 
 All required behaviors verified at commit 98c2346577eedd1319f75032701ddb02179fbe0c. Guard rejects evaluator wrappers, command delegation, loader injection, Git execution channels, parser desynchronization, and noncanonical invocations while preserving benign commands and the canonical `python3 -I` form on both surfaces. Security review, independent GPT-5.6 Sol review, and five-axis code review returned approved with no Critical or High findings.
 
-PR #4825 Copilot review 4894113215 later found two defects this round missed. See `.agents/qa/4825-review-4894113215-report.md`.
+PR #4825 Copilot review 4894113215 later found two defects this round missed. See `.agents/qa/pr-4825-review-4894113215-report.md`.
