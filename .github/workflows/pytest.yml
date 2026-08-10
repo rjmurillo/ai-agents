@@ -419,7 +419,10 @@ jobs:
       - check-paths
       - test
       - coverage
-    if: always() && needs.check-paths.outputs.python-changed != 'false'
+    if: >-
+      always() &&
+      (needs.check-paths.result != 'success' ||
+      needs.check-paths.outputs.python-changed == 'true')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
     permissions:
@@ -524,7 +527,7 @@ jobs:
   skip-tests:
     name: Run Python Tests
     needs: check-paths
-    if: needs.check-paths.outputs.python-changed != 'true'
+    if: needs.check-paths.result == 'success' && needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2

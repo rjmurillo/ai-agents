@@ -276,7 +276,16 @@ class TestAggregateJob:
 
     def test_aggregate_runs_when_path_detection_fails(self) -> None:
         condition = _job("test-result")["if"]
-        assert condition == "always() && needs.check-paths.outputs.python-changed != 'false'"
+        assert "always()" in condition
+        assert "needs.check-paths.result != 'success'" in condition
+        assert "needs.check-paths.outputs.python-changed == 'true'" in condition
+
+    def test_skip_job_requires_successful_path_detection(self) -> None:
+        condition = _job("skip-tests")["if"]
+        assert condition == (
+            "needs.check-paths.result == 'success' && "
+            "needs.check-paths.outputs.python-changed != 'true'"
+        )
 
     def test_aggregate_needs(self) -> None:
         needs = _job("test-result")["needs"]
