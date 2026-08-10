@@ -89,7 +89,8 @@
         "e012",
         "e016",
         "e019",
-        "e022"
+        "e022",
+        "e025"
       ],
       "leads_to": [
         "e009"
@@ -302,6 +303,30 @@
       "caused_by": [
         "e023"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconcile with a concurrent session working the same branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T14:20:48+00:00",
+      "type": "commit",
+      "content": "Commit: 44809942727f53a756dd21f09c336dfa4978f97c",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-pr-4825-review-response"
     }
@@ -311,7 +336,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 30
   },
   "lessons": []
