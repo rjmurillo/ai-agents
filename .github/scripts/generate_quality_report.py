@@ -42,6 +42,7 @@ from scripts.ai_review_common import (  # noqa: E402
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
+    merge_verdicts,
     write_output,
 )
 
@@ -118,8 +119,8 @@ def _build_action_required_section(
     """Build an action-required section that @mentions the PR author.
 
     Only emits content when actionable verdicts (CRITICAL_FAIL, FAIL, etc.) exist.
-    Agents whose failure category is INFRASTRUCTURE never ran (Copilot CLI
-    unavailable), so they are excluded: listing them as having flagged issues is
+    Agents whose failure category is INFRASTRUCTURE never ran, so they are
+    excluded: listing them as having flagged issues is
     the alarm-fatigue symptom of issue #2818.
     """
     if not pr_author:
@@ -151,19 +152,37 @@ def _build_action_required_section(
     return "\n".join(lines)
 
 
-def _empty_findings_message(agent: str, categories: dict[str, str]) -> str:
+def _security_review_ran(verdict: str, category: str) -> bool:
+    """Return whether security produced a trustworthy review result."""
+    return (
+        category != "INFRASTRUCTURE"
+        and verdict != "DID_NOT_RUN"
+        and merge_verdicts([verdict]) != "UNKNOWN"
+    )
+
+
+def _empty_findings_message(
+    agent: str,
+    categories: dict[str, str],
+    security_review_ran: bool,
+) -> str:
     """Message for an agent whose findings file exists but is empty.
 
-    An INFRASTRUCTURE category means the agent never ran (Copilot CLI
-    unavailable), so an empty file is expected and reported as such rather than
-    as a missing-findings warning (issue #2818).
+    An INFRASTRUCTURE category means the agent never ran, so an empty file is
+    expected and reported as such rather than as a missing-findings warning
+    (issue #2818).
     """
+    if agent == "security" and not security_review_ran:
+        return "\u2139\ufe0f Agent did not run: no valid security review result"
     if categories.get(agent, "") == "INFRASTRUCTURE":
-        return "\u2139\ufe0f Agent did not run: Copilot CLI unavailable"
+        return "\u2139\ufe0f Agent did not run: infrastructure failure"
     return "\u26a0\ufe0f No findings available (empty file)"
 
 
-def _build_findings_sections(categories: dict[str, str]) -> str:
+def _build_findings_sections(
+    categories: dict[str, str],
+    security_review_ran: bool,
+) -> str:
     """Read findings files for each agent and build collapsible sections."""
     sections = ""
     for agent in _AGENTS:
@@ -182,7 +201,8 @@ def _build_findings_sections(categories: dict[str, str]) -> str:
                 else:
                     sections += (
                         f"\n<details>\n<summary>{title}</summary>"
-                        f"\n\n{_empty_findings_message(agent, categories)}\n\n</details>\n"
+                        f"\n\n{_empty_findings_message(agent, categories, security_review_ran)}"
+                        "\n\n</details>\n"
                     )
             except OSError as exc:
                 print(f"::error::Failed to read findings file for {agent}: {exc}")
@@ -228,6 +248,10 @@ def main(argv: list[str] | None = None) -> int:
         categories[agent] = getattr(args, f"{agent_arg_name(agent)}_category")
         emojis[agent] = get_verdict_emoji(verdicts[agent])
 
+    security_review_ran = _security_review_ran(
+        verdicts["security"],
+        categories["security"],
+    )
     alert_type = get_verdict_alert_type(final_verdict)
     final_emoji = get_verdict_emoji(final_verdict)
 
@@ -241,16 +265,15 @@ def main(argv: list[str] | None = None) -> int:
         "",
     ]
 
-    # Issue #2821 option c: when the security axis hit an infrastructure
-    # failure, the review never ran; say so in a distinct alert instead of
-    # letting the generic WARN read as a passed security review.
-    if categories.get("security") == "INFRASTRUCTURE":
+    # Issue #4777: a missing or invalid security result stays visible in the
+    # PR report and blocks through the aggregate verdict.
+    if not security_review_ran:
         lines += [
             "> [!CAUTION]",
-            "> **Security review did not run.** The security axis hit an"
-            " infrastructure failure, so this verdict does not certify a"
-            " security review. Re-run the gate or review security manually"
-            " before merge. Refs #2821.",
+            "> **Security review did not run.** The security axis did not"
+            " produce a valid result, so this verdict does not certify a"
+            " security review. Restore the review and re-run the gate before"
+            " merge. Refs #4777.",
             "",
         ]
 
@@ -302,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     report += _build_action_required_section(
         pr_author, final_verdict, verdicts, categories
     )
-    report += _build_findings_sections(categories)
+    report += _build_findings_sections(categories, security_review_ran)
 
     footer_lines = [
         "",
