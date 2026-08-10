@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session commits, in committer-date order: bd37bddd979ada88feebc941152a9b9143bfddd0, 8fcfbe5570a92de8e70a29b10b293e0364cf9e3d, and 9c0771fe788903c0d5171a62c158c4fd15b20789. The final commit that writes this record cannot cite itself and is excluded by construction."
+        "Evidence": "All code changes committed (HEAD: 7ff4931e628b2ae6070434e6fbf0d8fccb0236cf)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py --creation-mode passed"
+        "Evidence": "175 scope and PR validation cases passed, 1027 Windows marker tests passed, and ruff check passed after merging main."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -185,10 +185,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "c65dc11eb2253b9440c10c5cc8532a731d6281fc",
-      "head": "369e60a955797d9059ecb2928c1989973d744a55"
+      "head": "7ff4931e628b2ae6070434e6fbf0d8fccb0236cf"
     }
   },
-  "endingCommit": "369e60a955797d9059ecb2928c1989973d744a55",
+  "endingCommit": "7ff4931e628b2ae6070434e6fbf0d8fccb0236cf",
   "nextSteps": [
     "Wait for CI on PR #4738, then update the branch and take the server merge before any token recount",
     "Land the memory-index duplicate-dump fix (PR pending) that removes 102 rows PR #4592 appended",

@@ -239,6 +239,19 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T13:03:28+00:00",
+      "type": "commit",
+      "content": "Commit: 7ff4931e628b2ae6070434e6fbf0d8fccb0236cf",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     }
@@ -248,7 +261,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 4
   },
   "lessons": []
