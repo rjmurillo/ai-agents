@@ -119,7 +119,7 @@
   "nextSteps": [
     "Merge PR #4817 after CI passes with QA report present"
   ],
-  "endingCommit": "4b7b410b762fa9e262c548d36cfcae30f148bf0c",
+  "endingCommit": "d21aeecc94cd22259ae7774e197cf9cc060c1b93",
   "prNumber": 4817,
   "outcome": "QA PASS: 122/122 tests pass across both test files changed in PR."
 }

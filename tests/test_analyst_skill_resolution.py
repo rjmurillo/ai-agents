@@ -330,6 +330,12 @@ _TOOL_NAMES = (
     "get_workflow_run", "get_job_logs",
 )
 
+# Word-boundary regex matching any declared tool name.
+# Prevents substring matches like "not_pull_request_read".
+_TOOL_RE = re.compile(
+    r"(?<![a-zA-Z0-9_])(" + "|".join(re.escape(t) for t in _TOOL_NAMES) + r")(?![a-zA-Z0-9_])",
+)
+
 _NEGATIONS = re.compile(
     r"\b("
     r"do\s+not|don[\u2019']?t|never|"
@@ -386,7 +392,7 @@ def _line_has_tool_reference(line: str) -> bool:
     # Strip all quote forms: ASCII double/single + Unicode curly quotes
     stripped = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", line)
     stripped = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", "", stripped)
-    if any(t in stripped for t in _TOOL_NAMES):
+    if _TOOL_RE.search(stripped):
         return True
     return "retrieve" in stripped.lower() and "declared" in stripped.lower()
 
@@ -434,19 +440,24 @@ def _is_affirmative_directive(line: str) -> bool:
 
     for i, clause in enumerate(clauses):
         # Require analyst+verb in this clause (checked in stripped prose)
-        has_analyst_verb = bool(re.search(
+        verb_match = re.search(
             r"\banalyst\b\s+(?:directly\s+)?"
             r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
             clause,
-        ))
-        if not has_analyst_verb:
+        )
+        if not verb_match:
             continue
-        # Require a declared tool in this same clause of the ORIGINAL line
-        # (backtick-wrapped tool names are valid in prose)
+        # Tool must appear AFTER the analyst+verb as its direct argument,
+        # not in a subordinate clause (while/but/although/when).
+        after_verb = clause[verb_match.end():]
+        # Take only the main clause fragment (before subordinating conjunctions)
+        main_frag = re.split(r"\b(while|but|although|whereas|however)\b", after_verb)[0]
         orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
-        has_tool = any(t in orig_clause for t in _TOOL_NAMES)
+        orig_after = orig_clause[verb_match.end():]
+        orig_main = re.split(r"\b(while|but|although|whereas|however)\b", orig_after)[0]
+        has_tool = bool(_TOOL_RE.search(orig_main))
         if not has_tool:
-            has_tool = "declared" in orig_clause and "tool" in orig_clause
+            has_tool = "declared" in main_frag and "tool" in main_frag
         if has_tool:
             return True
 
@@ -836,6 +847,20 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 39: tool before analyst verb, not after (must reject)
+    TOOL_BEFORE_VERB = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache while pull_request_read is available. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 40: substring tool name (must reject)
+    TOOL_SUBSTRING_NAME = (
+        "\n### delegation contract\n"
+        "the analyst retrieves PR data using not_pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -1025,3 +1050,13 @@ class TestNegativeControls:
         """Tool in one clause, analyst+verb in another clause."""
         err = _check_retrieval_precedes_blocked(self.TOOL_SPLIT_CLAUSE)
         assert err is not None, "Should reject split-clause tool reference"
+
+    def test_tool_before_verb_rejected(self) -> None:
+        """Tool in subordinate 'while' clause, not verb argument."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BEFORE_VERB)
+        assert err is not None, "Should reject tool in subordinate clause"
+
+    def test_tool_substring_name_rejected(self) -> None:
+        """Substring tool name like not_pull_request_read must not match."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SUBSTRING_NAME)
+        assert err is not None, "Should reject substring tool name"

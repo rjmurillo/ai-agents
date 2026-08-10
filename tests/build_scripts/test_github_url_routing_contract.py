@@ -263,7 +263,7 @@ def test_analyst_surface_has_exact_routing_table(surface: Path) -> None:
 def test_analyst_surface_no_duplicate_routes(surface: Path) -> None:
     """No URL pattern should map to multiple tools (no duplicates)."""
     body = surface.read_text(encoding="utf-8")
-    routes, all_pats = _parse_routing_table(body)
+    routes, _ = _parse_routing_table(body)
     label = str(surface.relative_to(REPO_ROOT))
     for pattern, tools in routes.items():
         assert len(tools) == 1, (
