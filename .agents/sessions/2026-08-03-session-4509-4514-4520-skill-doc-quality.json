@@ -90,6 +90,11 @@
         "complete": false,
         "level": "SHOULD",
         "evidence": "Serena MCP not available in this harness session"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4586-session-4509-qa-report.md"
       }
     }
   },
@@ -125,8 +130,16 @@
       "summary": "Issue was already closed before this session."
     }
   ],
-  "endingCommit": "3664742506956eecf9bb7aef2d6edf677acb3984",
+  "endingCommit": "",
   "nextSteps": [
     "Push branch and open PR with Fixes #4509 Fixes #4514 Fixes #4520"
-  ]
+  ],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "ef4140558e8323c9bb176946f3cb89d06d2aa2a1",
+      "head": "02c953409728ce3efa91e27ab6bf43c0c923a0de"
+    }
+  }
 }

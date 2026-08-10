@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "rework-warning: .claude/skills/doc-accuracy/scripts/doc_accuracy.py edited 12 times\nrework-warning: src/copilot-cli/skills/doc-accuracy/scripts/doc_accuracy.py edited 12 times\nrework-warning: tests/skills/doc-accuracy/test_doc_accuracy.py edited 12 times"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4586-session-10004-qa-report.md"
       }
     }
   },
@@ -164,6 +169,14 @@
       "detail": "The first authenticated push attempt used scanner config isolation and lost its credential helper. A later pre-push run required retrospective evidence. Neither attempt mutated the remote branch."
     }
   ],
-  "endingCommit": "fa364d696bde8d17ac482679a2e15b4e72ee93f3",
-  "nextSteps": []
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "ef4140558e8323c9bb176946f3cb89d06d2aa2a1",
+      "head": "02c953409728ce3efa91e27ab6bf43c0c923a0de"
+    }
+  }
 }
