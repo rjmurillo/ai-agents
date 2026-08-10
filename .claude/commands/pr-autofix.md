@@ -1,5 +1,6 @@
 ---
-description: Autonomous PR monitor and fixer. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
+description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
+argument-hint: "[pull-request|mode]"
 allowed-tools: Bash, Read, Edit, Write, Skill
 size-exception: true
 ---
