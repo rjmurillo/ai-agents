@@ -266,9 +266,9 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ env.PR_NUMBER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LOCAL_PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
+          LOCAL_PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status }}
         run: python3 scripts/quality_gate/resolve_pytest_signal.py
 
 # ==============================================================================

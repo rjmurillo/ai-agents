@@ -1,22 +1,14 @@
-"""Tests for scripts/quality_gate/resolve_pytest_signal.py.
-
-Every ``gh`` call is faked, and the fake dispatches on the argument vector
-rather than on call order, so a branch that skips a call fails by name instead
-of silently consuming the next canned response (testing rule 11).
-
-The job fixtures mirror ``.github/workflows/pytest.yml`` as read on 2026-08-09:
-jobs ``test`` and ``skip-tests`` both declare ``name: Run Python Tests``, the
-first owning ``- name: Run pytest`` and the second ``- name: Skip tests (no
-Python test inputs changed)``.
-"""
+"""Tests for the shadow pytest signal resolver and workflow wiring."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from scripts.quality_gate import resolve_pytest_signal as mod
 from scripts.quality_gate.resolve_pytest_signal import Job, Resolution, Run
@@ -162,8 +154,12 @@ class TestFreshness:
         resolve_with(gh)
         assert gh.paths == [REF_PATH]
 
-    def test_a_live_head_in_upper_case_is_not_stale(self) -> None:
-        assert resolved(ref=HEAD.upper(), runs=[]).status == STATUS_PENDING
+    def test_an_upper_case_expected_head_is_not_stale(self) -> None:
+        gh = gh_stub(runs=[])
+        result = mod.resolve(
+            gh, repo=REPO, pr=PR, expected_sha=HEAD.upper(), workflow="pytest.yml", job_name=CHECK
+        )
+        assert result.status == STATUS_PENDING
 
     def test_a_push_run_for_the_same_commit_is_rejected(self) -> None:
         """pytest.yml also triggers on push, with a different job set."""
@@ -273,14 +269,7 @@ class TestJobAggregation:
         assert "unhealthy sibling" in result.reason
 
     def test_the_real_green_but_unrun_payload_is_skipped(self) -> None:
-        """Regression pin, verbatim from live API data rather than a fixture.
-
-        Captured 2026-08-09 from ``GET /repos/rjmurillo/ai-agents/actions/runs/
-        31360441685/attempts/1/jobs``. BOTH jobs named "Run Python Tests" report
-        ``conclusion: success``, as does the run, yet the suite never executed:
-        step names are the only discriminator, so this payload is pinned as it
-        arrived rather than rebuilt from the fixtures it would have to agree with.
-        """
+        """Pin the live green-but-unrun payload from run 31360441685."""
         payload = json.loads("""{"jobs": [
           {"name": "Run Python Tests", "status": "completed", "conclusion": "success", "steps": [
             {"name": "Set up job", "conclusion": "success"},
@@ -459,6 +448,8 @@ class TestMain:
         "malformed-repo": (["--repo", "not-a-repo"], "owner/repo"),
         "non-numeric-pr": (["--pr", "../../etc"], "positive integer"),
         "workflow-with-a-path": (["--workflow", "../../etc/passwd"], "workflow file name"),
+        "zero-timeout": (["--timeout", "0"], "finite positive"),
+        "infinite-timeout": (["--timeout", "inf"], "finite positive"),
     }
 
     @pytest.mark.parametrize(("extra", "message"), _INVALID.values(), ids=_INVALID)
@@ -487,8 +478,22 @@ class TestMain:
     def test_env_vars_supply_the_defaults(self, monkeypatch, capsys):
         monkeypatch.setattr(mod, "run_gh", gh_stub(ref=OTHER_HEAD))
         env = {"GITHUB_REPOSITORY": REPO, "PR_NUMBER": PR, "EXPECTED_HEAD_SHA": HEAD}
-        for name, value in {**env, "LOCAL_PYTEST_STATUS": "PASS"}.items():
+        for name, value in env.items():
             monkeypatch.setenv(name, value)
+        monkeypatch.delenv("LOCAL_PYTEST_STATUS", raising=False)
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
         assert main([]) == EXIT_OK
-        assert "shadow_pytest_status=STALE" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "shadow_pytest_status=STALE" in out
+        assert "shadow_pytest_agreement=UNCOMPARED" in out
+
+    def test_shadow_step_passes_missing_local_status_through(self) -> None:
+        workflow = yaml.safe_load(
+            (Path(__file__).parents[2] / ".github/workflows/ai-pr-quality-gate.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        steps = workflow["jobs"]["run-tests"]["steps"]
+        shadow = next(step for step in steps if step.get("name") == "Resolve shadow pytest signal")
+        assert shadow["env"]["PR_NUMBER"] == "${{ github.event.pull_request.number }}"
+        assert shadow["env"]["LOCAL_PYTEST_STATUS"] == "${{ steps.pytest.outputs.pytest_status }}"

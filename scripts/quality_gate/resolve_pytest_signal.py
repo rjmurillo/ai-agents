@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -360,6 +361,7 @@ def resolve(
     and no verdict for a superseded commit can be read. GitHub's lag in updating
     ``refs/pull/<n>/head`` after a push surfaces as STALE, never a false PASS.
     """
+    expected_sha = expected_sha.lower()
     head = gh_json(runner, f"repos/{repo}/git/ref/pull/{pr}/head", "the live head ref")
     if head is None:
         return Resolution(STATUS_UNKNOWN, REASON_LIVE_HEAD_UNREADABLE)
@@ -472,6 +474,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _config_error("--expected-head-sha or EXPECTED_HEAD_SHA must be 40 hex characters")
     if not _WORKFLOW_PATTERN.match(workflow):
         return _config_error("--workflow must be a workflow file name")
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        return _config_error("--timeout must be a finite positive number")
 
     runner = partial(run_gh, timeout=args.timeout)
     resolution = resolve(
