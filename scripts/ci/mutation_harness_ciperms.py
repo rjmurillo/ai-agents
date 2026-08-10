@@ -319,14 +319,15 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
         Mutation(
             description="M7: re-add bot-skip guard to the ADR-006 ratchet step",
             target_file=pr_val_workflow,
-            old_bytes=(
-                b"      - name: Run ADR-006 run-block ratchet\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
-            ),
+            # Anchor on the step name alone. It is unique in the workflow, and
+            # the mutation is the inserted `if:` line, not the scanner's --max
+            # value. An earlier literal carried `--max 58`; PR #4406 ratcheted
+            # that to 0 and this mutation went un-runnable until someone noticed.
+            # Syncing the number instead of dropping it only defers the next break.
+            old_bytes=b"      - name: Run ADR-006 run-block ratchet\n",
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
                 b"        if: steps.should-run.outputs.skip != 'true'\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),
