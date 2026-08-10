@@ -2,7 +2,6 @@
 """Detect scope explosion by counting files changed since branch diverged from main.
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
-Designed to run as a named pre-commit validator from lefthook.yml.
 
 Thresholds:
   10 files: Warning (suggest reviewing scope)
@@ -227,12 +226,15 @@ def get_head_files_against_ref(base_ref: str) -> list[str]:
 
 def is_ancestor(commit: str, ref: str) -> bool:
     """Return True when ``commit`` is an ancestor-or-equal of ``ref``."""
-    result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", commit, ref],
-        capture_output=True,
-        timeout=10,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, ref],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     return result.returncode == 0
 
 

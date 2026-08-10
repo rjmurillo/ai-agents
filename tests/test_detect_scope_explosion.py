@@ -30,6 +30,7 @@ from scripts.detect_scope_explosion import (
     get_merge_base,
     get_merge_head_commit,
     get_ref_commit,
+    is_ancestor,
     main,
     report,
     rescope_against_pr_base,
@@ -238,6 +239,28 @@ class TestGetRefCommit:
         ) as mock_get_ref_commit:
             assert get_merge_head_commit() == "deadbeef"
             mock_get_ref_commit.assert_called_once_with("MERGE_HEAD")
+
+
+class TestIsAncestor:
+    """Tests for ancestry checks used by stacked PR rescoping."""
+
+    def test_returns_true_when_git_reports_ancestor(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+            assert is_ancestor("old", "new") is True
+
+    def test_returns_false_when_git_reports_not_ancestor(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess(args=[], returncode=1)
+            assert is_ancestor("new", "old") is False
+
+    @pytest.mark.parametrize(
+        "error",
+        [OSError("git missing"), subprocess.TimeoutExpired("git", 10)],
+    )
+    def test_returns_false_when_git_cannot_answer(self, error: Exception) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run", side_effect=error):
+            assert is_ancestor("old", "new") is False
 
 
 class TestGetMergeBase:
