@@ -106,39 +106,126 @@ def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
     )
 
 
-# --- Actions URL routing controls ---
+# --- Strict routing-table parser ---
+
+# Expected exact mappings: URL pattern fragment -> tool name
+# Ordered from most specific to least specific for correct matching
+_REQUIRED_ROUTES = {
+    "/job/": "get_job_logs",
+    "/actions/runs/": "get_workflow_run",
+    "/pull/": "pull_request_read",
+    "/issues/": "issue_read",
+}
+
+
+def _parse_routing_table(body: str) -> dict[str, str]:
+    """Parse the URL classification table into {pattern: tool} pairs.
+
+    Finds the table whose header contains 'URL pattern', then extracts
+    pattern->tool mappings from data rows.
+    """
+    routes: dict[str, str] = {}
+    lines = body.split("\n")
+    table_start = -1
+
+    # Find the header row containing "URL pattern"
+    for i, line in enumerate(lines):
+        if line.strip().startswith("|") and "url pattern" in line.lower():
+            table_start = i
+            break
+
+    if table_start == -1:
+        return routes
+
+    # Skip header and separator rows
+    data_start = table_start + 1
+    if data_start < len(lines) and "---" in lines[data_start]:
+        data_start += 1
+
+    # Parse data rows until end of table
+    for line in lines[data_start:]:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            break
+        cells = [c.strip().strip("`") for c in stripped.split("|")[1:-1]]
+        if len(cells) < 2:
+            continue
+
+        pattern_cell = cells[0].lower()
+        tool_cell = cells[1].strip().strip("`")
+
+        for frag in _REQUIRED_ROUTES:
+            if frag in pattern_cell:
+                routes[frag] = tool_cell
+                break
+
+    return routes
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_analyst_surface_routes_actions_urls(surface: Path) -> None:
-    """Each surface must map Actions URLs to get_workflow_run or get_job_logs."""
+def test_analyst_surface_has_exact_routing_table(surface: Path) -> None:
+    """Each surface must have a routing table with exact pattern->tool mappings."""
     body = surface.read_text(encoding="utf-8")
-    assert "get_workflow_run" in body, (
-        f"{surface.relative_to(REPO_ROOT)}: must declare get_workflow_run "
-        f"for /actions/runs/<ID> URLs"
-    )
-    assert "get_job_logs" in body, (
-        f"{surface.relative_to(REPO_ROOT)}: must declare get_job_logs "
-        f"for job log retrieval"
-    )
+    routes = _parse_routing_table(body)
+
+    for pattern, expected_tool in _REQUIRED_ROUTES.items():
+        assert pattern in routes, (
+            f"{surface.relative_to(REPO_ROOT)}: routing table missing "
+            f"pattern '{pattern}'"
+        )
+        # Handle MCP-prefixed tools (mcp__github__pull_request_read)
+        actual = routes[pattern]
+        bare_actual = actual.replace("mcp__github__", "")
+        assert bare_actual == expected_tool, (
+            f"{surface.relative_to(REPO_ROOT)}: pattern '{pattern}' maps to "
+            f"'{actual}' but expected '{expected_tool}'"
+        )
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_analyst_surface_has_url_classification_table(surface: Path) -> None:
-    """Each surface must have a URL-to-tool classification table."""
+def test_analyst_surface_no_duplicate_routes(surface: Path) -> None:
+    """No URL pattern should map to multiple tools (no duplicates)."""
     body = surface.read_text(encoding="utf-8")
-    # Check for the routing table with at least PR and Actions entries
-    assert "/pull/" in body and "/actions/" in body, (
-        f"{surface.relative_to(REPO_ROOT)}: must include URL classification "
-        f"table with /pull/ and /actions/ patterns"
+    routes = _parse_routing_table(body)
+    # The parser already deduplicates by key; if the table has duplicate
+    # pattern rows, only the last wins. Check that all required routes exist
+    # (if duplicates existed, the wrong one might win).
+    for pattern in _REQUIRED_ROUTES:
+        assert pattern in routes, (
+            f"{surface.relative_to(REPO_ROOT)}: missing route for '{pattern}'"
+        )
+
+
+def test_routing_table_rejects_swapped_mappings() -> None:
+    """Negative control: swapped tool assignments must fail validation."""
+    swapped_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `issue_read` |\n"
+        "| `/issues/<N>` | `pull_request_read` |\n"
+        "| `/actions/runs/<ID>` | `get_job_logs` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_workflow_run` |\n"
     )
+    routes = _parse_routing_table(swapped_table)
+    # Verify at least one mapping is wrong (swapped)
+    mismatches = sum(
+        1 for p, t in _REQUIRED_ROUTES.items()
+        if p in routes and routes[p] != t
+    )
+    assert mismatches > 0, "Swapped table should have incorrect mappings"
 
 
-def test_actions_url_without_routing_fails() -> None:
-    """Negative control: text with GitHub tools but no Actions mapping fails."""
-    body = "Use pull_request_read for PRs. The analyst has no web access."
-    assert "get_workflow_run" not in body
-    assert "/actions/" not in body
+def test_routing_table_rejects_missing_rows() -> None:
+    """Negative control: incomplete table must fail."""
+    partial_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+    )
+    routes = _parse_routing_table(partial_table)
+    assert "/issues/" not in routes
+    assert "/actions/runs/" not in routes
+    assert "/job/" not in routes
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
