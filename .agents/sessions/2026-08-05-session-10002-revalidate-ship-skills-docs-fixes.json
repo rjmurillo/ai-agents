@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 6a7be9c626b1f766048d01093a72fc2d20d3cc80 before QA evidence commit."
+        "Evidence": "PR code validated at cd8a553d6893c848b53130e12fc0a919cc0b8205 before QA evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -165,7 +165,7 @@
       "summary": "Merged current origin/main, fixed session-end subprocess encoding caught by the PR guard corpus, reran targeted tests and ruff, and added branch-specific QA report for PR 4673."
     }
   ],
-  "endingCommit": "6a7be9c626b1f766048d01093a72fc2d20d3cc80",
+  "endingCommit": "cd8a553d6893c848b53130e12fc0a919cc0b8205",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

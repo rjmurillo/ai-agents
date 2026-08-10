@@ -273,6 +273,19 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T14:02:21+00:00",
+      "type": "commit",
+      "content": "Commit: cd8a553d6893c848b53130e12fc0a919cc0b8205",
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -282,8 +295,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
-    "files_changed": 33
+    "commits": 9,
+    "files_changed": 41
   },
   "lessons": []
 }
