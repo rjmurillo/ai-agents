@@ -1,7 +1,7 @@
 # Project Constraints
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2025-12-18
+> **Last Updated**: 2026-08-04
 > **RFC 2119**: This document uses RFC 2119 key words.
 
 ## Purpose
@@ -36,9 +36,9 @@ When making decisions about:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT create bash scripts (.sh) | ADR-005, ADR-042 | Pre-commit hook, code review |
+| MUST NOT create bash scripts (.sh) | ADR-005, ADR-042 | Pre-commit hook for `.github/scripts/`; code review elsewhere |
 | SHOULD prefer Python (.py) for new scripts | ADR-042 | Code review |
-| MUST keep scripts Python-first; no tracked PowerShell scripts remain | ADR-042 | Code review, `git ls-files` |
+| MUST keep scripts Python-first; no tracked PowerShell scripts remain | ADR-042 | Code review, `git ls-files '*.ps1' '*.psm1'` |
 
 **References**:
 
@@ -55,8 +55,8 @@ When making decisions about:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | check_skill_exists.py |
-| MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Phase 1.5 gate |
+| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | Manual helper `scripts/check_skill_exists.py`; code review |
+| MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Session Protocol "Phase 4: Skill Validation (BLOCKING)" |
 | MUST extend skills if capability missing, not write inline | usage-mandatory | Code review |
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
@@ -78,9 +78,9 @@ When making decisions about:
 | Constraint | Source | Verification |
 |------------|--------|--------------|
 | MUST NOT put business logic in workflow YAML | ADR-006 | Code review |
-| SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Lint check |
+| SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Code review; no lint gate currently enforces this |
 | MUST put complex logic in Python modules | ADR-006, ADR-042 | Code review |
-| MUST have pytest tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
+| MUST have pytest tests for modules (80%+ coverage) | ADR-006 | Targeted pytest coverage run; code review |
 | MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 | MUST run `gh act` locally before pushing workflow changes | AGENTS.md | `gh act` output in transcript |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
@@ -99,7 +99,7 @@ When creating a new AI-powered workflow with concurrency control:
 
 1. Add workflow name to monitoring list in `.github/scripts/measure_workflow_coalescing.py` (`DEFAULT_WORKFLOWS`)
 2. Document workflow in `.github/AGENTS.md`
-3. Ensure concurrency group follows naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
+3. Ensure concurrency group follows naming pattern: `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}`
 
 ---
 
@@ -185,9 +185,9 @@ uses: actions/checkout@v4
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST use block-style arrays in agent/skill/prompt frontmatter | ADR-040 Amendment, Session 826 RCA | Pre-commit hook, CI validation |
-| MUST NOT use inline array syntax `['tool1', 'tool2']` | ADR-040 Amendment, Session 826 RCA | Pre-commit hook blocks |
-| MUST use hyphen-bulleted format for `tools`, `allowed-tools`, `tools_vscode`, `tools_copilot` arrays | ADR-040 Amendment, Session 826 RCA | Validation script |
+| MUST use block-style arrays for tool fields in agent, prompt, and command frontmatter | ADR-040 Amendment, Session 826 RCA | Code review; generator output validation |
+| MUST NOT use inline array syntax `['tool1', 'tool2']` for tool fields | ADR-040 Amendment, Session 826 RCA | Code review; generator output validation |
+| MUST use hyphen-bulleted format for `tools`, `allowed-tools`, `tools_vscode`, `tools_copilot` arrays | ADR-040 Amendment, Session 826 RCA | Generator output validation |
 
 **Rationale**: Inline array syntax fails on GitHub Copilot CLI with CRLF line endings due to stricter YAML parser. Block-style arrays work universally across VS Code, Copilot CLI (Windows/macOS/Linux), and Claude Code.
 
@@ -221,7 +221,9 @@ tools_vscode: ['vscode', 'read', 'search']
 - Session 826 Retrospective: 88 files converted, 32 tests passed, 0 failures, user validation confirmed
 - ADR-040 Amendment (2026-01-13): Cross-platform compatibility analysis
 
-**Exceptions**: None. All agent, skill, prompt, and command frontmatter must use block-style arrays.
+**Exceptions**: Existing skill metadata arrays such as `metadata.domains`,
+`metadata.inputs`, and `metadata.outputs` may remain inline. This constraint
+targets tool-exposure fields that determine which tools the harness exposes.
 
 ---
 
@@ -234,7 +236,7 @@ Use this checklist during session start:
 - [ ] For new scripts: Verify Python (no .sh files per ADR-042)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
 - [ ] For workflow changes: Run `gh act` locally before pushing (MUST)
-- [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
+- [ ] For tool fields in frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 
 ---
