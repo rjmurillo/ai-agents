@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final strict one-front protocol committed in 93692b15cbc16d5e5edfa81c3809151d13ca7a6d; this follow-up updates evidence markers only."
+        "Evidence": "Final protocol, retrospective, and Serena memories committed in 911ddc67bde7dd3cbfe2ebc87f16ae85c947143e; this follow-up updates evidence markers only."
       },
       "validationPassed": {
         "level": "MUST",
@@ -120,6 +120,6 @@
       "outcome": "Recorded the 820-run update and 818-run cancellation incident, persisted three CI memories, and updated the async push recovery obligation."
     }
   ],
-  "endingCommit": "93692b15cbc16d5e5edfa81c3809151d13ca7a6d",
+  "endingCommit": "911ddc67bde7dd3cbfe2ebc87f16ae85c947143e",
   "nextSteps": []
 }
