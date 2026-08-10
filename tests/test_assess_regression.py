@@ -39,6 +39,7 @@ sys.path.insert(0, str(_SKILL_SCRIPTS))
 
 # ruff: noqa: E402
 from assess import (
+    ChangedFile,
     FileAssessment,
     QualityScore,
     check_regressions,
@@ -193,12 +194,18 @@ class TestCheckThresholdsStillAbsolute:
             ],
         )
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("new/file.py")])
+        monkeypatch.setattr(
+            "assess.get_changed_files",
+            lambda *_args, **_kwargs: [ChangedFile("A", None, Path("new/file.py"))],
+        )
+        monkeypatch.setattr("assess.resolve_comparison_base", lambda base: base)
         monkeypatch.setattr("assess.assess_file", lambda *_args: new_file)
-        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: {})
-        monkeypatch.setattr("assess.check_regressions", lambda *_args: 0)
 
         def fake_check_thresholds(
-            assessments: list[FileAssessment], _config: dict[str, object], _context: str
+            assessments: list[FileAssessment],
+            _config: dict[str, object],
+            _context: str,
+            **_kwargs: object,
         ) -> int:
             seen.append(assessments)
             return 11
@@ -229,8 +236,13 @@ class TestCheckThresholdsStillAbsolute:
             ],
         )
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr(
+            "assess.get_changed_files",
+            lambda *_args, **_kwargs: [ChangedFile("M", Path("legacy.py"), Path("legacy.py"))],
+        )
         monkeypatch.setattr("assess.assess_file", lambda *_args: head)
-        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+        monkeypatch.setattr("assess.get_file_at_revision", lambda *_args: b"legacy")
+        monkeypatch.setattr("assess._assess_base_bytes", lambda *_args: base["legacy.py"])
 
         assert assess_main() == 0
 
@@ -255,8 +267,13 @@ class TestCheckThresholdsStillAbsolute:
             ],
         )
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr(
+            "assess.get_changed_files",
+            lambda *_args, **_kwargs: [ChangedFile("M", Path("legacy.py"), Path("legacy.py"))],
+        )
         monkeypatch.setattr("assess.assess_file", lambda *_args: head)
-        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+        monkeypatch.setattr("assess.get_file_at_revision", lambda *_args: b"legacy")
+        monkeypatch.setattr("assess._assess_base_bytes", lambda *_args: base["legacy.py"])
 
         assert assess_main() == 10
 
@@ -276,19 +293,20 @@ class TestGetBaseAssessments:
         file_path = tmp_path / "new.py"
         file_path.write_text("x = 1\n")
 
-        def fake_run(cmd, **_kwargs):
-            import subprocess
-
-            if "rev-parse" in cmd and "--show-toplevel" in cmd:
-                proc = subprocess.CompletedProcess(cmd, 0, "", "")
-                proc.stdout = str(tmp_path) + "\n"
-                return proc
-            # git show returns 128 (file not in base)
-            proc = subprocess.CompletedProcess(cmd, 128, "", "")
-            proc.stdout = ""
-            return proc
-
-        with patch("subprocess.run", side_effect=fake_run):
+        with patch(
+            "assess.resolve_comparison_base",
+            return_value="base",
+        ), patch(
+            "assess.get_file_at_revision",
+            return_value=None,
+        ), patch(
+            "subprocess.run",
+            return_value=type(
+                "Result",
+                (),
+                {"returncode": 0, "stdout": str(tmp_path) + "\n"},
+            )(),
+        ):
             result = _get_base_assessments([file_path], "origin/main", "production")
 
         assert result == {}
@@ -301,22 +319,20 @@ class TestGetBaseAssessments:
         file_path.write_text("def foo(): pass\n")
         base_content = "def foo(): pass\ndef bar(): pass\n"
 
-        def fake_run(cmd, **_kwargs):
-            import subprocess
-
-            if "rev-parse" in cmd and "--show-toplevel" in cmd:
-                proc = subprocess.CompletedProcess(cmd, 0, "", "")
-                proc.stdout = str(tmp_path) + "\n"
-                return proc
-            if len(cmd) >= 2 and cmd[1] == "show":
-                proc = subprocess.CompletedProcess(cmd, 0, "", "")
-                proc.stdout = base_content
-                return proc
-            proc = subprocess.CompletedProcess(cmd, 0, "", "")
-            proc.stdout = ""
-            return proc
-
-        with patch("subprocess.run", side_effect=fake_run):
+        with patch(
+            "assess.resolve_comparison_base",
+            return_value="base",
+        ), patch(
+            "assess.get_file_at_revision",
+            return_value=base_content.encode("utf-8"),
+        ), patch(
+            "subprocess.run",
+            return_value=type(
+                "Result",
+                (),
+                {"returncode": 0, "stdout": str(tmp_path) + "\n"},
+            )(),
+        ):
             result = _get_base_assessments([file_path], "origin/main", "production")
 
         assert str(file_path) in result

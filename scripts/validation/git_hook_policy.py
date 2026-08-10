@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import ast
 import difflib
+import io
 import json
 import os
 import re
@@ -43,7 +44,7 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import new_session_logs
+from scripts.validation.session_scope import session_change_scope
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1758,6 +1759,14 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
     return present
 
 
+def _path_exists_at_head(path: str, repo_root: Path) -> bool | None:
+    """Return whether ``path`` exists at HEAD, or None when git cannot answer."""
+    result = _run_git(repo_root, ["ls-tree", "-z", "--name-only", "HEAD", "--", path])
+    if result.returncode != 0:
+        return None
+    return path in result.stdout.split("\0")
+
+
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
@@ -2776,7 +2785,22 @@ def _report_suppression_violations(
 
 
 def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
-    """CI backstop for the no-net-new suppression policy."""
+    """CI backstop for the no-net-new suppression policy.
+
+    History integrity is checked first because this gate resolves its range
+    through `git merge-base`, and a shallow clone answers that question wrongly
+    rather than failing. `_merge_base` returns None on a grafted clone, the
+    fallback below substitutes the base tip, and the range silently widens from
+    the push's own commits to the branch's entire history. Measured on a
+    complete clone of this repository: `git rev-list base..head` returned 0
+    commits, and 2263 after a single `git fetch --depth=1 origin main`.
+
+    `_push_updates` already gates the pre-push path on the same check. This
+    call is what wires this path to it (issue #4680).
+    """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     head_sha = _resolve_commit(repo_root, head)
     if head_sha is None:
         print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
@@ -3184,11 +3208,27 @@ def _added_suppression_violations_for_range(
 def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
     """CI mirror of security-suppressions-push: compares HEAD against base_ref.
 
+    History integrity is checked first. This gate measures a two-dot range, and
+    on a grafted clone that range silently widens instead of failing: git cannot
+    exclude the base's ancestry, so every file that differs between the base tip
+    and the branch enters the scan, including files the branch never touched.
+    Suppressions that trunk removed after the branch point then read as
+    additions. Measured on a complete clone of this repository, `git diff
+    --name-only base..HEAD` reported 0 paths before a `git fetch --depth=1
+    origin main` and 290 after it.
+
+    `_push_updates` already gates the pre-push path on the same check. This call
+    is what wires the CI path to it (issue #4680).
+
     Returns:
         0  no new security suppressions detected
         1  new security suppressions found
+        2  incomplete history, so the range cannot be measured
         3  git error (external failure)
     """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     range_spec = f"{base_ref}..HEAD"
     result = _run_git(
         repo_root,
@@ -6490,15 +6530,22 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    new_logs, has_session_deletion = session_change_scope(
+        paths,
+        repo_root,
+        compare_ref="HEAD",
+    )
     for path in paths:
         normalized = _safe_relative_path(path)
         if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
             continue
-        new_logs = new_session_logs(paths, repo_root)
         command = [sys.executable, "scripts/validate_session_json.py", path]
-        if path not in new_logs:
+        exists_at_head = _path_exists_at_head(path, repo_root)
+        if exists_at_head is None:
+            pass
+        elif path not in new_logs:
             command.append("--existing-log")
-        else:
+        elif not has_session_deletion:
             # A log this branch is adding for the first time is being committed
             # at session-start, before session-end runs. Pass --creation-mode so
             # the validator skips protocol-compliance checks that can only be
@@ -6779,14 +6826,45 @@ def _push_range_changed_files(stream: TextIO, repo_root: Path) -> set[str] | Non
             update = resolve_push_update(ref, repo_root)
         except (PushUpdateConfigError, ValueError):
             return None
-        result = _run_git(repo_root, ["diff", "--name-only", update.range_spec])
+        result = _run_git(repo_root, ["diff", "--name-only", "-z", update.range_spec])
         if result.returncode != 0:
             return None
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line:
-                changed.add(line)
+        changed.update(path for path in result.stdout.split("\0") if path)
     return changed
+
+
+def _push_updates_match_head(payload: str, repo_root: Path) -> bool | None:
+    """Return whether every non-deletion update pushes the checked-out HEAD."""
+    try:
+        refs = parse_push_refs(io.StringIO(payload))
+    except (ValueError, OSError):
+        return None
+    head = _resolve_commit(repo_root, "HEAD")
+    if head is None:
+        return None
+    return all(ref.is_deletion or ref.local_sha == head for ref in refs)
+
+
+def _session_paths_match_head(paths: Sequence[str], repo_root: Path) -> bool:
+    """Return whether session files on disk match the checked-out HEAD blobs."""
+    for path in paths:
+        entry = _run_git(repo_root, ["ls-tree", "-z", "HEAD", "--", path])
+        if entry.returncode != 0 or not entry.stdout:
+            return False
+        metadata, separator, entry_path = entry.stdout.rstrip("\0").partition("\t")
+        fields = metadata.split()
+        if (
+            not separator
+            or entry_path != path
+            or len(fields) < 2
+            or fields[0] not in {"100644", "100755"}
+            or fields[1] != "blob"
+            or (repo_root / path).is_symlink()
+        ):
+            return False
+        if _run_git(repo_root, ["diff", "--quiet", "HEAD", "--", path]).returncode != 0:
+            return False
+    return True
 
 
 def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
@@ -6843,7 +6921,26 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
-    return validate_branch_sessions(args.paths, _repo_root(args))
+    repo_root = _repo_root(args)
+    if args.paths:
+        return validate_branch_sessions(args.paths, repo_root)
+    payload = sys.stdin.read()
+    changed = _push_range_changed_files(io.StringIO(payload), repo_root)
+    if changed is None:
+        print("ERROR: could not resolve the session validation push range", file=sys.stderr)
+        return 2
+    sessions = sorted(path for path in changed if SESSION_PATH_RE.fullmatch(path))
+    if not sessions:
+        print("session-json-validation skipped: no session logs in push range")
+        return 0
+    updates_match_head = _push_updates_match_head(payload, repo_root)
+    if updates_match_head is not True:
+        print("ERROR: session validation requires the pushed SHA to equal HEAD", file=sys.stderr)
+        return 2
+    if not _session_paths_match_head(sessions, repo_root):
+        print("ERROR: session files on disk differ from the pushed HEAD", file=sys.stderr)
+        return 2
+    return validate_branch_sessions(sessions, repo_root)
 
 
 def _handle_observations(args: argparse.Namespace) -> int:
