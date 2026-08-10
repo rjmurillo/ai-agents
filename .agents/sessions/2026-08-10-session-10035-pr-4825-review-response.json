@@ -156,7 +156,7 @@
       "outcome": "Copilot flagged hashlib.file_digest, which landed in 3.11 while the launchers accept 3.10 or newer. Reproduced on cpython 3.10.20: AttributeError, exit 1, which a PreToolUse host treats as a hook error rather than a block, so the gate stopped enforcing on that interpreter. Replaced both digest sites with a chunked sha256 read loop and verified 0/2/0 on real 3.10. Two regression tests."
     }
   ],
-  "endingCommit": "ee62503ac8c2cab5e664c7cf2983bf811ae59af3",
+  "endingCommit": "1f8fda765bf75708eb940338e70fb4fb0304ca6a",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",
