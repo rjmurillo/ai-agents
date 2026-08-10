@@ -43,15 +43,14 @@ class TestTestJobTimeout:
             "See issue #4502."
         )
 
-    def test_test_job_timeout_is_at_most_60_minutes(self) -> None:
-        """The timeout must not be so large that it defeats the purpose.
+    def test_test_job_timeout_is_45_minutes(self) -> None:
+        """The timeout must match the measured 45-minute policy.
 
         Issue #4502 records the worst observed suite wall time as 1546 s
-        (~26 min), from a parallel-fleet run, not a p99. A ceiling of 60 min
-        allows 2.3x that and still terminates genuine hangs in under an hour.
-        Sixty is the upper bound this test enforces, not the configured value:
-        the workflow sets 45 (1.7x); 30 (1.2x) was rejected as too close to
-        the observed run under contention.
+        (~26 min), from a parallel-fleet run, not a p99. Thirty minutes gives
+        1.2x headroom and was rejected as too close under runner contention.
+        Sixty gives 2.3x but doubles hang time versus 30. Forty-five is the
+        selected midpoint at 1.7x.
         """
         workflow = _load_workflow()
         jobs = workflow.get("jobs", {})
@@ -59,9 +58,9 @@ class TestTestJobTimeout:
         timeout = test_job.get("timeout-minutes")
         assert timeout is not None, "timeout-minutes not set"
         assert isinstance(timeout, int), f"timeout-minutes must be an integer, got {timeout!r}"
-        assert timeout <= 60, (
-            f"timeout-minutes is {timeout}, above the 60 min ceiling. Measured p99 "
-            f"suite wall time is 26 min, so 60 already allows 2.3x it. {timeout} "
-            f"allows {timeout / 26:.1f}x and delays termination of a genuine hang "
-            "by that much."
+        assert timeout == 45, (
+            f"timeout-minutes is {timeout}, expected the measured 45 min policy. "
+            "Issue #4502 records a 26 min worst observation: 30 gives only 1.2x "
+            "headroom, while 60 delays hang termination without evidence that "
+            "2.3x is needed."
         )
