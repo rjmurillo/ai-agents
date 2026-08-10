@@ -342,7 +342,8 @@ _NEGATIONS = re.compile(
 )
 
 _NON_DIRECTIVE = re.compile(
-    r"(orchestrator|example:|e\.g\.|for example|"
+    r"(orchestrator|qa\s+agent|security\s+agent|implementer|"
+    r"example:|e\.g\.|for example|"
     r"see\s+\w+\s+docs|endpoint\s+was)",
     re.IGNORECASE,
 )
@@ -363,12 +364,13 @@ def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
 def _line_has_tool_reference(line: str) -> bool:
     """Return True if line references a declared tool or 'declared tools'.
 
-    Tool names inside double-quoted strings are NOT counted (examples).
-    Inline backticks around a tool name are standard markdown formatting
-    and ARE counted.
+    Tool names inside double-quoted, single-quoted strings, or inline-code
+    spans are NOT counted (they are examples).
+    Bare backtick-wrapped tool names with imperative verbs in prose ARE valid.
     """
-    # Strip only double-quoted strings (examples), not inline backticks
+    # Strip quoted strings and inline-code spans (examples)
     stripped = re.sub(r'"[^"]*"', "", line)
+    stripped = re.sub(r"'[^']*'", "", stripped)
     if any(t in stripped for t in _TOOL_NAMES):
         return True
     return "retrieve" in stripped.lower() and "declared" in stripped.lower()
@@ -416,7 +418,7 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
     in_fence = False
     for line in section[:blocked_pos].split("\n"):
         stripped = line.strip()
-        if stripped.startswith("```"):
+        if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             continue
         if _is_skippable_line(stripped, in_fence):
@@ -608,6 +610,29 @@ class TestNegativeControls:
         "return [blocked] if retrieval fails.\n"
     )
 
+    # Fixture 17: directive attributed to another agent (must reject)
+    TOOL_OTHER_AGENT = (
+        "\n### delegation contract\n"
+        "the qa agent should use pull_request_read to verify. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 18: tool in single-quoted example (must reject)
+    TOOL_SINGLE_QUOTED = (
+        "\n### delegation contract\n"
+        "for instance: 'use pull_request_read to fetch'. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 19: directive inside ~~~ tilde fence (must reject)
+    TOOL_IN_TILDE_FENCE = (
+        "\n### delegation contract\n"
+        "~~~\n"
+        "use pull_request_read to retrieve PR data.\n"
+        "~~~\n"
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -687,3 +712,18 @@ class TestNegativeControls:
         """Conditional language far from [BLOCKED] must not satisfy guard."""
         err = _check_blocked_conditional(self.CONDITIONAL_FAR_FROM_BLOCKED)
         assert err is not None, "Should reject conditional not bound to BLOCKED"
+
+    def test_tool_other_agent_rejected(self) -> None:
+        """Directive attributed to another agent must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_OTHER_AGENT)
+        assert err is not None, "Should reject directive attributed to qa agent"
+
+    def test_tool_single_quoted_rejected(self) -> None:
+        """Tool in single-quoted example must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SINGLE_QUOTED)
+        assert err is not None, "Should reject single-quoted example"
+
+    def test_tool_in_tilde_fence_rejected(self) -> None:
+        """Directive inside ~~~ tilde fence must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_TILDE_FENCE)
+        assert err is not None, "Should reject directive inside tilde fence"
