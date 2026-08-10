@@ -296,11 +296,33 @@ def _extract_blocked_section(text: str) -> str:
 
 
 def _check_blocked_conditional(section: str) -> str | None:
-    """Return None if BLOCKED is properly conditional, else an error message."""
+    """Return None if BLOCKED is properly conditional, else an error message.
+
+    The conditional language must be bound directly to the [BLOCKED] clause:
+    on the same line, or within the immediately preceding sentence (same
+    paragraph, no blank line between).
+    """
     conditional_words = ("only when", "only if", "only after")
-    if not any(w in section for w in conditional_words):
-        return "BLOCKED section lacks conditional language (only when/if/after)"
-    return None
+    blocked_pos = section.find("[blocked]")
+    if blocked_pos == -1:
+        return "No [blocked] in section"
+
+    # Get the line containing [blocked]
+    line_start = section.rfind("\n", 0, blocked_pos) + 1
+    blocked_line = section[line_start:section.find("\n", blocked_pos)]
+    if any(w in blocked_line for w in conditional_words):
+        return None
+
+    # Check the preceding non-empty line (sentence may wrap)
+    prev_end = line_start - 1
+    if prev_end > 0:
+        prev_start = section.rfind("\n", 0, prev_end) + 1
+        prev_line = section[prev_start:prev_end]
+        # Only accept if no blank line separates them
+        if prev_line.strip() and any(w in prev_line for w in conditional_words):
+            return None
+
+    return "BLOCKED clause lacks conditional language (only when/if/after)"
 
 
 _TOOL_NAMES = (
@@ -326,33 +348,51 @@ _NON_DIRECTIVE = re.compile(
 )
 
 
-def _is_skippable_line(stripped: str) -> bool:
-    """Return True if line is structural markup (table/fence/quote/heading)."""
+def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
+    """Return True if line is structural markup or inside a fenced block."""
+    if in_fence:
+        return True
     return (
         not stripped
         or stripped.startswith("|")
-        or stripped.startswith("```")
         or stripped.startswith(">")
         or stripped.startswith("#")
     )
 
 
 def _line_has_tool_reference(line: str) -> bool:
-    """Return True if line references a declared tool or 'declared tools'."""
-    if any(t in line for t in _TOOL_NAMES):
+    """Return True if line references a declared tool or 'declared tools'.
+
+    Tool names inside double-quoted strings are NOT counted (examples).
+    Inline backticks around a tool name are standard markdown formatting
+    and ARE counted.
+    """
+    # Strip only double-quoted strings (examples), not inline backticks
+    stripped = re.sub(r'"[^"]*"', "", line)
+    if any(t in stripped for t in _TOOL_NAMES):
         return True
-    return "retrieve" in line.lower() and "declared" in line.lower()
+    return "retrieve" in stripped.lower() and "declared" in stripped.lower()
 
 
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive (not negated/example)."""
+    """Return True if line is an affirmative directive (not negated/example).
+
+    Rejects if the imperative verb is inside an inline-code span (the entire
+    directive is an example). Tool names in backticks with the verb in prose
+    are normal markdown formatting and are accepted.
+    """
     if _NON_DIRECTIVE.search(line):
         return False
     if _NEGATIONS.search(line):
         return False
-    if _IMPERATIVES.search(line):
+
+    # Check if imperative verb exists in prose (outside inline-code spans)
+    prose = re.sub(r"`[^`]*`", "", line)
+    if _IMPERATIVES.search(prose):
         return True
-    return "retrieval via declared tools" in line.lower()
+    if "retrieval via declared tools" in prose.lower():
+        return True
+    return False
 
 
 def _check_retrieval_precedes_blocked(section: str) -> str | None:
@@ -362,18 +402,24 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
     1. The analyst is the actor (not orchestrator/other)
     2. An affirmative imperative verb directs tool usage
     3. The tool is a declared routing tool
-    4. The line is NOT inside quotes, code blocks, tables, or examples
+    4. The line is NOT inside fenced-code blocks, inline-code, quotes, or tables
     5. No negation/deprecation/prohibition modifies the verb
 
-    Rejects: quoted examples, code fences, table-only declarations,
-    "don't call", "deprecated", "forbidden", unrelated actor retrieval.
+    Rejects: quoted examples, code fences, inline-code tool names,
+    table-only declarations, "don't call", "deprecated", "forbidden",
+    unrelated actor retrieval.
     """
     blocked_pos = section.lower().find("[blocked]")
     if blocked_pos == -1:
         return "No [blocked] in section"
 
+    in_fence = False
     for line in section[:blocked_pos].split("\n"):
-        if _is_skippable_line(line.strip()):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if _is_skippable_line(stripped, in_fence):
             continue
         if not _line_has_tool_reference(line):
             continue
@@ -538,6 +584,30 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 14: tool inside fenced-code block (must reject)
+    TOOL_IN_FENCED_CODE = (
+        "\n### delegation contract\n"
+        "```\n"
+        "use pull_request_read to retrieve PR data.\n"
+        "```\n"
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 15: entire directive inside inline-code backticks (must reject)
+    TOOL_IN_INLINE_CODE = (
+        "\n### delegation contract\n"
+        "`use pull_request_read to retrieve PR data`. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 16: conditional "only when" far from [BLOCKED] (must reject)
+    CONDITIONAL_FAR_FROM_BLOCKED = (
+        "\n### delegation contract\n"
+        "only when the sky is blue, we proceed.\n"
+        "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        "return [blocked] if retrieval fails.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -602,3 +672,18 @@ class TestNegativeControls:
         """Tool in deprecated context must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_DEPRECATED)
         assert err is not None, "Should reject deprecated tool mention"
+
+    def test_tool_in_fenced_code_rejected(self) -> None:
+        """Tool inside fenced-code block must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_FENCED_CODE)
+        assert err is not None, "Should reject tool inside fenced-code block"
+
+    def test_tool_in_inline_code_rejected(self) -> None:
+        """Tool inside inline-code backticks must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_INLINE_CODE)
+        assert err is not None, "Should reject tool inside inline-code"
+
+    def test_conditional_far_from_blocked_rejected(self) -> None:
+        """Conditional language far from [BLOCKED] must not satisfy guard."""
+        err = _check_blocked_conditional(self.CONDITIONAL_FAR_FROM_BLOCKED)
+        assert err is not None, "Should reject conditional not bound to BLOCKED"
