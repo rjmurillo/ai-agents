@@ -26,18 +26,9 @@ sys.path.insert(0, workspace)
 from scripts.ai_review_common import spec_validation_failed  # noqa: E402
 
 
-def _is_infra_failure(flag: str, findings: str = "") -> bool:
-    """Return True if the failure is infrastructure-related.
-
-    Checks the explicit flag first. Falls back to detecting infrastructure
-    failure keywords in the findings text, which handles cases where the
-    composite action output does not propagate correctly.
-    """
-    if flag.lower() in ("true", "1", "yes"):
-        return True
-    if findings and "infrastructure failure" in findings.lower():
-        return True
-    return False
+def _is_infra_failure(flag: str, _findings: str = "") -> bool:
+    """Return True only when the structured infrastructure flag is set."""
+    return flag.lower() in ("true", "1", "yes")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -91,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if trace_infra and completeness_infra:
         print(
             "::warning::Spec validation skipped due to infrastructure failure"
-            " (Copilot CLI unavailable). Not blocking merge."
+            ". Not blocking merge."
         )
         return 0
 
@@ -113,6 +104,12 @@ def main(argv: list[str] | None = None) -> int:
             " - implementation does not fully satisfy requirements"
         )
         return 1
+
+    if trace_infra or completeness_infra:
+        print(
+            "::warning::Spec validation partially completed; one check did not run."
+        )
+        return 0
 
     print("Spec validation passed")
     return 0
