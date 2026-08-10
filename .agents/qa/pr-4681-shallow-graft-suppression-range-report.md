@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10036-pr-4681-autofix.json
-qaCommit: 3ed1c6018a6a4744b6aafb9bba69c87196660088
+qaCommit: ff19bf1c242377caeef795f2aad7655ac0c78169
 ---
 
 # PR 4681 shallow-graft suppression validation
