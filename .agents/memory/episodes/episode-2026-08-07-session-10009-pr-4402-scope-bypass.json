@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-07-session-10009-pr-4402-scope-bypass",
+  "session": "2026-08-07-session-10009-pr-4402-scope-bypass",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the PR 4402 scope-check bypass failure without duplicating existing governance",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T21:45:00+00:00",
+      "type": "milestone",
+      "content": "Collected the implementer report that SKIP_SCOPE_CHECK=1 was used twice, the output commits 99e7b9004 and 32eb818dd, closed PR state, and explicit no-bypass constraint. The raw command transcript was not retained.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10009-pr-4402-scope-bypass"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T21:50:00+00:00",
+      "type": "milestone",
+      "content": "Classified the failure as FM-3, ran Five Whys and fishbone analysis, and rejected a duplicate memory after finding existing rule coverage.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-07-session-10009-pr-4402-scope-bypass"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T21:52:48+00:00",
+      "type": "commit",
+      "content": "Commit: eae23dc22",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10009-pr-4402-scope-bypass"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 5,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

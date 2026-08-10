@@ -1,27 +1,24 @@
-# Count ratchets required branch freshness before the ruleset did
+# The count ratchets made "behind main" a real merge blocker before the branch ruleset did too
 
 ## Question
 
-`main`'s branch ruleset set `strict_required_status_checks_policy: false` when this
-was written, so being behind `main` did not block a merge. Does that mean a stale
-branch can be merged without syncing?
+`main`'s branch ruleset now sets `strict_required_status_checks_policy: true`, so
+being behind `main` blocks a merge. Before that flip, the count ratchets still
+made stale branches fail in practice. Did branch freshness matter even before
+the ruleset required it?
 
-**Measurement 2026-08-05: the ruleset reads `true`, so being behind main blocks
-the merge directly.** The finding below still matters, because it explains why
-syncing was already mandatory when the ruleset did not demand it. The current
-setting adds a second, louder reason rather than replacing the first.
+## Conventional answer
 
-## Historical conventional answer under `strict: false`
-
-Yes. At the time, `strict` was off, so GitHub did not demand the branch be
-current. Merging `main` into a feature branch just to "unblock" it added a
+No, if `strict` is off, GitHub does not demand that the branch be current.
+Merging `main` into a feature branch just to satisfy the ruleset would add a
 merge commit for nothing.
 
 ## First-principles position
 
-No. The ruleset is one gate; the count ratchets are another, and they enforce
-freshness on their own. `scripts/ci/count_ratchet.py::_base_ref_verdict` blocks
-whenever the branch's recorded baseline is above the base ref's:
+Yes. The ruleset is one gate; the count ratchets are another, and they enforced
+freshness on their own even while `strict` was false.
+`scripts/ci/count_ratchet.py::_base_ref_verdict` blocks whenever the branch's
+recorded baseline is above the base ref's:
 
 ```python
 if baseline <= base:

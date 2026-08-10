@@ -95,22 +95,10 @@ a6c16da8d    #4329   82603   397 bytes headroom
 
 Each PR was measured against its own base and passed honestly. No two of them
 touch the same file. The ceiling is a sum, so the breach exists only after both
-land. `strict_required_status_checks_policy: false` on ruleset 11104075 permits
-exactly this.
-
-**Update 2026-08-05: that policy now reads `true` on the same ruleset.** Under
-the current architecture that closes this hole rather than narrowing it. Each
-PR must be current before it merges, and there is no merge queue, so admission
-is fully serialized: once the first PR lands the second goes BEHIND, and
-updating it re-measures the corpus against a base that already contains the
-first. The breach is caught before the second merge.
-
-The reserve band below is still the right fix for two reasons. It does not
-depend on admission being serialized, so it would also cover a future merge
-queue if merge-group validation permits this race. Issue #4608 records that
-hypothesis, but no merge group has been tested. The reserve also fails at PR
-time with headroom left, rather than at update time with the ceiling already
-breached.
+land. At the time, `strict_required_status_checks_policy: false` on ruleset
+11104075 permitted exactly this. With strict now set to true, admission is
+serialized because the second PR must refresh against the merged result before
+it can land.
 
 Any absolute (non-diff-relative) ceiling has this property. A ratchet that
 compares against `origin/main` does not, which is why the count ratchets caught
@@ -139,14 +127,12 @@ reaches the job, so forcing or unconditioning the job inside it changes
 nothing. Verify such a fix against run **jobs** across a burst of merges, never
 against the workflow source.
 
-Running an absolute ceiling at 100.0 percent utilization under
-`strict_required_status_checks_policy: false` guarantees recurrence, because
-admission is not serialized. The capacity answer is a **reserve band**: fail or
-warn at PR time when the merged result would leave less than a threshold of
-headroom, so two concurrent PRs cannot each consume the last bytes. That works
-with non-strict checks instead of fighting them, and it keeps working under the
-strict setting now armed. Whether a future merge group preserves that
-serialization is unverified; issue #4608 tracks the question.
+Running an absolute ceiling at 100.0 percent utilization is still brittle. The
+strict flip weakens the concurrent-admission mechanism because a stale second PR
+must refresh and re-run against the merged result. The capacity answer remains a
+**reserve band**: fail or warn at PR time when the merged result would leave less
+than a threshold of headroom, so one PR cannot consume the last bytes and leave
+the next routine edit blocked.
 
 ## Mechanism three: a pending run is evicted regardless of cancel-in-progress
 
@@ -337,6 +323,10 @@ sets are not the same.
 
 ## Related
 
+- Issue #4752 applied this rule to `validate-vendor-portability.yml`. Its six
+  ratchets inspect the repository tree, so the fix removed the dorny filter,
+  change-detector job, and success-producing skip job instead of forcing only
+  pushes through the filter.
 - `ci/ci-infrastructure-006-required-check-path-filter-bypass.md` is the
   **opposite** failure: a path filter stops a required check from ever
   reporting, so the PR waits forever. That one is loud and self-announcing.

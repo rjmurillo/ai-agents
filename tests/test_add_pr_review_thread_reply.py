@@ -33,7 +33,11 @@ main = _mod.main
 build_parser = _mod.build_parser
 query_thread_state = _mod.query_thread_state
 
-_UNRESOLVED_STATE: dict = {"id": "PRRT_abc", "isResolved": False}
+_UNRESOLVED_STATE: dict = {
+    "id": "PRRT_abc",
+    "isResolved": False,
+    "pullRequest": {"number": 42},
+}
 _AUTO_MERGE_GUARD_NOOP: dict = {
     "action": "NOOP",
     "reason": "auto_merge_not_armed",
@@ -131,10 +135,11 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed."])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["action"] == "ACT"
         assert output["success"] is True
         assert output["comment_id"] == 456
+        assert output["comment_node_id"] == "node123"
         assert output["thread_resolved"] is False
 
     def test_reply_with_resolve(self, capsys):
@@ -173,7 +178,7 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["thread_resolved"] is True
         assert output["auto_merge_guard"] == _AUTO_MERGE_GUARD_NOOP
 
@@ -231,9 +236,59 @@ class TestMain:
 
         assert rc == 0
         assert calls == ["reply", "guard", "resolve"]
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["thread_resolved"] is True
         assert output["auto_merge_guard"]["action"] == "DISABLED"
+
+    def test_external_resolution_after_reply_skips_resolve(self, capsys):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        resolved_state = {
+            "id": "PRRT_abc",
+            "isResolved": True,
+            "pullRequest": {"number": 42},
+        }
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                side_effect=[_UNRESOLVED_STATE, resolved_state],
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+            ) as guard,
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                return_value=reply_data,
+            ) as graphql,
+        ):
+            rc = main([
+                "--thread-id",
+                "PRRT_abc",
+                "--pull-request",
+                "42",
+                "--body",
+                "Fixed.",
+                "--resolve",
+            ])
+        assert rc == 0
+        assert graphql.call_count == 1
+        guard.assert_not_called()
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["resolve_action"] == "SKIP"
+        assert output["resolve_reason"] == "thread_resolved"
+        assert output["thread_resolved"] is True
 
     def test_guard_failure_leaves_thread_unresolved(self):
         reply_data = {
@@ -281,7 +336,7 @@ class TestMain:
         assert exc.value.code == 3
         assert calls == ["reply"]
 
-    def test_thread_not_found_returns_skip(self, capsys):
+    def test_thread_not_found_exits_0_skip(self, capsys):
         with (
             patch(
                 "add_pr_review_thread_reply.assert_gh_authenticated",
@@ -293,23 +348,25 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "not_found"
 
-    def test_api_error_exits_3(self):
+    def test_api_error_exits_3(self, capsys):
         with (
             patch(
                 "add_pr_review_thread_reply.assert_gh_authenticated",
             ),
             patch(
-                "add_pr_review_thread_reply.gh_graphql",
+                "add_pr_review_thread_reply.query_thread_state",
                 side_effect=RuntimeError("Server error"),
             ),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--thread-id", "PRRT_abc", "--body", "test"])
-            assert exc.value.code == 3
+            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
+        assert rc == 3
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["action"] == "SKIP"
+        assert output["reason"] == "thread_state_query_failed"
 
     def test_body_from_file(self, tmp_path, capsys):
         body_file = tmp_path / "reply.md"
@@ -411,96 +468,3 @@ class TestQueryThreadState:
         ):
             with pytest.raises(RuntimeError, match="network error"):
                 query_thread_state("PRRT_abc")
-
-
-# ---------------------------------------------------------------------------
-# Tests: thread state pre-check in main
-# ---------------------------------------------------------------------------
-
-
-class TestThreadStatePrecheck:
-    def test_resolved_thread_returns_skip_exit_0(self, capsys):
-        resolved_state = {"id": "PRRT_abc", "isResolved": True}
-        with (
-            patch(
-                "add_pr_review_thread_reply.assert_gh_authenticated",
-            ),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
-                return_value=resolved_state,
-            ),
-            patch(
-                "add_pr_review_thread_reply.gh_graphql",
-            ) as mock_gql,
-        ):
-            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
-        assert rc == 0
-        mock_gql.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
-        assert out["action"] == "SKIP"
-        assert out["reason"] == "thread_resolved"
-
-    def test_not_found_thread_returns_skip_exit_0(self, capsys):
-        with (
-            patch(
-                "add_pr_review_thread_reply.assert_gh_authenticated",
-            ),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
-                return_value=None,
-            ),
-            patch(
-                "add_pr_review_thread_reply.gh_graphql",
-            ) as mock_gql,
-        ):
-            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
-        assert rc == 0
-        mock_gql.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
-        assert out["action"] == "SKIP"
-        assert out["reason"] == "not_found"
-
-    def test_unresolved_thread_proceeds_to_act(self, capsys):
-        reply_data = {
-            "addPullRequestReviewThreadReply": {
-                "comment": {
-                    "id": "n1",
-                    "databaseId": 99,
-                    "url": "https://example.com",
-                    "createdAt": "2025-01-01T00:00:00Z",
-                    "author": {"login": "bot"},
-                },
-            },
-        }
-        with (
-            patch(
-                "add_pr_review_thread_reply.assert_gh_authenticated",
-            ),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
-                return_value=_UNRESOLVED_STATE,
-            ),
-            patch(
-                "add_pr_review_thread_reply.gh_graphql",
-                return_value=reply_data,
-            ),
-        ):
-            rc = main(["--thread-id", "PRRT_abc", "--body", "LGTM"])
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
-        assert out["action"] == "ACT"
-        assert out["success"] is True
-
-    def test_precheck_api_error_returns_3(self):
-        with (
-            patch(
-                "add_pr_review_thread_reply.assert_gh_authenticated",
-            ),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
-                side_effect=RuntimeError("API unavailable"),
-            ),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--thread-id", "PRRT_abc", "--body", "test"])
-            assert exc.value.code == 3

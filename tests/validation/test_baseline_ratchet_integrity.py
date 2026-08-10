@@ -116,9 +116,7 @@ class TestResolveBaselinePathSentinel:
         root.mkdir()
         outside = tmp_path / "other.json"
         outside.write_text("{}")
-        result = common.resolve_baseline_path(
-            root, outside, "default.json"
-        )
+        result = common.resolve_baseline_path(root, outside, "default.json")
         assert result is None
 
 

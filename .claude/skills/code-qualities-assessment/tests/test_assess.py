@@ -885,3 +885,84 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
     assessment = assess_file(binary, "production", False)
 
     assert assessment.category in {"authored", "test"}
+
+
+# ---------------------------------------------------------------------------
+# Issue #4364: regression mode for --changed-only gate
+# ---------------------------------------------------------------------------
+
+check_regressions = _mod.check_regressions
+assess_file_content = _mod.assess_file_content
+
+
+class TestCheckRegressions:
+    """Tests for the regression gate (issue #4364).
+
+    The decisive assertion: a changed file that carries pre-existing absolute
+    debt but adds none must pass (exit 0). A file that regresses must fail
+    (exit 10). A new file has no base assessment and is never gated.
+    """
+
+    def _make_assessment(self, file_path: Path, content: str) -> Any:
+        return assess_file_content(file_path, content, "production")
+
+    def test_no_regression_passes(self, tmp_path: Path) -> None:
+        """Pre-existing debt that is unchanged must exit 0 (decisive test for #4364)."""
+        f = tmp_path / "legacy.py"
+        body = "def a():\n    return 1\n"
+        f.write_text(body, encoding="utf-8")
+        head_assessment = assess_file(f, "production", False)
+        # Identical base: same score, no regression.
+        base_assessments = {str(f): self._make_assessment(f, body)}
+        assert check_regressions([head_assessment], base_assessments) == 0
+
+    def test_regression_detected(self, tmp_path: Path) -> None:
+        """A quality that drops by more than 0.05 must exit 10."""
+        f = tmp_path / "mod.py"
+        # Base: clean, small file.
+        base_body = "def a():\n    return 1\n"
+        # Head: many imports added; coupling score will drop sharply.
+        head_body = (
+            "import os\nimport sys\nimport re\nimport json\nimport pathlib\n"
+            "import collections\nimport itertools\nimport functools\nimport typing\n"
+            "import hashlib\nimport logging\nimport datetime\nimport uuid\n"
+            "def a():\n    return 1\n"
+        )
+        f.write_text(head_body, encoding="utf-8")
+        head_assessment = assess_file(f, "production", False)
+        base_assessments = {str(f): self._make_assessment(f, base_body)}
+        assert check_regressions([head_assessment], base_assessments) == 10
+
+    def test_new_file_skipped(self, tmp_path: Path) -> None:
+        """A file absent from base_assessments is not flagged as a regression."""
+        f = tmp_path / "new.py"
+        f.write_text("def new():\n    return 1\n", encoding="utf-8")
+        head_assessment = assess_file(f, "production", False)
+        assert check_regressions([head_assessment], {}) == 0
+
+    def test_regression_gate_via_main(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """main() uses regression gate when --changed-only and --base are both given."""
+        for cmd in (
+            ("init",), ("checkout", "-b", "main"),
+            ("config", "user.email", "t@t.com"), ("config", "user.name", "T"),
+        ):
+            _run_git(tmp_path, *cmd)
+        monkeypatch.chdir(tmp_path)
+
+        body = "def f():\n    return 1\n"
+        _write(tmp_path, "f.py", body)
+        _run_git(tmp_path, "add", "f.py")
+        _run_git(tmp_path, "commit", "-m", "base")
+        _write(tmp_path, "f.py", body + "# comment\n")
+        _run_git(tmp_path, "add", "f.py")
+        _run_git(tmp_path, "commit", "-m", "head")
+
+        import sys
+        monkeypatch.setattr(
+            sys, "argv",
+            ["assess.py", "--target", ".", "--changed-only", "--base", "HEAD~1", "--format", "json"],
+        )
+        rc = _mod.main()
+        assert rc == 0, "cosmetic change must not be flagged as regression"
