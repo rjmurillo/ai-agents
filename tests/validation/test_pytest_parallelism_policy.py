@@ -1,11 +1,12 @@
 """Where bounded pytest-xdist parallelism may be applied, and where it must not.
 
-Issue #4823. The pre-push gate runs the suite in two partitions
+Issue #4823. The pre-push gate runs the suite in three partitions
 (``scripts/validation/git_hook_policy.py::_pytest_commands``). Exactly one of
 them, the bulk ``not integration`` partition, runs on workers. Everything else
 in the repository stays serial:
 
-* the safe-push partition (second pre-push command), which targets one module;
+* the safe-push partition;
+* the pr-autofix process-group partition;
 * the two branch-coverage pin steps and the Windows path-contract step in
   ``.github/workflows/pytest.yml`` (asserted in
   ``tests/workflows/test_pytest_xdist_parallelism.py``, which owns the CI half
@@ -61,17 +62,19 @@ def _flag_value(command: list[str], names: tuple[str, ...]) -> str | None:
     return None
 
 
-def _bulk_and_safe_push_commands(repo_root: Path) -> tuple[list[str], list[str]]:
+def _pytest_commands_by_partition(
+    repo_root: Path,
+) -> tuple[list[str], list[str], list[str]]:
     commands = policy._pytest_commands(repo_root)
-    assert len(commands) == 2, f"expected two pre-push pytest commands, got {commands}"
-    return commands[0], commands[1]
+    assert len(commands) == 3, f"expected three pre-push pytest commands, got {commands}"
+    return commands[0], commands[1], commands[2]
 
 
 # --- The bulk partition is the only parallel one -------------------------------
 
 
 def test_bulk_partition_runs_every_cpu_over_whole_files(tmp_path: Path) -> None:
-    bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
+    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
     assert _flag_value(bulk, _DIST_FLAGS) == policy.PYTEST_DIST_MODE == "loadfile"
@@ -86,7 +89,7 @@ def test_bulk_partition_does_not_hard_code_a_worker_count(tmp_path: Path) -> Non
     ``auto`` for any number still passes "there is a ``-n``" but silently caps a
     48-thread host at whatever the author's laptop had.
     """
-    bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
+    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     workers = _flag_value(bulk, _WORKER_FLAGS)
 
@@ -96,17 +99,15 @@ def test_bulk_partition_does_not_hard_code_a_worker_count(tmp_path: Path) -> Non
     )
 
 
-def test_safe_push_partition_stays_serial(tmp_path: Path) -> None:
-    """The second command targets exactly one module.
-
-    ``--dist loadfile`` routes a whole file to a single worker, so distributing
-    a one-file partition buys no parallelism and pays worker startup anyway.
-    """
-    _bulk, safe_push = _bulk_and_safe_push_commands(tmp_path)
+def test_process_sensitive_partitions_stay_serial(tmp_path: Path) -> None:
+    _bulk, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(safe_push, _WORKER_FLAGS) is None
     assert _flag_value(safe_push, _DIST_FLAGS) is None
     assert str(tmp_path / "tests" / "test_safe_push_pr_branch.py") in safe_push
+    assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
+    assert _flag_value(pr_autofix, _DIST_FLAGS) is None
+    assert str(tmp_path / "tests" / "test_pr_autofix_late_live_state_gate.py") in pr_autofix
 
 
 def test_exactly_one_pre_push_command_is_parallel(tmp_path: Path) -> None:
@@ -185,7 +186,7 @@ def test_default_does_no_arithmetic_on_the_host_cpu_count(
 
     assert policy.parse_pytest_workers(None) == "auto"
 
-    bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
+    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 
@@ -195,12 +196,13 @@ def test_env_override_reaches_the_bulk_command(
 ) -> None:
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "8")
 
-    bulk, safe_push = _bulk_and_safe_push_commands(tmp_path)
+    bulk, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "8"
     assert _flag_value(safe_push, _WORKER_FLAGS) is None, (
         "the override must not make the safe-push partition parallel"
     )
+    assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
 
 
 def test_unset_env_produces_the_default_command(
@@ -208,7 +210,7 @@ def test_unset_env_produces_the_default_command(
 ) -> None:
     monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
 
-    bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
+    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 
