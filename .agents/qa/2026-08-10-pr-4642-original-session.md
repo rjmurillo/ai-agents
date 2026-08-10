@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-2-break-issue-4572-shallow-fetch.json
-qaCommit: 73f47e124185ad5830e07d899ac048ebff4a0632
+qaCommit: f38ada88e32d57f62e56fdb24625d3f503ba839f
 ---
 
 # PR 4642 Original Session QA Report
