@@ -191,13 +191,4 @@ Finish with a short summary:
 | Growing the index with a fresh paragraph per entry | One line per entry, under about 150 characters, detail lives in the topic file |
 | Recording a fact the user can re-fetch from a calendar or doc | Keep only what is hard to re-derive: preferences, decision context, ownership |
 
-## Related Skills
-
-| Skill | When to Use Instead |
-|-------|----------------------|
-| `memory` | Router for search, reflexion, gate, or maintenance operations |
-| `curating-memories` | Forgetful-store curation: obsolete, deduplicate, link |
-| `memory-maintenance` | Health check, token count, size validation, benchmark |
-| `memory-search` | Tier 1 semantic lookup, not a consolidation pass |
-
 If the project has no Serena memory tree, stop with a no-op summary.
