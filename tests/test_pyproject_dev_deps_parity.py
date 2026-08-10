@@ -37,11 +37,8 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # CI require. A plain ``uv sync`` and ``uv pip install -e ".[dev]"`` must each
 # make all of these importable/runnable.
 #
-# ``pytest-xdist`` is required, not optional: both gates pass ``-n``/``--dist``
-# at the call site (``scripts/validation/git_hook_policy.py::_pytest_commands``
-# and the "Run pytest" step in ``.github/workflows/pytest.yml``). pytest exits 4
-# (usage error) on an unrecognized ``-n``, so an install path that omits the
-# plugin turns the whole gate red rather than degrading to a serial run.
+# ``pytest-xdist`` is required because both gates pass ``-n`` at the call site
+# and pytest exits 4 on an unrecognized flag (issue #4823).
 REQUIRED_DEV_TOOLS = frozenset(
     {
         "bandit",

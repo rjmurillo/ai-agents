@@ -396,20 +396,20 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
-# Issue #4823: the bulk pre-push pytest partition runs on a fixed four
-# pytest-xdist workers. Four is measured, not derived: the same partition
-# (25,321 tests) passed twice at 315.53s and 301.03s with peak RSS of 600MB and
-# 553MB, against a serial cost of 1315s quiet and 1743s+ under contention
-# (issue #4491). `-n auto` is explicitly out of scope: #4491's closing comment
-# measured that scaling per host multiplies workers across concurrent pushes on
-# one shared machine and makes contention worse, so the count must not read the
-# CPU count.
-PYTEST_WORKER_COUNT_DEFAULT = 4
-# Local calibration only. Unset is the contract everywhere that matters: CI
-# passes the flags literally in `.github/workflows/pytest.yml`, and this
-# variable is not exported by any workflow or hook. It exists so a developer can
-# re-measure the default on different hardware without editing tracked code.
-PYTEST_WORKER_COUNT_ENV = "AI_AGENTS_PYTEST_WORKERS"
+# Issue #4823: the bulk pre-push pytest partition runs on pytest-xdist, and the
+# worker count is xdist's own `auto`, which is one worker per logical CPU. This
+# is deliberately not a number. No subtraction, no cap, and no fixed default, so
+# a 48-thread host spends 48 threads and a 4-thread laptop spends 4, without
+# anyone editing tracked code. The alternative, a hard-coded count, is wrong on
+# every machine that is not the machine it was measured on.
+PYTEST_WORKERS_AUTO = "auto"
+PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
+# Escape hatch, not a tuning knob. Unset is the contract everywhere that
+# matters: CI passes the flags literally in `.github/workflows/pytest.yml`, and
+# no workflow or hook exports this variable. It exists so a developer can pin a
+# specific worker count to reproduce a suspected concurrency bug, or to leave
+# cores free on a shared box.
+PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # `loadfile` sends every test in one file to one worker. That is the weakest
 # distribution mode xdist offers and the point: module-scoped fixtures, module
 # state, and file-local temp directories keep behaving the way they do serially.
@@ -6109,43 +6109,47 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
-def parse_pytest_worker_count(raw: str | None) -> int:
-    """Return the xdist worker count named by ``raw``, or the measured default.
+def parse_pytest_workers(raw: str | None) -> str:
+    """Return the ``-n`` value named by ``raw``, or the default.
 
     ``None`` and an empty or whitespace-only string both mean "unset", which is
-    the normal case: every CI run and every uncalibrated local push takes
-    ``PYTEST_WORKER_COUNT_DEFAULT``.
+    the normal case: every CI run and every local push with nothing exported
+    takes ``PYTEST_WORKERS_DEFAULT``, so the worker count follows the machine.
 
-    Anything else must parse as a positive decimal integer. A malformed value
-    raises instead of falling back, because the only reason to set the variable
-    is to measure a different worker count: silently substituting 4 for
-    ``auto`` or ``0`` would report a four-worker run as if it were the
-    calibration the developer asked for. There is no upper bound by design; the
-    variable is a deliberate local knob, and the value that binds CI and every
-    unset run is the constant above.
+    Anything else must be ``auto`` (any capitalization) or a positive decimal
+    integer. Both are values pytest-xdist accepts for ``-n``; this function does
+    not compute a count, so there is no arithmetic here to get wrong. A
+    malformed value raises instead of falling back, because the only reason to
+    set the variable is to pin a specific count: silently substituting ``auto``
+    for ``0`` or ``half`` would run the whole machine when the developer asked
+    for something else and report it as the value they asked for. Integers pass
+    through ``int`` and back so the argv always carries a canonical decimal.
 
     Raises:
-        ValueError: ``raw`` is set to something other than a positive integer.
+        ValueError: ``raw`` is set to something other than ``auto`` or a
+            positive integer.
     """
     if raw is None:
-        return PYTEST_WORKER_COUNT_DEFAULT
+        return PYTEST_WORKERS_DEFAULT
     candidate = raw.strip()
     if not candidate:
-        return PYTEST_WORKER_COUNT_DEFAULT
-    rejection = f"{PYTEST_WORKER_COUNT_ENV} must be a positive integer, got {raw!r}"
+        return PYTEST_WORKERS_DEFAULT
+    if candidate.lower() == PYTEST_WORKERS_AUTO:
+        return PYTEST_WORKERS_AUTO
+    rejection = f"{PYTEST_WORKERS_ENV} must be 'auto' or a positive integer, got {raw!r}"
     try:
         workers = int(candidate)
     except ValueError:
         raise ValueError(rejection) from None
     if workers < 1:
         raise ValueError(rejection)
-    return workers
+    return str(workers)
 
 
 def _pytest_parallel_flags() -> list[str]:
     """Return the xdist argv fragment for the bulk pre-push partition."""
-    workers = parse_pytest_worker_count(os.environ.get(PYTEST_WORKER_COUNT_ENV))
-    return ["-n", str(workers), "--dist", PYTEST_DIST_MODE]
+    workers = parse_pytest_workers(os.environ.get(PYTEST_WORKERS_ENV))
+    return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
@@ -6160,7 +6164,8 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
     one line.
 
     Raises:
-        ValueError: the worker-count override is set to a non-positive integer.
+        ValueError: the worker override names something other than ``auto`` or
+            a positive integer.
     """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
     return [

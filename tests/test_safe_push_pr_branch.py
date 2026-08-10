@@ -760,9 +760,9 @@ def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[s
     as ``-q`` or ``--maxfail``.
 
     Flags whose value is a separate argv token are consumed as pairs. Without
-    that, the ``4`` in ``-n 4`` and the ``loadfile`` in ``--dist loadfile``
-    (issue #4823) parse as bare words and land in ``targets``, which would
-    report the bulk command as targeting two paths that do not exist.
+    that, the ``auto`` in ``-n auto`` and the ``loadfile`` in ``--dist
+    loadfile`` (issue #4823) parse as bare words and land in ``targets``, which
+    would report the bulk command as targeting two paths that do not exist.
     """
     value_flags = frozenset({"-m", "--ignore", "-n", "--numprocesses", "--dist"})
     marker = ""

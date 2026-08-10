@@ -13,16 +13,17 @@ in the repository stays serial:
 
 The mechanism that keeps those serial is negative: ``-n`` and ``--dist`` are
 passed at the call site, never in ``[tool.pytest.ini_options].addopts``. Global
-addopts reach every pytest invocation in the repo, so a single ``-n 4`` there
+addopts reach every pytest invocation in the repo, so a single ``-n auto`` there
 would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``pytest tests/foo.py`` a developer runs. ``test_global_addopts_carries_no_``
 ``parallel_flags`` is the guard on that.
 
-Worker count is a measured constant, four, not a function of the host. Issue
-#4491's closing comment ruled out ``-n auto`` for this gate: several concurrent
-pushes on one shared machine each scale to the full CPU count, so contention
-gets worse rather than better. ``AI_AGENTS_PYTEST_WORKERS`` exists only so a
-developer can re-measure locally.
+The worker count is ``auto``, xdist's own name for one worker per logical CPU.
+It is not a number and not derived from one: no subtraction, no cap, and no
+fixed default, so the suite uses whatever the machine has.
+``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
+everything else, so a developer can pin a count without the gate ever guessing
+what a malformed value meant.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ _DIST_FLAGS = ("--dist",)
 def _flag_value(command: list[str], names: tuple[str, ...]) -> str | None:
     """Return the value passed to the first flag in ``names``, or None.
 
-    Handles both the space-separated (``-n 4``) and inline (``--dist=loadfile``)
+    Handles both the space-separated (``-n auto``) and inline (``--dist=loadfile``)
     argv forms, so a future rewrite from one to the other cannot slip past the
     assertions below by changing shape.
     """
@@ -69,28 +70,30 @@ def _bulk_and_safe_push_commands(repo_root: Path) -> tuple[list[str], list[str]]
 # --- The bulk partition is the only parallel one -------------------------------
 
 
-def test_bulk_partition_runs_four_workers_over_whole_files(tmp_path: Path) -> None:
+def test_bulk_partition_runs_every_cpu_over_whole_files(tmp_path: Path) -> None:
     bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
 
-    assert _flag_value(bulk, _WORKER_FLAGS) == "4"
+    assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
     assert _flag_value(bulk, _DIST_FLAGS) == policy.PYTEST_DIST_MODE == "loadfile"
     assert bulk[:3] == [sys.executable, "-m", "pytest"]
     assert str(tmp_path / "tests") in bulk
 
 
-def test_bulk_partition_never_asks_the_host_how_many_workers_to_use(
-    tmp_path: Path,
-) -> None:
-    """``-n auto`` is out of scope for this gate (issue #4491's closing decision).
+def test_bulk_partition_does_not_hard_code_a_worker_count(tmp_path: Path) -> None:
+    """A literal count is wrong on every machine except the one it was measured on.
 
-    The literal string is the regression this guards: ``-n auto`` reads the
-    host CPU count, so N concurrent pushes on one machine request N times the
-    cores and collapse into contention.
+    This is the inverse of the flag assertion above: a regression that swaps
+    ``auto`` for any number still passes "there is a ``-n``" but silently caps a
+    48-thread host at whatever the author's laptop had.
     """
     bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
 
-    assert "auto" not in bulk
-    assert _flag_value(bulk, _WORKER_FLAGS) != "auto"
+    workers = _flag_value(bulk, _WORKER_FLAGS)
+
+    assert workers is not None
+    assert not workers.lstrip("+-").isdigit(), (
+        f"worker count must stay host-relative, got the literal {workers!r}"
+    )
 
 
 def test_safe_push_partition_stays_serial(tmp_path: Path) -> None:
@@ -117,57 +120,80 @@ def test_exactly_one_pre_push_command_is_parallel(tmp_path: Path) -> None:
 # --- Worker count: default, override, and rejection ----------------------------
 
 
-def test_worker_count_defaults_to_the_measured_four() -> None:
-    assert policy.PYTEST_WORKER_COUNT_DEFAULT == 4
-    assert policy.parse_pytest_worker_count(None) == 4
+def test_workers_default_to_auto() -> None:
+    assert policy.PYTEST_WORKERS_DEFAULT == "auto"
+    assert policy.parse_pytest_workers(None) == "auto"
 
 
 @pytest.mark.parametrize("unset", ["", "   ", "\t\n"])
 def test_blank_override_is_treated_as_unset(unset: str) -> None:
-    assert policy.parse_pytest_worker_count(unset) == 4
+    assert policy.parse_pytest_workers(unset) == "auto"
+
+
+@pytest.mark.parametrize("raw", ["auto", "AUTO", "Auto", " auto ", "\tauto\n"])
+def test_auto_override_is_accepted_and_normalized(raw: str) -> None:
+    """Accepting ``auto`` explicitly keeps the override honest.
+
+    A developer who pins the default value should get the default behavior
+    rather than a config error, and capitalization is not a meaningful choice.
+    """
+    assert policy.parse_pytest_workers(raw) == "auto"
 
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
-    [("1", 1), ("2", 2), ("8", 8), (" 12 ", 12), ("+6", 6), ("04", 4)],
+    [("1", "1"), ("2", "2"), ("8", "8"), (" 12 ", "12"), ("+6", "6"), ("04", "4")],
 )
-def test_positive_integer_override_is_honored(raw: str, expected: int) -> None:
-    assert policy.parse_pytest_worker_count(raw) == expected
+def test_positive_integer_override_is_honored(raw: str, expected: str) -> None:
+    """Integers round-trip through ``int`` so argv carries a canonical decimal."""
+    assert policy.parse_pytest_workers(raw) == expected
 
 
 @pytest.mark.parametrize("raw", ["0", "-1", "-4", " -2 "])
 def test_non_positive_override_is_rejected(raw: str) -> None:
     with pytest.raises(ValueError) as excinfo:
-        policy.parse_pytest_worker_count(raw)
+        policy.parse_pytest_workers(raw)
 
-    assert policy.PYTEST_WORKER_COUNT_ENV in str(excinfo.value)
+    assert policy.PYTEST_WORKERS_ENV in str(excinfo.value)
     assert repr(raw) in str(excinfo.value)
 
 
-@pytest.mark.parametrize("raw", ["auto", "logical", "4.5", "four", "2x", "0x4", "1,2"])
-def test_non_integer_override_is_rejected(raw: str) -> None:
-    """A typo must not silently become the default.
+@pytest.mark.parametrize("raw", ["logical", "4.5", "four", "2x", "0x4", "1,2", "auto2", "half"])
+def test_unsupported_override_is_rejected(raw: str) -> None:
+    """A typo must not silently become ``auto``.
 
-    The variable exists to measure a worker count other than four. Falling back
-    would report a four-worker run as the calibration the developer asked for,
-    which is the one wrong answer that looks right.
+    ``logical`` is in this list on purpose. xdist accepts it, but this gate
+    takes exactly two forms, so a value that means something to pytest and
+    nothing to this parser still fails loudly instead of running the whole
+    machine while the developer believes they pinned something narrower.
     """
     with pytest.raises(ValueError) as excinfo:
-        policy.parse_pytest_worker_count(raw)
+        policy.parse_pytest_workers(raw)
 
-    assert policy.PYTEST_WORKER_COUNT_ENV in str(excinfo.value)
+    assert policy.PYTEST_WORKERS_ENV in str(excinfo.value)
 
 
-def test_default_ignores_the_host_cpu_count(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_does_no_arithmetic_on_the_host_cpu_count(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No subtraction, no cap, no reserved core.
+
+    xdist resolves ``auto`` itself. If this gate ever starts computing a count,
+    a stubbed ``os.cpu_count`` leaks into the argv and this fails.
+    """
     monkeypatch.setattr(os, "cpu_count", lambda: 64)
 
-    assert policy.parse_pytest_worker_count(None) == 4
+    assert policy.parse_pytest_workers(None) == "auto"
+
+    bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 
 
 def test_env_override_reaches_the_bulk_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv(policy.PYTEST_WORKER_COUNT_ENV, "8")
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "8")
 
     bulk, safe_push = _bulk_and_safe_push_commands(tmp_path)
 
@@ -180,11 +206,11 @@ def test_env_override_reaches_the_bulk_command(
 def test_unset_env_produces_the_default_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.delenv(policy.PYTEST_WORKER_COUNT_ENV, raising=False)
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
 
     bulk, _safe_push = _bulk_and_safe_push_commands(tmp_path)
 
-    assert _flag_value(bulk, _WORKER_FLAGS) == "4"
+    assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 
 
 def test_run_pytest_reports_a_config_error_and_runs_nothing(
@@ -194,10 +220,10 @@ def test_run_pytest_reports_a_config_error_and_runs_nothing(
 ) -> None:
     """Exit code 2 is the AGENTS.md config-error contract.
 
-    The gate must not fall through to a four-worker run: the developer asked
-    for a different measurement and did not get it.
+    The gate must not fall through to a default run: the developer asked for a
+    specific worker count and did not get it.
     """
-    monkeypatch.setenv(policy.PYTEST_WORKER_COUNT_ENV, "auto")
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "logical")
     ran: list[object] = []
 
     def fail_if_called(*args: object, **kwargs: object) -> None:
@@ -209,8 +235,8 @@ def test_run_pytest_reports_a_config_error_and_runs_nothing(
 
     assert ran == []
     stderr = capsys.readouterr().err
-    assert policy.PYTEST_WORKER_COUNT_ENV in stderr
-    assert "positive integer" in stderr
+    assert policy.PYTEST_WORKERS_ENV in stderr
+    assert "'auto' or a positive integer" in stderr
 
 
 # --- The negative half: no global parallelism ----------------------------------
