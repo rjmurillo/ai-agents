@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10033,
+    "date": "2026-08-10",
+    "branch": "fix/4823-deterministic-test-collection",
+    "startingCommit": "cefc2b0ed94e322624d4c41c0007822948ba2c81",
+    "objective": "Fix xdist collection order for Issue 4823"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions were initialized in the parent session before worktree dispatch."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena toolbox instructions loaded before implementation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as the read-only project dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Build, session-init, GitHub, test, and review skill routes identified."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first and issue-coordination requirements applied."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root, test, Python, testing, and session-log instructions applied."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No separate memory was needed; Issue #4823 and the regression test retain the finding."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4823-deterministic-test-collection"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4823-deterministic-test-collection"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before and after the code commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "cefc2b0ed94e322624d4c41c0007822948ba2c81"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required start and end items recorded."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory update needed; the deterministic ordering rule lives in the test and Issue #4823."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4823-xdist-collection-order-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code committed as 4e7c0868f97104396b328cf9b6f08f2d8518afbe; this session record is the final documentation commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff passed, targeted pytest passed, xdist partition passed, and session validation runs before commit."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo fix-xdist-collection-order updated after validation."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced xdist collection mismatch",
+      "outcome": "Workers collected feature-review recommendation cases in different frozenset orders."
+    },
+    {
+      "action": "Made parametrization deterministic",
+      "outcome": "Sorted VALID_RECOMMENDATIONS at the test boundary without changing production behavior."
+    },
+    {
+      "action": "Verified the fix",
+      "outcome": "42 targeted tests passed. Four xdist workers passed the 25,321-test non-integration partition in 315.53 seconds."
+    }
+  ],
+  "endingCommit": "4e7c0868f97104396b328cf9b6f08f2d8518afbe",
+  "nextSteps": [
+    "Open an atomic pull request referencing Issue #4823."
+  ]
+}
