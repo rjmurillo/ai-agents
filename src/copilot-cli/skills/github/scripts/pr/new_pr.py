@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -103,6 +104,22 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
     if result.returncode == 0:
         return remote_ref
     return pr_base
+
+
+def _resolve_validation_head(head: str) -> str:
+    """Return the commit used for validations, falling back to ``head``."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{head}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return head
 
 
 # ---------------------------------------------------------------------------
@@ -268,14 +285,14 @@ def _session_log_for_validation(
             repo_root, ".agents", "scratch", "session-log-validation"
         )
         os.makedirs(scratch_dir, exist_ok=True)
-        tmp_name = os.path.join(scratch_dir, os.path.basename(session_log))
-        try:
+        with tempfile.TemporaryDirectory(
+            prefix="session-",
+            dir=scratch_dir,
+        ) as tmp_dir:
+            tmp_name = os.path.join(tmp_dir, os.path.basename(session_log))
             with open(tmp_name, "w", encoding="utf-8") as tmp:
                 tmp.write(show.stdout)
             yield tmp_name
-        finally:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp_name)
         return
 
     print(
@@ -358,6 +375,8 @@ def run_validations(
                                 session_log_path,
                                 "--session-log-identity",
                                 session_log,
+                                "--validation-head",
+                                head,
                             ],
                             capture_output=True,
                             text=True,
@@ -625,6 +644,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
     else:
         validation_base = _resolve_validation_base(args.base, args.validation_base)
+        validation_head = _resolve_validation_head(head)
         if validation_base != args.base:
             print(
                 f"  Note: validating diff against {validation_base!r} "
@@ -636,7 +656,7 @@ def main(argv: list[str] | None = None) -> int:
             run_validations(
                 repo_root,
                 validation_base,
-                head,
+                validation_head,
                 title=args.title,
                 body=args.body,
                 body_file=args.body_file,

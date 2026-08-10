@@ -44,7 +44,7 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import new_session_logs
+from scripts.validation.session_scope import session_change_scope
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1786,6 +1786,7 @@ def _precommit_session_command(
     *,
     current_session: str | None,
     new_logs: set[str],
+    has_session_deletion: bool,
     repo_root: Path,
 ) -> list[str]:
     """Build the validator command for one staged session log."""
@@ -1800,7 +1801,7 @@ def _precommit_session_command(
         return command
     if exists_at_head is None:
         return command
-    if session in new_logs and not exists_at_head:
+    if session in new_logs and not exists_at_head and not has_session_deletion:
         return [*command, "--creation-mode"]
     if session not in new_logs:
         return [*command, "--existing-log"]
@@ -1818,7 +1819,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
-    new_logs = new_session_logs(sessions, repo_root)
+    new_logs, has_session_deletion = session_change_scope(sessions, repo_root)
     current_log = _session_log_for_current_branch(
         repo_root / ".agents" / "sessions",
         repo_root,
@@ -1833,6 +1834,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             session,
             current_session=current_session,
             new_logs=new_logs,
+            has_session_deletion=has_session_deletion,
             repo_root=repo_root,
         )
         result = _run_command(
@@ -6457,7 +6459,11 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
+    new_logs, has_session_deletion = session_change_scope(
+        paths,
+        repo_root,
+        compare_ref="HEAD",
+    )
     for path in paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         exists_at_head = _path_exists_at_head(path, repo_root)
@@ -6465,7 +6471,7 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
             pass
         elif path not in new_logs:
             command.append("--existing-log")
-        elif not exists_at_head:
+        elif not exists_at_head and not has_session_deletion:
             # A log this branch is adding for the first time is being committed
             # at session-start, before session-end runs. Pass --creation-mode so
             # the validator skips protocol-compliance checks that can only be
