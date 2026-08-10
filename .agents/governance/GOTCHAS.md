@@ -1022,11 +1022,10 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. The setting was briefly changed to `true`, then
-restored to `false` when its O(N²) backlog cost was measured. The current
-control is procedural: one armed pull request at a time, updated to a recorded
-main SHA, with main checked again before auto-merge. The exact-equality
-assertion above remains the deterministic backstop for count drift.
+that no longer existed. The setting is `true`; GitHub now rejects a stale PR at
+merge time. The cost control is separate: update and test only one front PR at
+a time instead of refreshing the whole backlog. The exact-equality assertion
+above remains the deterministic backstop for count drift.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline
@@ -1055,16 +1054,15 @@ would have made the other 40 matrices stale. Auto-merge was disabled on the
 other PRs and 818 runs were cancelled. That is the cost signature of the O(N²)
 approach.
 
-Keep one front PR. Update it to the current main SHA, run one CI matrix, verify
-main did not move, merge it, then advance. With strict disabled this is O(N)
-CI work when each PR succeeds once, but only while exactly one PR is armed.
+Keep one front PR. Update it to current main, run one CI matrix, merge it, then
+advance. Strict freshness is the platform lock; the one-front rule controls
+cost. An `update-branch` 422 is not automatically a failure: reread the head
+and merge state, retry once if the head changed, and continue when GitHub says
+the branch is already current.
 
-This is not a platform lock. A human or second agent can still merge between
-the final main-SHA comparison and the auto-merge event. Two landing sessions
-must not run concurrently. Pause the drain when another actor is landing work.
-An `update-branch` 422 is not automatically a failure: reread the head and
-merge state, retry once if the head changed, and continue when GitHub says the
-branch is already current.
+For dependent new work, use stacked PRs: base each child on its parent branch,
+then retarget or update the child after the parent merges. Do not stack
+unrelated backlog items.
 
 The expensive failure mode is discovering known gates remotely. Symptom:
 every loop costs the local pre-push suite plus another CI cycle, while the
@@ -1076,10 +1074,8 @@ no native merge queue because GitHub does not offer it to this user-owned
 repository, and the Trunk.io trial was removed. Phase 2.8 owns the single-front
 procedure, measured timeout, and handoff rule.
 
-The residual stale-base race is accepted, not solved. Main can move in the
-seconds between the final SHA check and GitHub's squash. After every merge,
-inspect the new main push workflows before arming the next PR. One red check
-halts the drain and limits the blast radius to one merge.
+After every merge, inspect the new main push workflows before arming the next
+PR. One red check halts the drain.
 
 ## Merging main clears an inherited red; check that before debugging your diff
 

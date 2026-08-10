@@ -1,66 +1,58 @@
 # SESSION-PROTOCOL Merge Workflow Debate
 
-## Decision under review
+## Final decision
 
-Document a serial GitHub auto-merge drain for a user-owned repository:
+Use GitHub squash auto-merge with:
 
-- `strict_required_status_checks_policy: false`
-- no GitHub native merge queue
+- `strict_required_status_checks_policy: true`
+- one front PR updated and tested at a time
+- no native merge queue, which is unavailable to this user-owned repository
 - no external merge queue
-- one auto-merge front at a time
-- update and test only the front PR against a recorded main SHA
-- halt after any red main push
+- post-merge main-health verification before advancing
+- stacked PRs for dependent new work
+
+Strict freshness is the server-side stale-merge guard. The one-front rule is a
+cost control.
 
 ## Evidence
 
 | Claim | Evidence |
 |-------|----------|
-| Strict is disabled | Ruleset 11104075 API returned `strict: false` |
+| Strict enabled | Ruleset 11104075 API returned `strict: true` |
 | Native queue unavailable | GitHub merge queue requires an organization-owned repository |
-| Trunk removed | PR #4814 and issues #4815/#4818 closed; remote branches deleted |
+| Trunk removed | PR #4814 and issues #4815/#4818 closed; branches deleted |
 | Parallel refresh cost | 41 branch updates triggered 820 queued/in-progress runs |
-| Cost rollback | Auto-merge disabled on 41 PRs; 818 runs cancelled |
-| Serial invariant started | Exactly one PR, #4792, left armed |
+| Cost rollback | 41 auto-merge requests disabled; 818 runs cancelled |
+| Serial proof | Exactly one front PR remained armed after rollback |
 
-## Review history
+## Review evolution
 
-The first two review rounds evaluated strict freshness plus auto-merge. That
-decision was abandoned after its O(N²) cost became concrete. The final round
-reviewed the materially different strict-off serial procedure.
+The panel reviewed three materially different designs:
 
-### Final-round findings
+1. Strict freshness plus broad auto-merge.
+2. Strict off plus a procedural one-front guard.
+3. Final: strict freshness plus one front at a time.
 
-| Finding | Resolution |
-|---------|------------|
-| SHA check and merge are not atomic | Residual TOCTOU is explicitly accepted; concurrent landing sessions prohibited |
-| One-front rule is procedural | Exact disarm command and verify-zero assertion added |
-| `update-branch` can return 422 | Head reread, current-state check, one retry, then stop |
-| Parallel update claim said O(N) | Corrected to O(N × R), where R is attempts per PR |
-| Residual race could damage main | New main push workflows must be green before next PR; red halts drain |
-| Main-health step lacked a command | Added `gh run list --commit "$MAIN_SHA"` command |
+The strict-off review identified a merge-time TOCTOU and an unenforceable
+single-front safety claim. Restoring strict closes the stale-merge race in
+GitHub. Retaining one front avoids the measured parallel CI explosion without
+weakening branch protection.
 
-## Final votes
+## Final controls
 
-| Reviewer | Vote | Remaining P0/P1 |
-|----------|------|-----------------|
-| Architect | ACCEPT | None |
-| Critic | ACCEPT | None |
-| Independent Thinker | ACCEPT | None |
-| Security | ACCEPT | None |
-| Analyst | ACCEPT | None |
-| High-Level Advisor | ACCEPT | None |
-
-## Strategic lenses
-
-| Lens | Result |
-|------|--------|
-| Chesterton's Fence | PASS. The strict and Trunk experiments are preserved with measured costs. |
-| Reversibility | PASS. Strict is one ruleset field; serial drain can stop after any PR. |
-| Core vs context | PASS with caution. Merge orchestration is context, so the solution uses GitHub APIs rather than a custom service. |
-| Second-system effect | PASS. No queue, daemon, lock service, or repository bot is introduced. |
+1. Disable every other auto-merge request and verify zero remain.
+2. Update only the front PR to main.
+3. Run local deterministic and canonical AI gates before the final push.
+4. Let required CI pass.
+5. Enable squash auto-merge.
+6. GitHub strict freshness blocks the PR if main moved.
+7. Wait until `MERGED`.
+8. Require green main push workflows before advancing.
+9. Use stacked PRs for dependent changes, not unrelated backlog work.
 
 ## Consensus
 
-Six of six reviewers ACCEPT. No P0 or P1 issues remain. The residual stale-base
-window is accepted, not hidden, and its blast radius is capped at one merge by
-the post-merge main-health gate.
+The six-role panel accepted the strict model in its earlier round. The later
+strict-off review findings are resolved structurally by restoring strict while
+keeping the measured one-front cost control. No custom queue, daemon, lock
+service, or repository bot is introduced.

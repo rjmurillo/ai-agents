@@ -856,13 +856,13 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 ### Phase 2.8: Pull Request Landing (REQUIRED)
 
 The repository uses a serial GitHub auto-merge drain with strict branch
-freshness disabled. This user-owned repository cannot use GitHub's native
-merge queue, and it does not use an external merge queue.
+freshness enabled. This user-owned repository cannot use GitHub's native merge
+queue, and it does not use an external merge queue.
 
 **Repository policy:**
 
 1. Ruleset `11104075` MUST keep
-   `strict_required_status_checks_policy: false`.
+   `strict_required_status_checks_policy: true`.
 2. Exactly one pull request MAY have auto-merge enabled at a time. Before
    arming a pull request, the agent MUST disable auto-merge on every other open
    pull request and verify the count is zero:
@@ -876,68 +876,64 @@ merge queue, and it does not use an external merge queue.
      --jq '[.[] | select(.autoMergeRequest != null)] | length')" -eq 0
    ```
 
-   This is a procedural control, not a GitHub lock. Two agent sessions MUST NOT
-   execute this phase concurrently. A human merge or another actor landing
-   work MUST pause the drain.
+   This single-front rule controls CI cost. GitHub strict freshness remains the
+   server-side safety lock. Two agent sessions MUST NOT execute this phase
+   concurrently.
 3. The front pull request MUST be `MERGEABLE`, have zero unresolved threads,
    carry valid `Fixes #N` or `Refs #N` linkage, and pass every required check
    before it merges.
-4. The agent MUST record the current main SHA, update only the front pull
-   request to that base, and let its checks run:
+4. The agent MUST update only the front pull request to current main and let
+   its checks run:
 
    ```bash
    REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-   BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
    HEAD_SHA=$(gh pr view <PR_NUMBER> --json headRefOid --jq .headRefOid)
    gh api -X PUT "repos/$REPO/pulls/<PR_NUMBER>/update-branch" \
      -f expected_head_sha="$HEAD_SHA"
    ```
 
-   Use `$REPO` in the base-SHA command too. If the update returns 422:
+   If the update returns 422:
    - reread `headRefOid`; if it changed, restart this step with the new head;
-   - if `mergeStateStatus` is `CLEAN` or `UNSTABLE`, the branch is already
-     current enough to test, so continue;
+   - if `mergeStateStatus` is `CLEAN`, the branch is already current, so
+     continue;
    - otherwise stop and surface the API response. Retry at most once.
 
    If the PR is `DIRTY`, resolve its conflicts before continuing.
-5. When the changed paths trigger AI quality workflows, the agent MUST run
+5. Dependent changes SHOULD use stacked PRs: base each child PR on its parent
+   branch instead of opening every PR against main. Do not stack unrelated
+   work. After the parent merges, retarget or update the child to main and
+   process it as the next front.
+6. When the changed paths trigger AI quality workflows, the agent MUST run
    the matching canonical prompts under
    `.github/prompts/pr-quality-gate-*.md` locally against the complete final
    diff before the final push. The QA report MUST record every axis verdict and
    any supported finding that changed the branch. Remote CI is the backstop,
    not the first review.
-6. Code-changing pull requests MUST carry their QA report and valid session
+7. Code-changing pull requests MUST carry their QA report and valid session
    binding before the final push. Do not use remote `Validate PR` to discover
    a missing report after a 15-minute CI run.
-7. After required checks pass, the agent MUST compare current main with
-   `BASE_SHA`. If they differ, main moved during testing: restart step 4 for
-   this pull request only. Do not refresh the rest of the backlog.
-8. If operating unattended, the agent MUST invoke critic before enabling
+8. If main moves during testing, GitHub strict freshness blocks the merge.
+   Restart step 4 for this pull request only. Do not refresh the rest of the
+   backlog.
+9. If operating unattended, the agent MUST invoke critic before enabling
    auto-merge, per the Unattended Execution Protocol.
-9. The agent MUST use squash auto-merge:
+10. The agent MUST use squash auto-merge:
 
    ```bash
    gh pr merge <PR_NUMBER> --auto --squash
    ```
 
-   Residual risk: strict is off, so a human or second agent can merge to main
-   between the SHA comparison and GitHub's merge. The single-front rule makes
-   this window small but cannot close it at the platform. This is accepted to
-   avoid the measured O(N²) CI cost. If any other actor is landing work, pause
-   the drain.
-
-10. Enabling auto-merge is not completion. The agent MUST wait until the pull
+11. Enabling auto-merge is not completion. The agent MUST wait until the pull
    request reaches `MERGED`. If it has not merged within 30 minutes, the agent
    MUST keep the task incomplete and report the exact in-progress or failing
    required checks from `gh pr checks --required`; the user MAY accept a
    handoff instead. Basis: PR #4819's slowest required check completed in 1094
    seconds (18 minutes 14 seconds), so 30 minutes leaves 11 minutes 46 seconds
    before escalation. Re-measure when required checks change.
-11. Before advancing to the next PR, the agent MUST inspect the push workflows
+12. Before advancing to the next PR, the agent MUST inspect the push workflows
     for the new main commit. Any red main check stops the drain: disable
     auto-merge everywhere, keep the task incomplete, and fix forward or revert
-    before arming another PR. This limits a residual stale-base race to one
-    merge.
+    before arming another PR.
 
     ```bash
     MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
@@ -964,14 +960,12 @@ rollback criterion.
 
 **Verification checklist:**
 
-- [ ] Ruleset strict policy is `false`
+- [ ] Ruleset strict policy is `true`
 - [ ] Exactly one or zero open PRs have auto-merge enabled
-- [ ] No second agent or human is landing another PR
 - [ ] Full PR thread and linked work items read
 - [ ] Zero unresolved review threads
-- [ ] Front PR updated to recorded `BASE_SHA`
+- [ ] Front PR updated to current main
 - [ ] Every required check passed or intentionally skipped by its contract
-- [ ] Current main still equals `BASE_SHA`
 - [ ] QA report and session binding present for code changes
 - [ ] Canonical local AI prompts run when their workflows apply
 - [ ] Unattended critic review complete when applicable
