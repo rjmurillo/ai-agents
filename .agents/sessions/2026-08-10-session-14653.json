@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14653,
+    "date": "2026-08-10",
+    "branch": "fix/issue-4842-9d8546d8",
+    "startingCommit": "8f8b6696d",
+    "objective": "Own issue #4842 end to end: reproduce repository-name truncation, implement the narrow fix with tests and generated mirrors, validate, create PR, and pursue closure."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Tool surface omitted activate_project; external worktree verified with git."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no issue 4842 handoff exists."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 53 GitHub skill Python scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, skills-github-cli-index, and repo-root test memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4842-9d8546d8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4842-9d8546d8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree before session log creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8f8b6696d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory update needed; parser behavior and regression tests are self-describing."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint ran; repository configuration excludes .agents/**, so zero files were selected."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-10-issue-4842-repository-name-parser-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work committed as f03b39429800637d6186737b4825cd72e8f38adf."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Checked issue ownership and full discourse",
+      "outcome": "No existing PR or assignee. GitHub write access rejected claim and comment operations for the Enterprise Managed User identity."
+    },
+    {
+      "action": "Reproduced and assessed issue 4842",
+      "outcome": "Dotted remote moq.analyzers.git resolved as moq. Priority P1 and a narrow fix is merited."
+    },
+    {
+      "action": "Fixed repository-name parsing",
+      "outcome": "Canonical parser now preserves dots, tests cover HTTPS, SSH, no suffix, and non-GitHub remotes, and both plugin mirrors were regenerated."
+    },
+    {
+      "action": "Validated the change",
+      "outcome": "249 tests passed; mutation failed 3 regression cases; Ruff, security scan, mirror check, and orphan reference scan passed."
+    }
+  ],
+  "endingCommit": "f03b39429800637d6186737b4825cd72e8f38adf",
+  "nextSteps": []
+}
