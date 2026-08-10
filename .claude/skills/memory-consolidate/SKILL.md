@@ -46,10 +46,10 @@ Each tier is tried before falling back to the next one:
    directory access instead. Phase 1 below states what list-memories does and
    does not enumerate.
 3. **Direct directory access third.** Only when the above are unavailable,
-   read `.serena/memories/` and its topic subdirectories directly. The one
-   exception is Phase 1's bounded stale-index audit, which always compares
-   relevant subdirectory filenames with their index entries, even when a
-   higher discovery tier succeeded.
+   read `.serena/memories/` and its topic subdirectories directly. Phase 1's
+   bounded stale-index audit uses the complete inventory from whichever tier
+   succeeded. Direct subdirectory enumeration is required only for the
+   filesystem fallback.
 
 These three tiers govern discovery only: how you find out which memory files
 exist.
@@ -65,22 +65,19 @@ consolidate.
 
 1. List the top-level memory files (memory search, Serena's list-memories
    capability, or direct `ls .serena/memories` per the Tool Order above) and
-   read `memory-index.md` in full. Serena list-memories enumerates top-level
-   files only: atomic topic memories in subdirectories are hidden from it.
-   A plain `ls` at this step has the same indexes-only limitation, so read
-   each relevant `*-index.md` next and use the paths it names to reach and
+   read `memory-index.md` in full. Serena list-memories returns top-level and
+   nested memory paths. Use those paths to read each relevant `*-index.md` and
    skim the atomic memories themselves
    (Serena's read-memory capability or direct file reads under
-   `.serena/memories/topic/`). Fall back to listing a subdirectory's contents
-   directly only when its index looks stale or incomplete against what the
-   directory actually holds. Then perform one bounded stale-index audit
-   regardless of discovery tier: enumerate every top-level topic directory
-   under `.serena/memories/` and compare its Markdown filenames with its
-   `*-index.md` entries. Add unindexed files to the Phase 1 inventory and
-   record dangling index entries as errors. If any directory cannot be
-   enumerated, report it and do not run any Phase 2 or Phase 3 writes. Audit
-   at most 500 memory files in one pass. Stop enumeration after finding file
-   501, report `>=501`, and do not run any Phase 2 or Phase 3 writes.
+   `.serena/memories/topic/`). A direct top-level `ls` cannot see nested
+   memories, so enumerate each topic directory when using the filesystem
+   fallback. Then perform one bounded stale-index audit from the same complete
+   inventory: compare each topic's Markdown paths with its `*-index.md`
+   entries. Add unindexed files to the Phase 1 inventory and record dangling
+   index entries as errors. If the complete inventory cannot be obtained,
+   report it and do not run any Phase 2 or Phase 3 writes. Audit at most 500
+   memory files in one pass. Stop enumeration after finding file 501, report
+   `>=501`, and do not run any Phase 2 or Phase 3 writes.
 2. Skim each file for three signals: **overlap**
    (two or more files cover the same person, project, or preference),
    **staleness** (a one-off task that passed its date), and **thinness** (a
@@ -96,11 +93,15 @@ Separate what you found in Phase 1 into two buckets:
   while preserving the recorded meaning.
 - **Dated**: projects, deadlines, one-off tasks. Retire a file only with
   explicit completion or resolution evidence from a trusted external source,
-  such as structured status from an authenticated tool rather than free text,
-  or human confirmation. A passed date alone is not completion evidence;
+  such as structured status from an authenticated tool rather than free text.
+  A passed date alone is not completion evidence;
   retain and flag it as stale when status is unclear. Before deletion, fold any
   lasting takeaway into the relevant durable memory. Git is the audit trail
   and recovery path. Do not preserve a dead file just to explain the deletion.
+
+Evidence identifies a deletion candidate; it never authorizes deletion. Before
+deleting any file for any reason, get human confirmation that names the exact
+path and, for a merge, its survivor.
 
 Before editing, require the memory tree to be clean. Any staged or unstaged
 change under `.serena/memories/` could be lost during rollback. If
@@ -138,10 +139,8 @@ reading, diffing, or deleting a candidate.
   When you find a genuine duplicate: identify the richer path (more current,
   more cross-linked, more concrete content), fold every unique fact from the
   poorer file into it, validate the survivor, delete the poorer file, and
-  update the indexes in the same change. Duplicate detection proposes a
-  deletion; it does not authorize one. Before deleting any file, get human
-  confirmation that names the candidate and its survivor. Git already records
-  what disappeared, when, and why.
+  update the indexes in the same change. Git already records what disappeared,
+  when, and why.
 
   Apply each merge in this order: update the survivor, confirm it remains one
   focused topic, delete the poorer file, then update the affected topic index

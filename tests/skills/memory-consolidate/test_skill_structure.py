@@ -74,8 +74,9 @@ def test_consolidation_contract() -> None:
         "human confirmation",
         "require the memory tree to be clean",
         "if `git status` reports any entry, do not modify files",
-        "deletion; it does not authorize one",
-        "get human confirmation that names the candidate and its survivor",
+        "evidence identifies a deletion candidate; it never authorizes deletion",
+        "before deleting any file for any reason",
+        "get human confirmation that names the exact path",
         "record each target's content hash before editing",
         "immediately before every write or deletion",
         "track a deleted target as explicitly absent",
@@ -88,11 +89,13 @@ def test_consolidation_contract() -> None:
 
 def test_discovery_index_and_output_contract() -> None:
     for phrase in (
-        "top-level files only",
+        "top-level and nested memory paths",
+        "direct top-level `ls` cannot see nested memories",
         "*-index.md",
         "bounded stale-index audit",
         "dangling index entries as errors",
-        "enumerate every top-level topic directory",
+        "complete inventory from whichever tier succeeded",
+        "direct subdirectory enumeration is required only for the filesystem fallback",
         "200 lines",
         "25,600 bytes",
         "Number of files scanned, changed, and deleted",
@@ -104,6 +107,10 @@ def test_discovery_index_and_output_contract() -> None:
         "permission, activation, and enumeration failures as errors",
     ):
         assert phrase.lower() in UNWRAPPED.lower()
+    lower = UNWRAPPED.lower()
+    assert "list-memories enumerates top-level files only" not in lower
+    assert "exception is phase 1's bounded stale-index audit" not in lower
+    assert "always compares relevant subdirectory filenames" not in lower
     for router_path in (MEMORY_ROUTER_MD, MIRROR_ROUTER_MD):
         router = router_path.read_text(encoding="utf-8")
         assert (
