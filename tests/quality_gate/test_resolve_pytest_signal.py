@@ -248,7 +248,10 @@ class TestJobAggregation:
         "pass-through-only-never-passes": ([pass_through()], STATUS_SKIPPED),
         "green-executor-that-skipped": ([executor("success", "skipped")], STATUS_SKIPPED),
         "executor-outranks-pass-through": ([executor(), pass_through("skipped")], STATUS_PASS),
-        "skip-hides-no-fail": ([executor("s", "skipped"), pass_through("failure")], STATUS_FAIL),
+        "skip-hides-no-fail": (
+            [executor("success", "skipped"), pass_through("failure")],
+            STATUS_FAIL,
+        ),
         "executor-pass-hides-no-fail": ([executor(), bare(conclusion="failure")], STATUS_FAIL),
         "pass-through-hides-no-fail": ([pass_through(), bare(conclusion="failure")], STATUS_FAIL),
         "running-sibling-holds-open": ([executor(), bare("in_progress", None)], STATUS_PENDING),
