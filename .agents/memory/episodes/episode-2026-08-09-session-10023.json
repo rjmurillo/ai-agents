@@ -1,0 +1,193 @@
+{
+  "id": "episode-2026-08-09-session-10023",
+  "session": "2026-08-09-session-10023",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 4747 CI validation failures.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed PR 4747 Validate PR failure",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed hook validation behavior",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated PR 4747 changes",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T08:15:35+00:00",
+      "type": "commit",
+      "content": "Commit: d19a76d479fc2f3bbc8b024aaee899ffd3d59a58",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PR 4747 fail-open session validation review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated fail-open regression tests",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T11:01:03+00:00",
+      "type": "commit",
+      "content": "Commit: f706ed51014b4c715c684bf931d9e27b00bb45fa",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T21:19:15+00:00",
+      "type": "commit",
+      "content": "Commit: ef2ec00094d0622a35eee198d971f929c5d5a76a",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T21:19:16+00:00",
+      "type": "commit",
+      "content": "Commit: 8220935232a1b6476ff4a90b6a175f27d9625284",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T12:21:54+00:00",
+      "type": "commit",
+      "content": "Commit: 4278245402cc30b83d291956d75ef96a46fbd094 (merge origin/main, resolve byte-count conflicts)",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T12:21:54+00:00",
+      "type": "commit",
+      "content": "Commit: 4278245402cc30b83d291956d75ef96a46fbd094",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T12:36:50+00:00",
+      "type": "commit",
+      "content": "Commit: f7b6dfe34466e7ed1099129409e963befe370816",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T13:29:49+00:00",
+      "type": "commit",
+      "content": "Commit: 7181c7480703be0270835ab0ad7722f733d2381a",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10023"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 21
+  },
+  "lessons": []
+}

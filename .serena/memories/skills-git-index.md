@@ -2,6 +2,7 @@
 |----------|------|
 | merge conflict resolve theirs ours accept reject resolution-strategy | [git/git-conflict-resolution-workflow](git/git-conflict-resolution-workflow.md) |
 | checkout drift stale steering system prompt behind main detached superseded rule | [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) |
+| push retrospective gate documentation-only bypass merge main behind update-branch ruleset strict | [git/git-merging-main-forfeits-the-docs-only-push-bypass](git/git-merging-main-forfeits-the-docs-only-push-bypass.md) |
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
 | squash merge stacked PR chain automatic base retarget merge-base ancestor collapsed add/add conflict ours strategy content-faithful force-push | [git/git-a-squash-merge-severs-a-stacked-pr](git/git-a-squash-merge-severs-a-stacked-pr.md) |
@@ -14,5 +15,5 @@
 | branch switch file verification state reset uncommitted lost | [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) |
 | branch verify current show-current commit push reset mutating MUST | [git/git-004-branch-verification-before-commit](git/git-004-branch-verification-before-commit.md) |
 | unique commits discard ahead already-up-to-date destroy unpushed cherry-pick | [git/git-list-unique-commits-before-any-reset](git/git-list-unique-commits-before-any-reset.md) |
-| diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
+| diff direction reversed minus lines predates misread restore stale branch additions shown as removals behind origin main predates | [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) |
 | worktree stale entry directory gone remove by path prune locked | [git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path](git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md) |

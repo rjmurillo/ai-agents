@@ -71,8 +71,15 @@ def main(argv: list[str] | None = None) -> int:
     text = build_summary(validate_conclusion, lib_mirror_conclusion, manifest_parity_conclusion)
 
     if summary_file:
-        with open(summary_file, "a", encoding="utf-8") as f:
-            f.write(text)
+        try:
+            with open(summary_file, "a", encoding="utf-8") as f:
+                f.write(text)
+        except OSError as exc:
+            print(
+                f"error: cannot write summary to {summary_file}: {exc}",
+                file=sys.stderr,
+            )
+            return EXIT_ERROR
     else:
         print(text)
 
