@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/memory-consolidate-validation.md"
+        "Evidence": ".agents/qa/memory-consolidate-pr-4832-validation.md"
       },
       "changesCommitted": {
         "level": "MUST",
