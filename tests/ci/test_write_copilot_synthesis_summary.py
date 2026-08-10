@@ -16,7 +16,7 @@ def _run(env: dict[str, str], tmp_path: Path) -> subprocess.CompletedProcess[str
     # every step. Inheriting it sends the summary to that file instead of
     # stdout, so the stdout assertions here read an empty string and fail in CI
     # while passing locally. A caller that wants the file branch passes the
-    # variable explicitly; everyone else gets it removed.
+    # variable explicitly; everyone else gets it removed. Issue #4541.
     if "GITHUB_STEP_SUMMARY" not in env:
         full_env.pop("GITHUB_STEP_SUMMARY", None)
     return subprocess.run(
