@@ -25,20 +25,28 @@ jobs:
       # Trunk Merge Queue tests a queued PR by opening a draft PR whose title is
       # its branch name (trunk-merge/pr-4747/<uuid>), which can never satisfy a
       # conventional-commit title. Skip the validation steps for those, exactly
-      # as for bot actors, and keep the job itself running so the required
-      # context still reports. A skipped job would leave the context unreported
-      # and block the queue, which is the failure this exemption exists to fix.
+      # as for bot actors. Trunk opens that draft PR in this repository, so the
+      # same-repo test costs nothing here and stops a fork from claiming the
+      # exemption by naming its branch trunk-merge/anything.
+      #
+      # The gating is per step, never a job-level if:. This job's name is the
+      # required context "Validate PR title", and a job-level if: would change
+      # what conclusion that context reports on every queued PR. Trunk decides
+      # whether to advance the queue from that conclusion, so keep the job
+      # running and let it report a real success.
       SKIP_TITLE_CHECK: >-
         ${{ github.actor == 'dependabot[bot]'
         || github.actor == 'github-actions[bot]'
         || github.actor == 'renovate[bot]'
-        || startsWith(github.head_ref, 'trunk-merge/') }}
+        || (startsWith(github.head_ref, 'trunk-merge/')
+        && github.event.pull_request.head.repo.full_name == github.repository) }}
     steps:
-      - name: Skip for bot actors
+      - name: Skip title validation
         if: env.SKIP_TITLE_CHECK == 'true'
         env:
           GH_ACTOR: ${{ github.actor }}
-        run: echo "Skipped - bot actor ($GH_ACTOR)"
+          GH_HEAD_REF: ${{ github.head_ref }}
+        run: echo "Skipped title validation (actor $GH_ACTOR, branch $GH_HEAD_REF)"
 
       - name: Check out classifier
         if: env.SKIP_TITLE_CHECK != 'true'
