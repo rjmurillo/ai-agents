@@ -3,12 +3,22 @@
 Issue #4502: the test job had no timeout-minutes, so a hung pytest session
 would hold a runner for GitHub's 360-minute default before terminating.
 Its evidence records run 30830624080 at 986 seconds and one parallel-fleet
-run at 1546 seconds (26 min), the worst observation, not a percentile.
+run at 1546 seconds (26 min), the worst observation, not a percentile. This
+is a two-observation operational guardrail, not a distribution estimate.
+The CI run's complete job took 17.2 minutes; the fleet record covers pytest
+runtime only, so 45 minutes also leaves 19 minutes for setup, coverage gates,
+and artifact upload beyond the worst observed suite.
 
 Thirty minutes leaves only 1.2x the worst observation, too little for runner
 contention. Sixty minutes leaves 2.3x but doubles the time to stop a genuine
 hang versus 30. The configured 45 minutes is the midpoint: 1.7x measured
 headroom while cutting the unbounded default from 6 hours to 45 minutes.
+
+A false timeout from legitimate suite growth is the known failure mode.
+Re-measure before changing the limit when either one non-hung run reaches 45
+minutes, or three non-cancelled `Run Python Tests` jobs exceed 36 minutes
+(80% of the limit) within 30 days. One infrastructure failure is not evidence
+to raise the ceiling. Keep 45 unless that trigger supplies new runtime data.
 """
 
 from __future__ import annotations
