@@ -2365,6 +2365,11 @@ class TestHistoricalLogsAreExemptByConstruction:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=True,
+            ),
             mock.patch.object(session_scope, "_git", _no_base),
         ):
             git_hook_policy.validate_branch_sessions(paths, Path.cwd())
@@ -2984,6 +2989,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     def _stub(
         base: str = "deadbee",
         added: tuple[str, ...] = (),
+        deleted: tuple[str, ...] = (),
         tracked: tuple[str, ...] = (),
     ) -> tuple[Callable[..., subprocess.CompletedProcess[str]], list[list[str]]]:
         seen: list[list[str]] = []
@@ -2994,7 +3000,8 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
                 code = 0 if base else 1
                 return subprocess.CompletedProcess([], code, f"{base}\n" if base else "", "")
             if args[0] == "diff":
-                body = "".join(f"A\t{name}\n" for name in added)
+                body = "".join(f"A\0{name}\0" for name in added)
+                body += "".join(f"D\0{name}\0" for name in deleted)
                 return subprocess.CompletedProcess([], 0, body, "")
             return subprocess.CompletedProcess([], 0, "\0".join(tracked), "")
 
@@ -3083,6 +3090,27 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.session_log_is_new("a.json", Path.cwd()) is True
 
+    def test_a_session_replacement_is_not_treated_as_creation(self) -> None:
+        from scripts.validation import session_scope
+
+        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
+        old_path = ".agents/sessions/2026-08-10-session-1-old.json"
+        stub, _ = self._stub(
+            added=(new_path,),
+            deleted=(old_path,),
+            tracked=(new_path,),
+        )
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.new_session_logs([new_path], Path.cwd()) == set()
+
+    def test_a_tab_in_a_new_session_path_is_preserved(self) -> None:
+        from scripts.validation import session_scope
+
+        path = ".agents/sessions/2026-08-10-session-1-tab\tname.json"
+        stub, _ = self._stub(added=(path,), tracked=(path,))
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.new_session_logs([path], Path.cwd()) == {path}
+
     def test_an_untracked_log_is_new_even_though_no_diff_shows_it(self) -> None:
         """git diff never lists an untracked file; without the ls-files check
         a brand-new unstaged log would skip the whole checklist."""
@@ -3136,11 +3164,16 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=True,
+            ),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
         assert commands and "--existing-log" in commands[0]
 
-    def test_the_hook_omits_the_flag_for_a_new_log(self) -> None:
+    def test_the_hook_fully_validates_a_new_log_already_at_head(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
@@ -3153,9 +3186,15 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=True,
+            ),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
         assert commands and "--existing-log" not in commands[0]
+        assert "--creation-mode" not in commands[0]
 
     def test_an_empty_batch_forks_no_git_at_all(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
@@ -3184,7 +3223,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
 
-    def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
+    def test_the_hook_passes_creation_mode_for_an_uncommitted_new_log(self) -> None:
         """A new log gets --creation-mode so the hook does not reject it at
         session-start before session-end has run (issue #4425)."""
         from scripts.validation import git_hook_policy, session_scope
@@ -3199,6 +3238,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=False,
+            ),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
         assert commands, "expected at least one validate_session_json invocation"
@@ -3220,11 +3264,40 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=True,
+            ),
         ):
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
         assert commands, "expected at least one validate_session_json invocation"
         assert "--creation-mode" not in commands[0]
         assert "--existing-log" in commands[0]
+
+    def test_the_hook_fully_validates_when_head_presence_is_unknown(self) -> None:
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+            mock.patch.object(
+                git_hook_policy,
+                "_path_exists_at_head",
+                return_value=None,
+            ),
+        ):
+            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+        assert commands
+        assert "--creation-mode" not in commands[0]
+        assert "--existing-log" not in commands[0]
 
 
 def _log_with_evidence(**items: str) -> dict:

@@ -136,6 +136,18 @@ class TestPushRangeChangedFiles:
         assert result is not None
         assert len(result) == 0
 
+    def test_preserves_a_tab_in_a_changed_path(self, tmp_path: Path) -> None:
+        base_sha = _init_repo(tmp_path)
+        filename = "branch\tfile.py"
+        head_sha = _commit(tmp_path, filename)
+        stdin = io.StringIO(
+            f"refs/heads/feature {head_sha} refs/heads/feature {base_sha}\n"
+        )
+
+        result = git_hook_policy._push_range_changed_files(stdin, tmp_path)
+
+        assert result == {filename}
+
 
 class TestAnyGlobMatch:
     """_any_glob_match is a lightweight fnmatch filter."""
@@ -175,6 +187,131 @@ class TestAnyGlobMatch:
         measuring behaviour, not comment style."""
         result = git_hook_policy._any_glob_match({"a/b.py"}, ("a/*.py",))
         assert result is True
+
+
+class TestHandleSessions:
+    """The session gate consumes the actual push range rather than push_files."""
+
+    def test_only_push_range_session_logs_are_validated(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[list[str]] = []
+        monkeypatch.setattr(sys, "stdin", io.StringIO("push refs\n"))
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_range_changed_files",
+            lambda _stream, _root: {
+                ".agents/sessions/2026-08-10-session-1-branch.json",
+                ".agents/sessions/upstream-only.json.bak",
+                "README.md",
+            },
+        )
+
+        def record_sessions(paths: list[str], _root: Path) -> int:
+            seen.append(paths)
+            return 0
+
+        monkeypatch.setattr(
+            git_hook_policy,
+            "validate_branch_sessions",
+            record_sessions,
+        )
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_updates_match_head",
+            lambda _payload, _root: True,
+        )
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_session_paths_match_head",
+            lambda _paths, _root: True,
+        )
+        args = type("Args", (), {"repo_root": str(tmp_path), "paths": []})()
+
+        assert git_hook_policy._handle_sessions(args) == 0
+        assert seen == [[".agents/sessions/2026-08-10-session-1-branch.json"]]
+
+    def test_push_range_resolution_failure_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", io.StringIO("malformed\n"))
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_range_changed_files",
+            lambda _stream, _root: None,
+        )
+        args = type("Args", (), {"repo_root": str(tmp_path), "paths": []})()
+
+        assert git_hook_policy._handle_sessions(args) == 2
+
+    def test_off_head_push_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", io.StringIO("push refs\n"))
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_range_changed_files",
+            lambda _stream, _root: {
+                ".agents/sessions/2026-08-10-session-1-branch.json"
+            },
+        )
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_updates_match_head",
+            lambda _payload, _root: False,
+        )
+        args = type("Args", (), {"repo_root": str(tmp_path), "paths": []})()
+
+        assert git_hook_policy._handle_sessions(args) == 2
+
+    def test_dirty_session_file_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sys, "stdin", io.StringIO("push refs\n"))
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_range_changed_files",
+            lambda _stream, _root: {
+                ".agents/sessions/2026-08-10-session-1-branch.json"
+            },
+        )
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_push_updates_match_head",
+            lambda _payload, _root: True,
+        )
+        monkeypatch.setattr(
+            git_hook_policy,
+            "_session_paths_match_head",
+            lambda _paths, _root: False,
+        )
+        args = type("Args", (), {"repo_root": str(tmp_path), "paths": []})()
+
+        assert git_hook_policy._handle_sessions(args) == 2
+
+    def test_a_committed_session_symlink_does_not_match_head(self, tmp_path: Path) -> None:
+        _init_repo(tmp_path)
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        target = tmp_path / "valid.json"
+        target.write_text("{}\n", encoding="utf-8")
+        link = sessions / "2026-08-10-session-1-link.json"
+        link.symlink_to(target)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", str(link.relative_to(tmp_path))],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-qm", "add session link"],
+            check=True,
+            capture_output=True,
+        )
+
+        assert not git_hook_policy._session_paths_match_head(
+            [str(link.relative_to(tmp_path))],
+            tmp_path,
+        )
 
 
 class TestHandleCliPluginE2eSkip:

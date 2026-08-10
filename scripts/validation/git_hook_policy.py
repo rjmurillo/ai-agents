@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import ast
 import difflib
+import io
 import json
 import os
 import re
@@ -1729,6 +1730,83 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
     return present
 
 
+def _path_exists_at_head(path: str, repo_root: Path) -> bool | None:
+    """Return whether ``path`` exists at HEAD, or None when git cannot answer."""
+    result = _run_git(repo_root, ["ls-tree", "-z", "--name-only", "HEAD", "--", path])
+    if result.returncode != 0:
+        return None
+    return path in result.stdout.split("\0")
+
+
+def _path_has_staged_rename_source(path: str, repo_root: Path) -> bool | None:
+    """Return whether ``path`` is the destination of a staged rename from HEAD."""
+    result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-status", "-z", "-M", "HEAD", "--"],
+    )
+    if result.returncode != 0:
+        return None
+    tokens = result.stdout.split("\0")
+    index = 0
+    deleted_session = False
+    added_destination = False
+    while index < len(tokens) and tokens[index]:
+        status = tokens[index]
+        index += 1
+        if status.startswith(("R", "C")):
+            if index + 1 >= len(tokens):
+                return None
+            index += 1
+            destination = tokens[index]
+            index += 1
+            if destination == path:
+                return True
+            continue
+        if index >= len(tokens):
+            return None
+        changed_path = tokens[index]
+        index += 1
+        if status == "D" and SESSION_PATH_RE.fullmatch(changed_path):
+            deleted_session = True
+        elif status == "A" and changed_path == path:
+            added_destination = True
+    return deleted_session and added_destination
+
+
+def _path_has_committed_source(path: str, repo_root: Path) -> bool | None:
+    """Return whether a staged path has content ancestry in HEAD."""
+    exists_at_head = _path_exists_at_head(path, repo_root)
+    if exists_at_head is not False:
+        return exists_at_head
+    return _path_has_staged_rename_source(path, repo_root)
+
+
+def _precommit_session_command(
+    session: str,
+    *,
+    current_session: str | None,
+    new_logs: set[str],
+    repo_root: Path,
+) -> list[str]:
+    """Build the validator command for one staged session log."""
+    command = [
+        sys.executable,
+        "scripts/validate_session_json.py",
+        session,
+        "--pre-commit",
+    ]
+    exists_at_head = _path_has_committed_source(session, repo_root)
+    if session == current_session and exists_at_head is not False:
+        return command
+    if exists_at_head is None:
+        return command
+    if session in new_logs and not exists_at_head:
+        return [*command, "--creation-mode"]
+    if session not in new_logs:
+        return [*command, "--existing-log"]
+    return command
+
+
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
@@ -1740,14 +1818,25 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
+    new_logs = new_session_logs(sessions, repo_root)
+    current_log = _session_log_for_current_branch(
+        repo_root / ".agents" / "sessions",
+        repo_root,
+    )
+    current_session = (
+        current_log.relative_to(repo_root).as_posix()
+        if current_log is not None and current_log.is_relative_to(repo_root)
+        else None
+    )
     for session in sessions:
+        command = _precommit_session_command(
+            session,
+            current_session=current_session,
+            new_logs=new_logs,
+            repo_root=repo_root,
+        )
         result = _run_command(
-            [
-                sys.executable,
-                "scripts/validate_session_json.py",
-                session,
-                "--pre-commit",
-            ],
+            command,
             repo_root,
         )
         if result.returncode != 0:
@@ -6371,9 +6460,12 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     new_logs = new_session_logs(paths, repo_root)
     for path in paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
-        if path not in new_logs:
+        exists_at_head = _path_exists_at_head(path, repo_root)
+        if exists_at_head is None:
+            pass
+        elif path not in new_logs:
             command.append("--existing-log")
-        else:
+        elif not exists_at_head:
             # A log this branch is adding for the first time is being committed
             # at session-start, before session-end runs. Pass --creation-mode so
             # the validator skips protocol-compliance checks that can only be
@@ -6654,14 +6746,45 @@ def _push_range_changed_files(stream: TextIO, repo_root: Path) -> set[str] | Non
             update = resolve_push_update(ref, repo_root)
         except (PushUpdateConfigError, ValueError):
             return None
-        result = _run_git(repo_root, ["diff", "--name-only", update.range_spec])
+        result = _run_git(repo_root, ["diff", "--name-only", "-z", update.range_spec])
         if result.returncode != 0:
             return None
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line:
-                changed.add(line)
+        changed.update(path for path in result.stdout.split("\0") if path)
     return changed
+
+
+def _push_updates_match_head(payload: str, repo_root: Path) -> bool | None:
+    """Return whether every non-deletion update pushes the checked-out HEAD."""
+    try:
+        refs = parse_push_refs(io.StringIO(payload))
+    except (ValueError, OSError):
+        return None
+    head = _resolve_commit(repo_root, "HEAD")
+    if head is None:
+        return None
+    return all(ref.is_deletion or ref.local_sha == head for ref in refs)
+
+
+def _session_paths_match_head(paths: Sequence[str], repo_root: Path) -> bool:
+    """Return whether session files on disk match the checked-out HEAD blobs."""
+    for path in paths:
+        entry = _run_git(repo_root, ["ls-tree", "-z", "HEAD", "--", path])
+        if entry.returncode != 0 or not entry.stdout:
+            return False
+        metadata, separator, entry_path = entry.stdout.rstrip("\0").partition("\t")
+        fields = metadata.split()
+        if (
+            not separator
+            or entry_path != path
+            or len(fields) < 2
+            or fields[0] not in {"100644", "100755"}
+            or fields[1] != "blob"
+            or (repo_root / path).is_symlink()
+        ):
+            return False
+        if _run_git(repo_root, ["diff", "--quiet", "HEAD", "--", path]).returncode != 0:
+            return False
+    return True
 
 
 def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
@@ -6718,7 +6841,26 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
-    return validate_branch_sessions(args.paths, _repo_root(args))
+    repo_root = _repo_root(args)
+    if args.paths:
+        return validate_branch_sessions(args.paths, repo_root)
+    payload = sys.stdin.read()
+    changed = _push_range_changed_files(io.StringIO(payload), repo_root)
+    if changed is None:
+        print("ERROR: could not resolve the session validation push range", file=sys.stderr)
+        return 2
+    sessions = sorted(path for path in changed if SESSION_PATH_RE.fullmatch(path))
+    if not sessions:
+        print("session-json-validation skipped: no session logs in push range")
+        return 0
+    updates_match_head = _push_updates_match_head(payload, repo_root)
+    if updates_match_head is not True:
+        print("ERROR: session validation requires the pushed SHA to equal HEAD", file=sys.stderr)
+        return 2
+    if not _session_paths_match_head(sessions, repo_root):
+        print("ERROR: session files on disk differ from the pushed HEAD", file=sys.stderr)
+        return 2
+    return validate_branch_sessions(sessions, repo_root)
 
 
 def _handle_observations(args: argparse.Namespace) -> int:
