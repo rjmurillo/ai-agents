@@ -21,20 +21,32 @@ jobs:
     name: Validate PR title
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
+    env:
+      # Trunk Merge Queue tests a queued PR by opening a draft PR whose title is
+      # its branch name (trunk-merge/pr-4747/<uuid>), which can never satisfy a
+      # conventional-commit title. Skip the validation steps for those, exactly
+      # as for bot actors, and keep the job itself running so the required
+      # context still reports. A skipped job would leave the context unreported
+      # and block the queue, which is the failure this exemption exists to fix.
+      SKIP_TITLE_CHECK: >-
+        ${{ github.actor == 'dependabot[bot]'
+        || github.actor == 'github-actions[bot]'
+        || github.actor == 'renovate[bot]'
+        || startsWith(github.head_ref, 'trunk-merge/') }}
     steps:
       - name: Skip for bot actors
-        if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]' || github.actor == 'renovate[bot]'
+        if: env.SKIP_TITLE_CHECK == 'true'
         env:
           GH_ACTOR: ${{ github.actor }}
         run: echo "Skipped - bot actor ($GH_ACTOR)"
 
       - name: Check out classifier
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: env.SKIP_TITLE_CHECK != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: semantic
         uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: env.SKIP_TITLE_CHECK != 'true'
         continue-on-error: true
         with:
           types: |
@@ -52,7 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Classify outcome (ignore Unicorn HTML flake, block real failures)
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: env.SKIP_TITLE_CHECK != 'true'
         env:
           OUTCOME: ${{ steps.semantic.outcome }}
           ERROR_MESSAGE: ${{ steps.semantic.outputs.error_message }}
