@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking.json
-qaCommit: e5d3691de27b8a07c651a051c82ad13bd364fbaf
+qaCommit: a0fca312c9da6b67af845c63df5445204cd42f1b
 ---
 # QA Report: issue 4788 session push blocker
 
@@ -63,6 +63,8 @@ by that range. A push-range resolution failure exits 2.
 | Full pre-PR gate | all validations passed |
 | Full pre-push Python suite | original run found one stale fixture; corrected control passes |
 | Post-main merge | clean; removed stale Velocity Accelerator paths that broke merge-tree materialization |
+| PR helper tests | 86 passed |
+| Skill mirror generation | canonical and Copilot copies match |
 | Real first-push stdin control | selected only the two session logs changed by this branch |
 | Off-HEAD push control | exit 2 |
 | Dirty session file control | exit 2 |
