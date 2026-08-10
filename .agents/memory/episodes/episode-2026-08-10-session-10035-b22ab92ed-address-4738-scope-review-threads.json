@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads",
+  "session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Address PR #4738 scope review threads",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "lease",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T10:39:39+00:00",
+      "type": "commit",
+      "content": "Commit: 369e60a955797d9059ecb2928c1989973d744a55",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10035-b22ab92ed-address-4738-scope-review-threads"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

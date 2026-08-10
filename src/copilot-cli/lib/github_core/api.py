@@ -838,7 +838,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
         number
         title
         state
-        author { login }
+        author {
+          login
+          ... on Bot { databaseId }
+          ... on User { databaseId }
+        }
         createdAt
         updatedAt
         mergedAt
@@ -851,7 +855,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
               nodes {
                 id
                 body
-                author { login }
+                author {
+                  login
+                  ... on Bot { databaseId }
+                  ... on User { databaseId }
+                }
                 createdAt
                 path
               }
