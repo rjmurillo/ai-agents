@@ -125,6 +125,32 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T12:21:54+00:00",
+      "type": "commit",
+      "content": "Commit: 4278245402cc30b83d291956d75ef96a46fbd094 (merge origin/main, resolve byte-count conflicts)",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T12:21:54+00:00",
+      "type": "commit",
+      "content": "Commit: 4278245402cc30b83d291956d75ef96a46fbd094",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-09-session-10023"
     }
@@ -134,7 +160,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 6,
     "files_changed": 18
   },
   "lessons": []
