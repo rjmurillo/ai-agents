@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10033-pr-4644-autofix.json
-qaCommit: b923f542d7123f616ed537a49ad9e0408a428aa9
+qaCommit: 181db77b164d7bf6e8cebafb970f583b6e17a138
 ---
 
 # PR #4644 count-ratchet baseline-health validation
@@ -22,7 +22,7 @@ over-limit slack failure path.
   tests/ci/test_count_ratchet_baseline_health.py
   tests/ci/test_count_ratchet_against_real_git.py
   tests/ci/test_ruff_count_ratchet.py
-  tests/ci/test_taste_count_ratchet.py -q`: 97 passed in 3.82 seconds.
+  tests/ci/test_taste_count_ratchet.py -q`: 97 passed in 3.37 seconds.
 - Independent QA review of the three directly changed test modules:
   76 passed in 1.86 seconds, with no failures or skips.
 - The new `test_run_blocks_a_baseline_with_too_much_slack` exercises the

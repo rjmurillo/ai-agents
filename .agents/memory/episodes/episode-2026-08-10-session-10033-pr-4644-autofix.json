@@ -1,5 +1,5 @@
 {
-  "id": "episode-2026-08-10-session-10033-pr-4644-autofix-pr-4644-autofix",
+  "id": "episode-2026-08-10-session-10033-pr-4644-autofix",
   "session": "2026-08-10-session-10033-pr-4644-autofix",
   "timestamp": "2026-08-10T00:00:00+00:00",
   "causal_order_version": 2,
@@ -48,7 +48,44 @@
       "caused_by": [
         "e001",
         "e002",
-        "e003"
+        "e003",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed branch against main",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Resolved only the session-evidence filename collision and Ruff baseline conflict, then validated the merged code at 181db77b164d7bf6e8cebafb970f583b6e17a138 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:05:04+00:00",
+      "type": "commit",
+      "content": "Commit: 181db77b164d7bf6e8cebafb970f583b6e17a138",
+      "caused_by": [
+        "e004"
       ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
@@ -59,8 +96,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 2,
+    "files_changed": 8
   },
   "lessons": []
 }

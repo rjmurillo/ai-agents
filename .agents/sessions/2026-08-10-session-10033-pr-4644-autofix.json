@@ -100,12 +100,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code changes are committed through b923f542d7123f616ed537a49ad9e0408a428aa9; this evidence-only follow-up is pending commit."
+        "Evidence": "Validated code changes are committed through 181db77b164d7bf6e8cebafb970f583b6e17a138; this evidence-only follow-up is pending commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused count-ratchet suite passed 97 tests; independent QA passed 76 tests."
+        "Evidence": "Focused count-ratchet suite passed 97 tests after the guarded main refresh; independent QA passed 76 tests on the PR changes."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -131,9 +131,13 @@
     {
       "action": "Added QA evidence",
       "result": "Created a PR-bound QA report and matching session evidence without changing source code."
+    },
+    {
+      "action": "Refreshed branch against main",
+      "result": "Resolved only the session-evidence filename collision and Ruff baseline conflict, then validated the merged code at 181db77b164d7bf6e8cebafb970f583b6e17a138 with 97 passing focused tests."
     }
   ],
-  "endingCommit": "b923f542d7123f616ed537a49ad9e0408a428aa9",
+  "endingCommit": "181db77b164d7bf6e8cebafb970f583b6e17a138",
   "nextSteps": [
     "Commit and push the evidence-only fix, then verify Validate PR reruns successfully."
   ]
