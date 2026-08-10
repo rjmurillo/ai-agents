@@ -31,6 +31,7 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.github_core.api import (  # noqa: E402
+    RateLimitStatus,
     check_workflow_rate_limit,
     get_all_prs_with_comments,
     resolve_repo_params,
@@ -683,9 +684,13 @@ def main(argv: list[str] | None = None) -> int:
         rate_result = check_workflow_rate_limit(
             resource_thresholds={"core": 200, "graphql": 100}
         )
-        if not rate_result.success:
+        if rate_result.status != RateLimitStatus.VERIFIED_HEALTHY:
             reason = rate_result.probe_error or "thresholds not met"
-            logger.error("API rate limit gate failed (%s). Exiting.", reason)
+            logger.error(
+                "API rate limit gate %s (%s). Exiting.",
+                rate_result.status.value,
+                reason,
+            )
             return 2
     except RuntimeError:
         logger.exception("Failed to check rate limit")

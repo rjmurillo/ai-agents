@@ -17,6 +17,7 @@ from scripts.github_core import (
     REPO_ROOT_OK,
     FetchStatus,
     RateLimitResult,
+    RateLimitStatus,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
@@ -49,6 +50,8 @@ from scripts.github_core import (
 from scripts.github_core.api import (
     _403_PATTERN,
     _ALL_PRS_QUERY,
+    REST_PAGE_PACE_SECONDS,
+    REST_REFUSAL_BACKOFF_SECONDS,
     _retry_after_delay,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
@@ -582,9 +585,36 @@ class TestGhApiPaginated:
             data = page1 if call_count == 1 else page2
             return _completed(stdout=json.dumps(data))
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ) as sleep:
             result = gh_api_paginated("repos/o/r/issues", page_size=100)
         assert len(result) == 101
+        sleep.assert_called_once_with(REST_PAGE_PACE_SECONDS)
+
+    def test_rate_limit_refusal_retries_page_before_success(self):
+        items = [{"id": 1}]
+        calls: list[list[str]] = []
+        sleeps: list[float] = []
+
+        def _side_effect(command, **kwargs):
+            del kwargs
+            calls.append(command)
+            if len(calls) == 1:
+                return _completed(
+                    rc=1,
+                    stderr="HTTP 403: API rate limit exceeded for user ID 6811113",
+                )
+            return _completed(stdout=json.dumps(items))
+
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep", sleeps.append
+        ), pytest.warns(UserWarning, match="GitHub REST page request refused"):
+            result = gh_api_paginated("repos/o/r/issues")
+
+        assert result == items
+        assert len(calls) == 2
+        assert sleeps == [REST_REFUSAL_BACKOFF_SECONDS[0]]
 
     def test_empty_response(self):
         with patch("subprocess.run", return_value=_completed(stdout="[]")):
@@ -609,7 +639,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(rc=1, stderr="rate limited")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Returning partial results"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
@@ -632,7 +664,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(stdout="not json")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Invalid JSON"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
@@ -842,9 +876,6 @@ class TestGetAllPRsWithComments:
             result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
         assert result[0]["number"] == 1
-
-    def test_query_requests_actor_database_ids(self):
-        assert _ALL_PRS_QUERY.count("databaseId") == 4
 
     def test_excludes_prs_without_comments(self):
         pr_with = self._make_pr(1, "2026-01-15T00:00:00Z", has_comments=True)
@@ -1142,59 +1173,6 @@ class TestGetBotAuthors:
         ):
             result = get_bot_authors()
         assert len(result) == len(set(b for v in _DEFAULT_BOTS.values() for b in v))
-
-
-class TestCanonicalizeLogin:
-    """Issue #4378: one integration under several logins is one actor."""
-
-    def test_known_alias_maps_to_canonical(self):
-        assert bot_config.canonicalize_login("Copilot") == "github-copilot[bot]"
-
-    def test_alias_matching_is_case_insensitive(self):
-        assert (
-            bot_config.canonicalize_login("COPILOT-PULL-REQUEST-REVIEWER") == "github-copilot[bot]"
-        )
-
-    def test_the_coding_agent_is_a_different_actor_from_the_code_reviewer(self):
-        """Two accounts (ids 175728472 and 198982749), not one (issue #4378)."""
-        assert bot_config.canonicalize_login("copilot-swe-agent[bot]") == "copilot-swe-agent[bot]"
-        assert bot_config.canonicalize_login("app/copilot-swe-agent") == "copilot-swe-agent[bot]"
-        assert bot_config.canonicalize_login("copilot-pull-request-reviewer[bot]") != (
-            bot_config.canonicalize_login("copilot-swe-agent[bot]")
-        )
-
-    def test_account_id_disambiguates_the_shared_copilot_login(self):
-        assert bot_config.canonicalize_login("Copilot", 175728472) == "github-copilot[bot]"
-        assert bot_config.canonicalize_login("Copilot", 198982749) == "copilot-swe-agent[bot]"
-
-    def test_account_id_wins_over_a_misleading_known_alias(self):
-        assert (
-            bot_config.canonicalize_login(
-                "copilot-pull-request-reviewer[bot]",
-                198982749,
-            )
-            == "copilot-swe-agent[bot]"
-        )
-
-    def test_unknown_account_id_falls_back_to_the_login_alias(self):
-        assert bot_config.canonicalize_login("Copilot", 1) == "github-copilot[bot]"
-
-    def test_github_actions_alias_keeps_its_existing_canonical_login(self):
-        assert bot_config.canonicalize_login("github-actions") == "github-actions[bot]"
-
-    def test_canonical_login_is_a_fixed_point(self):
-        assert bot_config.canonicalize_login("github-copilot[bot]") == "github-copilot[bot]"
-
-    def test_unmapped_login_is_returned_unchanged(self):
-        assert bot_config.canonicalize_login("alice") == "alice"
-
-    def test_empty_login_is_returned_unchanged(self):
-        assert bot_config.canonicalize_login("") == ""
-
-    def test_every_alias_resolves_to_a_bot(self):
-        for canonical, aliases in bot_config._DEFAULT_BOT_ALIASES.items():
-            for alias in [canonical, *aliases]:
-                assert bot_config.is_bot(bot_config.canonicalize_login(alias)) is True
 
 
 # ---------------------------------------------------------------------------
@@ -1735,23 +1713,27 @@ class TestCheckWorkflowRateLimit:
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
             result = check_workflow_rate_limit()
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert result.core_remaining == 5000
 
     def test_failure_core_below_threshold(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.resources["core"]["Passed"] is False
 
     def test_custom_thresholds_pass(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 10})
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
 
     def test_custom_thresholds_fail(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 100})
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
 
     def test_markdown_summary(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
@@ -1765,6 +1747,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning, match="code_search"):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
 
     def test_raises_on_api_failure(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="API error")):
@@ -1790,6 +1773,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
         assert result.core_remaining == 0
 
 

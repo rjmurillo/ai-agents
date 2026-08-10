@@ -186,7 +186,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--list-available"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode == 0
@@ -210,7 +212,9 @@ class TestScriptIntegration:
                 "--action", "pr_context",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode == 0
@@ -225,7 +229,9 @@ class TestScriptIntegration:
                 "--action", "NonExistentSkillXYZ123",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode == 1
@@ -236,7 +242,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--operation", "pr"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode == 1
@@ -251,7 +259,9 @@ class TestScriptIntegration:
                 "--operation", "pr",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode != 0
@@ -261,7 +271,9 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         assert result.returncode == 0
