@@ -43,13 +43,50 @@ from scripts.ai_review_common import (  # noqa: E402
 
 _AGENTS = QUALITY_GATE_AGENTS
 ATTENTION_VERDICTS = FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"}
+DOWNGRADEABLE_INFRA_VERDICTS = FAIL_VERDICTS | {"DID_NOT_RUN"}
 
 
 def get_category(verdict: str, infra_flag: bool) -> str:
     """Categorize a verdict as INFRASTRUCTURE, CODE_QUALITY, or N/A."""
+    if infra_flag:
+        return "INFRASTRUCTURE"
     if verdict in ATTENTION_VERDICTS:
-        return "INFRASTRUCTURE" if infra_flag else "CODE_QUALITY"
+        return "CODE_QUALITY"
     return "N/A"
+
+
+def is_blocking_unknown_verdict(verdict: str) -> bool:
+    """Return True when a raw verdict normalizes to blocking UNKNOWN."""
+    return merge_verdicts([verdict]) == "UNKNOWN" and verdict != "DID_NOT_RUN"
+
+
+def has_masked_unknown_verdict(
+    verdicts: dict[str, str],
+    infra_flags: dict[str, bool],
+) -> bool:
+    """Return True when WARN would hide UNKNOWN or malformed verdict input."""
+    return any(
+        is_blocking_unknown_verdict(verdicts[agent])
+        or (verdicts[agent] == "DID_NOT_RUN" and not infra_flags[agent])
+        for agent in _AGENTS
+    )
+
+
+def should_downgrade_infra_only_failures(
+    verdicts: dict[str, str],
+    infra_flags: dict[str, bool],
+) -> bool:
+    """Return True when every failing verdict is an explicit infra-only failure."""
+    saw_downgradeable_failure = False
+    for agent in _AGENTS:
+        verdict = verdicts[agent]
+        if is_blocking_unknown_verdict(verdict):
+            return False
+        if verdict in DOWNGRADEABLE_INFRA_VERDICTS and not infra_flags[agent]:
+            return False
+        if infra_flags[agent]:
+            saw_downgradeable_failure = True
+    return saw_downgradeable_failure
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -100,26 +137,44 @@ def main(argv: list[str] | None = None) -> int:
         write_log(f"{agent.capitalize()} category: {categories[agent]}")
 
     code_quality_failures = any(cat == "CODE_QUALITY" for cat in categories.values())
+    security_verdict = verdicts["security"]
+    security_review_ran = (
+        not infra_flags["security"]
+        and security_verdict != "DID_NOT_RUN"
+        and not is_blocking_unknown_verdict(security_verdict)
+    )
+    infra_only_failures = (
+        not code_quality_failures
+        and should_downgrade_infra_only_failures(verdicts, infra_flags)
+    )
 
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in ATTENTION_VERDICTS and not code_quality_failures:
-        write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
+    if final == "WARN" and has_masked_unknown_verdict(verdicts, infra_flags):
+        # A real WARN from one agent outranks UNKNOWN in merge_verdicts()'s
+        # own precedence. This gate treats missing or malformed input as
+        # blocking, so restore the more precise verdict first.
+        write_log("Blocking-unknown verdict masked by WARN - restoring UNKNOWN")
+        final = "UNKNOWN"
+    elif not security_review_ran and (
+        infra_only_failures or final not in ATTENTION_VERDICTS
+    ):
+        write_log("Security review did not run - preserving DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif infra_only_failures:
+        write_log("All failures are explicit infra verdicts - downgrading to WARN")
         final = "WARN"
 
-    # Issue #2821 option c: the WARN downgrade is owner policy, but a security
-    # review that never ran must not be indistinguishable from one that
-    # passed. Surface a distinct annotation and a dedicated output so the PR
-    # comment and downstream tooling can render a non-ignorable notice.
-    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
+    # Issue #4777: a required security review that never ran must block the
+    # gate and remain visibly distinct from a review that passed.
     if not security_review_ran:
-        write_log("Security review did not run (infrastructure failure)")
+        write_log("Security review did not produce a valid result")
         print(
             "::warning title=Security review did not run::The AI security "
-            "review hit an infrastructure failure and did not evaluate this "
-            "PR. The gate verdict does not certify a security review; re-run "
-            "the gate or review security manually before merge (issue #2821)."
+            "review did not produce a valid result for this PR. The gate "
+            "verdict does not certify a security review; restore the review "
+            "and re-run the gate before merge (issue #4777)."
         )
     write_output("security_review_ran", "true" if security_review_ran else "false")
 

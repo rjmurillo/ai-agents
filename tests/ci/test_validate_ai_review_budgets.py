@@ -12,8 +12,8 @@ def _write_workflow(root: Path, text: str) -> Path:
     return path
 
 
-def test_required_job_timeout_uses_retry_worst_case():
-    assert budgets.required_job_timeout([2, 3, 2, 8]) == 56
+def test_required_job_timeout_uses_shared_action_deadlines():
+    assert budgets.required_job_timeout([2, 3, 2, 8]) == 46
 
 
 def test_under_budget_workflow_fails(tmp_path, capsys):
@@ -33,7 +33,7 @@ jobs:
     rc = budgets.main(["--repo-root", str(tmp_path)])
     captured = capsys.readouterr()
     assert rc == budgets.EXIT_REGRESSION
-    assert "required=31" in captured.err
+    assert "required=18" in captured.err
 
 
 def test_missing_step_timeout_uses_action_default(tmp_path, capsys):
@@ -43,7 +43,7 @@ def test_missing_step_timeout_uses_action_default(tmp_path, capsys):
 name: AI
 jobs:
   triage:
-    timeout-minutes: 21
+    timeout-minutes: 14
     steps:
       - uses: ./.github/actions/ai-review
         with:
@@ -53,7 +53,7 @@ jobs:
     rc = budgets.main(["--repo-root", str(tmp_path)])
     captured = capsys.readouterr()
     assert rc == budgets.EXIT_REGRESSION
-    assert "required=22" in captured.err
+    assert "required=15" in captured.err
     assert "ai-review steps=[5]" in captured.err
 
 

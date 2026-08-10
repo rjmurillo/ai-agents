@@ -30,9 +30,24 @@ import argparse
 import dataclasses
 import json
 import os
+import posixpath
 import re
+import subprocess
+import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# Script entry points need the repository path before shared-module imports.
+from scripts.utils.markdown_parser import (  # noqa: E402
+    _create_parser,
+    _raise_if_nesting_truncated,
+)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -101,6 +116,7 @@ class MemoryIndexRefResult(ValidationIssues):
 
     unreferenced_indices: list[str] = field(default_factory=list)
     broken_references: list[str] = field(default_factory=list)
+    duplicate_references: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -170,17 +186,406 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
+_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^[a-z][\w-]*-index\.md$"
+)
+_SKILLS_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^skills-.+-index\.md$"
+)
+_SPECIAL_MEMORY_FILENAMES = frozenset({
+    "CLAUDE.md",
+    "README.md",
+    "memory-index.md",
+})
+OrphanPolicy = Literal["strict", "ratchet"]
+_URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
+_HTML_TAG_PATTERN = re.compile(
+    r"^<\s*(?P<closing>/)?\s*(?P<name>[A-Za-z][A-Za-z0-9:-]*)"
+)
+_HTML_VOID_ELEMENTS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+_MARKDOWN_PARSER = _create_parser()
+
+
+def _resolve_memory_reference(
+    memory_path: Path,
+    resolved_memory: Path,
+    file_name: str,
+) -> tuple[str | None, Path, str | None]:
+    """Resolve a memory reference and return its canonical identity."""
+    normalized_name = file_name.replace("\\", "/")
+    reference_path = memory_path / f"{normalized_name}.md"
+    current_path = memory_path
+    for path_part in Path(f"{normalized_name}.md").parts:
+        current_path /= path_part
+        if current_path.is_symlink():
+            return None, reference_path, "symbolic link"
+
+    resolved_ref = reference_path.resolve()
+    if not resolved_ref.is_relative_to(resolved_memory):
+        return None, resolved_ref, "Path traversal"
+
+    relative_ref = resolved_ref.relative_to(resolved_memory).as_posix()
+    identity = re.sub(r"\.md$", "", relative_ref, flags=re.IGNORECASE)
+    canonical_identity = os.path.normcase(identity).replace("\\", "/")
+    return canonical_identity, resolved_ref, None
+
+
+def _invalid_destination_reason(destination: str) -> str | None:
+    """Return why a Markdown destination is unsafe to canonicalize."""
+    if _URL_PERCENT_ESCAPE_PATTERN.search(destination):
+        return "URL percent escape"
+    if any(character.isspace() for character in destination):
+        return "whitespace"
+    if "(" in destination or ")" in destination:
+        return "parenthesis"
+    if "\\" in destination:
+        return "backslash"
+    if "?" in destination:
+        return "query"
+    if "#" in destination:
+        return "fragment"
+    return None
+
+
+def _raw_html_depth(content: str, depth: int) -> int:
+    """Track whether later inline tokens render inside raw HTML."""
+    match = _HTML_TAG_PATTERN.match(content)
+    if match is None:
+        return depth
+    if match.group("closing"):
+        return max(depth - 1, 0)
+    tag_name = match.group("name").lower()
+    if content.rstrip().endswith("/>") or tag_name in _HTML_VOID_ELEMENTS:
+        return depth
+    return depth + 1
+
+
+def _extract_memory_reference_names(
+    content: str,
+) -> tuple[list[str], list[str], list[str]]:
+    """Extract references from the CommonMark token stream."""
+    issues: list[str] = []
+    destinations: list[str] = []
+    linked_destinations: list[str] = []
+    inside_table = False
+    inside_file_cell = False
+    table_cell_index = 0
+    try:
+        tokens = _MARKDOWN_PARSER.parse(content)
+        _raise_if_nesting_truncated(
+            content,
+            tokens,
+            _MARKDOWN_PARSER,
+        )
+    except (RuntimeError, ValueError) as exc:
+        return [], [], [f"P1 VALIDITY: Markdown parse failed: {exc}"]
+
+    for token in tokens:
+        if token.type == "table_open":
+            inside_table = True
+        elif token.type == "table_close":
+            inside_table = False
+        elif token.type == "tr_open":
+            table_cell_index = 0
+        elif token.type == "td_open":
+            inside_file_cell = table_cell_index == 1
+            table_cell_index += 1
+        elif token.type == "td_close":
+            inside_file_cell = False
+        elif token.type != "inline":
+            continue
+
+        should_collect = not inside_table or inside_file_cell
+        if not should_collect:
+            continue
+        children = token.children or []
+        inline_destinations: list[str] = []
+        plain_text: list[str] = []
+        html_depth = 0
+        link_depth = 0
+        for child in children:
+            if child.type == "html_inline":
+                html_depth = _raw_html_depth(child.content, html_depth)
+            elif child.type == "link_open":
+                link_depth += 1
+                href = child.attrGet("href")
+                if not isinstance(href, str):
+                    issues.append(
+                        "P1 VALIDITY: parsed link has no destination"
+                    )
+                elif html_depth == 0:
+                    inline_destinations.append(href)
+            elif child.type == "link_close":
+                link_depth = max(link_depth - 1, 0)
+            elif child.type == "image":
+                issues.append(
+                    "P1 VALIDITY: memory-index images are unsupported"
+                )
+            elif child.type == "text" and link_depth == 0:
+                plain_text.append(child.content)
+                is_section_marker = bool(
+                    re.fullmatch(r"\[[^\[\]\n]+\]", child.content.strip())
+                )
+                if not is_section_marker and (
+                    "[" in child.content or "](" in child.content
+                ):
+                    issues.append(
+                        "P1 VALIDITY: memory-index contains "
+                        "unresolved link syntax"
+                    )
+        destinations.extend(inline_destinations)
+        linked_destinations.extend(inline_destinations)
+        unparsed_text = "".join(plain_text).strip(" ,")
+        if inside_file_cell and inline_destinations and unparsed_text:
+            issues.append(
+                "P1 VALIDITY: memory-index file cell contains "
+                f"unparsed content: {unparsed_text!r}"
+            )
+        if inside_file_cell and not inline_destinations:
+            file_entry = "".join(plain_text).strip()
+            if file_entry:
+                destinations.extend(
+                    item.strip()
+                    for item in file_entry.split(",")
+                    if item.strip()
+                )
+
+    def normalize_destinations(
+        values: list[str],
+        *,
+        record_issues: bool,
+    ) -> list[str]:
+        reference_names: list[str] = []
+        for destination in values:
+            invalid_reason = _invalid_destination_reason(destination)
+            if invalid_reason:
+                if record_issues:
+                    issues.append(
+                        f"P1 VALIDITY: memory-index destination "
+                        f"{destination!r} contains {invalid_reason}"
+                    )
+                continue
+            reference_names.append(
+                re.sub(r"\.md$", "", destination, flags=re.IGNORECASE)
+            )
+        return reference_names
+
+    return (
+        normalize_destinations(destinations, record_issues=True),
+        normalize_destinations(linked_destinations, record_issues=False),
+        issues,
+    )
+
+
+def _canonical_reference_counts(
+    content: str,
+    memory_path: Path,
+) -> tuple[Counter[str] | None, str | None]:
+    """Count safe canonical references, or return a closed failure."""
+    reference_names, _, issues = _extract_memory_reference_names(content)
+    if issues:
+        return None, issues[0]
+
+    resolved_memory = memory_path.resolve()
+    canonical_refs: list[str] = []
+    for file_name in reference_names:
+        canonical_identity, _, invalid_reason = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
+        )
+        if canonical_identity is None:
+            return None, (
+                f"P1 VALIDITY: {invalid_reason} detected "
+                f"in memory-index: {file_name}.md"
+            )
+        canonical_refs.append(canonical_identity)
+    return Counter(canonical_refs), None
+
+
+def _load_base_reference_counts(
+    memory_path: Path,
+    base_ref: str,
+) -> tuple[Counter[str] | None, str | None]:
+    """Read canonical memory-index counts from the current base ref."""
+    if not base_ref or base_ref.startswith("-"):
+        return None, f"invalid base ref: {base_ref!r}"
+
+    git_env = os.environ.copy()
+    for variable in (
+        "GIT_COMMON_DIR",
+        "GIT_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_PREFIX",
+        "GIT_WORK_TREE",
+    ):
+        git_env.pop(variable, None)
+
+    try:
+        repo_root_result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=memory_path,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if repo_root_result.returncode != 0:
+            return None, "could not resolve repository root"
+        repo_root = Path(repo_root_result.stdout.strip()).resolve()
+        relative_index = (
+            memory_path.resolve() / "memory-index.md"
+        ).relative_to(repo_root).as_posix()
+
+        base_commit_result = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                f"{base_ref}^{{commit}}",
+            ],
+            cwd=repo_root,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if base_commit_result.returncode != 0:
+            return None, f"could not resolve base ref {base_ref}"
+        base_commit = base_commit_result.stdout.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_commit):
+            return None, f"base ref {base_ref} was not one commit ID"
+
+        merge_base_result = subprocess.run(
+            ["git", "merge-base", "HEAD", base_commit],
+            cwd=repo_root,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if merge_base_result.returncode != 0:
+            return None, (
+                f"could not resolve merge base between HEAD and {base_ref}"
+            )
+        base_commit = merge_base_result.stdout.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_commit):
+            return None, (
+                f"merge base between HEAD and {base_ref} "
+                "was not one commit ID"
+            )
+
+        show_result = subprocess.run(
+            ["git", "show", f"{base_commit}:{relative_index}"],
+            cwd=repo_root,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if show_result.returncode != 0:
+            return None, (
+                f"could not read {relative_index} at base ref {base_commit}"
+            )
+
+        relative_memory = posixpath.dirname(relative_index)
+        tree_result = subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "-z",
+                base_commit,
+                "--",
+                relative_memory,
+            ],
+            cwd=repo_root,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if tree_result.returncode != 0:
+            return None, (
+                f"could not inspect {relative_memory} at base ref "
+                f"{base_commit}"
+            )
+    except (OSError, ValueError) as exc:
+        return None, f"could not read base memory index: {exc}"
+
+    symlink_paths: set[str] = set()
+    for entry in tree_result.stdout.split("\0"):
+        if not entry:
+            continue
+        if "\t" not in entry:
+            return None, "could not parse base-ref tree output"
+        metadata, path = entry.split("\t", 1)
+        mode = metadata.split(" ", 1)[0]
+        if mode == "120000":
+            symlink_paths.add(path)
+
+    reference_names, _, destination_issues = (
+        _extract_memory_reference_names(show_result.stdout)
+    )
+    if destination_issues:
+        return None, destination_issues[0]
+    for file_name in reference_names:
+        raw_target_path = f"{relative_memory}/{file_name}.md"
+        target_path = posixpath.normpath(raw_target_path)
+        has_symlink_component = any(
+            raw_target_path == symlink_path
+            or raw_target_path.startswith(f"{symlink_path}/")
+            or target_path == symlink_path
+            or target_path.startswith(f"{symlink_path}/")
+            for symlink_path in symlink_paths
+        )
+        if has_symlink_component:
+            return None, (
+                f"base memory-index target is a symbolic link: "
+                f"{target_path}"
+            )
+
+    return _canonical_reference_counts(show_result.stdout, memory_path)
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
-    """Find all domain index files (skills-*-index.md pattern)."""
+    """Find all domain index files."""
     if not memory_path.exists():
         return []
 
     indices: list[DomainIndex] = []
-    for f in sorted(memory_path.glob("skills-*-index.md")):
+    for f in sorted(memory_path.glob("*-index.md")):
+        if f.name == "memory-index.md":
+            continue
         name = f.stem
-        # Extract domain: skills-{domain}-index -> {domain}
         domain = re.sub(r"^skills-", "", name)
         domain = re.sub(r"-index$", "", domain)
         indices.append(DomainIndex(path=f, name=name, domain=domain))
@@ -469,7 +874,9 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 
 
 def check_memory_index_references(
-    memory_path: Path, domain_indices: list[DomainIndex]
+    memory_path: Path,
+    domain_indices: list[DomainIndex],
+    base_reference_counts: Counter[str] | None = None,
 ) -> MemoryIndexRefResult:
     """Validate that memory-index references existing domain indices.
 
@@ -478,6 +885,7 @@ def check_memory_index_references(
     2. All references in memory-index MUST point to existing files (validity)
     """
     result = MemoryIndexRefResult()
+    base_reference_counts = base_reference_counts or Counter()
     memory_index_path = memory_path / "memory-index.md"
 
     if not memory_index_path.exists():
@@ -491,62 +899,78 @@ def check_memory_index_references(
     content = memory_index_path.read_text(encoding="utf-8")
     resolved_memory = memory_path.resolve()
 
-    # P1: Check completeness
-    for index in domain_indices:
-        if index.name not in content:
-            result.passed = False
-            result.unreferenced_indices.append(index.name)
-            result.issues.append(
-                f"P1 COMPLETENESS: Domain index not referenced "
-                f"in memory-index: {index.name}"
+    reference_names, linked_reference_names, destination_issues = (
+        _extract_memory_reference_names(content)
+    )
+    if destination_issues:
+        result.passed = False
+        result.issues.extend(destination_issues)
+
+    canonical_refs: list[str] = []
+    resolved_refs: dict[str, Path] = {}
+    for file_name in reference_names:
+        canonical_identity, resolved_ref, invalid_reason = (
+            _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
             )
-
-    # P1: Check validity of references
-    # Collect file references from both table rows and pipe-delimited lines
-    file_refs: list[str] = []
-    for line in content.splitlines():
-        # Try table row format first: | keywords | files |
-        match = _TABLE_ROW_PATTERN.match(line)
-        if match:
-            file_entry = match.group(2).strip()
-            skip_values = {
-                "File", "Essential Memories", "Memory", "Memory Index"
-            }
-            if file_entry in skip_values or re.match(r"^-+$", file_entry):
-                continue
-            file_refs.extend(
-                f.strip() for f in file_entry.split(",") if f.strip()
-            )
-            continue
-
-        # Try pipe-delimited format: |keywords: [name](file.md), ...
-        stripped = line.strip()
-        if stripped.startswith("|") and not stripped.startswith("|---"):
-            # Extract all markdown links from the line
-            for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
-                file_refs.append(link_match.group(0))
-
-    file_refs = list({ref.strip() for ref in file_refs})
-    for file_name in file_refs:
-        # Parse markdown link syntax
-        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_name)
-        if parsed_link:
-            link_target = parsed_link.group(2)
-            file_name = re.sub(r"\.md$", "", link_target)
-
-        ref_path = memory_path / f"{file_name}.md"
-
-        # Security: Prevent path traversal (CWE-22).
-        resolved_ref = ref_path.resolve()
-        if not resolved_ref.is_relative_to(resolved_memory):
+        )
+        if canonical_identity is None:
             result.passed = False
             result.broken_references.append(file_name)
             result.issues.append(
-                f"P1 VALIDITY: Path traversal detected "
+                f"P1 VALIDITY: {invalid_reason} detected "
                 f"in memory-index: {file_name}.md"
             )
             continue
 
+        canonical_refs.append(canonical_identity)
+        resolved_refs.setdefault(canonical_identity, resolved_ref)
+
+    linked_canonical_refs: set[str] = set()
+    for file_name in linked_reference_names:
+        canonical_identity, _, _ = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
+        )
+        if canonical_identity is not None:
+            linked_canonical_refs.add(canonical_identity)
+
+    domain_index_names = {index.name for index in domain_indices}
+    domain_index_names.update(
+        path.stem
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    )
+    for index_name in sorted(domain_index_names):
+        canonical_index, _, _ = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            index_name,
+        )
+        if canonical_index not in linked_canonical_refs:
+            result.passed = False
+            result.unreferenced_indices.append(index_name)
+            result.issues.append(
+                f"P1 COMPLETENESS: Domain index not referenced "
+                f"in memory-index: {index_name}"
+            )
+
+    reference_counts = Counter(canonical_refs)
+    for file_name, observed_count in reference_counts.items():
+        allowed_count = max(base_reference_counts.get(file_name, 0), 1)
+        if observed_count > allowed_count:
+            result.passed = False
+            result.duplicate_references.append(file_name)
+            result.issues.append(
+                f"P0 DUPLICATE: Duplicate memory-index target: "
+                f"{file_name}.md referenced {observed_count} times, "
+                f"allowed {allowed_count}"
+            )
+
+    for file_name, resolved_ref in resolved_refs.items():
         if not resolved_ref.exists():
             result.passed = False
             result.broken_references.append(file_name)
@@ -558,40 +982,92 @@ def check_memory_index_references(
     return result
 
 
+def _memory_domain(relative_path: Path) -> str:
+    """Return the retrieval domain for a memory path."""
+    if len(relative_path.parts) > 1:
+        return relative_path.parts[0]
+    return relative_path.stem.split("-", 1)[0]
+
+
+def _validate_orphan_policy(orphan_policy: str) -> OrphanPolicy:
+    """Return a supported orphan policy or reject a caller error."""
+    if orphan_policy not in {"strict", "ratchet"}:
+        raise ValueError(f"Unsupported orphan policy: {orphan_policy}")
+    return "strict" if orphan_policy == "strict" else "ratchet"
+
+
+def _memory_index_blocks(result: MemoryIndexRefResult) -> bool:
+    """Return whether memory-index findings should fail this consumer."""
+    return not result.passed
+
+
 def find_orphaned_files(
     all_indices: list[DomainIndex], memory_path: Path
 ) -> list[Orphan]:
-    """Find atomic skill files not referenced by any domain index.
-
-    Detects:
-    1. Files matching domain prefix pattern not in any index
-    2. Files with deprecated 'skill-' prefix (ADR-017 Gap 4)
-    """
-    orphans: list[Orphan] = []
+    """Find atomic memories not referenced by the root or a domain index."""
     referenced_files: set[str] = set()
+    owner_counts: dict[str, dict[str, int]] = {}
 
-    # Collect all referenced files from all indices
-    for index in all_indices:
-        entries = parse_index_entries(index.path)
-        for entry in entries:
-            referenced_files.add(entry.file_name)
+    index_paths = [
+        path
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    ]
+    root_index = memory_path / "memory-index.md"
+    if root_index.exists():
+        index_paths.append(root_index)
 
-    # Check for orphaned files
-    for f in sorted(memory_path.glob("*.md")):
-        base_name = f.stem
+    resolved_root = memory_path.resolve()
+    for index_path in index_paths:
+        content = index_path.read_text(encoding="utf-8")
+        reference_names, _, issues = _extract_memory_reference_names(content)
+        if issues:
+            continue
+        index_references: set[str] = set()
+        for reference in reference_names:
+            canonical, _, invalid_reason = _resolve_memory_reference(
+                memory_path,
+                resolved_root,
+                reference,
+            )
+            if invalid_reason:
+                continue
+            referenced_name = f"{canonical}.md"
+            referenced_files.add(referenced_name)
+            index_references.add(referenced_name)
 
-        # Skip index files and memory-index
-        if base_name.endswith("-index") or base_name == "memory-index":
+        if index_path == root_index:
+            continue
+        for reference in index_references:
+            reference_path = Path(reference)
+            domain = _memory_domain(reference_path)
+            domain_counts = owner_counts.setdefault(domain, {})
+            domain_counts[index_path.name] = (
+                domain_counts.get(index_path.name, 0) + 1
+            )
+
+    orphans: list[Orphan] = []
+    for file_path in sorted(memory_path.rglob("*.md")):
+        relative_path = file_path.relative_to(memory_path)
+        if any(part.startswith(".") for part in relative_path.parts):
+            continue
+        if file_path.name in _SPECIAL_MEMORY_FILENAMES:
+            continue
+        if (
+            len(relative_path.parts) == 1
+            and _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name)
+        ):
             continue
 
-        # ADR-017 Gap 4: deprecated skill- prefix
-        if (
-            base_name.startswith("skill-")
-            and base_name not in referenced_files
-        ):
+        relative_name = relative_path.as_posix()
+        if relative_name in referenced_files:
+            continue
+
+        file_name = relative_path.with_suffix("").as_posix()
+        if file_path.stem.startswith("skill-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description} "
@@ -601,14 +1077,10 @@ def find_orphaned_files(
             )
             continue
 
-        # Invalid skills-* files (not proper index files)
-        if (
-            base_name.startswith("skills-")
-            and not base_name.endswith("-index")
-        ):
+        if file_path.stem.startswith("skills-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description}-index format "
@@ -618,19 +1090,23 @@ def find_orphaned_files(
             )
             continue
 
-        # Check if file follows atomic naming pattern (domain prefix)
-        for index in all_indices:
-            if (
-                base_name.startswith(f"{index.domain}-")
-                and base_name not in referenced_files
-            ):
-                orphans.append(
-                    Orphan(
-                        file=base_name,
-                        domain=index.domain,
-                        expected_index=f"skills-{index.domain}-index",
-                    )
-                )
+        domain = _memory_domain(relative_path)
+        domain_counts = owner_counts.get(domain, {})
+        expected_index = (
+            min(
+                domain_counts,
+                key=lambda name: (-domain_counts[name], name),
+            )
+            if domain_counts
+            else "a domain index referenced by memory-index.md"
+        )
+        orphans.append(
+            Orphan(
+                file=file_name,
+                domain=domain,
+                expected_index=expected_index,
+            )
+        )
 
     return orphans
 
@@ -681,10 +1157,17 @@ def check_domain_prefix_naming(
 # ---------------------------------------------------------------------------
 
 
-def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
+def run_validation(
+    memory_path: Path,
+    output_format: str,
+    base_reference_counts: Counter[str],
+    *,
+    orphan_policy: OrphanPolicy = "strict",
+) -> ValidationReport:
     """Run full memory index validation."""
     from datetime import UTC, datetime
 
+    orphan_policy = _validate_orphan_policy(orphan_policy)
     report = ValidationReport(
         timestamp=datetime.now(UTC).isoformat(),
         memory_path=str(memory_path),
@@ -710,16 +1193,35 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
         report.summary.total_files += len(entries)
         report.summary.missing_files += len(file_result.missing_files)
 
-        keyword_result = check_keyword_density(entries)
+        is_skills_index = bool(
+            _SKILLS_DOMAIN_INDEX_FILENAME_PATTERN.match(index.path.name)
+        )
+        keyword_result = (
+            check_keyword_density(entries)
+            if is_skills_index
+            else KeywordDensityResult()
+        )
         if not keyword_result.passed:
             report.summary.keyword_issues += len(keyword_result.issues)
 
         format_result = check_index_format(index.path)
-        duplicate_result = check_duplicate_entries(entries)
+        duplicate_result = (
+            check_duplicate_entries(entries)
+            if is_skills_index
+            else DuplicateResult()
+        )
 
         # P2 validations
-        min_kw_result = check_minimum_keywords(entries, min_keywords=5)
-        prefix_result = check_domain_prefix_naming(entries, index.domain)
+        min_kw_result = (
+            check_minimum_keywords(entries, min_keywords=5)
+            if is_skills_index
+            else ValidationIssues()
+        )
+        prefix_result = (
+            check_domain_prefix_naming(entries, index.domain)
+            if is_skills_index
+            else ValidationIssues()
+        )
 
         # P0 determines domain pass/fail
         p0_passed = (
@@ -776,11 +1278,13 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
 
     # P1: memory-index references
     memory_index_result = check_memory_index_references(
-        memory_path, domain_indices
+        memory_path,
+        domain_indices,
+        base_reference_counts,
     )
     report.memory_index_result = memory_index_result
 
-    if not memory_index_result.passed:
+    if _memory_index_blocks(memory_index_result):
         report.passed = False
         if output_format == "console":
             print("\n[P1] Memory-index validation FAILED:")
@@ -793,16 +1297,24 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
 
     # Orphan detection
     orphans = find_orphaned_files(domain_indices, memory_path)
+    orphans.extend(
+        Orphan(
+            file=index_name,
+            domain="INDEX",
+            expected_index="memory-index.md",
+        )
+        for index_name in memory_index_result.unreferenced_indices
+    )
     report.orphans = orphans
 
-    if orphans:
+    if orphans and orphan_policy == "strict":
         report.passed = False
-        if output_format == "console":
-            print("\n[P1] Orphaned files detected (not indexed):")
-            for orphan in orphans:
-                print(
-                    f"  - {orphan.file} (should be in {orphan.expected_index})"
-                )
+    if orphans and output_format == "console":
+        print("\n[P1] Orphaned files detected (not indexed):")
+        for orphan in orphans:
+            print(
+                f"  - {orphan.file} (should be in {orphan.expected_index})"
+            )
 
     # P1: Naming convention enforcement (kebab-case)
     naming_result = check_naming_convention(memory_path)
@@ -932,6 +1444,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Report orphaned atomic files that should be indexed",
     )
+    parser.add_argument(
+        "--base-ref",
+        default=os.environ.get("BASE_REF", "origin/main"),
+        help=(
+            "Git base ref for duplicate-count ratchet "
+            "(env: BASE_REF, default: origin/main)"
+        ),
+    )
+    parser.add_argument(
+        "--orphan-policy",
+        choices=["strict", "ratchet"],
+        default="strict",
+        help=(
+            "Orphan handling: strict fails on any orphan; ratchet reports "
+            "orphans while the separate count ratchet blocks growth"
+        ),
+    )
     return parser
 
 
@@ -957,7 +1486,25 @@ def main(argv: list[str] | None = None) -> int:
             return 2  # ADR-035: config error (path not found)
         return 0
 
-    report = run_validation(target, args.output_format)
+    base_reference_counts, base_error = _load_base_reference_counts(
+        target,
+        args.base_ref,
+    )
+    if base_reference_counts is None:
+        if args.output_format == "console":
+            print(f"Base memory index unavailable: {base_error}")
+        return 2
+
+    orphan_policy = args.orphan_policy
+    if args.ci and orphan_policy == "strict":
+        orphan_policy = "ratchet"
+
+    report = run_validation(
+        target,
+        args.output_format,
+        base_reference_counts,
+        orphan_policy=orphan_policy,
+    )
 
     # Output results
     if args.output_format == "console":
