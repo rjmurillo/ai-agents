@@ -58,6 +58,11 @@ SECTIONS_TO_COMPARE = (
     "Core Identity",
     "Core Mission",
     "Key Responsibilities",
+    "Reviewer Asymmetry (Read First)",
+    "Test Strategy Reasoning Protocol",
+    "Completeness Verification (Mandatory)",
+    "QA Report Length Bounds",
+    "Two-Phase Verification",
     "Session Start (Blocking)",
     "Reasoning Protocol",
     "Constraints",
@@ -74,6 +79,15 @@ SECTIONS_TO_COMPARE = (
     "Handoff Protocol",
     "Analysis Document Format",
 )
+
+REQUIRED_AGENT_SECTIONS = {
+    "qa": frozenset(
+        {
+            "Reviewer Asymmetry (Read First)",
+            "Completeness Verification (Mandatory)",
+        }
+    ),
+}
 
 # Shared-template install-copy comparison label.
 _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
@@ -268,6 +282,7 @@ def compare_agent(
 
     claude_sections = get_markdown_sections(claude_body)
     vscode_sections = get_markdown_sections(vscode_body)
+    required_sections = REQUIRED_AGENT_SECTIONS.get(agent_name, frozenset())
 
     section_results: list[SectionResult] = []
     total_similarity = 0.0
@@ -277,14 +292,21 @@ def compare_agent(
         claude_section = claude_sections.get(section)
         vscode_section = vscode_sections.get(section)
 
-        if claude_section is None and vscode_section is None:
+        if claude_section is None and vscode_section is None and section not in required_sections:
             continue
 
         claude_normalized = normalize_content(claude_section) if claude_section else ""
         vscode_normalized = normalize_content(vscode_section) if vscode_section else ""
 
-        similarity = calculate_similarity(claude_normalized, vscode_normalized)
-        status = "OK" if similarity >= threshold else "DRIFT"
+        required_section_missing = section in required_sections and (
+            not claude_normalized or not vscode_normalized
+        )
+        similarity = (
+            0.0
+            if required_section_missing
+            else calculate_similarity(claude_normalized, vscode_normalized)
+        )
+        status = "DRIFT" if required_section_missing or similarity < threshold else "OK"
 
         section_results.append(
             SectionResult(
@@ -300,8 +322,13 @@ def compare_agent(
         compared_count += 1
 
     overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0
-    overall_status = _classify_overall(agent_name, overall, threshold, comparison)
     drifting = [r.section for r in section_results if r.status == "DRIFT"]
+    required_section_drift = any(section in required_sections for section in drifting)
+    overall_status = (
+        "DRIFT DETECTED"
+        if required_section_drift
+        else _classify_overall(agent_name, overall, threshold, comparison)
+    )
 
     return AgentResult(
         agent_name=agent_name,
@@ -496,9 +523,7 @@ def _normalize_repo_relative(path: str, repo_root: Path | None) -> str:
     return normalized.lstrip("/")
 
 
-def families_from_paths(
-    paths: Sequence[str], repo_root: Path | None = None
-) -> frozenset[str]:
+def families_from_paths(paths: Sequence[str], repo_root: Path | None = None) -> frozenset[str]:
     """Return the set of agent family names touched by ``paths`` (Issue #2423).
 
     A "family" is an agent's stem (e.g. ``analyst``, ``critic``), the unit the
@@ -521,7 +546,7 @@ def families_from_paths(
         for prefix, suffix in _AGENT_PATH_ROOTS:
             if not rel.startswith(prefix):
                 continue
-            tail = rel[len(prefix):]
+            tail = rel[len(prefix) :]
             stem = Path(tail).name
             if not stem.endswith(suffix):
                 continue
@@ -588,9 +613,7 @@ def run_detection(
         claude_content = claude_file.read_text(encoding="utf-8")
         vscode_content = vscode_file.read_text(encoding="utf-8")
 
-        result = compare_agent(
-            claude_content, vscode_content, agent_name, threshold, comparison
-        )
+        result = compare_agent(claude_content, vscode_content, agent_name, threshold, comparison)
         results.append(result)
 
     return results
@@ -745,9 +768,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_scope(
-    args: argparse.Namespace, repo_root: Path
-) -> tuple[frozenset[str] | None, bool]:
+def _resolve_scope(args: argparse.Namespace, repo_root: Path) -> tuple[frozenset[str] | None, bool]:
     """Resolve the family scope and whether the run is a no-op.
 
     Returns (restrict_to, no_op):
