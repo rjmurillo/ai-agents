@@ -43,7 +43,7 @@ _INTEGRITY_REL = "INTEGRITY.json"
 # the vendor tree. Regenerate with:
 #   sha256sum .claude/hooks/PreToolUse/_vendor/markdownlint/INTEGRITY.json
 _INTEGRITY_SHA256 = (
-    "9692e77adcc97ef41a1d4f36c04cced77326d0a3259805ca251de40bff0f9bb1"
+    "ef10d3fb0a6495649032adc45b6d4b08195f7ac28b9b9b3d9e8c650cf189f383"
 )
 
 _PLATFORM_NODE_DIRS: tuple[str, ...] = (

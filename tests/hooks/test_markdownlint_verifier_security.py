@@ -11,6 +11,7 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -410,3 +411,96 @@ class TestSymlinkContainment:
         result = verifier._materialize_verified_copy(manifest, dest)
         assert result is not None
         assert "symlink escapes vendor" in result
+
+
+class TestCoTamperDetection:
+    """Adversarial test: co-tampering JS + manifest + pinned digest fails."""
+
+    def test_cotampered_js_manifest_and_pin_rejected_by_provenance(
+        self, tmp_path: Path,
+    ) -> None:
+        """Attacker modifies JS, regenerates manifest, updates pin.
+
+        The CI provenance gate detects this because npm ci reconstruction
+        from lockfile produces different content than the tampered tree.
+        """
+        import hashlib as _hl
+
+        from scripts.ci import validate_vendor_provenance as gate
+
+        # Set up a fake vendor tree with original content
+        vendor = tmp_path / "vendor"
+        nm = vendor / "node_modules" / "markdownlint-cli2"
+        nm.mkdir(parents=True)
+        original_js = b'module.exports = function lint() { return []; };\n'
+        (nm / "index.js").write_bytes(original_js)
+
+        # Create lockfile-matching manifest
+        rel = "node_modules/markdownlint-cli2/index.js"
+        original_hash = _hl.sha256(original_js).hexdigest()
+        manifest: dict[str, Any] = {
+            "files": {rel: original_hash}, "symlinks": {}, "executables": [],
+        }
+        (vendor / "INTEGRITY.json").write_text(json.dumps(manifest))
+
+        # Write matching verifier with pinned digest
+        manifest_digest = _hl.sha256(
+            (vendor / "INTEGRITY.json").read_bytes()
+        ).hexdigest()
+        verifier_src = tmp_path / "verifier.py"
+        verifier_src.write_text(
+            f'_INTEGRITY_SHA256 = "{manifest_digest}"\n'
+        )
+        mirror = tmp_path / "mirror.py"
+        mirror.write_bytes(verifier_src.read_bytes())
+
+        # === ATTACKER: tamper JS, regenerate manifest, update pin ===
+        malicious_js = b'module.exports = function lint() { exec("rm -rf /"); };\n'
+        (nm / "index.js").write_bytes(malicious_js)
+        tampered_hash = _hl.sha256(malicious_js).hexdigest()
+        manifest["files"][rel] = tampered_hash
+        (vendor / "INTEGRITY.json").write_text(json.dumps(manifest))
+        new_digest = _hl.sha256(
+            (vendor / "INTEGRITY.json").read_bytes()
+        ).hexdigest()
+        verifier_src.write_text(f'_INTEGRITY_SHA256 = "{new_digest}"\n')
+        mirror.write_bytes(verifier_src.read_bytes())
+
+        # === PROVENANCE GATE: detects mismatch vs lockfile reconstruction ===
+        # The reconstruction (npm ci) would produce original_js, not malicious_js
+        # So the manifest claims tampered_hash but reconstruction gives original_hash
+        # Simulate: validate_reconstruction sees the tampered tree but the
+        # manifest now matches it. However, after npm ci runs, node_modules
+        # would have original content. We verify the gate catches hash mismatch
+        # by checking the manifest against "reconstructed" (original) content.
+
+        # Restore original as if npm ci reconstructed it
+        (nm / "index.js").write_bytes(original_js)
+
+        # Now run provenance validation - manifest says tampered_hash but
+        # actual file (from npm ci) has original_hash
+        errors = gate.validate_reconstruction(vendor)
+        assert len(errors) > 0, (
+            "Co-tampered vendor must fail provenance when compared "
+            "against lockfile reconstruction"
+        )
+        assert any("mismatch" in e.lower() for e in errors)
+
+    def test_cotamper_detected_by_digest_pin_check(
+        self, tmp_path: Path,
+    ) -> None:
+        """Pin check catches manifest change without verifier update."""
+        from scripts.ci import validate_vendor_provenance as gate
+
+        vendor = tmp_path / "vendor"
+        vendor.mkdir()
+        manifest = {"files": {"a.js": "abc123"}, "symlinks": {}, "executables": []}
+        (vendor / "INTEGRITY.json").write_text(json.dumps(manifest))
+
+        # Verifier pins a DIFFERENT digest (stale/wrong)
+        verifier = tmp_path / "v.py"
+        verifier.write_text('_INTEGRITY_SHA256 = "wrong_digest_here"\n')
+
+        errors = gate.validate_digest_pin(verifier, vendor)
+        assert len(errors) > 0
+        assert "not pinned" in errors[0].lower() or "co-tamper" in errors[0].lower()
