@@ -60,7 +60,8 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e007"
       ],
       "leads_to": [
         "e006"
@@ -76,6 +77,17 @@
         "e005"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report .agents/qa/pr-4621-postmerge-qa-report.md bound to the exact code commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
     }
   ],
