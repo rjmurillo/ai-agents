@@ -180,6 +180,7 @@ def _run_race(
 
     harness = f"""\
 set -u
+set -m
 PR=4349
 BASE=main
 SESSION_ID=test-session

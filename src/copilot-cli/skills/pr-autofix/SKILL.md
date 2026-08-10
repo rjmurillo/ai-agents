@@ -161,7 +161,13 @@ prepare_lease_for_mutation() {
 run_mutation_with_lease_monitor() {
     local mutation_pid mutation_pgid mutation_rc start_attempt stop_attempt
     python3 -c \
-        'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+        'import errno, os, sys
+try:
+    os.setsid()
+except OSError as exc:
+    if exc.errno != errno.EPERM or os.getpgrp() != os.getpid():
+        raise
+os.execvp(sys.argv[1], sys.argv[1:])' \
         "$@" &
     mutation_pid=$!
     mutation_pgid=""
@@ -171,7 +177,8 @@ run_mutation_with_lease_monitor() {
             break
         fi
         if ! kill -0 "$mutation_pid" 2>/dev/null; then
-            break
+            wait "$mutation_pid"
+            return $?
         fi
         sleep 0.01
     done
