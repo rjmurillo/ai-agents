@@ -392,23 +392,22 @@ def _line_has_tool_reference(line: str) -> bool:
 
 
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive with analyst as subject.
+    """Return True if line is an affirmative directive with analyst as subject
+    and a declared tool reference in the SAME clause.
 
-    Requires "analyst" as the grammatical subject immediately governing
-    the retrieval verb. "The analyst retrieves X" passes; "coordinator
-    instructs analyst to retrieve X" does not (analyst is object, not
-    subject).
+    Splits on clause boundaries (semicolon, period-space) and requires
+    analyst+verb+tool to co-occur in a single clause. This rejects
+    mixed-actor clauses like "compliance-bot uses tool; analyst retrieves
+    cache" where analyst and tool are in different clauses.
 
     Accepts:
-    - "The analyst retrieves X using Y"
-    - "The analyst uses X to retrieve"
+    - "The analyst retrieves PR data using pull_request_read"
 
     Rejects:
-    - Bare imperatives: "use X to retrieve"
-    - Passive: "X is used by the analyst"
-    - Analyst as object: "coordinator instructs analyst"
-    - Negated: "the analyst should not/may not/will not call X"
-    - Other agents as subject: "the orchestrator retrieves X"
+    - Mixed clauses: "bot uses pull_request_read; analyst retrieves cache"
+    - Bare imperatives: "use pull_request_read to retrieve"
+    - Passive: "pull_request_read is used by the analyst"
+    - Negated: "the analyst should not call pull_request_read"
     """
     if _NON_DIRECTIVE.search(line):
         return False
@@ -427,14 +426,30 @@ def _is_affirmative_directive(line: str) -> bool:
     if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
         return False
 
-    # Require "analyst" as subject directly before a retrieval verb.
-    # Only one path: analyst + (optional adverb) + active verb.
-    if re.search(
-        r"\banalyst\b\s+(?:directly\s+)?"
-        r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
-        lower,
-    ):
-        return True
+    # Split into clauses on semicolons and sentence boundaries
+    clauses = re.split(r"[;.](?:\s|$)", lower)
+    # Also split the original line (with backticks) for tool matching
+    orig_lower = line.lower()
+    orig_clauses = re.split(r"[;.](?:\s|$)", orig_lower)
+
+    for i, clause in enumerate(clauses):
+        # Require analyst+verb in this clause (checked in stripped prose)
+        has_analyst_verb = bool(re.search(
+            r"\banalyst\b\s+(?:directly\s+)?"
+            r"(retrieves?|uses?|calls?|invokes?|attempts?)\b",
+            clause,
+        ))
+        if not has_analyst_verb:
+            continue
+        # Require a declared tool in this same clause of the ORIGINAL line
+        # (backtick-wrapped tool names are valid in prose)
+        orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
+        has_tool = any(t in orig_clause for t in _TOOL_NAMES)
+        if not has_tool:
+            has_tool = "declared" in orig_clause and "tool" in orig_clause
+        if has_tool:
+            return True
+
     return False
 
 
@@ -456,17 +471,31 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
     if blocked_pos == -1:
         return "No [blocked] in section"
 
+    # Join continuation lines into logical paragraphs for clause analysis
     in_fence = False
+    logical_lines: list[str] = []
     for line in section[:blocked_pos].split("\n"):
         stripped = line.strip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             continue
         if _is_skippable_line(line, stripped, in_fence):
+            # End current paragraph
+            if logical_lines and logical_lines[-1] != "":
+                logical_lines.append("")
             continue
-        if not _line_has_tool_reference(line):
+        # Continuation: append to current paragraph
+        if logical_lines and logical_lines[-1] != "":
+            logical_lines[-1] += " " + stripped
+        else:
+            logical_lines.append(stripped)
+
+    for paragraph in logical_lines:
+        if not paragraph:
             continue
-        if _is_affirmative_directive(line):
+        if not _line_has_tool_reference(paragraph):
+            continue
+        if _is_affirmative_directive(paragraph):
             return None
 
     return "No affirmative tool invocation directive found before BLOCKED"
@@ -793,6 +822,20 @@ class TestNegativeControls:
         "return [blocked] only when missing.\n"
     )
 
+    # Fixture 37: mixed-actor clause (must reject)
+    TOOL_MIXED_ACTOR = (
+        "\n### delegation contract\n"
+        "compliance-bot uses pull_request_read; analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 38: analyst+verb but tool in different clause (must reject)
+    TOOL_SPLIT_CLAUSE = (
+        "\n### delegation contract\n"
+        "pull_request_read is available. The analyst retrieves context. "
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -972,3 +1015,13 @@ class TestNegativeControls:
         """Directive in tab-indented code block must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_IN_TAB_INDENTED)
         assert err is not None, "Should reject tab-indented code"
+
+    def test_tool_mixed_actor_rejected(self) -> None:
+        """Mixed-actor clause: tool in bot clause, analyst in separate clause."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_ACTOR)
+        assert err is not None, "Should reject mixed-actor clauses"
+
+    def test_tool_split_clause_rejected(self) -> None:
+        """Tool in one clause, analyst+verb in another clause."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SPLIT_CLAUSE)
+        assert err is not None, "Should reject split-clause tool reference"

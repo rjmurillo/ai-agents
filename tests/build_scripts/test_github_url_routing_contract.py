@@ -131,13 +131,15 @@ def _is_claude_surface(surface: Path) -> bool:
     return "claude" in rel
 
 
-def _parse_routing_table(body: str) -> dict[str, list[str]]:
-    """Parse the URL classification table into a multimap {pattern: [tool, ...]}.
+def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
+    """Parse the URL classification table.
 
-    Preserves EVERY data row (not just canonical ones) so the validator
-    can reject noncanonical extras, duplicates, and conflicts.
+    Returns (multimap, all_patterns) where multimap is {pattern: [tool, ...]}
+    and all_patterns is every normalized pattern found (including alternatives).
+    Preserves EVERY data row and every alternative to enable strict validation.
     """
     routes: dict[str, list[str]] = {}
+    all_patterns: list[str] = []
     lines = body.split("\n")
     table_start = -1
 
@@ -147,7 +149,7 @@ def _parse_routing_table(body: str) -> dict[str, list[str]]:
             break
 
     if table_start == -1:
-        return routes
+        return routes, all_patterns
 
     data_start = table_start + 1
     if data_start < len(lines) and "---" in lines[data_start]:
@@ -157,22 +159,35 @@ def _parse_routing_table(body: str) -> dict[str, list[str]]:
         stripped = line.strip()
         if not stripped.startswith("|"):
             break
-        cells = [c.strip().strip("`") for c in stripped.split("|")[1:-1]]
+        cells = [c.strip().replace("`", "") for c in stripped.split("|")[1:-1]]
         if len(cells) < 2:
+            all_patterns.append("<malformed>")
             continue
 
-        # Normalize: take first alternative before " or ", strip backticks
         raw_pattern = cells[0]
-        first_alt = raw_pattern.split(" or ")[0].strip().strip("`").lower()
         tool_cell = cells[1].strip().strip("`")
 
+        # Parse ALL alternatives separated by " or "
+        alternatives = [a.strip().strip("`").lower() for a in raw_pattern.split(" or ")]
+
+        # Use first alternative as the canonical key
+        first_alt = alternatives[0]
         routes.setdefault(first_alt, []).append(tool_cell)
 
-    return routes
+        # Record all alternatives for validation
+        all_patterns.extend(alternatives)
+
+    return routes, all_patterns
+
+
+# Allowed non-URL alternatives and known non-canonical path rows
+_ALLOWED_NON_PATH_ALTS = {"pr #n", "issue #n", "ci overview"}
+_ALLOWED_EXTRA_PATHS = {"/actions (list)", "/actions"}
 
 
 def _validate_routing_table(
     routes: dict[str, list[str]],
+    all_patterns: list[str],
     surface_label: str,
     *,
     mcp_prefixed: bool = False,
@@ -180,14 +195,15 @@ def _validate_routing_table(
     """Shared strict validator for routing table correctness.
 
     Checks:
-    - Every canonical pattern has exactly one row
-    - Each mapped tool matches the expected tool (with MCP prefix if applicable)
+    - Every canonical pattern has exactly one row with correct tool
     - No duplicate rows for same pattern
-    - No noncanonical extra rows that share a path prefix with canonical ones
+    - No noncanonical path-like patterns (rejects /commits/<SHA>, /foo, etc.)
+    - No malformed rows (single-cell)
+    - All alternatives must be either canonical or explicitly allowed
     """
     errors: list[str] = []
 
-    # Check every canonical pattern exists with correct tool
+    # Check canonical patterns
     for pattern, bare_tool in _CANONICAL_PATTERNS.items():
         expected = (_MCP_PREFIX + bare_tool) if mcp_prefixed else bare_tool
         tools = routes.get(pattern)
@@ -207,17 +223,27 @@ def _validate_routing_table(
                 f"'{tools[0]}', expected '{expected}'"
             )
 
-    # Reject noncanonical rows that share a URL path segment with canonical
-    canonical_segments = {"/pull/", "/issues/", "/actions/", "/job/"}
-    for pattern in routes:
-        if pattern in _CANONICAL_PATTERNS:
+    # Reject malformed rows
+    if "<malformed>" in all_patterns:
+        errors.append(f"{surface_label}: malformed single-cell row in table")
+
+    # Reject noncanonical path-like alternatives
+    for alt in all_patterns:
+        if alt == "<malformed>":
             continue
-        # Check if this noncanonical row collides with canonical paths
-        if any(seg in pattern for seg in canonical_segments):
-            errors.append(
-                f"{surface_label}: noncanonical extra row '{pattern}' "
-                f"conflicts with canonical routes"
-            )
+        if alt in _CANONICAL_PATTERNS:
+            continue
+        if alt in _ALLOWED_NON_PATH_ALTS:
+            continue
+        if alt in _ALLOWED_EXTRA_PATHS:
+            continue
+        # Non-path text (no leading /) is allowed (e.g. "pr #n")
+        if not alt.startswith("/"):
+            continue
+        # Path-like but not canonical → reject
+        errors.append(
+            f"{surface_label}: noncanonical path pattern '{alt}' in table"
+        )
 
     return errors
 
@@ -226,10 +252,10 @@ def _validate_routing_table(
 def test_analyst_surface_has_exact_routing_table(surface: Path) -> None:
     """Each surface must have a routing table with exact pattern->tool mappings."""
     body = surface.read_text(encoding="utf-8")
-    routes = _parse_routing_table(body)
+    routes, all_pats = _parse_routing_table(body)
     label = str(surface.relative_to(REPO_ROOT))
     mcp = _is_claude_surface(surface)
-    errors = _validate_routing_table(routes, label, mcp_prefixed=mcp)
+    errors = _validate_routing_table(routes, all_pats, label, mcp_prefixed=mcp)
     assert not errors, "\n".join(errors)
 
 
@@ -237,7 +263,7 @@ def test_analyst_surface_has_exact_routing_table(surface: Path) -> None:
 def test_analyst_surface_no_duplicate_routes(surface: Path) -> None:
     """No URL pattern should map to multiple tools (no duplicates)."""
     body = surface.read_text(encoding="utf-8")
-    routes = _parse_routing_table(body)
+    routes, all_pats = _parse_routing_table(body)
     label = str(surface.relative_to(REPO_ROOT))
     for pattern, tools in routes.items():
         assert len(tools) == 1, (
@@ -255,8 +281,8 @@ def test_routing_table_rejects_swapped_mappings() -> None:
         "| `/actions/runs/<ID>` | `get_job_logs` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_workflow_run` |\n"
     )
-    routes = _parse_routing_table(swapped_table)
-    errors = _validate_routing_table(routes, "swapped-fixture")
+    routes, all_pats = _parse_routing_table(swapped_table)
+    errors = _validate_routing_table(routes, all_pats, "swapped-fixture")
     assert errors, "Swapped table must fail validation"
 
 
@@ -267,8 +293,8 @@ def test_routing_table_rejects_missing_rows() -> None:
         "|---|---|\n"
         "| `/pull/<N>` | `pull_request_read` |\n"
     )
-    routes = _parse_routing_table(partial_table)
-    errors = _validate_routing_table(routes, "partial-fixture")
+    routes, all_pats = _parse_routing_table(partial_table)
+    errors = _validate_routing_table(routes, all_pats, "partial-fixture")
     assert errors, "Partial table must fail validation"
 
 
@@ -283,8 +309,8 @@ def test_routing_table_rejects_duplicate_rows() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(dup_table)
-    errors = _validate_routing_table(routes, "dup-fixture")
+    routes, all_pats = _parse_routing_table(dup_table)
+    errors = _validate_routing_table(routes, all_pats, "dup-fixture")
     assert errors, "Duplicate pattern rows must fail validation"
 
 
@@ -298,8 +324,8 @@ def test_routing_table_rejects_suffix_pattern() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(suffix_table)
-    errors = _validate_routing_table(routes, "suffix-fixture")
+    routes, all_pats = _parse_routing_table(suffix_table)
+    errors = _validate_routing_table(routes, all_pats, "suffix-fixture")
     assert errors, "Non-canonical /pull/<N>/files must fail validation"
 
 
@@ -313,8 +339,8 @@ def test_routing_table_rejects_noncanonical_placeholder() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(noncanon_table)
-    errors = _validate_routing_table(routes, "noncanon-fixture")
+    routes, all_pats = _parse_routing_table(noncanon_table)
+    errors = _validate_routing_table(routes, all_pats, "noncanon-fixture")
     assert errors, "Non-canonical placeholder must fail validation"
 
 
@@ -328,8 +354,8 @@ def test_routing_table_validates_mcp_prefixed_tools() -> None:
         "| `/actions/runs/<ID>` | `mcp__github__get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `mcp__github__get_job_logs` |\n"
     )
-    routes = _parse_routing_table(mcp_table)
-    errors = _validate_routing_table(routes, "mcp-fixture", mcp_prefixed=True)
+    routes, all_pats = _parse_routing_table(mcp_table)
+    errors = _validate_routing_table(routes, all_pats, "mcp-fixture", mcp_prefixed=True)
     assert not errors, "\n".join(errors)
 
 
@@ -343,8 +369,8 @@ def test_routing_table_rejects_mcp_when_bare_expected() -> None:
         "| `/actions/runs/<ID>` | `mcp__github__get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `mcp__github__get_job_logs` |\n"
     )
-    routes = _parse_routing_table(mcp_table)
-    errors = _validate_routing_table(routes, "mcp-bare-fixture", mcp_prefixed=False)
+    routes, all_pats = _parse_routing_table(mcp_table)
+    errors = _validate_routing_table(routes, all_pats, "mcp-bare-fixture", mcp_prefixed=False)
     assert errors, "MCP-prefixed tools must fail when bare expected"
 
 
@@ -371,8 +397,8 @@ def test_routing_table_rejects_api_prefix() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(api_table)
-    errors = _validate_routing_table(routes, "api-prefix-fixture")
+    routes, all_pats = _parse_routing_table(api_table)
+    errors = _validate_routing_table(routes, all_pats, "api-prefix-fixture")
     assert errors, "Non-canonical /api/pull/<N> must fail validation"
 
 
@@ -386,8 +412,8 @@ def test_routing_table_rejects_pull_latest() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(latest_table)
-    errors = _validate_routing_table(routes, "pull-latest-fixture")
+    routes, all_pats = _parse_routing_table(latest_table)
+    errors = _validate_routing_table(routes, all_pats, "pull-latest-fixture")
     assert errors, "Non-canonical /pull/latest must fail validation"
 
 
@@ -402,6 +428,69 @@ def test_routing_table_rejects_extra_conflicting_row() -> None:
         "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
         "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
     )
-    routes = _parse_routing_table(extra_table)
-    errors = _validate_routing_table(routes, "extra-row-fixture")
+    routes, all_pats = _parse_routing_table(extra_table)
+    errors = _validate_routing_table(routes, all_pats, "extra-row-fixture")
     assert errors, "Extra conflicting row must fail validation"
+
+
+def test_routing_table_rejects_commits_sha() -> None:
+    """Negative control: /commits/<SHA> is not a canonical route."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| `/commits/<SHA>` | `get_commit` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "commits-fixture")
+    assert errors, "Non-canonical /commits/<SHA> must fail validation"
+
+
+def test_routing_table_rejects_arbitrary_path() -> None:
+    """Negative control: /foo is not a canonical route."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| `/foo` | `bar` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "foo-fixture")
+    assert errors, "Non-canonical /foo must fail validation"
+
+
+def test_routing_table_rejects_malformed_row() -> None:
+    """Negative control: single-cell row must fail."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        "| malformed row |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "malformed-fixture")
+    assert errors, "Malformed single-cell row must fail validation"
+
+
+def test_routing_table_rejects_mixed_alternative() -> None:
+    """Negative control: /pull/<N> or /pull/latest mixes canonical with noncanonical."""
+    table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` or `/pull/latest` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes, all_pats = _parse_routing_table(table)
+    errors = _validate_routing_table(routes, all_pats, "mixed-alt-fixture")
+    assert errors, "Mixed canonical/noncanonical alternative must fail"
