@@ -94,22 +94,22 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4738-scope-review-fixes.md"
+        "Evidence": ".agents/qa/000-pr-4738-scope-review-fixes.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 369e60a955797d9059ecb2928c1989973d744a55)"
+        "Evidence": "All code changes committed (HEAD: b58d3c91fff9c30ddf6199c79af00bdb38674f06)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "174 scope pytest cases passed, ruff check passed, and pre_pr.py passed."
+        "Evidence": "107 scope pytest cases passed, 68 PR validation tests passed, 1027 Windows marker tests passed, and ruff check passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #4738 review threads addressed and ready to resolve."
+        "Evidence": "PR #4738 review threads addressed; new TimeoutExpired/OSError thread fixed and ready to resolve."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -139,10 +139,18 @@
     {
       "action": "test",
       "detail": "Ran ruff on changed files and 174 scope-related pytest cases covering scope detection, credibility, and real-git ancestry."
+    },
+    {
+      "action": "fix",
+      "detail": "Caught TimeoutExpired and OSError in is_ancestor so failed git ancestry checks refuse rescoping instead of erroring."
+    },
+    {
+      "action": "test",
+      "detail": "Ran TestIsAncestor, the scope suites, PR validation tests, and the Windows path marker suite after the new thread fix."
     }
   ],
-  "endingCommit": "369e60a955797d9059ecb2928c1989973d744a55",
+  "endingCommit": "b58d3c91fff9c30ddf6199c79af00bdb38674f06",
   "nextSteps": [
-    "Push the autofix branch and resolve the two PR #4738 review threads."
+    "Push the final autofix branch and resolve the remaining PR #4738 review thread."
   ]
 }
