@@ -1003,24 +1003,33 @@ def _original_main(stdin_bytes):
           characters the target contains, plus the low value to represent every
           choice that lands outside a match.
 
+        Bash's optional step (``{start..end..step}``) is parsed and then ignored.
+        A step only removes values from the range, so collapsing against the full
+        range stays a superset of what the shell produces, which is the safe
+        direction: relevance may over-include, never under-include. Missing the
+        step let ``./attacker/pr/n{e..e..1}w_pr.py`` read as literal text and skip
+        the guard entirely (issue #4825).
+
         Materializing instead would make ``touch log{0..99}.txt`` and
         ``cp file{1..1000}.txt dir/`` exceed the expansion budget and fail closed,
         which denied legitimate commands (measured 4 of 7 in a probe).
         """
-        start, separator, end = body.partition("..")
-        if separator and start and end:
-            if start.isdigit() and end.isdigit():
-                low, high = sorted((int(start), int(end)))
-                return sorted({str(low), str(high)})
-            if len(start) == 1 and len(end) == 1:
-                low, high = sorted((ord(start), ord(end)))
-                candidates = {
-                    chr(point)
-                    for point in range(low, high + 1)
-                    if chr(point) in _NEW_PR_TARGET
-                }
-                candidates.add(chr(low))
-                return sorted(candidates)
+        bounds = body.split("..")
+        if len(bounds) in {2, 3}:
+            start, end = bounds[0], bounds[1]
+            if start and end:
+                if start.isdigit() and end.isdigit():
+                    low, high = sorted((int(start), int(end)))
+                    return sorted({str(low), str(high)})
+                if len(start) == 1 and len(end) == 1:
+                    low, high = sorted((ord(start), ord(end)))
+                    candidates = {
+                        chr(point)
+                        for point in range(low, high + 1)
+                        if chr(point) in _NEW_PR_TARGET
+                    }
+                    candidates.add(chr(low))
+                    return sorted(candidates)
         return body.split(",")
 
 
