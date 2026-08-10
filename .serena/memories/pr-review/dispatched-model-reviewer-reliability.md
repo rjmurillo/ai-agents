@@ -19,7 +19,7 @@ three of them prescribe a fix the file under review had already applied.
   of 96,848 and prescribed 96,785. `git log -S "96,848"` on that path returns
   nothing on any branch, so the figure it reported has never been in the file.
   The document carried 96,785 from `81b877fd8`, the merge of #4485, until
-  `f326f3399` changed it to 94,869, which is the value there now. Run the
+  `f326f3399` changed it to 94,869. Run the
   search rather than trusting this sentence: an earlier draft of it claimed
   the file had held 96,785 since `f326f3399`, which inverts what that commit
   did, and a dispatched reviewer caught it. A memory about fabricated premises
@@ -50,10 +50,12 @@ the finding. Only verifying the **premise** ("does the file actually say
 96,848?") exposes it.
 
 So check what the reviewer claims the current state is, not just what it
-proposes to change that state to. `git log -S "<the quoted value>" -- <path>`
-settles it in one command. Accepting one of these costs a no-op edit that feels
-like progress; accepting the "unguarded theater" one costs deleting figure
-claims that five passing tests already pin.
+proposes to change that state to. Use
+`git grep -F "<the quoted value>" <reviewed-commit> -- <path>` for current
+state. Use `git log -S "<the quoted value>" -- <path>` for provenance.
+Accepting one of these costs a no-op edit that feels like progress; accepting
+the "unguarded theater" one costs deleting figure claims that five passing
+tests already pin.
 
 Corollary for dispatch: hand the reviewer the post-change artifact and say so
 explicitly. A prompt that leads with the problem being solved invites the
@@ -88,12 +90,11 @@ the conclusion is still wrong. Quoting requirements do not catch it.
 Measured. A reviewer flagged `memory-index.md` for "wildly incorrect byte
 counts," quoting a real line that reads `(1579)` beside a file of 6,644 bytes,
 and it pasted true `wc -c` output. The number is a token count, not a byte
-count. Every entry in that index ratios between 3.8 and 5.1 bytes per unit, and
-6644/1579 is 4.21. The finding was High severity, the evidence was real, and
-the conclusion was backwards. In the same round another finding declared a rule
-file an always-on context cost when its frontmatter scopes it to `tests/**`,
-and a third reported `TESTING-RIGOR.md` missing after running `ls` from a
-directory that was not the worktree.
+count. In that example, 6644/1579 is 4.21. The finding was High severity, the
+evidence was real, and the conclusion was backwards. In the same round another
+finding declared a rule file an always-on context cost when its frontmatter
+scopes it to `tests/**`, and a third reported `TESTING-RIGOR.md` missing after
+running `ls` from a directory that was not the worktree.
 
 `scripts/update_memory_index_tokens.py` settles the token question and is the
 only correct way to change one of those numbers. Run it after editing any
@@ -183,8 +184,8 @@ locatable findings and it buys fabricated ones in the same transaction.
 Keep the list, and price the difference in the prompt: say that "no finding on
 this surface" is an acceptable and expected answer, and require every finding
 to quote the exact text it is objecting to. A quote is checkable with one
-`git log -S`. A paraphrase is not, and a paraphrase is what an invented premise
-looks like.
+`git grep -F "<quote>" <reviewed-commit> -- <path>`. A paraphrase is not, and
+a paraphrase is what an invented premise looks like.
 
 ## Related
 
