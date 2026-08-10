@@ -21,6 +21,7 @@ check. This ensures the test cannot silently pass if the guidance is removed.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -132,6 +133,74 @@ def _is_claude_surface(surface: Path) -> bool:
     return "claude" in rel
 
 
+def _try_fence_close(ln: str, fence_char: str, fence_len: int) -> bool:
+    """Return True if *ln* is a valid CommonMark fence closer for the given opener."""
+    close_match = re.match(r"^(\s*)((`{3,})|(~{3,}))\s*$", ln)
+    if not close_match:
+        return False
+    close_ch = close_match.group(3)[0] if close_match.group(3) else "~"
+    close_len = len(close_match.group(3) or close_match.group(4))
+    return close_ch == fence_char and close_len >= fence_len
+
+
+def _try_fence_open(stripped_ln: str) -> tuple[str, int] | None:
+    """If *stripped_ln* starts a CommonMark fence, return (char, length)."""
+    open_match = re.match(r"^((`{3,})|(~{3,}))", stripped_ln)
+    if not open_match:
+        return None
+    ch = open_match.group(2)[0] if open_match.group(2) else "~"
+    length = len(open_match.group(2) or open_match.group(3))
+    return ch, length
+
+
+def _compute_operative_lines(lines: list[str]) -> list[bool]:
+    """Determine which lines are in operative (non-code, non-comment) context.
+
+    CommonMark-compliant: tracks fence opener type/length, requires matching
+    closer. Handles multi-line HTML comments and 4-space indented code.
+    """
+    in_html_comment = False
+    fence_char: str | None = None
+    fence_len: int = 0
+    operative = [True] * len(lines)
+    for idx, ln in enumerate(lines):
+        stripped_ln = ln.strip()
+        # HTML comment handling (may span multiple lines)
+        if in_html_comment:
+            operative[idx] = False
+            if "-->" in ln:
+                in_html_comment = False
+            continue
+        if "<!--" in ln:
+            if "-->" not in ln[ln.index("<!--") + 4 :]:
+                in_html_comment = True
+                operative[idx] = False
+            continue
+        # Fenced code blocks
+        if fence_char is not None:
+            if _try_fence_close(ln, fence_char, fence_len):
+                fence_char = None
+                fence_len = 0
+            operative[idx] = False
+            continue
+        opener = _try_fence_open(stripped_ln)
+        if opener:
+            fence_char, fence_len = opener
+            operative[idx] = False
+            continue
+        # 4-space/tab indented code block
+        if re.match(r"^(?:    |\t)", ln):
+            operative[idx] = False
+    return operative
+
+
+def _strip_blockquote(line: str) -> str:
+    """Strip blockquote prefix (> ) from a line if present."""
+    if line.strip().startswith(">"):
+        return re.sub(r"^(\s*>\s*)+", "", line)
+    return line
+
+
 def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
     """Parse ALL URL classification tables in the document.
 
@@ -146,50 +215,45 @@ def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
     all_patterns: list[str] = []
     lines = body.split("\n")
 
-    # Pre-compute which lines are inside non-operative Markdown contexts
-    in_fence = False
-    in_html_comment = False
-    operative = [True] * len(lines)
-    for idx, ln in enumerate(lines):
-        stripped_ln = ln.strip()
-        # HTML comment handling (may span multiple lines)
-        if in_html_comment:
-            operative[idx] = False
-            if "-->" in ln:
-                in_html_comment = False
-            continue
-        if "<!--" in ln:
-            if "-->" not in ln[ln.index("<!--") + 4 :]:
-                in_html_comment = True
-            operative[idx] = False
-            continue
-        # Fenced code blocks (``` or ~~~)
-        if stripped_ln.startswith("```") or stripped_ln.startswith("~~~"):
-            in_fence = not in_fence
-            operative[idx] = False
-            continue
-        if in_fence:
-            operative[idx] = False
-            continue
-        # 4-space/tab indented code block
-        if ln.startswith("    ") or ln.startswith("\t"):
-            operative[idx] = False
-            continue
+    operative = _compute_operative_lines(lines)
 
     i = 0
     while i < len(lines):
         line = lines[i]
-        if operative[i] and line.strip().startswith("|") and "url pattern" in line.lower():
-            # Found a table header
+        # Strip blockquote prefix for table detection (nested blockquotes
+        # with visible table rows are operative).
+        effective_line = _strip_blockquote(line)
+        if (
+            operative[i]
+            and effective_line.strip().startswith("|")
+            and "url pattern" in effective_line.lower()
+        ):
+            # Found a table header - REQUIRE delimiter row (---|---) next
             data_start = i + 1
-            if data_start < len(lines) and "---" in lines[data_start]:
-                data_start += 1
+            if data_start < len(lines):
+                delim_line = _strip_blockquote(lines[data_start]).strip()
+                if re.match(r"\|[\s:]*-{3,}", delim_line):
+                    data_start += 1
+                else:
+                    # No valid delimiter row → not a real table
+                    i += 1
+                    continue
+            else:
+                i += 1
+                continue
             # Parse data rows
             for j in range(data_start, len(lines)):
-                stripped = lines[j].strip()
+                if not operative[j]:
+                    continue
+                raw_row = lines[j]
+                # Strip blockquote prefix
+                row_content = _strip_blockquote(raw_row)
+                stripped = row_content.strip()
                 if not stripped.startswith("|"):
                     i = j
                     break
+                # Filter inline HTML comments from row content
+                stripped = re.sub(r"<!--.*?-->", "", stripped)
                 cells = [c.strip().replace("`", "") for c in stripped.split("|")[1:-1]]
                 if len(cells) < 2:
                     all_patterns.append("<malformed>")
@@ -731,3 +795,78 @@ class TestRoutingMarkdownContext:
         routes, _ = _parse_routing_table(body)
         assert routes, "Visible table should be parsed"
         assert "/pull/<n>" in routes
+
+
+class TestRoutingFenceBypassRegression:
+    """CommonMark fence compliance: four-char, mixed type, short closer."""
+
+    VALID_TABLE = TestRoutingMarkdownContext.VALID_TABLE
+
+    def test_four_char_fence_ignored(self) -> None:
+        """````python fence (4 backticks) must hide content."""
+        body = "````\n" + self.VALID_TABLE + "````\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside 4-char backtick fence should be skipped"
+
+    def test_mixed_fence_types_not_closed(self) -> None:
+        """Open with ``` close with ~~~ does NOT close the fence."""
+        body = "```\n" + self.VALID_TABLE + "~~~\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Tilde closer should not close backtick fence"
+
+    def test_short_closer_not_closed(self) -> None:
+        """Open with ```` close with ``` does NOT close (closer too short)."""
+        body = "````\n" + self.VALID_TABLE + "```\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Short closer should not close longer fence"
+
+    def test_matching_closer_accepted(self) -> None:
+        """Open with ```` close with ```` properly closes."""
+        body = "````\n| hidden |\n````\n\n" + self.VALID_TABLE
+        routes, _ = _parse_routing_table(body)
+        assert routes, "Table after properly closed fence should be parsed"
+
+    def test_html_comment_inline_filtered(self) -> None:
+        """Inline <!-- comment --> in a data row filters that content."""
+        body = (
+            "| URL pattern | Tool |\n"
+            "|---|---|\n"
+            "| `/pull/<N>` <!-- hidden --> | `pull_request_read` |\n"
+            "| `/issues/<N>` | `issue_read` |\n"
+            "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+            "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert "/pull/<n>" in routes
+
+    def test_missing_delimiter_row_rejected(self) -> None:
+        """Table without --- delimiter row is not a valid table."""
+        body = "| URL pattern | Tool |\n| `/pull/<N>` | `pull_request_read` |\n"
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table without delimiter row should not be parsed"
+
+    def test_blockquote_table_visible(self) -> None:
+        """> prefixed table rows are visible (nested blockquote)."""
+        body = (
+            "> | URL pattern | Tool |\n"
+            "> |---|---|\n"
+            "> | `/pull/<N>` | `pull_request_read` |\n"
+            "> | `/issues/<N>` | `issue_read` |\n"
+            "> | `/actions/runs/<ID>` | `get_workflow_run` |\n"
+            "> | `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes, "Blockquote table should be parsed as visible"
+        assert "/pull/<n>" in routes
+
+    def test_decoy_in_fence_no_contamination(self) -> None:
+        """Hidden decoy table inside fence must not pollute later parse."""
+        body = (
+            "```\n"
+            "| URL pattern | Tool |\n"
+            "|---|---|\n"
+            "| `/pull/<N>` | `evil_tool` |\n"
+            "```\n\n" + self.VALID_TABLE
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes.get("/pull/<n>") == ["pull_request_read"]

@@ -343,6 +343,7 @@ _TOOL_RE = re.compile(
     + "|".join(re.escape(t) for t in _TOOL_NAMES)
     + r")(?![a-zA-Z0-9_])",
 )
+_PREP_KEYWORDS = re.compile(r"\b(using|via)\b")
 
 _NEGATIONS = re.compile(
     r"\b("
@@ -424,6 +425,32 @@ def _line_has_tool_reference(line: str) -> bool:
     return "retrieve" in stripped.lower() and "declared" in stripped.lower()
 
 
+def _find_hard_clause_boundary(text: str) -> int:
+    """Return offset of the first hard clause boundary in *text*.
+
+    Hard boundaries are structural punctuation that unconditionally ends the
+    analyst's verb phrase: comma, semicolon, colon, open-paren, or coordinating
+    conjunction (and/or). This replaces English verb morphology inference with
+    a structural rule. Parenthetical tool lists are handled by a separate
+    strategy that validates content.
+
+    Returns len(text) if no boundary found.
+    """
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in ",;:(":
+            return i
+        # "and" or "or" as conjunction (not inside a word)
+        if ch in "ao":
+            rest = text[i:]
+            m = re.match(r"\b(and|or)\b", rest)
+            if m:
+                return i
+        i += 1
+    return len(text)
+
+
 def _is_affirmative_directive(line: str) -> bool:
     """Return True if line is an affirmative directive with analyst as subject
     and a declared tool reference in the SAME clause.
@@ -479,35 +506,18 @@ def _is_affirmative_directive(line: str) -> bool:
     # Subordinating conjunctions: boundaries for tool search scope
     subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
 
-    # Pattern: comma or conjunction introducing a new subject+verb signals
-    # a clause boundary. Requires the new subject to be followed by a verb,
-    # distinguishing "analyst retrieves data, bot reads tool" from
-    # "analyst retrieves PR, issue, and CI context".
-    # Comma/and/or introducing a bot or agent subject signals a clause
-    # boundary. The verb is intentionally open-ended so new actor clauses fail
-    # closed instead of depending on a verb allowlist.
-    new_subject_boundary = re.compile(
-        r"(?:"
-        r"(?:,\s*|;\s*|\band\b\s+|\bor\b\s+)"
-        r"(?:the\s+)?(?!analyst\b)"
-        r"(?:"
-        r"[a-z][\w-]*(?:-(?:bot|agent)|bot|agent|reviewer)"  # suffixed
-        r"|"
-        r"[a-z][\w]*\s+(?:[a-z]*(?:es|[^aeiou]s|ed|ing|ies)"
-        r"|will|can|may|shall|would|could|might|must"
-        r"|has|have|had|does|did|is|are|was|were)\b"
-        r")"
-        r"|"
-        r":\s*[a-z][\w-]*\s+[a-z]"  # colon clause
-        r"|"
-        r"\(\s*[a-z]"  # parenthetical
-        r")"
-    )
-    tool_subject_boundary = re.compile(
-        r"(?:,\s*|\band\b\s+|\bor\b\s+)\s*(?:mcp__github__)?(?:"
-        + "|".join(re.escape(tool) for tool in _TOOL_NAMES)
-        + r")\s+[a-z][\w-]*\b"
-    )
+    # Structural clause boundary: instead of trying to detect other actors'
+    # verbs (impossible with infinite English morphology), treat ANY comma or
+    # coordinating conjunction as a HARD stop for tool search UNLESS:
+    # 1. It immediately precedes a via/using phrase (canonical "X, using tool")
+    # 2. The tool appears inside parentheses after the verb (canonical
+    #    "tools (tool1, tool2, ...)")
+    # 3. The comma separates noun objects before a "using/via" keyword
+    # This matches the two canonical shapes in the analyst template:
+    #   "analyst retrieves X using tool"
+    #   "analyst retrieves X via its declared read-only tools"
+    #   "analyst retrieves X ... tools (tool1, tool2, ...)"
+    # Prep keywords searched at module-level _PREP_KEYWORDS
 
     for i, clause in enumerate(clauses):
         # Require analyst as grammatical subject in MASKED text (not preceded
@@ -540,42 +550,67 @@ def _is_affirmative_directive(line: str) -> bool:
         _open_parens = pre.count("(") - pre.count(")")
         if _open_parens > 0:
             continue
-        # Tool must appear AFTER the analyst+verb as its direct argument,
-        # not in a subordinate clause or after a new subject boundary.
-        # Use MASKED text for boundary detection (same offsets as verb_match).
+        # Structural tool search: tool must appear in the same simple clause
+        # as analyst+verb. Uses hard structural boundaries (comma, conjunction,
+        # colon, parenthetical actor) instead of English verb detection.
         after_verb = clause[verb_match.end() :]
         main_frag = re.split(subord, after_verb)[0]
-        boundaries = [
-            match
-            for match in (
-                new_subject_boundary.search(main_frag),
-                tool_subject_boundary.search(main_frag),
-            )
-            if match is not None
-        ]
-        boundary = min(boundaries, key=lambda match: match.start()) if boundaries else None
-        frag_end = verb_match.end() + (boundary.start() if boundary else len(main_frag))
 
-        # Search for tool in quote-masked text at the same offset range.
-        # Backtick-formatted tool names are visible; quoted ones are masked.
+        # Use quote-masked text for tool search (same offsets).
         tool_clause = tool_clauses[i] if i < len(tool_clauses) else ""
-        tool_frag = tool_clause[verb_match.end() : frag_end]
 
-        tool_match = _TOOL_RE.search(tool_frag)
-        if tool_match:
+        # Strategy 1: tool as DIRECT object (before any comma/conjunction/paren).
+        # Parenthetical content is handled separately by Strategy 3.
+        hard_stop = _find_hard_clause_boundary(main_frag)
+        direct_frag = tool_clause[verb_match.end() : verb_match.end() + hard_stop]
+        if _TOOL_RE.search(direct_frag):
             return True
 
-        # Also search for tool BEFORE the analyst+verb in the same clause
+        # Strategy 2: tool in a "using/via" phrase (may follow commas that
+        # separate noun objects). Find "using" or "via" OUTSIDE parentheses,
+        # then search for tool between that keyword and end of fragment.
+        # Strip parenthetical content before searching for prep keywords.
+        no_parens = re.sub(r"\([^)]*\)", lambda m: " " * len(m.group()), main_frag)
+        prep_match = _PREP_KEYWORDS.search(no_parens)
+        if prep_match:
+            after_prep = main_frag[prep_match.end() :]
+            prep_stop = _find_hard_clause_boundary(after_prep)
+            prep_frag = tool_clause[
+                verb_match.end() + prep_match.end() : verb_match.end()
+                + prep_match.end()
+                + prep_stop
+            ]
+            if _TOOL_RE.search(prep_frag):
+                return True
+
+        # Strategy 3: tool inside parentheses after the verb ONLY if the
+        # parenthetical is a tool enumeration (canonical shape: "tools (t1, t2)")
+        # Reject parentheticals with prose/actors ("(provided by bot using tool)")
+        paren_match = re.search(r"\(([^)]+)\)", main_frag)
+        if paren_match:
+            paren_content = paren_match.group(1).strip()
+            # Accept only if ALL comma-separated items are tool names
+            items = [it.strip().strip("`") for it in paren_content.split(",")]
+            tool_re_bare = re.compile(
+                r"^(?:mcp__github__)?(?:" + "|".join(re.escape(t) for t in _TOOL_NAMES) + r")$"
+            )
+            if all(tool_re_bare.match(it) for it in items):
+                return True
+
+        # Strategy 4: tool BEFORE the analyst+verb in the same clause
         # (handles "Using pull_request_read, the analyst retrieves context")
-        # Use fully-masked text so backtick code spans are excluded.
+        # Use FULLY MASKED text (clause) so backtick code spans are excluded.
         pre_tool_frag = clause[: verb_match.start()]
         if _TOOL_RE.search(pre_tool_frag):
             return True
 
-        # Also accept "declared tool" phrasing in masked fragment
-        masked_frag = main_frag[: boundary.start()] if boundary else main_frag
-        if "declared" in masked_frag and "tool" in masked_frag:
-            return True
+        # Strategy 5: "declared tool" phrasing within the clause (including
+        # after a using/via keyword, which is the canonical template shape).
+        if "declared" in main_frag and "tool" in main_frag:
+            # Verify "declared" appears either before the hard stop or after
+            # a prep keyword (using/via) - both are structurally safe.
+            if ("declared" in main_frag[:hard_stop]) or prep_match:
+                return True
 
     return False
 
@@ -1736,3 +1771,54 @@ class TestNegativeModalCrossedActor:
     )
     def test_modal_rejected(self, line: str) -> None:
         assert _is_affirmative_directive(line) is False
+
+
+class TestNegativeStructuralClauseBoundary:
+    """Crossed-actor clauses rejected by structural hard boundary (HIGH 1 regressions)."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst reads cache, pipeline put pull_request_read in scope.",
+            "The analyst reads cache and coordinator wrote pull_request_read in docs.",
+            "The analyst reads cache, platform ought to expose pull_request_read.",
+            "The analyst reads cache, witness saw pull_request_read.",
+            "The analyst retrieves data, release-bot reads pull_request_read",
+            "The analyst retrieves data, release-bot fetches pull_request_read",
+            "The analyst retrieves cache and release-bot gets pull_request_read",
+            "The analyst retrieves data, compliance-bot accesses pull_request_read",
+            "The analyst retrieves cache, compliance-bot provides pull_request_read",
+            "The analyst retrieves cache and the release-bot reads pull_request_read",
+            "The analyst retrieves cache, pull_request_read remains available",
+        ],
+        ids=[
+            "pipeline-put",
+            "coordinator-wrote",
+            "platform-ought",
+            "witness-saw",
+            "bot-reads",
+            "bot-fetches",
+            "bot-gets",
+            "bot-accesses",
+            "bot-provides",
+            "the-bot-reads",
+            "tool-as-subject",
+        ],
+    )
+    def test_direct_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst reads cache, pipeline put pull_request_read in scope.",
+            "The analyst reads cache and coordinator wrote pull_request_read in docs.",
+            "The analyst reads cache, platform ought to expose pull_request_read.",
+            "The analyst reads cache, witness saw pull_request_read.",
+        ],
+        ids=["pipeline-put", "coordinator-wrote", "platform-ought", "witness-saw"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        doc = "\n### delegation contract\n" + line + " return [blocked] only when missing.\n"
+        err = _check_retrieval_precedes_blocked(doc)
+        assert err is not None
