@@ -4,7 +4,7 @@
     "number": 4586,
     "date": "2026-08-10",
     "branch": "autofix-qa-4586",
-    "startingCommit": "042c48239bb79ffc9aed4b980687f7a4e3de0513",
+    "startingCommit": "ef4140558e8323c9bb176946f3cb89d06d2aa2a1",
     "objective": "Add QA evidence for PR 4586 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "042c48239bb79ffc9aed4b980687f7a4e3de0513"
+        "Evidence": "ef4140558e8323c9bb176946f3cb89d06d2aa2a1"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q passed with 336 passed in 2.82s."
+        "Evidence": "uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q passed with 336 passed in 2.82s after merging origin/main."
       },
       "qaValidation": {
         "level": "MUST",
@@ -115,6 +115,10 @@
     {
       "time": "2026-08-10T11:30:00Z",
       "entry": "Created QA report bound to pre-report code commit 042c48239bb79ffc9aed4b980687f7a4e3de0513."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to ef4140558e8323c9bb176946f3cb89d06d2aa2a1."
     }
   ],
   "endingCommit": "",
@@ -123,8 +127,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "6965c145f0dc621f1d3f3040efa3426ce425e34c",
-      "head": "042c48239bb79ffc9aed4b980687f7a4e3de0513"
+      "base": "3f6f156705837a48b15e89a1c8d47f10ce8b30a8",
+      "head": "ef4140558e8323c9bb176946f3cb89d06d2aa2a1"
     }
   }
 }
