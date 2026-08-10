@@ -114,9 +114,10 @@ def fetch_pr_head(owner: str, repo: str, pull_request: int) -> str:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"failed to parse PR payload: {exc}") from exc
     head = payload.get("head")
-    if not isinstance(head, dict) or not isinstance(head.get("sha"), str):
+    sha = head.get("sha") if isinstance(head, dict) else None
+    if not isinstance(sha, str):
         raise RuntimeError("PR head sha missing from response")
-    return head["sha"]
+    return sha
 
 
 def _section_end(lines: list[str], start: int) -> int:
