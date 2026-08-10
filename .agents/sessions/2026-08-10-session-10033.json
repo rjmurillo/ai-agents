@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4823-xdist-collection-order-report.md"
+        "Evidence": ".agents/qa/pr-4834-xdist-collection-order-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
