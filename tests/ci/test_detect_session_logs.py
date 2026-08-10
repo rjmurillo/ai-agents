@@ -9,10 +9,18 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.ci import detect_session_logs as mod
+
+WORKFLOW = Path(".github/workflows/ai-session-protocol.yml")
+
+
+def _workflow() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 SESSION = ".agents/sessions/2026-01-05-session-12.json"
 OLD_SESSION = ".agents/sessions/2025-01-05-session-12.json"
@@ -438,15 +446,24 @@ class TestMain:
 
 class TestWorkflowWiring:
     def test_the_workflow_invokes_this_script(self) -> None:
-        from pathlib import Path
-
-        text = Path(".github/workflows/ai-session-protocol.yml").read_text(encoding="utf-8")
+        text = WORKFLOW.read_text(encoding="utf-8")
         assert "scripts/ci/detect_session_logs.py" in text
 
     def test_the_workflow_still_supplies_every_required_input(self) -> None:
-        from pathlib import Path
-
-        text = Path(".github/workflows/ai-session-protocol.yml").read_text(encoding="utf-8")
+        text = WORKFLOW.read_text(encoding="utf-8")
         detect = text.split("scripts/ci/detect_session_logs.py")[0]
         for key in ("PR_NUMBER:", "GH_REPO:", "CUTOFF_DATE:"):
             assert key in detect, f"{key} must reach the detector"
+
+    def test_manual_dispatch_supplies_pr_number_to_session_detection(self) -> None:
+        workflow = _workflow()
+        on_block = workflow.get("on", workflow.get(True))
+        assert isinstance(on_block, dict)
+        assert on_block["workflow_dispatch"]["inputs"]["pr_number"]["required"] is True
+
+        env = workflow["jobs"]["detect-changes"]["steps"][1]["env"]
+        assert env["PR_NUMBER"] == "${{ github.event.pull_request.number || inputs.pr_number }}"
+
+    def test_manual_dispatch_uses_a_valid_checkout_ref(self) -> None:
+        checkout = _workflow()["jobs"]["detect-changes"]["steps"][0]["with"]
+        assert checkout["ref"] == "${{ github.event.pull_request.head.sha || github.ref }}"
