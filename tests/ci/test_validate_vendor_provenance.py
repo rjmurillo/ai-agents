@@ -172,46 +172,65 @@ class TestLockfilePolicy:
         assert "integrity" in r.stdout.lower()
 
 
-# ── Config safety ──
+# ── Config authentication (hash-pinned, no YAML parser) ──
 
-class TestConfigSafety:
-    def _cfg_path(self, root: Path) -> Path:
-        return root / ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+class TestConfigHashAuthentication:
+    """Config files are authenticated by SHA-256 hash pin, not content parsing.
 
-    def test_block_customrules_rejected(self, tmp_path: Path) -> None:
-        root = tmp_path / "c"
-        _write(self._cfg_path(root), "config:\n  MD040: true\ncustomRules:\n  - x\n")
+    The regex YAML parser has been removed. Security boundary is the pin.
+    Any config file present in the candidate must match its hash pin.
+    Absence is permitted for vendor-only paths when base also lacks the file.
+    """
+
+    def test_config_present_wrong_hash_rejected(self, tmp_path: Path) -> None:
+        """Any config content that doesn't match the pin hash is rejected."""
+        root = _make_valid_candidate(tmp_path)
+        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("config:\n  MD040: true\n")
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
-        assert "customRules" in r.stdout
+        assert "SHA-256 mismatch" in r.stdout
 
-    def test_quoted_key_rejected(self, tmp_path: Path) -> None:
-        root = tmp_path / "c"
-        _write(self._cfg_path(root), '"customRules":\n  - x\n')
+    def test_config_absent_no_base_passes(self, tmp_path: Path) -> None:
+        """Absent vendor-only config is fine when no base tree provided."""
+        root = _make_valid_candidate(tmp_path)
+        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        if cfg.exists():
+            cfg.unlink()
+        r = _run(["--candidate-root", str(root)])
+        # Should not mention the config at all
+        assert "markdownlint-safe-config" not in r.stdout or "PASS" in r.stdout
+
+    def test_exec_key_content_rejected_by_hash(self, tmp_path: Path) -> None:
+        """customRules content rejected not by regex but by hash mismatch."""
+        root = _make_valid_candidate(tmp_path)
+        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("customRules:\n  - ./evil.js\n")
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
-        assert "customRules" in r.stdout
+        assert "SHA-256 mismatch" in r.stdout
 
-    def test_flow_extends_rejected(self, tmp_path: Path) -> None:
-        root = tmp_path / "c"
-        _write(self._cfg_path(root), '{"extends": "./evil.yaml"}')
+    def test_unicode_escape_bypass_blocked_by_hash(self, tmp_path: Path) -> None:
+        r"""'custom\u0052ules' bypass blocked because hash won't match."""
+        root = _make_valid_candidate(tmp_path)
+        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text('"custom\\u0052ules":\n  - evil\n')
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
-        assert "extends" in r.stdout
+        assert "SHA-256 mismatch" in r.stdout
 
-    def test_nested_key_rejected(self, tmp_path: Path) -> None:
-        root = tmp_path / "c"
-        cfg = "overrides:\n  - config:\n      markdownItPlugins:\n        - evil\n"
-        _write(self._cfg_path(root), cfg)
+    def test_yaml_alias_bypass_blocked_by_hash(self, tmp_path: Path) -> None:
+        """YAML tag/alias bypass blocked because hash won't match."""
+        root = _make_valid_candidate(tmp_path)
+        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("!!str customRules:\n  - evil\n")
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
-        assert "markdownItPlugins" in r.stdout
-
-    def test_clean_config_no_exec_keys(self, tmp_path: Path) -> None:
-        root = tmp_path / "c"
-        _write(self._cfg_path(root), "config:\n  MD040: true\nignores:\n  - '.git/**'\n")
-        r = _run(["--candidate-root", str(root)])
-        assert "Execution-capable key" not in r.stdout
+        assert "SHA-256 mismatch" in r.stdout
 
 
 # ── Symlink containment ──
@@ -380,55 +399,72 @@ def _make_valid_candidate(tmp_path: Path) -> Path:
     return root
 
 
-class TestConfigSafetyNoPyYAML:
-    """Validates the single deterministic regex path (no PyYAML needed)."""
+class TestVendorDeletion:
+    """High 3: vendor-only deletion detected when base has the file."""
 
-    def test_no_pyyaml_dependency_needed(self, tmp_path: Path) -> None:
-        """Validator works without PyYAML (regex-only path)."""
-        root = _make_valid_candidate(tmp_path)
-        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
-        _write(cfg, "config:\n  MD040: true\n")
-        # Place a fake yaml.py that raises ImportError - should not affect result
-        fake = tmp_path / "fake_yaml"
-        fake.mkdir()
-        _write(fake / "yaml.py", "raise ImportError('yaml blocked for test')\n")
-        env = {**os.environ, "PYTHONPATH": str(fake), "PYTHONDONTWRITEBYTECODE": "1"}
-        r = subprocess.run(
-            [sys.executable, str(WT / SCRIPT), "--candidate-root", str(root)],
-            capture_output=True, encoding="utf-8", errors="replace",
-            env=env,
-        )
-        # Should still pass: regex path does not need PyYAML
-        assert r.returncode == 0
+    def test_bootstrap_absence_passes(self, tmp_path: Path) -> None:
+        """Vendor-only file absent from BOTH candidate and base: allowed."""
+        from scripts.ci.validate_vendor_provenance import _authenticate_pinned
 
-    def test_yaml_mapping_key_customrules_blocked(self, tmp_path: Path) -> None:
-        """YAML explicit mapping key '? customRules' is detected."""
         root = _make_valid_candidate(tmp_path)
-        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
-        # Explicit YAML block mapping key that bypassed the old regex fallback
-        _write(cfg, "? customRules\n: [evil]\n")
+        base = _make_valid_candidate(tmp_path / "b")
+        # Config absent from both → no error
+        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        for r in (root, base):
+            p = r / cfg_rel
+            if p.exists():
+                p.unlink()
+        errs = _authenticate_pinned(root, base)
+        config_errs = [e for e in errs if "markdownlint-safe-config" in e]
+        assert not config_errs
+
+    def test_post_bootstrap_deletion_fails(self, tmp_path: Path) -> None:
+        """Vendor-only file present in base but deleted from candidate: blocked."""
+        from scripts.ci.validate_vendor_provenance import _authenticate_pinned
+
+        root = _make_valid_candidate(tmp_path)
+        base = _make_valid_candidate(tmp_path / "b")
+        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        # Make sure base HAS the file (even with wrong hash, we're testing deletion)
+        base_cfg = base / cfg_rel
+        base_cfg.parent.mkdir(parents=True, exist_ok=True)
+        base_cfg.write_text("config:\n  MD040: true\n")
+        # Candidate does NOT have the file
+        cand_cfg = root / cfg_rel
+        if cand_cfg.exists():
+            cand_cfg.unlink()
+        errs = _authenticate_pinned(root, base)
+        deletion_errs = [e for e in errs if "deletion not permitted" in e]
+        assert len(deletion_errs) >= 1
+
+    def test_no_base_root_permits_absence(self, tmp_path: Path) -> None:
+        """Without --base-root, vendor absence is always allowed (bootstrap)."""
+        from scripts.ci.validate_vendor_provenance import _authenticate_pinned
+
+        root = _make_valid_candidate(tmp_path)
+        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        cand_cfg = root / cfg_rel
+        if cand_cfg.exists():
+            cand_cfg.unlink()
+        errs = _authenticate_pinned(root, None)
+        deletion_errs = [e for e in errs if "markdownlint-safe-config" in e]
+        assert not deletion_errs
+
+
+class TestPreflightAbortsNpm:
+    """Medium 5: npm ci never runs when preflight validation has errors."""
+
+    def test_npm_not_invoked_on_preflight_error(self, tmp_path: Path) -> None:
+        """When authentication fails, reconstruction (npm) is skipped."""
+        root = _make_valid_candidate(tmp_path)
+        # Tamper a pinned file to cause authentication error
+        bootstrap = root / ".claude" / "hooks" / "PreToolUse" / "_bootstrap.py"
+        bootstrap.write_text("# tampered\n")
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
-        assert "customRules" in r.stdout
-
-    def test_malformed_yaml_with_exec_key_fails(self, tmp_path: Path) -> None:
-        """Malformed YAML containing exec keys still caught by regex."""
-        root = _make_valid_candidate(tmp_path)
-        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
-        _write(cfg, "{{{\ncustomRules: [evil\n")
-        r = _run(["--candidate-root", str(root)])
-        assert r.returncode == 1
-        assert "customRules" in r.stdout
-
-    def test_non_utf8_config_fails_closed(self, tmp_path: Path) -> None:
-        """Non-UTF-8 config fails closed (cannot scan for keys)."""
-        root = _make_valid_candidate(tmp_path)
-        cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
-        cfg.parent.mkdir(parents=True, exist_ok=True)
-        cfg.write_bytes(b"\xff\xfe\x00\x01" * 20)
-        r = _run(["--candidate-root", str(root)])
-        assert r.returncode == 1
-        assert "UTF-8" in r.stdout
+        assert "SKIP: Vendor reconstruction skipped" in r.stdout
+        # npm ci output would show "Lockfile Reconstruction" with errors
+        assert "npm ci" not in r.stdout.lower()
 
 
 class TestWorkflowContractRegression:
@@ -485,94 +521,6 @@ class TestWorkflowContractRegression:
         assert r.returncode == 0
 
 
-# ── Config safety: deterministic regex path (no PyYAML) ──
-
-class TestConfigSafetyDeterministic:
-    """Exercises the single regex-based config safety path directly.
-
-    These tests import _validate_config_safe and verify it detects
-    execution-capable keys in all YAML key syntactic forms without PyYAML.
-    """
-
-    def _cfg(self, tmp_path: Path, content: str) -> Path:
-        p = tmp_path / "test.yaml"
-        p.write_text(content)
-        return p
-
-    def test_block_mapping_explicit_key_rejected(self, tmp_path: Path) -> None:
-        """YAML '? customRules' syntax must be caught."""
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, "? customRules\n: [evil]\n")
-        errors = _validate_config_safe(p)
-        assert any("customRules" in e for e in errors), f"Expected rejection: {errors}"
-
-    def test_bare_key_rejected(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, "customRules:\n  - x\n")
-        errors = _validate_config_safe(p)
-        assert any("customRules" in e for e in errors)
-
-    def test_quoted_key_rejected(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, '"customRules":\n  - x\n')
-        errors = _validate_config_safe(p)
-        assert any("customRules" in e for e in errors)
-
-    def test_single_quoted_key_rejected(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, "'customRules':\n  - x\n")
-        errors = _validate_config_safe(p)
-        assert any("customRules" in e for e in errors)
-
-    def test_flow_mapping_rejected(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, '{"extends": "./evil.yaml"}')
-        errors = _validate_config_safe(p)
-        assert any("extends" in e for e in errors)
-
-    def test_nested_exec_key_rejected(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        cfg = "overrides:\n  - config:\n      markdownItPlugins:\n        - evil\n"
-        p = self._cfg(tmp_path, cfg)
-        errors = _validate_config_safe(p)
-        assert any("markdownItPlugins" in e for e in errors)
-
-    def test_clean_config_passes(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, "config:\n  MD040: true\nignores:\n  - '.git/**'\n")
-        errors = _validate_config_safe(p)
-        assert errors == []
-
-    def test_non_utf8_fails_closed(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = tmp_path / "bad.yaml"
-        p.write_bytes(b"\xff\xfe" + b"\x00" * 50)
-        errors = _validate_config_safe(p)
-        assert any("UTF-8" in e for e in errors)
-
-    def test_empty_config_passes(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = self._cfg(tmp_path, "")
-        errors = _validate_config_safe(p)
-        assert errors == []
-
-    def test_missing_config_passes(self, tmp_path: Path) -> None:
-        from scripts.ci.validate_vendor_provenance import _validate_config_safe
-
-        p = tmp_path / "nonexistent.yaml"
-        errors = _validate_config_safe(p)
-        assert errors == []
-
-
 # ── Relevance check (exercises production helper) ──
 
 class TestRelevance:
@@ -627,10 +575,34 @@ class TestRelevance:
         assert check_relevance(["build/scripts/generate_hooks_events.py"]) is True
 
     def test_build_script_subpath_no_trigger(self) -> None:
-        """Only the exact file, not arbitrary build/scripts/ files."""
+        """Only pinned build scripts, not arbitrary build/scripts/ files."""
         from scripts.ci.validate_vendor_provenance import check_relevance
 
         assert check_relevance(["build/scripts/other.py"]) is False
+
+    def test_trust_anchor_workflow_triggers(self) -> None:
+        """Workflow file change triggers relevance (trust-anchor surface)."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".github/workflows/vendor-provenance.yml"]) is True
+
+    def test_trust_anchor_validator_triggers(self) -> None:
+        """Validator script change triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["scripts/ci/validate_vendor_provenance.py"]) is True
+
+    def test_trust_anchor_test_triggers(self) -> None:
+        """Test contract change triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["tests/ci/test_validate_vendor_provenance.py"]) is True
+
+    def test_generator_import_triggers(self) -> None:
+        """Generator import module triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["build/scripts/yaml_loader.py"]) is True
 
     def test_cli_check_relevance_true(self) -> None:
         """CLI --check-relevance outputs 'true' for watched files."""
@@ -648,7 +620,7 @@ class TestRelevance:
 # ── Import closure regression ──
 
 class TestImportClosurePins:
-    """Verify all .py files under lib dirs are covered by _PINNED_ARTIFACTS."""
+    """Verify all .py files under lib dirs and generator imports are pinned."""
 
     def test_all_lib_py_files_are_pinned(self) -> None:
         """Every .py file in .claude/lib/ and src/copilot-cli/lib/ must be pinned."""
@@ -672,4 +644,25 @@ class TestImportClosurePins:
                     missing.append(rel)
         assert missing == [], (
             f"Lib .py files not in _PINNED_ARTIFACTS: {missing}"
+        )
+
+    def test_generator_import_closure_pinned(self) -> None:
+        """All local imports of generate_hooks_events.py must be pinned."""
+        from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
+
+        pinned_rels = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+        # These are the known local imports of generate_hooks_events.py
+        expected = [
+            "build/scripts/generate_dispatcher.py",
+            "build/scripts/generate_hooks_body.py",
+            "build/scripts/generate_hooks_emit.py",
+            "build/scripts/generate_hooks_expand.py",
+            "build/scripts/generate_hooks_shim.py",
+            "build/scripts/generate_hooks_transaction.py",
+            "build/scripts/regen_guard.py",
+            "build/scripts/yaml_loader.py",
+        ]
+        missing = [f for f in expected if f not in pinned_rels]
+        assert missing == [], (
+            f"Generator imports not pinned: {missing}"
         )

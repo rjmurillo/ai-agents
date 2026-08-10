@@ -65,11 +65,51 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "9324714377e69ea297dd429acc3a7eafa24c43af75f06cdba29596d25090eef9",
         "Generated dispatch",
     ),
-    # --- Generator surface ---
+    # --- Generator surface (full local import closure) ---
     (
         "build/scripts/generate_hooks_events.py",
         "2d3b7c11ee600e57483b950f67f40c1da52ff80ce0f14db584fdc93ea3cbe8eb",
         "Hook event generator",
+    ),
+    (
+        "build/scripts/generate_dispatcher.py",
+        "855fdaec9696dd94b42d8d1de4401418a9a26892ed44be8606674183b6342018",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/generate_hooks_body.py",
+        "93e0c7361ebb383d8c98292b3f2dd3cfac5fea6a388d1fe5d7b4883efcff9bcc",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/generate_hooks_emit.py",
+        "5d51b29d3db035427eb5c1a3be0102122f8d0536c92029e86733ebb6b0dc6133",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/generate_hooks_expand.py",
+        "213005f52f9b66c7495304bc9cc65a71ffc7f7ee0bab55121752b1f559c793cd",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/generate_hooks_shim.py",
+        "d4886a88186cc03863ce3859ee18d8b97b3fb2669ab298569d359d5e16318abe",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/generate_hooks_transaction.py",
+        "bbc9dba827bea77222a91a23013c3b064cdfde6a41a56efc7c7f4ddf76e59a7c",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/regen_guard.py",
+        "c9e331d1b5dcb81cf5da35ed50eeee30464b3fb972fb6b2546be1dfac375b106",
+        "Build script (hooks generator import)",
+    ),
+    (
+        "build/scripts/yaml_loader.py",
+        "d2163ab8468da3dc905f2403088d5d617b803d7a28c48cbfd0b12d7bdb10b950",
+        "Build script (hooks generator import)",
     ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
     (".claude/lib/ai_review_common/__init__.py",
@@ -307,11 +347,29 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
      "56d6dc47d0871278790690fe9cf78baad73a4f89540866bb14b430db28a56600",
      "Lib: src/copilot-cli/lib/shim_loader.py"),
     # --- Vendor artifacts (added by vendor/runtime PR) ---
-    # Uncomment and pin when the vendor PR is created:
-    # (".claude/hooks/PreToolUse/_markdownlint_verifier.py", "<sha256>", "Verifier"),
-    # (".claude/hooks/PreToolUse/markdownlint-safe-config.yaml", "<sha256>", "Config"),
-    # (".claude/hooks/PreToolUse/markdownlint-cli2.yaml", "<sha256>", "CLI2 config"),
-    # (".claude/hooks/PreToolUse/_vendor/markdownlint/INTEGRITY.json", "<sha256>", "Manifest"),
+    # Placeholder hashes: presence of these files without a matching pin
+    # hash will fail authentication (fail closed). Update pins when vendor PR
+    # is created. Absence is permitted via _VENDOR_ONLY_PREFIXES.
+    (
+        ".claude/hooks/PreToolUse/_markdownlint_verifier.py",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "Verifier (pin placeholder - update on vendor PR)",
+    ),
+    (
+        ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "Config (pin placeholder - update on vendor PR)",
+    ),
+    (
+        ".claude/hooks/PreToolUse/markdownlint-cli2.yaml",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "CLI2 config (pin placeholder - update on vendor PR)",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_vendor/markdownlint/INTEGRITY.json",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "Manifest (pin placeholder - update on vendor PR)",
+    ),
 ]
 
 # Vendor-only pins: paths that are allowed to be absent (not yet landed).
@@ -329,12 +387,6 @@ _INTEGRITY_RE = re.compile(r"^sha512-[A-Za-z0-9+/]+=*$")
 _APPROVED_LOCKFILE_VERSION = "3"
 _REJECTED_DEP_KEYS = ("link", "hasInstallScript")
 
-# ── Config safety: execution-capable keys ──
-_EXECUTION_KEYS = frozenset((
-    "customRules", "markdownItPlugins", "extends",
-    "outputFormatters", "globs",
-))
-
 
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -347,19 +399,25 @@ def _is_vendor_only(rel: str) -> bool:
 
 # ── Artifact authentication ──
 
-def _authenticate_pinned(candidate: Path) -> list[str]:
+def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]:
     """Authenticate every pinned artifact against its trust anchor.
 
     Every pinned file MUST exist as a regular non-symlink file, unless it
-    is a vendor-only pin (not yet landed). Symlinks are rejected to prevent
-    TOCTOU or indirection attacks.
+    is a vendor-only pin (not yet landed) AND absent from the base tree.
+    Once a vendor-only artifact appears in the trusted base, candidate
+    deletion is treated as tampering (fail closed).
     """
     errors: list[str] = []
     for rel, expected, label in _PINNED_ARTIFACTS:
         fpath = candidate / rel
         if _is_vendor_only(rel):
-            # Vendor artifacts may be absent until vendor PR lands
             if not fpath.exists():
+                # Permit absence only if base also lacks the file
+                if base and (base / rel).is_file():
+                    errors.append(
+                        f"{label} ({rel}): deleted from candidate but "
+                        f"present in base (vendor deletion not permitted)"
+                    )
                 continue
         # Non-vendor pins MUST exist
         if not fpath.exists():
@@ -485,47 +543,6 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
     return errors
 
 
-# ── Config safety (single deterministic regex path, no PyYAML) ──
-
-def _validate_config_safe(config_path: Path) -> list[str]:
-    """Scan config for execution-capable YAML keys using regex only.
-
-    Single deterministic code path regardless of environment. Covers:
-    - bare key (customRules:)
-    - quoted key ("customRules": or 'customRules':)
-    - flow mapping ({customRules: ...})
-    - explicit block mapping key (? customRules)
-    - nested occurrences at any depth
-
-    Intentionally over-matches: any textual occurrence of an execution key
-    in mapping-key position is flagged. No false negatives by design.
-    """
-    if not config_path.is_file():
-        return []  # Config not present yet
-    raw = config_path.read_bytes()
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return ["Config file is not valid UTF-8 (fail closed)"]
-    if not text.strip():
-        return []  # Empty config
-    errors: list[str] = []
-    for key in sorted(_EXECUTION_KEYS):
-        # Matches: normal/quoted/flow key: value, OR explicit block key ? key
-        pat = re.compile(
-            rf"""(?mx)
-            (?:
-                (?:^|[{{,]) \s* ['"]?{re.escape(key)}['"]? \s* :
-            |
-                ^\s*\?\s*['"]?{re.escape(key)}['"]?\s*$
-            )
-            """,
-        )
-        if pat.search(text):
-            errors.append(f"Execution-capable key '{key}' in config")
-    return errors
-
-
 # ── Symlink containment ──
 
 def _check_symlink_containment(vendor_dir: Path) -> list[str]:
@@ -640,6 +657,18 @@ WATCHED_PREFIXES: tuple[str, ...] = (
     "src/copilot-cli/hooks/PreToolUse/",
     "src/copilot-cli/lib/",
     "build/scripts/generate_hooks_events.py",
+    "build/scripts/generate_dispatcher.py",
+    "build/scripts/generate_hooks_body.py",
+    "build/scripts/generate_hooks_emit.py",
+    "build/scripts/generate_hooks_expand.py",
+    "build/scripts/generate_hooks_shim.py",
+    "build/scripts/generate_hooks_transaction.py",
+    "build/scripts/regen_guard.py",
+    "build/scripts/yaml_loader.py",
+    # Trust-anchor surfaces: workflow, validator, test contract
+    ".github/workflows/vendor-provenance.yml",
+    "scripts/ci/validate_vendor_provenance.py",
+    "tests/ci/test_validate_vendor_provenance.py",
 )
 
 
@@ -670,6 +699,8 @@ def _run_phase(label: str, errors: list[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Trusted vendor provenance gate")
     parser.add_argument("--candidate-root", type=Path)
+    parser.add_argument("--base-root", type=Path, default=None,
+                        help="Base (trusted) tree root for deletion detection")
     parser.add_argument(
         "--check-relevance", nargs="*", metavar="FILE",
         help="Print 'true'/'false' for whether FILE list touches watched paths",
@@ -688,12 +719,18 @@ def main() -> int:
         print(f"ERROR: candidate root not found: {root}", file=sys.stderr)
         return 2
 
+    base: Path | None = None
+    if args.base_root:
+        base = args.base_root.resolve()
+        if not base.is_dir():
+            print(f"ERROR: base root not found: {base}", file=sys.stderr)
+            return 2
+
     all_errors: list[str] = []
     vendor = root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
-    config = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
 
-    # 1. Authenticate pinned artifacts
-    errs = _authenticate_pinned(root)
+    # 1. Authenticate pinned artifacts (including vendor deletion check)
+    errs = _authenticate_pinned(root, base)
     _run_phase("Trust-Anchor Authentication", errs)
     all_errors.extend(errs)
 
@@ -712,25 +749,24 @@ def main() -> int:
     _run_phase("Lockfile Policy", errs)
     all_errors.extend(errs)
 
-    # 5. Config safety
-    errs = _validate_config_safe(config)
-    _run_phase("Config Safety", errs)
-    all_errors.extend(errs)
-
-    # 6. Symlink containment
+    # 5. Symlink containment
     errs = _check_symlink_containment(vendor)
     _run_phase("Symlink Containment", errs)
     all_errors.extend(errs)
 
-    # 7. .npmrc rejection
+    # 6. .npmrc rejection
     errs = _reject_npmrc(root, vendor)
     _run_phase(".npmrc Rejection", errs)
     all_errors.extend(errs)
 
-    # 8. Vendor reconstruction
-    errs = _reconstruct_and_compare(vendor)
-    _run_phase("Lockfile Reconstruction", errs)
-    all_errors.extend(errs)
+    # 7. Vendor reconstruction (npm ci)
+    # ABORT if any preflight error: never execute npm with tainted inputs.
+    if all_errors:
+        print("\n  SKIP: Vendor reconstruction skipped (preflight errors)")
+    else:
+        errs = _reconstruct_and_compare(vendor)
+        _run_phase("Lockfile Reconstruction", errs)
+        all_errors.extend(errs)
 
     if all_errors:
         print(f"\nBLOCKED: {len(all_errors)} error(s)")
