@@ -1,0 +1,175 @@
+{
+  "id": "episode-2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking",
+  "session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix historical session log blocking pre-push validation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the session validation failure on clean main",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Apply the verified two-file repair",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Align pre-commit session policy with the existing pre-push modes",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Align pre-PR Session End Validation with the same mode split",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the creation-mode bypass for a committed branch log",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Return both gate orchestrators below complexity ten",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope pre-push validation to the real push range",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bind pre-push validation to the pushed tree state",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close remaining security path-identity gaps",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the branch-added low-similarity replacement bypass",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserve explicit CLI dispatch and factual historical episode metrics",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T04:39:14+00:00",
+      "type": "commit",
+      "content": "Commit: 2073efa92e807caa7542eec2f7ced47beeef2a17",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T04:39:30+00:00",
+      "type": "commit",
+      "content": "Commit: 8220fd5a8cdccf8b612c7afd6e773dc298eca644",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4788-bacc8e40d-fix-historical-session-log-blocking"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 8
+  },
+  "lessons": []
+}
