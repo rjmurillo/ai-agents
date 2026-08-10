@@ -4,7 +4,7 @@
     "number": 4601,
     "date": "2026-08-10",
     "branch": "autofix-qa-4601",
-    "startingCommit": "eba6bec8b22fa20e7cb9f9dfd551e76fbb64e844",
+    "startingCommit": "48b23fe59bfbe10b2ee137f7060d8dc0451ad8a7",
     "objective": "Add QA evidence for PR 4601 Validate PR gate."
   },
   "protocolCompliance": {
@@ -62,7 +62,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "eba6bec8b22fa20e7cb9f9dfd551e76fbb64e844"
+        "Evidence": "48b23fe59bfbe10b2ee137f7060d8dc0451ad8a7"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/ci/test_ruff_ratchet_push_base.py -q passed with 6 passed in 0.31s."
+        "Evidence": "uv run --frozen pytest tests/ci/test_ruff_ratchet_push_base.py -q passed with 6 passed in 0.33s after merging origin/main."
       },
       "qaValidation": {
         "level": "MUST",
@@ -115,6 +115,10 @@
     {
       "time": "2026-08-10T11:30:00Z",
       "entry": "Created QA report bound to pre-report code commit eba6bec8b22fa20e7cb9f9dfd551e76fbb64e844."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to 48b23fe59bfbe10b2ee137f7060d8dc0451ad8a7."
     }
   ],
   "endingCommit": "",
@@ -123,8 +127,8 @@
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
-      "base": "23c89f4ae28c6bfc305ca5f17395a8f9b2821f18",
-      "head": "eba6bec8b22fa20e7cb9f9dfd551e76fbb64e844"
+      "base": "7520fb897e753781c06e27346c9cd7ac42d47558",
+      "head": "48b23fe59bfbe10b2ee137f7060d8dc0451ad8a7"
     }
   }
 }
