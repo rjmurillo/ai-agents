@@ -173,19 +173,6 @@
       "caused_by": [
         "e012"
       ],
-      "leads_to": [
-        "e014"
-      ],
-      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-08-09T15:28:22+00:00",
-      "type": "commit",
-      "content": "Commit: 40638c104862a0250f43010271ace1c3a129273f",
-      "caused_by": [
-        "e013"
-      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     }
@@ -195,8 +182,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
-    "files_changed": 2
+    "commits": 7,
+    "files_changed": 33
   },
   "lessons": []
 }
