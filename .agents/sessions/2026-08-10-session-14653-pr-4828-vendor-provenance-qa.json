@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report binds code commit b203a9e8c8f77f14171949207c78943f519ac99a."
+        "Evidence": "QA report binds code commit 15a6e00a8947a4ece7ab42702fb5c18bf1820ce8."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "36 targeted pytest tests passed and pre_pr passed."
+        "Evidence": "38 targeted pytest tests passed and pre_pr passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -130,9 +130,13 @@
     {
       "action": "Ran targeted pytest, ruff, py_compile, diff check, and pre_pr validation.",
       "result": "All listed checks passed."
+    },
+    {
+      "action": "Fixed candidate materialization to ignore candidate export-ignore attributes.",
+      "result": "Workflow uses scripts.ci.merge_tree_materialization.materialize_tree instead of git archive."
     }
   ],
-  "endingCommit": "b203a9e8c8f77f14171949207c78943f519ac99a",
+  "endingCommit": "15a6e00a8947a4ece7ab42702fb5c18bf1820ce8",
   "nextSteps": [
     "Push QA report and session log, wait for required checks, then run completion gate."
   ]
