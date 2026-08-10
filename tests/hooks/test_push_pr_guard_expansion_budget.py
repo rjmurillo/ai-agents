@@ -170,3 +170,65 @@ def test_brace_range_edge_cases_still_resolve(guard: ModuleType) -> None:
     assert guard._names_new_pr("python3 n{e..e..1}w_pr.py") is True
     assert guard._names_new_pr("python3 n{e,x}w_pr.py") is True
     assert guard._names_new_pr("python3 {new_pr,other}.py") is True
+
+
+def _many_token_command(token: str, repetitions: int) -> str:
+    """Build a command whose cost is spread over many separately-budgeted calls."""
+    return "\n".join([token] * repetitions)
+
+
+def test_budget_is_shared_across_every_enumeration_for_one_command(guard: ModuleType) -> None:
+    """A per-call budget bounds one enumeration; the command is what needs bounding.
+
+    The guard enumerates once per spelling variant, per token, per segment.
+    Measured on this branch before the fix, with a 121 KiB command built from
+    4,600 copies of the 25-byte token ``p{a..z}{a..z}{a..z}{a..z}``: the
+    relevance decision took 100.5 seconds, against 0.06 seconds on the merged
+    tree, while every individual call stayed inside its own 256 KiB budget.
+
+    The Copilot host allows a PreToolUse hook 10 seconds and a Copilot timeout
+    fails OPEN, so a per-call budget alone is not an allowance.
+
+    One shared budget makes the total the bounded thing: enumeration stops
+    early and every caller reads the stop as "in scope", so the command is
+    denied rather than run out the clock.
+    """
+    token = "p{a..z}{a..z}{a..z}{a..z}"
+    command = _many_token_command(token, 4_600)
+    assert len(command) > 100_000
+
+    budget = guard._ExpansionBudget()
+    (_verdict, peak) = _peak_bytes(
+        lambda: [guard._path_names_new_pr(line, budget) for line in command.splitlines()]
+    )
+
+    assert peak < BYTE_BUDGET_CEILING, (
+        f"a shared budget still allocated {peak} bytes across {len(command)} bytes of command"
+    )
+    assert budget.expanded_bytes <= guard._MAX_BRACE_EXPANDED_BYTES
+
+
+def test_shared_budget_exhaustion_reports_relevance(guard: ModuleType) -> None:
+    """Once the shared allowance is gone, every later answer must be fail-closed.
+
+    An exhausted budget means the guard stopped looking, not that it looked
+    and found nothing. Reading it as "not relevant" would sell an allow to
+    anyone willing to make the command expensive.
+    """
+    budget = guard._ExpansionBudget()
+    for _ in range(4_600):
+        guard._path_names_new_pr("p{a..z}{a..z}{a..z}{a..z}", budget)
+
+    assert guard._path_names_new_pr("harmless.txt", budget) is True
+    assert guard._names_new_pr("harmless.txt", budget) is True
+
+
+def test_private_budget_still_answers_small_inputs(guard: ModuleType) -> None:
+    """Inverse control: the shared budget must not make ordinary calls fail closed.
+
+    A caller with its own allowance, which is every single-string caller,
+    still gets a real answer for an ordinary command.
+    """
+    assert guard._path_names_new_pr("tests/test_new_pr.py") is False
+    assert guard._path_names_new_pr("./attacker/pr/new_pr.py") is True
+    assert guard._names_new_pr("touch log{0..99}.txt") is False

@@ -195,3 +195,95 @@ def test_dispatchers_still_deny_execution_paths(tmp_path, command) -> None:
 
     assert claude.returncode == 2, f"claude allowed an execution path: {claude.stdout}"
     assert copilot.returncode == 2, f"copilot allowed an execution path: {copilot.stdout}"
+
+
+# Pipelines whose reader prints an execution of new_pr.py into a program that
+# runs it. Measured on this branch before the fix: every one returned 0 on both
+# dispatchers, while the merged tree at 5cd72a7dad returned 2. The reader's
+# operands are data TO THE READER and code to whatever consumes them, and
+# narrowing relevance to execution positions dropped the pipe that connects
+# the two.
+#
+#     $ bash -c 'echo /bin/echo EXECUTED-VIA-PIPE | sh'
+#     EXECUTED-VIA-PIPE
+PIPELINE_EXECUTIONS = (
+    "echo python3 ./attacker/pr/new_pr.py | sh",
+    "echo python3 ./attacker/pr/new_pr.py | bash",
+    "echo ./attacker/pr/new_pr.py | xargs python3",
+    "printf ./attacker/pr/new_pr.py | xargs python3",
+    "ls ./attacker/pr/new_pr.py | xargs python3",
+    # A pass-through reader in the middle still carries the text, so looking
+    # only one segment ahead is not enough.
+    "echo python3 ./attacker/pr/new_pr.py | tee /dev/null | sh",
+    "echo python3 ./attacker/pr/new_pr.py | cat | cat | bash",
+    "cat ./attacker/pr/new_pr.py | python3",
+)
+
+
+# Git subcommands that take a command line as an operand or an option value.
+# Measured on this branch before the fix: 0 on both dispatchers, 2 on the
+# merged tree. The relevance gate read only the per-subcommand OPTION table,
+# so `bisect run` and `submodule foreach`, which carry no dash, never reached
+# it, and the option table itself had no entry for the command-running options
+# of rebase, filter-branch, difftool, or send-email.
+GIT_COMMAND_RUNNER_EXECUTIONS = (
+    'git submodule foreach "python3 ./attacker/pr/new_pr.py"',
+    "git submodule foreach --recursive python3 ./attacker/pr/new_pr.py",
+    "git bisect run python3 ./attacker/pr/new_pr.py",
+    'git rebase -x "python3 ./attacker/pr/new_pr.py" main',
+    'git filter-branch --tree-filter "python3 ./attacker/pr/new_pr.py" HEAD',
+    'git difftool -x "python3 ./attacker/pr/new_pr.py"',
+    'git send-email --smtp-server="python3 ./attacker/pr/new_pr.py" x',
+)
+
+
+# Pipelines that only read. Each names new_pr.py in an operand and ends in a
+# reader, so the pipe rule must leave them alone. Without these the pipe fix
+# could be satisfied by treating every pipeline as an execution, which would
+# reintroduce the false denials the branch exists to fix.
+PIPELINE_READS = (
+    "git diff -- .claude/skills/github/scripts/pr/new_pr.py | cat",
+    "git diff -- .claude/skills/github/scripts/pr/new_pr.py | cat | head -5",
+    "cat .claude/skills/github/scripts/pr/new_pr.py | head -20",
+    "grep -n import .claude/skills/github/scripts/pr/new_pr.py | wc -l",
+)
+
+
+@pytest.mark.parametrize("command", PIPELINE_EXECUTIONS + GIT_COMMAND_RUNNER_EXECUTIONS)
+def test_dispatchers_deny_delegated_execution_of_new_pr(tmp_path, command) -> None:
+    """A path handed to a program runner is an execution, whatever segment it sits in.
+
+    Both families reach new_pr.py without ever naming it in a command
+    position of its own segment: a pipeline hands it to the next program's
+    stdin, and Git hands it to the command runner behind `bisect run`,
+    `submodule foreach`, `rebase -x`, `filter-branch --tree-filter`,
+    `difftool -x`, or `send-email --smtp-server`.
+
+    These are regressions this branch introduced, not defects of the merged
+    tree: narrowing relevance to execution positions fixed the false denials
+    and lost the delegation edges. The merged guard denied every command
+    listed here, measured directly against its own file.
+    """
+    root, _ = repository(tmp_path)
+    body_file(root)
+
+    claude = run_claude(command, root)
+    copilot = run_copilot(command, root)
+
+    assert claude.returncode == 2, f"claude allowed delegated execution: {claude.stdout}"
+    assert copilot.returncode == 2, f"copilot allowed delegated execution: {copilot.stdout}"
+
+
+@pytest.mark.parametrize("command", PIPELINE_READS)
+def test_dispatchers_allow_pipelines_that_only_read(command) -> None:
+    """Inverse control: a pipeline that ends in a reader stays out of scope.
+
+    The pipe rule asks whether the text a segment prints reaches a program
+    runner. Every command here ends in `cat`, `head`, or `wc`, so the answer
+    is no and the reference stays data.
+    """
+    claude = run_claude(command, REPO_ROOT)
+    copilot = run_copilot(command, REPO_ROOT)
+
+    assert claude.returncode == 0, f"claude falsely denied a read pipeline: {claude.stderr}"
+    assert copilot.returncode == 0, f"copilot falsely denied a read pipeline: {copilot.stderr}"
