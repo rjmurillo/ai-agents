@@ -6155,19 +6155,17 @@ def _pytest_parallel_flags() -> list[str]:
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
     """Return the pre-push pytest invocations, bulk partition first.
 
-    Only the first command runs in parallel. The second command targets exactly
-    one module, ``tests/test_safe_push_pr_branch.py``, and ``--dist loadfile``
-    routes a whole file to a single worker, so distributing it would buy zero
-    parallelism and pay the worker-startup cost anyway. It also carries the
-    narrower marker expression that deselects the real-transport tests, and
-    keeping it a plain serial pytest run keeps that safety property readable in
-    one line.
+    Only the first command runs in parallel. The safe-push and pr-autofix
+    modules each run in a fresh serial pytest process. The latter can leave a
+    grandchild holding a subprocess pipe under heavy worker load, so sharing a
+    process with another test module also makes it flaky.
 
     Raises:
         ValueError: the worker override names something other than ``auto`` or
             a positive integer.
     """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
             sys.executable,
@@ -6179,6 +6177,8 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             str(repo_root / "tests"),
             "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(pr_autofix_tests),
         ],
         [
             sys.executable,
@@ -6187,6 +6187,14 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(pr_autofix_tests),
         ],
     ]
 

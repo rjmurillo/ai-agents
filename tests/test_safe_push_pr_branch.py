@@ -791,6 +791,7 @@ def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[s
 def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     safe_push_tests = str(repo_root / "tests" / "test_safe_push_pr_branch.py")
+    pr_autofix_tests = str(repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py")
 
     commands = git_hook_policy._pytest_commands(repo_root)
     parsed = [_pytest_marker_and_paths(command) for command in commands]
@@ -800,17 +801,25 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
 
     bulk = [entry for entry in parsed if safe_push_tests in entry[2]]
     targeted = [entry for entry in parsed if safe_push_tests in entry[1]]
+    pr_autofix_targeted = [entry for entry in parsed if pr_autofix_tests in entry[1]]
 
     assert len(bulk) == 1, parsed
     assert len(targeted) == 1, parsed
+    assert len(pr_autofix_targeted) == 1, parsed
 
     bulk_marker, bulk_targets, _ = bulk[0]
     assert bulk_marker == "not integration"
     assert str(repo_root / "tests") in bulk_targets
+    assert pr_autofix_tests in bulk[0][2]
 
-    targeted_marker, _, targeted_ignores = targeted[0]
+    targeted_marker, targeted_targets, targeted_ignores = targeted[0]
     assert targeted_marker == "not integration and not safe_push_transport"
     assert safe_push_tests not in targeted_ignores
+    assert pr_autofix_tests not in targeted_targets
+
+    pr_autofix_marker, _, pr_autofix_ignores = pr_autofix_targeted[0]
+    assert pr_autofix_marker == "not integration"
+    assert pr_autofix_tests not in pr_autofix_ignores
 
     # The transport tests must never run under pre-push, so no command may
     # reach this module without deselecting the safe_push_transport marker.
@@ -836,13 +845,17 @@ def test_safe_push_partition_is_the_serial_one(tmp_path: Path) -> None:
     next to the transport-exclusion guard above because both protect the same
     command.
     """
-    bulk, safe_push = git_hook_policy._pytest_commands(tmp_path)
+    bulk, safe_push, pr_autofix = git_hook_policy._pytest_commands(tmp_path)
 
     assert "-n" in bulk and "--dist" in bulk
     assert "-n" not in safe_push
     assert "--numprocesses" not in safe_push
     assert "--dist" not in safe_push
     assert str(tmp_path / "tests" / "test_safe_push_pr_branch.py") in safe_push
+    assert str(tmp_path / "tests" / "test_pr_autofix_late_live_state_gate.py") in pr_autofix
+    assert "-n" not in pr_autofix
+    assert "--numprocesses" not in pr_autofix
+    assert "--dist" not in pr_autofix
 
 
 def test_object_id_validator_loads_from_real_module() -> None:

@@ -217,6 +217,11 @@ if run_pr_mutation_if_live {mutation_invocation}; then
 else
     printf 'mutation-skipped:%s\n' "$?"
 fi
+if grep -q '^release ' "$LEASE_LOG"; then
+    printf '%s\n' lease-released-before-end
+else
+    printf '%s\n' lease-held-after-mutation
+fi
 """
     env = {
         **os.environ,
@@ -387,6 +392,7 @@ def test_open_after_review_runs_mutation_and_keeps_lease(
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
     assert mutation_log.read_text(encoding="utf-8") == "ran\n"
     assert "mutation-ran" in result.stdout
+    assert "lease-held-after-mutation" in result.stdout
 
 
 def test_inconclusive_supersession_preserves_fail_open_action(
