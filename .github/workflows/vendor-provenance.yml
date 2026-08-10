@@ -30,10 +30,10 @@ jobs:
       - name: Checkout trusted code (base branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
-      - name: Fetch candidate data via git archive
+      - name: Materialize candidate and base trees
         env:
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -42,12 +42,16 @@ jobs:
           # Fetch candidate commit (immutable event SHA, not moving branch ref)
           git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
             fetch --depth=50 origin "$PR_SHA" "$BASE_SHA"
-          # Extract candidate tree
+          # Materialize via read-tree + checkout-index (ignores .gitattributes
+          # export-ignore, unlike git archive which lets candidates hide files
+          # from validation while they remain in the merged tree)
           mkdir -p /tmp/candidate
-          git archive "$PR_SHA" | tar -x -C /tmp/candidate
-          # Extract base tree for deletion detection
+          GIT_INDEX_FILE=/tmp/idx-pr git read-tree "$PR_SHA"
+          GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a --prefix=/tmp/candidate/
+          # Base tree for deletion detection
           mkdir -p /tmp/base
-          git archive "$BASE_SHA" | tar -x -C /tmp/base
+          GIT_INDEX_FILE=/tmp/idx-base git read-tree "$BASE_SHA"
+          GIT_INDEX_FILE=/tmp/idx-base git checkout-index -a --prefix=/tmp/base/
 
       - name: Check relevance
         id: relevance

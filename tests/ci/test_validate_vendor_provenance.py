@@ -626,6 +626,80 @@ class TestRelevance:
         assert r.stdout.strip() == "false"
 
 
+    def test_top_level_hook_entrypoint_triggers(self) -> None:
+        """Top-level .claude/hooks/invoke_dispatch_claude.py triggers relevance.
+
+        Regression: these files are pinned but were outside subdirectory prefixes.
+        Structural derivation from _PINNED_ARTIFACTS closes this by construction.
+        """
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".claude/hooks/invoke_dispatch_claude.py"]) is True
+
+    def test_top_level_session_start_triggers(self) -> None:
+        """Top-level .claude/hooks/session-start.sh triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".claude/hooks/session-start.sh"]) is True
+
+    def test_gitattributes_triggers(self) -> None:
+        """.gitattributes change triggers relevance (export-ignore attack surface)."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".gitattributes"]) is True
+
+    def test_every_pinned_artifact_triggers_relevance(self) -> None:
+        """Structural regression: every pinned artifact path must trigger relevance.
+
+        Ensures no pin/relevance drift by sweeping all 138+ pinned paths.
+        """
+        from scripts.ci.validate_vendor_provenance import (
+            _PINNED_ARTIFACTS,
+            check_relevance,
+        )
+
+        missed = []
+        for rel, _, _ in _PINNED_ARTIFACTS:
+            if not check_relevance([rel]):
+                missed.append(rel)
+        assert missed == [], f"Pinned but not relevant: {missed}"
+
+    def test_src_copilot_hooks_top_level_triggers(self) -> None:
+        """src/copilot-cli/hooks/ top-level file triggers relevance."""
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["src/copilot-cli/hooks/something.sh"]) is True
+
+
+
+class TestExportIgnoreBypass:
+    """Proves export-ignore'd executables are still detected by validation.
+
+    The HIGH finding: git archive respects .gitattributes export-ignore,
+    letting candidates hide files. The fix uses read-tree + checkout-index
+    which ignores export attributes. This test validates the scan logic
+    catches executables regardless of .gitattributes content.
+    """
+
+    def test_export_ignored_executable_still_detected(self, tmp_path: Path) -> None:
+        """An executable hidden via export-ignore must still fail validation."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        # Create candidate tree with a .gitattributes that would hide evil.py
+        hooks_dir = tmp_path / ".claude" / "hooks" / "PreToolUse"
+        hooks_dir.mkdir(parents=True)
+        evil = hooks_dir / "evil.py"
+        evil.write_text("#!/usr/bin/env python3\nimport os")
+        # .gitattributes that would hide it from git archive
+        gitattributes = tmp_path / ".gitattributes"
+        gitattributes.write_text(".claude/hooks/PreToolUse/evil.py export-ignore\n")
+        # Scan must still find it (since we use checkout-index, not archive)
+        errors = _check_unpinned_executables(tmp_path)
+        assert any("evil.py" in e for e in errors), (
+            f"export-ignore'd file must still be caught; got: {errors}"
+        )
+
+
 # ── Import closure regression ──
 
 class TestImportClosurePins:

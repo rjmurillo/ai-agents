@@ -926,53 +926,63 @@ def _compare_nm(committed: Path, reconstructed: Path) -> list[str]:
 # ── Relevance check (extracted for testability) ──
 
 # Watched path prefixes that trigger full validation.
-WATCHED_PREFIXES: tuple[str, ...] = (
-    ".claude/hooks/PreToolUse/",
+# Executable scan roots (must match _check_unpinned_executables watched_dirs)
+_SCAN_ROOTS: tuple[str, ...] = (
+    ".claude/hooks/",
     ".claude/lib/",
-    "src/copilot-cli/hooks/PreToolUse/",
+    "src/copilot-cli/hooks/",
     "src/copilot-cli/lib/",
-    "build/scripts/generate_hooks_events.py",
-    "build/scripts/generate_dispatcher.py",
-    "build/scripts/generate_hooks_body.py",
-    "build/scripts/generate_hooks_emit.py",
-    "build/scripts/generate_hooks_expand.py",
-    "build/scripts/generate_hooks_shim.py",
-    "build/scripts/generate_hooks_transaction.py",
-    "build/scripts/regen_guard.py",
-    "build/scripts/yaml_loader.py",
-    # Trust-anchor surfaces: workflow, validator, test contract
-    ".github/workflows/vendor-provenance.yml",
-    "scripts/ci/validate_vendor_provenance.py",
-    "tests/ci/test_validate_vendor_provenance.py",
-    # Hook wiring and config inputs
-    "src/copilot-cli/hooks/PreToolUse/_manifest.json",
-    "src/copilot-cli/hooks/PostToolUse/_manifest.json",
-    ".claude/hooks/dispatch_groups.json",
-    ".claude/hooks/hooks.json",
-    "src/copilot-cli/hooks/hooks.json",
-    ".claude/settings.json",
-    ".markdownlint-cli2.yaml",
-    # All hook dirs (non-PreToolUse)
-    ".claude/hooks/PostToolUse/",
-    ".claude/hooks/PreCompact/",
-    ".claude/hooks/SessionEnd/",
-    ".claude/hooks/SessionStart/",
-    ".claude/hooks/UserPromptSubmit/",
-    "src/copilot-cli/hooks/PostToolUse/",
     "build/scripts/",
 )
 
+# Additional trust-anchor surfaces not inside scan roots
+_EXTRA_WATCHED: tuple[str, ...] = (
+    ".github/workflows/vendor-provenance.yml",
+    "scripts/ci/validate_vendor_provenance.py",
+    "tests/ci/test_validate_vendor_provenance.py",
+    ".claude/settings.json",
+    ".markdownlint-cli2.yaml",
+    ".gitattributes",
+)
+
+
+def _watched_paths() -> frozenset[str]:
+    """Structurally derive the full relevance set.
+
+    Combines: every pinned artifact path, every scan root prefix,
+    and trust-anchor surfaces. This prevents drift between pins
+    and relevance by construction.
+    """
+    paths: set[str] = set()
+    # Every pinned artifact is relevant
+    for rel, _, _ in _PINNED_ARTIFACTS:
+        paths.add(rel)
+    # Scan root directories (prefix match)
+    for root in _SCAN_ROOTS:
+        paths.add(root)
+    # Extra trust-anchor files
+    for extra in _EXTRA_WATCHED:
+        paths.add(extra)
+    return frozenset(paths)
+
+
+WATCHED_PREFIXES: frozenset[str] = _watched_paths()
+
 
 def check_relevance(changed_files: list[str]) -> bool:
-    """Return True if any changed file falls under a watched prefix.
+    """Return True if any changed file falls under a watched path.
 
+    Coverage is derived structurally from _PINNED_ARTIFACTS + _SCAN_ROOTS +
+    _EXTRA_WATCHED so that adding a pin automatically adds relevance.
     Covers additions, modifications, deletions, renames, and type changes.
-    The workflow calls this via --check-relevance to decide whether to run
-    full validation.
     """
     for f in changed_files:
+        # Exact match (pinned files, extra watched files)
+        if f in WATCHED_PREFIXES:
+            return True
+        # Prefix match (scan root directories end with /)
         for prefix in WATCHED_PREFIXES:
-            if f.startswith(prefix) or f == prefix.rstrip("/"):
+            if prefix.endswith("/") and f.startswith(prefix):
                 return True
     return False
 
