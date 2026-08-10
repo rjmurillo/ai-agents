@@ -28,7 +28,7 @@ If `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session 
 
 - Cyclomatic complexity per method <=10. Method <=60 lines. No nested code.
 - Coverage: 100% on security paths, 80% on business logic.
-- Run `python3 scripts/validation/memory_index.py --ci` when memories change; `npx markdownlint-cli2 --fix "**/*.md"` when markdown changes.
+- Run `uv run --frozen python scripts/validation/memory_index.py --ci` when memories change; `npx markdownlint-cli2 --fix "**/*.md"` when markdown changes.
 - All tests pass locally before push (pytest 8+, Pester 5.7.1).
 
 ## Security gates (BLOCKING, see `.agents/steering/security-practices.md`)

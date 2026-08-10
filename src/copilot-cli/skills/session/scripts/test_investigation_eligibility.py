@@ -11,6 +11,7 @@ Exit codes follow ADR-035:
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
@@ -44,6 +45,8 @@ _ALLOWLIST_DISPLAY = [
     ".agents/critique/",
 ]
 
+_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
+
 
 def _file_matches_allowlist(file_path: str) -> bool:
     """Test whether a file path matches the investigation allowlist."""
@@ -51,34 +54,164 @@ def _file_matches_allowlist(file_path: str) -> bool:
     return any(re.search(p, normalized) for p in _ALLOWLIST_PATTERNS)
 
 
-def main(argv: list[str] | None = None) -> int:
-    # Get staged files
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, timeout=10, check=False,
-    )
+def _name_status_paths(output: str) -> list[str]:
+    """Return every old and new path from git name-status output."""
+    paths: list[str] = []
+    for line in output.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        paths.extend(path for path in parts[1:] if path)
+    return paths
 
+
+def _run_git(command: list[str]) -> tuple[list[str] | None, str | None]:
+    """Run one git path query and fail closed on command errors."""
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
     if result.returncode != 0:
+        detail = result.stderr.strip() or "git command failed"
+        return None, detail
+    if "--name-status" in command:
+        return _name_status_paths(result.stdout), None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()], None
+
+
+def _changed_files(
+    base_ref: str,
+    head_ref: str = "",
+) -> tuple[list[str] | None, str | None]:
+    """Return paths in a fixed range or through HEAD plus the working tree."""
+    range_head = head_ref or "HEAD"
+    commands = [
+        [
+            "git",
+            "diff",
+            "--name-status",
+            "--find-renames",
+            "--no-ext-diff",
+            f"{base_ref}..{range_head}",
+            "--",
+        ],
+    ]
+    if not head_ref:
+        commands.extend(
+            [
+                [
+                    "git",
+                    "diff",
+                    "--cached",
+                    "--name-status",
+                    "--find-renames",
+                    "--no-ext-diff",
+                    "--",
+                ],
+                [
+                    "git",
+                    "diff",
+                    "--name-status",
+                    "--find-renames",
+                    "--no-ext-diff",
+                    "--",
+                ],
+                ["git", "ls-files", "--others", "--exclude-standard"],
+            ]
+        )
+    paths: set[str] = set()
+    for command in commands:
+        found, error = _run_git(command)
+        if error:
+            return None, error
+        paths.update(found or [])
+    return sorted(paths), None
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the investigation eligibility CLI parser."""
+    parser = argparse.ArgumentParser(
+        description="Check whether changed files qualify for investigation-only QA.",
+    )
+    parser.add_argument(
+        "--base-ref",
+        default="",
+        help="Include committed changes from this session starting commit through HEAD.",
+    )
+    parser.add_argument(
+        "--head-ref",
+        default="",
+        help="End at this commit and exclude working-tree changes.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.base_ref and not _COMMIT_PATTERN.fullmatch(args.base_ref):
         output = {
             "Eligible": False,
+            "ChangedFiles": [],
             "StagedFiles": [],
             "Violations": [],
             "AllowedPaths": _ALLOWLIST_DISPLAY,
-            "Error": "Not in a git repository or git command failed",
+            "Error": f"Invalid base ref: {args.base_ref!r}",
         }
         print(json.dumps(output, indent=2))
         return 0
 
-    staged_files = [
-        line.strip() for line in result.stdout.splitlines()
-        if line.strip()
-    ]
+    if args.head_ref and not _COMMIT_PATTERN.fullmatch(args.head_ref):
+        output = {
+            "Eligible": False,
+            "ChangedFiles": [],
+            "StagedFiles": [],
+            "Violations": [],
+            "AllowedPaths": _ALLOWLIST_DISPLAY,
+            "Error": f"Invalid head ref: {args.head_ref!r}",
+        }
+        print(json.dumps(output, indent=2))
+        return 0
 
-    violations = [f for f in staged_files if not _file_matches_allowlist(f)]
+    if args.head_ref and not args.base_ref:
+        output = {
+            "Eligible": False,
+            "ChangedFiles": [],
+            "StagedFiles": [],
+            "Violations": [],
+            "AllowedPaths": _ALLOWLIST_DISPLAY,
+            "Error": "--head-ref requires --base-ref",
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    if args.base_ref:
+        changed_files, error = _changed_files(args.base_ref, args.head_ref)
+    else:
+        changed_files, error = _run_git(
+            ["git", "diff", "--cached", "--name-status", "--find-renames", "--no-ext-diff", "--"]
+        )
+    if error:
+        output = {
+            "Eligible": False,
+            "ChangedFiles": [],
+            "StagedFiles": [],
+            "Violations": [],
+            "AllowedPaths": _ALLOWLIST_DISPLAY,
+            "Error": error,
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    changed_files = changed_files or []
+    violations = [path for path in changed_files if not _file_matches_allowlist(path)]
 
     output = {
         "Eligible": len(violations) == 0,
-        "StagedFiles": staged_files,
+        "ChangedFiles": changed_files,
+        "StagedFiles": changed_files,
         "Violations": violations,
         "AllowedPaths": _ALLOWLIST_DISPLAY,
     }
