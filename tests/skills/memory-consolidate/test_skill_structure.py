@@ -45,6 +45,7 @@ def test_consolidation_contract() -> None:
         "recoverable from git",
         "git status --short -- .serena/memories",
         "git ls-files --error-unmatch",
+        'git ls-files --error-unmatch -- "<candidate>"',
         "confirming serena is active on the repository",
         "source stamp",
         "trustworthy file history",

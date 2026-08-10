@@ -94,12 +94,16 @@ Before editing, require no unrelated changes under `.serena/memories/`. This
 keeps the consolidation diff reviewable and makes any mistaken deletion
 recoverable from git without another agentic pass. If the memory tree is not
 tracked by git, do not delete files; report the prerequisite instead. Check
-both conditions before the first edit:
+the worktree and index before the first edit:
 
 ```bash
 git status --short -- .serena/memories
 git ls-files --error-unmatch .serena/memories/memory-index.md
 ```
+
+Before deleting any file, also run
+`git ls-files --error-unmatch -- "<candidate>"`. If that candidate is
+untracked, leave it in place and report it instead of deleting it.
 
 - **Merge only genuine duplicates.** Two files are merge candidates only
   when they would both answer the same lookup query about the same person,
