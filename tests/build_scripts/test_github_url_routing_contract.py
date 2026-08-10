@@ -110,7 +110,9 @@ def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
 
 # Expected exact mappings: URL pattern fragment -> tool name
 # Ordered from most specific to least specific for correct matching
-_REQUIRED_ROUTES = {
+# Canonical required routes: pattern fragment -> expected tool.
+# Order: most-specific first to avoid prefix collisions.
+_REQUIRED_ROUTES: dict[str, str] = {
     "/job/": "get_job_logs",
     "/actions/runs/": "get_workflow_run",
     "/pull/": "pull_request_read",
@@ -118,13 +120,14 @@ _REQUIRED_ROUTES = {
 }
 
 
-def _parse_routing_table(body: str) -> dict[str, str]:
-    """Parse the URL classification table into {pattern: tool} pairs.
+def _parse_routing_table(body: str) -> dict[str, list[str]]:
+    """Parse the URL classification table into a multimap {pattern: [tool, ...]}.
 
     Finds the table whose header contains 'URL pattern', then extracts
-    pattern->tool mappings from data rows.
+    complete pattern->tool mappings from data rows. Returns a multimap
+    so callers can detect duplicate rows mapping the same pattern.
     """
-    routes: dict[str, str] = {}
+    routes: dict[str, list[str]] = {}
     lines = body.split("\n")
     table_start = -1
 
@@ -156,10 +159,41 @@ def _parse_routing_table(body: str) -> dict[str, str]:
 
         for frag in _REQUIRED_ROUTES:
             if frag in pattern_cell:
-                routes[frag] = tool_cell
+                routes.setdefault(frag, []).append(tool_cell)
                 break
 
     return routes
+
+
+def _validate_routing_table(
+    routes: dict[str, list[str]], surface_label: str
+) -> list[str]:
+    """Shared strict validator for routing table correctness.
+
+    Returns list of error strings (empty means pass). Checks:
+    - Every required pattern has exactly one row
+    - Each mapped tool matches the canonical expected tool
+    - No duplicate rows for same pattern
+    """
+    errors: list[str] = []
+    for pattern, expected_tool in _REQUIRED_ROUTES.items():
+        tools = routes.get(pattern)
+        if not tools:
+            errors.append(
+                f"{surface_label}: routing table missing pattern '{pattern}'"
+            )
+            continue
+        if len(tools) > 1:
+            errors.append(
+                f"{surface_label}: duplicate rows for '{pattern}': {tools}"
+            )
+            continue
+        if tools[0] != expected_tool:
+            errors.append(
+                f"{surface_label}: pattern '{pattern}' maps to "
+                f"'{tools[0]}', expected '{expected_tool}'"
+            )
+    return errors
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
@@ -167,19 +201,15 @@ def test_analyst_surface_has_exact_routing_table(surface: Path) -> None:
     """Each surface must have a routing table with exact pattern->tool mappings."""
     body = surface.read_text(encoding="utf-8")
     routes = _parse_routing_table(body)
+    label = str(surface.relative_to(REPO_ROOT))
 
-    for pattern, expected_tool in _REQUIRED_ROUTES.items():
-        assert pattern in routes, (
-            f"{surface.relative_to(REPO_ROOT)}: routing table missing "
-            f"pattern '{pattern}'"
-        )
-        # Handle MCP-prefixed tools (mcp__github__pull_request_read)
-        actual = routes[pattern]
-        bare_actual = actual.replace("mcp__github__", "")
-        assert bare_actual == expected_tool, (
-            f"{surface.relative_to(REPO_ROOT)}: pattern '{pattern}' maps to "
-            f"'{actual}' but expected '{expected_tool}'"
-        )
+    # Normalize MCP-prefixed tools before validation
+    normalized: dict[str, list[str]] = {
+        k: [v.replace("mcp__github__", "") for v in vs]
+        for k, vs in routes.items()
+    }
+    errors = _validate_routing_table(normalized, label)
+    assert not errors, "\n".join(errors)
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
@@ -187,12 +217,10 @@ def test_analyst_surface_no_duplicate_routes(surface: Path) -> None:
     """No URL pattern should map to multiple tools (no duplicates)."""
     body = surface.read_text(encoding="utf-8")
     routes = _parse_routing_table(body)
-    # The parser already deduplicates by key; if the table has duplicate
-    # pattern rows, only the last wins. Check that all required routes exist
-    # (if duplicates existed, the wrong one might win).
-    for pattern in _REQUIRED_ROUTES:
-        assert pattern in routes, (
-            f"{surface.relative_to(REPO_ROOT)}: missing route for '{pattern}'"
+    label = str(surface.relative_to(REPO_ROOT))
+    for pattern, tools in routes.items():
+        assert len(tools) == 1, (
+            f"{label}: duplicate rows for '{pattern}': {tools}"
         )
 
 
@@ -207,12 +235,8 @@ def test_routing_table_rejects_swapped_mappings() -> None:
         "| `/actions/runs/<ID>/job/<JID>` | `get_workflow_run` |\n"
     )
     routes = _parse_routing_table(swapped_table)
-    # Verify at least one mapping is wrong (swapped)
-    mismatches = sum(
-        1 for p, t in _REQUIRED_ROUTES.items()
-        if p in routes and routes[p] != t
-    )
-    assert mismatches > 0, "Swapped table should have incorrect mappings"
+    errors = _validate_routing_table(routes, "swapped-fixture")
+    assert errors, "Swapped table must fail validation"
 
 
 def test_routing_table_rejects_missing_rows() -> None:
@@ -223,9 +247,24 @@ def test_routing_table_rejects_missing_rows() -> None:
         "| `/pull/<N>` | `pull_request_read` |\n"
     )
     routes = _parse_routing_table(partial_table)
-    assert "/issues/" not in routes
-    assert "/actions/runs/" not in routes
-    assert "/job/" not in routes
+    errors = _validate_routing_table(routes, "partial-fixture")
+    assert errors, "Partial table must fail validation"
+
+
+def test_routing_table_rejects_duplicate_rows() -> None:
+    """Negative control: duplicate pattern rows must fail validation."""
+    dup_table = (
+        "| URL pattern | Tool |\n"
+        "|---|---|\n"
+        "| `/pull/<N>` | `pull_request_read` |\n"
+        "| `/pull/<N>/files` | `pull_request_read` |\n"
+        "| `/issues/<N>` | `issue_read` |\n"
+        "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+        "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+    )
+    routes = _parse_routing_table(dup_table)
+    errors = _validate_routing_table(routes, "dup-fixture")
+    assert errors, "Duplicate pattern rows must fail validation"
 
 
 @pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))

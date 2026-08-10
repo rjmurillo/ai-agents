@@ -336,7 +336,7 @@ _IMPERATIVES = re.compile(
 )
 
 _NEGATIONS = re.compile(
-    r"\b(do\s+not|don[\u2019']?t|never|cannot|must\s+not|forbidden|"
+    r"\b(do\s+not|don[\u2019']?t|never|cannot|must\s+not|should\s+not|forbidden|"
     r"deprecated|was\s+deprecated|is\s+not|prohibited)\b",
     re.IGNORECASE,
 )
@@ -383,29 +383,44 @@ def _line_has_tool_reference(line: str) -> bool:
 
 
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive addressed to the analyst.
+    """Return True if line is an affirmative directive with analyst as actor.
+
+    Requires the word "analyst" to appear as the grammatical subject/actor
+    of the directive. Bare imperatives without an explicit actor are rejected
+    (they could be addressed to any reader). Passive voice is rejected.
 
     Accepts:
-    - Bare imperatives (implied "you" = analyst): "use X to retrieve"
-    - Explicitly analyst-attributed: "the analyst should use X"
+    - "The analyst retrieves X using Y"
+    - "The analyst uses X to retrieve"
 
     Rejects:
-    - Any other named agent as subject
-    - Example/documentation markers
-    - Negated verbs
-    - Imperative verbs only inside inline-code spans
+    - Bare imperatives without actor: "use X to retrieve"
+    - Passive: "X should be used by the analyst"
+    - Other agents: "the orchestrator retrieves X"
+    - Negated: "the analyst should not call X"
     """
     if _NON_DIRECTIVE.search(line):
         return False
     if _NEGATIONS.search(line):
         return False
-    # Reject if another agent is named (attribution to non-analyst)
     if _OTHER_AGENT.search(line):
         return False
 
-    # Check if imperative verb exists in prose (outside inline-code spans)
+    lower = line.lower()
+    # Require "analyst" as the actor in the line
+    if "analyst" not in lower:
+        return False
+
+    # Reject passive voice (tool "is/are/be used/called/invoked")
+    if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
+        return False
+
+    # Check if an affirmative verb exists in prose (outside inline-code spans)
     prose = re.sub(r"`[^`]*`", "", line)
     if _IMPERATIVES.search(prose):
+        return True
+    # Accept "analyst retrieves/uses" (present tense active voice)
+    if re.search(r"\banalyst\b.*\b(retrieves?|uses?|calls?|invokes?)\b", prose.lower()):
         return True
     if "retrieval via declared tools" in prose.lower():
         return True
@@ -561,7 +576,7 @@ class TestNegativeControls:
     # Fixture 8: Actions URL routing test
     ACTIONS_URL_ROUTED = (
         "\n### delegation contract\n"
-        "use get_workflow_run to retrieve CI data directly. "
+        "the analyst uses get_workflow_run to retrieve CI data directly. "
         "return [blocked] only when retrieval via declared tools fails.\n"
     )
 
@@ -666,6 +681,34 @@ class TestNegativeControls:
     TOOL_SMART_QUOTED = (
         "\n### delegation contract\n"
         "\u201cuse pull_request_read to retrieve data\u201d. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 23: bare imperative without analyst actor (must reject)
+    TOOL_BARE_IMPERATIVE = (
+        "\n### delegation contract\n"
+        "use pull_request_read to retrieve PR data. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 24: passive voice (must reject)
+    TOOL_PASSIVE_VOICE = (
+        "\n### delegation contract\n"
+        "pull_request_read is used by the analyst to retrieve PR data. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 25: compliance-bot agent (must reject)
+    TOOL_COMPLIANCE_BOT = (
+        "\n### delegation contract\n"
+        "the compliance-bot uses pull_request_read to check. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 26: analyst should not (negated analyst directive)
+    TOOL_ANALYST_NEGATED = (
+        "\n### delegation contract\n"
+        "the analyst should not call pull_request_read directly. "
         "return [blocked] only when missing.\n"
     )
 
@@ -778,3 +821,23 @@ class TestNegativeControls:
         """Tool in Unicode curly-quoted example must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_SMART_QUOTED)
         assert err is not None, "Should reject smart-quoted example"
+
+    def test_tool_bare_imperative_rejected(self) -> None:
+        """Bare imperative without analyst actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BARE_IMPERATIVE)
+        assert err is not None, "Should reject actorless bare imperative"
+
+    def test_tool_passive_voice_rejected(self) -> None:
+        """Passive voice must not satisfy guard even with analyst mentioned."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_PASSIVE_VOICE)
+        assert err is not None, "Should reject passive voice"
+
+    def test_tool_compliance_bot_rejected(self) -> None:
+        """Directive attributed to compliance-bot must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMPLIANCE_BOT)
+        assert err is not None, "Should reject compliance-bot directive"
+
+    def test_tool_analyst_negated_rejected(self) -> None:
+        """'analyst should not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_NEGATED)
+        assert err is not None, "Should reject negated analyst directive"
