@@ -93,13 +93,13 @@ flowchart TD
 
 ### ai-pr-quality-gate.yml
 
-**Role**: AI-powered parallel PR review using 6 specialist agents
+**Role**: AI-powered parallel PR review using 10 specialist agents
 
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR to `main`, manual dispatch |
-| **Agents** | security, qa, analyst, architect, devops, roadmap |
-| **Exit Behavior** | Blocks merge on `CRITICAL_FAIL` |
+| **Agents** | security, qa, analyst, architect, devops, roadmap, reliability, observability, agent-safety, decision-rigor |
+| **Exit Behavior** | Blocks on code failures and missing security review |
 | **Dependencies** | Copilot CLI, `ai-review` composite action |
 
 **Agent Responsibilities**:
@@ -112,6 +112,10 @@ flowchart TD
 | Architect | Design patterns, system boundaries, breaking changes | 📐 |
 | DevOps | CI/CD, GitHub Actions, shell scripts, pipelines | ⚙️ |
 | Roadmap | Strategic alignment, feature scope, user value | 🗺️ |
+| Reliability | Failure handling, recovery, operational risk | 🛡️ |
+| Observability | Logging, metrics, and diagnostics | 🔭 |
+| Agent Safety | Agent boundaries and guardrails | 🤖 |
+| Decision Rigor | Trade-offs, evidence, and decision quality | ⚖️ |
 
 **Architecture**:
 
@@ -125,11 +129,15 @@ flowchart LR
         R4[architect review]
         R5[devops review]
         R6[roadmap review]
+        R7[reliability review]
+        R8[observability review]
+        R9[agent safety review]
+        R10[decision rigor review]
         AG[aggregate]
     end
 
-    CC --> R1 & R2 & R3 & R4 & R5 & R6
-    R1 & R2 & R3 & R4 & R5 & R6 --> AG
+    CC --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10
+    R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10 --> AG
     AG --> CMT[PR Comment]
 ```
 
@@ -490,8 +498,8 @@ sequenceDiagram
 
 | Workflow | Error Scenario | Behavior |
 |----------|---------------|----------|
-| ai-pr-quality-gate | Copilot CLI failure | Log error, continue with available results |
-| ai-pr-quality-gate | All agents fail | Post error summary, don't block |
+| ai-pr-quality-gate | Non-security infrastructure failure | Log error, continue with available results |
+| ai-pr-quality-gate | Security review does not run | Post infrastructure summary and block |
 | drift-detection | Detection error | Exit 2, no issue created |
 | validate-* | Script failure | Fail workflow, block merge |
 | pytest | Test failure | Report details, fail workflow |

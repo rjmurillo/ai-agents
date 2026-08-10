@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import math
@@ -350,7 +351,7 @@ class TestRunProvenance:
 
 
 class TestParseJudgeResponseEvidence:
-    """Parse failures must preserve the full raw response, not a 200-char prefix."""
+    """Parse failures retain exact evidence within the bounded response limit."""
 
     def _score(self, monkeypatch, raw_text: str) -> dict:
         monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
@@ -413,8 +414,110 @@ class TestParseJudgeResponseEvidence:
 
 
 # ---------------------------------------------------------------------------
-# _load_scenarios_file() path validation
+# Model identity on sample record (#3975)
 # ---------------------------------------------------------------------------
+
+
+class TestSampleModelIdentity:
+    """judge_model must appear on every sample record so per-model claims are checkable."""
+
+    def _score(self, monkeypatch, raw_text: str, model: str = "claude-test") -> dict:
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+            model=model,
+        )
+
+    def test_successful_parse_records_model(self, monkeypatch):
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        result = self._score(monkeypatch, good, model="claude-opus-5")
+        assert result.get("judge_model") == "claude-opus-5"
+
+    def test_parse_failure_records_model(self, monkeypatch):
+        result = self._score(monkeypatch, "not json at all", model="claude-haiku-4")
+        assert result.get("judge_model") == "claude-haiku-4"
+
+    def test_non_object_json_records_model(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]", model="gpt-5")
+        assert result.get("judge_model") == "gpt-5"
+
+    def test_default_model_is_recorded(self, monkeypatch):
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: good)
+        result = eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+        assert "judge_model" in result
+        assert result["judge_model"] == eval_mod.DEFAULT_MODEL
+
+
+class TestBoundedJudgeEvidence:
+    def test_empty_parse_failure_stores_replayable_evidence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = _score_response_with(monkeypatch, "")
+
+        with pytest.raises(ValueError) as replayed:
+            eval_mod._strict_json_loads(result["raw_judge_response"])
+
+        assert result["raw_judge_response"] == ""
+        assert result["judge_parse_error"] == str(replayed.value)
+
+    def test_parse_failure_replays_from_stored_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = '{"activation_score": 3, "reasoning": "unterminated}'
+        result = _score_response_with(monkeypatch, payload)
+
+        with pytest.raises(ValueError) as replayed:
+            eval_mod._strict_json_loads(result["raw_judge_response"].strip())
+
+        assert result["judge_failed"] is True
+        assert result["judge_parse_error"] == str(replayed.value)
+        assert result["judge_parse_error_type"] == type(replayed.value).__name__
+        assert result["raw_judge_response"] == payload
+
+    def test_response_at_limit_keeps_exact_parse_evidence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        result = _score_response_with(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload
+        assert "raw_judge_response_truncated" not in result
+        assert "judge_parse_error" in result
+
+    def test_valid_response_over_limit_is_bounded_without_fabricated_parse_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        long_reasoning = "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        payload = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3,'
+            f' "reasoning": "{long_reasoning}"}}'
+        )
+        result = _score_response_with(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert len(result["raw_judge_response"]) == eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        assert result["raw_judge_response"].startswith('{"activation_score"')
+        assert result["raw_judge_response"].endswith('"}')
+        assert result["raw_judge_response_chars"] == len(payload)
+        assert (
+            result["raw_judge_response_sha256"]
+            == hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        )
+        assert result["raw_judge_response_truncated"] is True
+        assert result["reasoning"].endswith("character evidence limit")
+        assert "judge_parse_error" not in result
 
 
 class TestLoadScenariosFile:
@@ -4501,7 +4604,7 @@ class TestUnifiedParsePath:
 
 
 class TestRawJudgeResponseNoTruncation:
-    """Full payload preserved on failure -- no 200-char truncation (#3975)."""
+    """Payloads past the old 200-char cutoff remain exact within the new limit."""
 
     def test_large_failure_payload_is_not_truncated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         payload = "x" * 500
