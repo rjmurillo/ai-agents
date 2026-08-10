@@ -1,0 +1,70 @@
+{
+  "id": "episode-2026-08-10-session-4601-qa-report",
+  "session": "2026-08-10-session-4601-qa-report",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add QA evidence for PR 4601 Validate PR gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T11:20:00+00:00",
+      "type": "milestone",
+      "content": "Acquired pr_autofix lease for PR 4601 and live-state gate returned ACT.",
+      "caused_by": [],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
+      "_source_session": "2026-08-10-session-4601-qa-report"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/ci/test_ruff_ratchet_push_base.py -q. Result: 6 passed in 0.31s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4601-qa-report"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "test",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/ci/test_ruff_ratchet_push_base.py -q. Result: 6 passed in 0.31s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4601-qa-report"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T11:30:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report bound to pre-report code commit eba6bec8b22fa20e7cb9f9dfd551e76fbb64e844.",
+      "caused_by": [
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4601-qa-report"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 10,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
