@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code committed as ec7c9e75f and bd538ad5c. Session log committed as fe66089b2."
+        "Evidence": "Code and QA validation evidence are committed through a6784b56ea778c79b5abef036c8a9ad3ca3c9cc5 before the QA evidence commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Clean branch targeted pytest passed: 40 tests passed, including tests/mutation/test_mutate_validate_findings_scope.py. Clean branch pre_pr.py exited 0."
+        "Evidence": "PYTHONDONTWRITEBYTECODE=1 uv run --frozen pytest --tb=short -q tests/skills/review/test_validate_findings_scope.py tests/mutation/test_mutate_validate_findings_scope.py collected 40 and passed 40."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": "Not needed. No new reusable process lesson beyond issue-specific fix."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4649-qa.md"
       }
     }
   },
@@ -142,12 +147,12 @@
     {
       "action": "Validated clean branch",
       "detail": "Ran targeted pytest with 40 tests and pre_pr.py on /home/richard/src/GitHub/rjmurillo/ai-agents-subagentwt-clean. Both exited 0."
+    },
+    {
+      "action": "Added PR QA evidence",
+      "detail": "QA report .agents/qa/000-pr-4649-qa.md records targeted validation against PR head a6784b56ea778c79b5abef036c8a9ad3ca3c9cc5."
     }
   ],
-  "endingCommit": "fe66089b25f0087afa4e2feef260851c564328c1",
-  "nextSteps": [
-    "Commit this validation update.",
-    "Push fix/4020-review-worktree-scope after verifying the remote head matches local HEAD.",
-    "Create a clean REST PR for #4020 and document that #4377 is closed on main."
-  ]
+  "endingCommit": "a6784b56ea778c79b5abef036c8a9ad3ca3c9cc5",
+  "nextSteps": []
 }

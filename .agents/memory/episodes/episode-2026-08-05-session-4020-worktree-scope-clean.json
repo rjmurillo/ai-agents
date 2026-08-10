@@ -86,7 +86,8 @@
         "e003",
         "e004",
         "e005",
-        "e008"
+        "e008",
+        "e010"
       ],
       "leads_to": [
         "e006"
@@ -112,6 +113,30 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added PR QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T09:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: a6784b56ea778c79b5abef036c8a9ad3ca3c9cc5",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
     }
@@ -121,8 +146,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 2
+    "commits": 4,
+    "files_changed": 7
   },
   "lessons": []
 }
