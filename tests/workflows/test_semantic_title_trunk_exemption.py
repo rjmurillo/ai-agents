@@ -11,24 +11,30 @@ that also named `Validate PR` were cancellations, not independent failures:
 dropping the pull request from the queue closes the draft, which cancels the
 runs still in flight.
 
-The exemption has three parts and all of them matter:
+The exemption has two parts and both matter:
 
-1. The validation steps skip for a `trunk-merge/` head branch.
-2. The skip applies only to same-repository branches, so a fork cannot claim
-   it by naming its branch `trunk-merge/anything`.
-3. The gating is per step, never a job-level `if:`.
+1. The validation steps skip when the actor is `trunk-io[bot]`.
+2. The gating is per step, never a job-level `if:`.
 
-Part 3 is the load-bearing one. This job's name is the required status check
+Matching the actor rather than the head branch is deliberate. An earlier
+version matched a `trunk-merge/` branch prefix, which let anyone who can push
+a branch claim the exemption by naming it, and needed a same-repository test
+to close that. An actor cannot be spoofed by branch name, so the branch is not
+consulted at all.
+
+Part 2 is the load-bearing one. This job's name is the required status check
 context, and a job-level `if:` changes what conclusion that context reports on
 every queued pull request. Trunk advances the queue from that conclusion, so
 the job runs unconditionally and reports a real success.
 
-Behaviour was verified by running the expression through `act` on 2026-08-10
-across five cases: `feature/normal` (false), `trunk-merge/pr-4747/<uuid>` in
-this repository (true), the same branch name on a fork (false),
-`trunk-merge-evil/x` (false, no prefix confusion), and actor `dependabot[bot]`
-(true). Those runs also confirmed that a step-level `if:` reads job-level
-`env`, and that the folded expression yields the literal string `true`.
+The actor was verified against runs 31344670998 and 31344673874, where
+`github.actor` was `trunk-io[bot]`, including on a bisection branch. The
+expression was then verified through `act` on 2026-08-10 against a fork event
+payload across five actors: `trunk-io[bot]` true, `dependabot[bot]` true,
+`someuser` false, `trunk-io` false, and `trunk-io[bot]evil` false, so matching
+is exact rather than a prefix. Those runs also confirmed that a step-level
+`if:` reads job-level `env`, and that the folded expression yields the literal
+string `true`.
 """
 
 from __future__ import annotations
@@ -52,8 +58,7 @@ _EXPECTED_SKIP_EXPRESSION = (
     "${{ github.actor == 'dependabot[bot]' "
     "|| github.actor == 'github-actions[bot]' "
     "|| github.actor == 'renovate[bot]' "
-    "|| (startsWith(github.head_ref, 'trunk-merge/') "
-    "&& github.event.pull_request.head.repo.full_name == github.repository) }}"
+    "|| github.actor == 'trunk-io[bot]' }}"
 )
 
 
@@ -81,20 +86,19 @@ def test_skip_expression_is_exactly_as_pinned(job: dict) -> None:
     assert job["env"]["SKIP_TITLE_CHECK"] == _EXPECTED_SKIP_EXPRESSION
 
 
-def test_skip_expression_covers_trunk_merge_branches(job: dict) -> None:
+def test_skip_expression_covers_the_trunk_actor(job: dict) -> None:
     expression = job["env"]["SKIP_TITLE_CHECK"]
-    assert "startsWith(github.head_ref, 'trunk-merge/')" in expression
+    assert "github.actor == 'trunk-io[bot]'" in expression
 
 
-def test_trunk_exemption_is_limited_to_this_repository(job: dict) -> None:
-    """Negative: a fork must not reach the exemption by branch name alone."""
+def test_exemption_does_not_depend_on_the_branch_name(job: dict) -> None:
+    """Negative control against the earlier design. Matching a `trunk-merge/`
+    head branch let anyone who can push a branch claim the exemption by name,
+    which needed a same-repository test to close. The actor cannot be spoofed
+    that way, so the branch name must not appear at all."""
     expression = job["env"]["SKIP_TITLE_CHECK"]
-    assert (
-        "github.event.pull_request.head.repo.full_name == github.repository"
-        in expression
-    )
-    trunk_clause = expression.split("|| (", 1)[1]
-    assert trunk_clause.startswith("startsWith(github.head_ref, 'trunk-merge/') &&")
+    assert "head_ref" not in expression
+    assert "startsWith" not in expression
 
 
 def test_skip_expression_still_covers_every_bot_actor(job: dict) -> None:

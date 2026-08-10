@@ -24,10 +24,11 @@ jobs:
     env:
       # Trunk Merge Queue tests a queued PR by opening a draft PR whose title is
       # its branch name (trunk-merge/pr-4747/<uuid>), which can never satisfy a
-      # conventional-commit title. Skip the validation steps for those, exactly
-      # as for bot actors. Trunk opens that draft PR in this repository, so the
-      # same-repo test costs nothing here and stops a fork from claiming the
-      # exemption by naming its branch trunk-merge/anything.
+      # conventional-commit title. Trunk runs as its own bot actor, verified on
+      # runs 31344670998 and 31344673874 where github.actor was trunk-io[bot],
+      # including a bisection branch. Matching the actor rather than the branch
+      # name means a fork cannot claim the exemption by naming a branch
+      # trunk-merge/anything, so no same-repository test is needed.
       #
       # The gating is per step, never a job-level if:. This job's name is the
       # required context "Validate PR title", and a job-level if: would change
@@ -38,8 +39,7 @@ jobs:
         ${{ github.actor == 'dependabot[bot]'
         || github.actor == 'github-actions[bot]'
         || github.actor == 'renovate[bot]'
-        || (startsWith(github.head_ref, 'trunk-merge/')
-        && github.event.pull_request.head.repo.full_name == github.repository) }}
+        || github.actor == 'trunk-io[bot]' }}
     steps:
       - name: Skip title validation
         if: env.SKIP_TITLE_CHECK == 'true'

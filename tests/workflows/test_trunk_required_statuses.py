@@ -89,14 +89,17 @@ def test_paid_ai_reviews_are_excluded(required_statuses: list[str]) -> None:
     assert not overlap, f"paid AI reviews must not gate the queue: {sorted(overlap)}"
 
 
-def test_checks_never_seen_on_a_trunk_draft_are_excluded(
+def test_checks_not_observed_reporting_on_a_draft_are_excluded(
     required_statuses: list[str],
 ) -> None:
     """Edge: requiring a check that does not report on a draft hangs the queue
-    forever. Measured 2026-08-10 across drafts 4796, 4803, and 4805."""
-    never_reported = {"Analyze (actions)", "Analyze (python)"}
-    overlap = never_reported.intersection(required_statuses)
-    assert not overlap, f"these never report on a Trunk draft: {sorted(overlap)}"
+    forever. These were not seen reporting on drafts 4796, 4803, or 4805, but
+    every one of those runs was cancelled after another gate failed, so their
+    absence is unproven rather than established. They stay excluded because
+    the downside is a hung queue; re-evaluate after one clean queue run."""
+    not_observed = {"Analyze (actions)", "Analyze (python)"}
+    overlap = not_observed.intersection(required_statuses)
+    assert not overlap, f"not observed reporting on a Trunk draft: {sorted(overlap)}"
 
 
 def test_metadata_only_checks_are_excluded(required_statuses: list[str]) -> None:

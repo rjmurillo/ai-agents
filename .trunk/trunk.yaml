@@ -40,6 +40,13 @@ version: 0.1
 # Names must match the job `name:` exactly. Renaming one of these jobs is a
 # queue change as well as a branch-protection change; `.claude/rules/ci-scripts.md`
 # MUST 22 gives the ordering that avoids a deadlock.
+#
+# Do not repopulate this list from branch policies. Trunk can seed required
+# statuses from the protected branch, and doing so here restores all 16
+# contexts, which is the default this file exists to override. The trim is the
+# point, so a sync silently undoes it and the paid reviews start running twice
+# again. `tests/workflows/test_trunk_required_statuses.py` fails if the
+# excluded checks come back.
 merge:
   required_statuses:
     - Run Python Tests
