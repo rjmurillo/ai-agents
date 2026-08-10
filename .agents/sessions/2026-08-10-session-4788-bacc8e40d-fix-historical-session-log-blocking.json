@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704"
+        "Evidence": "Commits: a6872bdc3, c8de637a9, c4730ead7, f2ce51b4, 0ec5463b, a4d997704, f9682e98, 974c9800"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed for changed Python files; tests/test_validate_session_json.py passed 346 tests; historical existing session log validation passed at a4d997704787a4954d7940f286f04cf0a58ecf04"
+        "Evidence": "Ruff passed for changed Python files; tests/test_validate_session_json.py passed 346 tests; TestValidateSessionEnd passed 7 tests; historical existing session log validation passed at a4d997704787a4954d7940f286f04cf0a58ecf04"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -187,9 +187,13 @@
     {
       "task": "Preserve record-only semantics for existing session logs",
       "outcome": "Existing logs skip QA report freshness checks while new and current logs still validate QA evidence; 346 validator tests pass"
+    },
+    {
+      "task": "Bind pre-PR session scope to HEAD",
+      "outcome": "Pre-PR session validation now keeps missing worktree copies in scope and computes newness from HEAD; 7 focused tests pass"
     }
   ],
-  "endingCommit": "a4d997704787a4954d7940f286f04cf0a58ecf04",
+  "endingCommit": "974c980041eeaf16f7ce8ab943ae65eaeb6655a8",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"
