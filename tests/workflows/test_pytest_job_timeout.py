@@ -2,9 +2,13 @@
 
 Issue #4502: the test job had no timeout-minutes, so a hung pytest session
 would hold a runner for GitHub's 360-minute default before terminating.
-The measured p99 wall time is 1546 seconds (26 min) under fleet load.
-The 45-minute budget allows 1.7x that worst case and terminates genuine
-hangs well before the 6-hour default.
+Its evidence records run 30830624080 at 986 seconds and one parallel-fleet
+run at 1546 seconds (26 min), the worst observation, not a percentile.
+
+Thirty minutes leaves only 1.2x the worst observation, too little for runner
+contention. Sixty minutes leaves 2.3x but doubles the time to stop a genuine
+hang versus 30. The configured 45 minutes is the midpoint: 1.7x measured
+headroom while cutting the unbounded default from 6 hours to 45 minutes.
 """
 
 from __future__ import annotations
@@ -42,10 +46,12 @@ class TestTestJobTimeout:
     def test_test_job_timeout_is_at_most_60_minutes(self) -> None:
         """The timeout must not be so large that it defeats the purpose.
 
-        p99 suite wall time is 1546 s (~26 min). A ceiling of 60 min allows
-        2.3x that and still terminates genuine hangs in under an hour. 60 is
-        the upper bound this test enforces, not the configured value: the
-        workflow sets 45, which allows 1.7x.
+        Issue #4502 records the worst observed suite wall time as 1546 s
+        (~26 min), from a parallel-fleet run, not a p99. A ceiling of 60 min
+        allows 2.3x that and still terminates genuine hangs in under an hour.
+        Sixty is the upper bound this test enforces, not the configured value:
+        the workflow sets 45 (1.7x); 30 (1.2x) was rejected as too close to
+        the observed run under contention.
         """
         workflow = _load_workflow()
         jobs = workflow.get("jobs", {})
