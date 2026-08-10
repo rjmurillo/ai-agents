@@ -2,6 +2,7 @@
 |----------|------|
 | merge conflict resolve theirs ours accept reject resolution-strategy | [git/git-conflict-resolution-workflow](git/git-conflict-resolution-workflow.md) |
 | checkout drift stale steering system prompt behind main detached superseded rule | [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) |
+| push retrospective gate documentation-only bypass merge main behind update-branch ruleset strict | [git/git-merging-main-forfeits-the-docs-only-push-bypass](git/git-merging-main-forfeits-the-docs-only-push-bypass.md) |
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
 | squash merge stacked PR chain automatic base retarget merge-base ancestor collapsed add/add conflict ours strategy content-faithful force-push | [git/git-a-squash-merge-severs-a-stacked-pr](git/git-a-squash-merge-severs-a-stacked-pr.md) |
