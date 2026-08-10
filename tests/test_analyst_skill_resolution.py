@@ -282,6 +282,7 @@ def test_pull_request_read_declared(path: Path) -> None:
         f"{path.relative_to(REPO_ROOT)}: pull_request_read not declared"
     )
 
+
 # --- Section-aware validation helpers (shared by production tests and negative controls) ---
 
 
@@ -292,7 +293,7 @@ def _extract_blocked_section(text: str) -> str:
         raise ValueError("No [BLOCKED] found in text")
     section_start = text.rfind("\n#", 0, idx)
     section_end = text.find("\n#", idx)
-    return text[max(0, section_start):section_end if section_end != -1 else len(text)].lower()
+    return text[max(0, section_start) : section_end if section_end != -1 else len(text)].lower()
 
 
 def _check_blocked_conditional(section: str) -> str | None:
@@ -309,7 +310,7 @@ def _check_blocked_conditional(section: str) -> str | None:
 
     # Get the line containing [blocked]
     line_start = section.rfind("\n", 0, blocked_pos) + 1
-    blocked_line = section[line_start:section.find("\n", blocked_pos)]
+    blocked_line = section[line_start : section.find("\n", blocked_pos)]
     if any(w in blocked_line for w in conditional_words):
         return None
 
@@ -326,8 +327,11 @@ def _check_blocked_conditional(section: str) -> str | None:
 
 
 _TOOL_NAMES = (
-    "pull_request_read", "issue_read", "list_workflow_runs",
-    "get_workflow_run", "get_job_logs",
+    "pull_request_read",
+    "issue_read",
+    "list_workflow_runs",
+    "get_workflow_run",
+    "get_job_logs",
 )
 
 # Word-boundary regex matching any declared tool name.
@@ -427,9 +431,11 @@ def _is_affirmative_directive(line: str) -> bool:
     def _mask(m: re.Match[str]) -> str:
         return " " * len(m.group(0))
 
-    masked = re.sub(r"`[^`]*`", _mask, line)
-    masked = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', _mask, masked)
-    masked = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", _mask, masked)
+    # quote_masked: only quotes stripped (preserves backtick tool refs for search)
+    quote_masked = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', _mask, line)
+    quote_masked = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", _mask, quote_masked)
+    # fully masked: code spans AND quotes stripped (for analyst+verb detection)
+    masked = re.sub(r"`[^`]*`", _mask, quote_masked)
     lower = masked.lower()
 
     # Reject passive voice
@@ -437,12 +443,13 @@ def _is_affirmative_directive(line: str) -> bool:
         return False
 
     # Split into clauses on semicolons and sentence boundaries.
-    # Use masked text to find analyst+verb (ensures it's not inside code/quotes).
-    # Use original text at same offsets for tool search (tools may be backtick-
-    # formatted legitimately, e.g. `mcp__github__pull_request_read`).
+    # Use fully masked text to find analyst+verb (not inside code/quotes).
+    # Use quote_masked (quotes hidden, backticks preserved) for tool search
+    # so backtick-formatted tools like `mcp__github__pull_request_read` are
+    # found but quoted examples like "pull_request_read" are rejected.
     clauses = re.split(r"[;.](?:\s|$)", lower)
-    orig_lower = line.lower()
-    orig_clauses = re.split(r"[;.](?:\s|$)", orig_lower)
+    tool_lower = quote_masked.lower()
+    tool_clauses = re.split(r"[;.](?:\s|$)", tool_lower)
 
     # Subordinating conjunctions: boundaries for tool search scope
     subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
@@ -473,23 +480,22 @@ def _is_affirmative_directive(line: str) -> bool:
         # Tool must appear AFTER the analyst+verb as its direct argument,
         # not in a subordinate clause or after a new subject boundary.
         # Use MASKED text for boundary detection (same offsets as verb_match).
-        after_verb = clause[verb_match.end():]
+        after_verb = clause[verb_match.end() :]
         main_frag = re.split(subord, after_verb)[0]
         boundary = new_subject_boundary.search(main_frag)
         frag_end = verb_match.end() + (boundary.start() if boundary else len(main_frag))
 
-        # Search for tool in ORIGINAL text at the same offset range.
-        # This allows backtick-formatted tool names to be found while the
-        # masking still protects against spurious verb matches inside code.
-        orig_clause = orig_clauses[i] if i < len(orig_clauses) else ""
-        orig_frag = orig_clause[verb_match.end():frag_end]
+        # Search for tool in quote-masked text at the same offset range.
+        # Backtick-formatted tool names are visible; quoted ones are masked.
+        tool_clause = tool_clauses[i] if i < len(tool_clauses) else ""
+        tool_frag = tool_clause[verb_match.end() : frag_end]
 
-        tool_match = _TOOL_RE.search(orig_frag)
+        tool_match = _TOOL_RE.search(tool_frag)
         if tool_match:
             return True
 
         # Also accept "declared tool" phrasing in masked fragment
-        masked_frag = main_frag[:boundary.start()] if boundary else main_frag
+        masked_frag = main_frag[: boundary.start()] if boundary else main_frag
         if "declared" in masked_frag and "tool" in masked_frag:
             return True
 
@@ -555,7 +561,7 @@ def _check_identity_conditional(text: str) -> str | None:
     if table_start == -1:
         # No table means no mandatory identity - acceptable
         return None
-    table_section = text[table_start:table_start + 500].lower()
+    table_section = text[table_start : table_start + 500].lower()
     if "when present" not in table_section:
         return "Identity table does not mark local columns as conditional ('when present')"
     return None
@@ -609,8 +615,7 @@ class TestNegativeControls:
 
     # Fixture 1: unconditional BLOCKED (no "only when/if/after")
     UNCONDITIONAL_BLOCKED_SECTION = (
-        "\n### delegation contract\n"
-        "return [blocked] missing pr metadata.\n"
+        "\n### delegation contract\nreturn [blocked] missing pr metadata.\n"
     )
 
     # Fixture 2: BLOCKED with conditional but retrieval only AFTER it
@@ -1225,3 +1230,58 @@ class TestNegativeControls:
         """'accesses' verb by other actor must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_ACCESSES_MIXED)
         assert err is not None, "Should reject accesses mixed actor"
+
+    # Fixture 52: tool in ASCII double-quoted example via _is_affirmative_directive
+    TOOL_DOUBLE_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        'The analyst retrieves "pull_request_read" cache. '
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 53: tool in ASCII single-quoted example via _is_affirmative_directive
+    TOOL_SINGLE_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves 'pull_request_read' cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 54: tool in Unicode curly-quoted directive
+    TOOL_CURLY_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves \u201cpull_request_read\u201d cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 55: tool in backtick code span (QA mandatory reproducer)
+    TOOL_BACKTICK_SPAN_MANDATORY = (
+        "\n### delegation contract\n"
+        "`" + "x" * 32 + " pull_request_read` The analyst retrieves cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    def test_tool_double_quoted_rejected(self) -> None:
+        """Tool in double quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_DOUBLE_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject double-quoted tool"
+        assert not _is_affirmative_directive('The analyst retrieves "pull_request_read" cache')
+
+    def test_tool_single_quoted_in_directive_rejected(self) -> None:
+        """Tool in single quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SINGLE_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject single-quoted tool"
+        assert not _is_affirmative_directive("The analyst retrieves 'pull_request_read' cache")
+
+    def test_tool_curly_quoted_rejected(self) -> None:
+        """Tool in curly quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_CURLY_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject curly-quoted tool"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves \u201cpull_request_read\u201d cache"
+        )
+
+    def test_tool_backtick_span_mandatory_rejected(self) -> None:
+        """QA mandatory reproducer: 32-char backtick span must reject."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BACKTICK_SPAN_MANDATORY)
+        assert err is not None, "Should reject backtick-span tool"
+        line = "`" + "x" * 32 + " pull_request_read` The analyst retrieves cache"
+        assert not _is_affirmative_directive(line)

@@ -93,8 +93,7 @@ def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
     parts = body.split("---", 2)
     frontmatter = parts[1] if len(parts) >= 3 else ""
     has_webfetch_tool = any(
-        marker in frontmatter.lower()
-        for marker in ("web_fetch", "webfetch", "websearch")
+        marker in frontmatter.lower() for marker in ("web_fetch", "webfetch", "websearch")
     )
     if not has_webfetch_tool:
         assert "analyst has no web access" in body, (
@@ -220,19 +219,14 @@ def _validate_routing_table(
         expected = (_MCP_PREFIX + bare_tool) if mcp_prefixed else bare_tool
         tools = routes.get(pattern)
         if not tools:
-            errors.append(
-                f"{surface_label}: routing table missing pattern '{pattern}'"
-            )
+            errors.append(f"{surface_label}: routing table missing pattern '{pattern}'")
             continue
         if len(tools) > 1:
-            errors.append(
-                f"{surface_label}: duplicate rows for '{pattern}': {tools}"
-            )
+            errors.append(f"{surface_label}: duplicate rows for '{pattern}': {tools}")
             continue
         if tools[0] != expected:
             errors.append(
-                f"{surface_label}: pattern '{pattern}' maps to "
-                f"'{tools[0]}', expected '{expected}'"
+                f"{surface_label}: pattern '{pattern}' maps to '{tools[0]}', expected '{expected}'"
             )
 
     # Reject malformed rows
@@ -272,14 +266,10 @@ def _validate_routing_table(
             continue
         # Non-path text (no leading /) that is NOT in the allowlist → reject
         if not alt.startswith("/"):
-            errors.append(
-                f"{surface_label}: unrecognized non-path alternative '{alt}' in table"
-            )
+            errors.append(f"{surface_label}: unrecognized non-path alternative '{alt}' in table")
             continue
         # Path-like but not canonical → reject
-        errors.append(
-            f"{surface_label}: noncanonical path pattern '{alt}' in table"
-        )
+        errors.append(f"{surface_label}: noncanonical path pattern '{alt}' in table")
 
     return errors
 
@@ -302,9 +292,7 @@ def test_analyst_surface_no_duplicate_routes(surface: Path) -> None:
     routes, _ = _parse_routing_table(body)
     label = str(surface.relative_to(REPO_ROOT))
     for pattern, tools in routes.items():
-        assert len(tools) == 1, (
-            f"{label}: duplicate rows for '{pattern}': {tools}"
-        )
+        assert len(tools) == 1, f"{label}: duplicate rows for '{pattern}': {tools}"
 
 
 def test_routing_table_rejects_swapped_mappings() -> None:
@@ -324,11 +312,7 @@ def test_routing_table_rejects_swapped_mappings() -> None:
 
 def test_routing_table_rejects_missing_rows() -> None:
     """Negative control: incomplete table must fail."""
-    partial_table = (
-        "| URL pattern | Tool |\n"
-        "|---|---|\n"
-        "| `/pull/<N>` | `pull_request_read` |\n"
-    )
+    partial_table = "| URL pattern | Tool |\n|---|---|\n| `/pull/<N>` | `pull_request_read` |\n"
     routes, all_pats = _parse_routing_table(partial_table)
     errors = _validate_routing_table(routes, all_pats, "partial-fixture")
     assert errors, "Partial table must fail validation"
@@ -414,12 +398,9 @@ def test_routing_table_rejects_mcp_when_bare_expected() -> None:
 def test_analyst_surface_uses_singular_job_path(surface: Path) -> None:
     """GitHub uses /job/<ID> (singular). Surfaces must not use /jobs/."""
     body = surface.read_text(encoding="utf-8")
-    assert "/job/" in body, (
-        f"{surface.relative_to(REPO_ROOT)}: must use singular /job/<JID> path"
-    )
+    assert "/job/" in body, f"{surface.relative_to(REPO_ROOT)}: must use singular /job/<JID> path"
     assert "/jobs/" not in body, (
-        f"{surface.relative_to(REPO_ROOT)}: uses /jobs/ but GitHub URLs use "
-        f"singular /job/<JID>"
+        f"{surface.relative_to(REPO_ROOT)}: uses /jobs/ but GitHub URLs use singular /job/<JID>"
     )
 
 
