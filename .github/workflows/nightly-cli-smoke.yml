@@ -11,6 +11,9 @@
 #     plugin dir loads in each CLI and the lifecycle skills load with no
 #     argument-hint loader warning. PR #2735 was green on schema and unit checks
 #     yet still needed manual proof the plugin loaded; this automates that proof.
+#   - Analyst contract smoke (test_plugin_load_smoke.py, issue #3918): each CLI
+#     loads the project analyst without shell tools, while an execution-agent
+#     control still reports shell.
 #
 # Security (.claude/rules/security.md, issue #2231 item 3):
 #   - Triggers only on schedule and workflow_dispatch. GitHub never fires these
@@ -166,7 +169,7 @@ jobs:
           uv run python scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
-          --expected-count 3
+          --expected-count 5
 
       # Issue #3324: the isolation fix this covers is Windows-specific
       # (Path.home() reads USERPROFILE first), and the test skips without the
