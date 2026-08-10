@@ -315,6 +315,7 @@ def git_sandbox() -> Iterator[GitSandbox]:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
         subprocess.run(
             ["git", "clone", str(remote), str(main)],
@@ -322,6 +323,7 @@ def git_sandbox() -> Iterator[GitSandbox]:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
         git(main, "config", "user.email", "test@example.com")
         git(main, "config", "user.name", "Test User")

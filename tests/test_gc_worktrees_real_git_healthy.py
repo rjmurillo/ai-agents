@@ -133,6 +133,7 @@ def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     for oid in (first, second):
@@ -175,6 +176,7 @@ def test_the_index_recovery_command_exports_a_skip_worktree_entry(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     recovered = tmp_path / "recovery"
@@ -221,6 +223,7 @@ def test_the_index_recovery_command_preserves_unmerged_stages(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     assert not (tmp_path / "recovery" / "conflict.txt").exists(), (
@@ -233,6 +236,7 @@ def test_the_index_recovery_command_preserves_unmerged_stages(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
     )
     assert "conflict.txt" in stages.stdout, stages.stdout
@@ -269,6 +273,7 @@ def test_the_index_recovery_command_preserves_a_gitlink(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
     assert list((tmp_path / "recovery" / "sub").iterdir()) == [], (
@@ -281,6 +286,7 @@ def test_the_index_recovery_command_preserves_a_gitlink(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
     )
     assert f"160000 {pointed_at} 0\tsub" in entries.stdout, entries.stdout
@@ -319,6 +325,7 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode != 0, "a blocked rescue that exits 0 reads as a completed rescue"
     assert (

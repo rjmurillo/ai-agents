@@ -131,6 +131,7 @@ def test_the_printed_rescue_saves_a_commit_only_a_worktree_local_ref_held(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 0, result.stderr
 
@@ -208,5 +209,6 @@ def test_that_reflog_really_is_what_keeps_the_commit_alive(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert gone.returncode != 0, "the reflog was not the only anchor after all"
