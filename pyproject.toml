@@ -27,6 +27,7 @@ dev = [
     "lefthook==2.1.10",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -283,4 +284,5 @@ dev = [
     "lefthook==2.1.10",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
 ]
