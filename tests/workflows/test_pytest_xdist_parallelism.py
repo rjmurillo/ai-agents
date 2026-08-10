@@ -196,6 +196,11 @@ class TestArtifactUpload:
         upload = [s for s in steps if s.get("name") == "Upload test results"][0]
         assert upload["with"].get("include-hidden-files") is True
 
+    def test_upload_overwrites_prior_attempt_artifact(self) -> None:
+        steps = _job_steps("test")
+        upload = [s for s in steps if s.get("name") == "Upload test results"][0]
+        assert upload["with"].get("overwrite") is True
+
 
 class TestCoverageJob:
     """The coverage combine job merges all partition data."""
@@ -250,6 +255,7 @@ class TestCoverageJob:
         steps = _job("coverage")["steps"]
         upload = [s for s in steps if s.get("name") == "Upload combined coverage"][0]
         assert upload["with"]["name"] == "pytest-results"
+        assert upload["with"].get("overwrite") is True
 
     def test_no_shell_branching_in_combine(self) -> None:
         steps = _job("coverage")["steps"]
@@ -268,6 +274,10 @@ class TestAggregateJob:
     def test_aggregate_job_name(self) -> None:
         assert _job("test-result")["name"] == "Run Python Tests"
 
+    def test_aggregate_runs_when_path_detection_fails(self) -> None:
+        condition = _job("test-result")["if"]
+        assert condition == "always() && needs.check-paths.outputs.python-changed != 'false'"
+
     def test_aggregate_needs(self) -> None:
         needs = _job("test-result")["needs"]
         assert "check-paths" in needs
@@ -278,8 +288,10 @@ class TestAggregateJob:
         steps = _job("test-result")["steps"]
         run_steps = [s for s in steps if isinstance(s.get("run"), str)]
         script_step = [s for s in run_steps if "require_job_results.py" in s["run"]][0]
+        assert "PATH_RESULT" in script_step.get("env", {})
         assert "TEST_RESULT" in script_step.get("env", {})
         assert "COVERAGE_RESULT" in script_step.get("env", {})
+        assert "--check PATH_RESULT success" in script_step["run"]
 
     def test_aggregate_timeout(self) -> None:
         assert _job("test-result")["timeout-minutes"] == 2

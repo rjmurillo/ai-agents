@@ -355,6 +355,7 @@ jobs:
           name: pytest-results-${{ matrix.partition }}
           path: artifacts/
           include-hidden-files: true
+          overwrite: true
           retention-days: 7
 
   coverage:
@@ -409,6 +410,7 @@ jobs:
           name: pytest-results
           path: artifacts/
           include-hidden-files: true
+          overwrite: true
           retention-days: 7
 
   test-result:
@@ -417,7 +419,7 @@ jobs:
       - check-paths
       - test
       - coverage
-    if: always() && needs.check-paths.outputs.python-changed == 'true'
+    if: always() && needs.check-paths.outputs.python-changed != 'false'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
     permissions:
@@ -429,10 +431,12 @@ jobs:
 
       - name: Require test and coverage success
         env:
+          PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
         run: >-
           python scripts/ci/require_job_results.py
+          --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
 
