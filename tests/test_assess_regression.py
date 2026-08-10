@@ -52,6 +52,7 @@ from assess import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_score(value: float, confidence: float = 0.5) -> QualityScore:
     return QualityScore(value=value, confidence=confidence, reasons=[])
 
@@ -292,9 +293,7 @@ class TestGetBaseAssessments:
 
         assert result == {}
 
-    def test_existing_file_is_assessed_from_base_content(
-        self, tmp_path: Path
-    ) -> None:
+    def test_existing_file_is_assessed_from_base_content(self, tmp_path: Path) -> None:
         """A file present at base is assessed from the git show content."""
         from assess import _get_base_assessments
 
