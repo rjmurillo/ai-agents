@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 7291805556fc385cc698556a4e7c58dd337ded0b
+qaCommit: 53ed636b0f851f9b2081dedbce5d1e174669219b
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -87,7 +87,7 @@ None.
 
 Copilot flagged a remaining finite-verb bypass: `The analyst retrieves cache,
 compliance-bot owns pull_request_read.` was accepted because `owns` was not in
-the boundary verb list. Confirmed and fixed in commit `c7645d15c0ac599d4982e21ec73dc5392328eda4`.
+the boundary verb list. Confirmed and fixed in commit `53ed636b0f851f9b2081dedbce5d1e174669219b`.
 
 The boundary now treats bot or agent subjects as new actors without enumerating
 their verbs. Existing tool-subject and list-item controls still pass.
