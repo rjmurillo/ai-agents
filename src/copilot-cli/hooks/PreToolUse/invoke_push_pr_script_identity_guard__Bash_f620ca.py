@@ -1109,6 +1109,10 @@ def _original_main(stdin_bytes):
         runtime_script = _runtime_script()
         if runtime_script is None:
             return False
+        if len(tokens) > _MAX_SCOPE_OPERANDS:
+            # Fail closed: budget exhausted means we cannot prove the command is
+            # irrelevant, so the strict identity policy must apply.
+            return True
         for token in tokens[:_MAX_SCOPE_OPERANDS]:
             value = token.value
             if not value or value.startswith("-"):
