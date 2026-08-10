@@ -146,11 +146,14 @@
     {
       "action": "Probed the push path on a throwaway branch",
       "outcome": "Rebasing onto main clears the merge-tree ratchet conflict that blocks pre-push and leaves four commits; the probe also reproduced the orphaned-SHA errors, so endingCommit and qaCommit both need re-pointing after any rebase."
+    },
+    {
+      "action": "Merged origin/main and resolved the prerequisite session conflict",
+      "outcome": "Preserved main's canonical session 10033. All 48 targeted dependency, local-policy, and workflow contract tests passed after merge commit 3d82967895dfd2adf2f3479726b0cb7546346c97."
     }
   ],
-  "endingCommit": "4599e70f8e28846f5f327a56baccf6c18b726d57",
+  "endingCommit": "3d82967895dfd2adf2f3479726b0cb7546346c97",
   "nextSteps": [
-    "Rebase onto main before pushing: git rebase --onto origin/main origin/main, then re-point endingCommit and the QA report qaCommit to the post-rebase perf(ci) SHA.",
     "Open a pull request referencing Issue 4823 and read the CI wall clock from the workflow run; the sub-10-minute target is unmeasured until then.",
     "File a separate issue for the pr-autofix lease-renewal subprocess hang described in the QA report."
   ]

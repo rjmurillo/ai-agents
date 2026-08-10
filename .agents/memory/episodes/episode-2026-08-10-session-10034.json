@@ -85,7 +85,8 @@
         "e004",
         "e005",
         "e006",
-        "e010"
+        "e010",
+        "e011"
       ],
       "leads_to": [
         "e008"
@@ -113,7 +114,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-10-session-10034"
     },
     {
@@ -126,6 +129,41 @@
         "e007"
       ],
       "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and resolved the prerequisite session conflict",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T07:15:16+00:00",
+      "type": "commit",
+      "content": "Commit: 4599e70f8",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10034"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T08:28:46+00:00",
+      "type": "commit",
+      "content": "Commit: 3d82967895dfd2adf2f3479726b0cb7546346c97",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10034"
     }
   ],
   "metrics": {
@@ -133,8 +171,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 8
+    "commits": 5,
+    "files_changed": 11
   },
   "lessons": []
 }
