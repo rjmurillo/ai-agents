@@ -27,7 +27,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILL_MD = SKILL_DIR / "SKILL.md"
 REPO_ROOT = _find_repo_root(SKILL_DIR)
 MEMORY_README = REPO_ROOT / ".serena" / "memories" / "README.md"
-MEMORY_ROUTER_MD = REPO_ROOT / ".claude" / "skills" / "memory" / "SKILL.md"
+MEMORY_ROUTER_MD = SKILL_DIR.parent / "memory" / "SKILL.md"
 
 _FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
