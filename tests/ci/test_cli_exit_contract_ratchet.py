@@ -261,6 +261,18 @@ def test_a_hand_rolled_module_loader_still_counts():
     assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
 
 
+def test_an_unrecognized_method_named_main_does_not_use_bare_credit():
+    source = (
+        "from require_job_results import main\n"
+        "\n\n"
+        "def test_helper_wrapper():\n"
+        "    helper = object()\n"
+        "    assert helper.main([]) == 1\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"require_job_results"})) == set()
+
+
 def test_a_subprocess_driven_cli_counts_by_script_path():
     source = (
         "def test_x():\n"
@@ -359,6 +371,81 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
         f"tree has {actual} violations. Run "
         f"'python scripts/ci/cli_exit_contract_ratchet.py' for per-file detail."
     )
+
+
+
+
+class TestLocalMainScopeGateBehavior:
+    """Regression: _has_local_main_definition scope-aware module binding.
+
+    The sole-script fallback credits a bare ``main()`` call only when the test
+    file does not define its own ``main``.  These tests use bare ``main()``
+    (not ``widget.main()``) so that *sole* is the only credit path.
+
+    ast.walk version:  class method main triggers True -> sole suppressed
+    flat tree.body:    if-guarded def main returns False -> sole incorrectly enabled
+    scope-aware:       class method skipped, if-guard descended -> correct
+    """
+
+    _SCRIPT = "def main(argv=None):\n    return 1\n"
+
+    def test_class_method_main_does_not_suppress_sole_fallback(
+        self, tmp_path, monkeypatch,
+    ):
+        """Class method ``main`` must not suppress sole; bare main() credits."""
+        _arrange(
+            tmp_path,
+            monkeypatch,
+            self._SCRIPT,
+            # bare main() call, class method main should NOT suppress sole
+            (
+                "from scripts.ci import widget\n\n\n"
+                "class Helpers:\n"
+                "    def main(self):\n"
+                "        pass\n\n\n"
+                "def test_exit():\n"
+                "    assert main([]) == 1\n"
+            ),
+        )
+        assert _run(tmp_path, "0") == ratchet.EXIT_OK
+
+    def test_if_guarded_def_main_suppresses_sole_fallback(
+        self, tmp_path, monkeypatch,
+    ):
+        """``if __name__: def main`` at module scope binds main, suppressing sole."""
+        _arrange(
+            tmp_path,
+            monkeypatch,
+            self._SCRIPT,
+            (
+                "from scripts.ci import widget\n\n\n"
+                "if __name__ == '__main__':\n"
+                "    def main():\n"
+                "        pass\n\n\n"
+                "def test_exit():\n"
+                "    assert main([]) == 1\n"
+            ),
+        )
+        # sole suppressed: local main inside if-guard at module scope
+        # bare main() is NOT attributed to widget because local main shadows it
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+    def test_lambda_assignment_main_suppresses_sole_fallback(
+        self, tmp_path, monkeypatch,
+    ):
+        """``main = lambda: 0`` creates a local binding, suppressing sole."""
+        _arrange(
+            tmp_path,
+            monkeypatch,
+            self._SCRIPT,
+            (
+                "from scripts.ci import widget\n\n\n"
+                "main = lambda: 0\n\n\n"
+                "def test_exit():\n"
+                "    assert main([]) == 1\n"
+            ),
+        )
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
 
 
 def test_ratchet_registered_with_base_ref_in_checks_ratchet() -> None:
