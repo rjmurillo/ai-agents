@@ -80,6 +80,9 @@ def test_merge_boundary_bounded_to_genuine_duplicates() -> None:
     body = _unwrapped(_read(SKILL_MD)).lower()
     assert "genuine duplicate" in body, "must bound merging to genuine duplicates"
     assert "distinct atomic concepts" in body, "must forbid merging distinct concepts"
+    assert "update the survivor first" in body
+    assert "redirect the index last" in body
+    assert "restore every touched file" in body
 
 
 def test_date_anchor_is_source_stamp_not_session_clock() -> None:
@@ -129,7 +132,7 @@ def test_serena_scope_is_indexes_only_and_repo_root_is_mirror_safe() -> None:
     # skill's Phase 1 must restate correctly, in both tree copies.
     assert MEMORY_README.is_file(), f"missing canonical README at {MEMORY_README}"
     readme = _read(MEMORY_README)
-    body = _read(SKILL_MD)
+    body = _unwrapped(_read(SKILL_MD))
     assert "visible in `list_memories`" in readme
     assert "hidden from `list_memories`" in readme
 
@@ -137,6 +140,8 @@ def test_serena_scope_is_indexes_only_and_repo_root_is_mirror_safe() -> None:
     assert "top-level files only" in body or "top-level only" in body
     assert "hidden from" in body
     assert "*-index.md" in body, "must direct readers to topic index files"
+    assert "bounded stale-index audit" in body
+    assert "dangling index entries as errors" in body
 
     # Act / Assert: REPO_ROOT resolves to the true root regardless of tree
     # depth (canonical .claude/... or mirrored src/copilot-cli/...), so a

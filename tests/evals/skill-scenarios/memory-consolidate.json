@@ -5,16 +5,17 @@
     {
       "id": "S1",
       "desc": "User asks to consolidate memory using the skill's own trigger phrase, with no technique named",
-      "input": "It has been months since anyone reviewed our memory files, and I want a future session to orient fast without re-asking me things. Please consolidate memory. Answer in 5 short bullets describing your plan, then close with the pass's usual closing report. Do not modify any files.",
+      "input": "It has been months since anyone reviewed our memory files, and I want a future session to orient fast without re-asking me things. Please consolidate Serena memory. Answer in 5 short bullets describing your plan, then close with the pass's usual closing report. Do not modify any files.",
       "expected_signals": [
         "healthy-supersession",
         "supersedes",
         "AMBIGUOUS-DATE",
         "Success",
+        "Data",
         "Metadata"
       ],
       "expected_gate": "memory-consolidate-pass",
-      "rationale": "The input carries only the skill's documented trigger phrase (`consolidate memory`) and names no technique, so any durable-versus-dated split, richer-path merge, or closing report in the response is attributable to the skill, not to echoing the prompt. Generic memory advice would not flag an unresolved date as `AMBIGUOUS-DATE` rather than guessing it, would not use the skill's `healthy-supersession` / `supersedes` merge discipline instead of deleting the weaker file outright, and would not close with the ADR-056 `Success` / `Metadata` envelope fields this skill's Output section requires."
+      "rationale": "The input carries only the skill's documented Serena-specific trigger phrase (`consolidate Serena memory`) and names no technique, so any durable-versus-dated split, richer-path merge, or closing report in the response is attributable to the skill, not to echoing the prompt. Generic memory advice would not flag an unresolved date as `AMBIGUOUS-DATE` rather than guessing it, would not use the skill's `healthy-supersession` / `supersedes` merge discipline instead of deleting the weaker file outright, and would not close with the ADR-056 `Success` / `Metadata` envelope fields this skill's Output section requires."
     },
     {
       "id": "S2",
@@ -23,6 +24,28 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This scenario measures restraint, not routing: does the skill correctly withhold activation on a task outside its scope, rather than firing on every memory-related request? The skill's own Do NOT clause excludes health, token, and size checks. A token-count health check has no durable-versus-dated split, no merge candidate, and no index tidy to perform, so memory-consolidate must not activate here; proving the request actually reaches memory-maintenance instead is a separate measurement this scenario does not make."
+    },
+    {
+      "id": "S3",
+      "desc": "Seeded edge case exercises duplicate safety, ambiguous dates, and the error envelope",
+      "input": "Plan a memory consolidation for these snapshots without modifying files. people/alex.md records a current communication preference. people/alex-old.md repeats that preference with less detail. projects/launch.md says only `next week` with no source stamp or recoverable date. Use the normal closing report.",
+      "expected_signals": [
+        "healthy-supersession",
+        "AMBIGUOUS-DATE",
+        "never physically deletes",
+        "Data",
+        "Error"
+      ],
+      "expected_gate": "memory-consolidate-edge-pass",
+      "rationale": "This fixture forces three safety branches from the skill: preserve the poorer duplicate in healthy-supersession form instead of deleting it, flag the unanchored relative date rather than guessing, and report both changed-file data and unresolved error state in the ADR-056 envelope."
+    },
+    {
+      "id": "S4",
+      "desc": "Forgetful-store curation stays outside the Serena file consolidation skill",
+      "input": "In the Forgetful store, deduplicate obsolete memories and add links between related entries. Do not touch Serena memory files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This request explicitly targets Forgetful curation, which the skill's Do NOT clause routes to curating-memories. memory-consolidate must stay inactive even though the request uses memory cleanup language."
     }
   ]
 }
