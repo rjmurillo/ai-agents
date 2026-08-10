@@ -1539,16 +1539,20 @@ class TestDiffTreeEmptyCollapse:
         assert check_relevance([]) is False
 
     def test_diff_tree_failure_contract(self):
-        """Workflow must exit 1 on relevance/diff-tree failure, not collapse to empty list.
+        """Workflow must fail closed on git errors via set -euo pipefail.
 
-        Verified by reading the workflow YAML for fail-closed pattern.
+        No || true or error suppression on merge-base/diff-tree.
         """
         wf_path = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
         content = wf_path.read_text()
-        # merge-base failure must exit 1
-        assert "merge-base failed" in content
-        assert "diff-tree failed" in content
-        assert "exit 1" in content
+        # pipefail ensures any git failure aborts the step
+        assert "set -euo pipefail" in content
+        # No error suppression on git commands (rm cleanup is acceptable)
+        import re
+
+        # Find lines containing git commands with || true (would suppress errors)
+        git_suppressed = re.findall(r"git\s+.*\|\|\s*true", content)
+        assert git_suppressed == [], f"Git error suppression found: {git_suppressed}"
 
 
 # ── Pinned hook_utilities coverage ──
@@ -1692,22 +1696,59 @@ class TestCheckRelevanceStdin:
 
 
 class TestWorkflowImmutableBaseRef:
-    """Workflow validation must use immutable event SHAs for content checks.
+    """Workflow must use only immutable event SHAs and no checkout action.
 
-    The checkout step uses github.base_ref to materialize the trusted validator.
-    This is acceptable because only base-repo maintainers control the target branch,
-    and the validator re-authenticates all artifacts against immutable BASE_SHA.
-    The security-critical invariant: BASE_SHA and PR_SHA use immutable event SHAs.
+    Security invariants:
+    - No actions/checkout (avoids Semgrep pull_request_target rule entirely)
+    - All refs are immutable github.event.pull_request.{base,head}.sha
+    - No github.base_ref or other mutable branch reference
+    - NUL-safe path transport (no command substitution for changed paths)
     """
 
-    def test_uses_immutable_base_sha_for_validation(self):
-        """BASE_SHA env must reference immutable event base SHA."""
+    @staticmethod
+    def _wf_content() -> str:
         wf = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "vendor-provenance.yml"
-        content = wf.read_text()
+        return wf.read_text()
+
+    def test_no_checkout_action(self):
+        """No actions/checkout step in the workflow."""
+        content = self._wf_content()
+        assert "uses: actions/checkout" not in content
+
+    def test_uses_immutable_base_sha(self):
+        """BASE_SHA env must reference immutable event base SHA."""
+        content = self._wf_content()
         assert "github.event.pull_request.base.sha" in content
 
-    def test_uses_immutable_pr_sha_for_candidate(self):
+    def test_uses_immutable_pr_sha(self):
         """PR_SHA env must reference immutable event head SHA."""
-        wf = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "vendor-provenance.yml"
-        content = wf.read_text()
+        content = self._wf_content()
         assert "github.event.pull_request.head.sha" in content
+
+    def test_no_mutable_base_ref(self):
+        """No github.base_ref usage (mutable branch ref)."""
+        content = self._wf_content()
+        assert "github.base_ref" not in content
+
+    def test_no_command_substitution_path_transport(self):
+        """Changed paths must not use $(...) command substitution into argv."""
+        content = self._wf_content()
+        # The old pattern: CHANGED_FILES=$(...) then passing $CHANGED_FILES
+        assert "$(git diff-tree" not in content or "--check-relevance-stdin" in content
+
+    def test_nul_safe_stdin_transport(self):
+        """diff-tree uses -z and pipes to --check-relevance-stdin."""
+        content = self._wf_content()
+        assert "diff-tree" in content
+        assert "-z" in content
+        assert "--check-relevance-stdin" in content
+
+    def test_fail_closed_pipefail(self):
+        """All run steps use set -euo pipefail."""
+        import re
+
+        content = self._wf_content()
+        # Every run: block must have pipefail
+        run_blocks = re.findall(r"run:\s*\|\n(.*?)(?=\n\s*-\s+name:|\Z)", content, re.DOTALL)
+        for block in run_blocks:
+            assert "set -euo pipefail" in block, f"Missing pipefail in:\n{block[:80]}"

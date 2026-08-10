@@ -1,11 +1,14 @@
 # Vendor Provenance Gate (Trusted Base-Branch Validator)
 #
 # Security architecture:
-# - pull_request_target: workflow YAML executes from BASE branch (main)
-# - Validator script runs from base branch only; candidate data via read-tree
+# - pull_request_target: workflow YAML executes from BASE branch
+# - NO actions/checkout: trusted code materialized from immutable event SHA
+#   via git read-tree + checkout-index (ignores .gitattributes export-ignore)
+# - Validator script runs from base commit only; candidate via separate tree
 # - NO candidate code is ever executed
-# - persist-credentials: false on checkout
-# - Always emits the required check; unrelated PRs get a success no-op
+# - All refs are immutable event SHAs; no branch names used
+# - Changed-path transport is NUL-delimited (handles tabs/newlines safely)
+# - Git and pipeline failures fail closed (set -euo pipefail)
 #
 # Once merged and configured as a required status check, this gate prevents
 # any PR from merging tampered hook or vendor content regardless of what
@@ -17,8 +20,7 @@ permissions:
   contents: read
 
 on:
-  pull_request_target:
-    branches: [main]
+  pull_request_target: {}
 
 jobs:
   provenance:
@@ -26,25 +28,32 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
 
-    steps:
-      - name: Checkout trusted code (base branch)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ github.base_ref }}
-          persist-credentials: false
+    env:
+      PR_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
-      - name: Materialize candidate and base trees
+    steps:
+      - name: Materialize trusted base (immutable SHA)
         env:
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
         run: |
-          # Fetch candidate commit (immutable event SHA, not moving branch ref)
+          set -euo pipefail
+          # Start from an empty workspace with a bare git repo
+          cd "$GITHUB_WORKSPACE"
+          rm -rf ./* ./.??* 2>/dev/null || true
+          git init --quiet
+          git remote add origin "https://github.com/${{ github.repository }}.git"
           git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
-            fetch --depth=50 origin "$PR_SHA" "$BASE_SHA"
-          # Materialize via read-tree + checkout-index (ignores .gitattributes
-          # export-ignore, unlike git archive which lets candidates hide files
-          # from validation while they remain in the merged tree)
+            fetch --depth=50 origin "$BASE_SHA" "$PR_SHA"
+          # Populate workspace with trusted base code (read-tree ignores
+          # candidate .gitattributes export-ignore directives)
+          git read-tree "$BASE_SHA"
+          git checkout-index -a -f
+
+      - name: Materialize candidate and comparison trees
+        run: |
+          set -euo pipefail
+          # Candidate tree via read-tree (immune to export-ignore)
           mkdir -p /tmp/candidate
           GIT_INDEX_FILE=/tmp/idx-pr git read-tree "$PR_SHA"
           GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a --prefix=/tmp/candidate/
@@ -53,24 +62,16 @@ jobs:
           GIT_INDEX_FILE=/tmp/idx-base git read-tree "$BASE_SHA"
           GIT_INDEX_FILE=/tmp/idx-base git checkout-index -a --prefix=/tmp/base/
 
-      - name: Check relevance
+      - name: Check relevance (NUL-safe)
         id: relevance
-        env:
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
           # Require merge-base success; fail closed on git errors
           MERGE_BASE=$(git merge-base "$BASE_SHA" "$PR_SHA")
-          if [ $? -ne 0 ]; then
-            echo "ERROR: merge-base failed (insufficient history)" >&2
-            exit 1
-          fi
-          CHANGED_FILES=$(git diff-tree -r --name-only --diff-filter=ACDMRT "$MERGE_BASE" "$PR_SHA")
-          if [ $? -ne 0 ]; then
-            echo "ERROR: diff-tree failed" >&2
-            exit 1
-          fi
-          DOMINATED=$(python3 scripts/ci/validate_vendor_provenance.py --check-relevance $CHANGED_FILES)
+          # NUL-delimited diff-tree piped to Python stdin; no shell expansion
+          DOMINATED=$(git diff-tree -r --name-only --diff-filter=ACDMRT -z \
+            "$MERGE_BASE" "$PR_SHA" \
+            | python3 scripts/ci/validate_vendor_provenance.py --check-relevance-stdin)
           echo "dominated=$DOMINATED" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python
@@ -88,6 +89,7 @@ jobs:
       - name: Validate vendor provenance (trusted gate)
         if: steps.relevance.outputs.dominated == 'true'
         run: |
+          set -euo pipefail
           python3 scripts/ci/validate_vendor_provenance.py \
             --candidate-root /tmp/candidate \
             --base-root /tmp/base
