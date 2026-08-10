@@ -67,11 +67,14 @@ class TestGetCategory:
     def test_pass_verdict_returns_na(self):
         assert get_category("PASS", False) == "N/A"
 
-    def test_pass_verdict_with_infra_returns_na(self):
-        assert get_category("PASS", True) == "N/A"
+    def test_pass_verdict_with_infra_returns_infrastructure(self):
+        assert get_category("PASS", True) == "INFRASTRUCTURE"
 
     def test_warn_verdict_returns_na(self):
         assert get_category("WARN", False) == "N/A"
+
+    def test_warn_verdict_with_infra_returns_infrastructure(self):
+        assert get_category("WARN", True) == "INFRASTRUCTURE"
 
     @pytest.mark.parametrize(
         "verdict",
@@ -140,7 +143,22 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
-    def test_security_infra_failure_forces_did_not_run(self, tmp_path, monkeypatch):
+    def test_non_security_pass_with_infra_flag_downgrades_to_warn(
+        self, tmp_path, monkeypatch
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        infra = {a: "false" for a in _AGENTS}
+        infra["qa"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["qa_category"] == "INFRASTRUCTURE"
+        assert outputs["final_verdict"] == "WARN"
+
+    def test_security_infra_failure_blocks_with_notice(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
@@ -152,45 +170,14 @@ class TestMain:
         assert outputs["final_verdict"] == "DID_NOT_RUN"
         assert outputs["security_review_ran"] == "false"
 
-    def test_did_not_run_security_without_infra_flag_still_forces_did_not_run(
+    def test_did_not_run_infra_failures_preserve_security_block(
         self, tmp_path, monkeypatch
     ):
-        """The infra flag must not be able to launder a DID_NOT_RUN security review.
-
-        get_category maps DID_NOT_RUN to CODE_QUALITY when infra_flag is false,
-        so deriving "did it run" from the category alone reads a review that
-        plainly did not run as having run. The gate then passes a pull request
-        with no security review, reached through the classifier rather than
-        through the aggregate. Refs #4654.
-        """
         output_file = _capture_outputs(tmp_path, monkeypatch)
-        verdicts = {a: "PASS" for a in _AGENTS}
-        verdicts["security"] = "DID_NOT_RUN"
-        infra = {a: "false" for a in _AGENTS}
-        infra["security"] = "false"
-
-        rc = main(_make_argv(verdicts, infra))
-
-        assert rc == 0
-        outputs = _read_outputs(output_file)
-        assert outputs["security_review_ran"] == "false", (
-            "a DID_NOT_RUN security verdict was reported as having run because "
-            "its infra flag was false"
-        )
-        # merge_verdicts already maps DID_NOT_RUN to UNKNOWN, which blocks a
-        # PASS on its own, so the forcing branch is not what saves this case.
-        # The assertion that matters is security_review_ran above: the gate must
-        # not record the review as having happened.
-        assert outputs["final_verdict"] != "PASS"
-
-    def test_did_not_run_security_infra_forces_did_not_run(self, tmp_path, monkeypatch):
-        output_file = _capture_outputs(tmp_path, monkeypatch)
-        verdicts = {a: "PASS" for a in _AGENTS}
-        verdicts["security"] = "DID_NOT_RUN"
-        verdicts["qa"] = "NEEDS_REVIEW"
-        infra = {a: "false" for a in _AGENTS}
-        infra["security"] = "true"
-        infra["qa"] = "true"
+        verdicts = {a: "DID_NOT_RUN" for a in _AGENTS}
+        verdicts["qa"] = "PASS"
+        infra = {a: "true" for a in _AGENTS}
+        infra["qa"] = "false"
 
         rc = main(_make_argv(verdicts, infra))
 
@@ -198,7 +185,6 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "DID_NOT_RUN"
         assert outputs["security_category"] == "INFRASTRUCTURE"
-        assert outputs["qa_category"] == "INFRASTRUCTURE"
         assert outputs["security_review_ran"] == "false"
 
     def test_unknown_infra_failure_stays_blocking(self, tmp_path, monkeypatch):
@@ -289,7 +275,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
 
-    def test_unknown_does_not_override_warn(self, tmp_path, monkeypatch):
+    def test_unknown_overrides_warn(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["analyst"] = "UNKNOWN"
@@ -298,8 +284,35 @@ class TestMain:
         rc = main(_make_argv(verdicts, infra))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        # Real WARN outranks UNKNOWN per merge_verdicts severity order.
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "UNKNOWN"
+
+    def test_unrecognized_verdict_overrides_warn(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["analyst"] = "FOOBAR"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+
+    def test_did_not_run_without_infra_flag_overrides_warn(
+        self, tmp_path, monkeypatch
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["analyst"] = "DID_NOT_RUN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
 
     def test_infra_flagged_unrecognized_token_not_masked_by_warn(
         self, tmp_path, monkeypatch
@@ -331,16 +344,16 @@ class TestMain:
             "unrecognized verdict token; the gate must stay blocking."
         )
 
-    def test_warn_does_not_mask_missing_security_review(
+    def test_unknown_remains_blocking_when_security_did_not_run(
         self, tmp_path, monkeypatch
     ):
-        # A normal WARN must not make a missing security review non-blocking.
-        # Security did not run, so the aggregate remains DID_NOT_RUN even when
-        # another agent returned a real WARN.
+        # A real WARN elsewhere cannot mask UNKNOWN, even when security also
+        # did not run.
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "DID_NOT_RUN"
         verdicts["qa"] = "WARN"
+        verdicts["analyst"] = "UNKNOWN"
         infra = {a: "false" for a in _AGENTS}
         infra["security"] = "true"
 
@@ -348,12 +361,12 @@ class TestMain:
 
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
+        assert outputs["final_verdict"] == "UNKNOWN"
 
 
 class TestSecurityReviewRan:
     """A security-axis infrastructure failure must be visibly distinct from a
-    security review that actually ran (issue #2821, option c)."""
+    security review that actually ran, and must block the gate (issue #4777)."""
 
     def test_security_infra_failure_sets_ran_false_and_annotates(
         self, tmp_path, monkeypatch, capsys
@@ -432,3 +445,36 @@ class TestSecurityReviewRan:
         assert outputs["final_verdict"] == "WARN"
         captured = capsys.readouterr()
         assert "Security review did not run" not in captured.out
+
+    def test_security_pass_with_infra_flag_sets_ran_false(
+        self, tmp_path, monkeypatch
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "false"
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
+
+    def test_security_did_not_run_without_infra_flag_sets_ran_false(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "false"
+        assert outputs["final_verdict"] == "UNKNOWN"
+        captured = capsys.readouterr()
+        assert "did not produce a valid result" in captured.out

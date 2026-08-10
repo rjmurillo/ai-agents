@@ -48,8 +48,10 @@ DOWNGRADEABLE_INFRA_VERDICTS = FAIL_VERDICTS | {"DID_NOT_RUN"}
 
 def get_category(verdict: str, infra_flag: bool) -> str:
     """Categorize a verdict as INFRASTRUCTURE, CODE_QUALITY, or N/A."""
+    if infra_flag:
+        return "INFRASTRUCTURE"
     if verdict in ATTENTION_VERDICTS:
-        return "INFRASTRUCTURE" if infra_flag else "CODE_QUALITY"
+        return "CODE_QUALITY"
     return "N/A"
 
 
@@ -58,46 +60,14 @@ def is_blocking_unknown_verdict(verdict: str) -> bool:
     return merge_verdicts([verdict]) == "UNKNOWN" and verdict != "DID_NOT_RUN"
 
 
-def has_infra_masked_unknown_verdict(
+def has_masked_unknown_verdict(
     verdicts: dict[str, str],
     infra_flags: dict[str, bool],
 ) -> bool:
-    """Return True when an infra-flagged agent's verdict is blocking-unknown
-    but is not one of the recognized infra-failure tokens.
-
-    merge_verdicts() ranks a real WARN above UNKNOWN: WARN/PARTIAL is checked
-    before the DID_NOT_RUN/UNKNOWN/unrecognized-token branch (see
-    scripts/ai_review_common/verdict.py merge_verdicts priority list, steps 2
-    and 3). That means a genuine WARN from one agent can silently mask a raw
-    or unrecognized token (e.g. FOOBAR) or a literal UNKNOWN from a
-    *different*, infra-flagged agent: the merged result reads as a normal,
-    non-blocking WARN even though an infra-flagged axis never produced a
-    trustworthy verdict.
-
-    should_downgrade_infra_only_failures() already refuses to downgrade in
-    this situation (it returns False whenever an infra-flagged agent's
-    verdict is outside DOWNGRADEABLE_INFRA_VERDICTS and is blocking-unknown),
-    but refusing to downgrade only stops WARN from being *introduced* by the
-    downgrade step; it does nothing when merge_verdicts() already produced
-    WARN on its own from a real WARN elsewhere. This helper names that exact
-    condition so the caller can force the aggregate back to UNKNOWN instead
-    of leaving the masked WARN in place.
-
-    Deliberately excludes DID_NOT_RUN and any token in FAIL_VERDICTS: those
-    are the expected, recognized infra-failure vocabulary
-    (DOWNGRADEABLE_INFRA_VERDICTS) and are handled by the existing downgrade
-    path, not by this guard.
-
-    Does not need the private _KNOWN_VERDICT_TOKENS set from
-    scripts.ai_review_common.verdict: is_blocking_unknown_verdict() already
-    treats a literal "UNKNOWN" token and an unrecognized raw token
-    identically (both normalize to "UNKNOWN" via merge_verdicts), which is
-    exactly the behavior this guard needs.
-    """
+    """Return True when WARN would hide UNKNOWN or malformed verdict input."""
     return any(
-        infra_flags[agent]
-        and verdicts[agent] not in DOWNGRADEABLE_INFRA_VERDICTS
-        and is_blocking_unknown_verdict(verdicts[agent])
+        is_blocking_unknown_verdict(verdicts[agent])
+        or (verdicts[agent] == "DID_NOT_RUN" and not infra_flags[agent])
         for agent in _AGENTS
     )
 
@@ -110,13 +80,12 @@ def should_downgrade_infra_only_failures(
     saw_downgradeable_failure = False
     for agent in _AGENTS:
         verdict = verdicts[agent]
-        if verdict in DOWNGRADEABLE_INFRA_VERDICTS:
-            if not infra_flags[agent]:
-                return False
-            saw_downgradeable_failure = True
-            continue
         if is_blocking_unknown_verdict(verdict):
             return False
+        if verdict in DOWNGRADEABLE_INFRA_VERDICTS and not infra_flags[agent]:
+            return False
+        if infra_flags[agent]:
+            saw_downgradeable_failure = True
     return saw_downgradeable_failure
 
 
@@ -168,54 +137,44 @@ def main(argv: list[str] | None = None) -> int:
         write_log(f"{agent.capitalize()} category: {categories[agent]}")
 
     code_quality_failures = any(cat == "CODE_QUALITY" for cat in categories.values())
-    # Read the verdict itself, not only its category. get_category maps
-    # DID_NOT_RUN to CODE_QUALITY when infra_flag is false, so a security review
-    # that plainly did not run reads as "ran" whenever that flag is missing or
-    # mis-set. The gate then passes a pull request whose security review never
-    # happened, which is the failure this whole change exists to close, reached
-    # through the classifier instead of through the aggregate.
+    security_verdict = verdicts["security"]
     security_review_ran = (
-        categories.get("security") != "INFRASTRUCTURE"
-        and verdicts.get("security") != "DID_NOT_RUN"
+        not infra_flags["security"]
+        and security_verdict != "DID_NOT_RUN"
+        and not is_blocking_unknown_verdict(security_verdict)
+    )
+    infra_only_failures = (
+        not code_quality_failures
+        and should_downgrade_infra_only_failures(verdicts, infra_flags)
     )
 
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final == "WARN" and has_infra_masked_unknown_verdict(
-        verdicts, infra_flags
-    ):
+    if final == "WARN" and has_masked_unknown_verdict(verdicts, infra_flags):
         # A real WARN from one agent outranks UNKNOWN in merge_verdicts()'s
-        # own precedence, which can mask an infra-flagged agent's raw or
-        # unrecognized token (or a literal UNKNOWN) that should have kept the
-        # gate blocking. Restore the blocking verdict first.
-        write_log(
-            "Infra-flagged blocking-unknown verdict masked by WARN - "
-            "restoring UNKNOWN"
-        )
+        # own precedence. This gate treats missing or malformed input as
+        # blocking, so restore the more precise verdict first.
+        write_log("Blocking-unknown verdict masked by WARN - restoring UNKNOWN")
         final = "UNKNOWN"
-    elif final == "UNKNOWN":
-        pass
-    elif not security_review_ran and not code_quality_failures:
-        write_log("Security review did not run - forcing DID_NOT_RUN")
-        final = "DID_NOT_RUN"
-    elif not code_quality_failures and should_downgrade_infra_only_failures(
-        verdicts, infra_flags
+    elif not security_review_ran and (
+        infra_only_failures or final not in ATTENTION_VERDICTS
     ):
+        write_log("Security review did not run - preserving DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif infra_only_failures:
         write_log("All failures are explicit infra verdicts - downgrading to WARN")
         final = "WARN"
 
-    # Issue #2821 option c: the WARN downgrade is owner policy, but a security
-    # review that never ran must not be indistinguishable from one that
-    # passed. Surface a distinct annotation and a dedicated output so the PR
-    # comment and downstream tooling can render a non-ignorable notice.
+    # Issue #4777: a required security review that never ran must block the
+    # gate and remain visibly distinct from a review that passed.
     if not security_review_ran:
-        write_log("Security review did not run (infrastructure failure)")
+        write_log("Security review did not produce a valid result")
         print(
             "::warning title=Security review did not run::The AI security "
-            "review hit an infrastructure failure and did not evaluate this "
-            "PR. The gate verdict does not certify a security review; re-run "
-            "the gate or review security manually before merge (issue #2821)."
+            "review did not produce a valid result for this PR. The gate "
+            "verdict does not certify a security review; restore the review "
+            "and re-run the gate before merge (issue #4777)."
         )
     write_output("security_review_ran", "true" if security_review_ran else "false")
 
