@@ -54,7 +54,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from scripts.github_core.validation import is_github_name_valid
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.validation import is_github_name_valid  # noqa: E402
 
 DEFAULT_STALE_DAYS = 60
 DEFAULT_DUP_THRESHOLD = 0.7
@@ -619,7 +623,8 @@ def write_ai_github_outputs(matrix: dict[str, object], output_path: str) -> None
     """Write matrix metadata to GitHub Actions output format."""
 
     include = matrix.get("include")
-    count = int(matrix.get("count") or 0)
+    count_value = matrix.get("count")
+    count = int(count_value) if isinstance(count_value, int | str) else 0
     github_matrix = {"include": include if isinstance(include, list) else []}
     with Path(output_path).open("a", encoding="utf-8") as handle:
         handle.write(f"matrix={json.dumps(github_matrix)}\n")

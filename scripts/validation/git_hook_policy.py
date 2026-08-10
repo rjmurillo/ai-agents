@@ -457,7 +457,40 @@ GENERATED_GLOBS = {
     ),
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
+    "prompts": (".github/prompts/pr-quality-gate-*.md",),
 }
+
+# Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
+# Taken from .agents/governance/GENERATOR-FILES.md, which is the inventory of
+# every tree the build pipeline writes from a canonical source.
+#
+# Editing one rule under .claude/rules/ regenerates two instruction mirrors, so
+# a one-file rule change staged three files and a four-file change was
+# unshippable. Universal rule 5 already exempts hook-generated companions from
+# the five-file limit; the counter simply did not know about these trees.
+# Refs #4671.
+_GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
+    (".github/instructions/", ".claude/rules/", (".instructions.md", ".md")),
+    (
+        "src/copilot-cli/instructions/",
+        ".claude/rules/",
+        (".instructions.md", ".md"),
+    ),
+    ("src/copilot-cli/lib/", ".claude/lib/", None),
+    ("src/copilot-cli/skills/", ".claude/skills/", None),
+    ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+)
+_PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
+_PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
+# build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
+_PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
+# templates/platforms/copilot-cli.yaml:artifacts.skills.excludeFilenames.
+# Reject every configured name before mirror mapping. Even top-level files that
+# the generator never visits must not gain an exemption merely because a
+# canonical file with the same name is tracked.
+_COPILOT_SKILL_EXCLUDES = frozenset(
+    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
+)
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
@@ -2128,14 +2161,75 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
-def _is_generated(relative_path: str) -> bool:
+def _mirror_source(relative_path: str) -> str | None:
+    """Return the canonical source a generated mirror was built from, or None.
+
+    A path is only a mirror if its canonical source actually exists. That is
+    what separates a generated companion from a file that merely lives under a
+    generated tree: ``src/copilot-cli/lib/invented.py`` with no
+    ``.claude/lib/invented.py`` behind it is authored work and still counts.
+    Exempting by prefix alone would let anything written into an output tree
+    escape the limit, which is a larger hole than the friction it removes.
+    """
+    if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
+            return _PROMPT_SOURCE_PREFIX + role_file
+        return None
+    if relative_path.startswith("src/copilot-cli/skills/"):
+        remainder = relative_path.removeprefix("src/copilot-cli/skills/")
+        skill_name = PurePosixPath(remainder).parts[0] if remainder else ""
+        if skill_name in _COPILOT_SKILL_EXCLUDES:
+            return None
+
+    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
+        if not relative_path.startswith(output_prefix):
+            continue
+        remainder = relative_path[len(output_prefix):]
+        if suffix_map is not None:
+            output_suffix, source_suffix = suffix_map
+            if not remainder.endswith(output_suffix):
+                continue
+            remainder = remainder[: -len(output_suffix)] + source_suffix
+        return source_prefix + remainder
+    return None
+
+
+def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
+    """Return True only for a stage-zero regular blob in Git's index."""
+    safe_path = _safe_relative_path(relative_path)
+    if safe_path is None:
+        return False
+    result = _run_git(
+        repo_root,
+        [
+            "ls-files",
+            "--stage",
+            "--error-unmatch",
+            "--",
+            f":(literal){safe_path}",
+        ],
+    )
+    if result.returncode != 0:
+        return False
+    fields = result.stdout.partition("\t")[0].split()
+    return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
+
+
+def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     """Return True when *relative_path* matches any generated-file pattern."""
     for entries in GENERATED_PATHS.values():
         if relative_path in entries:
             return True
-    for globs in GENERATED_GLOBS.values():
+    for kind, globs in GENERATED_GLOBS.items():
+        if kind == "prompts":
+            continue
         if any(_matches_generated_glob(relative_path, pat) for pat in globs):
             return True
+    source = _mirror_source(relative_path)
+    if source is not None:
+        root = repo_root if repo_root is not None else Path.cwd()
+        return _is_staged_regular_file(root, source)
     return False
 
 
@@ -2211,7 +2305,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     for path in staged:
         if path in merge_brought:
             merge_exempt.append(path)
-        elif _is_generated(path):
+        elif _is_generated(path, repo_root):
             generated.append(path)
         else:
             authored.append(path)
@@ -6075,8 +6169,9 @@ def run_pytest(repo_root: Path) -> int:
                 consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
                 plural = "" if index == 1 else "s"
                 print(
-                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
-                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    "ERROR: pytest suite timed out, budget exhausted with "
+                    f"{remaining:g}s left of the "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
                     f"({consumed:g}s already consumed by {index} earlier "
                     f"command{plural} in the suite)",
                     file=sys.stderr,
@@ -6521,14 +6616,105 @@ def _handle_additions(args: argparse.Namespace) -> int:
     return additions_advisory(_repo_root(args))
 
 
+# ---------------------------------------------------------------------------
+# Push-range file filter for glob-triggered E2E jobs (#4492)
+#
+# lefthook computes {push_files} from @{push}...HEAD.  On the first push of a
+# new branch @{push} is unresolvable and lefthook falls back to a comparison
+# that can include files from upstream commits the branch never touched.  That
+# causes glob-gated E2E jobs to fire on unrelated upstream files.
+#
+# The fix: jobs that are triggered solely by glob matching (no {push_files}
+# argument) use `use_stdin: true` and call _push_range_changed_files() to
+# derive the actual changed file list from the push refs on stdin.  Only files
+# present in the real push range are compared against the job's globs.
+# ---------------------------------------------------------------------------
+
+
+def _push_range_changed_files(stream: TextIO, repo_root: Path) -> set[str] | None:
+    """Return the set of files actually changed in this push, or None on error.
+
+    Reads push refs from ``stream`` (pre-push stdin format), resolves the push
+    update for each ref using ``resolve_push_update``, and collects the changed
+    file paths from ``git diff --name-only <range_spec>``.  Returns ``None``
+    when the refs cannot be resolved so callers can fail open (run the job
+    unconditionally) rather than silently skip it.
+    """
+    try:
+        refs = parse_push_refs(stream)
+    except (ValueError, OSError):
+        return None
+    if not refs:
+        return None
+    changed: set[str] = set()
+    for ref in refs:
+        if ref.is_deletion:
+            continue
+        try:
+            update = resolve_push_update(ref, repo_root)
+        except (PushUpdateConfigError, ValueError):
+            return None
+        result = _run_git(repo_root, ["diff", "--name-only", update.range_spec])
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                changed.add(line)
+    return changed
+
+
+def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
+    """Return True when any file in ``files`` matches any of the given glob patterns."""
+    for path in files:
+        for pattern in globs:
+            if fnmatch(path, pattern):
+                return True
+    return False
+
+
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    push_files = getattr(args, "files", None)
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
+    # These mirror the glob: list for hook-anchoring-e2e in lefthook.yml.
+    # Keeping the list here (not in YAML) satisfies ADR-006: the guard logic
+    # lives in Python, and lefthook's glob is now a secondary filter only.
+    hook_e2e_globs = (
+        "build/scripts/generate_hooks.py",
+        "src/copilot-cli/hooks/**",
+        ".claude/hooks/**",
+        ".claude/settings.json",
+        "scripts/validation/validate_hook_anchoring.py",
+        "tests/e2e/test_cli_hook_e2e.py",
+        "tests/e2e/copilot_hook_probe.py",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is not None and not _any_glob_match(changed, hook_e2e_globs):
+        print("hook-anchoring-e2e skipped: no relevant files in push range")
+        return 0
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", repo_root)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    push_files = getattr(args, "files", None)
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
+    # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
+    plugin_e2e_globs = (
+        ".claude/.claude-plugin/plugin.json",
+        ".claude/commands/**",
+        ".claude/skills/**",
+        "src/copilot-cli/.claude-plugin/plugin.json",
+        "src/copilot-cli/skills/**",
+        "build/scripts/generate_commands.py",
+        "build/scripts/generate_skills.py",
+        "templates/platforms/copilot-cli.yaml",
+        "tests/e2e/test_plugin_load_smoke.py",
+        "tests/e2e/copilot_hook_probe.py",
+        ".github/workflows/nightly-cli-smoke.yml",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is not None and not _any_glob_match(changed, plugin_e2e_globs):
+        print("plugin-load-e2e skipped: no relevant files in push range")
+        return 0
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:

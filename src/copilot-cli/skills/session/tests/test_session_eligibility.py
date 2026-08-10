@@ -83,12 +83,12 @@ class TestMainFunction:
         def mock_run(cmd, **kwargs):
             return subprocess.CompletedProcess(
                 cmd, 0,
-                stdout=".agents/sessions/log.json\n.serena/memories/test.md\n",
+                stdout="A\t.agents/sessions/log.json\nM\t.serena/memories/test.md\n",
                 stderr="",
             )
 
         with mock.patch("subprocess.run", side_effect=mock_run):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0
         output = json.loads(capsys.readouterr().out)
@@ -101,12 +101,12 @@ class TestMainFunction:
         def mock_run(cmd, **kwargs):
             return subprocess.CompletedProcess(
                 cmd, 0,
-                stdout=".agents/sessions/log.json\nscripts/main.py\n",
+                stdout="A\t.agents/sessions/log.json\nM\tscripts/main.py\n",
                 stderr="",
             )
 
         with mock.patch("subprocess.run", side_effect=mock_run):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0
         output = json.loads(capsys.readouterr().out)
@@ -120,7 +120,7 @@ class TestMainFunction:
             return subprocess.CompletedProcess(cmd, 128, stdout="", stderr="fatal: not a git repo")
 
         with mock.patch("subprocess.run", side_effect=mock_run):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0
         output = json.loads(capsys.readouterr().out)
@@ -134,11 +134,108 @@ class TestMainFunction:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         with mock.patch("subprocess.run", side_effect=mock_run):
-            result = mod.main()
+            result = mod.main([])
 
         assert result == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Eligible"] is True
+
+    def test_base_ref_includes_committed_and_uncommitted_changes(self, capsys):
+        mod = _load_module()
+        outputs = {
+            ("git", "diff", "--name-status", "--find-renames", "--no-ext-diff", "a" * 40 + "..HEAD", "--"): (
+                "M\t.agents/analysis/report.md\n"
+            ),
+            ("git", "diff", "--cached", "--name-status", "--find-renames", "--no-ext-diff", "--"): (
+                "A\t.agents/sessions/log.json\n"
+            ),
+            ("git", "diff", "--name-status", "--find-renames", "--no-ext-diff", "--"): (
+                "M\t.serena/memories/test.md\n"
+            ),
+            ("git", "ls-files", "--others", "--exclude-standard"): (
+                ".agents/retrospective/retro.md\n"
+            ),
+        }
+
+        def mock_run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0, stdout=outputs[tuple(cmd)], stderr="")
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            result = mod.main(["--base-ref", "a" * 40])
+
+        assert result == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Eligible"] is True
+        assert len(output["ChangedFiles"]) == 4
+        assert output["StagedFiles"] == output["ChangedFiles"]
+
+    def test_base_ref_rejects_renamed_code_source(self, capsys):
+        mod = _load_module()
+
+        def mock_run(cmd, **kwargs):
+            stdout = ""
+            if any(str(arg).endswith("..HEAD") for arg in cmd):
+                stdout = "R100\tscripts/main.py\t.agents/analysis/main.md\n"
+            return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            result = mod.main(["--base-ref", "a" * 40])
+
+        assert result == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Eligible"] is False
+        assert output["Violations"] == ["scripts/main.py"]
+
+    def test_explicit_head_ref_checks_only_committed_range(self, capsys):
+        mod = _load_module()
+        base_ref = "a" * 40
+        head_ref = "b" * 40
+        allowed_path = mod._ALLOWLIST_DISPLAY[1] + "report.md"
+
+        def mock_run(cmd, **kwargs):
+            assert cmd == [
+                "git",
+                "diff",
+                "--name-status",
+                "--find-renames",
+                "--no-ext-diff",
+                f"{base_ref}..{head_ref}",
+                "--",
+            ]
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=f"M\t{allowed_path}\n",
+                stderr="",
+            )
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            result = mod.main(["--base-ref", base_ref, "--head-ref", head_ref])
+
+        assert result == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Eligible"] is True
+        assert output["ChangedFiles"] == [allowed_path]
+
+    def test_invalid_base_ref_fails_closed(self, capsys):
+        mod = _load_module()
+
+        result = mod.main(["--base-ref=--option"])
+
+        assert result == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Eligible"] is False
+        assert "Invalid base ref" in output["Error"]
+
+    def test_invalid_head_ref_fails_closed(self, capsys):
+        mod = _load_module()
+
+        result = mod.main(["--base-ref", "a" * 40, "--head-ref=--option"])
+
+        assert result == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Eligible"] is False
+        assert "Invalid head ref" in output["Error"]
 
 
 class TestAllowlistIntegrity:

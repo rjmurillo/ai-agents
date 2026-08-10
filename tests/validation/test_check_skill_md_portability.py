@@ -1514,6 +1514,10 @@ class TestBaselineSemanticConflictGuard:
     ) -> None:
         """The guard's real target: a branch-local regeneration hiding new debt."""
         self._init_repo(tmp_path)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Uses .agents/state.\n", encoding="utf-8"
         )
@@ -1523,6 +1527,8 @@ class TestBaselineSemanticConflictGuard:
             ),
             encoding="utf-8",
         )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "add debt"], cwd=tmp_path, check=True)
 
         rc = cmp.main(
             [
@@ -1531,7 +1537,7 @@ class TestBaselineSemanticConflictGuard:
                 "--baseline",
                 str(tmp_path / "baseline.json"),
                 "--base-ref",
-                "HEAD",
+                base_sha,
             ]
         )
 
@@ -1715,6 +1721,10 @@ class TestBaselineSemanticConflictGuard:
         regressions on its own.
         """
         self._init_repo_with_debt(tmp_path)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
         )
@@ -1724,12 +1734,14 @@ class TestBaselineSemanticConflictGuard:
             ),
             encoding="utf-8",
         )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "raise count"], cwd=tmp_path, check=True)
 
-        rc = self._run(tmp_path, "HEAD")
+        rc = self._run(tmp_path, base_sha)
 
         assert rc == 1
         out = capsys.readouterr().out
-        assert "Counts rose above the baseline recorded at HEAD" in out
+        assert "Counts rose above the baseline recorded at" in out
         assert ".claude/skills/a/SKILL.md" in out
 
     def test_baseline_absent_at_base_ref_fails_closed(
@@ -1756,7 +1768,8 @@ class TestBaselineSemanticConflictGuard:
         (tmp_path / "baseline.json").write_text(
             json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
         )
-        subprocess.run(["git", "add", "baseline.json"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "branch changes"], cwd=tmp_path, check=True)
 
         rc = self._run(tmp_path, base_ref)
 
@@ -1771,14 +1784,20 @@ class TestBaselineSemanticConflictGuard:
         (tmp_path / "baseline.json").write_text("{not json", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
         subprocess.run(["git", "commit", "-qm", "corrupt"], cwd=tmp_path, check=True)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
         (tmp_path / "baseline.json").write_text(
             json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
         )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "branch changes"], cwd=tmp_path, check=True)
 
-        rc = self._run(tmp_path, "HEAD")
+        rc = self._run(tmp_path, base_sha)
 
         assert rc == 1
         assert "Semantic baseline conflict" in capsys.readouterr().out
@@ -1908,6 +1927,40 @@ class TestTraversalErrorsSurface:
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
         (skills / "dangling.md").symlink_to(skills / "gone.md")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_dangling_directory_symlink_outside_root_raises(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "escape-dir").symlink_to(
+            tmp_path.parent / "outside-dir" / "gone",
+            target_is_directory=True,
+        )
+        with pytest.raises(OSError, match="outside the repository root"):
+            cmp.scan_skill_markdown(tmp_path / ".claude" / "skills")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_dangling_directory_symlink_outside_root_makes_cli_exit_2(
+        self, tmp_path: Path
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "escape-dir").symlink_to(
+            tmp_path.parent / "outside-dir" / "gone",
+            target_is_directory=True,
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
