@@ -21,6 +21,20 @@
 - Two skill eval systems exist: knowledge-integration (`scripts/eval/eval-knowledge-integration.py`, prompts in `tests/evals/skills/*.json`) and agent-vs-baseline. A true skill ROUTER/trigger eval (does query X load skill Y?) does NOT exist; author one if needed (`eval_skill_router.py` was a first attempt that compares before/after skill descriptions on disambiguation queries).
 - `validate-skill.py` (SkillForge) has a CWE-22 cwd path guard: it rejects targets outside cwd; `cd` into a worktree to validate its copy. See `mem:ci-infrastructure-observations` for the build/parity/drift model.
 
+## Skill prompt edit boundary (2026-08-11)
+
+- Use `scripts/eval/eval-prompt-change.py` for a before-versus-after
+  `SKILL.md` edit. It loads the base-ref prompt and the working-copy prompt,
+  runs both on the same provider, and applies the ADR-057 non-regression and
+  flakiness gate.
+- `scripts/eval/eval-knowledge-integration.py` answers a different question:
+  whether adding a skill context beats a no-context baseline. It cannot prove
+  that an edited skill improved against its prior version.
+- `has_improvement` is report evidence, not an ADR-057 gate. A prompt-change
+  PASS requires no score regression, no pass-to-fail scenario flip, and no
+  high-flakiness scenario. Record delta and `has_improvement` for human review
+  without turning them into a new machine gate.
+
 ## Fingerprint provenance boundary (#4123, 2026-08-03)
 
 - `scripts/eval/_eval_common.py::require_str_or_none` raises
