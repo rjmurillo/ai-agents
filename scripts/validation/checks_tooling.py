@@ -21,8 +21,11 @@ from pathlib import Path
 from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from checks_changed_paths import _filtered_targets  # noqa: E402
 from checks_common import (  # noqa: E402
@@ -32,7 +35,8 @@ from checks_common import (  # noqa: E402
 )
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
-from session_scope import new_session_logs  # noqa: E402
+
+from scripts.validation.session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
 # "Linting: N files" prints before any read; Summary's count is files *with

@@ -31,9 +31,12 @@ from pathlib import Path, PurePosixPath
 from typing import NamedTuple, TextIO, cast
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+_VALIDATION_DIR = _PROJECT_ROOT / "scripts" / "validation"
+_VALIDATION_PACKAGE_SENTINEL = _VALIDATION_DIR / "models.py"
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+if str(_VALIDATION_DIR) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION_DIR))
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
