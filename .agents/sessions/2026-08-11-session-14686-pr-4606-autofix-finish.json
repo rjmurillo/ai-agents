@@ -142,9 +142,13 @@
     {
       "action": "Refreshed remaining QA reports after canonical command fix",
       "result": "Updated the final session-specific QA markdown artifacts so every PR 4606 session report still points at the latest portable command fix commit."
+    },
+    {
+      "action": "Closed follow-up command schema gaps",
+      "result": "Rejected dot-only resourceSuffixes in both command validators, covered the new edge case in tests, and allowed excludeFilenames in the command schema to match generator support."
     }
   ],
-  "endingCommit": "d366919b4c5fdef1b9a9fde9956502bce6977956",
+  "endingCommit": "573c81888894aea4f17c26a3254e3756c9ec6205",
   "nextSteps": [
     "Wait for required checks to pass, then merge only if the Ready-to-Merge gate returns all four conditions true."
   ],
@@ -153,7 +157,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "332257ae8324d82a309c05b53a9bfd2e782044c3",
-      "head": "d366919b4c5fdef1b9a9fde9956502bce6977956"
+      "head": "573c81888894aea4f17c26a3254e3756c9ec6205"
     }
   }
 }
