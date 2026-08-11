@@ -23,6 +23,7 @@ Validate the specification branch after merging current `origin/main`.
 | Evidence commits | Authored file counts stayed at or below 5; generated episode companions are policy-exempt |
 | Review corrections | Spec frontmatter, prose, and full pre-PR validation passed |
 | Independent re-review | All material findings resolved |
+| Final QA binding | Sessions rebound to the last non-evidence correction commit |
 
 ## Verdict
 

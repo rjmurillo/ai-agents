@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14682-b252cc7ff-update-aspire-skill-spec-prefer.json
-qaCommit: 80f0e5e8c84eaf63e4e75053b9a561b88ab65f6e
+qaCommit: 3c77d5b54e06a12c4ffceff1a4d4a4e060d4bfd5
 ---
 
 # QA Report: Aspire Skill Review Provider Amendment
