@@ -127,6 +127,13 @@ ignores:
   - ".wt/**"
   - ".worktrees/**"
   - ".work-*/**"
+  - "worktrees/**"
+  # Session scratch trees (issue #4892): agent-local working dirs, not
+  # authored .md. Untracked, so a sibling session's scratch tree still
+  # crashes markdownlint-cli2 (v0.23.1 exits 249 on a 4000+ file arg list
+  # with no findings) unless the pattern names it here.
+  - ".agent-scratch/**"
+  - ".scratch/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
   - ".serena/**"

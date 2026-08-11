@@ -156,6 +156,24 @@ class TestValidateDashProhibition:
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
 
+    def test_skips_worktree_scratch_paths(self, tmp_path: Path) -> None:
+        """issue #4892: sibling-session scratch trees must not enter the scan."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        for prefix in ("worktrees", ".agent-scratch", ".scratch"):
+            scratch = tmp_path / prefix / "sub" / "notes.md"
+            scratch.parent.mkdir(parents=True)
+            scratch.write_text(f"scratch prose with {chr(0x2014)} dash\n", encoding="utf-8")
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (
+                0,
+                "worktrees/sub/notes.md\n.agent-scratch/sub/notes.md\n.scratch/sub/notes.md\n",
+                "",
+            )
+            assert validate_dash_prohibition(tmp_path) is True
+
     def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
         from scripts.validation.pre_pr import validate_dash_prohibition
