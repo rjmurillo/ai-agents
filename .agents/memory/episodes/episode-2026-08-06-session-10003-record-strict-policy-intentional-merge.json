@@ -117,6 +117,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T11:19:51+00:00",
+      "type": "commit",
+      "content": "Commit: 7f79b060ca7342f68dbd1cb65b15f840b7777463",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
     }
@@ -126,8 +139,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
-    "files_changed": 17
+    "commits": 10,
+    "files_changed": 18
   },
   "lessons": []
 }
