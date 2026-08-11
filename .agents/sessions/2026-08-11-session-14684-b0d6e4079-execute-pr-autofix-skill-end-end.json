@@ -79,7 +79,7 @@
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md unchanged (read-only per ADR-014); per-issue handoffs not applicable, no single associated issue for a 5-PR batch \u2014 outcomes recorded in this session log and Serena memory pr-autofix/batch-d-2026-08-11"
+        "Evidence": "HANDOFF.md unchanged (read-only per ADR-014); per-issue handoffs not applicable, no single associated issue for a 5-PR batch; outcomes recorded in this session log and Serena memory pr-autofix/batch-d-2026-08-11"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -109,7 +109,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "UPDATE todos SET status='blocked' WHERE id='pr-autofix-batch-d' run against .agents/todos.db (0 rows affected \u2014 no such row exists; discrepancy flagged in nextSteps)"
+        "Evidence": "UPDATE todos SET status='blocked' WHERE id='pr-autofix-batch-d' run against .agents/todos.db (0 rows affected: no such row exists; discrepancy flagged in nextSteps)"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -133,15 +133,15 @@
     },
     {
       "action": "Routed 4606 and 4583 to merge-resolver agents; retried 4609/4564/4543 as lease freed and re-contended repeatedly over ~3 hours.",
-      "result": "merge-resolver resolved 4583's conflict (tests/test_validation_pre_pr.py) and pushed 723716838f; CI went green and an external automation merged it (mergeCommit f5deb469, 17:46Z). merge-resolver's first 4606 resolution went stale as main advanced again; a second merge-resolver pass reset and re-resolved, pushed 332257ae83 (used --no-verify on the local pre-push hook to get past a pre-existing stale-session-log block, flagged as a process deviation). 4609 was independently merged by the same external automation (mergeCommit a12c5a9e... actually a12c59e2, 17:43Z) before a 3rd retry could act."
+      "result": "merge-resolver resolved 4583's conflict (tests/test_validation_pre_pr.py) and pushed 723716838f; CI went green and an external automation merged it (mergeCommit f5deb469, 17:46Z). merge-resolver's first 4606 resolution went stale as main advanced again; a second merge-resolver pass reset and re-resolved, pushed 332257ae83 (used --no-verify on the local pre-push hook to get past a pre-existing stale-session-log block, flagged as a process deviation). 4609 was independently merged by the same external automation (mergeCommit a12c59e2, 17:43Z) before a 3rd retry could act."
     },
     {
       "action": "Dispatched a finishing pass for 4606 to fix real CI failures (Validate PR + 5 stale session-log validations) surfaced after the re-resolved push.",
-      "result": "Fixed properly (no bypass) via 3 commits, final head 82669be999. All CI required checks green, 0 unresolved threads, branch up to date. Ready-to-Merge gate condition 4 (mergeStateStatus CLEAN/UNSTABLE) FAILED: mergeStateStatus=BLOCKED, reviewDecision empty \u2014 no human/CODEOWNERS approval recorded. Correctly left BLOCKED rather than merging; auto-merge not armed."
+      "result": "Fixed properly (no bypass) via 3 commits, final head 82669be999. All CI required checks green, 0 unresolved threads, branch up to date. Ready-to-Merge gate condition 4 (mergeStateStatus CLEAN/UNSTABLE) FAILED: mergeStateStatus=BLOCKED, reviewDecision empty, no human/CODEOWNERS approval recorded. Correctly left BLOCKED rather than merging; auto-merge not armed."
     },
     {
       "action": "4564 and 4543 remained held by the external local:pr-autofix session lease continuously from first triage (~14:19Z) through session end (~21:09Z), with the expiry timestamp advancing on every recheck (proof of active renewal, not an abandoned/stale lease).",
-      "result": "Correctly skipped per binding lease-SKIP rule on every attempt (3 attempts on 4609 succeeded after the holder released; 4564/4543 never freed in this session). No mutation attempted on either PR. Worktree for 4543 (read-only investigation only) left in place at ai-agents6-autofix-4543; no worktree was created for 4564 (removed after its own no-op SKIP)."
+      "result": "Correctly skipped per binding lease-SKIP rule on every attempt. Three retries ran against 4609: the first two hit the held lease, and by the third the external automation had already merged the PR (mergeCommit a12c59e2, 17:43Z), so that retry observed an already-merged PR and made no mutation. 4564/4543 never freed in this session. No mutation attempted on either PR. Worktree for 4543 (read-only investigation only) left in place at ai-agents6-autofix-4543; no worktree was created for 4564 (removed after its own no-op SKIP)."
     },
     {
       "action": "Verified all delegated 'done' claims against actual GitHub/repo state before trusting them (gh pr view, git log, git worktree list) per Synthesis Protocol.",
@@ -149,12 +149,12 @@
     },
     {
       "action": "Ran `UPDATE todos SET status = 'blocked' WHERE id = 'pr-autofix-batch-d'` against .agents/todos.db per task instructions.",
-      "result": "0 rows affected \u2014 no row with id 'pr-autofix-batch-d' exists in the todos table (only batch-a/b/c present). SQL executed as instructed; discrepancy flagged for the operator since batch outcome is genuinely mixed (2 merged, 3 blocked), not fully done."
+      "result": "0 rows affected: no row with id 'pr-autofix-batch-d' exists in the todos table (only batch-a/b/c present). SQL executed as instructed; discrepancy flagged for the operator since batch outcome is genuinely mixed (2 merged, 3 blocked), not fully done."
     }
   ],
   "endingCommit": "5e9680c62f",
   "nextSteps": [
-    "PR 4606: obtain a human/CODEOWNERS review approval (all technical work \u2014 conflict resolution, CI, threads \u2014 is complete; only branch-protection approval is missing). Then re-run the completion gate and merge.",
+    "PR 4606: obtain a human/CODEOWNERS review approval (all technical work is complete: conflict resolution, CI, and threads; only branch-protection approval is missing). Then re-run the completion gate and merge.",
     "PR 4564: retry pr-autofix once the external local:pr-autofix lease releases; re-derive tier fresh (main has moved further since last triage).",
     "PR 4543: retry pr-autofix once the external local:pr-autofix lease releases; re-verify the previously-unresolved review thread on scripts/validation/git_hook_policy.py and the real conflict found in a pre-lease probe (checks_tooling.py, git_hook_policy.py, session_scope.py, test_lefthook_integration.py, test_validate_session_json.py) before acting.",
     "Investigate whether 'pr-autofix-batch-d' should exist as a todos.db row; the UPDATE at session end affected 0 rows because no such row exists.",
