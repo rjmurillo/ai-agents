@@ -9,7 +9,7 @@
 
 ## Principle
 
-**Every new function MUST have positive AND negative tests.** Happy path alone is insufficient. Don't ship "the change works" with only success-case tests; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches).
+**Every new or changed function MUST have named positive and negative test evidence.** For each function added or changed in the diff, the PR body, session log, or commit body must name the test selector that covers valid input and the selector that covers invalid input or an edge case. Pure documentation changes and mechanical renames may state "no function changed." Happy path alone is insufficient. Don't ship "the change works" with only success-case tests; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches).
 
 **Mirror obligation**: a contract change MUST grep for tests asserting the old contract and flip them in the same diff. Tests must mirror the changed obligation, not only the new happy path.
 

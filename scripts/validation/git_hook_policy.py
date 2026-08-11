@@ -6759,14 +6759,20 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
+    if not session_paths:
+        return 0
     new_logs, has_session_deletion = session_change_scope(
-        paths,
+        session_paths,
         repo_root,
         compare_ref="HEAD",
     )
-    for path in paths:
-        normalized = _safe_relative_path(path)
-        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+    for path in session_paths:
+        if _is_session_on_upstream_default(repo_root, path):
             continue
         command = [sys.executable, "scripts/validate_session_json.py", path]
         exists_at_head = _path_exists_at_head(path, repo_root)

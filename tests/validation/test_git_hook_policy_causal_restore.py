@@ -3035,6 +3035,30 @@ class TestBlobIdentityAndRenameLookup:
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
 
+def _complete_history_reply(
+    repo_root: Path, args: list[str]
+) -> subprocess.CompletedProcess[str] | None:
+    """Answer the history-integrity probes, or None if this is not one of them.
+
+    `check_suppression_diff` and `check_range_suppressions` gate on
+    `_check_history_integrity` before they read any range (issue #4680), which
+    adds two `rev-parse` calls ahead of every case below. These cases are about
+    what the range check concludes on an intact clone, so the probes are
+    answered as complete. The shallow and grafted legs are covered against real
+    git in tests/ci/test_shallow_fetch_graft_guards.py.
+
+    One helper rather than a copy per fake: six argv dispatchers answering the
+    same two probes is six chances for them to drift apart.
+    """
+    if args == ["rev-parse", "--is-shallow-repository"]:
+        return _completed("false\n")
+    if args == ["rev-parse", "--git-path", "info/grafts"]:
+        # `_check_no_grafts` treats a missing grafts file as clean, and nothing
+        # creates this path under tmp_path, so this answers "no grafts".
+        return _completed(str(repo_root / ".git" / "info" / "grafts") + "\n")
+    return None
+
+
 def _run_suppression_diff(
     monkeypatch: pytest.MonkeyPatch,
     repo_root: Path,
@@ -3047,6 +3071,8 @@ def _run_suppression_diff(
     range_spec = f"{base_ref}..HEAD"
 
     def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if (reply := _complete_history_reply(repo_root, args)) is not None:
+            return reply
         if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
             assert range_spec in args
             return _completed("\0".join(changed_paths) + "\0")
@@ -3118,6 +3144,8 @@ class TestSuppressionDiff:
 
     def test_empty_changed_file_list_is_allowed(self, tmp_path, monkeypatch):
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             if args[0] == "diff" and "--name-only" in args:
                 return _completed("")
             raise AssertionError(f"unexpected git call: {args!r}")
@@ -3127,6 +3155,8 @@ class TestSuppressionDiff:
 
     def test_git_error_on_initial_diff_returns_3(self, tmp_path, monkeypatch):
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             return subprocess.CompletedProcess(["git"], 128, "", "fatal: not a git repo")
 
         monkeypatch.setattr(policy, "_run_git", _run_git)
@@ -3136,6 +3166,8 @@ class TestSuppressionDiff:
         base_ref = "c" * 40
 
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             if args[0] == "diff" and "--name-only" in args:
                 return _completed("pkg/module.py\0")
             if args[0] == "diff" and "--name-status" in args:
@@ -3163,6 +3195,8 @@ class TestSuppressionDiff:
         """Files with extensions outside SECURITY_SUPPRESSION_SUFFIXES are skipped."""
 
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             if args[0] == "diff" and "--name-only" in args:
                 return _completed("pkg/data.csv\0pkg/README.md\0")
             raise AssertionError(f"unexpected git call: {args!r}")
@@ -3178,6 +3212,8 @@ class TestSuppressionDiff:
         base_ref = "c" * 40
 
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
                 return _completed("pkg/notebook.ipynb\0")
             if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:
@@ -3207,6 +3243,8 @@ class TestSuppressionDiff:
         )
 
         def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if (reply := _complete_history_reply(tmp_path, args)) is not None:
+                return reply
             if args[0] == "diff" and "--name-only" in args and "--diff-filter=ACMRT" in args:
                 return _completed("pkg/new_nb.ipynb\0")
             if args[0] == "diff" and "--name-status" in args and "--diff-filter=R" in args:

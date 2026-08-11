@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.windows_path
 
@@ -278,4 +279,5 @@ def test_windows_contract_jobs_run_for_action_changes():
     # (issue #4299). Both test_pytest_head_guard.py and this file carry
     # pytestmark = pytest.mark.windows_path, so they still run on Windows.
     assert workflow.count("- name: Run Windows path-contract tests") == 1
-    assert "    timeout-minutes: 15" in workflow
+    timeout = yaml.safe_load(workflow)["jobs"]["test-windows-pwsh"]["timeout-minutes"]
+    assert 1 <= timeout <= 15

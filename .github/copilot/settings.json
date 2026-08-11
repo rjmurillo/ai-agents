@@ -1,0 +1,52 @@
+{
+  "effortLevel": "high",
+  "model": "gpt-5.6-sol",
+  "contextTier": "long_context",
+  "respectGitignore": true,
+  "mergeStrategy": "rebase",
+  "includeCoAuthoredBy": true,
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman",
+        "sha": "456e94755d073b6a9fd836c5b3373470da74f81e"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail",
+        "sha": "2ed6c52c9d7e5e56942508591085fd45dea277d3"
+      }
+    },
+    "ai-agents": {
+      "source": {
+        "source": "github",
+        "repo": "rjmurillo/ai-agents",
+        "sha": "e73a99bc6c2fe95070a6d73294b1b246b047027a"
+      }
+    },
+    "agent-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "MattKotsenas/agent-plugins",
+        "sha": "fe132f436396995f7271d35794761ce984067451"
+      }
+    },
+    "graybeard": {
+      "source": {
+        "source": "github",
+        "repo": "Virag-Koradiya/graybeard",
+        "sha": "a2b7ef9603d5543bf24c04f0d27daf6e07f6cb3b"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "ponytail@ponytail": true,
+    "project-toolkit@ai-agents": false,
+    "git-good@agent-plugins": true,
+    "graybeard@graybeard": true
+  }
+}

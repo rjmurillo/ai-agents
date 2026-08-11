@@ -48,7 +48,7 @@ def run_tests(
         cwd=repo_root,
         capture_output=True,
         encoding="utf-8",
-        errors="backslashreplace",
+        errors="replace",
     )
 
 

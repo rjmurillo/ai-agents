@@ -136,7 +136,6 @@ def _tracked(paths: list[str], repo_root: Path) -> set[str]:
         return set()
     return {entry for entry in listed.stdout.split("\0") if entry}
 
-
 def _added_session_paths(
     paths: Iterable[str],
     repo_root: Path,
@@ -170,7 +169,7 @@ def _added_session_paths(
         return None
     added: set[str] = set()
     for line in diff.stdout.splitlines():
-        parts = line.split("\t", 1)
+        parts = line.split("	", 1)
         if len(parts) != 2:
             continue
         status, name = parts

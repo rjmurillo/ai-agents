@@ -256,6 +256,74 @@ def get_bot_authors(category: str = "all") -> list[str]:
 
 _BOT_SUFFIXES = ("[bot]", "-bot")
 
+# One GitHub integration reaches the API under several logins depending on the
+# path it came in through: REST review comments report ``Copilot``, the REST
+# reviews array reports ``copilot-pull-request-reviewer[bot]``, and GraphQL
+# reports ``copilot-pull-request-reviewer``. A caller that keys an aggregate on
+# the raw login counts one actor as three, inflating reviewer counts and bot
+# counts (issue #4378). Map every observed spelling onto one canonical login.
+#
+# The code reviewer and the coding agent are two accounts, not one, and
+# .github/bot-authors.yml files them under different categories. Measured on
+# this repository: the reviewer is account id 175728472 and the coding agent is
+# 198982749. Collapsing them makes the reviewer's comments read as the author's
+# own on the 121 PRs the coding agent has opened here, and every self-comment
+# filter then drops the review. They stay separate.
+#
+# REST spells BOTH accounts ``Copilot`` in some fields (PR 3235's ``.user.login``
+# is the coding agent; PR 4298's review-comment authors are the reviewer), so
+# that one string cannot be resolved from the login alone. Numeric account IDs
+# are authoritative when the API supplies them. The login map remains the
+# fallback for API shapes that expose only a login.
+_DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
+    "github-copilot[bot]": [
+        "Copilot",
+        "copilot-pull-request-reviewer",
+        "copilot-pull-request-reviewer[bot]",
+    ],
+    "copilot-swe-agent[bot]": [
+        "copilot-swe-agent",
+        # gh pr view --json author returns this spelling, so an author read that
+        # way must land on the coding agent rather than fall through unmapped.
+        "app/copilot-swe-agent",
+    ],
+    "github-actions[bot]": [
+        "github-actions",
+    ],
+}
+
+_DEFAULT_BOT_ACCOUNT_IDS: dict[int, str] = {
+    175728472: "github-copilot[bot]",
+    198982749: "copilot-swe-agent[bot]",
+}
+
+# Lowercased alias to canonical login. Built once from the table above, which is
+# a literal, so there is nothing to invalidate and no cache to keep.
+_BOT_ALIAS_MAP: dict[str, str] = {
+    alias.lower(): canonical
+    for canonical, aliases in _DEFAULT_BOT_ALIASES.items()
+    for alias in (canonical, *aliases)
+}
+
+
+def canonicalize_login(login: str, account_id: int | None = None) -> str:
+    """Return the canonical login for *login*, or *login* itself when unmapped.
+
+    A known numeric account ID wins over the login because GitHub reports both
+    the Copilot reviewer and the Copilot coding agent as ``Copilot`` in some
+    REST objects. Callers should pass REST ``user.id`` or GraphQL
+    ``databaseId`` when available.
+
+    Matching is case-insensitive because GitHub logins are. An unmapped login
+    comes back unchanged, so this is safe to apply to every actor rather than
+    only to the ones a caller already believes are bots.
+    """
+    if account_id is not None:
+        canonical = _DEFAULT_BOT_ACCOUNT_IDS.get(account_id)
+        if canonical is not None:
+            return canonical
+    return _BOT_ALIAS_MAP.get(login.lower(), login)
+
 
 def is_bot(login: str, user_type: str | None = None) -> bool:
     """Determine if a GitHub login belongs to a bot account.

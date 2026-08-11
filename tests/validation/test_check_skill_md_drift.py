@@ -272,6 +272,14 @@ class TestMarkerPathDrift:
         assert _is_consumer_workspace_path(".agents/sessions/foo") is True
         assert _is_consumer_workspace_path(".agents/sessions") is True
         assert _is_consumer_workspace_path(".agents/sessions-evil/x") is False
+        assert _is_consumer_workspace_path(".agents/scratch/pr-body-x.md") is True
+        assert _is_consumer_workspace_path(".agents/scratch-evil/x") is False
+
+    def test_scratch_path_is_extracted(self) -> None:
+        paths = _extract_paths_from_text(
+            "Write the PR body to .agents/scratch/pr-body-x.md."
+        )
+        assert paths == {".agents/scratch/pr-body-x.md"}
 
     def test_dotdot_traversal_rejected(self, tmp_path: Path) -> None:
         """Defect 2 (HIGH): '..' in declared paths does not bypass checks."""

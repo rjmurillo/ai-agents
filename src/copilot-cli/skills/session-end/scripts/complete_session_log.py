@@ -121,6 +121,8 @@ def _get_repo_root() -> str:
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -137,6 +139,8 @@ def _get_current_branch() -> str | None:
         ["git", "branch", "--show-current"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -219,6 +223,8 @@ def _get_ending_commit() -> str | None:
         ["git", "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -272,6 +278,8 @@ def _test_handoff_modified() -> bool:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -290,6 +298,8 @@ def _test_serena_memory_updated(starting_commit: str | None = None) -> bool:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -308,6 +318,8 @@ def _test_serena_memory_updated(starting_commit: str | None = None) -> bool:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -324,6 +336,8 @@ def _changed_markdown_files() -> set[str]:
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -331,6 +345,8 @@ def _changed_markdown_files() -> set[str]:
         ["git", "diff", "--name-only", "--diff-filter=ACMR"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -410,6 +426,8 @@ def _run_markdown_lint(
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
         check=False,
     )
@@ -451,6 +469,8 @@ def _test_uncommitted_changes(
         ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -559,6 +579,8 @@ def _investigation_skip_evidence(repo_root: Path, starting_commit: object) -> st
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )

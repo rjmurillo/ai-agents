@@ -1,0 +1,209 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10035,
+    "date": "2026-08-10",
+    "branch": "perf/4823-pytest-xdist",
+    "startingCommit": "db8e9441ba9e2b9a21b598224d0501329ffdf1a3",
+    "objective": "Enable bounded four-worker pytest-xdist parallelism for Issue 4823"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena toolbox was initialized by the dispatching session before this worktree task."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions loaded before any edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as the read-only dashboard; not modified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Validation entry points identified: scripts/validation/pre_pr.py, scripts/validation/git_hook_policy.py, scripts/ci/combine_pin_coverage.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first, atomic-commit, and issue-linkage boundaries applied."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules universal, python, testing, ci-scripts, security, session-logs, and canonical-source-mirror."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior session 2026-08-10-session-10033 and .agents/qa/pr-4823-xdist-collection-order-report.md carry the measured four-worker baseline."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/4823-pytest-xdist, stacked on fix/4823-deterministic-test-collection"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/4823-pytest-xdist"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Working tree clean at session start."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "db8e9441ba9e2b9a21b598224d0501329ffdf1a3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required start and end items recorded."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The worker-count contract lives in scripts/validation/git_hook_policy.py and its tests; no separate memory needed."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown changes are limited to the QA report added in this commit."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4844-xdist-parallelism-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Feature commits through 953338d6fe8cfcd86206fb6a467060bb66d5693b, plus current main merge 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1 and this evidence commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted contract tests, dev-dependency parity, uv lock check, ruff, and workflow validation all passed. pre_pr.py --quick reports two findings this branch's code commits did not cause: the count ratchet hits an add/add merge conflict on the prerequisite session log that main already carries, reproduced at the session's starting commit, and the session-end QA staleness item that this documentation commit closes."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo implement-xdist-pr updated after the gates finished."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read Issue 4823, the prerequisite branch diff, and the matching rule files",
+      "outcome": "Confirmed the measured baseline: four workers passed 25,321 tests twice at 315.53s and 301.03s with peak RSS of 600MB and 553MB."
+    },
+    {
+      "action": "Added pytest-xdist to both dev dependency tables and regenerated the lock",
+      "outcome": "Commit 5306e1d2e added pytest-xdist>=3.8.0 to both tables; uv lock resolved 118 packages and added execnet 2.1.2 and pytest-xdist 3.8.0; the 11 dev-dependency parity tests passed."
+    },
+    {
+      "action": "Added a bounded worker-count parser to the pre-push gate",
+      "outcome": "Commit 7d8aaa893 put -n 4 --dist loadfile on the bulk partition only, kept the safe-push partition serial, and added 31 contract tests; two mutation checks failed 1 and 6 tests."
+    },
+    {
+      "action": "Added the four-worker flags to the CI main pytest step",
+      "outcome": "Commit 4599e70f8 changed only the Run pytest step and added 7 workflow contract tests; two mutation checks failed 2 tests each and scripts/validate_workflows.py passed."
+    },
+    {
+      "action": "Ran the validation gates",
+      "outcome": "Collect-only node IDs are identical between modes at 25,394 each; three four-worker gate runs finished in 310.69s, 323.45s, and 341.55s with no worker crashes; the CI-shaped run dropped from 739.21s serial to 300.23s parallel with coverage differing by 0.0027 percentage points across an identical 609-file set."
+    },
+    {
+      "action": "Recorded one flaky failure seen in a parallel coverage run",
+      "outcome": "tests/test_pr_autofix_late_live_state_gate.py hit the 120s pytest-timeout once in 3 CI-shaped runs while blocked on subprocess pipe EOF; the QA report carries the analysis and names it a pre-existing race in a file this change does not touch."
+    },
+    {
+      "action": "Probed the push path on a throwaway branch",
+      "outcome": "Rebasing onto main clears the merge-tree ratchet conflict that blocks pre-push and leaves four commits; the probe also reproduced the orphaned-SHA errors, so endingCommit and qaCommit both need re-pointing after any rebase."
+    },
+    {
+      "action": "Merged origin/main and resolved the prerequisite session conflict",
+      "outcome": "Preserved main's canonical session 10033. All 48 targeted dependency, local-policy, and workflow contract tests passed after merge commit 3d82967895dfd2adf2f3479726b0cb7546346c97."
+    },
+    {
+      "action": "Rebuilt the worker contract on xdist's own -n auto instead of a fixed count",
+      "outcome": "parse_pytest_workers returns a string, accepts case-insensitive 'auto' or a positive integer, and raises for anything else so run_pytest exits 2 without running tests. Commits aaa1efa90 (local gate) and ea508b072 (CI step)."
+    },
+    {
+      "action": "Inverted the contract tests to forbid a hard-coded worker count",
+      "outcome": "36 local plus 7 workflow tests pass. Three mutations killed 2, 8, and 5 tests: hard-coding the CI count, hard-coding the local default, and deleting the auto branch from the parser."
+    },
+    {
+      "action": "Ran the pre-push gate at -n auto and found two failing tests",
+      "outcome": "48 of 48 workers over 25400 items in 227.72s, wall 3:50.52, peak RSS 551908 KB by /usr/bin/time -v, zero worker crashes, 2 failed in tests/test_mutation_workspace_signals.py."
+    },
+    {
+      "action": "Root-caused the two failures to a repo-global emptiness assertion",
+      "outcome": "The tests asserted marker_directory(REPO_ROOT) was empty while tests/test_mutation_workspace.py wrote markers into that same shared directory from another worker. Reproduced 2 failed and 24 passed for 3 of 3 runs at -n 2 --dist loadfile; serial control 26 passed."
+    },
+    {
+      "action": "Scoped both assertions to the marker their own run created",
+      "outcome": "Commit 953338d6f. Each test asserts the marker exists while the run is live before asserting it is gone, so mutating the suffix to .NOPE fails both tests instead of passing vacuously. 26 passed for 3 of 3 runs at -n 2 --dist loadfile."
+    },
+    {
+      "action": "Re-ran the full pre-push gate at -n auto after the fix",
+      "outcome": "48 of 48 workers, 25364 passed with 36 skips in 232.15s, wall 3:57.40, peak RSS 547032 KB. All 10 grep hits for crash markers are test names containing the word crashed, so no worker crashed."
+    },
+    {
+      "action": "Compared serial and -n auto coverage on the CI-shaped command",
+      "outcome": "Identical 609-file set with zero files on one side only, num_statements 74898 both, covered_lines 61252 serial against 61253 parallel, percent_covered delta +0.0013 points against a 0.1-point bound. Serial 765.23s against 234.16s parallel."
+    },
+    {
+      "action": "Recorded two wall-clock deadline tests that failed in one of two coverage runs",
+      "outcome": "test_process_shutdown_obeys_the_session_deadline and test_concurrent_writers_serialize_the_read_and_replace pass serially with coverage in 0.70s and pass at -n auto without coverage. They need 48 workers and coverage tracing together, which is CPU oversubscription against a two-second thread join."
+    },
+    {
+      "action": "Cleared both mandatory doc-accuracy findings on the QA report",
+      "outcome": "Replaced the fenced stdin-drain snippet with prose plus verified line citations and rewrote the ratchet section as prose. Repository-wide findings went from 3091 to 3089 and the two that named this report are gone."
+    },
+    {
+      "action": "Confirmed the push blocker is cleared",
+      "outcome": "scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main exits 0 and reports the merged tree passes every registered ratchet, with the cli exit contract ratchet at 27 against a budget of 27."
+    },
+    {
+      "action": "Renumbered this session from 10034 to 10035 after main claimed 10034",
+      "outcome": "origin/main advanced to d4cc52d5de0c and landed its own 2026-08-10-session-10034.json for branch perf/4826-redundant-test-runs on issue #4826, producing an add/add conflict. 10035 is free on main."
+    },
+    {
+      "action": "Merged current main after CI reported a stale lint baseline",
+      "outcome": "Merge commit 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1 imports baseline 30 from main. The local ratchet now reports 27 violations with 3 slack."
+    }
+  ],
+  "endingCommit": "51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1",
+  "nextSteps": [
+    "Push the branch and read the CI wall clock from the workflow run; the sub-10-minute target is unproven until then.",
+    "File a separate issue for the pr-autofix lease-renewal grandchild that keeps the harness pipe open.",
+    "File a separate issue for the two wall-clock deadline tests that starve under heavy worker oversubscription with coverage."
+  ]
+}

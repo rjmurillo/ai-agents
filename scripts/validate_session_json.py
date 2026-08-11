@@ -1177,7 +1177,7 @@ def validate_session_log(
         if isinstance(protocol, dict)
         else None
     )
-    if not creation_mode and isinstance(session_end, dict):
+    if not existing_log and not creation_mode and isinstance(session_end, dict):
         validate_qa_report_evidence(
             data,
             session_end,
@@ -1509,6 +1509,11 @@ def _session_identity(path: Path) -> str:
     raise ValueError(f"Session log is outside every supported sessions root: {path}")
 
 
+def _session_identity_override(value: str) -> str:
+    """Validate and canonicalize a logical session identity from the CLI."""
+    return _session_identity(_PROJECT_ROOT / Path(value))
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -1556,6 +1561,13 @@ def parse_args() -> argparse.Namespace:
             "Derive --existing-log from git: a log already present at the "
             "merge base with origin/main is validated as a record. Use this "
             "where computing the scope out-of-band would restate the rule."
+        ),
+    )
+    parser.add_argument(
+        "--session-log-identity",
+        help=(
+            "Use this repository-relative logical session path for QA binding "
+            "when validating a ref-backed temporary copy."
         ),
     )
     parser.add_argument(
@@ -1638,10 +1650,17 @@ def main() -> int:
         validation_head = args.validation_head
         if not existing_log and not args.creation_mode and validation_head is None:
             validation_head = _resolve_full_commit("HEAD")
-        try:
-            session_log = _session_identity(validated_path)
-        except ValueError:
-            session_log = _repo_relative(validated_path)
+        if args.session_log_identity:
+            try:
+                session_log = _session_identity_override(args.session_log_identity)
+            except ValueError as exc:
+                print(f"ERROR: Invalid session identity: {exc}", file=sys.stderr)
+                return 1
+        else:
+            try:
+                session_log = _session_identity(validated_path)
+            except ValueError:
+                session_log = _repo_relative(validated_path)
         result = validate_session_log(
             data,
             existing_log=existing_log,
