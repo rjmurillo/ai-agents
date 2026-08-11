@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ea679cd1afe34499434843a922ae217015120e44"
+        "Evidence": "c4039dcf02a86377df4328e256ef65d2c44ac9db"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,9 +139,12 @@
     },
     {
       "entry": "Merged the parent duplicate-run guard. workflow-local now actionlints pytest.yml while the partitioned pytest hook owns runtime execution."
+    },
+    {
+      "entry": "Merged the parent CodeQL fix. Secret names and affected workflow paths no longer reach text or JSON logs."
     }
   ],
-  "endingCommit": "ea679cd1afe34499434843a922ae217015120e44",
+  "endingCommit": "c4039dcf02a86377df4328e256ef65d2c44ac9db",
   "nextSteps": [
     "Push the stacked child branch.",
     "Open the child PR against perf/4854-act-local-fallback."

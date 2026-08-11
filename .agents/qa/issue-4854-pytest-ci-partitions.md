@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under.json
-qaCommit: ea679cd1afe34499434843a922ae217015120e44
+qaCommit: c4039dcf02a86377df4328e256ef65d2c44ac9db
 ---
 
 # QA Report: Issue 4854 pytest CI partitions
@@ -22,6 +22,7 @@ target.
 - Local fallback routing: 142 passed in 5.85 seconds.
 - Workflow-local duplicate-run guard: 6 passed, 809 deselected in 1.03
   seconds.
+- Secret-safe workflow output: 142 passed in 5.86 seconds.
 - Collection parity: 27,148 full and 27,148 partitioned, with zero missing,
   extra, or duplicate node IDs.
 - Ruff and actionlint passed.
