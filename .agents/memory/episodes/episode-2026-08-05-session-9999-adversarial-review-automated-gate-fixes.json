@@ -99,7 +99,8 @@
         "e007",
         "e011",
         "e014",
-        "e017"
+        "e017",
+        "e033"
       ],
       "leads_to": [
         "e009"
@@ -407,6 +408,30 @@
       "caused_by": [
         "e031"
       ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered from the third full pre-push failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-11T11:35:28+00:00",
+      "type": "commit",
+      "content": "Commit: 98b741b308b4514d304d48805808f5fc53722315",
+      "caused_by": [
+        "e032"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
@@ -416,8 +441,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 23,
-    "files_changed": 65
+    "commits": 24,
+    "files_changed": 66
   },
   "lessons": []
 }
