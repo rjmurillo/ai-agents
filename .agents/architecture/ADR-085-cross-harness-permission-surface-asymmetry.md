@@ -328,15 +328,15 @@ accepted decision with dedicated tests; and each component still referenced by
 a surviving vendored hook is listed with the hook that keeps it alive. Decision
 3 is the named retention decision for the dormant generic PermissionRequest
 adapter. Removing that adapter requires superseding this decision, not treating
-zero active producers as implicit approval. The 2026-07-22 vendored
-source has two registrations across two events: `markdownlint_guard` and
+zero active producers as implicit approval. The vendored source has three registrations across two events:
+`markdownlint_guard`, `push_pr_script_identity_guard`, and
 `markdown_auto_lint`. Copilot generation emits two host registrations. #3218
 closed after deriving its consumer list from active source registrations and
 generated manifests. Any future retirement or replacement requires reference
 search, regeneration, and artifact tests that prove no active consumer lost
 its required behavior.
 
-The one-shim dispatcher state is not permanent debt accepted by documentation.
+The current dispatcher state is not permanent debt accepted by documentation.
 Each retained component must record why direct registration or deletion would
 lose a measured host contract or cost more than the retained machinery.
 Simplification requires a new architecture decision.
