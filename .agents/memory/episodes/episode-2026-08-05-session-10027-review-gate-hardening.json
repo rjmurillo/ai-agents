@@ -139,6 +139,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T20:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 573c81888894aea4f17c26a3254e3756c9ec6205",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10027-review-gate-hardening"
     }
@@ -148,7 +161,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 2
   },
   "lessons": []

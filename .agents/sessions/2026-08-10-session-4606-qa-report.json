@@ -129,14 +129,14 @@
       "entry": "Fixed fast mutation process-group race, regenerated command mirrors, reran targeted tests, and rebound QA report to 8f070f9f7ef85eb80d394f50420d3a447c1de87f."
     }
   ],
-  "endingCommit": "d366919b4c5fdef1b9a9fde9956502bce6977956",
+  "endingCommit": "573c81888894aea4f17c26a3254e3756c9ec6205",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
-      "head": "d366919b4c5fdef1b9a9fde9956502bce6977956"
+      "head": "573c81888894aea4f17c26a3254e3756c9ec6205"
     }
   }
 }
