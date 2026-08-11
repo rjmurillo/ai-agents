@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: cf622b0ce47eeb2e616ae59335df2640836e6263
+qaCommit: 3cb3b798e1241981a1d10b1fb21b0ad4c97866fe
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -10,11 +10,11 @@ qaCommit: cf622b0ce47eeb2e616ae59335df2640836e6263
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 321 |
-| Passed | 321 |
+| Total Tests | 328 |
+| Passed | 328 |
 | Failed | 0 |
 | Skipped | 0 |
-| Duration | 5.97s |
+| Duration | 1.26s |
 
 ## Scope
 
@@ -146,5 +146,50 @@ Added negative controls:
 - `test_nested_blockquoted_fence_ignored`
 - `test_blockquoted_indented_code_ignored`
 - `test_blockquoted_fence_does_not_hide_later_table`
+
+**Result**: PASS
+
+## PR #4817 review thread follow-up, table interruption and fronted tool phrase
+
+Two more findings from the rescan, both reproduced before the fix.
+
+Table interruption: a fence or a multi-line HTML comment inside a table only
+skipped that row, so orphan `| ... |` rows after the interruption completed the
+route set.
+
+```text
+before: {'/pull/<n>': [...], '/issues/<n>': [...], '/actions/runs/<id>': [...],
+         '/actions/runs/<id>/job/<jid>': [...]}
+after:  {'/pull/<n>': ['pull_request_read']}
+```
+
+Fronted tool phrase: `_is_affirmative_directive` searched the whole pre-verb
+prefix, so `The compliance-bot calls pull_request_read before the analyst
+retrieves cache.` returned True. The prefix must now match the anchored
+`Using` or `Via <tool>, the analyst ...` shape.
+
+Fixed in commit `3cb3b798e1241981a1d10b1fb21b0ad4c97866fe`.
+
+Verification at the tested commit:
+
+```text
+$ uv run --frozen pytest tests/test_analyst_skill_resolution.py \
+    tests/build_scripts/test_github_url_routing_contract.py tests/skills/doc-accuracy/ -q
+============================= 328 passed in 1.26s ==============================
+
+$ uv run --frozen ruff check tests/test_analyst_skill_resolution.py \
+    tests/build_scripts/test_github_url_routing_contract.py
+All checks passed!
+```
+
+Added controls:
+
+- `test_fence_interrupting_table_ends_it`
+- `test_html_comment_interrupting_table_ends_it`
+- `test_table_after_interruption_parses_on_its_own_header`
+- `test_pre_analyst_tool_by_other_actor_rejected`
+- `test_pre_analyst_tool_after_other_actor_clause_rejected`
+- `test_using_tool_comma_analyst_accepted`
+- `test_via_tool_analyst_accepted`
 
 **Result**: PASS
