@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through 70b06cfac605b3bbaa7a7c2cc926e742596894ca before refreshing QA evidence."
+        "evidence": "Changes committed through 26a41d583e8e1347f4ecc56fc9ad2022be61d328 before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "scripts/validation/pre_pr.py passed on commit 70b06cfac605b3bbaa7a7c2cc926e742596894ca after refreshing session evidence for the latest CI fix."
+        "evidence": "scripts/validation/pre_pr.py passed on commit 26a41d583e8e1347f4ecc56fc9ad2022be61d328 after refreshing session evidence for the latest main merge."
       },
       "qaValidation": {
         "complete": true,
@@ -143,9 +143,14 @@
       "action": "pr-autofix-4721-test-stability",
       "result": "Patched test_new_pr_cli to mock the loaded new_pr module object directly so the full pre-push suite no longer misses the audit-log mock after module alias drift.",
       "commit": "70b06cfac"
+    },
+    {
+      "action": "pr-autofix-4721-refresh-main-2",
+      "result": "Merged current main again after merge-tree ratchets detected new drift and regenerated the combined skill Markdown portability baseline to resolve the conflict.",
+      "commit": "26a41d583"
     }
   ],
-  "endingCommit": "70b06cfac605b3bbaa7a7c2cc926e742596894ca",
+  "endingCommit": "26a41d583e8e1347f4ecc56fc9ad2022be61d328",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
