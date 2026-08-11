@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged PR #4878 code, required CI ratchet correction, and restored default-branch detection committed through 90449dafd32b977ea01e449e28350969337d4c34"
+        "Evidence": "Merged PR #4878 code, required CI ratchet correction, restored default-branch detection, and refreshed trusted script digests through 78eb0480520f4e81cfadfb5ec40a7334b983369a"
       },
       "validationPassed": {
         "level": "MUST",
@@ -155,8 +155,12 @@
     {
       "action": "Merged current origin/main and retained default-branch detection",
       "result": "Commit 90449dafd32b977ea01e449e28350969337d4c34 keeps current main's split body-preparation architecture and restores default-branch detection. 155 push-pr tests, 62 provenance and ratchet tests, generated artifact drift, mirror SHA256 comparison, and the 581 of 583 taste-count ratchet passed."
+    },
+    {
+      "action": "Refreshed trusted push-pr script digests",
+      "result": "Commit 78eb0480520f4e81cfadfb5ec40a7334b983369a records the current new_pr.py and validate_pr_description.py SHA256 values in the canonical identity guard and generated mirror. 293 identity-guard tests passed."
     }
   ],
-  "endingCommit": "90449dafd32b977ea01e449e28350969337d4c34",
+  "endingCommit": "78eb0480520f4e81cfadfb5ec40a7334b983369a",
   "nextSteps": []
 }

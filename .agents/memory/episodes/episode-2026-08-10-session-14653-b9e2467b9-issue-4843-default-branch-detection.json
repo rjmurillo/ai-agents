@@ -75,7 +75,9 @@
         "e005",
         "e007",
         "e009",
-        "e011"
+        "e011",
+        "e013",
+        "e014"
       ],
       "leads_to": [
         "e008"
@@ -149,6 +151,41 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed trusted push-pr script digests",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 78eb048052da40c685272016818f4ee4f850a0d2",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T19:53:49+00:00",
+      "type": "commit",
+      "content": "Commit: 78eb0480520f4e81cfadfb5ec40a7334b983369a",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
     }
@@ -158,8 +195,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 116
+    "commits": 6,
+    "files_changed": 118
   },
   "lessons": []
 }
