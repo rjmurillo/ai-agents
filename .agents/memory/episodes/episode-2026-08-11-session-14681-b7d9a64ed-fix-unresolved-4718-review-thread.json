@@ -36,7 +36,8 @@
       "content": "Commit: e32fcea2c6",
       "caused_by": [
         "e001",
-        "e002"
+        "e002",
+        "e005"
       ],
       "leads_to": [
         "e004"
@@ -51,6 +52,30 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix unsafe stale advice for occupied paths",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T12:58:12+00:00",
+      "type": "commit",
+      "content": "Commit: c06345465",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread"
     }
@@ -60,8 +85,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 11
   },
   "lessons": []
 }

@@ -94,12 +94,12 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/000-pr-4718-reftable-anchor-qa.md"
+        "Evidence": ".agents/qa/000-pr-4718-occupied-stale-path-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 1f0fd72afc)"
+        "Evidence": "Occupied-path fix committed at c06345465"
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,8 +131,16 @@
     {
       "task": "Fix and test reftable handling",
       "outcome": "Committed e32fcea2c; focused tests, full anchor tests, real Git tests, ruff, and pre-PR validation passed"
+    },
+    {
+      "task": "Fix unsafe stale advice for occupied paths",
+      "outcome": "Committed c06345465; reproduced the destructive advice and passed 307 focused GC tests plus ruff"
     }
   ],
-  "endingCommit": "1f0fd72afc",
-  "nextSteps": []
+  "endingCommit": "c06345465",
+  "nextSteps": [
+    "Push through the live-state mutation guard",
+    "Reply to and resolve the occupied-path review thread",
+    "Run completion gate and merge only if all four conditions pass"
+  ]
 }

@@ -1,19 +1,20 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 1f0fd72afc2a814ef64ede9b82de91e8f44b43bf
+qaCommit: c063454659cb2b956949abf59ae51a539a4f3553
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`1f0fd72afc2a814ef64ede9b82de91e8f44b43bf`, which includes `origin/main`
-at `56a59ef228c48757250c76ec61714f5cfe85614b`.
+`c063454659cb2b956949abf59ae51a539a4f3553`, which includes main commit
+`56a59ef228c48757250c76ec61714f5cfe85614b`.
 
 The first round closed two review threads. Both were reproduced against real
 git 2.43.0 before the fix and re-broken afterwards. The later reftable finding
-was also reproduced before its fail-closed fix.
+was also reproduced before its fail-closed fix. The occupied-path finding was
+reproduced against a standalone repository before its diagnostic fix.
 
 ## Live state and setup
 
@@ -58,6 +59,15 @@ empty anchor list and allowed removal. `reflog_oids` now returns unknown when
 the reftable marker exists or cannot be proven absent. Existing callers
 withhold removal on unknown.
 
+## Finding 4: stale advice could delete a foreign repository
+
+The stale classifier correctly kept a path occupied by a standalone repository
+or another linked checkout. Its reason still printed
+`git worktree remove <path>`, which deletes the occupying repository and its
+object database. The reason now prints removal advice only when the registered
+path is absent. Occupied paths tell the operator to inspect or move the foreign
+data first.
+
 ## Test execution results
 
 | Command | Result |
@@ -72,6 +82,9 @@ withhold removal on unknown.
 | Same GC suite and ratchets re-run after merging `origin/main` at `ff1fcd7b37` | 305 passed, taste 583, ruff 27 <= 30 |
 | Full pre-push Python suite after the current main merge | 27,398 passed, 36 skipped |
 | Reftable anchor readers, real-git anchors, and ceiling ratchet | 42 passed |
+| `pytest tests -q -k "gc_worktrees or gc_anchor or gc_stale"` | 307 passed, 27,283 deselected |
+| Occupied path positive, negative, and edge regression cases | 3 passed |
+| `ruff check` and changed-files `mypy` ratchet | passed |
 
 New coverage: five real-git cases for the ref lock, including one that drives a
 prepared `git update-ref --stdin` transaction so git itself writes the lock, a
@@ -91,6 +104,6 @@ raised.
 
 ## Verdict
 
-PASS. All three review findings are fixed at the root. The original two have
+PASS. All four review findings are fixed at the root. The original two have
 real-git reproductions and negative controls. The reftable reader now fails
-closed, and every ratchet is at or under its baseline.
+closed. Occupied stale paths no longer print a destructive removal command.
