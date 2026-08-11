@@ -332,6 +332,11 @@ def in_progress_operation(path: str) -> str | None:
     disclosed as a withholding reason rather than swallowed. Checking the link
     itself, not its target, keeps a marker that happens to be a symlink from
     reading as absent because its target is gone.
+
+    The flat names are not the whole answer. Git also writes a lock beside a
+    per-worktree ref while it installs one, at whatever depth that ref sits, so
+    ``_ref_update_in_flight`` asks the same question of ``refs/`` once the named
+    markers have all answered absent.
     """
     admin = admin_dir_from_marker(path)
     if admin is None:
@@ -344,6 +349,40 @@ def in_progress_operation(path: str) -> str | None:
         except OSError:
             return f"the {name} marker could not be read, so an operation may be in progress"
         return description
+    return _ref_update_in_flight(admin)
+
+
+def _ref_update_in_flight(admin: Path) -> str | None:
+    """Name a per-worktree ref update git is in the middle of, or None.
+
+    The flat marker names above cover the locks git writes at the top of the
+    admin directory. They are not the only locks it writes there. Per-worktree
+    refs, ``refs/worktree/*`` and ``refs/bisect/*``, live under this same
+    directory, and the files backend creates ``<ref>.lock`` beside the ref while
+    it installs one. Removing the admin directory during that window interrupts
+    the write, so the commit the ref was being pointed at ends up with no
+    anchor, which is the same loss ``index.lock`` and ``HEAD.lock`` are guarded
+    against one level up.
+
+    The anchor readers do not cover this either. ``worktree_ref_oids`` skips a
+    file that holds no text, and a lock is empty for the whole of a delete
+    transaction and for the window between creation and the write. Verified
+    against real git 2.43.0: with ``refs/worktree/<name>.lock`` held, this probe
+    answered ``None``, ``worktree_ref_oids`` answered ``[]``, and
+    ``git worktree remove`` deleted the worktree, exited 0, and printed nothing.
+
+    Any name ending in ``.lock`` counts, whatever its depth, because the backend
+    derives the lock's name from the ref's own path. A walk that cannot be
+    trusted answers unknown rather than "nothing in flight", the same direction
+    every other probe in this module takes. Costs one ``stat`` on a worktree
+    that has never held a per-worktree ref, because git does not create the
+    ``refs`` directory until it writes one, and no subprocess in any case.
+    """
+    entries = _gc_anchors.walk_files(admin / "refs")
+    if entries is None:
+        return "its per-worktree refs could not be read, so an operation may be in progress"
+    if any(entry.name.endswith(".lock") for entry in entries):
+        return "another git process is updating a worktree-local ref"
     return None
 
 

@@ -17,14 +17,19 @@ commit nothing else in the repository reaches.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from scripts.maintenance import _gc_stale
+from scripts.maintenance import _gc_anchors, _gc_stale
 from tests.gc_real_git import GitSandbox, decision_for, git, run_gc_json, write_and_commit
+
+# ``os.geteuid`` is itself absent on Windows, and root defeats a mode-based
+# barrier, so the unreadable-directory case can only be built where both hold.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
 
 
 def _detached_worktree(sandbox: GitSandbox, name: str) -> Path:
@@ -278,3 +283,164 @@ def test_a_head_lock_is_refused_because_git_would_remove_it_anyway(
     removal = git(git_sandbox.main, "worktree", "remove", str(worktree), check=False)
     assert removal.returncode == 0, "git still ignores HEAD.lock; drop this guard when it stops"
     assert not worktree.exists()
+
+
+def _worktree_ref_lock(worktree: Path, name: str = "installing") -> Path:
+    """The path git's files backend locks while it installs ``refs/worktree/<name>``."""
+    admin = _gc_stale.admin_dir_from_marker(str(worktree))
+    assert admin is not None
+    lock = admin / "refs" / "worktree" / f"{name}.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    return lock
+
+
+def test_a_held_worktree_ref_lock_is_refused_because_git_would_remove_it_anyway(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A ref lock one level down is the same loss as ``index.lock``, one level up.
+
+    ``refs/worktree/*`` lives in the worktree's own admin directory, and the
+    files backend writes ``<ref>.lock`` beside the ref while it installs one.
+    Confirmed against real git 2.43.0: with the lock held the removal still
+    succeeds, exits 0, and prints nothing, so the ref never lands and the commit
+    it was about to anchor is left with nothing naming it.
+
+    The lock is written empty here because that is the state the anchor readers
+    cannot see, asserted below: a delete transaction holds an empty lock for its
+    whole duration, and an update holds one between creation and the write.
+    """
+    worktree = _detached_worktree(git_sandbox, "locked-worktree-ref")
+    lock = _worktree_ref_lock(worktree)
+    lock.write_text("", encoding="utf-8")
+
+    admin = _gc_stale.admin_dir_from_marker(str(worktree))
+    assert admin is not None
+    assert _gc_anchors.worktree_ref_oids(admin) == [], (
+        "an empty lock names no object, so the anchor reader cannot be what keeps this entry"
+    )
+
+    decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert decision["remove"] is False, decision["reason"]
+    assert "updating a worktree-local ref" in str(decision["reason"])
+
+    removal = git(git_sandbox.main, "worktree", "remove", str(worktree), check=False)
+    assert removal.returncode == 0, "git still ignores ref locks; drop this guard when it stops"
+    assert not worktree.exists()
+
+
+def test_the_lock_a_real_git_transaction_holds_is_the_one_this_probe_reads(
+    git_sandbox: GitSandbox,
+) -> None:
+    """Revert-proofs the lock path against a hand-built layout.
+
+    Every assertion above writes the lock itself, so a wrong path would make
+    them pass against a file git never creates. This drives ``update-ref
+    --stdin`` to a prepared transaction, which is exactly the window where git
+    holds the lock and has not yet renamed it into place, and reads the probe
+    while git is still holding it.
+    """
+    worktree = _detached_worktree(git_sandbox, "real-ref-transaction")
+    target = _orphan_parent(worktree)
+    transaction = subprocess.Popen(
+        ["git", "update-ref", "--stdin"],
+        cwd=worktree,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    try:
+        assert transaction.stdin is not None
+        assert transaction.stdout is not None
+        transaction.stdin.write(f"start\nupdate refs/worktree/installing {target}\nprepare\n")
+        transaction.stdin.flush()
+        assert transaction.stdout.readline().strip() == "start: ok"
+        assert transaction.stdout.readline().strip() == "prepare: ok"
+
+        assert _worktree_ref_lock(worktree).exists(), "git locks a path this probe does not read"
+        assert (
+            _gc_stale.in_progress_operation(str(worktree))
+            == "another git process is updating a worktree-local ref"
+        )
+    finally:
+        if transaction.stdin is not None and not transaction.stdin.closed:
+            transaction.stdin.write("abort\n")
+            transaction.stdin.close()
+        transaction.wait(timeout=30)
+        if transaction.stdout is not None:
+            transaction.stdout.close()
+        if transaction.stderr is not None:
+            transaction.stderr.close()
+
+    assert _gc_stale.in_progress_operation(str(worktree)) is None, (
+        "the refusal must end with the transaction, or every worktree is kept forever"
+    )
+
+
+def test_a_worktree_local_ref_with_no_lock_is_not_refused(
+    git_sandbox: GitSandbox,
+) -> None:
+    """The negative control: the ref itself is an anchor, not an operation.
+
+    Without this, a probe that refused on the mere presence of ``refs/`` would
+    satisfy the tests above and keep every worktree that ever held a
+    per-worktree ref. Its commits are covered by ``worktree_ref_oids``, which is
+    asserted here so the two probes are not confused for one another.
+    """
+    worktree = _detached_worktree(git_sandbox, "settled-worktree-ref")
+    target = _orphan_parent(worktree)
+    git(worktree, "update-ref", "refs/worktree/settled", target)
+
+    admin = _gc_stale.admin_dir_from_marker(str(worktree))
+    assert admin is not None
+    assert _gc_anchors.worktree_ref_oids(admin) == [target]
+    assert _gc_stale.in_progress_operation(str(worktree)) is None
+
+
+@pytest.mark.skipif(_NO_PERMISSION_BARRIER, reason="requires a non-root POSIX permission barrier")
+def test_unreadable_per_worktree_refs_withhold_rather_than_clearing(
+    git_sandbox: GitSandbox,
+) -> None:
+    """An unreadable ``refs/`` is unknown, and unknown keeps the entry.
+
+    A walk that cannot open the directory answers the same way it does for the
+    anchor readers. Reading it as "no lock here" would be the silent all-clear
+    every probe in this module exists to prevent.
+    """
+    worktree = _detached_worktree(git_sandbox, "unreadable-refs")
+    refs = _worktree_ref_lock(worktree).parent.parent
+    refs.chmod(0o000)
+    try:
+        result = _gc_stale.in_progress_operation(str(worktree))
+    finally:
+        refs.chmod(0o755)
+
+    assert result is not None, "an unreadable refs directory must not read as nothing in flight"
+    assert "could not be read" in result
+
+
+def test_the_ref_lock_probe_costs_no_subprocess(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refusal path is subprocess-free too, not only the idle path.
+
+    ``test_the_probe_costs_no_subprocess`` pins the cost of answering None. This
+    pins the cost of answering with a refusal, which is the path that walks a
+    directory rather than stopping at a ``stat``.
+    """
+    worktree = _detached_worktree(git_sandbox, "ref-lock-cost")
+    _worktree_ref_lock(worktree).write_text("", encoding="utf-8")
+
+    def _refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the operation probe must not shell out")
+
+    monkeypatch.setattr(subprocess, "run", _refuse)
+    assert (
+        _gc_stale.in_progress_operation(str(worktree))
+        == "another git process is updating a worktree-local ref"
+    )
