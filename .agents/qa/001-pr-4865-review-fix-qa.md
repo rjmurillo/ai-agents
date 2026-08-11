@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14680-pr-4865-review-fix.json
-qaCommit: 0a86466bd46904eb89897cba854638ed3a226fd3
+qaCommit: 3bab13fed50f5746cae70d974e302dcedae3d7fa
 ---
 
 # QA Report: PR 4865 review-fix round
