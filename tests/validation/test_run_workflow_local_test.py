@@ -396,7 +396,11 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     )
     monkeypatch.setenv("ACT", "true")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
-    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(
+        w,
+        "_act_dryrun_stage",
+        lambda *_: pytest.fail("ACT fallback must skip gh act dry-run"),
+    )
     calls = []
 
     def fake_run(cmd, *, timeout, cwd=None, env=None):
@@ -411,6 +415,10 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     report = w.run_local_test([WF], tmp_path)
 
     assert report.exit_code == 0
+    assert [stage.stage for stage in report.stages] == [
+        "actionlint",
+        "gh act (local-fallback)",
+    ]
     assert calls == [
         (
             ["uv", "run", "pytest", "-n", "auto", "--dist", "loadfile", "tests/"],

@@ -1243,6 +1243,23 @@ def run_local_test(
         )
         return report
 
+    if os.environ.get("ACT", "").strip().lower() == "true":
+        if full:
+            local_stage = _local_pytest_stage(runnable, repo_root)
+            report.stages.append(local_stage)
+            if not local_stage.ok:
+                report.exit_code = 1
+                return report
+        if secret_blocked:
+            detail = _secret_gap_detail(secret_blocked)
+            report.secret_skipped = True
+            report.missing_secret_names = missing_secret_names
+            report.note = (
+                f"skipped (secrets absent locally): {detail}. "
+                "CI runs these with the real secrets."
+            )
+        return report
+
     # Stage 2 (dry-run) needs gh act but not a running Docker daemon: act -n
     # only plans the run.
     if not _have("gh"):
@@ -1271,30 +1288,22 @@ def run_local_test(
 
     # Stage 3 (full run) executes in Docker, so it needs a live daemon.
     if full:
-        # Avoid recursively invoking act when this gate already runs inside act.
-        if os.environ.get("ACT", "").strip().lower() == "true":
-            s3 = _local_pytest_stage(runnable, repo_root)
-            report.stages.append(s3)
-            if not s3.ok:
-                report.exit_code = 1
-                return report
-        else:
-            if not _docker_ready():
-                if not _have("docker"):
-                    cause = "Docker is not installed"
-                else:
-                    cause = "the Docker daemon is not running"
-                note = (
-                    f"{cause}; the full gh act run cannot execute. Install/start "
-                    f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
-                    "workflow (or pass --no-full for the lint+dry-run tier)."
-                )
-                return _tool_gap_report(report, note)
-            s3 = _act_full_stage(runnable, repo_root)
-            report.stages.append(s3)
-            if not s3.ok:
-                report.exit_code = 1
-                return report
+        if not _docker_ready():
+            if not _have("docker"):
+                cause = "Docker is not installed"
+            else:
+                cause = "the Docker daemon is not running"
+            note = (
+                f"{cause}; the full gh act run cannot execute. Install/start "
+                f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
+                "workflow (or pass --no-full for the lint+dry-run tier)."
+            )
+            return _tool_gap_report(report, note)
+        s3 = _act_full_stage(runnable, repo_root)
+        report.stages.append(s3)
+        if not s3.ok:
+            report.exit_code = 1
+            return report
 
     # Mixed batch: some workflows ran, others were skipped for absent secrets.
     # The runnable ones passed (exit 0 preserved); surface the skips in the note
