@@ -27,19 +27,13 @@ For code navigation, prefer a Language Server over text search. A symbol query
 a grep returns noisy matches and several wrong-file reads. The token difference
 is large on a real codebase.
 
-This rule is the cross-harness source of truth. It states a preference; nothing
-blocks a raw search at runtime. ADR-062 originally paired this rule with
-PreToolUse guards that hard-blocked Read, Grep, and Glob until an LSP was tried.
-The 2026-07-17 amendment (issue #3214) retired that runtime enforcement layer
-and kept the steering. This rule now carries the direction on both Claude and
-Copilot. No per-turn navigation hook remains.
+This is the cross-harness source of truth. It states a preference; no runtime
+gate blocks a raw search. ADR-062 paired it with PreToolUse guards that blocked
+Read, Grep, and Glob until an LSP was tried; the 2026-07-17 amendment (issue
+#3214) retired them and kept the steering.
 
-## Scope
-
-Frontmatter lists code extensions, not `**`. Claude uses `paths`; Copilot
-mirrors use `applyTo`. The rule applies to code files. "When grep is correct"
-hands markdown, logs, and plain text back to grep. A universal scope loaded this
-for prose, where it has no advice. Do not widen it back.
+Scope is code extensions, not `**`: Claude reads `paths`, Copilot mirrors read
+`applyTo`. Markdown, logs, and plain text go back to grep, so do not widen it.
 
 ## The three tiers
 
@@ -80,13 +74,10 @@ For any navigation or search of a code file, prefer in this order:
 
 If Serena is configured but inactive (for example after context compaction),
 re-activate it: `mcp__serena__activate_project` then
-`mcp__serena__initial_instructions`. There is no gate to bypass and no
-environment flag to set: the preference is advisory, so when no LSP is
-reachable, use grep or glob directly.
+`mcp__serena__initial_instructions`. Nothing needs bypassing: the preference is
+advisory, so use grep or glob when no LSP is reachable.
 
 ## References
 
-- ADR-062 (conditional LSP-first navigation enforcement), amended 2026-07-17
-  (issue #3214) to retire the runtime enforcement layer and keep this rule as
-  static steering.
+- ADR-062 (conditional LSP-first navigation enforcement).
 - AGENTS.md (Serena Init is BLOCKING): the session-start activation.
