@@ -33,8 +33,14 @@ def test_identity_process_and_mirror() -> None:
     assert metadata["name"] == "memory-consolidate"
     assert isinstance(metadata["version"], str) and metadata["version"].strip()
     assert isinstance(metadata["description"], str) and metadata["description"].strip()
-    assert "ADR-" not in BODY
-    assert ".agents/" not in BODY
+    for forbidden_reference in (
+        "ADR-",
+        ".agents/",
+        "tests/",
+        "scripts/validation/",
+        "pre_pr.py",
+    ):
+        assert forbidden_reference not in BODY
     assert len(BODY.splitlines()) <= 300
     for heading in (
         "### Phase 1: Take Stock",
