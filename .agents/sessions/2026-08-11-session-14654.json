@@ -124,6 +124,10 @@
       "detail": "Issue #4691 open, no PR, main still declares merge_group in 0 of 62 workflows, so main does not supersede the branch. Local worktree found at ai-agents2-fix-4691 on fix/4691-merge-group-support."
     },
     {
+      "action": "supersede",
+      "detail": "The 2026-08-08 session-10021 log and its episode were removed. Both were added by this branch, so session_scope classifies them as a creation-mode claim that must be complete, and that session ended blocked with no qaValidation and an endingCommit the rebase orphaned. Its findings are carried in this log's investigate and measure entries rather than left as an incomplete claim."
+    },
+    {
       "action": "investigate",
       "detail": "Prior blocker re-measured rather than retried. The workflow-local-run gate full-acts every changed workflow per job at a 600 second budget. test-codeql-integration.yml installs a 788,113,376 byte CodeQL bundle with --force and budgets 15 to 20 CI minutes per job, so no local run can fit. The catthehacker runner images were already cached on 2026-07-29, before the 2026-08-08 failure, so no new cache exists and the large download was not repeated."
     },
