@@ -14,7 +14,7 @@ be checked for free, deterministically, on every run:
 
 The invariant lives in the orchestrator agent prompt (loaded only when the
 orchestrator is invoked), not in the always-injected root ``AGENTS.md``,
-which has a hard 3000-byte workspace budget (see
+which has a 4800-byte file ceiling and shares a 6100-byte pool (see
 ``scripts/validate_workspace_budget.py``).
 
 Both checks carry negative controls so a future refactor that neuters the
@@ -167,8 +167,8 @@ def test_scenarios_file_has_no_unicode_dashes() -> None:
 def test_agents_md_does_not_carry_the_invariant() -> None:
     """AGENTS.md stays lean: the invariant lives in the orchestrator prompt.
 
-    Root AGENTS.md is injected into every session and has a hard 3000-byte
-    workspace budget (scripts/validate_workspace_budget.py). Adding the
+    Root AGENTS.md is injected into every session and has a 4800-byte file
+    ceiling plus a 6100-byte shared pool. Adding the
     invariant there would blow the budget, so it belongs in the
     orchestrator agent prompt (loaded only on invocation). This guards
     against a well-meaning future edit re-adding it and breaking the budget.
