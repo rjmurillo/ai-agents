@@ -14,59 +14,81 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import contextlib
+import importlib.util
 import os
 import re
 import subprocess
 import sys
-import tempfile
-from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_pr_description import (
-    _CONVENTIONAL_COMMIT_PATTERN,
-    validate_no_escaped_newlines,
+
+def _load_sibling(name: str):
+    """Load a sibling script by ABSOLUTE PATH, without touching ``sys.path``.
+
+    ``new_pr.py`` runs under ``python3 -I`` (the push-pr identity guard
+    requires that exact form), and isolated mode removes the script's own
+    directory from ``sys.path``. Measured on CPython 3.14.6:
+
+        $ python3 -I main.py
+        ModuleNotFoundError: No module named 'sibling'
+
+    So a plain ``import pr_validations`` cannot resolve here. Loading the file
+    directly keeps the isolation ``-I`` exists to provide. The rejected
+    alternative, ``sys.path.insert(0, os.path.dirname(__file__))``, would let
+    anyone able to write into the script directory shadow a stdlib module for
+    this process, which is strictly worse than the position before the split.
+
+    The identity guard pins the SHA-256 of every file in this bundle, so a
+    sibling cannot be swapped independently of new_pr.py.
+    """
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load required sibling module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_validations = _load_sibling("pr_validations")
+
+# Re-exported so `new_pr.<name>` stays the import surface for callers and
+# tests. The split is an internal reorganization, not an interface change.
+run_validations = _validations.run_validations
+validate_no_escaped_newlines = _validations.validate_no_escaped_newlines
+_extract_validatable_session_logs = _validations._extract_validatable_session_logs
+_report_not_run = _validations._report_not_run
+_WarningLog = _validations._WarningLog
+_DASH_RE = _validations._DASH_RE
+_SKILL_SCAN_EXTENSIONS = _validations._SKILL_SCAN_EXTENSIONS
+_SESSION_LOG_FILENAME_RE = _validations._SESSION_LOG_FILENAME_RE
+_UNTRUSTED_REPOSITORY_VALIDATORS = _validations._UNTRUSTED_REPOSITORY_VALIDATORS
+_UNTRUSTED_REPOSITORY_REASON = _validations._UNTRUSTED_REPOSITORY_REASON
+_git_env = _validations._git_env
+
+# Python 3.10 compatibility (issue #4764). `datetime.UTC` is an alias for
+# `datetime.timezone.utc` that CPython added in 3.11, so
+# `from datetime import UTC` raises ImportError on 3.10:
+#
+#     ImportError: cannot import name 'UTC' from 'datetime'
+#
+# Measured on CPython 3.10.20 against this file at commit 5cd72a7dad. This
+# script runs on the HOST's ambient interpreter, not the repository's 3.14
+# development interpreter, and `.claude/rules/python.md` puts the
+# hook-portability floor at 3.10. `timezone.utc` is the same object and exists
+# at every version this repository targets, so it is the portable spelling
+# rather than a compatibility shim.
+#
+# The repository development floor is unchanged: pyproject.toml still declares
+# `requires-python = ">=3.14"`. Only host-executed scripts write to 3.10.
+_UTC = timezone.utc
+
+_CONVENTIONAL_COMMIT_PATTERN = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
+    r"(\(.+\))?!?: .+"
 )
-
-# Em/en-dash detection regex for Validation 5. Inlined here rather than
-# imported from scripts.validation.pr_description because:
-#
-# 1. This file is one of two copies the project keeps in sync:
-#    - .claude/skills/github/scripts/pr/new_pr.py (the source the
-#      developer edits)
-#    - src/copilot-cli/skills/github/scripts/pr/new_pr.py (the
-#      generated copy produced by build/scripts/build_all.py)
-#    Both copies live at different depths from the repo root
-#    (parents[5] vs parents[6]), so any cross-package import requires
-#    path resolution that works at both depths. The complexity (walking
-#    up looking for a marker, subprocess git calls, etc.) is not worth
-#    it for a 5-line regex.
-# 2. The detection logic is small (compile, search). Drift between the
-#    two definitions (this one and scripts.validation.pr_description's
-#    _DASH_RE) is caught by the test suite (tests/test_new_pr.py and
-#    tests/test_validation_pr_description.py) which exercises both with
-#    the same fixtures.
-# 3. The two layers serve different purposes: this is the pre-creation
-#    guard, scripts.validation.pr_description is the CI fallback. Keeping
-#    them independent lets each fail open or fail closed differently per
-#    its threat model.
-#
-# Uses Unicode escape sequences so this source file does not contain
-# U+2014 or U+2013 itself per `.claude/rules/universal.md` MUST NOT
-# entry 5 (Issue #1923).
-_DASH_RE = re.compile("[\u2013\u2014]")
-
-# Extensions the skill-violation scanner (scripts/detect_skill_violation.py)
-# actually inspects. Filtering changed files to this set before building the
-# scan argv keeps the command line short on large diffs and skips the
-# subprocess entirely when no changed file is scannable. This mirrors
-# detect_skill_violation.VALID_EXTENSIONS; the two are kept in sync by
-# test_new_pr.py, which imports both and asserts equality (same drift-guard
-# strategy as _DASH_RE above). A local constant avoids the cross-package
-# import path resolution the _DASH_RE comment documents rejecting.
-_SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 
 def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
@@ -109,53 +131,6 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
-    """Run a warning-only validator. Return its name when it failed to run.
-
-    Both detectors document exit 0 as "ran; findings are warnings" and any
-    non-zero exit as an error, so a non-zero code here means the validator did
-    not produce findings at all. Discarding it turned a validator that never
-    ran into success-shaped output: detect_test_coverage_gaps.py died on an
-    import error while this wrapper still printed "All pre-creation
-    validations passed" (issue #3391).
-    """
-    name = os.path.basename(argv[1]) if len(argv) > 1 else argv[0]
-    try:
-        result = subprocess.run(
-            argv,
-            timeout=timeout,
-            env=_git_env(),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        print(f"  ERROR: {name} could not be run: {exc}", file=sys.stderr)
-        return name
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
-    if result.returncode != 0:
-        print(
-            f"  ERROR: {name} exited {result.returncode}, so its findings are"
-            " unknown. This is a validator failure, not a clean scan.",
-            file=sys.stderr,
-        )
-        return name
-    return None
-
-
-def _git_env() -> dict[str, str]:
-    """Return environment with git hook override variables stripped."""
-    return {
-        k: v
-        for k, v in os.environ.items()
-        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
-    }
 
 
 def get_repo_root() -> str:
@@ -202,316 +177,6 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
-_SESSION_LOG_FILENAME_RE = re.compile(
-    # Canonical filename per session-init script:
-    # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
-    # Keywords are kebab-case (lowercase letters/digits + hyphens only).
-    r"^\.agents/sessions/"
-    r"\d{4}-\d{2}-\d{2}-session-\d+"
-    r"(?:-[a-z0-9-]+)?"
-    r"\.(md|json)$"
-)
-
-
-def _extract_validatable_session_logs(
-    changed_files: list[str],
-) -> tuple[list[str], bool]:
-    """Return (JSON session logs, legacy_md_present) from changed files.
-
-    Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
-    tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
-    validate_session_json.py only accepts JSON. Legacy .md session logs
-    require migration (handled by the CI workflow at
-    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
-    only checks JSON; warn the author so they know CI will migrate.
-
-    Returns a tuple so callers can distinguish "no session log at all"
-    (both empty) from "legacy .md staged, no JSON to validate locally"
-    (validatable empty, has_legacy_md True).
-    """
-    matched = [f for f in changed_files if _SESSION_LOG_FILENAME_RE.match(f)]
-    legacy_md = [f for f in matched if f.endswith(".md")]
-    if legacy_md:
-        print(
-            f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
-            file=sys.stderr,
-        )
-    return [f for f in matched if f.endswith(".json")], bool(legacy_md)
-
-
-@contextlib.contextmanager
-def _session_log_for_validation(
-    repo_root: str, head: str, session_log: str
-) -> Iterator[str | None]:
-    """Yield a filesystem path to the session log to validate, or None.
-
-    The changed-file list comes from ``git diff base...head`` (refs), so the
-    log lives at ``head:<path>`` in git history. For a branch that is not
-    checked out into the current worktree, ``repo_root/<path>`` does not
-    exist on disk, which produced an opaque "Session End validation failed"
-    (#2387). Read the content from the branch ref via ``git show`` into a
-    temp file under ignored ``.agents/scratch/session-log-validation`` and yield
-    that path. Yield None when the ref read fails, so stale working-tree files
-    cannot produce a false validation pass.
-    """
-    show = subprocess.run(
-        ["git", "show", f"{head}:{session_log}"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    if show.returncode == 0:
-        scratch_dir = os.path.join(
-            repo_root, ".agents", "scratch", "session-log-validation"
-        )
-        os.makedirs(scratch_dir, exist_ok=True)
-        tmp_name = ""
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                suffix=".json",
-                prefix=".session-log-",
-                dir=scratch_dir,
-                delete=False,
-            ) as tmp:
-                tmp.write(show.stdout)
-                tmp_name = tmp.name
-            yield tmp_name
-        finally:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp_name)
-        return
-
-    print(
-        f"  WARNING: session log {session_log} not found at {head}; "
-        "skipping Session End validation.",
-        file=sys.stderr,
-    )
-    yield None
-
-
-def run_validations(
-    repo_root: str,
-    base: str,
-    head: str,
-    *,
-    title: str = "",
-    body: str = "",
-    body_file: str = "",
-) -> None:
-    """Run pre-creation validations. Raises SystemExit(1) on failure."""
-    unrun_validators: list[str] = []
-    try:
-        os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
-    except PermissionError as exc:
-        print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
-
-    print("Running validations...")
-    print()
-
-    # Validation 1: Session End (if .agents/ files changed)
-    print("[1/6] Checking Session End protocol...")
-    result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    diff_failed = result.returncode != 0
-    if diff_failed:
-        print(
-            f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
-            "the changed-file set is unknown. Validations that rely on it are "
-            "skipped, not treated as 'no changes'.",
-            file=sys.stderr,
-        )
-    changed_files = result.stdout.strip().splitlines() if not diff_failed else []
-    agents_changed = any(f.startswith(".agents/") for f in changed_files)
-
-    if agents_changed:
-        session_logs, has_legacy_md = _extract_validatable_session_logs(
-            changed_files
-        )
-        if session_logs:
-            # Sort by (date, session_number_int) so non-zero-padded
-            # session numbers compare numerically. Lexical sort would
-            # put session-10 before session-9 (CodeRabbit finding).
-            def _session_sort_key(path: str) -> tuple[str, int]:
-                m = re.match(
-                    r"^\.agents/sessions/"
-                    r"(\d{4}-\d{2}-\d{2})-session-(\d+)",
-                    path,
-                )
-                if m is None:
-                    return ("", 0)
-                return (m.group(1), int(m.group(2)))
-            session_log = sorted(session_logs, key=_session_sort_key)[-1]
-            validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
-            if os.path.exists(validate_script):
-                with _session_log_for_validation(
-                    repo_root, head, session_log
-                ) as session_log_path:
-                    if session_log_path is not None:
-                        vresult = subprocess.run(
-                            [
-                                sys.executable,
-                                validate_script,
-                                session_log_path,
-                            ],
-                            capture_output=True,
-                            text=True,
-                            encoding="utf-8",
-                            errors="replace",
-                            timeout=60,
-                        )
-                        if vresult.returncode != 0:
-                            print("Session End validation failed", file=sys.stderr)
-                            raise SystemExit(1)
-        elif not has_legacy_md:
-            print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
-    elif diff_failed:
-        print("  Skipped: git diff failed, changed files unknown (see warning above).")
-    else:
-        print("  No .agents/ changes, skipping")
-
-    # Validation 2: Skill violation detection (WARNING)
-    print()
-    print("[2/6] Checking for skill violations...")
-    skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
-    scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
-    if os.path.exists(skill_script) and scannable_files:
-        skill_args = [sys.executable, skill_script]
-        for changed_file in scannable_files:
-            skill_args.extend(["--file", changed_file])
-        failed = _run_warning_validator(skill_args, timeout=30)
-        if failed:
-            unrun_validators.append(failed)
-    elif os.path.exists(skill_script):
-        if diff_failed:
-            print("  Skipped: git diff failed, changed files unknown (see warning above).")
-        elif not changed_files:
-            print("  No changed files to check.")
-        else:
-            _exts = ", ".join(sorted(_SKILL_SCAN_EXTENSIONS))
-            print(f"  No changed files with a scannable extension ({_exts}).")
-
-    # Validation 3: Test coverage detection (WARNING)
-    print()
-    print("[3/6] Checking test coverage...")
-    test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
-    if os.path.exists(test_script):
-        failed = _run_warning_validator(
-            [sys.executable, test_script, "--staged-only"], timeout=30
-        )
-        if failed:
-            unrun_validators.append(failed)
-
-    # Validation 4: PR Description validation (WARNING)
-    print()
-    print("[4/6] Validating PR description...")
-    validate_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "validate_pr_description.py",
-    )
-    if os.path.exists(validate_script) and title:
-        val_args = [sys.executable, validate_script, "--title", title]
-        if body:
-            val_args.extend(["--body", body])
-        elif body_file:
-            val_args.extend(["--body-file", body_file])
-        val_result = subprocess.run(
-            val_args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-        # Print human-readable output (on stderr from validator)
-        if val_result.stderr:
-            print(val_result.stderr, end="", file=sys.stderr)
-        # Warning mode: don't fail on exit code
-    else:
-        print("  Skipped (no title available or validator not found)")
-
-    # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
-    # PR descriptions live in GitHub and never reach Git hook stdin, so the
-    # Lefthook jobs declared in lefthook.yml cannot scan them.
-    # This is the shift-left guard that prevents dashes from being submitted
-    # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
-    # in the description despite local dash checks.
-    # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
-    print()
-    print("[5/6] Em/en-dash check on title and body...")
-    body_content = body or ""
-    if not body_content and body_file and os.path.exists(body_file):
-        try:
-            with open(body_file, encoding="utf-8") as f:
-                body_content = f.read()
-        except OSError as exc:
-            print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
-    dash_violations: list[str] = []
-    if _DASH_RE.search(title):
-        dash_violations.append("title")
-    body_dash_lines = [
-        f"line {n}"
-        for n, line in enumerate(body_content.splitlines(), start=1)
-        if _DASH_RE.search(line)
-    ]
-    if body_dash_lines:
-        sample = ", ".join(body_dash_lines[:5])
-        if len(body_dash_lines) > 5:
-            sample += f", ... (+{len(body_dash_lines) - 5} more)"
-        dash_violations.append(f"body ({sample})")
-    if dash_violations:
-        print(
-            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
-            + "; ".join(dash_violations),
-            file=sys.stderr,
-        )
-        print(
-            "  Replace with comma, period, hyphen, or restructure.",
-            file=sys.stderr,
-        )
-        print(
-            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
-            file=sys.stderr,
-        )
-        print(
-            "  Override (NOT RECOMMENDED): re-run with --skip-validation"
-            " --audit-reason \"...\".",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print("  No prohibited characters in title or body.")
-
-    print()
-    print("[6/6] Escaped-newline check on body...")
-    validate_no_escaped_newlines(body_content)
-    print("  Body line breaks are real newlines.")
-
-    print()
-    if unrun_validators:
-        print(
-            "Validation incomplete: "
-            + ", ".join(sorted(set(unrun_validators)))
-            + " did not run. Fix the validator or re-run with"
-            ' --skip-validation --audit-reason "...".',
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print("All pre-creation validations passed!")
-    print()
-
-
 def write_audit_log(
     repo_root: str,
     head: str,
@@ -525,8 +190,8 @@ def write_audit_log(
 
     username = os.environ.get("USERNAME") or os.environ.get("USER", "unknown")
 
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-    file_timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(_UTC).strftime("%Y-%m-%d %H:%M:%S")
+    file_timestamp = datetime.now(_UTC).strftime("%Y%m%d-%H%M%S")
 
     audit_entry = (
         f"Timestamp: {timestamp}\n"
@@ -681,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
     # Create PR
     print("Creating PR...")
     sys.stdout.flush()
-    result = subprocess.run(gh_args, text=True, timeout=60, check=False)
+    result = subprocess.run(
+        gh_args, text=True, encoding="utf-8", errors="replace", timeout=60, check=False
+    )
     exit_code = result.returncode
 
     if exit_code == 0:

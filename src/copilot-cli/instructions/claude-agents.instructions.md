@@ -19,7 +19,7 @@ python3 build/scripts/validate_install_parity.py --files src/claude/architect.md
 
 A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: measured at `origin/main` `08f4941565`, of the 173 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **54 (31%) did not touch the template**. A group is a stem with a `templates/agents/{stem}.shared.md`, and its hand-maintained members are all three of `src/claude/{stem}.md`, `.claude/agents/{stem}.md`, and `.github/agents/{stem}.agent.md`. Counting only `src/claude/` gives a different and narrower 26 of 142, 18%. Both figures grow as commits land, so re-measure rather than trusting the absolute counts; the ratio is the durable part. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
-3. **Skill tests**. New skills MUST include pytest coverage under `.claude/skills/<name>/tests/`.
+3. **Skill tests**. New skills MUST include pytest coverage under `tests/skills/<name>/`; CI tests do not ship with skills.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
 5. **No internal references in `src/claude/`**. Files under `src/claude/` MUST NOT reference `.agents/` paths that will not exist for downstream installers.
 6. **Python for skill scripts**. New skill scripts MUST be Python per ADR-042.
@@ -27,7 +27,7 @@ A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maint
 
 ## SHOULD
 
-1. **One skill, one purpose**. Skills SHOULD do one thing well. Split multi-purpose skills.
+1. **One skill, one purpose**. A skill SHOULD name one primary trigger family and one primary output artifact in its `description`. If a `SKILL.md` describes unrelated trigger families or unrelated output artifacts, split the skill or add a `Rationale:` paragraph that explains why one workflow owns both.
 2. **Idempotent tools**. Skills that mutate state SHOULD be safe to re-run (or detect prior completion).
 3. **Invoke via the Skill tool**. Claude Code agents SHOULD invoke matching skills via the `Skill` tool, not inline equivalents.
 

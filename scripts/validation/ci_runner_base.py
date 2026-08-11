@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -72,23 +73,100 @@ def run(
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def fetch_base_ref(base_ref: str) -> None:
-    """Fetch the base ref with bounded depth, then unshallow.
+def fetch_base_ref(base_ref: str) -> int:
+    """Fetch the base ref without leaving a shallow graft behind.
 
-    Both calls tolerate failure: the first one fails when the base is
-    already present; the second when the repo is not shallow. We never
-    raise here, the next step (rev-parse) is the authoritative check.
+    The previous form ran `--depth=200` unconditionally and then `--unshallow`,
+    with both tolerating failure. On the two callers' workflows the checkout is
+    already `fetch-depth: 0`, so the depth-limited fetch bought nothing and its
+    only effect was to write `.git/shallow`. The `--unshallow` that followed
+    normally repaired that, which is why nothing had ever been observed to
+    break, but its failure was swallowed: a timeout on a 165 MiB fetch left the
+    graft in place and the comment's "next step (rev-parse) is the
+    authoritative check" does not catch it, because `rev-parse` resolves a base
+    ref perfectly well on a grafted clone. Every range measured afterwards is
+    then wrong rather than absent (issue #4680).
+
+    So: do not graft a complete clone at all, and when the clone really is
+    shallow, verify the repair took instead of assuming it.
+
+    An unrepaired graft is reported as a return value, not an exception. It is
+    an expected environment condition rather than a programming error, both
+    callers already return 2 for their other config failures, and a raise here
+    would leave `main()` with no handler, so Python would exit 1 with a
+    traceback instead of the 2 the exit-code contract calls for.
+
+    The probe is three-valued. Only a confirmed `True` justifies `--unshallow`,
+    because a complete clone rejects that option. A failed probe cannot prove
+    complete history, so it returns the configuration error before fetching.
+
+    Returns:
+        0  the base ref is fetched and the clone has complete history
+        2  the fetch failed or the clone is still shallow
     """
-    run(
-        ["git", "fetch", "--no-tags", "--depth=200", "origin", base_ref],
-        check=False,
-        timeout=60,
-    )
-    run(
+    shallow = _is_shallow_repository()
+    if shallow is None:
+        print(
+            "error: could not determine whether the repository is shallow; "
+            "refusing to measure a potentially incomplete range.",
+            file=sys.stderr,
+        )
+        return 2
+    if shallow is False:
+        code, stdout, stderr = run(
+            ["git", "fetch", "--no-tags", "origin", base_ref],
+            check=False,
+            timeout=120,
+        )
+        if code != 0:
+            _print_fetch_error(base_ref, stdout, stderr)
+            return 2
+        return 0
+
+    # `--unshallow` fetches the ref AND completes the history, so the old
+    # `--depth=200` fetch that preceded it was a second network round trip and
+    # a second timeout window that preserved no invariant.
+    code, stdout, stderr = run(
         ["git", "fetch", "--no-tags", "--unshallow", "origin", base_ref],
         check=False,
-        timeout=120,
+        timeout=180,
     )
+    if code != 0:
+        _print_fetch_error(base_ref, stdout, stderr)
+        return 2
+    if _is_shallow_repository() is not False:
+        print(
+            "error: repository is still shallow after --unshallow, so any "
+            "range measured from here would silently widen rather than fail. "
+            "Run `git fetch --unshallow origin` and retry.",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
+
+
+def _print_fetch_error(base_ref: str, stdout: str, stderr: str) -> None:
+    """Report a failed fetch using the runner's configuration contract."""
+    print(f"error: git fetch failed for origin/{base_ref}", file=sys.stderr)
+    if stdout:
+        sys.stderr.write(stdout)
+    if stderr:
+        sys.stderr.write(stderr)
+
+
+def _is_shallow_repository() -> bool | None:
+    """True, False, or None when git could not answer."""
+    code, stdout, _ = run(
+        ["git", "rev-parse", "--is-shallow-repository"], check=False, timeout=30
+    )
+    if code != 0:
+        return None
+    value = stdout.strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
 
 
 def resolve_base(base_ref: str) -> str | None:

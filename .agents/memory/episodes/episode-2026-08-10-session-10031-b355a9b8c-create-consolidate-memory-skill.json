@@ -1,0 +1,532 @@
+{
+  "id": "episode-2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill",
+  "session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Create memory-consolidate skill",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Create memory-consolidate skill",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review and validate",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Simplify tests",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Harden for shipping",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate customer install",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T05:35:18+00:00",
+      "type": "commit",
+      "content": "Commit: 83dd2a603153654699605eb0cb59e713df18bcb4",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T05:50:12+00:00",
+      "type": "commit",
+      "content": "Commit: 2e83b2b1ffe9724a4695808fa5299c99285f5fef",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T06:12:40+00:00",
+      "type": "commit",
+      "content": "Commit: 86b10f37faead2ca29f37c9819ce27b000fe327f",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T06:29:16+00:00",
+      "type": "commit",
+      "content": "Commit: 5f157e8f6c29a295ba489c72619e9694b55b6d16",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T06:41:14+00:00",
+      "type": "commit",
+      "content": "Commit: fe24f1be224fd26debab6d63cef2b38e468b01ca",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T08:39:00+00:00",
+      "type": "commit",
+      "content": "Commit: 154030efa281737a2c57f9be403c2d673820c168",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T08:42:22+00:00",
+      "type": "commit",
+      "content": "Commit: 6a1238f153ee5c1d6b6259656d6411a1bfe68f78",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T08:56:36+00:00",
+      "type": "commit",
+      "content": "Commit: 58323969fa12f49c1245750f51cad9388da97280",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T09:34:30+00:00",
+      "type": "commit",
+      "content": "Commit: 8d1207b802540a3dc1c798795f2324459ef47a71",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T12:21:09+00:00",
+      "type": "commit",
+      "content": "Commit: 7e7327a74d717dacef201976fb3717ba649c5f0e",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T12:26:08+00:00",
+      "type": "commit",
+      "content": "Commit: 3af524be8d7bc446909575c61c0272bc2bc8fa7e",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T13:38:37+00:00",
+      "type": "commit",
+      "content": "Commit: 5f03267d063e475bc288e54ef16f0eed439b430f",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T14:01:30+00:00",
+      "type": "commit",
+      "content": "Commit: c80e12c7d171c045c3dae45470232c7d09fc0dd9",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T14:44:54+00:00",
+      "type": "commit",
+      "content": "Commit: d776b6b16138ebd1cf376bd6f85be438194d1009",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-10T14:48:57+00:00",
+      "type": "commit",
+      "content": "Commit: 90b07d3db64c9c11b6ee3627940eb8e8ca3a4d05",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T15:02:40+00:00",
+      "type": "commit",
+      "content": "Commit: c6a9ecb24245517e6f84f96a29c523853b0c2a89",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T15:05:27+00:00",
+      "type": "commit",
+      "content": "Commit: 7f86d6d54ca634b310c3e75d418be5debf1503a6",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T15:09:19+00:00",
+      "type": "commit",
+      "content": "Commit: 19c0dd54cf3a0d9c43b6285d5f93a40a79d7094a",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T16:07:58+00:00",
+      "type": "commit",
+      "content": "Commit: e2c13b42ffaf381095799ef0e9e15cf6fc1b0335",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-11T03:13:51+00:00",
+      "type": "commit",
+      "content": "Commit: 906f2dfc72c86bbbf054bf22154b74474431e0bf",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-11T04:26:23+00:00",
+      "type": "commit",
+      "content": "Commit: ed93a2f244766c2101fdb4ab9d4cbab63a8fc01e",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-11T04:52:45+00:00",
+      "type": "commit",
+      "content": "Commit: ac93a2456717b431e3a7a406331f796182de697a",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-11T05:15:25+00:00",
+      "type": "commit",
+      "content": "Commit: 424c48eb46021a3996d2eecd24a44094877bcc9a",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-11T05:23:50+00:00",
+      "type": "commit",
+      "content": "Commit: 412ea861f1357a24bcfa2306ef710fa775381c45",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-11T05:37:46+00:00",
+      "type": "commit",
+      "content": "Commit: cfe586aed5530e6e93067588baada23ae328c7a9",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-11T05:53:34+00:00",
+      "type": "commit",
+      "content": "Commit: 9dae885e863d74934caf8e2c02cdc559addd8ab5",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-11T05:55:15+00:00",
+      "type": "commit",
+      "content": "Commit: 2699e70758a002fb36cb79e4bda9bf9a75084718",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-11T06:09:53+00:00",
+      "type": "commit",
+      "content": "Commit: d64e9989a54978748ae483c95457b6c2df9a95d8",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-11T06:18:29+00:00",
+      "type": "commit",
+      "content": "Commit: 9ca6de44641c77ce18e1f9720ca1e8d8bb6ee93e",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-11T06:59:44+00:00",
+      "type": "commit",
+      "content": "Commit: 0509354d50e063a07e197568c7f1c69e8b7057d9",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-11T07:06:52+00:00",
+      "type": "commit",
+      "content": "Commit: 7f5e417b93de72bde6f4a48de57fead3aad4f3f4",
+      "caused_by": [
+        "e035"
+      ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-11T07:37:26+00:00",
+      "type": "commit",
+      "content": "Commit: 56f335dfea17142b177618ffe4d85bbaeaf365c7",
+      "caused_by": [
+        "e036"
+      ],
+      "leads_to": [
+        "e038"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-11T07:57:42+00:00",
+      "type": "commit",
+      "content": "Commit: fe43890b45c78efef21c80686cb612f2fec48315",
+      "caused_by": [
+        "e037"
+      ],
+      "leads_to": [
+        "e039"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-11T08:20:34+00:00",
+      "type": "commit",
+      "content": "Commit: 73471b1777d3185488abf589c723181743078578",
+      "caused_by": [
+        "e038"
+      ],
+      "leads_to": [
+        "e040"
+      ],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-08-11T08:42:42+00:00",
+      "type": "commit",
+      "content": "Commit: b642b4d32fd636f6ef67694dea8004435823f4c1",
+      "caused_by": [
+        "e039"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 35,
+    "files_changed": 23
+  },
+  "lessons": []
+}
