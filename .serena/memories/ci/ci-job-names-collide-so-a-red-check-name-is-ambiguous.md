@@ -97,16 +97,16 @@ for p in sorted(pathlib.Path(".github/workflows").glob("*.y*ml")):
     d = yaml.safe_load(p.read_text())
     if not isinstance(d, dict): continue
     for jid, j in (d.get("jobs") or {}).items():
-        if isinstance(j, dict) and j.get("name"): n[j["name"]].append((p.name, jid))
+        if isinstance(j, dict): n[j.get("name", jid)].append((p.name, jid))
 for k, v in sorted(n.items()):
     if len(v) > 1: print(k, v)
 '
 ```
 
-Measured 2026-08-09 on the issue #4785 branch: **143 job definitions carry a
-`name:`, spanning 120 unique display names.** Eleven names are used by more
-than one definition. Count definitions, not names: the two numbers differ by
-23 and are easy to conflate.
+Measured 2026-08-11 on the issue #4880 branch: **156 job definitions produce
+132 unique display names.** Twelve names are used by more than one definition.
+Count definitions, not names: the two numbers differ by 24 and are easy to
+conflate. Jobs without `name:` use their job ID as the display name.
 
 ## Required result contexts are now unique
 

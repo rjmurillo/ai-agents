@@ -2,7 +2,7 @@
 
 ## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|If either call fails, halt and report; memory files are retrieval aids, not initialization substitutes.|Post-compaction: re-run both
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|Call each exposed tool; halt if an exposed call fails. Missing tools are unavailable, not failures.|Post-compaction: re-run exposed calls
 
 ## Retrieval
 
