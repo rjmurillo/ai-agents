@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate.json
-qaCommit: 029819202e714b0314ce14b5445804632b1bc2c4
+qaCommit: bb6d0666bd67a453518ea9e2b0111d0d2c3a13da
 ---
 
 # QA: require-subagent-model gate (issue #4874)
