@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged PR #4878 code and the required CI ratchet correction committed at 33074b1f83b928ad263df3113bf90a7cbd851a16"
+        "Evidence": "Merged PR #4878 code, required CI ratchet correction, and restored default-branch detection committed through 8fdad794d41e6d511c6111fe7787f25875e22223"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1,081 targeted push-pr guard and default-branch tests, then 62 provenance and ratchet tests, passed. Generated artifact drift check, ruff, and the taste-count ratchet passed."
+        "Evidence": "148 default-branch and push-pr tests, then 62 provenance and ratchet tests, passed. Generated artifact drift check, canonical mirror SHA256 comparison, ruff, and the taste-count ratchet passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,13 +142,17 @@
     },
     {
       "action": "Revalidated the merged PR",
-      "result": "Commit 89d586d49106d864ba40f75b8c759cec8f544614 passed 1,081 targeted push-pr guard and default-branch tests. Generated artifact drift check passed."
+      "result": "Commit 89d586d49106d864ba40f75b8c759cec8f544614 passed 1,081 targeted tests and generated artifact drift checks. Subsequent inspection found its merge resolution had dropped default-branch detection."
     },
     {
       "action": "Restored the CI taste-count ratchet after merging current main",
       "result": "Commit 33074b1f83b928ad263df3113bf90a7cbd851a16 documents the cohesive provenance validator exemption. 62 provenance and ratchet tests, ruff, and the 583-count ratchet passed."
+    },
+    {
+      "action": "Restored default-branch detection after merge resolution",
+      "result": "Commit 8fdad794d41e6d511c6111fe7787f25875e22223 restores full origin/HEAD detection, including the ambiguous remote-ref case. 148 push-pr tests, generated artifact drift, and canonical mirror SHA256 comparison passed."
     }
   ],
-  "endingCommit": "33074b1f83b928ad263df3113bf90a7cbd851a16",
+  "endingCommit": "8fdad794d41e6d511c6111fe7787f25875e22223",
   "nextSteps": []
 }

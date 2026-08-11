@@ -1,19 +1,19 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection.json
-qaCommit: 33074b1f83b928ad263df3113bf90a7cbd851a16
+qaCommit: 8fdad794d41e6d511c6111fe7787f25875e22223
 ---
 
 # QA Report: PR #4878, Issue #4843 Default Branch Detection
 
 **Date**: 2026-08-11
-**Commit**: 33074b1f83b928ad263df3113bf90a7cbd851a16
+**Commit**: 8fdad794d41e6d511c6111fe7787f25875e22223
 **Worktree**: Isolated PR worktree
 
 ## Scope
 
-Validate default branch detection after merging current `origin/main`. Preserve
-the default-branch behavior, push-pr identity guard, and CI taste-count gate.
+Validate default branch detection restored after merging current `origin/main`.
+Preserve the push-pr identity guard and CI taste-count gate.
 
 ### Requirements Verified
 
@@ -28,10 +28,12 @@ the default-branch behavior, push-pr identity guard, and CI taste-count gate.
 
 ### Files Changed
 
-- `.claude/skills/github/scripts/pr/new_pr.py` -- added `_detect_default_branch`, `_git_ref_exists`, changed `--base` default to `""`
+- `.claude/skills/github/scripts/pr/new_pr.py` -- detects and validates the
+  repository default branch when `--base` is omitted
 - `scripts/new_validated_pr.py` -- wrapper conditionally forwards `--base`
 - `src/copilot-cli/skills/github/scripts/pr/new_pr.py` -- generated mirror (identical)
-- `tests/test_new_pr.py` -- 13 new tests in `TestDetectDefaultBranch`, 2 orchestration tests
+- `tests/test_new_pr_default_branch.py` -- real-git ambiguous ref, fallback,
+  omitted-base, and explicit-base coverage
 - `tests/test_new_validated_pr.py` -- 2 updated, 1 renamed test
 - `scripts/ci/validate_vendor_provenance.py` -- documented its cohesive
   trust-boundary exemption to restore the CI taste-count ratchet
@@ -41,16 +43,21 @@ the default-branch behavior, push-pr identity guard, and CI taste-count gate.
 **Command**:
 
 ```text
-uv run pytest tests/hooks/test_push_pr_guard_*.py tests/test_new_pr_*.py -q
+uv run pytest tests/test_new_pr_default_branch.py tests/test_new_pr_cli.py \
+  tests/test_new_pr_content_checks.py tests/test_new_pr_validation_base.py \
+  tests/test_new_pr_validations.py tests/test_new_pr_warning_reporting.py \
+  tests/test_new_validated_pr.py tests/test_push_pr_interpreter_floor.py -q
 ```
 
-**Result**: 1,081 passed in 133.27s.
+**Result**: 148 passed in 1.66s.
 
 ```text
 uv run python build/scripts/build_all.py --check
 ```
 
-**Result**: Passed. Generated Copilot artifacts match canonical sources.
+**Result**: Passed. Generated Copilot artifacts match canonical sources. The
+canonical and generated `new_pr.py` SHA256 values match:
+`80f9118b0be02b6f040851d110d0b6c28eaa58f6519a9ced04c10bf6835e3007`.
 
 ### Post-merge CI gate
 
@@ -161,7 +168,7 @@ Match: True
 
 | Metric | Value |
 |--------|-------|
-| Default-branch tests | 1,081 passed |
+| Default-branch tests | 148 passed |
 | Post-merge CI tests | 62 passed |
 | Failed | 0 |
 | Skipped | 0 |
