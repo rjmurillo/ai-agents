@@ -1238,6 +1238,11 @@ def test_entry_self_host_check_exception_fails_closed(monkeypatch, capsys):
         raise OSError("project directory unavailable")
 
     monkeypatch.setattr(entry, "_project_self_hosts_plugin", fail_preflight)
+    monkeypatch.setattr(
+        entry,
+        "_load_group",
+        lambda _group_id: ("SessionStart", "observe", ["observer.py"]),
+    )
 
     code = entry.main(["--group", "test-group"])
 
@@ -1349,7 +1354,7 @@ def test_entry_plugin_self_host_bails_fast(tmp_path):
             "-u",
             ".claude/hooks/invoke_dispatch_claude.py",
             "--group",
-            "no-such-group",
+            "sessionstart-1-context_loader",
         ],
         cwd=REPO_ROOT,
         env=_entry_env(
@@ -1363,9 +1368,22 @@ def test_entry_plugin_self_host_bails_fast(tmp_path):
         timeout=60,
         check=False,
     )
-    # Bail happens before group resolution, so even a bogus group allows.
+    # Observer groups bail after group resolution.
     assert result.returncode == 0
     assert result.stdout == b""
+
+
+def test_entry_plugin_self_host_does_not_skip_gate(monkeypatch):
+    monkeypatch.setattr(entry, "_project_self_hosts_plugin", lambda: True)
+    monkeypatch.setattr(
+        entry,
+        "_load_group",
+        lambda _group_id: ("PreToolUse", "gate", ["guard.py"]),
+    )
+    monkeypatch.setattr(entry, "_read_payload", lambda _mode: (b"{}", None))
+    monkeypatch.setattr(entry, "run_group", lambda *_args: 2)
+
+    assert entry.main(["--group", "gate-group"]) == 2
 
 
 def test_entry_plugin_outside_publisher_repo_runs(tmp_path):

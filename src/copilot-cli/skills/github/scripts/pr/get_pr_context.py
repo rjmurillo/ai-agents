@@ -326,6 +326,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _context_fetch_failure_message(
+    result: subprocess.CompletedProcess[str],
+    command: str,
+) -> str:
+    message = (result.stderr or result.stdout).strip()
+    if message:
+        return message
+    return f"{command} exited with return code {result.returncode} and no error output"
+
+
+def _record_context_fetch_failure(
+    data: dict[str, object],
+    field: str,
+    result: subprocess.CompletedProcess[str],
+    command: str,
+) -> None:
+    failures = data.get("context_fetch_failures")
+    if not isinstance(failures, list):
+        failures = []
+        data["context_fetch_failures"] = failures
+    failures.append({
+        "field": field,
+        "message": _context_fetch_failure_message(result, command),
+    })
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -396,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         "files": None,
         "owner": owner,
         "repo": repo,
+        "context_fetch_failures": [],
     }
 
     if args.include_diff:
@@ -411,6 +438,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
+        else:
+            _record_context_fetch_failure(data, "diff", diff_result, "gh pr diff")
 
     if args.include_changed_files:
         files_result = subprocess.run(
@@ -422,12 +451,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         if files_result.returncode == 0:
             data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]
+        else:
+            _record_context_fetch_failure(
+                data,
+                "files",
+                files_result,
+                "gh pr diff --name-only",
+            )
 
     write_skill_output(
         data,
         output_format=fmt,
         human_summary=f"PR #{pr}: {pr_data.get('title', '')} ({pr_data.get('state', '')})",
-        status="PASS",
+        status="WARNING" if data["context_fetch_failures"] else "PASS",
         script_name="get_pr_context.py",
     )
     return 0

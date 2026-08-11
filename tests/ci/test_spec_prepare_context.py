@@ -70,18 +70,6 @@ class TestRun:
         assert "phase-1" in out
         assert "Incremental Scope" in out
 
-    def test_fallback_when_no_spec_file(self, tmp_path: Path) -> None:
-        out_file = tmp_path / "out.txt"
-        env = {
-            "SPEC_FILE": "",
-            "INCREMENTAL_SCOPE": "",
-            "GITHUB_OUTPUT": str(out_file),
-        }
-        with patch.dict(os.environ, env):
-            rc = run()
-        assert rc == 0
-        assert "No spec content loaded" in out_file.read_text()
-
     def test_fallback_when_spec_file_missing(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {
@@ -91,16 +79,31 @@ class TestRun:
         }
         with patch.dict(os.environ, env):
             rc = run()
-        assert rc == 0
-        assert "No spec content loaded" in out_file.read_text()
+        assert rc == 2
+        assert not out_file.exists()
 
     def test_stdout_when_no_github_output(self, capsys: pytest.CaptureFixture[str]) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            for k in ["SPEC_FILE", "INCREMENTAL_SCOPE", "GITHUB_OUTPUT"]:
-                os.environ.pop(k, None)
+        spec_file = Path(__file__)
+        with patch.dict(
+            os.environ,
+            {"SPEC_FILE": str(spec_file), "INCREMENTAL_SCOPE": ""},
+            clear=True,
+        ):
             run()
         out = capsys.readouterr().out
         assert "spec_context=" in out
+
+    def test_missing_spec_file_env_returns_config_error(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": "",
+            "INCREMENTAL_SCOPE": "",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 2
+        assert not out_file.exists()
 
 
 class TestMain:

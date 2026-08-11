@@ -1,0 +1,321 @@
+{
+  "id": "episode-2026-08-10-session-4817-qa-analyst-contract-follow-up",
+  "session": "2026-08-10-session-4817-qa-analyst-contract-follow-up",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Harden analyst retrieval guard and routing validator: fix subordinate-clause, non-analyst prefix, mixed-actor, multi-table, tool-binding, and non-path bypasses",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix retrieval guard bypasses",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix routing validator bypasses",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add negative controls",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerate QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T15:03:07+00:00",
+      "type": "commit",
+      "content": "Commit: 1f776d469ed765603a9a92accf7ab09a2ec94e97",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e009",
+        "e016",
+        "e019",
+        "e021"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T16:36:17+00:00",
+      "type": "commit",
+      "content": "Commit: 4060b157e8afd732129ddc620ac71f43601bb5e7",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T16:51:50+00:00",
+      "type": "commit",
+      "content": "Commit: 9e5b71a4e3733ca20ec36e582ec9d5179d6c1711",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T17:30:07+00:00",
+      "type": "commit",
+      "content": "Commit: 1a18a9ab06812ab2a784b8e8b66216081759b53d",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve PR 4817 arbitrary verb review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T18:03:45+00:00",
+      "type": "commit",
+      "content": "Commit: c7645d15c0ac599d4982e21ec73dc5392328eda4",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T18:25:50+00:00",
+      "type": "commit",
+      "content": "Commit: 519d72074aa2b9d9144da935471d0ca12f6cede5",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T18:54:06+00:00",
+      "type": "commit",
+      "content": "Commit: 1c4e18bd54f0f0e0feb9bbe392d9aa0506d227f4",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T19:16:42+00:00",
+      "type": "commit",
+      "content": "Commit: 62577c671de24318f6dfa169734ec98588f58661",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T19:51:40+00:00",
+      "type": "commit",
+      "content": "Commit: 7291805556fc385cc698556a4e7c58dd337ded0b",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T21:21:09+00:00",
+      "type": "commit",
+      "content": "Commit: 53ed636b0f851f9b2081dedbce5d1e174669219b",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve PR 4817 blockquoted code fence review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-11T01:23:30+00:00",
+      "type": "commit",
+      "content": "Commit: 3a097561bbe2a1410f5fa22e82cd1335048b7e90",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T02:36:18+00:00",
+      "type": "commit",
+      "content": "Commit: cf622b0ce47eeb2e616ae59335df2640836e6263",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve PR 4817 rescan threads: table interruption and fronted tool phrase",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-11T03:16:15+00:00",
+      "type": "commit",
+      "content": "Commit: 3cb3b798e1241981a1d10b1fb21b0ad4c97866fe",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refresh PR 4817 against main",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-11T09:30:51+00:00",
+      "type": "commit",
+      "content": "Commit: 772449424871a9a9baa60d3832f2459557784e79",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-11T09:59:19+00:00",
+      "type": "commit",
+      "content": "Commit: ae4f36af5342299a7997b8870eb02611f1e0b303",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-11T10:06:51+00:00",
+      "type": "commit",
+      "content": "Commit: e448e4a76169c67d226e1dd3feb14e1ebc72a712",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 16,
+    "files_changed": 6
+  },
+  "lessons": []
+}

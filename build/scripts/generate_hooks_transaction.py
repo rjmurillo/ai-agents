@@ -11,7 +11,7 @@ import stat
 import tempfile
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -29,6 +29,13 @@ class _FcntlModule(Protocol):
     LOCK_UN: int
 
     def flock(self, file_descriptor: int, operation: int) -> None: ...
+
+
+class _MsvcrtModule(Protocol):
+    LK_NBLCK: int
+    LK_UNLCK: int
+
+    def locking(self, file_descriptor: int, mode: int, size: int) -> None: ...
 
 
 class _PosixModule(Protocol):
@@ -87,9 +94,7 @@ class HookGenerationTransaction:
     def delete_many(self, targets: Iterable[Path]) -> None:
         """Delete targets while retaining one rollback copy per path."""
         delete_order = list(dict.fromkeys(targets))
-        backed_up_targets = {
-            target for target in delete_order if target in self._backups
-        }
+        backed_up_targets = {target for target in delete_order if target in self._backups}
         for target in delete_order:
             self._backup_target(target)
         for target in delete_order:
@@ -169,10 +174,24 @@ class HookGenerationTransaction:
 
     @staticmethod
     def _apply_target_metadata(staged: Path, target: Path) -> None:
+        """Carry the target's permissions and ownership onto its replacement.
+
+        Times are deliberately NOT carried. ``shutil.copystat`` copies them,
+        which left a regenerated hook holding its previous modification time.
+        CPython invalidates ``__pycache__`` on modification time and size, so a
+        rewrite that keeps both serves the OLD bytecode: measured in issue
+        #4764 after repinning a SHA-256 constant, where the digest is a
+        fixed-width hex string and the file size therefore did not change. The
+        guard ran the stale module and denied a valid invocation.
+
+        Before the guard was split it ran as ``__main__``, which is never
+        cached, so nothing in this tree exercised the hazard. Its sibling
+        modules are ordinary imports and are cached like any other.
+        """
         if not target.is_file():
             return
         target_stat = target.stat(follow_symlinks=False)
-        shutil.copystat(target, staged, follow_symlinks=False)
+        os.chmod(staged, stat.S_IMODE(target_stat.st_mode))
         if not _IS_WINDOWS:
             shutil.chown(
                 staged,
@@ -260,7 +279,7 @@ def _lock_file(
 ) -> None:
     handle.seek(0)
     if _IS_WINDOWS:
-        import msvcrt
+        msvcrt = cast(_MsvcrtModule, importlib.import_module("msvcrt"))
 
         def acquire() -> None:
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
@@ -297,7 +316,7 @@ def _retry_file_lock(
 def _unlock_file(handle: BinaryIO) -> None:
     handle.seek(0)
     if _IS_WINDOWS:
-        import msvcrt
+        msvcrt = cast(_MsvcrtModule, importlib.import_module("msvcrt"))
 
         msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
     else:
@@ -315,10 +334,11 @@ def _replace_target(
         os.replace(source, target)
         return
 
-    import ctypes
+    ctypes = cast(Any, importlib.import_module("ctypes"))
     from ctypes import wintypes
 
-    replace_file = ctypes.WinDLL("kernel32", use_last_error=True).ReplaceFileW
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    replace_file = kernel32.ReplaceFileW
     replace_file.argtypes = (
         wintypes.LPCWSTR,
         wintypes.LPCWSTR,

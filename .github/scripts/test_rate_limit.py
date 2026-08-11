@@ -22,7 +22,10 @@ workspace = os.environ.get(
 )
 sys.path.insert(0, workspace)
 
-from scripts.github_core.api import check_workflow_rate_limit  # noqa: E402
+from scripts.github_core.api import (  # noqa: E402
+    RateLimitStatus,
+    check_workflow_rate_limit,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -72,8 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         with open(step_summary, "a", encoding="utf-8") as fh:
             fh.write(result.summary_markdown + "\n")
 
-    if not result.success:
-        print("Rate limit too low to proceed", file=sys.stderr)
+    if result.status != RateLimitStatus.VERIFIED_HEALTHY:
+        print(
+            f"Rate limit gate {result.status.value}; not proceeding",
+            file=sys.stderr,
+        )
         return 1
 
     return 0

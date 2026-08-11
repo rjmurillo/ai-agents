@@ -25,6 +25,19 @@
         }
       ]
     },
+    "plugin-pretooluse-9-push_pr_script_identity": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash",
+      "surface": "plugin",
+      "shims": [
+        {
+          "file": "PreToolUse/invoke_push_pr_script_identity_guard.py",
+          "timeout": 10,
+          "statusMessage": "Verifying push-pr script identity (BLOCKING)"
+        }
+      ]
+    },
     "plugin-posttooluse-1-markdown_auto_lint": {
       "event": "PostToolUse",
       "mode": "observe",

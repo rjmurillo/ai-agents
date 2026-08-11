@@ -275,6 +275,14 @@ class TestViolations:
         (v,) = self._v(tmp_path, "run: pip install 'pytest==8.4.0rc1'\n")
         assert v.pin.version == "8.4.0rc1"
 
+    def test_a_prerelease_above_the_floor_passes(self, tmp_path):
+        """The prerelease flag matters only when the candidate satisfies the floor.
+
+        A lower prerelease fails with or without prereleases=True. This case is
+        the one that proves release candidates are judged instead of filtered.
+        """
+        assert self._v(tmp_path, "run: pip install 'pytest==9.1.0rc1'\n") == []
+
 
 class TestCheck:
     def test_a_clean_tree_exits_zero(self, tmp_path, capsys):

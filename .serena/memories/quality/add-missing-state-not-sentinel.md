@@ -21,6 +21,22 @@ Four instances reached `main`, each in different code, within a single session:
 The pattern is always the same shape: a two-valued type is asked to carry three
 states. The fix is always the same too, and it is cheap. Add the third state.
 
+## Second measurement
+
+An adversarial review on 2026-08-05 found five more collapsed states in gates
+merged during the same campaign:
+
+| Site | Overloaded value | What it hid |
+|---|---|---|
+| Documentation portability gate (#4628) | deduplicated script list | One baselined invocation also allowed repeated identical invocations |
+| CLI E2E gate (#4629) | exit `0` | Neither supported CLI existed, so no E2E test ran |
+| CLI E2E gate (#4629) | exit `0` | `SKIP_CLI_E2E=true` bypassed a required gate |
+| Subprocess encoding gate (#4630) | empty file list | Git reported zero tracked scripts, so no source was inspected |
+| Unreachable-code gate (#4631) | empty file list | Git reported zero Python files, so no source was inspected |
+
+Each reproduced against `origin/main` with an attached worktree. Regression
+tests then killed mutations that restored the false-pass branch.
+
 ## Rule
 
 When a function reports a measurement, a status, or a verdict, ask whether

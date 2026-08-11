@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Combine statement-only main coverage data with branch-mode pin data.
 
-`.github/workflows/pytest.yml`, job `test`, runs pytest three times: once over
-almost the whole suite ("Run pytest") and once each for the two disjoint
-groups of files pinned at a 100% *branch* gate on one narrow module apiece
+`.github/workflows/pytest.yml` runs statement coverage in several test
+partitions and branch coverage in two disjoint pin groups. Each pin has a
+100% *branch* gate on one narrow module
 ("Pin ai_review_common.verdict coverage collection (REQ-008-07)" and "Pin
 REQ-009 module coverage collection (PR #1989 user requirement)"). The main
 run stays statement-only on purpose: turning on --cov-branch there cost
@@ -35,7 +35,7 @@ all measured lines, pinned module and incidental alike.
 
 `coverage combine` (coverage.sqldata.CoverageData.update) refuses to mix arc
 rows with line rows in one data file: "Can't combine statement coverage data
-with branch data". Combining the three files above cannot go through a plain
+with branch data". Combining these files cannot go through a plain
 `coverage combine` call for exactly that reason. This script instead projects
 each pin's arc data down to the lines it executed -- the same reduction
 `coverage.py` performs internally to report line coverage from branch data --
@@ -152,7 +152,7 @@ def _project_to_lines(data: coverage.CoverageData, scratch_path: Path) -> covera
     return read_back
 
 
-def combine(main_path: Path, pin_paths: list[Path], output_path: Path) -> None:
+def combine(main_paths: list[Path], pin_paths: list[Path], output_path: Path) -> None:
     """Validate every input, then write their line-coverage union to `output_path`.
 
     Raises CoverageInputError, naming the offending file, on any invalid
@@ -160,8 +160,12 @@ def combine(main_path: Path, pin_paths: list[Path], output_path: Path) -> None:
     every input before anything is written, so a bad pin file never produces
     a combined file holding only the main run's data.
     """
-    main_data = _load_data(main_path, label="main")
-    _require_statement_data(main_data, label="main", path=main_path)
+    main_data_list: list[coverage.CoverageData] = []
+    for index, main_path in enumerate(main_paths):
+        label = f"main[{index}] ({main_path.name})"
+        main_data = _load_data(main_path, label=label)
+        _require_statement_data(main_data, label=label, path=main_path)
+        main_data_list.append(main_data)
 
     pin_data_list: list[coverage.CoverageData] = []
     for index, pin_path in enumerate(pin_paths):
@@ -177,7 +181,8 @@ def combine(main_path: Path, pin_paths: list[Path], output_path: Path) -> None:
     output_path.unlink(missing_ok=True)
 
     combined = coverage.CoverageData(basename=str(output_path))
-    combined.update(main_data)
+    for main_data in main_data_list:
+        combined.update(main_data)
     for index, pin_data in enumerate(pin_data_list):
         scratch_path = output_path.parent / f".{output_path.name}.pin{index}.projected"
         try:
@@ -194,8 +199,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--main-data",
         required=True,
+        action="append",
         type=Path,
-        help="Statement-only (no --cov-branch) main-run coverage data file",
+        help="Statement-only partition coverage data file; repeat once per partition",
     )
     parser.add_argument(
         "--pin-data",
@@ -221,7 +227,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_INVALID_DATA
 
-    print(f"Combined {1 + len(args.pin_data)} coverage data file(s) into {args.output_data}")
+    count = len(args.main_data) + len(args.pin_data)
+    print(f"Combined {count} coverage data file(s) into {args.output_data}")
     return EXIT_OK
 
 

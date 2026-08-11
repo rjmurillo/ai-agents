@@ -136,6 +136,68 @@ class TestMain:
         data = _envelope(capsys)["Data"]
         assert data["count"] == 3
 
+    def test_manual_pagination_paces_between_full_pages(self, capsys):
+        first_page = [_api_comment(f"user-{index}", str(index)) for index in range(100)]
+        second_page = [_api_comment("last", "done")]
+        sleeps: list[float] = []
+        calls: list[list[str]] = []
+
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            calls.append(command)
+            payload = first_page if len(calls) == 1 else second_page
+            return _completed(stdout=json.dumps(payload), rc=0)
+
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=fake_run),
+            patch("get_issue_comments.time.sleep", sleeps.append),
+        ):
+            rc = main(["--issue", "1"])
+
+        assert rc == 0
+        data = _envelope(capsys)["Data"]
+        assert data["count"] == 101
+        assert sleeps == [_mod.ISSUE_COMMENT_PAGE_PACE_SECONDS]
+        assert all("--paginate" not in call for call in calls)
+        assert "page=1" in calls[0][2]
+        assert "page=2" in calls[1][2]
+
+    def test_rate_limit_refusal_retries_issue_comment_page(self, capsys):
+        sleeps: list[float] = []
+        calls: list[list[str]] = []
+
+        def fake_run(command: list[str], **kwargs):
+            del kwargs
+            calls.append(command)
+            if len(calls) == 1:
+                return _completed(
+                    stderr="HTTP 403: API rate limit exceeded for user ID 6811113",
+                    rc=1,
+                )
+            return _completed(stdout=json.dumps([_api_comment("alice", "ok")]), rc=0)
+
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=fake_run),
+            patch("get_issue_comments.time.sleep", sleeps.append),
+        ):
+            rc = main(["--issue", "1"])
+
+        assert rc == 0
+        data = _envelope(capsys)["Data"]
+        assert data["count"] == 1
+        assert len(calls) == 2
+        assert sleeps == [_mod.ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS[0]]
+
     def test_limit_keeps_most_recent(self, capsys):
         with (
             patch("get_issue_comments.assert_gh_authenticated"),
@@ -202,6 +264,43 @@ class TestMain:
             assert exc.value.code == 3
         env = _envelope(capsys)
         assert env["Success"] is False
+
+    def test_timeout_exits_3(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("gh", 60),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "1"])
+
+        assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "ApiError"
+
+    def test_api_failure_without_output_uses_return_code_fallback(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_completed(rc=17)]),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "1"])
+            assert exc.value.code == 3
+        env = _envelope(capsys)
+        assert env["Error"]["Message"] == (
+            "Failed to fetch comments for issue #1: "
+            "gh api exited with return code 17 while fetching issue comment page 1 "
+            "and no error output"
+        )
 
     def test_api_failure_respects_human_output_format(self, capsys):
         with (
