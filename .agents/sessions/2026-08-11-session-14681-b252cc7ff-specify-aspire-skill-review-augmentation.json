@@ -74,22 +74,22 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Specification artifacts generated, reviewed, corrected, and validated."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md remained unchanged."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Updated .serena/memories/eval-harness-observations.md with the skill prompt edit harness boundary and refreshed memory-index.md tokens."
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Scoped markdownlint selected zero files because .agents and .serena are ignored. Prose self-check scanned 13 authored Markdown files with zero findings."
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All intended specification and evidence files are staged for the session commit."
+        "Evidence": "All changes committed (HEAD: f8f93d147b)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Spec frontmatter, threat model, CVA, pre-mortem, prose self-check, gap review, and final critic review passed."
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No retrospective required for this specification-only session."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: .agents/qa/020-aspire-skill-review-spec-qa.md edited 6 times"
       }
     }
   },
@@ -144,7 +149,7 @@
       "result": "Frontmatter, threat model, CVA, pre-mortem, prose, and final critic checks passed. Prose scan found zero banned dashes, banned terms, contrast framing, or flat-rhythm warnings across 13 authored files."
     }
   ],
-  "endingCommit": "0673e84b98c326052457b0840741ccd2da9c1242",
+  "endingCommit": "f8f93d147b",
   "nextSteps": [
     "Start TASK-019 by restoring authorized commit-pinned GitHub access to microsoft/aspire.",
     "Do not edit local skills while only DeepWiki evidence is available."
