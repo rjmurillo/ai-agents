@@ -20,11 +20,23 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.maintenance import _gc_parse, _gc_stale
+from scripts.maintenance import _gc_files, _gc_parse, _gc_reasons, _gc_stale
 from scripts.maintenance.gc_worktrees import (
     Decision,
     Worktree,
     decide,
+)
+
+# Permission-barrier tests below build their precondition out of file mode bits.
+# Root ignores those bits and Windows does not carry them, so on either the
+# barrier is absent and the reader succeeds where the test expects a refusal.
+# ``os.geteuid`` is itself absent on Windows, and a bare call in a skipif
+# argument is evaluated at import, so an unguarded call fails collection for the
+# whole module rather than skipping one test. Mirrors the idiom in
+# tests/validation/test_check_shipped_skill_routes_paths.py.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+_NEEDS_PERMISSION_BARRIER = pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
 )
 
 _MAIN = "/repo/main"
@@ -113,50 +125,83 @@ def _stale(
 
 
 class TestRegularFileProbe:
-    """``_regular_file`` separates "not there" from "could not ask"."""
+    """``regular_file`` separates "not there" from "could not ask"."""
 
     def test_a_real_file_is_true(self, tmp_path):
         target = tmp_path / "index"
         target.write_bytes(b"x")
-        assert _gc_stale._regular_file(target) is True
+        assert _gc_files.regular_file(target) is True
 
     def test_an_absent_file_is_false(self, tmp_path):
-        assert _gc_stale._regular_file(tmp_path / "missing") is False
+        assert _gc_files.regular_file(tmp_path / "missing") is False
 
-    def test_a_path_under_a_file_is_false(self, tmp_path):
-        """``a/b`` where ``a`` is a file raises NotADirectoryError, not ENOENT."""
+    def test_a_path_under_a_file_is_unknown(self, tmp_path):
+        """``a/b`` where ``a`` is a file is a corrupt record, not an empty one.
+
+        ``stat`` raises ``NotADirectoryError`` here, not ``ENOENT``. Reading
+        that as absence says "no index, nothing staged" about an admin
+        directory that has been overwritten by a regular file, which is the
+        state most likely to be hiding something.
+        """
         (tmp_path / "a").write_bytes(b"x")
-        assert _gc_stale._regular_file(tmp_path / "a" / "b") is False
+        assert _gc_files.regular_file(tmp_path / "a" / "b") is None
 
     def test_a_directory_is_unknown_not_absent(self, tmp_path):
         """A directory where an index belongs is corrupt, not empty."""
         (tmp_path / "index").mkdir()
-        assert _gc_stale._regular_file(tmp_path / "index") is None
+        assert _gc_files.regular_file(tmp_path / "index") is None
 
     def test_a_stat_failure_is_unknown(self, tmp_path):
         """A permission denial is the case ``Path.is_file`` hides."""
         with patch.object(Path, "stat", side_effect=PermissionError(13, "denied")):
-            assert _gc_stale._regular_file(tmp_path / "index") is None
+            assert _gc_files.regular_file(tmp_path / "index") is None
 
-    def test_a_broken_symlink_is_absent(self, tmp_path):
-        """``stat`` follows the link and raises ENOENT, which is real absence."""
+    def test_a_broken_symlink_is_unknown(self, tmp_path):
+        """Something occupies the path, so this is not absence.
+
+        ``stat`` follows the link and raises ``ENOENT``, the same error a
+        genuinely empty path raises. ``lstat`` separates them: the link itself
+        is a directory entry. A reflog behind a dangling link is a record this
+        probe cannot read, not a record that is not there.
+        """
         link = tmp_path / "index"
         link.symlink_to(tmp_path / "nowhere")
-        assert _gc_stale._regular_file(link) is False
+        assert _gc_files.regular_file(link) is None
+
+    def test_only_an_empty_path_is_absent(self, tmp_path):
+        """The one case that earns ``False``, stated next to its near-misses."""
+        assert _gc_files.regular_file(tmp_path / "missing") is False
+        assert _gc_files.nothing_at(tmp_path / "missing") is True
+
+
+    def test_a_path_under_a_file_is_false(self, tmp_path):
+        """Retain the main-side test name while proving its unsafe answer is gone."""
+        (tmp_path / "a").write_bytes(b"x")
+        assert _gc_files.regular_file(tmp_path / "a" / "b") is None
+
+    def test_a_broken_symlink_is_absent(self, tmp_path):
+        """Retain the main-side test name while proving a link is not absence."""
+        link = tmp_path / "index"
+        link.symlink_to(tmp_path / "nowhere")
+        assert _gc_files.regular_file(link) is None
 
 
 class TestReflogProbeUnknowns:
     """An unreadable reflog is not an empty one."""
 
+    @_NEEDS_PERMISSION_BARRIER
     def test_an_unreadable_reflog_is_unknown_not_empty(self, tmp_path):
-        with patch(
-            "scripts.maintenance._gc_stale._regular_file",
-            return_value=None,
-        ):
-            assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) is None
+        log = tmp_path / "logs" / "HEAD"
+        log.parent.mkdir(parents=True)
+        log.write_text("0" * 40 + " " + "1" * 40 + " t <t> 0 +0000\tcommit\n")
+        log.chmod(0o000)
+        try:
+            assert _gc_stale.unreachable_admin_commits(tmp_path, "/repo", 5.0) is None
+        finally:
+            log.chmod(0o644)
 
     def test_an_absent_reflog_holds_nothing(self, tmp_path):
-        assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) == []
+        assert _gc_stale.unreachable_admin_commits(tmp_path, "/repo", 5.0) == []
 
 
 class TestStagedContentProbe:
@@ -167,7 +212,7 @@ class TestStagedContentProbe:
         """``index_exists=None`` means the ``stat`` itself failed."""
         with (
             patch(
-                "scripts.maintenance._gc_stale._regular_file",
+                "scripts.maintenance._gc_stale.regular_file",
                 return_value=index_exists,
             ),
             patch(
@@ -202,7 +247,7 @@ class TestStagedContentProbe:
 
     def test_a_timeout_is_unknown(self):
         with (
-            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
+            patch("scripts.maintenance._gc_stale.regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 side_effect=subprocess.TimeoutExpired("git", 5.0),
@@ -215,7 +260,7 @@ class TestStagedContentProbe:
     def test_the_probe_runs_in_the_repo_not_the_admin_directory(self):
         """git refuses the admin dir outright when safe.bareRepository is explicit."""
         with (
-            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
+            patch("scripts.maintenance._gc_stale.regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 return_value=SimpleNamespace(returncode=0),
@@ -291,77 +336,45 @@ class TestAdminDirLookup:
         assert _gc_stale.admin_dir_for("/gone", lambda _args: str(tmp_path), str(tmp_path)) is None
 
 
-class TestReflogProbe:
-    """``unreachable_reflog_commits`` answers with a list, or admits it cannot."""
+class TestPathConfirmedAbsent:
+    """``_path_confirmed_absent`` separates "genuinely gone" from "could not tell".
 
-    @staticmethod
-    def _probe(tmp_path, lines: str, existing: str, unreachable: str):
-        admin = tmp_path / "wt"
-        (admin / "logs").mkdir(parents=True)
-        (admin / "logs" / "HEAD").write_text(lines, encoding="utf-8")
-        outputs = [
-            SimpleNamespace(returncode=0, stdout=existing),
-            SimpleNamespace(returncode=0, stdout=unreachable),
-        ]
-        with patch("scripts.maintenance._gc_stale.subprocess.run", side_effect=outputs):
-            return _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0)
+    ``stale_keep_reason`` picks between ``KEEP_STALE`` (safe to print removal
+    advice) and ``KEEP_STALE_OCCUPIED`` (something is there or unreadable, so
+    no removal command is printed) based on this predicate. Before this fix it
+    used ``os.path.lexists()`` directly, which returns ``False`` for any
+    ``OSError`` during the probe, not only a genuinely missing path. That
+    misclassified a permission-denied-but-occupied path as absent and printed
+    the destructive ``git worktree remove`` advice for a path that still
+    exists (issue #4718 review).
+    """
 
-    def test_a_missing_reflog_is_no_risk(self, tmp_path):
-        (tmp_path / "wt").mkdir()
-        assert _gc_stale.unreachable_reflog_commits(tmp_path / "wt", "/repo", 5.0) == []
+    def test_an_existing_path_is_not_confirmed_absent(self, tmp_path):
+        target = tmp_path / "worktree"
+        target.mkdir()
+        assert _gc_reasons._path_confirmed_absent(str(target)) is False
 
-    def test_the_null_oid_is_never_treated_as_a_commit(self, tmp_path):
-        null, new = "0" * 40, "c" * 40
-        found = self._probe(
-            tmp_path,
-            f"{null} {new} me <me@x> 0 +0000\tbranch: Created\n",
-            f"{new} commit 100\n",
-            f"{new}\n",
-        )
-        assert found == [new]
+    def test_a_genuinely_missing_path_is_confirmed_absent(self, tmp_path):
+        assert _gc_reasons._path_confirmed_absent(str(tmp_path / "missing")) is True
 
-    def test_a_collected_object_is_dropped_rather_than_failing_the_whole_answer(self, tmp_path):
-        """rev-list aborts on the first bad object, so filtering has to come first."""
-        gone, live = "d" * 40, "e" * 40
-        found = self._probe(
-            tmp_path,
-            f"{gone} {live} me <me@x> 0 +0000\tcommit: x\n",
-            f"{gone} missing\n{live} commit 100\n",
-            f"{live}\n",
-        )
-        assert found == [live]
+    @_NEEDS_PERMISSION_BARRIER
+    def test_a_permission_denied_path_is_not_confirmed_absent(self, tmp_path):
+        """An occupied-but-unreadable path must not read as absent.
 
-    def test_nothing_unreachable_is_an_empty_list_not_none(self, tmp_path):
-        live = "f" * 40
-        found = self._probe(
-            tmp_path, f"{live} {live} me <me@x> 0 +0000\tx\n", f"{live} commit 1\n", ""
-        )
-        assert found == []
+        ``lstat`` on the path itself does not require the parent directory
+        to be listable, only searchable, so the barrier is a chmod on the
+        target's parent that blocks the traversal ``lstat`` needs to reach
+        the entry, reproducing a real permission-denied probe.
+        """
+        blocked_dir = tmp_path / "blocked"
+        blocked_dir.mkdir(mode=0o000)
+        target = f"{blocked_dir}/worktree"
+        try:
+            assert _gc_reasons._path_confirmed_absent(target) is False
+        finally:
+            blocked_dir.chmod(0o755)
 
-    def test_a_git_failure_is_unknown_not_safe(self, tmp_path):
-        admin = tmp_path / "wt"
-        (admin / "logs").mkdir(parents=True)
-        (admin / "logs" / "HEAD").write_text(f"{'a' * 40} {'b' * 40} x\n", encoding="utf-8")
-        with patch(
-            "scripts.maintenance._gc_stale.subprocess.run",
-            return_value=SimpleNamespace(returncode=128, stdout=""),
-        ):
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) is None
-
-    def test_a_timeout_is_unknown_not_safe(self, tmp_path):
-        admin = tmp_path / "wt"
-        (admin / "logs").mkdir(parents=True)
-        (admin / "logs" / "HEAD").write_text(f"{'a' * 40} {'b' * 40} x\n", encoding="utf-8")
-        with patch(
-            "scripts.maintenance._gc_stale.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("git", 5.0),
-        ):
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) is None
-
-    def test_a_reflog_of_only_null_oids_costs_no_subprocess(self, tmp_path):
-        admin = tmp_path / "wt"
-        (admin / "logs").mkdir(parents=True)
-        (admin / "logs" / "HEAD").write_text(f"{'0' * 40} {'0' * 40} x\n", encoding="utf-8")
-        with patch("scripts.maintenance._gc_stale.subprocess.run") as run:
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) == []
-        run.assert_not_called()
+    def test_a_stat_failure_is_not_confirmed_absent(self, tmp_path):
+        """Any non-ENOENT OSError means occupied-or-unknown, never absent."""
+        with patch.object(os, "lstat", side_effect=PermissionError(13, "denied")):
+            assert _gc_reasons._path_confirmed_absent(str(tmp_path / "worktree")) is False
