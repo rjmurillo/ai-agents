@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions.json
-qaCommit: 9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612
+qaCommit: 8ecfa4de06047e820c4e5aebe775181dea69c992
 ---
 
 # QA Report: PR 4872 local pytest loop
@@ -29,6 +29,9 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
   dry-run call.
 - The known `.github/workflows/pytest.yml` path uses the local matrix runner
   without requiring `ACT=true`.
+- Workflow-local pre-push passes `--no-full` for `pytest.yml`, so actionlint
+  runs once and the dedicated pytest hook owns runtime execution.
+- Workflow-local routing tests: 6 passed, 809 deselected in 1.03 seconds.
 - Child workers receive checkout-local `COPILOT_PLUGIN_ROOT` and
   `CLAUDE_PLUGIN_ROOT` values.
 - Real pre-push pytest gate: 325.73 seconds total.
