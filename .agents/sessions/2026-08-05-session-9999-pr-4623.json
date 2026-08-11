@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No retrospective required for this bounded fix; task evidence is in this session log and PR body."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4623-root-hygiene-agents-carveout-qa-report.md"
       }
     }
   },
@@ -135,8 +140,8 @@
       "entry": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed."
     }
   ],
-  "endingCommit": "991c6552468aa23c6447a2397124399cec3c927e",
+  "endingCommit": "e6ecc1391d2765e573a881cd1381224825264c29",
   "nextSteps": [
-    "Open PR and monitor CI."
+    "Merge PR #4623 once CI required checks pass."
   ]
 }
