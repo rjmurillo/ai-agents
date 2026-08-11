@@ -4,7 +4,8 @@
 
 ## Agent Delegation for Complex Tasks
 
-Complex tasks use `/agent`. If unavailable, inline work overrides the limits
+Copilot CLI complex tasks use `/agent`; VS Code uses `#runSubagent`. If the
+active client lacks its delegation command, inline work overrides the limits
 below; note that delegation was skipped.
 
 | When to Delegate | Agent | Example Prompt |

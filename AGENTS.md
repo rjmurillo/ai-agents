@@ -2,7 +2,7 @@
 
 ## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|If both MCP tools fail and the fallback memory file is absent, halt session initialization and notify the user before proceeding.|Post-compaction: re-run both
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|If either call fails, halt and report; memory files are retrieval aids, not initialization substitutes.|Post-compaction: re-run both
 
 ## Retrieval
 

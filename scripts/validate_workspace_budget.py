@@ -45,7 +45,7 @@ WORKSPACE_FILES = [
 # Files listed here are measured individually; they are excluded from the
 # TOTAL_BUDGET_BYTES shared pool (which applies to the Claude-side trio only).
 FILE_CEILING_BYTES: dict[str, int] = {
-    # Copilot always-on entry point, ratcheted above the accepted 1,294-byte
+    # Copilot always-on entry point, ratcheted above the accepted 1,370-byte
     # harness overlay from issue #4880.
     ".github/copilot-instructions.md": 1400,
 }

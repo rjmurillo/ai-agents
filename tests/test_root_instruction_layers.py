@@ -54,11 +54,11 @@ def test_copilot_retains_routes_without_duplicate_catalogs() -> None:
     for required in (
         "`AGENTS.md`",
         "/agent",
+        "#runSubagent",
         "loads root `AGENTS.md` automatically",
     ):
         assert required in text
     for duplicate in (
-        "#runSubagent",
         "## Serena MCP Initialization",
         "## Critical Constraints",
         "## Session Protocol",
