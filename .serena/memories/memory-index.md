@@ -25,6 +25,7 @@
 |git diff origin main direction stale branch deletion behind predates restore: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
 |pr autofix late merge live state base refresh closed branch recovery: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
+|pr autofix batch merge conflict lease contention hook bypass notOnMain shared checkout: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |github pr issue cli gh api review comment batch response label milestone create tag priority: [skills-github-cli-index](skills-github-cli-index.md) (597), [skills-pr-review-index](skills-pr-review-index.md) (1096), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
