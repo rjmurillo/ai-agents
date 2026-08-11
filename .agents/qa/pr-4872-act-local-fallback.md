@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions.json
-qaCommit: 0479e20938edb419d53443cd72097b826f334d4d
+qaCommit: 9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612
 ---
 
 # QA Report: PR 4872 local pytest loop
@@ -17,7 +17,7 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
 
 ## Evidence
 
-- Final fallback file: 141 passed in 5.83 seconds.
+- Final fallback file: 142 passed in 5.85 seconds.
 - `uv run ruff check scripts/validation/run_workflow_local_test.py
   tests/validation/test_run_workflow_local_test.py`: passed.
 - `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref
@@ -27,6 +27,8 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
   `-n auto --dist loadfile`, the timeout, working directory, bytecode guard,
   removal of `ACT` from child environments, and absence of any `gh act`
   dry-run call.
+- The known `.github/workflows/pytest.yml` path uses the local matrix runner
+  without requiring `ACT=true`.
 - Child workers receive checkout-local `COPILOT_PLUGIN_ROOT` and
   `CLAUDE_PLUGIN_ROOT` values.
 - Real pre-push pytest gate: 325.73 seconds total.
