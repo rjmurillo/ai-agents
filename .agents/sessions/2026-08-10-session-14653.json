@@ -3,26 +3,26 @@
   "session": {
     "number": 14653,
     "date": "2026-08-10",
-    "branch": "fix/issue-4842-9d8546d8",
+    "branch": "fix/issue-4850-9d8546d8",
     "startingCommit": "8f8b6696d",
-    "objective": "Own issue #4842 end to end: reproduce repository-name truncation, implement the narrow fix with tests and generated mirrors, validate, create PR, and pursue closure."
+    "objective": "Own issue 4850 through reproduction, narrow fix, validation, and GitHub disposition"
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Tool surface omitted activate_project; external worktree verified with git."
+        "Evidence": "Serena activate_project was not exposed; used the documented .serena/memories fallback in the isolated worktree."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "serena initial_instructions completed."
+        "Evidence": "serena-initial_instructions completed successfully."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md read; no issue 4842 handoff exists."
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -32,37 +32,37 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Listed 53 GitHub skill Python scripts."
+        "Evidence": "Loaded github, git-good, session-init, agent-harness-reference, and ai-agents-portability-campaign. Used GitHub issue and PR scripts."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/usage-mandatory.md read."
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Loaded memory-index, skills-github-cli-index, and repo-root test memory."
+        "Evidence": "Read agent mirror, generation edit location, parity gate, and eval fixture provenance memories."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/issue-4842-9d8546d8"
+        "Evidence": "fix/issue-4850-9d8546d8"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/issue-4842-9d8546d8"
+        "Evidence": "On fix/issue-4850-9d8546d8"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Clean worktree before session log creation."
+        "Evidence": "Worktree was clean on fix/issue-4850-9d8546d8 before session log creation."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,37 +74,37 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items verified and validation passed"
+        "Evidence": "Reviewed every required session-end item after implementation and validation."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md not modified (read-only respected)"
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No durable memory update needed; parser behavior and regression tests are self-describing."
+        "Evidence": "No new memory was warranted. Existing agent mirror memories already document the verified two-pipeline recipe."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "markdownlint-cli2 reported 0 issues in 0 files because repository configuration excludes .github/agents/**/*.agent.md."
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-10-pr-4856-issue-4842-repository-name-parser-report.md"
+        "Evidence": ".agents/qa/pr-4860-issue-4850-qa-contract-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847)"
+        "Evidence": "Implementation commit 63825dae3d7ee12e020dde8903988eb54a6f45f6, main merge 472182f4cab5271aaa2fc82b6eca28952261ba37, and review fix 1de0242bf91ea778824519600f24cfa947b396d4."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed"
+        "Evidence": "98 regression tests plus lint, type, strict drift, parity, generation, and default CLI exit checks passed on the merged branch."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,40 +115,38 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
-      },
-      "reworkWarning": {
-        "level": "SHOULD",
-        "Complete": true,
-        "Evidence": "rework-warning: none"
       }
     }
   },
   "workLog": [
     {
-      "action": "Checked issue ownership and full discourse",
-      "outcome": "No existing PR or assignee. GitHub write access rejected claim and comment operations for the Enterprise Managed User identity."
+      "action": "Checked ownership and existing work",
+      "result": "No open PR addressed issue 4850. GitHub assignment and claim-comment writes were denied for the authenticated Enterprise Managed User."
     },
     {
-      "action": "Reproduced and assessed issue 4842",
-      "outcome": "Dotted remote moq.analyzers.git resolved as moq. Priority P1 and a narrow fix is merited."
+      "action": "Read issue discourse and linked history",
+      "result": "Read the issue body, all three comments, and direct linked items. Recursive traversal reached 79 items before GitHub API rate limiting stopped comment retrieval."
     },
     {
-      "action": "Fixed repository-name parsing",
-      "outcome": "Canonical parser now preserves dots, tests cover HTTPS, SSH, no suffix, and non-GitHub remotes, and both plugin mirrors were regenerated."
+      "action": "Reproduced and assessed the claim",
+      "result": "The self-host Copilot QA prompt lacked five canonical sections while drift detection reported qa at 86.3 percent and exited 0. Priority P1 and fix merit confirmed."
     },
     {
-      "action": "Validated the change",
-      "outcome": "249 tests passed; mutation failed 3 regression cases; Ruff, security scan, mirror check, and orphan reference scan passed."
+      "action": "Implemented the narrow prompt and gate fix",
+      "result": "Restored the five QA contract sections, made the two load-bearing sections mandatory, and added positive, omission, and 16-of-49 corpus tests across six prompt surfaces."
     },
     {
-      "action": "Merged current origin/main and revalidated",
-      "outcome": "Merge completed without conflicts; 249 tests, Ruff, and mirror checks passed on the merged tree."
+      "action": "Validated the merged branch",
+      "result": "98 targeted tests passed. Ruff, mypy, strict drift at qa 94.0 percent, install parity, and generation checks passed."
     },
     {
-      "action": "Addressed PR 4856 hostname-boundary review",
-      "outcome": "Confirmed lookalike hosts were accepted, anchored parsing to GitHub remote forms, and passed 251 tests plus a 2-case mutation control."
+      "action": "Addressed Copilot review findings",
+      "result": "Made required install drift block the default CLI, separated static fixture checks from existing behavioral eval evidence, and aligned the QA report with its own verdict contract."
     }
   ],
-  "endingCommit": "78ca60b191b9ae71ada23b1b05694f9b6e1cc847",
-  "nextSteps": []
+  "endingCommit": "1de0242bf91ea778824519600f24cfa947b396d4",
+  "nextSteps": [
+    "Complete PR 4860 checks and review-thread resolution.",
+    "Full pre_pr.py remains limited by the merge-tree-ratchet 300-second local timeout on the shared machine."
+  ]
 }
