@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/000-issue-4851-qa.md"
+        "Evidence": ".agents/qa/000-pr-4865-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
