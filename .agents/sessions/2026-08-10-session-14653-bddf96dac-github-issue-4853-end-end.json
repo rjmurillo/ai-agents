@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and QA commits are ancestors of 58c15556601fab1ffdc60494c594de135746aeb9 after merging current origin/main."
+        "Evidence": "Implementation, fixup, merge, and QA commits are ancestors of a53ab08fd94acf90c9aa7e767c93cd2a3b4b75f8."
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,9 +147,13 @@
     {
       "action": "Probed real Claude Code 2.1.179",
       "result": "Binary resolved claude-opus-5 but exited 4 because no Claude authentication exists on this machine."
+    },
+    {
+      "action": "Fixed pre-PR subprocess decoding finding",
+      "result": "Added errors=replace to the git init subprocess and the exact encoding validator passed."
     }
   ],
-  "endingCommit": "58c15556601fab1ffdc60494c594de135746aeb9",
+  "endingCommit": "a53ab08fd94acf90c9aa7e767c93cd2a3b4b75f8",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
