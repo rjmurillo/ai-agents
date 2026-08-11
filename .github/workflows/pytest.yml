@@ -80,6 +80,7 @@ jobs:
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
               - 'scripts/ci/ruff_count_baseline.txt'
+              - 'scripts/ci/subprocess_encoding_count_baseline.txt'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
@@ -96,6 +97,12 @@ jobs:
               # resolution touching only these files, which no '**/*.py' pattern
               # catches.
               - '.agents/memory/episodes/**'
+              # Issue #4408: rules files are test inputs -- many Python tests read
+              # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
+              # A rules-only change must trigger the full suite.
+              - '.claude/rules/**'
+              - '.github/instructions/**'
+              - 'src/copilot-cli/instructions/**'
 
       - name: Report path check result
         env:
@@ -232,6 +239,22 @@ jobs:
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
+      - name: Run subprocess encoding count ratchet (whole tree, pull request)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
+
+      - name: Run subprocess encoding count ratchet (whole tree, non-PR)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$BASE_REF"
+          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
+
       - name: Check security suppressions in diff (pull request, issue 4061)
         if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
         env:
@@ -257,6 +280,13 @@ jobs:
       # statement-only (no --cov-branch) by design; see that script's module
       # docstring for the coverage-combine design and the measured
       # line-vs-branch cost.
+      #
+      # Issue #4823: `-n auto` is xdist's own one-worker-per-logical-CPU, so
+      # this step scales with the runner instead of a hard-coded count. The
+      # flags belong to this step alone: pytest-cov's DistMaster.finish()
+      # merges worker data into this step's COVERAGE_FILE, so the pins and the
+      # combine step below need no change, and both pins plus the Windows job
+      # stay serial (pinned by the two xdist parallelism test modules).
       - name: Run pytest
         id: run-pytest
         if: steps.should-run.outputs.skip != 'true'
@@ -264,7 +294,8 @@ jobs:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: artifacts/.coverage.main
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py --cov --cov-report=
+          uv run --frozen python scripts/ci/run_pytest_non_tmp.py -n auto --dist loadfile
+          --cov --cov-report=
           --junitxml=artifacts/pytest-results.xml
           --ignore=tests/test_ai_review.py
           --ignore=tests/test_verdict.py

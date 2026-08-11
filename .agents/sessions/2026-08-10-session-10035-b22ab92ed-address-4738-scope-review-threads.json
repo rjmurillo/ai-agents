@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10035,
+    "date": "2026-08-10",
+    "branch": "fix/scope-gate-stacked-base",
+    "startingCommit": "fe9a3bd92",
+    "objective": "Address PR #4738 scope review threads"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded; activate_project unavailable in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts/pr listed and inspected."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory read before GitHub operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/SESSION-PROTOCOL.md, PROJECT-CONSTRAINTS.md, scripts/AGENTS.md, tests/CLAUDE.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, pr-autofix/pr-4323-late-base-refresh, and validation/validation-pr-gates read."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/scope-gate-stacked-base"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/scope-gate-stacked-base"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch and status in isolated worktree before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fe9a3bd92"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed for session 10035."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new Serena memory needed for this narrow autofix."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: no changed markdown files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4738-scope-review-fixes.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All code changes committed (HEAD: feb0c72592b026d8eb9a72bc09f77e609f0394eb)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "175 scope and PR validation cases passed, 1027 Windows marker tests passed, 24 pr-autofix monitor tests passed, and ruff check passed after merging main."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4738 review threads addressed; new TimeoutExpired/OSError thread fixed and ready to resolve."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: scripts/scope_pr_base.py edited 7 times\nrework-warning: tests/test_detect_scope_explosion.py edited 7 times"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "lease",
+      "detail": "Created isolated sibling worktree, acquired PR #4738 autofix lease, and verified live PR state plus unresolved threads."
+    },
+    {
+      "action": "fix",
+      "detail": "Wrapped stacked-base remeasurement in a ScopeDetectionError fallback so uncertain rescopes preserve the original blocking result."
+    },
+    {
+      "action": "fix",
+      "detail": "Updated the credibility docstring citation and tests to the current exception contract, and restored the is_ancestor helper used by real-git coverage."
+    },
+    {
+      "action": "test",
+      "detail": "Ran ruff on changed files and 174 scope-related pytest cases covering scope detection, credibility, and real-git ancestry."
+    },
+    {
+      "action": "fix",
+      "detail": "Caught TimeoutExpired and OSError in is_ancestor so failed git ancestry checks refuse rescoping instead of erroring."
+    },
+    {
+      "action": "test",
+      "detail": "Ran TestIsAncestor, the scope suites, PR validation tests, and the Windows path marker suite after the new thread fix."
+    }
+  ],
+  "endingCommit": "feb0c72592b026d8eb9a72bc09f77e609f0394eb",
+  "nextSteps": [
+    "Push the final autofix branch and resolve the remaining PR #4738 review thread."
+  ]
+}

@@ -8,7 +8,8 @@ public import surface ``from scripts.github_core.api import ...`` stays stable
 - ``log_safety``: ``safe_log_str`` (CWE-117 log-forging defense).
 - ``review_threads``: review-thread shape, predicates, paginated fetch,
   ``FetchStatus``, ``get_unresolved_review_threads``.
-- ``rate_limit``: ``RateLimitResult``, ``DEFAULT_RATE_THRESHOLDS``,
+- ``rate_limit``: ``RateLimitResult``, ``RateLimitStatus``,
+  ``DEFAULT_RATE_THRESHOLDS``,
   ``check_workflow_rate_limit``.
 """
 
@@ -35,6 +36,7 @@ from scripts.github_core.log_safety import safe_log_str
 from scripts.github_core.rate_limit import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RateLimitStatus,
     check_workflow_rate_limit,
 )
 from scripts.github_core.review_threads import (  # noqa: F401
@@ -536,6 +538,52 @@ def assert_gh_authenticated() -> None:
 # API helpers
 # ---------------------------------------------------------------------------
 
+REST_PAGE_PACE_SECONDS = 3.0
+REST_REFUSAL_BACKOFF_SECONDS = (300.0, 600.0)
+_RETRYABLE_REST_HTTP_PATTERN = re.compile(
+    r"\(?\bHTTP\s+(429|500|502|503|504)\b", re.IGNORECASE
+)
+_RETRYABLE_REST_REFUSALS = frozenset(
+    {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
+)
+
+
+def _is_retryable_rest_api_error(error_text: str) -> bool:
+    """Return True when a REST page failure should be retried."""
+    if _RETRYABLE_REST_HTTP_PATTERN.search(error_text):
+        return True
+    return classify_gh_failure_text(error_text) in _RETRYABLE_REST_REFUSALS
+
+
+def _run_gh_api_page(url: str) -> subprocess.CompletedProcess[str]:
+    attempts = len(REST_REFUSAL_BACKOFF_SECONDS) + 1
+    for attempt in range(attempts):
+        result = subprocess.run(
+            ["gh", "api", url],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return result
+
+        error_text = result.stderr.strip() or result.stdout.strip()
+        if attempt >= len(REST_REFUSAL_BACKOFF_SECONDS) or not _is_retryable_rest_api_error(
+            error_text
+        ):
+            return result
+
+        delay = REST_REFUSAL_BACKOFF_SECONDS[attempt]
+        warnings.warn(
+            "GitHub REST page request refused. "
+            f"Retrying in {delay:.0f}s: {safe_log_str(error_text)}",
+            stacklevel=2,
+        )
+        time.sleep(delay)
+
+    raise RuntimeError("unreachable REST pagination retry loop")
+
 
 def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
     """Fetch all pages from a GitHub REST API endpoint.
@@ -554,13 +602,7 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
         separator = "&" if "?" in endpoint else "?"
         url = f"{endpoint}{separator}per_page={page_size}&page={page}"
 
-        result = subprocess.run(
-            ["gh", "api", url],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
+        result = _run_gh_api_page(url)
 
         if result.returncode != 0:
             msg = (
@@ -595,6 +637,7 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
         if len(items) < page_size:
             break
 
+        time.sleep(REST_PAGE_PACE_SECONDS)
         page += 1
 
     return all_items
@@ -793,7 +836,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
         number
         title
         state
-        author { login }
+        author {
+          login
+          ... on Bot { databaseId }
+          ... on User { databaseId }
+        }
         createdAt
         updatedAt
         mergedAt
@@ -806,7 +853,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
               nodes {
                 id
                 body
-                author { login }
+                author {
+                  login
+                  ... on Bot { databaseId }
+                  ... on User { databaseId }
+                }
                 createdAt
                 path
               }
