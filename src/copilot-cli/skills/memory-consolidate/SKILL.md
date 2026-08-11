@@ -43,10 +43,9 @@ Use these steps in order:
    consolidated and the harness reports a finite call timeout. If the active
    project is unknown, different, unavailable, or has no verified finite
    timeout, stop after Phase 1 without reading or writing memory files.
-2. **Validate size budget with memory-maintenance.** After Phase 1's file-count
-   and byte gates pass, invoke `memory-maintenance`, which owns the canonical
-   `test_memory_size.py` script, to confirm atomicity limits still hold. Do
-   not reimplement size validation here.
+2. **Validate size from Serena content.** After Phase 1's gates pass, apply the
+   atomicity limits documented by `memory-maintenance` to the content Serena
+   already returned. Do not invoke a second filesystem reader.
 
 Before any write, require a complete inventory from Serena list-memories. If
 Serena cannot produce it, stop after Phase 1.
@@ -67,7 +66,7 @@ consolidate.
    sizes before reading. Stop before any file over 32,768 bytes or before
    cumulative input exceeds 5,000,000 bytes. Report the breached limit and do
    not run any Phase 2 or Phase 3 writes. After these gates pass, read
-   `memory-index.md` in full and use memory-maintenance to validate size budgets.
+   `memory-index.md` in full and validate size from Serena-returned content.
    Serena list-memories returns top-level and nested memory paths. Use those
    paths to read each relevant `*-index.md` and skim the atomic memories
    themselves through Serena's read-memory capability. Then perform one
@@ -133,7 +132,7 @@ overwriting it. Restore only from the recorded starting commit through
 `python3 "$SCRIPTS_DIR/memory_git_targets.py" restore`, never from the current
 `HEAD`. Run `python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success
 or rollback.
-Every path from Serena, memory-maintenance, or an index must be
+Every path from Serena or an index must be
 relative, contain no `..` segment, and resolve under the real
 `.serena/memories/` root. Reject absolute paths and symlink escapes before
 stat, read, diff, write, or deletion.
