@@ -531,7 +531,8 @@ _COPILOT_SKILL_EXCLUDES = frozenset(
     {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
 )
 
-# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
+# Per-commit atomic file limit (AGENTS.md "Boundaries",
+# .claude/rules/universal.md "Atomic commits").
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
 MAX_AUTHORED_FILES_PER_COMMIT = 5
 
