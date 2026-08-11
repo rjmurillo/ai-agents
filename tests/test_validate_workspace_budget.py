@@ -18,6 +18,17 @@ from scripts.validate_workspace_budget import (
 )
 
 
+def _write_required_workspace(root: Path) -> None:
+    (root / "CLAUDE.md").write_text("small", encoding="utf-8")
+    (root / "AGENTS.md").write_text("small", encoding="utf-8")
+    claude = root / ".claude" / "CLAUDE.md"
+    claude.parent.mkdir(parents=True)
+    claude.write_text("small", encoding="utf-8")
+    copilot = root / ".github" / "copilot-instructions.md"
+    copilot.parent.mkdir(parents=True)
+    copilot.write_text("small", encoding="utf-8")
+
+
 class TestConstants:
     def test_total_budget_is_6100(self) -> None:
         assert TOTAL_BUDGET_BYTES == 6100
@@ -114,17 +125,16 @@ class TestMain:
         assert main(["--path", "/nonexistent/dir"]) == 2
 
     def test_under_budget_returns_0(self, tmp_path: Path) -> None:
-        (tmp_path / "CLAUDE.md").write_text("small", encoding="utf-8")
-        (tmp_path / "AGENTS.md").write_text("small", encoding="utf-8")
-        (tmp_path / ".claude").mkdir()
-        (tmp_path / ".claude" / "CLAUDE.md").write_text("small", encoding="utf-8")
+        _write_required_workspace(tmp_path)
         assert main(["--path", str(tmp_path)]) == 0
 
     def test_over_budget_returns_1(self, tmp_path: Path) -> None:
+        _write_required_workspace(tmp_path)
         (tmp_path / "CLAUDE.md").write_text("x" * 6001, encoding="utf-8")
         assert main(["--path", str(tmp_path)]) == 1
 
     def test_custom_budgets(self, tmp_path: Path) -> None:
+        _write_required_workspace(tmp_path)
         (tmp_path / "CLAUDE.md").write_text("x" * 500, encoding="utf-8")
         assert main(["--path", str(tmp_path), "--per-file-budget", "100"]) == 1
         assert main(["--path", str(tmp_path), "--per-file-budget", "1000"]) == 0
@@ -132,16 +142,16 @@ class TestMain:
     def test_summary_uses_override_and_shared_pool(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        _write_required_workspace(tmp_path)
         (tmp_path / "AGENTS.md").write_text("x" * 100, encoding="utf-8")
         copilot = tmp_path / ".github" / "copilot-instructions.md"
-        copilot.parent.mkdir(parents=True)
         copilot.write_text("x" * 1900, encoding="utf-8")
 
         assert main(["--path", str(tmp_path)]) == 1
 
         output = capsys.readouterr().out
         assert ".github/copilot-instructions.md: 1,900 bytes [OVER]" in output
-        assert "Shared total: 100 / 6,100 bytes" in output
+        assert "Shared total: 110 / 6,100 bytes" in output
 
     def test_repo_workspace_files_within_budget(self) -> None:
         """E2E: Verify actual repo workspace files are within budget."""

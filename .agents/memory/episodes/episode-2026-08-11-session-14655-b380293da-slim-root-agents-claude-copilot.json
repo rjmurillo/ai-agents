@@ -1,0 +1,156 @@
+{
+  "id": "episode-2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot",
+  "session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Slim root AGENTS Claude and Copilot instruction entrypoints",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classify root instruction content",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Separate harness overlays",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ratchet and validate",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T07:08:04+00:00",
+      "type": "commit",
+      "content": "Commit: d38571c8b4",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e006"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T07:12:10+00:00",
+      "type": "commit",
+      "content": "Commit: 1a7ed4acae",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve full review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T09:06:39+00:00",
+      "type": "commit",
+      "content": "Commit: 57f8433f15",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T09:08:25+00:00",
+      "type": "commit",
+      "content": "Commit: 73babe5e26",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T10:42:25+00:00",
+      "type": "commit",
+      "content": "Commit: 499d1cd63b",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T11:33:00+00:00",
+      "type": "commit",
+      "content": "Commit: d68fde3df2",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T12:08:50+00:00",
+      "type": "commit",
+      "content": "Commit: 589d315b27",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 39
+  },
+  "lessons": []
+}

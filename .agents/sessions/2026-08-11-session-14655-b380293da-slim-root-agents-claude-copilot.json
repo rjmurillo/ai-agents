@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14655,
+    "date": "2026-08-11",
+    "branch": "fix/4880-root-context-v2",
+    "startingCommit": "2628d8c12",
+    "objective": "Slim root AGENTS Claude and Copilot instruction entrypoints"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools active for /home/richard/src/GitHub/rjmurillo/ai-agents"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no issue 4880 handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "context-optimizer, github, session-init, session-end, and review skills loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS skill-first routing read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Injected project constraints and root boundaries applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory/context-engineering-principles and related context memories loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4880-root-context"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4880-root-context"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed on fix/4880-root-context"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2628d8c12"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only: 3 of 4 files linted"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/4880-root-context-validation.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Task changes committed through 589d315b27; final fixture commit pending"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Validation preconditions satisfied; final validator run recorded before commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All 4880 session todos marked done"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "reflect skill invoked; routing lesson stored in Serena memory"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Classify root instruction content",
+      "outcome": "Preserved shared routing and human-authored gate detail; removed only reliably routed catalogs and examples."
+    },
+    {
+      "task": "Separate harness overlays",
+      "outcome": "CLAUDE.md retains Claude routes; Copilot overlay retains delegation and points to automatically loaded AGENTS.md."
+    },
+    {
+      "task": "Ratchet and validate",
+      "outcome": "Set shared budget to 6100 bytes and Copilot overlay to 1400; runtime canaries, workflow checks, and focused contract tests passed."
+    },
+    {
+      "task": "Resolve full review findings",
+      "outcome": "Wired root paths into CI, corrected Copilot /agent routing and conditional issue handoffs, retired the duplicate token validator, and added a per-issue handoff."
+    }
+  ],
+  "endingCommit": "589d315b27",
+  "nextSteps": [
+    "Review and merge the root entrypoint PR.",
+    "Add passive-loading fixtures to issue 4853.",
+    "Measure .github/AGENTS.md as the next issue 4880 slice."
+  ]
+}
