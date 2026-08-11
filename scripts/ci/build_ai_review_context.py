@@ -451,43 +451,18 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
     )
 
 
-FORK_PERMISSION_SIGNAL = re.compile(
-    r"HTTP 40[34]|not accessible|must have admin rights|Could not resolve to a PullRequest",
-    re.IGNORECASE,
-)
-
-# A REST rate-limit refusal arrives as `HTTP 403: API rate limit exceeded ...`,
-# which FORK_PERMISSION_SIGNAL matches on the status alone. Suppressing the hint
-# on this signature keeps the #4333 misdiagnosis from returning through the REST
-# transport after it was fixed for GraphQL.
-RATE_LIMIT_SIGNAL = re.compile(
-    r"rate limit|secondary rate|abuse detection",
-    re.IGNORECASE,
-)
-
-
 def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     """Fail closed, naming the observed error rather than a guessed cause.
 
-    REQ-008-05 (issue #2818) keeps the DID_NOT_RUN behavior. Issue #4333 is why
-    the fork-permission hint is now conditional: an exhausted GraphQL quota was
-    reported as a token permission problem, and chasing that cost real time on
-    PR #4273. The GraphQL form carries no HTTP status, so dropping the
-    unconditional hint was enough for it. The REST form does carry one, so the
-    hint needs the rate-limit signature to lose as well.
+    Delegates classification to :func:`failure_classification.classify_pr_fetch_failure`;
+    this wrapper handles secret redaction and ``ReviewContext`` construction.
     """
+    from scripts.ci.failure_classification import classify_pr_fetch_failure
+
     detail = _redact_secrets(detail.strip()) or "GitHub API returned no diagnostic output"
-    hint = (
-        " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-        if FORK_PERMISSION_SIGNAL.search(detail) and not RATE_LIMIT_SIGNAL.search(detail)
-        else ""
-    )
-    print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
-    return ReviewContext(
-        f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {detail}{hint}",
-        "error",
-        True,
-    )
+    result = classify_pr_fetch_failure(pr_number, detail)
+    print(result.warning)
+    return ReviewContext(result.context_text, "error", True)
 
 
 def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
