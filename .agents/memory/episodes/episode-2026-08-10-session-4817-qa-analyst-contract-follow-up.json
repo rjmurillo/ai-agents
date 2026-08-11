@@ -61,7 +61,8 @@
         "e002",
         "e003",
         "e004",
-        "e009"
+        "e009",
+        "e016"
       ],
       "leads_to": [
         "e006"
@@ -191,6 +192,30 @@
       "caused_by": [
         "e014"
       ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve PR 4817 blockquoted code fence review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-11T01:23:30+00:00",
+      "type": "commit",
+      "content": "Commit: 3a097561bbe2a1410f5fa22e82cd1335048b7e90",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     }
@@ -200,7 +225,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
+    "commits": 11,
     "files_changed": 5
   },
   "lessons": []

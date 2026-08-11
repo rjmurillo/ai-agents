@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 53ed636b0f851f9b2081dedbce5d1e174669219b
+qaCommit: 3a097561bbe2a1410f5fa22e82cd1335048b7e90
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -10,11 +10,11 @@ qaCommit: 53ed636b0f851f9b2081dedbce5d1e174669219b
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 149 |
-| Passed | 149 |
+| Total Tests | 270 |
+| Passed | 270 |
 | Failed | 0 |
 | Skipped | 0 |
-| Duration | 1.17s |
+| Duration | 0.99s |
 
 ## Scope
 
@@ -103,5 +103,46 @@ All checks passed!
 ```
 
 Added negative control: `test_tool_mixed_owns_rejected`.
+
+**Result**: PASS
+
+## PR #4817 review thread follow-up, blockquoted code fences
+
+Copilot flagged that `_compute_operative_lines` inspected the raw line, so a
+blockquote prefix hid every fence marker and every indent from code-context
+detection. Reproduced against branch head `80df0962af838bcef03fed735b05dca278d31066`:
+a routing table wrapped in `> ``` ... > ``` ` parsed as four live routes, and a
+blockquoted four-space indented table did the same. Either form satisfied the
+production contract with no operative table.
+
+Fixed in commit `3a097561bbe2a1410f5fa22e82cd1335048b7e90`. New
+`_strip_blockquote_markers` removes `>` plus at most one following space and
+preserves inner indentation, and fence and indented-code detection now run on
+that normalized line. Both docstrings state which stripper each stage may use.
+
+Verification run at the tested commit:
+
+```text
+$ uv run --frozen pytest tests/build_scripts/test_github_url_routing_contract.py \
+    tests/test_analyst_skill_resolution.py -q
+============================= 270 passed in 0.99s ==============================
+
+$ uv run --frozen ruff check tests/build_scripts/test_github_url_routing_contract.py
+All checks passed!
+
+$ uv run --frozen ruff format --check tests/build_scripts/test_github_url_routing_contract.py
+1 file already formatted
+```
+
+Post-fix reproduction returns zero routes for both bypass forms while the
+visible blockquote table still parses.
+
+Added negative controls:
+
+- `test_blockquoted_fence_ignored`
+- `test_blockquoted_tilde_fence_ignored`
+- `test_nested_blockquoted_fence_ignored`
+- `test_blockquoted_indented_code_ignored`
+- `test_blockquoted_fence_does_not_hide_later_table`
 
 **Result**: PASS

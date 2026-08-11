@@ -64,12 +64,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 53ed636b0f851f9b2081dedbce5d1e174669219b"
+        "Evidence": "Committed as 3a097561bbe2a1410f5fa22e82cd1335048b7e90"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff clean, 265 tests pass (198+67)"
+        "Evidence": "Ruff clean, 270 tests pass (198 analyst resolution + 72 routing contract)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -118,9 +118,20 @@
     {
       "task": "Resolve PR 4817 arbitrary verb review thread",
       "outcome": "Confirmed compliance-bot owns pull_request_read still bypassed the analyst retrieval guard. Replaced the actor-boundary verb list for bot or agent subjects with open-ended verb detection, preserved the tool-subject and list-item controls, and verified 118 analyst resolution tests plus ruff."
+    },
+    {
+      "task": "Resolve PR 4817 blockquoted code fence review thread",
+      "outcome": "Reproduced the finding at branch head 80df0962af: a routing table inside > ``` or inside a blockquoted four-space indent parsed as four live routes because _compute_operative_lines inspected the raw line. Added _strip_blockquote_markers, which strips > plus at most one space and preserves inner indentation, and routed fence and indented-code detection through it. Five negative controls added. 270 tests pass, ruff check and ruff format clean."
     }
   ],
-  "endingCommit": "53ed636b0f851f9b2081dedbce5d1e174669219b",
+  "retrospective": {
+    "learningsCaptured": true,
+    "failureMode": "Detection logic and consumption logic normalized the same input differently. _compute_operative_lines read raw lines while _parse_routing_table read blockquote-stripped lines, so any prefix one stage strips and the other does not becomes a bypass.",
+    "rootCause": "Two strippers with different contracts existed without a stated boundary. _strip_blockquote discards all whitespace after the marker, which destroys the indentation that separates blockquoted code from blockquoted prose, so it can never decide code context.",
+    "remediation": "Kept both strippers and documented the boundary in each docstring so a future reader does not collapse them and reintroduce the bypass. Negative controls now cover backtick, tilde, nested, and indented blockquote forms plus the closed-fence pass-through.",
+    "observation": "The merge-tree-ratchet pre-push job failed twice with 'ruff could not read <scratch>/tests/skills/doc-accuracy/__init__.py' while the same command passed twice standalone against the same base. Each run materializes its own scratch tree, so the read failure points at a concurrency interaction between the merge-tree-ratchet job and the count ratchets inside pre-pr-validation, not at this branch's diff."
+  },
+  "endingCommit": "3a097561bbe2a1410f5fa22e82cd1335048b7e90",
   "nextSteps": [],
-  "testedCodeSha": "53ed636b0f851f9b2081dedbce5d1e174669219b"
+  "testedCodeSha": "3a097561bbe2a1410f5fa22e82cd1335048b7e90"
 }
