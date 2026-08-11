@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 772449424871a9a9baa60d3832f2459557784e79
+qaCommit: ae4f36af5342299a7997b8870eb02611f1e0b303
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -14,7 +14,7 @@ qaCommit: 772449424871a9a9baa60d3832f2459557784e79
 | Passed | 277 |
 | Failed | 0 |
 | Skipped | 0 |
-| Duration | 1.03s |
+| Duration | 1.16s |
 
 ## Scope
 
@@ -33,7 +33,7 @@ PR #4817 hardens the analyst contract test suite with:
 ```text
 tests/test_analyst_skill_resolution.py: 202 passed
 tests/build_scripts/test_github_url_routing_contract.py: 75 passed
-Total: 277 passed in 1.03s
+Total: 277 passed in 1.16s
 ```
 
 ## Reconciliation
@@ -62,14 +62,14 @@ Result: PASS
 ## Post-base-refresh verification
 
 The PR head was merged with `origin/main` at
-`976fef3998c82edd325df5faddccbc85ca47fdbc`, producing tested commit
-`772449424871a9a9baa60d3832f2459557784e79`. The base refresh introduced no
+`77c2783aa32cc09f9084f15337cb0861685d10ff`, producing tested commit
+`ae4f36af5342299a7997b8870eb02611f1e0b303`. The base refresh introduced no
 source edits to the PR changes.
 
 ```text
 $ uv run --frozen pytest -q tests/test_analyst_skill_resolution.py \
     tests/build_scripts/test_github_url_routing_contract.py
-============================= 277 passed in 1.03s ==============================
+============================= 277 passed in 1.16s ==============================
 ```
 
 **Result**: PASS
