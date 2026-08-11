@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "f8c2a8bb4137772da81fe7630450e0b4353cb480"
+        "Evidence": "8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ACT workflow passed in 331.34 seconds; 27,148 full and partitioned node IDs matched exactly; focused tests, Ruff, actionlint, security scan, and security review passed"
+        "Evidence": "ACT workflow passed in 331.34 seconds; 27,148 full and partitioned node IDs matched exactly; 142 local routing tests, focused tests, Ruff, actionlint, security scan, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -133,9 +133,12 @@
     },
     {
       "entry": "Full ACT workflow passed in 331.34 seconds. Collection parity proved 27,148 tests with zero missing, extra, or duplicate node IDs."
+    },
+    {
+      "entry": "Merged parent routing commit so pytest.yml uses the direct local matrix runner during pre-push. Bound QA to 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f."
     }
   ],
-  "endingCommit": "f8c2a8bb4137772da81fe7630450e0b4353cb480",
+  "endingCommit": "8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f",
   "nextSteps": [
     "Push the stacked child branch.",
     "Open the child PR against perf/4854-act-local-fallback."

@@ -72,7 +72,32 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged parent routing commit so pytest.yml uses the direct local matrix runner during pre-push. Bound QA to 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T05:23:57+00:00",
+      "type": "commit",
+      "content": "Commit: 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f",
+      "caused_by": [
+        "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
@@ -83,8 +108,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }
