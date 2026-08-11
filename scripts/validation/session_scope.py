@@ -28,8 +28,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _git_subprocess_env
-
 _GIT_TIMEOUT_SECONDS = 30
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
 
@@ -43,6 +41,8 @@ NOT_AN_ANCESTOR = "names a commit that is not an ancestor of HEAD"
 
 def _git_env(*, preserve_index_file: bool = False) -> dict[str, str]:
     """Return a clean git environment, optionally preserving the active index."""
+    from checks_common import _git_subprocess_env
+
     env: dict[str, str] = dict(_git_subprocess_env())
     if preserve_index_file and (index := os.environ.get("GIT_INDEX_FILE")):
         env["GIT_INDEX_FILE"] = index
