@@ -1,27 +1,26 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-06-session-10003-record-strict-policy-intentional-merge.json
-qaCommit: f2c60c404e8a31afa3385f72d303181d1997db22
+qaCommit: 25a6a9a43cc0093dd9ec354aae00b486d147feed
 ---
 
 # Session 10003 strict policy merge QA
 
 ## Scope
 
-Validated the session 10003 documentation, memory, and generated instruction
-updates after merging current `origin/main`.
+Validated the session 10003 CI repair for instruction-budget claims, memory,
+and generated instruction mirrors.
 
 ## Evidence
 
 - `uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet` exited 0.
-- `uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main` exited 0.
-- `uv run --frozen python scripts/ci/memory_index_token_ratchet.py` exited 0.
-- `uv run --frozen python scripts/validation/instruction_budget.py --ci --format table` reported PASS for `.py` at 98,914 bytes against the 99,000 byte ceiling.
-- `uv run --frozen pytest tests/validation/test_instruction_budget.py::test_real_repo_python_baseline_is_under_ceiling_and_nonzero tests/validation/test_always_on_corpus_claims.py tests/validation/test_audit_procedure_claims.py -q` reported 58 passed.
-- `uv run --frozen python build/scripts/build_all.py` regenerated the instruction mirrors.
-- `python3 -c "import re; t=re.findall(r'\]\(([^)]+\.md)\)', open('.serena/memories/memory-index.md').read()); print(len(t), len(set(t)))"` reported `154 154`.
+- `uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref 650344b6a7bfbac38d145836322835f6a61dbc6c` exited 0.
+- `uv run --frozen python scripts/ci/memory_index_token_ratchet.py` exited 0 with plugin roots bound to this worktree.
+- `uv run --frozen python scripts/validation/instruction_budget.py --ci --format table` reported PASS for `.py` at 98,967 bytes against the 99,000 byte ceiling.
+- `uv run pytest tests/validation/test_instruction_budget.py tests/validation/test_always_on_corpus_claims.py -q` reported 123 passed.
+- `uv run python build/scripts/build_all.py --platform copilot-cli --check` exited 0.
 
 ## Result
 
-PASS. The memory index is unique, generated mirrors are current, and the Python
-instruction budget is under the ratchet ceiling.
+PASS. Memory ratchets pass, generated mirrors are current, corpus claims match
+their measured trees, and the Python instruction budget is under its ceiling.
