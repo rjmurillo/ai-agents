@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "5d2bed8edea08d65aa8ba14f8b192616c7119b5a"
+        "Evidence": "6914c7893afd735a0a038c7030d1598c72cf7610"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "141 fallback tests passed in 5.82 seconds; Ruff and taste ratchet passed"
+        "Evidence": "141 fallback tests passed in 5.83 seconds; Ruff and taste ratchet passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -136,9 +136,12 @@
     },
     {
       "entry": "A real ACT run showed gh act dry-run still cloned remote actions. Moved the ACT guard before all gh act setup and rebound QA to 5d2bed8edea08d65aa8ba14f8b192616c7119b5a."
+    },
+    {
+      "entry": "The first direct partition run inherited the context-mode plugin root. Pinned both plugin-root variables to the checkout and rebound QA to 6914c7893afd735a0a038c7030d1598c72cf7610."
     }
   ],
-  "endingCommit": "5d2bed8edea08d65aa8ba14f8b192616c7119b5a",
+  "endingCommit": "6914c7893afd735a0a038c7030d1598c72cf7610",
   "nextSteps": [
     "Open the atomic local fallback PR.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
