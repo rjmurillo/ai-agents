@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612"
+        "Evidence": "8ecfa4de06047e820c4e5aebe775181dea69c992"
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,9 +145,12 @@
     },
     {
       "entry": "Routed the known pytest workflow directly to the local matrix runner so workflow-local pre-push avoids gh act clones. Bound QA to 9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612."
+    },
+    {
+      "entry": "Removed the duplicate full pytest workflow-local run. The workflow hook now uses actionlint-only for pytest.yml, with runtime owned by the partitioned pytest hook."
     }
   ],
-  "endingCommit": "9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612",
+  "endingCommit": "8ecfa4de06047e820c4e5aebe775181dea69c992",
   "nextSteps": [
     "Update PR #4872 with the final parent commits.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
