@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: c2cd517ba6f822e5aa95de98d6dc9795be939e34)"
+        "Evidence": "All changes committed (HEAD: a94c0704a9f790839ca446bcfde46ab83e8fc18b after the review-fix round rebound QA evidence to the current code commit)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -149,7 +149,7 @@
       "result": "The change remained green. pre_pr.py stayed blocked only by issue 4859, a Windows synthetic merge-tree Ruff overcount of 42 versus the direct count of 27."
     }
   ],
-  "endingCommit": "c2cd517ba6f822e5aa95de98d6dc9795be939e34",
+  "endingCommit": "a94c0704a9f790839ca446bcfde46ab83e8fc18b",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"

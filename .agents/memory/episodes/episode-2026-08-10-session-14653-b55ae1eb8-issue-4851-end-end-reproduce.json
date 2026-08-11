@@ -86,6 +86,19 @@
         "e005",
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T01:30:55+00:00",
+      "type": "commit",
+      "content": "Commit: a94c0704a9f790839ca446bcfde46ab83e8fc18b",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
     }
@@ -95,8 +108,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 8
+    "commits": 2,
+    "files_changed": 13
   },
   "lessons": []
 }
