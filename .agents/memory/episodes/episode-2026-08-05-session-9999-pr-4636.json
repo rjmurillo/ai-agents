@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-05-session-9999",
-  "session": "2026-08-05-session-9999",
+  "id": "episode-2026-08-05-session-9999-pr-4636",
+  "session": "2026-08-05-session-9999-pr-4636",
   "timestamp": "2026-08-05T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e002",
@@ -27,7 +27,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e003",
@@ -38,7 +38,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e004",
@@ -49,7 +49,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e005",
@@ -65,7 +65,7 @@
       "leads_to": [
         "e006"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e006",
@@ -78,7 +78,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e007",
@@ -91,7 +91,7 @@
       "leads_to": [
         "e008"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e008",
@@ -104,7 +104,7 @@
       "leads_to": [
         "e009"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e009",
@@ -117,7 +117,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     },
     {
       "id": "e010",
@@ -127,8 +127,21 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T09:33:06+00:00",
+      "type": "commit",
+      "content": "Commit: 0ea3a9d50c7d8f906b874e12a9fff2575b13d95f",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4636"
     }
   ],
   "metrics": {
@@ -136,8 +149,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 2
+    "commits": 7,
+    "files_changed": 12
   },
   "lessons": []
 }
