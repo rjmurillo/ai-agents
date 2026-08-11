@@ -217,7 +217,8 @@ Finish with the standard output envelope:
   },
   "Error": null,
   "Metadata": {
-    "Operation": "memory-consolidate"
+    "Script": "memory-consolidate",
+    "Timestamp": "<ISO-8601 UTC timestamp>"
   }
 }
 ```

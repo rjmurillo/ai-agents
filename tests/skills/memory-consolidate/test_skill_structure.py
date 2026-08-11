@@ -112,6 +112,8 @@ def test_discovery_index_and_output_contract() -> None:
         '"FilesDeleted": 0',
         '"IndexLines": 0',
         '"IndexBytes": 0',
+        '"Script": "memory-consolidate"',
+        '"Timestamp": "<ISO-8601 UTC timestamp>"',
         "exact files expected to change or be deleted",
         "actual changed-file set must match the declared set",
         "every affected topic `*-index.md`",
