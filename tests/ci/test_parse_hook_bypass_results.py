@@ -112,3 +112,21 @@ def test_missing_indicators_key_fails_loud(tmp_path: Path) -> None:
     code = main(["--input", str(src), "--count-out", str(out)])
     assert code == 1
     assert not out.exists()
+
+
+def test_top_level_array_fails_loud(tmp_path: Path) -> None:
+    src = tmp_path / "audit.json"
+    src.write_text(json.dumps([_report(1)]), encoding="utf-8")
+    out = tmp_path / "count.txt"
+    code = main(["--input", str(src), "--count-out", str(out)])
+    assert code == 1
+    assert not out.exists()
+
+
+def test_non_list_indicators_fails_loud(tmp_path: Path) -> None:
+    src = tmp_path / "audit.json"
+    src.write_text(json.dumps({"bypass_indicators": "abc"}), encoding="utf-8")
+    out = tmp_path / "count.txt"
+    code = main(["--input", str(src), "--count-out", str(out)])
+    assert code == 1
+    assert not out.exists()
