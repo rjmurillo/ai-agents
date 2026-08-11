@@ -97,6 +97,12 @@ jobs:
               # resolution touching only these files, which no '**/*.py' pattern
               # catches.
               - '.agents/memory/episodes/**'
+              # Issue #4408: rules files are test inputs -- many Python tests read
+              # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
+              # A rules-only change must trigger the full suite.
+              - '.claude/rules/**'
+              - '.github/instructions/**'
+              - 'src/copilot-cli/instructions/**'
 
       - name: Report path check result
         env:
