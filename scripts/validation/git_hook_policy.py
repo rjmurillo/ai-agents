@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import ast
 import difflib
+import io
 import json
 import os
 import re
@@ -43,7 +44,7 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import new_session_logs
+from scripts.validation.session_scope import session_change_scope
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -396,6 +397,24 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
+# Issue #4823: the bulk pre-push pytest partition runs on pytest-xdist, and the
+# worker count is xdist's own `auto`, which is one worker per logical CPU. This
+# is deliberately not a number. No subtraction, no cap, and no fixed default, so
+# a 48-thread host spends 48 threads and a 4-thread laptop spends 4, without
+# anyone editing tracked code. The alternative, a hard-coded count, is wrong on
+# every machine that is not the machine it was measured on.
+PYTEST_WORKERS_AUTO = "auto"
+PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
+# Escape hatch, not a tuning knob. Unset is the contract everywhere that
+# matters: CI passes the flags literally in `.github/workflows/pytest.yml`, and
+# no workflow or hook exports this variable. It exists so a developer can pin a
+# specific worker count to reproduce a suspected concurrency bug, or to leave
+# cores free on a shared box.
+PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
+# `loadfile` sends every test in one file to one worker. That is the weakest
+# distribution mode xdist offers and the point: module-scoped fixtures, module
+# state, and file-local temp directories keep behaving the way they do serially.
+PYTEST_DIST_MODE = "loadfile"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -829,6 +848,17 @@ def _read_index_blob(repo_root: Path, relative_path: str) -> bytes | None:
 
 def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     result = _run_git_bytes(repo_root, ["show", f"HEAD:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
     if result.returncode != 0:
         return None
     return result.stdout
@@ -1729,15 +1759,30 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
     return present
 
 
+def _path_exists_at_head(path: str, repo_root: Path) -> bool | None:
+    """Return whether ``path`` exists at HEAD, or None when git cannot answer."""
+    result = _run_git(repo_root, ["ls-tree", "-z", "--name-only", "HEAD", "--", path])
+    if result.returncode != 0:
+        return None
+    return path in result.stdout.split("\0")
+
+
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    sessions = [
+    session_paths = [
         path
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
     if not sessions:
+        if session_paths:
+            return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     for session in sessions:
@@ -1754,6 +1799,21 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             _print_process_output(result)
             return result.returncode
     return 0
+
+
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -2725,7 +2785,22 @@ def _report_suppression_violations(
 
 
 def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
-    """CI backstop for the no-net-new suppression policy."""
+    """CI backstop for the no-net-new suppression policy.
+
+    History integrity is checked first because this gate resolves its range
+    through `git merge-base`, and a shallow clone answers that question wrongly
+    rather than failing. `_merge_base` returns None on a grafted clone, the
+    fallback below substitutes the base tip, and the range silently widens from
+    the push's own commits to the branch's entire history. Measured on a
+    complete clone of this repository: `git rev-list base..head` returned 0
+    commits, and 2263 after a single `git fetch --depth=1 origin main`.
+
+    `_push_updates` already gates the pre-push path on the same check. This
+    call is what wires this path to it (issue #4680).
+    """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     head_sha = _resolve_commit(repo_root, head)
     if head_sha is None:
         print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
@@ -3133,11 +3208,27 @@ def _added_suppression_violations_for_range(
 def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
     """CI mirror of security-suppressions-push: compares HEAD against base_ref.
 
+    History integrity is checked first. This gate measures a two-dot range, and
+    on a grafted clone that range silently widens instead of failing: git cannot
+    exclude the base's ancestry, so every file that differs between the base tip
+    and the branch enters the scan, including files the branch never touched.
+    Suppressions that trunk removed after the branch point then read as
+    additions. Measured on a complete clone of this repository, `git diff
+    --name-only base..HEAD` reported 0 paths before a `git fetch --depth=1
+    origin main` and 290 after it.
+
+    `_push_updates` already gates the pre-push path on the same check. This call
+    is what wires the CI path to it (issue #4680).
+
     Returns:
         0  no new security suppressions detected
         1  new security suppressions found
+        2  incomplete history, so the range cannot be measured
         3  git error (external failure)
     """
+    integrity = _check_history_integrity(repo_root)
+    if integrity != 0:
+        return integrity
     range_spec = f"{base_ref}..HEAD"
     result = _run_git(
         repo_root,
@@ -6091,8 +6182,63 @@ def run_memory_sync(repo_root: Path) -> int:
     return 0
 
 
+def parse_pytest_workers(raw: str | None) -> str:
+    """Return the ``-n`` value named by ``raw``, or the default.
+
+    ``None`` and an empty or whitespace-only string both mean "unset", which is
+    the normal case: every CI run and every local push with nothing exported
+    takes ``PYTEST_WORKERS_DEFAULT``, so the worker count follows the machine.
+
+    Anything else must be ``auto`` (any capitalization) or a positive decimal
+    integer. Both are values pytest-xdist accepts for ``-n``; this function does
+    not compute a count, so there is no arithmetic here to get wrong. A
+    malformed value raises instead of falling back, because the only reason to
+    set the variable is to pin a specific count: silently substituting ``auto``
+    for ``0`` or ``half`` would run the whole machine when the developer asked
+    for something else and report it as the value they asked for. Integers pass
+    through ``int`` and back so the argv always carries a canonical decimal.
+
+    Raises:
+        ValueError: ``raw`` is set to something other than ``auto`` or a
+            positive integer.
+    """
+    if raw is None:
+        return PYTEST_WORKERS_DEFAULT
+    candidate = raw.strip()
+    if not candidate:
+        return PYTEST_WORKERS_DEFAULT
+    if candidate.lower() == PYTEST_WORKERS_AUTO:
+        return PYTEST_WORKERS_AUTO
+    rejection = f"{PYTEST_WORKERS_ENV} must be 'auto' or a positive integer, got {raw!r}"
+    try:
+        workers = int(candidate)
+    except ValueError:
+        raise ValueError(rejection) from None
+    if workers < 1:
+        raise ValueError(rejection)
+    return str(workers)
+
+
+def _pytest_parallel_flags() -> list[str]:
+    """Return the xdist argv fragment for the bulk pre-push partition."""
+    workers = parse_pytest_workers(os.environ.get(PYTEST_WORKERS_ENV))
+    return ["-n", workers, "--dist", PYTEST_DIST_MODE]
+
+
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
+    """Return the pre-push pytest invocations, bulk partition first.
+
+    Only the first command runs in parallel. The safe-push and pr-autofix
+    modules each run in a fresh serial pytest process. The latter can leave a
+    grandchild holding a subprocess pipe under heavy worker load, so sharing a
+    process with another test module also makes it flaky.
+
+    Raises:
+        ValueError: the worker override names something other than ``auto`` or
+            a positive integer.
+    """
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
             sys.executable,
@@ -6100,9 +6246,12 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "pytest",
             "-m",
             "not integration",
+            *_pytest_parallel_flags(),
             str(repo_root / "tests"),
             "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(pr_autofix_tests),
         ],
         [
             sys.executable,
@@ -6111,6 +6260,14 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
+            "not integration",
+            str(pr_autofix_tests),
         ],
     ]
 
@@ -6129,12 +6286,17 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
+    try:
+        commands = _pytest_commands(repo_root)
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
     # command. Splitting the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for index, command in enumerate(_pytest_commands(repo_root)):
+    for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -6368,12 +6530,22 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
+    new_logs, has_session_deletion = session_change_scope(
+        paths,
+        repo_root,
+        compare_ref="HEAD",
+    )
     for path in paths:
+        normalized = _safe_relative_path(path)
+        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+            continue
         command = [sys.executable, "scripts/validate_session_json.py", path]
-        if path not in new_logs:
+        exists_at_head = _path_exists_at_head(path, repo_root)
+        if exists_at_head is None:
+            pass
+        elif path not in new_logs:
             command.append("--existing-log")
-        else:
+        elif not has_session_deletion:
             # A log this branch is adding for the first time is being committed
             # at session-start, before session-end runs. Pass --creation-mode so
             # the validator skips protocol-compliance checks that can only be
@@ -6654,14 +6826,45 @@ def _push_range_changed_files(stream: TextIO, repo_root: Path) -> set[str] | Non
             update = resolve_push_update(ref, repo_root)
         except (PushUpdateConfigError, ValueError):
             return None
-        result = _run_git(repo_root, ["diff", "--name-only", update.range_spec])
+        result = _run_git(repo_root, ["diff", "--name-only", "-z", update.range_spec])
         if result.returncode != 0:
             return None
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line:
-                changed.add(line)
+        changed.update(path for path in result.stdout.split("\0") if path)
     return changed
+
+
+def _push_updates_match_head(payload: str, repo_root: Path) -> bool | None:
+    """Return whether every non-deletion update pushes the checked-out HEAD."""
+    try:
+        refs = parse_push_refs(io.StringIO(payload))
+    except (ValueError, OSError):
+        return None
+    head = _resolve_commit(repo_root, "HEAD")
+    if head is None:
+        return None
+    return all(ref.is_deletion or ref.local_sha == head for ref in refs)
+
+
+def _session_paths_match_head(paths: Sequence[str], repo_root: Path) -> bool:
+    """Return whether session files on disk match the checked-out HEAD blobs."""
+    for path in paths:
+        entry = _run_git(repo_root, ["ls-tree", "-z", "HEAD", "--", path])
+        if entry.returncode != 0 or not entry.stdout:
+            return False
+        metadata, separator, entry_path = entry.stdout.rstrip("\0").partition("\t")
+        fields = metadata.split()
+        if (
+            not separator
+            or entry_path != path
+            or len(fields) < 2
+            or fields[0] not in {"100644", "100755"}
+            or fields[1] != "blob"
+            or (repo_root / path).is_symlink()
+        ):
+            return False
+        if _run_git(repo_root, ["diff", "--quiet", "HEAD", "--", path]).returncode != 0:
+            return False
+    return True
 
 
 def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
@@ -6718,7 +6921,26 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
-    return validate_branch_sessions(args.paths, _repo_root(args))
+    repo_root = _repo_root(args)
+    if args.paths:
+        return validate_branch_sessions(args.paths, repo_root)
+    payload = sys.stdin.read()
+    changed = _push_range_changed_files(io.StringIO(payload), repo_root)
+    if changed is None:
+        print("ERROR: could not resolve the session validation push range", file=sys.stderr)
+        return 2
+    sessions = sorted(path for path in changed if SESSION_PATH_RE.fullmatch(path))
+    if not sessions:
+        print("session-json-validation skipped: no session logs in push range")
+        return 0
+    updates_match_head = _push_updates_match_head(payload, repo_root)
+    if updates_match_head is not True:
+        print("ERROR: session validation requires the pushed SHA to equal HEAD", file=sys.stderr)
+        return 2
+    if not _session_paths_match_head(sessions, repo_root):
+        print("ERROR: session files on disk differ from the pushed HEAD", file=sys.stderr)
+        return 2
+    return validate_branch_sessions(sessions, repo_root)
 
 
 def _handle_observations(args: argparse.Namespace) -> int:

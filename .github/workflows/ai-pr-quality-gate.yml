@@ -211,6 +211,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # Issue #4822 phase 1: the shadow step below lists pytest.yml workflow
+      # runs and their jobs, which needs actions:read. Re-reading the live PR
+      # head uses the Git references endpoint, already covered by
+      # contents:read, so no pull-requests scope is added.
+      actions: read
 
     outputs:
       test-summary: ${{ steps.summary.outputs.test_summary }}
@@ -240,6 +245,31 @@ jobs:
           PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
           PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
         run: python3 scripts/quality_gate/generate_test_summary.py
+
+      # Issue #4822 phase 1, shadow mode. Resolves the verdict pytest.yml
+      # already produced for this head commit and warns when it disagrees with
+      # the local run above. Observation only: no job output exposes it, no
+      # consumer reads it, and continue-on-error keeps the job outcome and
+      # every existing check name unchanged. The duplicate run above stays
+      # authoritative until the measured disagreement rate justifies the swap.
+      #
+      # Liveness: the script prints one "shadow-pytest-sample" notice per run
+      # and warns when it produced no comparison, so a phase that silently
+      # collects zero samples is distinguishable from a healthy one. The
+      # condition is !cancelled() rather than success() so a failed pytest step
+      # still yields a sample, which is the most interesting case to compare,
+      # while a cancelled job (this workflow sets cancel-in-progress) does not
+      # burn API calls.
+      - name: Resolve shadow pytest signal
+        id: shadow-signal
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LOCAL_PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status }}
+        run: python3 scripts/quality_gate/resolve_pytest_signal.py
 
 # ==============================================================================
 # Agent Review Jobs (10 Static Jobs)
