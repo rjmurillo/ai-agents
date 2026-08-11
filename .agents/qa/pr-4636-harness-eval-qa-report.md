@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-pr-4636.json
-qaCommit: f2053fafa9e0bdcd5c46ad4e344069208da579bc
+qaCommit: f301b90b40191c17745330cef77f49557d21ec12
 ---
 
 # QA Report: PR #4636 Harness And Eval Fixes
@@ -25,15 +25,17 @@ execution, and invalid eval retry handling.
 | Focused pytest suite | PASS, 267 tests |
 | Ruff on changed Python files | PASS |
 | Ruff count ratchet against current `origin/main` | PASS |
+| Subprocess encoding count ratchet | PASS |
 | Session protocol validator | PASS after adding bound QA evidence |
 
 ## Evidence
 
 | Command | Result |
 |---------|--------|
-| `uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py tests/validation/test_portability_common.py tests/eval/test_providers.py -q` | 267 passed in 46.43s after refreshing from `origin/main` |
+| `uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py tests/validation/test_portability_common.py tests/eval/test_providers.py -q` | 267 passed in 7.25s after refreshing from `origin/main` |
 | `uv run --frozen ruff check scripts/ci/mutation_harness_ciperms.py scripts/validation/portability_common.py scripts/validation/portability_git.py tests/ci/test_mutation_harness_ciperms.py tests/eval/test_providers.py tests/validation/test_portability_common.py` | All checks passed |
 | `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref origin/main` | Count equals baseline 27 |
+| `uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref origin/main` | Count equals baseline 253 |
 
 ## Verdict
 
