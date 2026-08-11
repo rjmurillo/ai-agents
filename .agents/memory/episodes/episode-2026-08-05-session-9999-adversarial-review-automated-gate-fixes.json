@@ -457,6 +457,19 @@
       "caused_by": [
         "e034"
       ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-11T12:52:35+00:00",
+      "type": "commit",
+      "content": "Commit: 5f8c51d2b16668856ec1a1762f928994fc7a95bf",
+      "caused_by": [
+        "e036"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
@@ -466,7 +479,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 25,
+    "commits": 26,
     "files_changed": 66
   },
   "lessons": []
