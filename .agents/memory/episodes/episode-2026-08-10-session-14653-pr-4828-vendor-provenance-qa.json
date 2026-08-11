@@ -75,6 +75,58 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated every INTEGRITY.json manifest entry instead of only the cli2 entrypoint.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9caf8bd5267d590866e69819627a5dac35425f33",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3fd93cbdf1cad38d4cfb26596b85961893df2362",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cd8f258a0b780c960c864872715881767bf585ef",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
     }
@@ -84,8 +136,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 8
   },
   "lessons": []
 }

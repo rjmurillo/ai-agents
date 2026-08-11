@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report binds code commit 15a6e00a8947a4ece7ab42702fb5c18bf1820ce8."
+        "Evidence": "QA report binds code commit cd8f258a0b780c960c864872715881767bf585ef."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "38 targeted pytest tests passed and pre_pr passed."
+        "Evidence": "49 vendor provenance tests and 86 targeted tests passed; pre_pr passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -134,9 +134,21 @@
     {
       "action": "Fixed candidate materialization to ignore candidate export-ignore attributes.",
       "result": "Workflow uses scripts.ci.merge_tree_materialization.materialize_tree instead of git archive."
+    },
+    {
+      "action": "Follow-up autofix session 14682 validated every INTEGRITY.json manifest entry, not just the cli2 entrypoint.",
+      "result": "scripts/ci/validate_vendor_provenance.py gained _validate_manifest_tree with 10 tests in commit 9caf8bd5267d590866e69819627a5dac35425f33."
+    },
+    {
+      "action": "Follow-up autofix session 14682 added the export-ignore regression test the reviewer requested.",
+      "result": "tests/ci/test_validate_vendor_provenance.py gained TestCandidateMaterialization in commit 3fd93cbdf1cad38d4cfb26596b85961893df2362."
+    },
+    {
+      "action": "Follow-up autofix session 14682 merged origin/main at dc41edcb201baa0bb1da2b94e5ff87b0cff2e921.",
+      "result": "Ruff count baseline realigned from 30 to 27 in commit cd8f258a0b780c960c864872715881767bf585ef."
     }
   ],
-  "endingCommit": "15a6e00a8947a4ece7ab42702fb5c18bf1820ce8",
+  "endingCommit": "cd8f258a0b780c960c864872715881767bf585ef",
   "nextSteps": [
     "Push QA report and session log, wait for required checks, then run completion gate."
   ]
