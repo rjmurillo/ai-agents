@@ -2078,7 +2078,7 @@ def test_run_passes_start_new_session_to_popen() -> None:
 
     def recording_popen(*args, **kwargs):
         popen_calls.append({"start_new_session": kwargs.get("start_new_session")})
-        return real_popen(*args, **kwargs)
+        return real_popen(*args, **kwargs)  # subprocess-encoding: strict-ok
 
     with mock.patch("run_workflow_local_test.subprocess.Popen", side_effect=recording_popen):
         w._run([sys.executable, "-c", "print('hi')"], timeout=5)

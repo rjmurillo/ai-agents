@@ -441,7 +441,7 @@ class TestGetChangedFiles:
                     128, cmd,
                     stderr="fatal: unable to read object: permission denied",
                 )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=corrupt_verify):
             exit_code = main([
@@ -479,7 +479,7 @@ class TestGetChangedFiles:
                     1, cmd,
                     stderr="fatale: unbekannte Revision 'no-such-ref'",
                 )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=localized_verify):
             exit_code = main([
@@ -526,7 +526,7 @@ class TestGetChangedFiles:
                 result.stdout = "false\n"
                 result.returncode = 0
                 return result
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         self._init_repo(tmp_path)
         with patch.object(subprocess, "run", side_effect=mock_worktree_false):
@@ -574,7 +574,7 @@ class TestGetChangedFiles:
             if "ls-files" in cmd:
                 ls_files_timeout_seen.append(kwargs.get("timeout"))
                 raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 60))
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=selective_timeout):
             exit_code = main([
@@ -600,7 +600,7 @@ class TestGetChangedFiles:
                 raise subprocess.CalledProcessError(
                     128, cmd, stderr="fatal: index corrupted",
                 )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_ls_files):
             exit_code = main([
@@ -621,7 +621,7 @@ class TestGetChangedFiles:
                 raise subprocess.CalledProcessError(
                     128, cmd, stderr="fatal: index corrupted",
                 )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_ls_files):
             exit_code = main([
@@ -674,7 +674,7 @@ class TestGetChangedFiles:
                 result.stdout = b"doc.md\x00\x00script.py\x00"
                 result.returncode = 0
                 return result
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=selective_mock):
             result = _get_changed_files("HEAD", tmp_path)
@@ -1189,7 +1189,7 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "--verify" in cmd:
                 return subprocess.CompletedProcess(cmd, 0, b"--output=owned", b"")
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=malformed):
             exit_code = main([
@@ -1214,7 +1214,7 @@ class TestGetChangedFiles:
             observed.append(
                 (cmd, kwargs.get("timeout"), kwargs.get("env", {})),
             )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=recording_run):
             _get_changed_files("HEAD", tmp_path)
@@ -1250,7 +1250,7 @@ class TestGetChangedFiles:
                 raise subprocess.CalledProcessError(
                     1, cmd, stderr=b"fatal: Not a valid object name",
                 )
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_cat_file):
             exit_code = main([

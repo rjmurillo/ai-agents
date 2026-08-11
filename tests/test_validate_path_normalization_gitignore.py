@@ -130,7 +130,7 @@ class TestGitCheckIgnoreCannotHangThePush:
         def capture(*args, **kwargs):
             if "check-ignore" in args[0]:
                 seen.update(kwargs)
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         monkeypatch.setattr(vpn.subprocess, "run", capture)
         collect_files(tmp_path, [".md"], [])

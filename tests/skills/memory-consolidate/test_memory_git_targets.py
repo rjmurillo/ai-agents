@@ -336,7 +336,7 @@ class TestRestore:
             command = args[0]
             if command[:3] == ["git", "--literal-pathspecs", "restore"]:
                 restore_calls.append(command)
-            return real_run(*args, **kwargs)
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         monkeypatch.setattr(mgt.subprocess, "run", spy_run)
         assert mgt.restore(cwd=repo) == mgt.EXIT_OK
