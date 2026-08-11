@@ -15,7 +15,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3197)
+|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (4327)
 |injected instructions stale snapshot always-on context lags repo file cache canonical grep the rule before acting manifest bump reversal: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
@@ -40,6 +40,8 @@
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context calibration: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
+|portability single traversal scan_all extra scan roots files_by_root marker counts coverage gate baseline: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (167)
+|portability descendant symlink file directory escape repo root containment validator CWE-22 tracked coverage: [validation/descendant-symlink-portability-containment](validation/descendant-symlink-portability-containment.md) (210)
 |eval harness enumerate scripts naming underscore hyphen glob baseline no-skill control arm fixtures: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
@@ -64,6 +66,7 @@
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
 |sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
+|quality gate unknown verdict infra downgrade fail closed raw token unrecognized FOOBAR blocking: [quality/unknown-verdict-infra-downgrade-stays-blocking](quality/unknown-verdict-infra-downgrade-stays-blocking.md) (226)
 |git merge union driver append-only semantic duplicate gitattributes conflict: [quality/union-merge-hides-semantic-duplicates](quality/union-merge-hides-semantic-duplicates.md) (911)
 |squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (968)
 |github rate limit 403 X-RateLimit-Remaining header endpoint disagrees secondary abuse limiter git protocol: [quality/github-rate-limit-endpoint-disagrees-with-enforcement](quality/github-rate-limit-endpoint-disagrees-with-enforcement.md) (865)
@@ -85,6 +88,7 @@
 [CI/CD and Workflows]
 |local passes CI fails same commit gitignored build output untracked working tree existence baseline unreproducible ratchet machine-dependent merge ref worktree: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
+|mutation harness restore failure truncate empty target sibling replace scratch pycache: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (845)
 |taste count ratchet pre-push cost twelve minutes python-tests push lock queue file-size split not suppress run ratchets first: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (714)
@@ -115,7 +119,7 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (714)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (765)
 |git stash push -m after double dash parsed as pathspec silent no stash checkout destroys work verify refs/stash: [git/git-stash-m-after-double-dash-is-a-pathspec](git/git-stash-m-after-double-dash-is-a-pathspec.md) (678)
 |script absolute path wrong worktree repo_root __file__ validates own tree false pass token updater containment check candidate path: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side endingCommit session log stack last merge wins validator proves existence not correctness: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1185)

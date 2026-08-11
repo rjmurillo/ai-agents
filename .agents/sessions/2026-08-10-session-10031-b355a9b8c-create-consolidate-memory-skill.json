@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10031,
+    "date": "2026-08-10",
+    "branch": "feat/consolidate-memory-skill",
+    "startingCommit": "8108ebfea2",
+    "objective": "Create memory-consolidate skill"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active for /home/richard/src/GitHub/rjmurillo/ai-agents6"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions called"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as a read-only reference"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SkillForge and related memory skill files and scripts surveyed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first routing rules loaded from AGENTS.md and repository instructions"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and path-scoped skill, testing, mirror, and generated-artifact constraints loaded"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory skill recon read Serena memory contracts, index guidance, and ADR-063"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/consolidate-memory-skill"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/consolidate-memory-skill"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Working tree checked before changes; unrelated report file preserved"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8108ebfea2"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session end items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA artifacts are excluded; changed Markdown passed pre-commit checks"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/memory-consolidate-pr-4832-validation.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation changes committed before session evidence"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed after QA and retrospective refresh"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo database updated after each phase"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-11-pr-4832-memory-consolidate.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: .agents/qa/memory-consolidate-pr-4832-validation.md edited 20 times\nrework-warning: .claude/skills/memory-consolidate/SKILL.md edited 17 times\nrework-warning: src/copilot-cli/skills/memory-consolidate/SKILL.md edited 17 times\nrework-warning: tests/skills/memory-consolidate/test_skill_structure.py edited 14 times\nrework-warning: .claude/skills/memory-consolidate/tests/test_memory_consolidate_structure.py edited 6 times\nrework-warning: src/copilot-cli/skills/memory-consolidate/tests/test_memory_consolidate_structure.py edited 6 times"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Create memory-consolidate skill",
+      "outcome": "Added a three-phase reflective memory consolidation prompt, memory router registration, Copilot mirror, focused structural tests, and activation scenarios."
+    },
+    {
+      "task": "Review and validate",
+      "outcome": "Resolved all Critical, High, and Medium review findings. Final prompt review approved. Targeted tests and all 50 pre-PR validations passed."
+    },
+    {
+      "task": "Simplify tests",
+      "outcome": "Reduced the structural suite to three focused contract tests without losing regression coverage."
+    },
+    {
+      "task": "Harden for shipping",
+      "outcome": "Fixed vendor portability, stale-index detection, partial-write recovery, Serena-versus-Forgetful routing, command quoting, and edge-path activation coverage."
+    },
+    {
+      "task": "Validate customer install",
+      "outcome": "Executed the installed skill in five isolated customer git fixtures, removed upstream governance and supersession overhead, and moved CI tests out of customer skill directories."
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 23,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 4832,
+      "base": "8108ebfea285f7030906a425be28d8707680d001",
+      "head": "b642b4d32fd636f6ef67694dea8004435823f4c1"
+    }
+  },
+  "endingCommit": "b642b4d32fd636f6ef67694dea8004435823f4c1",
+  "nextSteps": []
+}

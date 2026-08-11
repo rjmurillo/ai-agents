@@ -397,10 +397,11 @@ Place test files according to the standards in [AGENTS.md](../../AGENTS.md#test-
 | Category | Location |
 |----------|----------|
 | Python tests | `tests/` (primary) |
-| Skill tests | `.claude/skills/<name>/tests/` |
+| Skill tests | `tests/skills/<name>/` |
 | Security benchmarks | `.agents/security/benchmarks/` |
 
-New tests default to `tests/` unless testing a self-contained skill module.
+New tests default to `tests/`. Existing colocated skill suites are legacy and
+remain until migrated.
 
 ## Coverage Expectations
 

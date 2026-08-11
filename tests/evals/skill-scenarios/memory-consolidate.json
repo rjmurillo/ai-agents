@@ -1,0 +1,52 @@
+{
+  "skill_path": ".claude/skills/memory-consolidate/SKILL.md",
+  "skill_id": "memory-consolidate",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "User asks to consolidate memory using the skill's own trigger phrase, with no technique named",
+      "input": "It has been months since anyone reviewed our memory files, and I want a future session to orient fast without re-asking me things. Please consolidate Serena memory. Answer in 5 short bullets describing your plan, then close with the pass's usual closing report. Do not modify any files.",
+      "expected_signals": [
+        "human confirmation naming exact path before delete",
+        "delete",
+        "git",
+        "AMBIGUOUS-DATE",
+        "files scanned",
+        "index line count"
+      ],
+      "expected_gate": "memory-consolidate-pass",
+      "rationale": "The input carries only the skill's documented Serena-specific trigger phrase (`consolidate Serena memory`) and names no technique, so any durable-versus-dated split, richer-path merge, or closing report in the response is attributable to the skill, not to echoing the prompt. The skill must request human confirmation naming the exact path before any deletion, rely on git for recovery, flag unresolved dates as `AMBIGUOUS-DATE`, and report the scanned-file and index counts."
+    },
+    {
+      "id": "S2",
+      "desc": "Token-count health check: restraint measurement, not a routing measurement (negative case)",
+      "input": "Run a health check on our memory store: report the token count for every file and flag anything over the size ceiling. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This scenario measures restraint, not routing: does the skill correctly withhold activation on a task outside its scope, rather than firing on every memory-related request? The skill's own Do NOT clause excludes health, token, and size checks. A token-count health check has no durable-versus-dated split, no merge candidate, and no index tidy to perform, so memory-consolidate must not activate here; proving the request actually reaches memory-maintenance instead is a separate measurement this scenario does not make."
+    },
+    {
+      "id": "S3",
+      "desc": "Seeded edge case exercises duplicate deletion and ambiguous dates",
+      "input": "Plan a memory consolidation for these snapshots without modifying files. people/alex.md records a current communication preference. people/alex-old.md repeats that preference with less detail. projects/launch.md says only `next week` with no source stamp or recoverable date. Use the normal closing report.",
+      "expected_signals": [
+        "human confirmation naming exact path before delete",
+        "delete",
+        "git",
+        "AMBIGUOUS-DATE",
+        "files changed",
+        "unresolved"
+      ],
+      "expected_gate": "memory-consolidate-edge-pass",
+      "rationale": "This fixture forces three branches from the skill: request human confirmation naming the exact path before deletion, merge unique facts and delete the confirmed duplicate with git as recovery, flag the unanchored relative date rather than guessing, and report changed-file counts plus unresolved flags."
+    },
+    {
+      "id": "S4",
+      "desc": "Forgetful-store curation stays outside the Serena file consolidation skill",
+      "input": "In the Forgetful store, deduplicate obsolete memories and add links between related entries. Do not touch Serena memory files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This request explicitly targets Forgetful curation, which the skill's Do NOT clause routes to curating-memories. memory-consolidate must stay inactive even though the request uses memory cleanup language."
+    }
+  ]
+}

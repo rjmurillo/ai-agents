@@ -98,7 +98,7 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 # ---------------------------------------------------------------------------
 
 _GITHUB_REMOTE_PATTERN = re.compile(
-    r"^(?:(?:https?|git|ssh)://(?:git@)?|git@)?"
+    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:[^/@]+@)?"
     r"github\.com[:/]([^/]+)/([^/]+)$"
 )
 
