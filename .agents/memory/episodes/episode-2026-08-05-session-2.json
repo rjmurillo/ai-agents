@@ -131,7 +131,8 @@
         "e008"
       ],
       "leads_to": [
-        "e009"
+        "e009",
+        "e012"
       ],
       "_source_session": "2026-08-05-session-2"
     },
@@ -141,19 +142,59 @@
       "type": "milestone",
       "content": "Captured the PR #4637 CI retrospective after the guarded push exposed inherited moving-base hook failures. Tagged the existing Serena memory instead of creating a duplicate learning.",
       "caused_by": [
-        "e009"
+        "e009",
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T10:58:00+00:00",
+      "type": "milestone",
+      "content": "Ran taste_count_ratchet.py --update against the diagnosed base; the measured count initially improved from 583 to 580. Committed the first lowered baseline as eb0d27ef499de452951e0adcca57160567617d64 and completed focused lint, type, ratchet, ai-review, corpus, and spec-pipeline validation.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T12:20:00+00:00",
+      "type": "milestone",
+      "content": "Merged refreshed main 5588065212312c04912c0a520e4fcb8f581037bf. Its two added taste violations changed the correct net-improvement baseline from 580 to 582; commit 64752228490df8ddd6eb352901d02714ce84b9ce records 583 to 582, and the three prior full-suite failures now pass.",
+      "caused_by": [
+        "e014"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T12:03:36+00:00",
+      "type": "commit",
+      "content": "Commit: 64752228490df8ddd6eb352901d02714ce84b9ce",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-05-session-2"
     }
   ],
   "metrics": {
-    "duration_minutes": 8912,
+    "duration_minutes": 8937,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 8
+    "commits": 3,
+    "files_changed": 12
   },
   "lessons": []
 }

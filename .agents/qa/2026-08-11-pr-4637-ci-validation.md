@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-2.json
-qaCommit: eb0d27ef499de452951e0adcca57160567617d64
+qaCommit: 64752228490df8ddd6eb352901d02714ce84b9ce
 ---
 
 # QA Report: PR #4637 CI validation
@@ -11,8 +11,9 @@ qaCommit: eb0d27ef499de452951e0adcca57160567617d64
 - PR: #4637
 - Branch: `fix/4597-3275-split-and-smoke`
 - PR head diagnosed: `0ded1670a456aa1781c386161007616dfd15bf6c`
-- Base: `d4cc52d5de0c11f7d36c99a246484f1f192ce584`
-- Code-under-test commit: `eb0d27ef499de452951e0adcca57160567617d64`
+- Diagnosed base: `d4cc52d5de0c11f7d36c99a246484f1f192ce584`
+- Refreshed main: `5588065212312c04912c0a520e4fcb8f581037bf`
+- Code-under-test commit: `64752228490df8ddd6eb352901d02714ce84b9ce`
 
 The report and session update are evidence-only changes. The QA commit above is
 the last code-affecting commit and must remain an ancestor of the final PR head.
@@ -22,7 +23,7 @@ the last code-affecting commit and must remain an ancestor of the final PR head.
 | Check | Root cause | Resolution |
 |---|---|---|
 | Validate PR | The branch had code changes but no matching `*pr-4637*.md` QA report. | Added this report with strict session and commit binding. |
-| Validate Spec Coverage | Issue #4597 REQ-3 had no changed-file evidence that the improved taste count was recorded. | Ran `taste_count_ratchet.py --update`; baseline fell from 583 to 580. |
+| Validate Spec Coverage | Issue #4597 REQ-3 had no changed-file evidence that the improved taste count was recorded. | Lowered the baseline from 583 to the refreshed-main count of 582. |
 | Run Python Tests | The logged 464-byte instruction-corpus delta is not branch-owned at the bound base. | No claimed byte figures were edited. The branch changes none of the measured instruction inputs, and the focused corpus suites pass. |
 
 The base version of `scripts/ci/build_ai_review_context.py` is 803 lines and the
@@ -34,9 +35,8 @@ unrelated second refactor.
 
 | Command | Result |
 |---|---|
-| `uv run --frozen python scripts/ci/taste_count_ratchet.py --update --base-ref d4cc52d5de0c11f7d36c99a246484f1f192ce584` | PASS; improved 583 to 580 |
-| `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref d4cc52d5de0c11f7d36c99a246484f1f192ce584` | PASS; count equals baseline 580 |
-| `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref d4cc52d5de0c11f7d36c99a246484f1f192ce584` | PASS; 27 violations within baseline 43 |
+| `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref 5588065212312c04912c0a520e4fcb8f581037bf` | PASS; count equals lowered baseline 582 |
+| `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref 5588065212312c04912c0a520e4fcb8f581037bf` | PASS; count equals baseline 27 |
 | `uv run --frozen pytest tests/ci/test_taste_count_ratchet.py -q` | PASS; 28 tests covering success, failure, and edge behavior |
 | `uv run --frozen pytest tests/test_build_ai_review_context.py tests/test_build_ai_review_context_split.py -q` | PASS; 99 tests |
 | `uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py tests/validation/test_instruction_budget.py -q` | PASS; 123 tests |
@@ -47,9 +47,7 @@ unrelated second refactor.
 
 ## Pre-PR note
 
-The full pre-PR runner completed 48 checks and reported two failures after it
-selected and refreshed local `origin/main` at
-`56a59ef228c48757250c76ec61714f5cfe85614b`, rather than the PR-bound base above.
-Those failures compare this leased PR to a newer, out-of-scope base: the Ruff
-baseline is 27 there, and its synthetic merge tree measures taste count 582.
-No baseline was widened to accommodate that unrelated moving target.
+The first full pre-push run selected a moving `origin/main` and exposed three
+unrelated repository-wide test failures. After merging refreshed main at
+`5588065212312c04912c0a520e4fcb8f581037bf`, those three exact tests pass. The
+taste baseline remains a net improvement over main, falling from 583 to 582.
