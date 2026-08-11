@@ -600,8 +600,184 @@ class TestPathContainment:
         assert "escapes" in r.stdout.lower()
 
 
-# ── CLI2 config authentication (fail closed) ────────────────────────────────
+# ── Manifest tree coverage (every hash, symlink, mode, and set difference) ──
 
+def _generate_manifest(vendor: Path) -> dict[str, Any]:
+    """Build an INTEGRITY.json body that describes the current vendor tree.
+
+    Mirrors the entry set the shipped verifier walks in
+    `.claude/hooks/PreToolUse/_markdownlint_verifier.py`
+    (`_materialize_verified_copy`): every file and symlink under the vendor
+    root except `INTEGRITY.json` itself, plus the executable paths.
+    """
+    files: dict[str, str] = {}
+    symlinks: dict[str, str] = {}
+    executables: list[str] = []
+    for item in sorted(vendor.rglob("*")):
+        rel = str(item.relative_to(vendor))
+        if rel == "INTEGRITY.json":
+            continue
+        if item.is_symlink():
+            symlinks[rel] = os.readlink(item)
+        elif item.is_file():
+            files[rel] = _sha256(item.read_bytes())
+            if os.access(item, os.X_OK):
+                executables.append(rel)
+    return {"files": files, "symlinks": symlinks, "executables": executables}
+
+
+def _write_manifest(vendor: Path, manifest: object) -> None:
+    _write(vendor / "INTEGRITY.json", json.dumps(manifest).encode())
+
+
+def _run_manifest_case(root: Path) -> subprocess.CompletedProcess[str]:
+    return _run([
+        "--candidate-root", str(root),
+        "--vendor-rel", "v",
+        "--verifier-rel", "verifier.py",
+        "--mirror-rel", "mirror.py",
+        "--config-rel", "config.yaml",
+    ])
+
+
+def _candidate_with_manifest(tmp_path: Path) -> tuple[Path, Path]:
+    """Build a candidate whose INTEGRITY.json describes its vendor tree."""
+    root, _ = _build_candidate(tmp_path)
+    vendor = root / "v"
+    _write_manifest(vendor, _generate_manifest(vendor))
+    return root, vendor
+
+
+class TestManifestTreeCoverage:
+    """Thread PRRT_kwDOQoWRls6YBJvt: validate every manifest entry, not one.
+
+    A candidate can swap a dependency for a different canonical tarball,
+    update the lockfile and vendored tree so reconstruction agrees, and keep
+    the pinned INTEGRITY.json. Every case below is that attack shape.
+    """
+
+    def test_consistent_manifest_reports_pass(self, tmp_path: Path) -> None:
+        """A manifest that describes the tree exactly clears this section."""
+        root, _ = _candidate_with_manifest(tmp_path)
+        r = _run_manifest_case(root)
+        assert "PASS: Vendor tree matches every INTEGRITY.json entry" in r.stdout
+
+    def test_swapped_dependency_content_rejected(self, tmp_path: Path) -> None:
+        """Changed vendored bytes with a retained manifest are blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        swapped = vendor / "node_modules" / "markdownlint-cli2" / "other.js"
+        _write(swapped, b"original")
+        _write_manifest(vendor, _generate_manifest(vendor))
+        _write(swapped, b"swapped-tarball-content")
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest hash mismatch: node_modules/markdownlint-cli2/other.js" in r.stdout
+
+    def test_extra_tree_file_rejected(self, tmp_path: Path) -> None:
+        """A vendor file the manifest never lists is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        _write(vendor / "node_modules" / "extra.js", b"extra")
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Files in vendor tree absent from manifest" in r.stdout
+        assert "node_modules/extra.js" in r.stdout
+
+    def test_missing_tree_file_rejected(self, tmp_path: Path) -> None:
+        """A manifest entry deleted from the tree is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        (vendor / "package.json").unlink()
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest entries missing from vendor tree" in r.stdout
+        assert "package.json" in r.stdout
+
+    def test_symlink_target_drift_rejected(self, tmp_path: Path) -> None:
+        """A symlink retargeted inside the vendor tree is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        nm = vendor / "node_modules"
+        _write(nm / "real.js", b"real")
+        _write(nm / "decoy.js", b"decoy")
+        link = nm / "link.js"
+        os.symlink("real.js", str(link))
+        _write_manifest(vendor, _generate_manifest(vendor))
+        link.unlink()
+        os.symlink("decoy.js", str(link))
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest symlink target mismatch: node_modules/link.js" in r.stdout
+
+    def test_symlink_replaced_by_regular_file_rejected(
+        self, tmp_path: Path,
+    ) -> None:
+        """A symlink swapped for a regular file is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        nm = vendor / "node_modules"
+        _write(nm / "real.js", b"real")
+        link = nm / "link.js"
+        os.symlink("real.js", str(link))
+        _write_manifest(vendor, _generate_manifest(vendor))
+        link.unlink()
+        _write(link, b"real")
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest symlink missing or not a symlink" in r.stdout
+
+    def test_manifest_executable_without_exec_bit_rejected(
+        self, tmp_path: Path,
+    ) -> None:
+        """A manifest executable that lost its mode bit is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        binary = vendor / "node_modules" / "tool.js"
+        _write(binary, b"tool")
+        binary.chmod(0o755)
+        _write_manifest(vendor, _generate_manifest(vendor))
+        binary.chmod(0o644)
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest executables not executable in tree" in r.stdout
+
+    def test_unlisted_executable_bit_rejected(self, tmp_path: Path) -> None:
+        """Stricter than the shipped verifier: added exec bits are drift."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        plain = vendor / "node_modules" / "plain.js"
+        _write(plain, b"plain")
+        _write_manifest(vendor, _generate_manifest(vendor))
+        plain.chmod(0o755)
+
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Executable files absent from manifest executables" in r.stdout
+        assert "node_modules/plain.js" in r.stdout
+
+    def test_non_object_manifest_rejected(self, tmp_path: Path) -> None:
+        """A JSON array manifest fails closed instead of crashing."""
+        root, _ = _build_candidate(tmp_path, manifest_content=b'["files"]')
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "INTEGRITY.json is not a JSON object" in r.stdout
+        assert "Traceback" not in r.stderr
+
+    def test_wrong_section_shape_rejected(self, tmp_path: Path) -> None:
+        """A manifest whose sections have the wrong JSON type is blocked."""
+        root, vendor = _candidate_with_manifest(tmp_path)
+        _write_manifest(
+            vendor,
+            {"files": ["a.js"], "symlinks": {}, "executables": "all"},
+        )
+        r = _run_manifest_case(root)
+        assert r.returncode == 1
+        assert "Manifest 'files' is not a mapping of path to string" in r.stdout
+        assert "Manifest 'executables' is not a list of paths" in r.stdout
+        assert "Traceback" not in r.stderr
+
+
+# ── CLI2 config authentication (fail closed) ────────────────────────────────
 class TestCli2ConfigAuth:
     """Thread 2: missing CLI2 config fails closed when arg is supplied."""
 

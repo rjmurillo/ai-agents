@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 # TRUST ANCHORS: pinned SHA-256 of canonical artifacts from PR #4651.
@@ -325,26 +326,254 @@ def _compare_vendor_trees(
 
     return errors
 
+# Manifest coverage
+#
+# Canonical source: .claude/hooks/PreToolUse/_markdownlint_verifier.py,
+# function `_materialize_verified_copy` (read at commit 909c82fe8a, the
+# merge of PR #4651 that ships the vendored tree). Verbatim contract:
+#
+#     expected_files: dict[str, str] = manifest.get("files", {})
+#     expected_symlinks: dict[str, str] = manifest.get("symlinks", {})
+#     expected_execs: list[str] = manifest.get("executables", [])
+#     all_expected = set(expected_files.keys()) | set(expected_symlinks.keys())
+#     ...
+#     for item in sorted(_VENDOR.rglob("*")):
+#         rel = str(item.relative_to(_VENDOR))
+#         if rel == _INTEGRITY_REL:
+#             continue
+#         if item.is_symlink() or item.is_file():
+#             actual_entries.add(rel)
+#     extra = actual_entries - all_expected
+#     ...
+#     missing = all_expected - actual_entries
+#     ...
+#         actual_hash = hashlib.sha256(content).hexdigest()
+#         if actual_hash != expected_hash:
+#             return f"hash mismatch: {rel}"
+#     ...
+#         actual_target = os.readlink(src)
+#         if actual_target != expected_target:
+#             return f"symlink mismatch: {rel}"
+#     ...
+#     for rel in expected_execs:
+#         src = _VENDOR / rel
+#         if not os.access(src, os.X_OK):
+#             return f"expected executable: {rel}"
+#
+# The same commit pins `_INTEGRITY_REL = "INTEGRITY.json"` and
+# `_ENTRY_REL = os.path.join("node_modules", "markdownlint-cli2",
+# "markdownlint-cli2-bin.mjs")`.
+
+_MANIFEST_REL = "INTEGRITY.json"
+_ENTRY_REL = "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
+_MAX_MANIFEST_ERRORS = 10
+
+# One manifest entry check: (vendor_dir, rel_path, expected_value) -> error.
+_ManifestEntryCheck = Callable[[Path, str, str], "str | None"]
+
+
+def _load_manifest(
+    vendor_dir: Path,
+) -> tuple[dict[str, object] | None, list[str]]:
+    """Read INTEGRITY.json, rejecting anything that is not a JSON object."""
+    manifest_path = vendor_dir / _MANIFEST_REL
+    if not manifest_path.is_file():
+        return None, [f"{_MANIFEST_REL} missing"]
+    try:
+        parsed = json.loads(manifest_path.read_bytes())
+    except (json.JSONDecodeError, OSError):
+        return None, [f"Cannot parse {_MANIFEST_REL}"]
+    if not isinstance(parsed, dict):
+        return None, [f"{_MANIFEST_REL} is not a JSON object"]
+    return parsed, []
+
+
+def _manifest_mapping(
+    manifest: dict[str, object], key: str,
+) -> tuple[dict[str, str], list[str]]:
+    """Return a manifest section that must map candidate paths to strings."""
+    raw = manifest.get(key, {})
+    if not isinstance(raw, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in raw.items()
+    ):
+        return {}, [f"Manifest '{key}' is not a mapping of path to string"]
+    return raw, []
+
+
+def _manifest_sequence(
+    manifest: dict[str, object], key: str,
+) -> tuple[list[str], list[str]]:
+    """Return a manifest section that must be a list of candidate paths."""
+    raw = manifest.get(key, [])
+    if not isinstance(raw, list) or not all(isinstance(v, str) for v in raw):
+        return [], [f"Manifest '{key}' is not a list of paths"]
+    return raw, []
+
+
+def _collect_manifest_entries(vendor_dir: Path) -> tuple[set[str], set[str]]:
+    """Return (entries, executables) present under the candidate vendor root."""
+    entries: set[str] = set()
+    executables: set[str] = set()
+    for item in sorted(vendor_dir.rglob("*")):
+        rel = str(PurePosixPath(item.relative_to(vendor_dir)))
+        if rel == _MANIFEST_REL:
+            continue
+        if item.is_symlink():
+            entries.add(rel)
+        elif item.is_file():
+            entries.add(rel)
+            if os.access(item, os.X_OK):
+                executables.add(rel)
+    return entries, executables
+
+
+def _check_manifest_file(
+    vendor_dir: Path, rel: str, expected_hash: str,
+) -> str | None:
+    """Verify one manifest file entry is a regular file with the pinned hash."""
+    path = vendor_dir / rel
+    if path.is_symlink() or not path.is_file():
+        return f"Manifest file missing or not a regular file: {rel}"
+    try:
+        actual = _sha256_file(path)
+    except OSError as exc:
+        return f"Cannot read manifest file {rel}: {type(exc).__name__}"
+    if actual != expected_hash:
+        return f"Manifest hash mismatch: {rel}"
+    return None
+
+
+def _check_manifest_symlink(
+    vendor_dir: Path, rel: str, expected_target: str,
+) -> str | None:
+    """Verify one manifest symlink entry points at the pinned target."""
+    path = vendor_dir / rel
+    if not path.is_symlink():
+        return f"Manifest symlink missing or not a symlink: {rel}"
+    try:
+        actual = os.readlink(path)
+    except OSError as exc:
+        return f"Cannot read manifest symlink {rel}: {type(exc).__name__}"
+    if actual != expected_target:
+        return f"Manifest symlink target mismatch: {rel}"
+    return None
+
+
+def _compare_manifest_entries(
+    vendor_dir: Path, files: dict[str, str], symlinks: dict[str, str],
+) -> list[str]:
+    """Verify every manifest file hash and symlink target, capped at 10 errors."""
+    checks: list[tuple[str, str, _ManifestEntryCheck]] = [
+        (rel, files[rel], _check_manifest_file) for rel in sorted(files)
+    ]
+    checks += [
+        (rel, symlinks[rel], _check_manifest_symlink)
+        for rel in sorted(symlinks)
+    ]
+    errors: list[str] = []
+    for rel, expected, check in checks:
+        error = check(vendor_dir, rel, expected)
+        if error:
+            errors.append(error)
+        if len(errors) >= _MAX_MANIFEST_ERRORS:
+            errors.append(
+                f"(truncated after {_MAX_MANIFEST_ERRORS} manifest entry errors)"
+            )
+            break
+    return errors
+
+
+def _compare_manifest_coverage(
+    expected_entries: set[str], actual_entries: set[str],
+) -> list[str]:
+    """Reject any tree entry the manifest omits, and any entry it invents."""
+    errors: list[str] = []
+    extra = sorted(actual_entries - expected_entries)
+    if extra:
+        errors.append(f"Files in vendor tree absent from manifest: {extra[:3]}")
+    missing = sorted(expected_entries - actual_entries)
+    if missing:
+        errors.append(f"Manifest entries missing from vendor tree: {missing[:3]}")
+    return errors
+
+
+def _compare_manifest_modes(
+    expected_execs: list[str], actual_execs: set[str],
+) -> list[str]:
+    """Compare the executable bit in both directions against the manifest."""
+    errors: list[str] = []
+    not_executable = sorted(set(expected_execs) - actual_execs)
+    if not_executable:
+        errors.append(
+            f"Manifest executables not executable in tree: {not_executable[:3]}"
+        )
+    unlisted = sorted(actual_execs - set(expected_execs))
+    if unlisted:
+        errors.append(
+            f"Executable files absent from manifest executables: {unlisted[:3]}"
+        )
+    return errors
+
+
+def _validate_manifest_tree(vendor_dir: Path) -> list[str]:
+    """Verify every manifest entry against the candidate vendor tree.
+
+    Mirrors `_materialize_verified_copy` in
+    `.claude/hooks/PreToolUse/_markdownlint_verifier.py` (contract quoted
+    above): extra entries, missing entries, file hashes, symlink targets, and
+    executable modes. Authenticating the pinned manifest digest is not enough
+    on its own. A candidate can swap a dependency for a different canonical
+    tarball, update the lockfile and the vendored tree to match, and keep the
+    pinned INTEGRITY.json. Lockfile reconstruction then agrees with the tree
+    while the shipped verifier rejects the stale manifest and blocks every
+    hook invocation after merge.
+
+    Stricter/looser/different than canonical:
+    - Stricter: the verifier only requires that each path in `executables` is
+      executable. This gate also rejects a tree file that is executable while
+      absent from `executables`, because an added executable bit is tree drift
+      the shipped verifier would silently carry into the sterile copy.
+    - Stricter: the verifier calls `manifest.get("files", {})` and would raise
+      on a manifest whose sections have the wrong JSON type. This gate reports
+      the shape error and blocks instead of crashing, so a malformed candidate
+      manifest fails closed with a diagnostic.
+    - Different: the verifier copies while verifying (O_NOFOLLOW, TOCTOU-safe)
+      because it is about to execute the result. This gate only reads, so it
+      hashes in place; symlink escape is covered by
+      `_check_symlink_containment`.
+    """
+    manifest, load_errors = _load_manifest(vendor_dir)
+    if manifest is None:
+        return load_errors
+    files, file_errors = _manifest_mapping(manifest, "files")
+    symlinks, symlink_errors = _manifest_mapping(manifest, "symlinks")
+    executables, exec_errors = _manifest_sequence(manifest, "executables")
+    shape_errors = file_errors + symlink_errors + exec_errors
+    if shape_errors:
+        return shape_errors
+    actual_entries, actual_execs = _collect_manifest_entries(vendor_dir)
+    return (
+        _compare_manifest_coverage(set(files) | set(symlinks), actual_entries)
+        + _compare_manifest_entries(vendor_dir, files, symlinks)
+        + _compare_manifest_modes(executables, actual_execs)
+    )
+
 # Entrypoint co-tamper
 
 def _validate_entrypoint_in_manifest(vendor_dir: Path) -> list[str]:
     """Verify markdownlint-cli2 entrypoint is covered by manifest."""
-    manifest_path = vendor_dir / "INTEGRITY.json"
-    if not manifest_path.is_file():
-        return ["INTEGRITY.json missing"]
-    try:
-        manifest = json.loads(manifest_path.read_bytes())
-    except (json.JSONDecodeError, OSError):
-        return ["Cannot parse INTEGRITY.json"]
-    entry_rel = "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
-    files = manifest.get("files", {})
-    if entry_rel not in files:
-        return [f"Entrypoint {entry_rel} not in manifest"]
-    entry_path = vendor_dir / entry_rel
+    manifest, load_errors = _load_manifest(vendor_dir)
+    if manifest is None:
+        return load_errors
+    files, shape_errors = _manifest_mapping(manifest, "files")
+    if shape_errors:
+        return shape_errors
+    if _ENTRY_REL not in files:
+        return [f"Entrypoint {_ENTRY_REL} not in manifest"]
+    entry_path = vendor_dir / _ENTRY_REL
     if not entry_path.is_file():
-        return [f"Entrypoint file missing: {entry_rel}"]
-    actual = hashlib.sha256(entry_path.read_bytes()).hexdigest()
-    if actual != files[entry_rel]:
+        return [f"Entrypoint file missing: {_ENTRY_REL}"]
+    if hashlib.sha256(entry_path.read_bytes()).hexdigest() != files[_ENTRY_REL]:
         return ["Entrypoint hash mismatch (co-tamper detected)"]
     return []
 
@@ -391,7 +620,7 @@ def _run_checks(
 
     # 1. Pin authentication (non-circular: pins are in THIS base-owned file)
     print("=== Trust-Anchor Authentication ===")
-    manifest = vendor_dir / "INTEGRITY.json"
+    manifest = vendor_dir / _MANIFEST_REL
     errs = _authenticate_all_pins(verifier, config, cli2_config, manifest)
     all_errors.extend(errs)
     _report(errs, "All artifacts match pinned SHA-256 trust anchors")
@@ -433,14 +662,20 @@ def _run_checks(
     all_errors.extend(errs)
     _report(errs, "Entrypoint covered by manifest and matches")
 
-    # 8. CLI2 config safety (if supplied)
+    # 8. Full manifest coverage: every hash, symlink, mode, and set difference
+    print("\n=== Manifest Tree Coverage ===")
+    errs = _validate_manifest_tree(vendor_dir)
+    all_errors.extend(errs)
+    _report(errs, "Vendor tree matches every INTEGRITY.json entry")
+
+    # 9. CLI2 config safety (if supplied)
     if cli2_config is not None:
         print("\n=== CLI2 Config Safety ===")
         errs = _validate_config_safe(cli2_config)
         all_errors.extend(errs)
         _report(errs, "No execution-capable keys in CLI2 config")
 
-    # 9. Copilot config mirror parity (byte-identical to primary)
+    # 10. Copilot config mirror parity (byte-identical to primary)
     if copilot_config is not None:
         print("\n=== Copilot Config Mirror Parity ===")
         errs = _validate_mirror_parity(config, copilot_config)
