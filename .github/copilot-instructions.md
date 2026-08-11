@@ -102,7 +102,7 @@ Serena MCP tools available → MUST call FIRST:
 ## Gotchas (non-obvious, save cycles)
 
 Traps that recur across PRs and cannot be inferred from the code: the PR
-description gate, the three portability checkers, taste-lints, session-log
+description gate, the four portability checkers, taste-lints, session-log
 ordering, the suppression and ratchet gates, and the eval harness.
 
 **Read `.agents/governance/GOTCHAS.md` before your first push on a branch.**

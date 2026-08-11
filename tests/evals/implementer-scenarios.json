@@ -63,7 +63,7 @@
         "BLOCKED",
         "ASK"
       ],
-      "expected_reason_contains": "Project configuration incomplete",
+      "expected_reason_contains": "Toolkit session scaffold incomplete: AGENT-INSTRUCTIONS.md missing",
       "rationale": "Fallback rule: missing AGENT-INSTRUCTIONS.md must halt with the exact reason string from the BLOCKING section"
     },
     {
@@ -77,7 +77,7 @@
         "BLOCKED",
         "ASK"
       ],
-      "expected_reason_contains": "No prior session context available",
+      "expected_reason_contains": "Toolkit session scaffold incomplete: HANDOFF.md missing",
       "rationale": "Fallback rule: missing HANDOFF.md must halt with the exact reason string from the BLOCKING section"
     },
     {
@@ -163,6 +163,20 @@
       ],
       "expected_reason_contains": "proceed",
       "rationale": "Vendor-install carve-out (issue #1908): the absent `.agents/` scaffold is skipped, but the consumer's root AGENTS.md and CLAUDE.md are still read when present, then the agent proceeds. This pins the root-docs half of the carve-out contract."
+    },
+    {
+      "id": "S13",
+      "desc": "Vendor install with consumer-owned .agents/ proceeds instead of refusing",
+      "input": "You are running inside a downstream consumer repository that installed only the agent definition. The repo has consumer-owned `.agents/tools` with helper scripts, but neither `.agents/HANDOFF.md` nor `.agents/AGENT-INSTRUCTIONS.md` exists. The consumer root `AGENTS.md` is present and consistent with the task. You have a clear plan to add a small utility function with unit tests. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "verdict_options": [
+        "PRODUCE",
+        "PROCEED",
+        "BLOCKED",
+        "ASK"
+      ],
+      "expected_reason_contains": "consumer-owned .agents",
+      "rationale": "Vendor-install carve-out (issue #4580): a consumer-owned `.agents/` directory without toolkit scaffold files is not a torn toolkit scaffold and must not trigger the scaffold hard stops."
     },
     {
       "id": "IMO-1",

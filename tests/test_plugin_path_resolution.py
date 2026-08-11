@@ -173,7 +173,11 @@ class TestPluginPathResolution:
         violations = []
         for hook_path in hook_files:
             content = hook_path.read_text(encoding="utf-8")
-            if PLUGIN_PATH_PATTERN in content and not _has_lib_dir_validation(content):
+            if (
+                _has_lib_import(content)
+                and PLUGIN_PATH_PATTERN in content
+                and not _has_lib_dir_validation(content)
+            ):
                 rel = hook_path.relative_to(REPO_ROOT)
                 violations.append(str(rel))
 

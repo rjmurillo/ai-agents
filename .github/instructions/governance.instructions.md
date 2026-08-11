@@ -11,7 +11,7 @@ Files under `.agents/governance/` define the rules that bind every other agent r
 1. **Human approval**. Changes MUST be reviewed and approved by a human maintainer. Auto-merge is prohibited for governance files.
 2. **ADR required**. Significant governance changes (new rules, policy reversals, removed constraints) MUST be accompanied by an Architecture Decision Record in `.agents/architecture/`.
 3. **Consensus for cross-role rules**. Changes that affect multiple agent roles MUST follow the consensus protocol in `CONSENSUS.md` (domain-weighted voting; security gets 2.0x on security decisions).
-4. **Evidence required**. Every rule change MUST cite the failure mode, retrospective, or incident that motivated it. Add a `Why:` section if rationale is not obvious.
+4. **Evidence required**. Every added or changed normative line under `.agents/governance/` MUST have one nearby evidence anchor in the same section: a `Source:` line, a `Refs` issue or PR, an ADR link, a retrospective link, or a `Why:` paragraph. Reviewers verify this with `git diff -U3 -- .agents/governance/`.
 5. **No unilateral changes**. A single specialist agent MUST NOT alter rules that govern other agents without consensus.
 
 ## SHOULD

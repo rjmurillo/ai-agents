@@ -145,6 +145,7 @@ def _resolve_body(args: argparse.Namespace) -> tuple[str, int | None]:
     return path.read_text(encoding="utf-8"), None
 
 
+
 def _collect_messages(
     conventional_commit: dict[str, Any],
     issue_keywords: dict[str, Any],
@@ -278,25 +279,6 @@ def _exit_code(result: dict[str, Any]) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    body, body_error = _resolve_body(args)
-    if body_error is not None:
-        return body_error
-
-    result = _build_result(
-        args.title,
-        body,
-        fail_on_violation=args.fail_on_violation,
-    )
-    print(json.dumps(result, indent=2))
-    _print_human_summary(result)
-    return _exit_code(result)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-
 
 def validate_no_escaped_newlines(body_content: str) -> None:
     r"""Reject a body whose line breaks are literal backslash-n. Issue #3777.
@@ -353,3 +335,27 @@ def validate_no_escaped_newlines(body_content: str) -> None:
         file=sys.stderr,
     )
     raise SystemExit(1)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    body, body_error = _resolve_body(args)
+    if body_error is not None:
+        return body_error
+
+    validate_no_escaped_newlines(body)
+
+    result = _build_result(
+        args.title,
+        body,
+        fail_on_violation=args.fail_on_violation,
+    )
+    print(json.dumps(result, indent=2))
+    _print_human_summary(result)
+    return _exit_code(result)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+

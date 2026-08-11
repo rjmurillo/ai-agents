@@ -14,32 +14,92 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from new_pr_validations import (
-    _SKILL_SCAN_EXTENSIONS as _VALIDATION_SKILL_SCAN_EXTENSIONS,
-)
-from new_pr_validations import (
-    _git_env,
-    _resolve_validation_base,
-    run_validations,
-)
-from new_pr_validations import (
-    validate_no_escaped_newlines as validate_no_escaped_newlines,
-)
-from prepare_pr_body import (
-    PreparePrBodyError,
-    prepare_pr_body,
-    read_prepared_pr_body,
-)
-from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN
 
-_SKILL_SCAN_EXTENSIONS = _VALIDATION_SKILL_SCAN_EXTENSIONS
+def _load_sibling(name: str):
+    """Load a sibling script by ABSOLUTE PATH, without touching ``sys.path``.
+
+    ``new_pr.py`` runs under ``python3 -I`` (the push-pr identity guard
+    requires that exact form), and isolated mode removes the script's own
+    directory from ``sys.path``. Measured on CPython 3.14.6:
+
+        $ python3 -I main.py
+        ModuleNotFoundError: No module named 'sibling'
+
+    So a plain ``import pr_validations`` cannot resolve here. Loading the file
+    directly keeps the isolation ``-I`` exists to provide. The rejected
+    alternative, ``sys.path.insert(0, os.path.dirname(__file__))``, would let
+    anyone able to write into the script directory shadow a stdlib module for
+    this process, which is strictly worse than the position before the split.
+
+    The identity guard pins the SHA-256 of every file in this bundle, so a
+    sibling cannot be swapped independently of new_pr.py.
+    """
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load required sibling module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+# Load validate_pr_description first: new_pr_validations imports from it,
+# and under -I mode the sibling directory is not on sys.path. Loading it
+# here puts it into sys.modules so the bare import succeeds.
+_validate_desc = _load_sibling("validate_pr_description")
+_validations = _load_sibling("new_pr_validations")
+_prepare = _load_sibling("prepare_pr_body")
+_pr_val = _load_sibling("pr_validations")
+
+# Re-exported so `new_pr.<name>` stays the import surface for callers and
+# tests. The split is an internal reorganization, not an interface change.
+run_validations = _pr_val.run_validations
+validate_no_escaped_newlines = _pr_val.validate_no_escaped_newlines
+_DASH_RE = _validations._DASH_RE
+_SKILL_SCAN_EXTENSIONS = _validations._SKILL_SCAN_EXTENSIONS
+_git_env = _validations._git_env
+_resolve_validation_base = _validations._resolve_validation_base
+
+# Main's pr_validations.py adds warning/untrusted-repo infrastructure.
+# Re-export those symbols so test harnesses can import them from new_pr.
+_report_not_run = _pr_val._report_not_run
+_WarningLog = _pr_val._WarningLog
+_UNTRUSTED_REPOSITORY_VALIDATORS = _pr_val._UNTRUSTED_REPOSITORY_VALIDATORS
+_UNTRUSTED_REPOSITORY_REASON = _pr_val._UNTRUSTED_REPOSITORY_REASON
+_extract_validatable_session_logs = _pr_val._extract_validatable_session_logs
+_SESSION_LOG_FILENAME_RE = _pr_val._SESSION_LOG_FILENAME_RE
+
+# Re-export from prepare_pr_body
+PreparePrBodyError = _prepare.PreparePrBodyError
+prepare_pr_body = _prepare.prepare_pr_body
+read_prepared_pr_body = _prepare.read_prepared_pr_body
+
+# Re-export from validate_pr_description
+_CONVENTIONAL_COMMIT_PATTERN = _validate_desc._CONVENTIONAL_COMMIT_PATTERN
+
+# Python 3.10 compatibility (issue #4764). `datetime.UTC` is an alias for
+# `datetime.timezone.utc` that CPython added in 3.11, so
+# `from datetime import UTC` raises ImportError on 3.10:
+#
+#     ImportError: cannot import name 'UTC' from 'datetime'
+#
+# Measured on CPython 3.10.20 against this file at commit 5cd72a7dad. This
+# script runs on the HOST's ambient interpreter, not the repository's 3.14
+# development interpreter, and `.claude/rules/python.md` puts the
+# hook-portability floor at 3.10. `timezone.utc` is the same object and exists
+# at every version this repository targets, so it is the portable spelling
+# rather than a compatibility shim.
+#
+# The repository development floor is unchanged: pyproject.toml still declares
+# `requires-python = ">=3.14"`. Only host-executed scripts write to 3.10.
+_UTC = timezone.utc
 
 
 def get_repo_root() -> str:
@@ -99,8 +159,8 @@ def write_audit_log(
 
     username = os.environ.get("USERNAME") or os.environ.get("USER", "unknown")
 
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-    file_timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(_UTC).strftime("%Y-%m-%d %H:%M:%S")
+    file_timestamp = datetime.now(_UTC).strftime("%Y%m%d-%H%M%S")
 
     audit_entry = (
         f"Timestamp: {timestamp}\n"
@@ -264,6 +324,8 @@ def _run_pre_creation_validations(
             body=body,
             body_file="",
         )
+    except SystemExit:
+        raise
     except Exception as exc:
         print(f"Validation failed: {exc}", file=sys.stderr)
         return 1

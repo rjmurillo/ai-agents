@@ -1,7 +1,7 @@
 ---
 name: push-pr
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Edit(.agents/scratch/pr-body-*.md)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .agents/scratch), Edit(.agents/scratch/pr-body-*.md)
 user-invocable: true
 ---
 
@@ -24,8 +24,7 @@ Based on the above changes:
 4. Run the secure path allocator:
 
    ```bash
-   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-   python3 "$SCRIPTS_DIR/pr/new_pr.py" --prepare-body-file
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --prepare-body-file
    ```
 
    - Copy the returned path exactly. Do not store it in a shell variable because
@@ -41,9 +40,16 @@ Based on the above changes:
    - **Include** an `## Acceptance criteria` heading with `- [ ]` or `* [ ]` bullets. The Validate Spec Coverage job reads these from the PR body, not the linked issue. Any unchecked box makes the signal report FAIL, and that FAIL does not block the merge, so check a box only once the criterion is actually met. Numbered criteria are not recognized.
 5. Create a pull request using the new_pr skill script:
 
+   <!-- vendor-portability: declared. This command reads the consumer's
+   `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
+   `.agents/scratch/` body file. It resolves the helper from the installed
+   Copilot or Claude plugin root. The `.claude` fallback is only for this
+   repository's self-hosted source checkout; `scripts/pr/` is inside the
+   shipped github skill, not the upstream-only top-level scripts/ tree.
+   Issue #4764. -->
+
    ```bash
-   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file ".agents/scratch/pr-body-<returned-uuid>.md"
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".agents/scratch/pr-body-<returned-uuid>.md"
    ```
 
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)

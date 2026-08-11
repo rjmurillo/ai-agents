@@ -4,12 +4,31 @@ from __future__ import annotations
 
 import ast
 import codecs
+
+# Import run_validations from new_pr_validations directly: these tests
+# exercise crash-handling in the validation pipeline, not the security
+# boundary that skips repo-local validators.
+import importlib.util
 from pathlib import Path
+from pathlib import Path as _Path
 from unittest.mock import patch
 
 import pytest
 
-from tests.new_pr_test_support import _completed, run_validations
+from tests.new_pr_test_support import _completed
+
+_val_path = (
+    _Path(__file__).resolve().parents[1]
+    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    / "new_pr_validations.py"
+)
+_val_spec = importlib.util.spec_from_file_location(
+    "_test_validator_contracts_mod", _val_path,
+)
+assert _val_spec is not None and _val_spec.loader is not None
+_val_mod = importlib.util.module_from_spec(_val_spec)
+_val_spec.loader.exec_module(_val_mod)
+run_validations = _val_mod.run_validations
 
 
 def test_escaped_newline_guard_moved_with_validation_policy() -> None:

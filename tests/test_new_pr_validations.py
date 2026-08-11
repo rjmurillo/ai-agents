@@ -9,7 +9,24 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.new_pr_test_support import _completed, _mod, run_validations
+from tests.new_pr_test_support import _completed, _mod
+
+# Import run_validations from new_pr_validations directly: these tests
+# exercise the validation pipeline implementation, not the security
+# boundary. Main's pr_validations.run_validations (exported by new_pr)
+# deliberately skips repo-local validators at the push-pr boundary.
+_val_path = (
+    Path(__file__).resolve().parents[1]
+    / '.claude' / 'skills' / 'github' / 'scripts' / 'pr'
+    / 'new_pr_validations.py'
+)
+_val_spec = importlib.util.spec_from_file_location(
+    '_test_new_pr_validations_mod', _val_path,
+)
+assert _val_spec is not None and _val_spec.loader is not None
+_val_mod = importlib.util.module_from_spec(_val_spec)
+_val_spec.loader.exec_module(_val_mod)
+run_validations = _val_mod.run_validations
 
 
 class TestRunValidations:
