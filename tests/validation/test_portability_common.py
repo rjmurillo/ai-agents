@@ -151,7 +151,7 @@ def test_git_lines_disables_replacement_objects(
         check=True,
         capture_output=True,
     )
-    real = subprocess.run(
+    real = subprocess.run(  # subprocess-encoding: strict-ok
         ["git", "-C", str(root), "rev-parse", "HEAD:victim.txt"],
         check=True,
         capture_output=True,
@@ -159,7 +159,7 @@ def test_git_lines_disables_replacement_objects(
         encoding="utf-8",
         errors="strict",
     ).stdout.strip()
-    forged = subprocess.run(
+    forged = subprocess.run(  # subprocess-encoding: strict-ok
         ["git", "-C", str(root), "hash-object", "-w", "--stdin"],
         input="forged",
         check=True,

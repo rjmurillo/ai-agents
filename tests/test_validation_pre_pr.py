@@ -23,13 +23,19 @@ from scripts.validation.pre_pr import (
 )
 
 
-def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
+def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
     # pre_pr loads pre_pr_sequence as a flat module for direct script execution.
     # Read through the function so the patch targets that exact module identity.
     sequence = run_all_validations.__globals__["_SEQUENCE"]
+    corpus_gates = {
+        "Documented Interpreter Portability",
+        "Duplicate Test Helper Detection",
+        "Subprocess Encoding Convention",
+        "Unreachable Code Detection",
+    }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
-        if gate.name == "Documented Interpreter Portability"
+        if gate.name in corpus_gates
         else gate
         for gate in sequence
     )
@@ -348,7 +354,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -367,7 +373,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -399,7 +405,7 @@ class TestHookModeBanner:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -428,7 +434,7 @@ class TestHookModeBanner:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -453,7 +459,7 @@ class TestHookModeBanner:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -502,7 +508,7 @@ class TestHookModeBanner:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")

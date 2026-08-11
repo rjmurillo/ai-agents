@@ -3932,6 +3932,7 @@ def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
         )
     return version
 
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -5119,8 +5120,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-
 PATH_SEPARATOR_RE = re.compile(r"[\\/]")
+
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -6631,11 +6632,17 @@ def run_cli_e2e(
         )
         return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
-        print("CLI E2E skipped (SKIP_CLI_E2E=true)")
-        return 0
+        print(
+            "ERROR: SKIP_CLI_E2E=true cannot bypass a required CLI E2E gate",
+            file=sys.stderr,
+        )
+        return 2
     if shutil.which("copilot") is None and shutil.which("claude") is None:
-        print("CLI E2E skipped (no supported CLI installed)")
-        return 0
+        print(
+            "ERROR: CLI E2E requires either copilot or claude on PATH",
+            file=sys.stderr,
+        )
+        return 2
     env = _clean_git_env()
     for key in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
         env.pop(key, None)
