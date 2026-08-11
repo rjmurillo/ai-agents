@@ -24,8 +24,8 @@ tags:
 
 ## Objective
 
-Prove that each judgment-bearing skill change improves the intended behavior
-under the local Copilot CLI provider.
+Prove that each judgment-bearing skill change does not regress the intended
+behavior under the local Copilot CLI provider. Record improvement separately.
 
 ## In/Out of Scope
 

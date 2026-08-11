@@ -44,7 +44,7 @@ record a cited keep, augment, compose, create, or reject decision.
 
 ## Acceptance Criteria
 
-- [ ] Matrix row count equals the source skill count.
+- [ ] Matrix skill IDs equal the TASK-019 normalized skill ID set.
 - [ ] Every retained idea has a pinned source citation.
 - [ ] Skills, agents, and commands are checked before creation.
 - [ ] SkillForge thresholds determine the route.
@@ -63,7 +63,7 @@ record a cited keep, augment, compose, create, or reject decision.
 ## Implementation Notes
 
 Consume `.agents/analysis/aspire-skill-source-files.json` from TASK-019 as the
-source count and path authority.
+skill ID, root directory, path, and hash authority.
 
 Likely mappings to verify:
 
