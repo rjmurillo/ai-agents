@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged PR #4878 code, required CI ratchet correction, and restored default-branch detection committed through 8fdad794d41e6d511c6111fe7787f25875e22223"
+        "Evidence": "Merged PR #4878 code, required CI ratchet correction, and restored default-branch detection committed through 90449dafd32b977ea01e449e28350969337d4c34"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "148 default-branch and push-pr tests, then 62 provenance and ratchet tests, passed. Generated artifact drift check, canonical mirror SHA256 comparison, ruff, and the taste-count ratchet passed."
+        "Evidence": "155 default-branch and push-pr tests, then 62 provenance and ratchet tests, passed. Generated artifact drift check, canonical mirror SHA256 comparison, and the taste-count ratchet passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -151,8 +151,12 @@
     {
       "action": "Restored default-branch detection after merge resolution",
       "result": "Commit 8fdad794d41e6d511c6111fe7787f25875e22223 restores full origin/HEAD detection, including the ambiguous remote-ref case. 148 push-pr tests, generated artifact drift, and canonical mirror SHA256 comparison passed."
+    },
+    {
+      "action": "Merged current origin/main and retained default-branch detection",
+      "result": "Commit 90449dafd32b977ea01e449e28350969337d4c34 keeps current main's split body-preparation architecture and restores default-branch detection. 155 push-pr tests, 62 provenance and ratchet tests, generated artifact drift, mirror SHA256 comparison, and the 581 of 583 taste-count ratchet passed."
     }
   ],
-  "endingCommit": "8fdad794d41e6d511c6111fe7787f25875e22223",
+  "endingCommit": "90449dafd32b977ea01e449e28350969337d4c34",
   "nextSteps": []
 }

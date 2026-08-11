@@ -1,19 +1,20 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection.json
-qaCommit: 8fdad794d41e6d511c6111fe7787f25875e22223
+qaCommit: 90449dafd32b977ea01e449e28350969337d4c34
 ---
 
 # QA Report: PR #4878, Issue #4843 Default Branch Detection
 
 **Date**: 2026-08-11
-**Commit**: 8fdad794d41e6d511c6111fe7787f25875e22223
+**Commit**: 90449dafd32b977ea01e449e28350969337d4c34
 **Worktree**: Isolated PR worktree
 
 ## Scope
 
-Validate default branch detection restored after merging current `origin/main`.
-Preserve the push-pr identity guard and CI taste-count gate.
+Validate default branch detection after merging current `origin/main`.
+Preserve the modular body-preparation path, push-pr identity guard, and CI
+taste-count gate.
 
 ### Requirements Verified
 
@@ -44,12 +45,13 @@ Preserve the push-pr identity guard and CI taste-count gate.
 
 ```text
 uv run pytest tests/test_new_pr_default_branch.py tests/test_new_pr_cli.py \
-  tests/test_new_pr_content_checks.py tests/test_new_pr_validation_base.py \
-  tests/test_new_pr_validations.py tests/test_new_pr_warning_reporting.py \
-  tests/test_new_validated_pr.py tests/test_push_pr_interpreter_floor.py -q
+  tests/test_new_pr_repository.py tests/test_new_pr_validations.py \
+  tests/test_new_pr_body_validation.py tests/test_new_pr_validator_contracts.py \
+  tests/test_new_validated_pr.py tests/test_prepare_pr_body.py \
+  tests/test_push_pr_interpreter_floor.py -q
 ```
 
-**Result**: 148 passed in 1.66s.
+**Result**: 155 passed in 1.75s.
 
 ```text
 uv run python build/scripts/build_all.py --check
@@ -57,7 +59,7 @@ uv run python build/scripts/build_all.py --check
 
 **Result**: Passed. Generated Copilot artifacts match canonical sources. The
 canonical and generated `new_pr.py` SHA256 values match:
-`80f9118b0be02b6f040851d110d0b6c28eaa58f6519a9ced04c10bf6835e3007`.
+`913a55ee2c0b748295e54f655f7ce42c9a25f6538ae41f3cac237be4954d6aff`.
 
 ### Post-merge CI gate
 
@@ -68,12 +70,10 @@ uv run pytest tests/ci/test_validate_vendor_provenance.py tests/ci/test_count_ra
 **Result**: 62 passed in 5.29s.
 
 ```text
-uv run ruff check scripts/ci/validate_vendor_provenance.py
 uv run python scripts/ci/taste_count_ratchet.py
 ```
 
-**Result**: Both passed. The taste count is 583, matching the tracked
-baseline.
+**Result**: Passed. The taste count is 581, below the tracked baseline of 583.
 
 ## Historical Validation Before Merge
 
@@ -168,16 +168,11 @@ Match: True
 
 | Metric | Value |
 |--------|-------|
-| Default-branch tests | 148 passed |
+| Push-pr regression tests | 155 passed |
 | Post-merge CI tests | 62 passed |
 | Failed | 0 |
 | Skipped | 0 |
-| Ruff violations | 0 |
-
-## Notes
-
-- Four pre-existing full-file Windows test failures documented in the parent transcript are unrelated to this change and not attributed here.
-- The `pytest-timeout` plugin is not installed in this environment; tests ran with `--override-ini='addopts='` to bypass the configured `--timeout=120`.
+| Taste count | 581 of 583 baseline |
 
 ## Verdict
 
