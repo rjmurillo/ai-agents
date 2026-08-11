@@ -561,6 +561,26 @@ def _workflow_jobs(wf_path: Path) -> list[str]:
     return [str(name) for name in jobs if isinstance(name, str)]
 
 
+def _pytest_matrix_entries(data: object) -> list[object]:
+    """Return the test job's explicit matrix entries."""
+    if not isinstance(data, dict):
+        return []
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+    test_job = jobs.get("test")
+    if not isinstance(test_job, dict):
+        return []
+    strategy = test_job.get("strategy")
+    if not isinstance(strategy, dict):
+        return []
+    matrix = strategy.get("matrix")
+    if not isinstance(matrix, dict):
+        return []
+    includes = matrix.get("include")
+    return includes if isinstance(includes, list) else []
+
+
 def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     """Run pytest matrix entries directly when already inside act."""
     stage = "gh act (local-fallback)"
@@ -575,14 +595,7 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
             data = yaml.safe_load((repo_root / rel).read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
             return StageResult(stage, False, f"{rel}: {type(exc).__name__}: {exc}")
-        jobs = data.get("jobs") if isinstance(data, dict) else None
-        test_job = jobs.get("test") if isinstance(jobs, dict) else None
-        strategy = test_job.get("strategy") if isinstance(test_job, dict) else None
-        matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
-        includes = matrix.get("include") if isinstance(matrix, dict) else None
-        if not isinstance(includes, list):
-            continue
-        for entry in includes:
+        for entry in _pytest_matrix_entries(data):
             pytest_args = entry.get("pytest_args") if isinstance(entry, dict) else None
             if not isinstance(pytest_args, str) or not pytest_args.strip():
                 continue
