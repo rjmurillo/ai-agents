@@ -610,6 +610,9 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     env = dict(os.environ)
     env.pop("ACT", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    plugin_root = str(repo_root / ".claude")
+    env["COPILOT_PLUGIN_ROOT"] = plugin_root
+    env["CLAUDE_PLUGIN_ROOT"] = plugin_root
     for command in commands:
         returncode, stdout, stderr = _run(
             command,
