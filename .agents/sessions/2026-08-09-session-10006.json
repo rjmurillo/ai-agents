@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The merge-refresh outcome remains preserved through commit f290faf92e3b68b774724a7fc08612a24492779a."
+        "Evidence": "The merge-refresh outcome remains preserved through commit d400dcff0739836270db64103666c9fdee6fbd69."
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,6 +140,6 @@
       "result": "31 targeted tests passed, Ruff passed, pre-PR validation passed, and independent Sol Critical/High review found no findings."
     }
   ],
-  "endingCommit": "f290faf92e3b68b774724a7fc08612a24492779a",
+  "endingCommit": "d400dcff0739836270db64103666c9fdee6fbd69",
   "nextSteps": []
 }
