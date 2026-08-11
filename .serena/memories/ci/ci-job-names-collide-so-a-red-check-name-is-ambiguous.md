@@ -6,7 +6,7 @@ Conventional reading: a failing check name tells you what broke. `gh pr checks`
 prints one name per row, so the name looks like an identifier.
 
 It is not. GitHub reports the **job name**, and job names are not unique across
-workflows in this repository. Eleven display names are shared by two or more job
+workflows in this repository. Twelve display names are shared by two or more job
 definitions.
 
 ## The case that costs the most
