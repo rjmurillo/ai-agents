@@ -197,6 +197,6 @@
       "result": "validate_session_json.py passed again after rebinding QA reports to content commit 5c1e376ef124207f7c65a97f40ac189e3b81a606."
     }
   ],
-  "endingCommit": "5c1e376ef124207f7c65a97f40ac189e3b81a606",
+  "endingCommit": "2dda843e7bc7c88735516524e072bbc025b166b5",
   "nextSteps": []
 }
