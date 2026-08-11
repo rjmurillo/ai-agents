@@ -91,6 +91,19 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T11:55:37+00:00",
+      "type": "commit",
+      "content": "Commit: a45125f610e280faca349c1af304e09d0c01af00",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
     }
@@ -100,8 +113,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 7
   },
   "lessons": []
 }
