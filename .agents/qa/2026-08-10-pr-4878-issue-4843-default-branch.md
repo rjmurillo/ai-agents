@@ -1,19 +1,19 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection.json
-qaCommit: 89d586d49106d864ba40f75b8c759cec8f544614
+qaCommit: 33074b1f83b928ad263df3113bf90a7cbd851a16
 ---
 
 # QA Report: PR #4878, Issue #4843 Default Branch Detection
 
 **Date**: 2026-08-11
-**Commit**: 89d586d49106d864ba40f75b8c759cec8f544614
+**Commit**: 33074b1f83b928ad263df3113bf90a7cbd851a16
 **Worktree**: Isolated PR worktree
 
 ## Scope
 
 Validate default branch detection after merging current `origin/main`. Preserve
-the default-branch behavior and the push-pr identity guard.
+the default-branch behavior, push-pr identity guard, and CI taste-count gate.
 
 ### Requirements Verified
 
@@ -33,6 +33,8 @@ the default-branch behavior and the push-pr identity guard.
 - `src/copilot-cli/skills/github/scripts/pr/new_pr.py` -- generated mirror (identical)
 - `tests/test_new_pr.py` -- 13 new tests in `TestDetectDefaultBranch`, 2 orchestration tests
 - `tests/test_new_validated_pr.py` -- 2 updated, 1 renamed test
+- `scripts/ci/validate_vendor_provenance.py` -- documented its cohesive
+  trust-boundary exemption to restore the CI taste-count ratchet
 
 ## Current Validation
 
@@ -49,6 +51,22 @@ uv run python build/scripts/build_all.py --check
 ```
 
 **Result**: Passed. Generated Copilot artifacts match canonical sources.
+
+### Post-merge CI gate
+
+```text
+uv run pytest tests/ci/test_validate_vendor_provenance.py tests/ci/test_count_ratchet_against_real_git.py -q
+```
+
+**Result**: 62 passed in 5.29s.
+
+```text
+uv run ruff check scripts/ci/validate_vendor_provenance.py
+uv run python scripts/ci/taste_count_ratchet.py
+```
+
+**Result**: Both passed. The taste count is 583, matching the tracked
+baseline.
 
 ## Historical Validation Before Merge
 
@@ -143,8 +161,8 @@ Match: True
 
 | Metric | Value |
 |--------|-------|
-| Current tests run | 1,081 |
-| Passed | 1,081 |
+| Default-branch tests | 1,081 passed |
+| Post-merge CI tests | 62 passed |
 | Failed | 0 |
 | Skipped | 0 |
 | Ruff violations | 0 |

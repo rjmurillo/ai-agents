@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged PR #4878 code committed at 89d586d49106d864ba40f75b8c759cec8f544614"
+        "Evidence": "Merged PR #4878 code and the required CI ratchet correction committed at 33074b1f83b928ad263df3113bf90a7cbd851a16"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1,081 targeted push-pr guard and default-branch tests passed. Generated artifact drift check passed."
+        "Evidence": "1,081 targeted push-pr guard and default-branch tests, then 62 provenance and ratchet tests, passed. Generated artifact drift check, ruff, and the taste-count ratchet passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -143,8 +143,12 @@
     {
       "action": "Revalidated the merged PR",
       "result": "Commit 89d586d49106d864ba40f75b8c759cec8f544614 passed 1,081 targeted push-pr guard and default-branch tests. Generated artifact drift check passed."
+    },
+    {
+      "action": "Restored the CI taste-count ratchet after merging current main",
+      "result": "Commit 33074b1f83b928ad263df3113bf90a7cbd851a16 documents the cohesive provenance validator exemption. 62 provenance and ratchet tests, ruff, and the 583-count ratchet passed."
     }
   ],
-  "endingCommit": "89d586d49106d864ba40f75b8c759cec8f544614",
+  "endingCommit": "33074b1f83b928ad263df3113bf90a7cbd851a16",
   "nextSteps": []
 }
