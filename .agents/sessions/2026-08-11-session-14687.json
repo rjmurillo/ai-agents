@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence and regression-alignment follow-up commits now land through f290faf92e3b68b774724a7fc08612a24492779a."
+        "Evidence": "QA evidence and regression-alignment follow-up commits now land through d400dcff0739836270db64103666c9fdee6fbd69."
       },
       "validationPassed": {
         "level": "MUST",
@@ -127,7 +127,7 @@
     {
       "step": 2,
       "action": "Read HANDOFF, usage-mandatory, and project constraints references and completed the PR #4543 QA refresh session log.",
-      "result": "Recorded required session-start and session-end evidence, then refreshed the QA bindings through f290faf92e3b68b774724a7fc08612a24492779a."
+      "result": "Recorded required session-start and session-end evidence, then refreshed the QA bindings through d400dcff0739836270db64103666c9fdee6fbd69."
     },
     {
       "step": 3,
@@ -135,6 +135,6 @@
       "result": "The refreshed QA report still targets the merge-resolution scope; session validation prerequisites now reflect the completed QA-evidence session."
     }
   ],
-  "endingCommit": "f290faf92e3b68b774724a7fc08612a24492779a",
+  "endingCommit": "d400dcff0739836270db64103666c9fdee6fbd69",
   "nextSteps": []
 }
