@@ -9,19 +9,16 @@ Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
 will actually see, and the fix.
 
-`AGENTS.md` is budget-capped because it is injected into every session. Two
-byte gates disagree: `tests/test_workspace_limits.py` allows 3072 per file,
-`scripts/validate_workspace_budget.py` allows 3000. **Write to 3000.** The
-stricter gate binds, and a file between the two passes one and fails the other
-(Refs #3951). These entries live here instead so detail is not paid for on
-every turn. `AGENTS.md` points at this file from its Retrieval section, and
-`.github/copilot-instructions.md` points at it from its Gotchas section.
+`AGENTS.md` is budget-capped because it is injected into every session.
+`tests/test_workspace_limits.py` imports the same constants as
+`scripts/validate_workspace_budget.py`, so one 4800-byte per-file ceiling and
+one 6100-byte shared pool bind both checks (Refs #3951, #4880). These entries
+live here instead so detail is not paid for on every turn. `AGENTS.md` points
+at this file from its Retrieval section, and Copilot loads `AGENTS.md`.
 
 `.github/copilot-instructions.md` is injected into every Copilot session too,
-at roughly twice that per-file budget, and **no gate measures it**: the
-workspace budget covers only `CLAUDE.md`, `AGENTS.md`, and `.claude/CLAUDE.md`,
-and `instruction_budget.py` covers only `.github/instructions/*.instructions.md`.
-New always-on guidance therefore belongs here, not there (Refs #3991).
+with its own 1400-byte ratchet in the workspace budget. New shared guidance
+belongs here, not in a harness overlay (Refs #3991, #4880).
 
 ## Four portability checkers exist and their names do not tell you the scope
 

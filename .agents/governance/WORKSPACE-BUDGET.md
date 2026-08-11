@@ -1,21 +1,22 @@
 # Workspace Budget
 
 Non-obvious facts about the workspace byte-gate that save debugging time.
-Split out of `GOTCHAS.md` to keep that file under the 500-line taste ceiling.
+Split out of `GOTCHAS.md` so byte-gate detail stays independently retrievable.
 
 ## Byte-gate ceilings (always-on files)
 
-These files are measured by `scripts/validate_workspace_budget.py` on every CI
-run. Each file has a ceiling. Exceeding it blocks the push.
+These files are measured by `scripts/validate_workspace_budget.py` when root
+instruction files or the validator change. Each file has a ceiling. Exceeding
+it fails the required validation.
 
 | File | Ceiling | Ratchet? | Notes |
 |---|---|---|---|
-| `AGENTS.md` | 3000 bytes | no | Standard; 2999 bytes as of 2025-07-30 (one byte of headroom) |
-| `CLAUDE.md` | 3000 bytes | no | Standard |
-| `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
-| `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
+| `AGENTS.md` | 4800 bytes | no | Shared gotchas and routing; 4721 bytes accepted by issue #4880 |
+| `CLAUDE.md` | 4800 bytes | no | Claude-specific overlay |
+| `.claude/CLAUDE.md` | 4800 bytes | no | Path-local Claude overlay |
+| `.github/copilot-instructions.md` | 1400 bytes | yes | Copilot-specific overlay; 1294 bytes accepted by issue #4880 |
 
-**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES = 6600`.
+**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES = 6100`.
 Files with a ratchet are measured only by their individual ceiling.
 
 **To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
@@ -24,7 +25,7 @@ a ceiling without recording the reason in the same change.
 
 ## The shared total only covers standard files
 
-`TOTAL_BUDGET_BYTES = 6600` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
+`TOTAL_BUDGET_BYTES = 6100` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
 only. Adding a ratchet file to that sum would yield a meaningless constraint
 because the ratchet file already has its own ceiling.
 

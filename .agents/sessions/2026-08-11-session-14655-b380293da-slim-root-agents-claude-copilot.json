@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Task changes committed through 589d315b27; final fixture commit pending"
+        "Evidence": "Task changes committed through 7a1e6e3cf5; final governance commit pending"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,9 +139,13 @@
     {
       "task": "Resolve full review findings",
       "outcome": "Wired root paths into CI, corrected Copilot /agent routing and conditional issue handoffs, retired the duplicate token validator, and added a per-issue handoff."
+    },
+    {
+      "task": "Rebuild on current main",
+      "outcome": "Recreated the final diff on origin/main after concurrent hook-policy merges and completed the full 27,056-test suite."
     }
   ],
-  "endingCommit": "589d315b27",
+  "endingCommit": "7a1e6e3cf5",
   "nextSteps": [
     "Review and merge the root entrypoint PR.",
     "Add passive-loading fixtures to issue 4853.",
