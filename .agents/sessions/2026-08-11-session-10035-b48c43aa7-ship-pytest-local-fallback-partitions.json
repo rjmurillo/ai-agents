@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "95ec5cd9808cdfb4967b809af3f3601a778e4492"
+        "Evidence": "74362e2a20069136702b533c72a80f593ad80e6c"
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,9 +151,12 @@
     },
     {
       "entry": "CodeQL alerts 150 and 151 found secret metadata flowing to text and JSON logs. Removed missing secret names and workflow paths from output at 95ec5cd9808cdfb4967b809af3f3601a778e4492."
+    },
+    {
+      "entry": "Moved the duplicate-run guard into the focused pytest policy file. The final branch has no diff in tests/test_lefthook_integration.py, avoiding repeated Semgrep timeouts."
     }
   ],
-  "endingCommit": "95ec5cd9808cdfb4967b809af3f3601a778e4492",
+  "endingCommit": "74362e2a20069136702b533c72a80f593ad80e6c",
   "nextSteps": [
     "Update PR #4872 with the final parent commits.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."

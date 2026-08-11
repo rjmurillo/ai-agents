@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions.json
-qaCommit: 95ec5cd9808cdfb4967b809af3f3601a778e4492
+qaCommit: 74362e2a20069136702b533c72a80f593ad80e6c
 ---
 
 # QA Report: PR 4872 local pytest loop
@@ -33,6 +33,7 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
   runs once and the dedicated pytest hook owns runtime execution.
 - Workflow-local routing tests: 6 passed, 809 deselected in 1.03 seconds.
 - Text and JSON output omit missing secret names and affected workflow paths.
+- Focused pytest policy file: 38 passed in 0.79 seconds.
 - Child workers receive checkout-local `COPILOT_PLUGIN_ROOT` and
   `CLAUDE_PLUGIN_ROOT` values.
 - Real pre-push pytest gate: 325.73 seconds total.
