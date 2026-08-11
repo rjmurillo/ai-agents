@@ -40,6 +40,7 @@
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context calibration: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
+|portability single traversal scan_all extra scan roots files_by_root marker counts coverage gate baseline: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (167)
 |portability descendant symlink file directory escape repo root containment validator CWE-22 tracked coverage: [validation/descendant-symlink-portability-containment](validation/descendant-symlink-portability-containment.md) (210)
 |eval harness enumerate scripts naming underscore hyphen glob baseline no-skill control arm fixtures: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
@@ -87,6 +88,7 @@
 [CI/CD and Workflows]
 |local passes CI fails same commit gitignored build output untracked working tree existence baseline unreproducible ratchet machine-dependent merge ref worktree: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
+|mutation harness restore failure truncate empty target sibling replace scratch pycache: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (845)
 |taste count ratchet pre-push cost twelve minutes python-tests push lock queue file-size split not suppress run ratchets first: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (714)

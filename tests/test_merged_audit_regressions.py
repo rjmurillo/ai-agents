@@ -86,4 +86,3 @@ def test_gate_main():
 '''
 
     assert covered_stems(source, frozenset({"fake_gate"})) == {"fake_gate"}
-
