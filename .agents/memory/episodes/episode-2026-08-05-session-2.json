@@ -117,7 +117,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e011"
+      ],
       "_source_session": "2026-08-05-session-2"
     },
     {
@@ -132,10 +134,21 @@
         "e009"
       ],
       "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T11:55:00+00:00",
+      "type": "milestone",
+      "content": "Captured the PR #4637 CI retrospective after the guarded push exposed inherited moving-base hook failures. Tagged the existing Serena memory instead of creating a duplicate learning.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-2"
     }
   ],
   "metrics": {
-    "duration_minutes": 8855,
+    "duration_minutes": 8912,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

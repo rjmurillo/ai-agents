@@ -114,7 +114,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Not invoked; no new durable learning beyond issue 4597 implementation."
+        "Evidence": ".agents/retrospective/2026-08-11-pr-4637-ci-autofix.md captures the bound-base attribution learning and deduplicates it against existing Serena memory."
       }
     }
   },
@@ -150,6 +150,10 @@
     {
       "timestamp": "2026-08-11T03:58:00-07:00",
       "entry": "Ran taste_count_ratchet.py --update against the bound base; the measured count improved from 583 to 580. Committed the lowered baseline as eb0d27ef499de452951e0adcca57160567617d64 and completed focused lint, type, ratchet, ai-review, corpus, and spec-pipeline validation."
+    },
+    {
+      "timestamp": "2026-08-11T04:55:00-07:00",
+      "entry": "Captured the PR #4637 CI retrospective after the guarded push exposed inherited moving-base hook failures. Tagged the existing Serena memory instead of creating a duplicate learning."
     }
   ],
   "endingCommit": "eb0d27ef499de452951e0adcca57160567617d64",
