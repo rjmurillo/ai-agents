@@ -116,7 +116,7 @@
       "result": "All required GitHub checks passed. All nine review threads were resolved. The completion gate remained blocked because mergeStateStatus was BLOCKED and reviewDecision was empty."
     }
   ],
-  "endingCommit": "573c81888894aea4f17c26a3254e3756c9ec6205",
+  "endingCommit": "084bc0cef05ea0391d156b028a220946709d32fb",
   "nextSteps": [
     "Obtain the required approval decision, rerun the completion gate, and squash merge only after all four conditions pass."
   ],
@@ -125,7 +125,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "4d3ad1749d666048d6ee44e13aad117845701661",
-      "head": "573c81888894aea4f17c26a3254e3756c9ec6205"
+      "head": "084bc0cef05ea0391d156b028a220946709d32fb"
     }
   }
 }
