@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4691-merge-group-readiness-qa-report.md"
+        "Evidence": ".agents/qa/pr-4869-issue-4691-merge-group-readiness-qa-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
