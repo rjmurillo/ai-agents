@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-11-session-14654.json
+qaSessionLog: .agents/sessions/2026-08-11-session-14691-issue-4691-merge-group-readiness.json
 qaCommit: 14bb9fd423a86bac47acda45a291740137a5372f
 ---
 
