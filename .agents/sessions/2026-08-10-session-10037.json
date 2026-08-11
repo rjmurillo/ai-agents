@@ -178,9 +178,13 @@
     {
       "action": "Fixed post-merge cross-platform type checking",
       "result": "Added typed protocols for dynamically imported msvcrt and ctypes APIs; focused mypy passed and three hook publish-metadata tests passed."
+    },
+    {
+      "action": "Merged the lowered Ruff ratchet from current main",
+      "result": "Merged main at 56a59ef228c48757250c76ec61714f5cfe85614b; the ratchet passed, 161 focused tests passed, and focused mypy remained clean."
     }
   ],
-  "endingCommit": "5b93e19aa630deb1e09602ab419419934f1d5e86",
+  "endingCommit": "553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]

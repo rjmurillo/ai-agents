@@ -104,7 +104,8 @@
         "e017",
         "e019",
         "e020",
-        "e022"
+        "e022",
+        "e024"
       ],
       "leads_to": [
         "e009"
@@ -285,6 +286,30 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged the lowered Ruff ratchet from current main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-11T11:04:45+00:00",
+      "type": "commit",
+      "content": "Commit: 553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63",
+      "caused_by": [
+        "e023"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10037"
     }
@@ -294,7 +319,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 14
   },
   "lessons": []

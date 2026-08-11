@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10037.json
-qaCommit: 5b93e19aa630deb1e09602ab419419934f1d5e86
+qaCommit: 553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63
 ---
 # PR #4793 required-check rename and pr-autofix validation
 
@@ -25,8 +25,9 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 - The flaky delayed-child case passed 50/50 parametrized repetitions under xdist after the fixture synchronized lease loss with mutation startup.
 - `uv run --frozen --extra dev mypy build/scripts/generate_hooks_transaction.py`: no issues after making platform-specific modules explicit protocols.
 - `uv run pytest tests/build_scripts/test_generate_hooks_publish_metadata.py -q`: 3 passed.
+- After merging `origin/main` at `56a59ef228c48757250c76ec61714f5cfe85614b`, the combined focused suite passed 161 tests and the Ruff count ratchet passed.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
-- QA content is bound to `5b93e19aa630deb1e09602ab419419934f1d5e86`.
+- QA content is bound to `553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63`.
 
 ## Thread disposition
 
