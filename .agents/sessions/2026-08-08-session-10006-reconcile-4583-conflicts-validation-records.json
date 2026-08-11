@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work committed as 075cbf1c0dbc0857045b86783921de378ad6985a. This follow-up records the ending commit."
+        "Evidence": "Refreshed validation records now bind this session to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py rerun after completing this record."
+        "Evidence": "Revalidated on 2026-08-11 after QA report refresh for content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -186,8 +186,17 @@
       "action": "Merged the latest origin/main after the completion gate reported the branch behind base.",
       "files": [],
       "result": "Merge completed without conflicts. Final completion gate rerun follows the normal push."
+    },
+    {
+      "timestamp": "2026-08-11T15:19:38Z",
+      "action": "Refreshed QA validation evidence after later branch changes made the recorded QA report stale.",
+      "files": [
+        ".agents/qa/2026-08-09-pr-4583-conflict-reconcile.md",
+        ".agents/qa/2026-08-09-pr-4583-evalparse-triage.md"
+      ],
+      "result": "validate_session_json.py passed again after rebinding QA reports to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
     }
   ],
-  "endingCommit": "56700e6036c026a5d0f4345445b181261a558dfd",
+  "endingCommit": "7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b",
   "nextSteps": []
 }

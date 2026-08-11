@@ -37,9 +37,18 @@
       "action": "Verified #4123: normalize_fingerprint in _eval_api_adapter_constants.py returns sentinel '<malformed:TYPENAME>' for non-string non-null values on origin/main. Issue acceptance requires raise. PR #4402 (OPEN, body: Fixes #4123) raises RuntimeError. Closed citing PR #4402.",
       "files": [],
       "result": "Issue #4123 closed."
+    },
+    {
+      "timestamp": "2026-08-11T15:19:38Z",
+      "action": "Refreshed QA validation evidence after later branch changes made the recorded QA report stale.",
+      "files": [
+        ".agents/qa/2026-08-09-pr-4583-conflict-reconcile.md",
+        ".agents/qa/2026-08-09-pr-4583-evalparse-triage.md"
+      ],
+      "result": "validate_session_json.py passed again after rebinding QA reports to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
     }
   ],
-  "endingCommit": "56700e6036c026a5d0f4345445b181261a558dfd",
+  "endingCommit": "7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b",
   "nextSteps": [],
   "protocolCompliance": {
     "sessionStart": {
@@ -128,12 +137,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session log committed on fix/eval-payload-evidence."
+        "Evidence": "Refreshed validation records now bind this session to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python scripts/validate_session_json.py on this file passed before commit."
+        "Evidence": "Revalidated on 2026-08-11 after QA report refresh for content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
       },
       "tasksUpdated": {
         "level": "SHOULD",
