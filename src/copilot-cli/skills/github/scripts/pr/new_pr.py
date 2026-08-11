@@ -89,6 +89,51 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
     r"(\(.+\))?!?: .+"
 )
+_DEFAULT_BASE_CANDIDATES = ("main", "master", "dev")
+
+
+def _git_ref_exists(repo_root: str, ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "show-ref", "--verify", "--quiet", ref],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    return result.returncode == 0
+
+
+def _detect_default_branch(repo_root: str) -> str:
+    """Return the valid origin default branch, then known fallbacks, else main."""
+    if not (Path(repo_root) / ".git").exists():
+        return "main"
+
+    result = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    remote_prefix = "refs/remotes/origin/"
+    remote_head = result.stdout.strip()
+    if result.returncode == 0 and remote_head.startswith(remote_prefix):
+        branch = remote_head.removeprefix(remote_prefix)
+        if branch and _git_ref_exists(repo_root, f"{remote_prefix}{branch}"):
+            return branch
+
+    for prefix in ("refs/remotes/origin", "refs/heads"):
+        for branch in _DEFAULT_BASE_CANDIDATES:
+            if _git_ref_exists(repo_root, f"{prefix}/{branch}"):
+                return branch
+
+    return "main"
 
 
 def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
@@ -219,7 +264,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title", required=True, help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
-    parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--base",
+        default="",
+        help="Target branch (default: repository default branch)",
+    )
     parser.add_argument(
         "--validation-base",
         default="",
@@ -245,6 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = get_repo_root()
+    args.base = args.base or _detect_default_branch(repo_root)
 
     # Require gh CLI
     gh_check = subprocess.run(
