@@ -338,7 +338,7 @@ class TestReflogWarning:
     def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
         reason = self._reason([f"{i:040x}" for i in range(7)])
         assert reason.count(f"git -C {MAIN} branch gc-rescue-") == 3
-        assert "and 4 more" in reason
+        assert "4 more are named under" in reason
 
     def test_both_warnings_appear_when_index_and_reflog_are_both_at_risk(self):
         reason = self._reason(["b" * 40], staged="staged")

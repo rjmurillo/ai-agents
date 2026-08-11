@@ -136,7 +136,22 @@ class TestAdminAnchorWarning:
     def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
         reason = self._reason([f"{i:040x}" for i in range(7)])
         assert reason.count(f"git -C {MAIN} branch gc-rescue-") == 3
-        assert "and 4 more" in reason
+        assert "4 more are named under" in reason
+
+    def test_the_count_of_the_rest_is_delimited_out_of_the_rescue_chain(self):
+        """A reader copies to the ``" | "``, so the count must sit behind it.
+
+        Appended directly the note ran into the last SHA, and the slice a reader
+        pastes ended ``... <sha> (and 4 more, ...)``, which a shell rejects on
+        the unescaped ``(`` before creating any rescue branch. The runnable
+        chain and the sentence describing what is still at risk are separated
+        the same way the staged-work rescue separates its own prose.
+        """
+        reason = self._reason([f"{i:040x}" for i in range(7)])
+        chain = reason[reason.index(f"git -C {MAIN} branch") :].split(" | ")[0]
+        assert chain.count("git -C") == 3
+        assert "more are named under" not in chain
+        assert "(" not in chain and ")" not in chain
 
     def test_both_warnings_appear_when_index_and_admin_dir_are_both_at_risk(self):
         reason = self._reason(["b" * 40], staged="staged")

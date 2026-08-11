@@ -167,12 +167,20 @@ def _admin_warning(admin: Path, main_path: str) -> str:
     # outside any repository while reading as the printed rescue.
     repo = shlex.quote(main_path)
     rescues = " && ".join(f"git -C {repo} branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
+    # Delimited with " | " rather than appended, the same way the staged-work
+    # rescue separates its command from its prose. A reader copies from the
+    # start of the chain to that delimiter, so text appended directly rides into
+    # what they paste. Measured on the four-orphan case: with the note appended,
+    # ``bash -c`` on the copied slice exits 2 with ``syntax error near
+    # unexpected token `('`` and creates no rescue branch, so the sentence
+    # counting the commits still at risk was what stopped the first three from
+    # being rescued.
     more = (
         ""
         if len(orphans) <= 3
         else (
-            f" (and {len(orphans) - 3} more, named under "
-            f"{shlex.quote(str(admin))}, which the removal deletes)"
+            f" | {len(orphans) - 3} more are named under "
+            f"{shlex.quote(str(admin))}, which the removal deletes"
         )
     )
     return (

@@ -607,3 +607,61 @@ def test_an_admin_record_overwritten_by_a_file_is_not_an_empty_one(
     assert isinstance(reason, str)
     assert decision["remove"] is False
     assert "admin directory could not be read" in reason, reason
+
+
+def test_the_rescue_chain_stays_runnable_when_more_orphans_are_counted_after_it(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """Past three orphans the reason gains prose, and the paste must survive it.
+
+    The rescue chain prints the first three commits and then says how many more
+    the admin directory holds. Appended straight onto the last SHA that sentence
+    became part of what a reader copies, and ``bash`` rejects the unescaped
+    ``(`` before running a single rescue, so the note about the commits still at
+    risk was what stopped the first three from being saved. Five orphans is the
+    smallest build that produces both halves, and running the slice is the only
+    assertion that can tell a delimiter from a decoration.
+    """
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    worktree = git_sandbox.root / "many-orphans-outside-cwd"
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    orphans = []
+    for index in range(5):
+        write_and_commit(worktree, f"orphan{index}.txt", f"abandoned {index}\n", f"orphan {index}")
+        orphans.append(git(worktree, "rev-parse", "HEAD").stdout.strip())
+        git(worktree, "checkout", "--detach", head)
+    shutil.rmtree(worktree)
+
+    for orphan in orphans:
+        assert git(git_sandbox.main, "for-each-ref", "--contains", orphan).stdout == ""
+
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert "2 more are named under" in reason, reason
+    command = command_of(reason, "git -C ")
+    assert "more are named under" not in command, command
+
+    outside = _cwd_outside_any_repository(tmp_path)
+    result = subprocess.run(
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
+        cwd=outside,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert result.returncode == 0, result.stderr
+    rescued = [
+        orphan
+        for orphan in orphans
+        if git(
+            git_sandbox.main, "rev-parse", "--verify", f"gc-rescue-{orphan}", check=False
+        ).returncode
+        == 0
+    ]
+    assert len(rescued) == 3, rescued
