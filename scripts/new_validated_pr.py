@@ -40,7 +40,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
-    parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--base",
+        default="",
+        help=(
+            "Target branch (default: detected by the PR creation skill from "
+            "origin/HEAD, then existing remote/local main, master, or dev, "
+            "else main)"
+        ),
+    )
     parser.add_argument("--head", default="", help="Source branch (default: current)")
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument(
@@ -69,10 +77,14 @@ def _run_web_mode(base: str) -> int:
 def _build_skill_args(skill_script: Path, args: argparse.Namespace) -> list[str]:
     """Translate this wrapper's flags into the target script's command line."""
     skill_args = [
-        sys.executable, str(skill_script),
-        "--title", args.title, "--base", args.base,
+        sys.executable,
+        str(skill_script),
+        "--title",
+        args.title,
     ]
 
+    if args.base:
+        skill_args.extend(["--base", args.base])
     if args.head:
         skill_args.extend(["--head", args.head])
     if args.body:

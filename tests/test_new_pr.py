@@ -39,6 +39,7 @@ validate_conventional_commit = _mod.validate_conventional_commit
 get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
+_detect_default_branch = _mod._detect_default_branch
 _resolve_validation_base = _mod._resolve_validation_base
 _UNTRUSTED_REPOSITORY_VALIDATORS = _mod._UNTRUSTED_REPOSITORY_VALIDATORS
 
@@ -173,6 +174,10 @@ class TestBuildParser:
         ])
         assert args.skip_validation is True
         assert args.audit_reason == "emergency"
+
+    def test_base_defaults_to_auto_detection(self):
+        args = build_parser().parse_args(["--title", "fix: bug"])
+        assert args.base == ""
 
 
 # ---------------------------------------------------------------------------
@@ -1245,6 +1250,163 @@ class TestValidation6EscapedNewlineCheck:
 
 
 # ---------------------------------------------------------------------------
+# Tests: _detect_default_branch (issue #4843)
+# ---------------------------------------------------------------------------
+
+
+class TestDetectDefaultBranch:
+    @staticmethod
+    def _git_repo(tmp_path: Path) -> Path:
+        (tmp_path / ".git").mkdir()
+        return tmp_path
+
+    @staticmethod
+    def _run_git(repo: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return result.stdout.strip()
+
+    def test_real_git_validates_origin_head_target(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        self._run_git(repo, "init", "--initial-branch=main")
+        self._run_git(repo, "config", "user.name", "Issue 4843 Test")
+        self._run_git(repo, "config", "user.email", "issue-4843@example.invalid")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        self._run_git(repo, "add", "README.md")
+        self._run_git(repo, "commit", "-m", "base")
+        head = self._run_git(repo, "rev-parse", "HEAD")
+        self._run_git(repo, "update-ref", "refs/remotes/origin/master", head)
+        self._run_git(
+            repo,
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/master",
+        )
+
+        assert _detect_default_branch(str(repo)) == "master"
+
+        self._run_git(repo, "update-ref", "-d", "refs/remotes/origin/master")
+        assert _detect_default_branch(str(repo)) == "main"
+
+    def test_uses_origin_head(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if argv == [
+                "git", "symbolic-ref", "--quiet", "--short",
+                "refs/remotes/origin/HEAD",
+            ]:
+                return _completed(stdout="origin/master\n")
+            if argv[-1] == "refs/remotes/origin/master":
+                return _completed(rc=0)
+            raise AssertionError(f"unexpected command: {argv}")
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == "master"
+
+    def test_preserves_slashes_in_origin_head_branch(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+        result = _completed(stdout="origin/release/v2\n")
+
+        with patch("subprocess.run", return_value=result):
+            assert _detect_default_branch(str(repo)) == "release/v2"
+
+    def test_dangling_origin_head_uses_existing_fallback(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if argv[:2] == ["git", "symbolic-ref"]:
+                return _completed(stdout="origin/missing\n")
+            if argv[-1] == "refs/heads/main":
+                return _completed(rc=0)
+            return _completed(rc=1)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == "main"
+
+    def test_falls_back_to_existing_remote_candidate(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if argv[:2] == ["git", "symbolic-ref"]:
+                return _completed(rc=1)
+            if argv[-1] == "refs/remotes/origin/master":
+                return _completed(rc=0)
+            return _completed(rc=1)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == "master"
+
+    def test_remote_candidate_precedes_local_candidate(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if argv[:2] == ["git", "symbolic-ref"]:
+                return _completed(rc=1)
+            if argv[-1] in {"refs/remotes/origin/dev", "refs/heads/main"}:
+                return _completed(rc=0)
+            return _completed(rc=1)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == "dev"
+
+    @pytest.mark.parametrize(
+        ("prefix", "existing", "expected"),
+        [
+            ("refs/remotes/origin", {"main", "master", "dev"}, "main"),
+            ("refs/remotes/origin", {"master", "dev"}, "master"),
+            ("refs/heads", {"main", "master", "dev"}, "main"),
+            ("refs/heads", {"master", "dev"}, "master"),
+        ],
+    )
+    def test_known_candidate_priority(self, tmp_path, prefix, existing, expected):
+        repo = self._git_repo(tmp_path)
+        existing_refs = {f"{prefix}/{branch}" for branch in existing}
+
+        def fake_run(argv, **_kwargs):
+            if argv[:2] == ["git", "symbolic-ref"]:
+                return _completed(rc=1)
+            if argv[-1] in existing_refs:
+                return _completed(rc=0)
+            return _completed(rc=1)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == expected
+
+    def test_falls_back_to_existing_local_candidate(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if argv[:2] == ["git", "symbolic-ref"]:
+                return _completed(rc=1)
+            if argv[-1] == "refs/heads/master":
+                return _completed(rc=0)
+            return _completed(rc=1)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            assert _detect_default_branch(str(repo)) == "master"
+
+    def test_falls_back_to_main_when_no_known_ref_exists(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+
+        with patch("subprocess.run", return_value=_completed(rc=1)):
+            assert _detect_default_branch(str(repo)) == "main"
+
+    def test_falls_back_to_main_outside_git_repository(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            assert _detect_default_branch(str(tmp_path)) == "main"
+        mock_run.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Tests: _resolve_validation_base (issues #4461, #4489)
 # ---------------------------------------------------------------------------
 
@@ -1310,13 +1472,40 @@ class TestMainUsesResolvedValidationBase:
         calls = self._base_calls()
         calls.append(_completed(rc=0))  # gh pr create
 
-        with patch("subprocess.run", side_effect=calls):
-            with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
-                with patch.object(_mod, "run_validations") as mock_val:
-                    main(["--title", "feat: test", "--base", "main"])
+        with patch.object(_mod, "_detect_default_branch") as mock_detect:
+            with patch("subprocess.run", side_effect=calls):
+                with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                    with patch.object(_mod, "run_validations") as mock_val:
+                        main(["--title", "feat: test", "--base", "main"])
 
         mock_val.assert_called_once()
         assert mock_val.call_args[0][1] == "origin/main"
+        mock_detect.assert_not_called()
+
+    def test_omitted_base_uses_detected_branch_for_validation_and_github(self, tmp_path):
+        captured: list[list[str]] = []
+
+        def fake_run(argv, **_kwargs):
+            if argv == ["gh", "--version"]:
+                return _completed(rc=0)
+            if argv == ["git", "branch", "--show-current"]:
+                return _completed(stdout="feat/x\n")
+            if argv == ["git", "rev-parse", "--verify", "origin/master"]:
+                return _completed(rc=0)
+            if argv[:3] == ["gh", "pr", "create"]:
+                captured.append(list(argv))
+                return _completed(rc=0)
+            raise AssertionError(f"unexpected command: {argv}")
+
+        with patch.object(_mod, "_detect_default_branch", return_value="master"):
+            with patch("subprocess.run", side_effect=fake_run):
+                with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                    with patch.object(_mod, "run_validations") as mock_val:
+                        assert main(["--title", "fix: test"]) == 0
+
+        mock_val.assert_called_once()
+        assert mock_val.call_args[0][1] == "origin/master"
+        assert captured[-1][captured[-1].index("--base") + 1] == "master"
 
     def test_gh_pr_create_still_receives_bare_base(self, tmp_path):
         """gh pr create --base always gets the bare branch name, not origin/main."""

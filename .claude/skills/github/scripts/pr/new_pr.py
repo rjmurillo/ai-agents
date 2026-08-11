@@ -82,6 +82,57 @@ _DASH_RE = re.compile("[\u2013\u2014]")
 # strategy as _DASH_RE above). A local constant avoids the cross-package
 # import path resolution the _DASH_RE comment documents rejecting.
 _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
+_DEFAULT_BASE_CANDIDATES = ("main", "master", "dev")
+
+
+def _git_ref_exists(repo_root: str, ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "show-ref", "--verify", "--quiet", ref],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    return result.returncode == 0
+
+
+def _detect_default_branch(repo_root: str) -> str:
+    """Return origin/HEAD, then a known remote or local branch, else main."""
+    if not (Path(repo_root) / ".git").exists():
+        return "main"
+
+    result = subprocess.run(
+        [
+            "git",
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "refs/remotes/origin/HEAD",
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    remote_head = result.stdout.strip()
+    if result.returncode == 0 and remote_head.startswith("origin/"):
+        branch = remote_head.removeprefix("origin/")
+        if branch and _git_ref_exists(repo_root, f"refs/remotes/origin/{branch}"):
+            return branch
+
+    ref_prefixes = ("refs/remotes/origin", "refs/heads")
+    for prefix in ref_prefixes:
+        for branch in _DEFAULT_BASE_CANDIDATES:
+            if _git_ref_exists(repo_root, f"{prefix}/{branch}"):
+                return branch
+
+    return "main"
 
 
 def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
@@ -454,7 +505,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--title", required=True, help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
-    parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--base",
+        default="",
+        help=(
+            "Target branch (default: origin/HEAD, then existing remote/local "
+            "main, master, or dev, else main)"
+        ),
+    )
     parser.add_argument(
         "--validation-base",
         default="",
@@ -480,6 +538,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = get_repo_root()
+    args.base = args.base or _detect_default_branch(repo_root)
 
     # Require gh CLI
     gh_check = subprocess.run(
