@@ -6411,15 +6411,18 @@ def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
             "(imported or unchanged workflows excluded)",
         )
         return 0
+    command = [
+        sys.executable,
+        "scripts/validation/run_workflow_local_test.py",
+        "--files",
+        *selected,
+        "--repo-root",
+        str(repo_root),
+    ]
+    if selected == [".github/workflows/pytest.yml"]:
+        command.append("--no-full")
     result = _run_command(
-        [
-            sys.executable,
-            "scripts/validation/run_workflow_local_test.py",
-            "--files",
-            *selected,
-            "--repo-root",
-            str(repo_root),
-        ],
+        command,
         repo_root,
         timeout_seconds=WORKFLOW_LOCAL_TIMEOUT_SECONDS,
     )

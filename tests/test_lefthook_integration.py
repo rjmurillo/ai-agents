@@ -8085,6 +8085,27 @@ def test_run_workflow_local_validates_changed_workflow(
     assert isinstance(act_cmd, list)
     assert ".github/workflows/mine.yml" in act_cmd
     assert ".github/workflows/imported.yml" not in act_cmd
+    assert "--no-full" not in act_cmd
+
+
+def test_run_workflow_local_avoids_duplicate_pytest_full_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    workflow = ".github/workflows/pytest.yml"
+    _commit_file(repo, workflow, "name: pytest\n")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    rc = policy.run_workflow_local([workflow], repo)
+
+    assert rc == 0
+    act_cmd = sink["act_cmd"]
+    assert isinstance(act_cmd, list)
+    assert workflow in act_cmd
+    assert "--no-full" in act_cmd
 
 
 def test_run_workflow_local_validates_all_when_base_unresolved(
