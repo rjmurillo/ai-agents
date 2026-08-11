@@ -149,7 +149,7 @@
       "result": "Frontmatter, threat model, CVA, pre-mortem, prose, and final critic checks passed. Prose scan found zero banned dashes, banned terms, contrast framing, or flat-rhythm warnings across 13 authored files."
     }
   ],
-  "endingCommit": "f8f93d147b",
+  "endingCommit": "80f0e5e8c8",
   "nextSteps": [
     "Start TASK-019 by restoring authorized commit-pinned GitHub access to microsoft/aspire.",
     "Do not edit local skills while only DeepWiki evidence is available."

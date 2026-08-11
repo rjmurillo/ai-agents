@@ -164,6 +164,19 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T14:03:54+00:00",
+      "type": "commit",
+      "content": "Commit: 80f0e5e8c8",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
     }
@@ -173,8 +186,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 37
+    "commits": 8,
+    "files_changed": 40
   },
   "lessons": []
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation.json
-qaCommit: f8f93d147bff8c21336358a3f8fc554325f550d7
+qaCommit: 80f0e5e8c84eaf63e4e75053b9a561b88ab65f6e
 ---
 
 # QA Report: Aspire Skill Review Specification
@@ -26,6 +26,7 @@ qaCommit: f8f93d147bff8c21336358a3f8fc554325f550d7
 | Final critic review | APPROVED |
 | Security review | APPROVED, no findings |
 | Step 9 checks 9a through 9d | PASS |
+| Post-merge refresh | Rebound to merged `origin/main` state |
 
 ## User Scenarios
 
