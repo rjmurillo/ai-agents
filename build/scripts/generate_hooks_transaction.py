@@ -11,7 +11,7 @@ import stat
 import tempfile
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -36,16 +36,6 @@ class _MsvcrtModule(Protocol):
     LK_UNLCK: int
 
     def locking(self, file_descriptor: int, mode: int, size: int) -> None: ...
-
-
-class _CtypesModule(Protocol):
-    c_void_p: object
-
-    def WinDLL(self, name: str, *, use_last_error: bool) -> object: ...
-
-    def get_last_error(self) -> int: ...
-
-    def FormatError(self, code: int) -> str: ...
 
 
 class _PosixModule(Protocol):
@@ -346,7 +336,7 @@ def _replace_target(
         os.replace(source, target)
         return
 
-    ctypes = cast(_CtypesModule, importlib.import_module("ctypes"))
+    ctypes = cast(Any, importlib.import_module("ctypes"))
     from ctypes import wintypes
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
