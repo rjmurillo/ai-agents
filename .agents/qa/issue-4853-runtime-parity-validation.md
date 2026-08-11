@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: b61652499ce00c4e1664a35b727ba30c2ad079d3
+qaCommit: b7b74d561727e0b32aa5c8592ccb827e4adc9b94
 ---
 
 # Issue 4853 Runtime Parity Validation
