@@ -148,8 +148,8 @@
       "entry": "Synced dependent docs-of-record: agent-harness-reference, ai-agents-architecture-contract (+provenance), ai-agents-config-catalog, ai-agents-portability-campaign; hook_dispatch.py stale timeout docstring; knowledge-test pins and refutations; mirrors regenerated."
     }
   ],
-  "endingCommit": "f13afa6e5d54f199ca7039d3498ddfbad0e8d2ef",
+  "endingCommit": "651caec65560c6275b00b6be9ed8c5a25b2a5b87",
   "nextSteps": [
-    "pre_pr validation, push with lock, PR Fixes #4874."
+    "Push with lock and open PR Fixes #4874."
   ]
 }
