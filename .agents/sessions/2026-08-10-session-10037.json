@@ -180,7 +180,7 @@
       "result": "Added typed protocols for dynamically imported msvcrt and ctypes APIs; focused mypy passed and three hook publish-metadata tests passed."
     }
   ],
-  "endingCommit": "20009d516a891805be145912d0d2ff44e63dca8c",
+  "endingCommit": "5b93e19aa630deb1e09602ab419419934f1d5e86",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]
