@@ -100,7 +100,8 @@
         "e011",
         "e014",
         "e017",
-        "e033"
+        "e033",
+        "e035"
       ],
       "leads_to": [
         "e009"
@@ -432,6 +433,30 @@
       "caused_by": [
         "e032"
       ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed against the latest main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-11T12:33:08+00:00",
+      "type": "commit",
+      "content": "Commit: 9aa7d04d14e9fd4648840725e1c7025d4c11c4c1",
+      "caused_by": [
+        "e034"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
@@ -441,7 +466,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 24,
+    "commits": 25,
     "files_changed": 66
   },
   "lessons": []
