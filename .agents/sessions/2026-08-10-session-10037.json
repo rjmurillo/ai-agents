@@ -3,7 +3,7 @@
   "session": {
     "number": 10037,
     "date": "2026-08-10",
-    "branch": "autofix-4793",
+    "branch": "fix/required-check-rename-rule",
     "startingCommit": "0aef2c5ff87dfac2e179522e7b03374e8d7ed70b",
     "objective": "Process PR #4793 required checks and review threads"
   },
@@ -52,17 +52,17 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "autofix-4793"
+        "Evidence": "fix/required-check-rename-rule"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On autofix-4793"
+        "Evidence": "On fix/required-check-rename-rule"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status checked on autofix-4793 before validation and push; branch was not main."
+        "Evidence": "git status checked on fix/required-check-rename-rule before validation and push; branch was not main."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted pytest passed 26 tests; always-on corpus guard passed 37 tests; pre_pr.py passed 50 validations; pre-push hook passed python-tests and pre-pr-validation."
+        "Evidence": "Final focused suite passed 158 tests after merging current origin/main; the delayed-child regression passed 50/50 repeated parametrized cases."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -166,9 +166,17 @@
     {
       "action": "Fixed slash command validation failure",
       "result": "Added argument-hint to pr-autofix command frontmatter and regenerated the Copilot skill mirror."
+    },
+    {
+      "action": "Stabilized the delayed-child lease-loss regression",
+      "result": "The fixture now signals when the mutation has spawned its child before simulating lease loss, proving process-group cleanup without racing mutation-log creation."
+    },
+    {
+      "action": "Merged current origin/main and refreshed instruction budgets",
+      "result": "Resolved six real conflicts, kept canonical mirrors synchronized, compressed attribution guidance under the Python instruction ceiling, and passed 158 focused tests."
     }
   ],
-  "endingCommit": "7ec7e6293b9b504319fdcc138cf1dcac7f95730e",
+  "endingCommit": "20009d516a891805be145912d0d2ff44e63dca8c",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]

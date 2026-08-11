@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10037.json
-qaCommit: 7ec7e6293b9b504319fdcc138cf1dcac7f95730e
+qaCommit: 20009d516a891805be145912d0d2ff44e63dca8c
 ---
 # PR #4793 required-check rename and pr-autofix validation
 
@@ -21,8 +21,10 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 - `uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py -q`: 37 passed in 0.74s.
 - `uv run --frozen python scripts/validation/pre_pr.py`: RESULT All validations passed, 50 passed, 0 failed, 0 skipped.
 - `python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"`: PASS, all slash commands passed quality gates.
+- `uv run pytest tests/test_pr_autofix_late_live_state_gate.py tests/build_scripts/test_canonical_source_mirror.py tests/validation/test_always_on_corpus_claims.py tests/validation/test_instruction_budget.py -q -n auto`: 158 passed after merging current `origin/main`.
+- The flaky delayed-child case passed 50/50 parametrized repetitions under xdist after the fixture synchronized lease loss with mutation startup.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
-- QA content commit: `7ec7e6293b9b504319fdcc138cf1dcac7f95730e`. Later commits in this PR add QA evidence only under `.agents/`.
+- QA content is bound to `20009d516a891805be145912d0d2ff44e63dca8c`.
 
 ## Thread disposition
 
