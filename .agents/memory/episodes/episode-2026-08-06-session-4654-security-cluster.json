@@ -76,7 +76,8 @@
         "e008",
         "e014",
         "e016",
-        "e018"
+        "e018",
+        "e020"
       ],
       "leads_to": [
         "e007"
@@ -239,6 +240,30 @@
       "caused_by": [
         "e017"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "pr-autofix-4721-test-stability",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-11T17:31:18+00:00",
+      "type": "commit",
+      "content": "Commit: 70b06cfac605b3bbaa7a7c2cc926e742596894ca",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-4654-security-cluster"
     }
@@ -248,7 +273,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
+    "commits": 11,
     "files_changed": 40
   },
   "lessons": []

@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through a8af360ee368c1922f3ad2dad72b5a17d0d05200 before refreshing QA evidence."
+        "evidence": "Changes committed through 70b06cfac605b3bbaa7a7c2cc926e742596894ca before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "scripts/validation/pre_pr.py passed on commit a8af360ee368c1922f3ad2dad72b5a17d0d05200 after refreshing session evidence on the merged branch."
+        "evidence": "scripts/validation/pre_pr.py passed on commit 70b06cfac605b3bbaa7a7c2cc926e742596894ca after refreshing session evidence for the latest CI fix."
       },
       "qaValidation": {
         "complete": true,
@@ -138,9 +138,14 @@
       "action": "pr-autofix-4721-refresh-main",
       "result": "Merged current main into the PR branch to satisfy merged-tree ratchets before the guarded push.",
       "commit": "a8af360ee"
+    },
+    {
+      "action": "pr-autofix-4721-test-stability",
+      "result": "Patched test_new_pr_cli to mock the loaded new_pr module object directly so the full pre-push suite no longer misses the audit-log mock after module alias drift.",
+      "commit": "70b06cfac"
     }
   ],
-  "endingCommit": "a8af360ee368c1922f3ad2dad72b5a17d0d05200",
+  "endingCommit": "70b06cfac605b3bbaa7a7c2cc926e742596894ca",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
