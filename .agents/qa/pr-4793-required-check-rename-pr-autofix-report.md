@@ -23,6 +23,8 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 - `python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"`: PASS, all slash commands passed quality gates.
 - `uv run pytest tests/test_pr_autofix_late_live_state_gate.py tests/build_scripts/test_canonical_source_mirror.py tests/validation/test_always_on_corpus_claims.py tests/validation/test_instruction_budget.py -q -n auto`: 158 passed after merging current `origin/main`.
 - The flaky delayed-child case passed 50/50 parametrized repetitions under xdist after the fixture synchronized lease loss with mutation startup.
+- `uv run --frozen --extra dev mypy build/scripts/generate_hooks_transaction.py`: no issues after making platform-specific modules explicit protocols.
+- `uv run pytest tests/build_scripts/test_generate_hooks_publish_metadata.py -q`: 3 passed.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
 - QA content is bound to `20009d516a891805be145912d0d2ff44e63dca8c`.
 

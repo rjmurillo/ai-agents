@@ -103,7 +103,8 @@
         "e015",
         "e017",
         "e019",
-        "e020"
+        "e020",
+        "e022"
       ],
       "leads_to": [
         "e009"
@@ -261,6 +262,17 @@
         "e018"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed post-merge cross-platform type checking",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-10-session-10037"
     }
   ],

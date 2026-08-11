@@ -31,6 +31,23 @@ class _FcntlModule(Protocol):
     def flock(self, file_descriptor: int, operation: int) -> None: ...
 
 
+class _MsvcrtModule(Protocol):
+    LK_NBLCK: int
+    LK_UNLCK: int
+
+    def locking(self, file_descriptor: int, mode: int, size: int) -> None: ...
+
+
+class _CtypesModule(Protocol):
+    c_void_p: object
+
+    def WinDLL(self, name: str, *, use_last_error: bool) -> object: ...
+
+    def get_last_error(self) -> int: ...
+
+    def FormatError(self, code: int) -> str: ...
+
+
 class _PosixModule(Protocol):
     def getuid(self) -> int: ...
 
@@ -274,7 +291,7 @@ def _lock_file(
 ) -> None:
     handle.seek(0)
     if _IS_WINDOWS:
-        import msvcrt
+        msvcrt = cast(_MsvcrtModule, importlib.import_module("msvcrt"))
 
         def acquire() -> None:
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
@@ -311,7 +328,7 @@ def _retry_file_lock(
 def _unlock_file(handle: BinaryIO) -> None:
     handle.seek(0)
     if _IS_WINDOWS:
-        import msvcrt
+        msvcrt = cast(_MsvcrtModule, importlib.import_module("msvcrt"))
 
         msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
     else:
@@ -329,10 +346,11 @@ def _replace_target(
         os.replace(source, target)
         return
 
-    import ctypes
+    ctypes = cast(_CtypesModule, importlib.import_module("ctypes"))
     from ctypes import wintypes
 
-    replace_file = ctypes.WinDLL("kernel32", use_last_error=True).ReplaceFileW
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    replace_file = kernel32.ReplaceFileW
     replace_file.argtypes = (
         wintypes.LPCWSTR,
         wintypes.LPCWSTR,
