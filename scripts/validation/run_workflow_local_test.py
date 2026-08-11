@@ -582,8 +582,21 @@ def _select_act_event(wf_path: Path) -> str | None:
 # .git directory, so git-calling actions such as dorny/paths-filter abort with
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
-_ACT_GIT_REV_PARSE_ANNOTATION = (
-    "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+# dorny/paths-filter shells out to git through @actions/exec, which annotates a
+# nonzero exit as ``::error::The process '<argv0>' failed with exit code N``.
+# In the act container the repository arrives through ``docker cp`` without a
+# usable .git, so that git call exits 128 and the annotation is the act-only
+# limitation one layer up from _GIT_REPO_MISSING_PATTERN.
+#
+# ``<argv0>`` is not stable across releases of the action. It emitted
+# ``git rev-parse --abbrev-ref HEAD`` when this rule was written and emits the
+# resolved executable path ``/usr/bin/git`` at digest 61f87a10 (measured
+# 2026-08-10 against an unmodified main, so the stale literal blocked every push
+# that touched a workflow using the action). Match either shape, still pinned to
+# a git executable and to exit code 128, so a genuine action failure with a
+# different exit code keeps blocking.
+_ACT_GIT_PROCESS_ANNOTATION = re.compile(
+    r"::error::The process '(?:[^']*/)?git(?: [^']*)?' failed with exit code 128"
 )
 
 # dorny/paths-filter resolves its comparison base from the event payload. On a
@@ -684,7 +697,7 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         None,
-        lambda text: _ACT_GIT_REV_PARSE_ANNOTATION in text,
+        lambda text: bool(_ACT_GIT_PROCESS_ANNOTATION.search(text)),
         "act container cannot resolve the linked-worktree git metadata, so "
         "dorny/paths-filter fails only in local act, not in CI.",
     ),
