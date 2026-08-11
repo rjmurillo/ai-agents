@@ -36,27 +36,25 @@ Use this skill when the user says:
 
 ## Tool Order
 
-Each tier is tried before falling back to the next one:
+Use these steps in order:
 
-1. **Memory skills first.** If available, invoke `memory-search`, which owns
-   the canonical `search_memory.py` script, to rank topic files by keyword.
-   Do not reimplement ranking here. Ranked search results prioritize reads;
-   they are not a complete inventory.
-2. **Serena second.** Use Serena's list-memories and read-memory capabilities
+1. **Inventory with Serena.** Use Serena's list-memories capability
    only after confirming Serena is active on the repository being
    consolidated and the harness reports a finite call timeout. If the active
    project is unknown, different, or has no verified finite timeout, use
    direct directory access instead. A Serena timeout or error falls back to
    direct directory access. Phase 1 below states what list-memories does and
    does not enumerate.
-3. **Direct directory access third.** Only when the above are unavailable,
+2. **Inventory through direct directory access.** When Serena is unavailable,
    read `.serena/memories/` and its topic subdirectories directly. Phase 1's
-   bounded stale-index audit uses the complete inventory from whichever tier
+   bounded stale-index audit uses the complete inventory from whichever step
    succeeded. Direct subdirectory enumeration is required only for the
    filesystem fallback.
+3. **Rank approved paths with memory-search.** After Phase 1's file-count and
+   byte gates pass, invoke `memory-search`, which owns the canonical
+   `search_memory.py` script, against approved paths only. Do not reimplement
+   ranking here.
 
-These three tiers govern discovery only: how you find out which memory files
-exist.
 Before any write, require a complete inventory from Serena list-memories or,
 when Serena is unavailable, recursive direct directory access. If neither can
 produce a complete inventory, stop after Phase 1.
@@ -70,17 +68,18 @@ consolidate.
 
 ### Phase 1: Take Stock
 
-1. Use memory search to prioritize likely topics when available, then obtain
-   the complete inventory with Serena's list-memories capability or recursive
-   direct directory access per the Tool Order above. Before reading content,
+1. Obtain the complete inventory with Serena's list-memories capability or
+   recursive direct directory access per the Tool Order above. Before reading
+   content,
    audit at most 2,000 memory files. Stop enumeration after finding file 2,001,
    report `>=2001`, and do not run any Phase 2 or Phase 3 writes. Inspect file
    sizes before reading. Stop before any file over 32,768 bytes or before
    cumulative input exceeds 5,000,000 bytes. Report the breached limit and do
    not run any Phase 2 or Phase 3 writes. After these gates pass, read
-   `memory-index.md` in full. Serena list-memories returns top-level and nested
-   memory paths. Use those paths to read each relevant `*-index.md` and skim
-   the atomic memories themselves
+   `memory-index.md` in full and use memory-search to rank only approved paths.
+   Serena list-memories returns top-level and nested memory paths. Use those
+   paths to read each relevant `*-index.md` and skim the atomic memories
+   themselves
    (Serena's read-memory capability or direct file reads under
    `.serena/memories/topic/`). A direct top-level `ls` cannot see nested
    memories, so enumerate each topic directory when using the filesystem
@@ -126,11 +125,12 @@ git ls-files --error-unmatch .serena/memories/memory-index.md
 starting_commit="$(git rev-parse HEAD)"
 ```
 
-Before any Phase 2 or Phase 3 write, run
-`git ls-files --error-unmatch -- "<target>"` for every file in the declared
-change set. If any target is untracked, do not write any files; report the
-missing rollback path. Before deleting a candidate, apply the same check to
-that candidate explicitly.
+For target-dependent Git operations, use only an argument-list process API with
+the shell disabled. For each file in the declared change set, pass
+`["git", "ls-files", "--error-unmatch", "--", target]`. If only a
+command-string shell is available, do not modify files. If any target is
+untracked, do not write any files; report the missing rollback path. Before
+deleting a candidate, apply the same check to that candidate explicitly.
 Record each target's content hash before editing. Immediately before every
 write or deletion, verify the target still matches the last hash this pass
 observed or wrote. Immediately before rollback, verify every target still
@@ -138,9 +138,9 @@ matches the last expected state written by this pass. Track a deleted target
 as explicitly absent, not as its old hash. If another process changed or
 recreated any target, stop and do not overwrite or restore that file.
 Record the full starting commit from `git rev-parse HEAD`. Restore a target
-only from that exact commit with
-`git restore --source="$starting_commit" --worktree -- "<target>"`, never from
-the current `HEAD`.
+only from that exact commit through the same shell-free process API, passing
+`["git", "restore", f"--source={starting_commit}", "--worktree", "--", target]`,
+never from the current `HEAD`.
 Index paths must be relative, contain no `..` segment, and resolve under the
 real `.serena/memories/` root. Reject absolute paths and symlink escapes before
 reading, diffing, or deleting a candidate.

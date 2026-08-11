@@ -9,6 +9,11 @@ version: 1.1.0
 
 Active curation keeps the knowledge base accurate and connected. Outdated memories pollute search results and reduce effectiveness.
 
+This skill owns Forgetful record curation and in-file Serena supersession
+markers. It never merges or deletes Serena files and never edits Serena index
+files. Use `memory-consolidate` for cross-file Serena merges, deletions, and
+index cleanup.
+
 ## Triggers
 
 | Trigger Phrase | Operation |

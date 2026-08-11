@@ -13,6 +13,10 @@ SKILL_MD = SKILL_DIR / "SKILL.md"
 MIRROR_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "memory-consolidate" / "SKILL.md"
 MEMORY_ROUTER_MD = SKILL_DIR.parent / "memory" / "SKILL.md"
 MIRROR_ROUTER_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "memory" / "SKILL.md"
+CURATING_MD = SKILL_DIR.parent / "curating-memories" / "SKILL.md"
+MIRROR_CURATING_MD = (
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "curating-memories" / "SKILL.md"
+)
 BODY = SKILL_MD.read_text(encoding="utf-8")
 UNWRAPPED = " ".join(BODY.split())
 
@@ -51,8 +55,10 @@ def test_consolidation_contract() -> None:
         "recoverable from git",
         "git status --short -- .serena/memories",
         "git ls-files --error-unmatch",
-        'git ls-files --error-unmatch -- "<target>"',
-        "for every file in the declared change set",
+        "argument-list process api with the shell disabled",
+        '["git", "ls-files", "--error-unmatch", "--", target]',
+        "if only a command-string shell is available, do not modify files",
+        "for each file in the declared change set",
         "if any target is untracked, do not write any files",
         "confirming serena is active on the repository",
         "the harness reports a finite call timeout",
@@ -93,7 +99,7 @@ def test_consolidation_contract() -> None:
         "changed or recreated any target",
         "record the full starting commit",
         'starting_commit="$(git rev-parse head)"',
-        'git restore --source="$starting_commit" --worktree -- "<target>"',
+        '["git", "restore", f"--source={starting_commit}", "--worktree", "--", target]',
         "never from the current `head`",
         "never copy memory contents or the complete diff into output or logs",
     ):
@@ -104,13 +110,14 @@ def test_consolidation_contract() -> None:
 def test_discovery_index_and_output_contract() -> None:
     for phrase in (
         "top-level and nested memory paths",
-        "ranked search results prioritize reads; they are not a complete inventory",
+        "after phase 1's file-count and byte gates pass",
+        "against approved paths only",
         "require a complete inventory from serena list-memories",
         "direct top-level `ls` cannot see nested memories",
         "*-index.md",
         "bounded stale-index audit",
         "dangling index entries as errors",
-        "complete inventory from whichever tier succeeded",
+        "complete inventory from whichever step succeeded",
         "direct subdirectory enumeration is required only for the filesystem fallback",
         "memory-search",
         "canonical `search_memory.py` script",
@@ -153,3 +160,8 @@ def test_discovery_index_and_output_contract() -> None:
             "| `memory-consolidate` | Periodic durable/dated consolidation, "
             "merge, index tidy (ADR-063) |"
         ) not in router
+    for curating_path in (CURATING_MD, MIRROR_CURATING_MD):
+        curating = " ".join(curating_path.read_text(encoding="utf-8").split()).lower()
+        assert "never merges or deletes serena files" in curating
+        assert "never edits serena index files" in curating
+        assert "use `memory-consolidate` for cross-file serena merges" in curating
