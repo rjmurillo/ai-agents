@@ -57,7 +57,7 @@ def _head_sha(repo: Path) -> str:
     return result.stdout.strip()
 
 
-def _write_manifest(repo: Path, data: dict) -> None:
+def _write_manifest(repo: Path, data: dict[str, object]) -> None:
     git_dir = mgt._git_dir(repo)
     manifest = git_dir / mgt.MANIFEST_NAME
     manifest.write_text(json.dumps(data), encoding="utf-8")

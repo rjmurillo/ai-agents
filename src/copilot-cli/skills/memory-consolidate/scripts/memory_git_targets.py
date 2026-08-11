@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import TypedDict, cast
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -17,6 +18,11 @@ EXIT_EXTERNAL = 3
 MEMORIES_PREFIX = ".serena/memories"
 COMMIT_RE = re.compile(r"\A(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 MANIFEST_NAME = "memory-consolidate-manifest.json"
+
+
+class Manifest(TypedDict):
+    startingCommit: str
+    targets: list[str]
 
 
 def _run_git(repo: Path | None, *args: str) -> subprocess.CompletedProcess[str]:
@@ -57,7 +63,7 @@ def _manifest_path(cwd: Path | None = None) -> Path:
     return _git_dir(cwd) / MANIFEST_NAME
 
 
-def load_manifest(cwd: Path | None = None) -> dict:
+def load_manifest(cwd: Path | None = None) -> object:
     """Load the manifest from its fixed location inside the git directory."""
     path = _manifest_path(cwd)
     if path.is_symlink():
@@ -176,7 +182,9 @@ def validate_manifest(manifest: object, repo_root: Path) -> list[str]:
     return errors
 
 
-def _load_valid_manifest(cwd: Path | None) -> tuple[dict | None, Path | None, int]:
+def _load_valid_manifest(
+    cwd: Path | None,
+) -> tuple[Manifest | None, Path | None, int]:
     try:
         repo_root = _repo_root(cwd)
         manifest = load_manifest(cwd)
@@ -193,7 +201,9 @@ def _load_valid_manifest(cwd: Path | None) -> tuple[dict | None, Path | None, in
     errors = validate_manifest(manifest, repo_root)
     for error in errors:
         print(f"VALIDATION: {error}", file=sys.stderr)
-    return manifest, repo_root, EXIT_LOGIC if errors else EXIT_OK
+    if errors or not isinstance(manifest, dict):
+        return None, repo_root, EXIT_LOGIC
+    return cast(Manifest, manifest), repo_root, EXIT_OK
 
 
 def check(cwd: Path | None = None) -> int:
