@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
 """Mutation harness for CI security permission tests.
 
-Tests four outcome classes per mutation:
-  DEAD         - mutant introduced, test caught it (good)
-  SURVIVED     - mutant introduced, test passed anyway (BAD - test is weak)
-  DID-NOT-APPLY - target literal absent in file; patch was a no-op (harness defect)
-  NOT-RUN      - pytest never reached a verdict (bad nodeid, collection error,
-                 zero tests selected); the mutant is unmeasured, not killed
-
-Exit codes:
-  0 - every mutant matched its expected outcome (DEAD by default;
-      cosmetic controls expect SURVIVED)
-  1 - any mutant produced an unexpected outcome
-  2 - a mutated file could not be restored (the tree is left dirty; recover
-      with ``git checkout -- <file>`` before rerunning)
-
-Usage:
-    uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py
+Outcomes: DEAD, SURVIVED, DID-NOT-APPLY, and NOT-RUN.
+Exit 0 means every mutant matched its expected outcome.
+Exit 1 means at least one outcome was unexpected.
+Exit 2 means a mutated file could not be restored.
+Usage: ``uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py``.
 """
 
 from __future__ import annotations
@@ -300,13 +289,7 @@ def apply_mutation(
 
 
 def _classify(proc: subprocess.CompletedProcess[str]) -> tuple[str, str]:
-    """Turn a pytest run into an outcome.
-
-    Only exit 1 means the test ran and rejected the mutant. Treating every
-    non-zero code as DEAD scores a typo'd nodeid (exit 4) or an empty
-    selection (exit 5) as a kill, which is the one failure a mutation harness
-    must not have: it reports strength it never measured.
-    """
+    """Turn a pytest run into a harness outcome."""
     if proc.args and proc.args[0] == "purge":
         detail = (proc.stderr or proc.stdout or "").strip()
         return NOT_RUN, f"pycache purge failed: {detail}"
@@ -338,9 +321,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
     guard_class = "tests/ci/test_pr_validation_workflow.py::TestBotSkipGuardClassification"
 
     return [
-        # --- Permissions ratchet mutations (test_workflow_job_permissions.py) ---
-        # M1: Remove one job from _GRANDFATHERED. The live scan still finds it,
-        # so found > grandfathered -> test must fail.
         Mutation(
             description="M1: drop ai-issue-triage from _GRANDFATHERED (new offender path)",
             target_file=wf_perms_test,
@@ -348,8 +328,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             new_bytes=b"",
             test_filter=perms_gate,
         ),
-        # M2: Add a fake entry to _GRANDFATHERED. The live scan won't find it,
-        # so grandfathered > found -> test must fail (fixed-but-not-removed path).
         Mutation(
             description="M2: add non-existent job to _GRANDFATHERED (unrecorded-fix path)",
             target_file=wf_perms_test,
@@ -360,7 +338,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             ),
             test_filter=perms_gate,
         ),
-        # M3: Make write_scopes miss the write-all shorthand.
         Mutation(
             description="M3: corrupt write_scopes to miss the write-all shorthand",
             target_file=wf_perms_test,
@@ -369,7 +346,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestWriteScopes::test_write_all_shorthand_reports_all",
         ),
-        # M4: Make jobs_inheriting_write bail before it reports anything.
         Mutation(
             description="M4: corrupt jobs_inheriting_write to report nothing",
             target_file=wf_perms_test,
@@ -378,7 +354,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestJobsInheritingWrite::test_a_job_with_no_block_inherits",
         ),
-        # M5: Remove the job-has-own-block guard from jobs_inheriting_write.
         Mutation(
             description="M5: remove own-block exclusion from jobs_inheriting_write",
             target_file=wf_perms_test,
@@ -388,9 +363,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestJobsInheritingWrite::test_a_job_with_its_own_block_is_clean",
         ),
-        # --- Bot-skip classification mutations (test_pr_validation_workflow.py) ---
-        # M6: Put a phantom name in the allowlist. No step carries it, so the
-        # stale-entry test must fail.
         Mutation(
             description="M6: add a phantom name to _ALLOWED_BEHIND_GUARD (stale-entry path)",
             target_file=pr_val_test,
@@ -398,15 +370,9 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             new_bytes=b'            "Enforce Blocking Issues",\n            "No Such Step",\n',
             test_filter=f"{guard_class}::test_all_allowed_guarded_steps_are_present",
         ),
-        # M7: Put the ADR-006 correctness gate back behind the skip guard.
         Mutation(
             description="M7: re-add bot-skip guard to the ADR-006 ratchet step",
             target_file=pr_val_workflow,
-            # Anchor on the step name alone. It is unique in the workflow, and
-            # the mutation is the inserted `if:` line, not the scanner's --max
-            # value. An earlier literal carried `--max 58`; PR #4406 ratcheted
-            # that to 0 and this mutation went un-runnable until someone noticed.
-            # Syncing the number instead of dropping it only defers the next break.
             old_bytes=b"      - name: Run ADR-006 run-block ratchet\n",
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
@@ -414,8 +380,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),
-        # M8: Drop a throughput step from the allowlist while it stays guarded.
-        # It then reads as an unjustified gate behind the skip guard.
         Mutation(
             description="M8: drop Post PR Comment from the allowlist (unjustified-gate path)",
             target_file=pr_val_test,
@@ -423,7 +387,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             new_bytes=b"",
             test_filter=f"{guard_class}::test_no_security_gate_is_skip_guarded",
         ),
-        # M9: Put a security gate behind the skip guard in the workflow itself.
         Mutation(
             description="M9: add bot-skip guard to Validate workflow YAML (security gate)",
             target_file=pr_val_workflow,
@@ -438,9 +401,6 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             ),
             test_filter=f"{guard_class}::test_no_security_gate_is_skip_guarded",
         ),
-
-        # M10: Cosmetic control. Rewording a docstring must survive, or the
-        # harness is measuring noise rather than load-bearing behavior.
         Mutation(
             description="M10: cosmetic control rewords a module docstring",
             target_file=wf_perms_test,
@@ -459,15 +419,7 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
 
 
 def _verify_repo_root(repo_root: Path | None = None) -> None:
-    """Refuse to mutate anything unless the repository root is a real worktree.
-
-    The default root derives from this file's own path, so ``cd`` cannot
-    redirect it. What it does not prove is that the tree is intact: run this
-    from a stripped copy, an export, or a partially-checked-out worktree and
-    the first write lands on a file with no way to ``git checkout`` it back.
-    Checking before the first write turns that into an error instead of an
-    unrecoverable edit.
-    """
+    """Refuse to mutate anything unless the repository root is a real worktree."""
     root = repo_root or REPO_ROOT
     if not (root / ".git").exists():
         raise SystemExit(
