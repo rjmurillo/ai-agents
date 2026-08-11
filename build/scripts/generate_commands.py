@@ -75,16 +75,41 @@ def _resolve_paths(
     return repo_root / source_dir, repo_root / output_dir
 
 
-def _resolve_optional_output_dir(repo_root: Path, field: str, value: object) -> Path | None:
+def _resolve_optional_output_dir(
+    repo_root: Path, field: str, value: object, *, present: bool
+) -> Path | None:
     """Resolve an optional output directory from the platform config."""
-    if value is None:
+    if not present:
         return None
-    if not isinstance(value, str):
-        raise GenerateCommandsError(f"{field} must be a string")
     errs = validate_relative_path(field, value)
     if errs:
         raise GenerateCommandsError("; ".join(errs))
+    assert isinstance(value, str)
     return repo_root / value
+
+
+def _resolve_resource_suffixes(stanza: dict[str, object]) -> set[str]:
+    """Validate and normalize optional command resource suffixes."""
+    has_resource_output = "resourceOutputDir" in stanza
+    has_resource_suffixes = "resourceSuffixes" in stanza
+    if has_resource_output != has_resource_suffixes:
+        raise GenerateCommandsError(
+            "`artifacts.commands`: `resourceOutputDir` and "
+            "`resourceSuffixes` must be set together"
+        )
+    if not has_resource_suffixes:
+        return set()
+    suffixes = stanza.get("resourceSuffixes")
+    if (
+        not isinstance(suffixes, list)
+        or not suffixes
+        or not all(isinstance(item, str) and item.startswith(".") for item in suffixes)
+    ):
+        raise GenerateCommandsError(
+            "`artifacts.commands.resourceSuffixes`: must be a "
+            "non-empty list of dotted suffix strings"
+        )
+    return set(suffixes)
 
 
 def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
@@ -294,16 +319,12 @@ def generate_commands(
     source_dir_str = str(stanza.get("sourceDir", ""))
     output_dir_str = str(stanza.get("outputDir", ""))
     resource_output_dir_raw = stanza.get("resourceOutputDir")
-    resource_suffixes_raw = stanza.get("resourceSuffixes") or []
-    if not isinstance(resource_suffixes_raw, list) or not all(
-        isinstance(item, str) for item in resource_suffixes_raw
-    ):
-        print(
-            "Error: `artifacts.commands.resourceSuffixes` must be a list of strings",
-            file=sys.stderr,
-        )
+    resource_output_dir_present = "resourceOutputDir" in stanza
+    try:
+        resource_suffixes = _resolve_resource_suffixes(stanza)
+    except GenerateCommandsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 2
-    resource_suffixes = set(resource_suffixes_raw)
     excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
     append = stanza.get("appendFrontmatter") or {}
     if not isinstance(append, dict):
@@ -321,6 +342,7 @@ def generate_commands(
             repo_root,
             "artifacts.commands.resourceOutputDir",
             resource_output_dir_raw,
+            present=resource_output_dir_present,
         )
     except GenerateCommandsError as exc:
         print(f"Error: {exc}", file=sys.stderr)

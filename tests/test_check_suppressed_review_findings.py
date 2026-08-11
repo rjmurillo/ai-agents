@@ -33,6 +33,27 @@ build_report = _mod.build_report
 main = _mod.main
 
 
+def _gh_api_run(
+    *,
+    reviews_completed: subprocess.CompletedProcess[str],
+    pr_completed: subprocess.CompletedProcess[str],
+):
+    def _run(argv, **kwargs):
+        command = [str(part) for part in argv]
+        if command[:2] != ["gh", "api"]:
+            raise AssertionError(f"unexpected subprocess call: {command}")
+        endpoint = command[2]
+        if endpoint.endswith("/reviews?per_page=100"):
+            assert "--paginate" in command
+            assert "--slurp" in command
+            return reviews_completed
+        if endpoint.endswith("/pulls/99"):
+            return pr_completed
+        raise AssertionError(f"unexpected subprocess call: {command}")
+
+    return _run
+
+
 def _review(
     review_id: int,
     body: str,
@@ -236,7 +257,13 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
             "check_suppressed_review_findings.resolve_repo_params",
             return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
         ),
-        patch("subprocess.run", side_effect=[reviews_completed, pr_completed]),
+        patch(
+            "subprocess.run",
+            side_effect=_gh_api_run(
+                reviews_completed=reviews_completed,
+                pr_completed=pr_completed,
+            ),
+        ),
     ):
         rc = main(["--pull-request", "99"])
 

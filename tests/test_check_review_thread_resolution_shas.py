@@ -32,6 +32,37 @@ build_report = _mod.build_report
 main = _mod.main
 
 
+def _completed_process(
+    argv: list[str], returncode: int, *, stdout: str = "", stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(argv, returncode, stdout=stdout, stderr=stderr)
+
+
+def _check_ancestor_run(
+    *,
+    verify_rc: int,
+    verify_stdout: str = "",
+    merge_base_rc: int | None = None,
+    disambiguate_stdout: str = "",
+):
+    def _run(argv, **kwargs):
+        command = [str(part) for part in argv]
+        assert command[:3] == ["git", "-C", "."]
+        git_args = command[3:]
+        if git_args[:2] == ["rev-parse", "--verify"]:
+            return _completed_process(command, verify_rc, stdout=verify_stdout)
+        if git_args[:2] == ["merge-base", "--is-ancestor"]:
+            assert merge_base_rc is not None
+            return _completed_process(command, merge_base_rc)
+        if git_args[:1] == ["rev-parse"] and any(
+            arg.startswith("--disambiguate=") for arg in git_args[1:]
+        ):
+            return _completed_process(command, 0, stdout=disambiguate_stdout)
+        raise AssertionError(f"unexpected subprocess call: {command}")
+
+    return _run
+
+
 def _thread(thread_id: str, resolved: bool, *bodies: str) -> dict:
     return {
         "id": thread_id,
@@ -170,37 +201,38 @@ def test_incomplete_comment_pagination_fails_closed() -> None:
 def test_check_ancestor_classifies_git_exit_codes() -> None:
     with patch(
         "subprocess.run",
-        side_effect=[
-            subprocess.CompletedProcess([], 0, stdout="abc1234\n"),
-            subprocess.CompletedProcess([], 0),
-        ],
+        side_effect=_check_ancestor_run(
+            verify_rc=0,
+            verify_stdout="abc1234\n",
+            merge_base_rc=0,
+        ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (True, "reachable")
     with patch(
         "subprocess.run",
-        side_effect=[
-            subprocess.CompletedProcess([], 0, stdout="abc1234\n"),
-            subprocess.CompletedProcess([], 1),
-        ],
+        side_effect=_check_ancestor_run(
+            verify_rc=0,
+            verify_stdout="abc1234\n",
+            merge_base_rc=1,
+        ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "unreachable")
     with patch(
         "subprocess.run",
-        side_effect=[
-            subprocess.CompletedProcess([], 128),
-            subprocess.CompletedProcess([], 0, stdout="abc1234\ndef5678\n"),
-        ],
+        side_effect=_check_ancestor_run(
+            verify_rc=128,
+            disambiguate_stdout="abc1234\ndef5678\n",
+        ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "ambiguous")
     with patch(
         "subprocess.run",
-        side_effect=[
-            subprocess.CompletedProcess([], 128),
-            subprocess.CompletedProcess([], 0, stdout=""),
-        ],
+        side_effect=_check_ancestor_run(
+            verify_rc=128,
+            disambiguate_stdout="",
+        ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid")
-
 
 def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
     with (

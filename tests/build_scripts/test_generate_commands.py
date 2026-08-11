@@ -246,6 +246,45 @@ artifacts:
     assert generate_commands.generate_commands(cfg, tmp_path) == 2
 
 
+def test_resource_output_dir_requires_resource_suffixes(tmp_path: Path) -> None:
+    _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "x"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    transform: "command-to-skill"
+"""
+    )
+    assert generate_commands.generate_commands(cfg, tmp_path) == 2
+
+
+def test_resource_suffixes_must_be_non_empty_dotted_list(tmp_path: Path) -> None:
+    _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
+    cases = ("[]", '["yaml"]')
+    for index, suffixes in enumerate(cases, start=1):
+        cfg = tmp_path / f"p-{index}.yaml"
+        cfg.write_text(
+            f"""\
+schemaVersion: "1.0"
+provider: "x"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    resourceSuffixes: {suffixes}
+    transform: "command-to-skill"
+"""
+        )
+        assert generate_commands.generate_commands(cfg, tmp_path) == 2
+
+
 # NO-REGEN sentinel ----------------------------------------------------------
 
 
