@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4853-runtime-parity-validation.md"
+        "Evidence": ".agents/qa/pr-4877-issue-4853-runtime-parity-validation.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -151,6 +151,10 @@
     {
       "action": "Fixed pre-PR subprocess decoding finding",
       "result": "Added errors=replace to the git init subprocess and the exact encoding validator passed."
+    },
+    {
+      "action": "Created draft PR 4877 and checked CI",
+      "result": "PR description passed. Validate PR required a PR-numbered QA report, so the report was renamed."
     }
   ],
   "endingCommit": "a53ab08fd94acf90c9aa7e767c93cd2a3b4b75f8",
