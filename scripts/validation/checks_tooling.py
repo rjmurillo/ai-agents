@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module groups validators that shell out
+# to external tools. Its line count tracks how many such gates exist, not
+# complexity. The real fix is splitting by area (issue #3073 scope), which is
+# out of scope for adding a single gate.
 """External-tool validations for the pre-PR runner (extracted from
 ``scripts/validation/pre_pr.py``, issue #2223): session-log, Pester,
 markdownlint, actionlint, yamllint, path normalization, planning artifacts,
@@ -11,13 +17,15 @@ import os
 import re
 import shutil
 import sys
-from importlib import import_module
 from pathlib import Path
 from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from checks_changed_paths import _filtered_targets  # noqa: E402
 from checks_common import (  # noqa: E402
@@ -27,6 +35,8 @@ from checks_common import (  # noqa: E402
 )
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
+
+from scripts.validation.session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
 # "Linting: N files" prints before any read; Summary's count is files *with
@@ -58,6 +68,36 @@ def _find_latest_session_log(repo_root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _prepr_session_command(
+    python_script: Path,
+    log_path: Path,
+    relative_path: str,
+    new_logs: set[str],
+    validation_head: str,
+) -> list[str]:
+    """Build the pre-PR validator command for one changed session log."""
+    command = [sys.executable, str(python_script), str(log_path)]
+    if relative_path in new_logs:
+        return [*command, "--validation-head", validation_head]
+    return [*command, "--existing-log"]
+
+
+def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
+    """Return JSON session paths from NUL-delimited git output.
+
+    Pre-PR validates the committed branch state. A dirty worktree that removes a
+    changed session log must fail closed in validation, not disappear from the
+    candidate list because the local file is absent.
+    """
+    del repo_root
+    return [
+        path
+        for path in output.split("\0")
+        if path.startswith(".agents/sessions/")
+        and path.endswith(".json")
+    ]
+
+
 def validate_session_end(repo_root: Path) -> bool:
     """Validate session logs changed on the branch.
 
@@ -70,19 +110,20 @@ def validate_session_end(repo_root: Path) -> bool:
         print("[WARNING] Session validation skipped: no base ref resolved")
         return True
 
-    changed_log_paths = _changed_session_log_paths(repo_root, base_ref)
-    if changed_log_paths is None:
+    exit_code, stdout, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
+         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        timeout=30,
+    )
+    if exit_code != 0:
+        print("[WARNING] Session validation skipped: git diff failed")
         return True
-    if not changed_log_paths:
+
+    changed_paths = _changed_session_paths(stdout, repo_root)
+    if not changed_paths:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
-    validation_modes = _committed_session_validation_modes(changed_log_paths, repo_root)
-    if validation_modes is None:
-        print(
-            "[WARNING] Session validation could not classify changed logs; using full mode",
-            file=sys.stderr,
-        )
-        validation_modes = {path: "full" for path in changed_log_paths}
+    new_logs = new_session_logs(changed_paths, repo_root, compare_ref="HEAD")
 
     _, validation_head, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
@@ -97,14 +138,15 @@ def validate_session_end(repo_root: Path) -> bool:
         )
 
     failed = False
-    for relative_log_path in changed_log_paths:
-        log_path = repo_root / relative_log_path
+    for relative_path in changed_paths:
+        log_path = repo_root / relative_path
         print(f"Validating session log: {log_path.name}")
-        command = _session_validation_command(
+        command = _prepr_session_command(
             python_script,
             log_path,
+            relative_path,
+            new_logs,
             validation_head,
-            validation_modes.get(relative_log_path, "full"),
         )
         exit_code, stdout, stderr = _run_subprocess(
             command
@@ -116,53 +158,6 @@ def validate_session_end(repo_root: Path) -> bool:
         if exit_code != 0:
             failed = True
     return not failed
-
-
-def _changed_session_log_paths(repo_root: Path, base_ref: str) -> list[str] | None:
-    exit_code, stdout, _ = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only",
-         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
-        timeout=30,
-    )
-    if exit_code != 0:
-        print("[WARNING] Session validation skipped: git diff failed")
-        return None
-    return [
-        p for p in stdout.splitlines()
-        if p.startswith(".agents/sessions/") and p.endswith(".json")
-        and (repo_root / p).is_file()
-    ]
-
-
-def _session_validation_command(
-    python_script: Path,
-    log_path: Path,
-    validation_head: str,
-    mode: str,
-) -> list[str]:
-    command = [
-        sys.executable,
-        str(python_script),
-        str(log_path),
-        "--validation-head",
-        validation_head,
-    ]
-    if mode == "creation":
-        command.append("--creation-mode")
-    elif mode == "existing":
-        command.append("--existing-log")
-    return command
-
-
-def _committed_session_validation_modes(
-    paths: list[str],
-    repo_root: Path,
-) -> dict[str, str] | None:
-    session_scope = import_module("scripts.validation.session_scope")
-    return cast(
-        "dict[str, str] | None",
-        session_scope.committed_session_validation_modes(paths, repo_root),
-    )
 
 
 def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None = None) -> bool:
@@ -488,6 +483,43 @@ def validate_instruction_budget(repo_root: Path) -> bool:
             "--ci",
             "--path",
             str(repo_root),
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
+
+
+def validate_always_on_corpus_claims(repo_root: Path) -> bool:
+    """Pin the numeric claims in model-context-doctrine.md to live measurements.
+
+    Runs ``tests/validation/test_always_on_corpus_claims.py`` via pytest so the
+    byte counts, file counts, and multipliers stated in the doctrine doc never
+    drift silently from the actual always-on instruction corpus. The test file
+    itself runs in under 0.5 seconds. The instructions tree is absent in
+    downstream installs, so SKIP rather than FAIL when it is missing.
+    """
+    if not (repo_root / ".github" / "instructions").is_dir():
+        raise MissingScriptSkip(
+            ".github/instructions not present (downstream install); no corpus to check"
+        )
+    test_path = repo_root / "tests" / "validation" / "test_always_on_corpus_claims.py"
+    if not test_path.is_file():
+        raise MissingScriptSkip(
+            "tests/validation/test_always_on_corpus_claims.py not present; "
+            "no corpus claim test to run"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/validation/test_always_on_corpus_claims.py",
+            "-q",
         ],
         cwd=repo_root,
     )

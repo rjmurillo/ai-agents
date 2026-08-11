@@ -6816,6 +6816,7 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
+    monkeypatch.setattr(policy, "_is_session_on_upstream_default", lambda *_args: False)
     assert (
         policy.validate_branch_sessions(
             [

@@ -285,6 +285,63 @@ def added_session_paths_in_head(paths: Iterable[str], repo_root: Path) -> set[st
     return added_against_all or set()
 
 
+def _added_paths_from_name_status(
+    output: str,
+) -> tuple[set[str], bool] | None:
+    """Return added paths and whether any session log was deleted."""
+    added: set[str] = set()
+    deleted_session = False
+    tokens = output.split("\0")
+    index = 0
+    while index < len(tokens) and tokens[index]:
+        status = tokens[index]
+        index += 1
+        if status.startswith(("R", "C")):
+            if index + 1 >= len(tokens):
+                return None
+            index += 2
+            continue
+        if index >= len(tokens):
+            return None
+        path = tokens[index]
+        index += 1
+        if status == "A":
+            added.add(path)
+        elif status == "D" and path.startswith(".agents/sessions/") and path.endswith(".json"):
+            deleted_session = True
+    return added, deleted_session
+
+
+def session_change_scope(
+    paths: Iterable[str],
+    repo_root: Path,
+    *,
+    compare_ref: str | None = None,
+) -> tuple[set[str], bool]:
+    """Return paths added by this branch and whether it deleted any session log."""
+    wanted = list(paths)
+    if not wanted:
+        return set(), False
+    base = session_merge_base(repo_root)
+    if not base:
+        return set(wanted), False
+    try:
+        diff_args = ["diff", "--name-status", "-z", "-M", base]
+        if compare_ref is not None:
+            diff_args.append(compare_ref)
+        diff = _git(diff_args, repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return set(wanted), False
+    if diff.returncode != 0:
+        return set(wanted), False
+    parsed = _added_paths_from_name_status(diff.stdout)
+    if parsed is None:
+        return set(wanted), False
+    added, deleted_session = parsed
+    tracked = _tracked(wanted, repo_root)
+    return {path for path in wanted if path in added or path not in tracked}, deleted_session
+
+
 def committed_session_validation_modes(
     paths: Iterable[str], repo_root: Path
 ) -> dict[str, str] | None:
@@ -313,44 +370,15 @@ def committed_session_validation_modes(
     return modes
 
 
-def new_session_logs(paths: Iterable[str], repo_root: Path) -> set[str]:
-    """Return the subset of ``paths`` this branch is adding rather than editing.
-
-    One ``git diff`` and one ``git ls-files`` for the whole batch, not a probe
-    per path: the answer for every path comes out of the same comparison.
-
-    Rename detection is on. Correcting a historical log's filename is the
-    central use case of issue #3385, so a rename must stay an edit. Without
-    ``-M`` the new name would look like an addition and the checklist would
-    come back, defeating the fix.
-
-    The diff carries no pathspec, and the caller's paths are intersected in
-    Python instead. Git pairs a rename by seeing both sides, so limiting the
-    diff to the new path hides the deletion and reports the rename as an add.
-    Measured: the same rename reports ``A`` under ``-- <new path>`` and
-    ``R100`` unlimited. ``--name-status`` reads no blob content, so diffing
-    the whole tree costs little.
-
-    Returns every path when the answer cannot be determined. A repository with
-    no merge base (a shallow clone, a fresh init, no ``origin/main``) must not
-    silently downgrade every log to record-only validation. Failing toward the
-    stricter check keeps an unfetched CI checkout from becoming a bypass.
-    """
-    wanted = list(paths)
-    if not wanted:
-        return set()
-    base = session_merge_base(repo_root)
-    if not base:
-        return set(wanted)
-    try:
-        diff = _git(["diff", "--name-status", "-M", "--diff-filter=A", base], repo_root)
-    except (OSError, subprocess.SubprocessError):
-        return set(wanted)
-    if diff.returncode != 0:
-        return set(wanted)
-    added = {line.split("\t", 1)[1].strip() for line in diff.stdout.splitlines() if "\t" in line}
-    tracked = _tracked(wanted, repo_root)
-    return {path for path in wanted if path in added or path not in tracked}
+def new_session_logs(
+    paths: Iterable[str],
+    repo_root: Path,
+    *,
+    compare_ref: str | None = None,
+) -> set[str]:
+    """Return the subset of ``paths`` this branch is adding rather than editing."""
+    added, _ = session_change_scope(paths, repo_root, compare_ref=compare_ref)
+    return added
 
 
 def session_log_is_new(path: str, repo_root: Path) -> bool:
