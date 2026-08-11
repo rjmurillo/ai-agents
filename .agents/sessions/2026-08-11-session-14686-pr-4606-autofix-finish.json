@@ -130,6 +130,10 @@
     {
       "action": "Fixed Copilot skill portability note",
       "result": "Removed the repo-only .claude/commands/pr-review-config.yaml path from the shipped Copilot pr-review skill so plugin users no longer see a path they do not own."
+    },
+    {
+      "action": "Refreshed final PR 4606 QA reports",
+      "result": "Updated the remaining session-specific QA markdown artifacts so session-end validation and Validate PR both stay bound to the latest code commit."
     }
   ],
   "endingCommit": "da00292d8ce4a1a45d826577719e57d00e7e417b",
