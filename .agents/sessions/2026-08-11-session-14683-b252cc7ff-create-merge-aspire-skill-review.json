@@ -130,6 +130,10 @@
     {
       "action": "Refreshed QA evidence",
       "result": "Sessions 14681 and 14682 now bind to the merged branch commit."
+    },
+    {
+      "action": "Committed the first QA refresh set",
+      "result": "Commit ad2af94b6e refreshed session 14681 and created the shipping QA evidence."
     }
   ],
   "endingCommit": "80f0e5e8c8",

@@ -20,6 +20,7 @@ Validate the specification branch after merging current `origin/main`.
 | QA refresh | Sessions 14681 and 14682 rebound to the merged commit |
 | Spec frontmatter | PASS |
 | Provider alias tests | PASS |
+| Evidence commits | Split into atomic QA refresh commits |
 
 ## Verdict
 

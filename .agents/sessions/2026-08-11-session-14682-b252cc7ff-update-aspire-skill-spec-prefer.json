@@ -137,7 +137,7 @@
       "result": "Stored the preference in Forgetful user notes rather than a repository rule."
     }
   ],
-  "endingCommit": "ce10936578",
+  "endingCommit": "80f0e5e8c8",
   "nextSteps": [
     "Use --provider copilot for TASK-022 eval runs.",
     "Do not reduce required model or scenario coverage for cost."
