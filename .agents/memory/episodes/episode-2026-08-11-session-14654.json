@@ -1,0 +1,182 @@
+{
+  "id": "episode-2026-08-11-session-14654",
+  "session": "2026-08-11-session-14654",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Run pr-autofix on PR 4865: cluster and verify the eight review threads, fix the orchestrator retry-rule conflict and the tautological contract tests, then drive the PR to terminal state.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the full PR 4865 discourse and issue 4851",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "content": "Read the full PR 4865 discourse and issue 4851      Eight unresolved threads from one bot review, CI green at 112 passing checks, mergeStateStatus BLOCKED on conversation resolution.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clustered the eight threads",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified cluster A against the diff",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified cluster B against the test source",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed cluster A",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed cluster B",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-tested the new assertions",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "content": "Mutation-tested the new assertions      Reverting the routing sentence and deleting S6 each failed a test (2 failed, 38 passed), proving the checks can fail.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "error",
+      "content": "Mutation-tested the new assertions      Reverting the routing sentence and deleting S6 each failed a test (2 failed, 38 passed), proving the checks can fail.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T01:30:55+00:00",
+      "type": "commit",
+      "content": "Commit: a94c0704a9f790839ca446bcfde46ab83e8fc18b",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T01:30:31+00:00",
+      "type": "commit",
+      "content": "Commit: 2f49732493",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9d8546d8",
+      "caused_by": [],
+      "leads_to": [
+        "e002",
+        "e009",
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 8
+  },
+  "lessons": []
+}
