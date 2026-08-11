@@ -380,6 +380,55 @@ def test_all_stages_pass(all_tools, monkeypatch, tmp_path):
     assert len(r.stages) == 3
 
 
+def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
+    workflow = tmp_path / WF
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(
+        """jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - pytest_args: -n auto --dist loadfile tests/
+          - pytest_args: tests/test_safe_push_pr_branch.py
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ACT", "true")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    calls = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        assert env is not None
+        calls.append(
+            (cmd, timeout, cwd, env["PYTHONDONTWRITEBYTECODE"], env.get("ACT"))
+        )
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+
+    report = w.run_local_test([WF], tmp_path)
+
+    assert report.exit_code == 0
+    assert calls == [
+        (
+            ["uv", "run", "pytest", "-n", "auto", "--dist", "loadfile", "tests/"],
+            600,
+            tmp_path,
+            "1",
+            None,
+        ),
+        (
+            ["uv", "run", "pytest", "tests/test_safe_push_pr_branch.py"],
+            600,
+            tmp_path,
+            "1",
+            None,
+        ),
+    ]
+
+
 def test_no_full_skips_execution_stage(all_tools, monkeypatch, tmp_path):
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))

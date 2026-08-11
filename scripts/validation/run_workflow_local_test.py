@@ -68,6 +68,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -558,6 +559,55 @@ def _workflow_jobs(wf_path: Path) -> list[str]:
     if not isinstance(jobs, dict):
         return []
     return [str(name) for name in jobs if isinstance(name, str)]
+
+
+def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    """Run pytest matrix entries directly when already inside act."""
+    stage = "gh act (local-fallback)"
+    try:
+        import yaml
+    except ImportError:
+        return StageResult(stage, False, "PyYAML is required for the local fallback")
+
+    commands: list[list[str]] = []
+    for rel in files:
+        try:
+            data = yaml.safe_load((repo_root / rel).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            return StageResult(stage, False, f"{rel}: {type(exc).__name__}: {exc}")
+        jobs = data.get("jobs") if isinstance(data, dict) else None
+        test_job = jobs.get("test") if isinstance(jobs, dict) else None
+        strategy = test_job.get("strategy") if isinstance(test_job, dict) else None
+        matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+        includes = matrix.get("include") if isinstance(matrix, dict) else None
+        if not isinstance(includes, list):
+            continue
+        for entry in includes:
+            pytest_args = entry.get("pytest_args") if isinstance(entry, dict) else None
+            if not isinstance(pytest_args, str) or not pytest_args.strip():
+                continue
+            try:
+                commands.append(["uv", "run", "pytest", *shlex.split(pytest_args)])
+            except ValueError as exc:
+                return StageResult(stage, False, f"{rel}: invalid pytest_args: {exc}")
+
+    if not commands:
+        return StageResult(stage, False, "no test matrix pytest_args found")
+
+    env = dict(os.environ)
+    env.pop("ACT", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    for command in commands:
+        returncode, stdout, stderr = _run(
+            command,
+            timeout=_ACT_FULL_TIMEOUT,
+            cwd=repo_root,
+            env=env,
+        )
+        if returncode != 0:
+            detail = _with_timeout_hint((stdout + stderr).strip())
+            return StageResult(stage, False, detail)
+    return StageResult(stage, True)
 
 
 def _select_act_event(wf_path: Path) -> str | None:
@@ -1208,22 +1258,30 @@ def run_local_test(
 
     # Stage 3 (full run) executes in Docker, so it needs a live daemon.
     if full:
-        if not _docker_ready():
-            if not _have("docker"):
-                cause = "Docker is not installed"
-            else:
-                cause = "the Docker daemon is not running"
-            note = (
-                f"{cause}; the full gh act run cannot execute. Install/start "
-                f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
-                "workflow (or pass --no-full for the lint+dry-run tier)."
-            )
-            return _tool_gap_report(report, note)
-        s3 = _act_full_stage(runnable, repo_root)
-        report.stages.append(s3)
-        if not s3.ok:
-            report.exit_code = 1
-            return report
+        # Avoid recursively invoking act when this gate already runs inside act.
+        if os.environ.get("ACT", "").strip().lower() == "true":
+            s3 = _local_pytest_stage(runnable, repo_root)
+            report.stages.append(s3)
+            if not s3.ok:
+                report.exit_code = 1
+                return report
+        else:
+            if not _docker_ready():
+                if not _have("docker"):
+                    cause = "Docker is not installed"
+                else:
+                    cause = "the Docker daemon is not running"
+                note = (
+                    f"{cause}; the full gh act run cannot execute. Install/start "
+                    f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
+                    "workflow (or pass --no-full for the lint+dry-run tier)."
+                )
+                return _tool_gap_report(report, note)
+            s3 = _act_full_stage(runnable, repo_root)
+            report.stages.append(s3)
+            if not s3.ok:
+                report.exit_code = 1
+                return report
 
     # Mixed batch: some workflows ran, others were skipped for absent secrets.
     # The runnable ones passed (exit 0 preserved); surface the skips in the note
