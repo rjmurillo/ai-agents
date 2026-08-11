@@ -1,11 +1,10 @@
 """Where bounded pytest-xdist parallelism may be applied, and where it must not.
 
-Issue #4823. The pre-push gate runs the suite in three partitions
-(``scripts/validation/git_hook_policy.py::_pytest_commands``). Exactly one of
-them, the bulk ``not integration`` partition, runs on workers. Everything else
-in the repository stays serial:
+Issue #4823. The pre-push gate runs the suite in four partitions
+(``scripts/validation/git_hook_policy.py::_pytest_commands``). Bulk and
+mutation run on workers. Process-sensitive modules stay serial:
 
-* the safe-push partition;
+* the safe-push and mutation-signal partition;
 * the pr-autofix process-group partition;
 * the two branch-coverage pin steps and the Windows path-contract step in
   ``.github/workflows/pytest.yml`` (asserted in
@@ -30,6 +29,7 @@ what a malformed value meant.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -68,6 +68,37 @@ def _pytest_commands_by_partition(
     commands = policy._pytest_commands(repo_root)
     assert len(commands) == 4, f"expected four pre-push pytest commands, got {commands}"
     return commands[0], commands[1], commands[2], commands[3]
+
+
+@pytest.mark.parametrize(
+    ("workflow", "expects_no_full"),
+    [
+        (".github/workflows/pytest.yml", True),
+        (".github/workflows/other.yml", False),
+    ],
+)
+def test_workflow_local_avoids_duplicate_pytest_runtime(
+    workflow: str,
+    expects_no_full: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(
+        policy,
+        "_select_pushed_workflows",
+        lambda paths, root: [workflow],
+    )
+
+    def fake_run(command, repo_root, **kwargs):
+        seen.extend(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda result: None)
+
+    assert policy.run_workflow_local([workflow], tmp_path) == 0
+    assert ("--no-full" in seen) is expects_no_full
 
 
 # --- The bulk partition is the only parallel one -------------------------------
