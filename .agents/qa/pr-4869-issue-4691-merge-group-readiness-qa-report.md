@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14691-issue-4691-merge-group-readiness.json
-qaCommit: 14bb9fd423a86bac47acda45a291740137a5372f
+qaCommit: a2a29087f59310864d32f22ba6012fb55dc8ff51
 ---
 
 # QA Report: Issue 4691 merge-group readiness
@@ -24,7 +24,7 @@ structural test that pins the contract. The branch was rebased onto
 | Lint | `ruff check` on the two changed Python files | All checks passed |
 | Workflow lint | pre-commit `actionlint` and `workflow-validation` | Passed |
 
-Total: 253 tests, 0 failures, measured at `14bb9fd4`.
+Total: 253 tests, 0 failures, measured at `a2a29087`.
 
 ## Non-vacuity control
 
