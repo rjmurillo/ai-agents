@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at d1b04dd837c440488b6cbb42f03a183990f6321e: 6771e31616 ref-lock guard, cb15548e3a rescue-chain delimiter, d1b04dd837 test-suite split."
+        "Evidence": "PR code validated at d1b04dd837c440488b6cbb42f03a183990f6321e: 6771e31616 ref-lock guard, cb15548e3a rescue-chain delimiter, d1b04dd837 test-suite split. Evidence and retrospective landed at 04ca40d652e01a05f332d7e9b4091b282dab426b."
       },
       "validationPassed": {
         "level": "MUST",
@@ -156,7 +156,7 @@
       "outcome": "The merge exposed tests/test_gc_worktrees_real_git_stale.py as the one file-size violation the branch adds over main. Splitting the rescue-command cases into their own module returned the count to the 583 baseline with both files under 500 lines."
     }
   ],
-  "endingCommit": "d1b04dd837c440488b6cbb42f03a183990f6321e",
+  "endingCommit": "04ca40d652e01a05f332d7e9b4091b282dab426b",
   "nextSteps": [
     "Reply to both review threads with the measured evidence, resolve them, and merge once all four Ready-to-Merge conditions hold."
   ]

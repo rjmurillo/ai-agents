@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: d1b04dd837c440488b6cbb42f03a183990f6321e
+qaCommit: 04ca40d652e01a05f332d7e9b4091b282dab426b
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`d1b04dd837c440488b6cbb42f03a183990f6321e`, with current `origin/main` merged in
+`04ca40d652e01a05f332d7e9b4091b282dab426b`, with current `origin/main` merged in
 at `e88f1d8d7a`.
 
 This round closes the two open review threads. Both were reproduced against real
