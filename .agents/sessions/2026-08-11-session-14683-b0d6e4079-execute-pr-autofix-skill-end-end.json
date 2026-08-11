@@ -148,7 +148,7 @@
       "outcome": "Removed the 4 worktrees created for this session (pr4618, pr4623, pr4637, pr4718) via git worktree remove. Released leases for 4718, 4664, 4618 directly; 4623 and 4637 leases were already held by other sessions by the time cleanup ran."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "11299a31f6",
   "nextSteps": [
     "Monitor PR #4618: auto-merge is armed; GitHub's mergeStateStatus=BLOCKED is a documented false-positive (why_pr_blocked.py HasBlocker=false) that should clear on its own.",
     "PR #4637: a maintainer should investigate the CI-only subprocess-encoding-ratchet discrepancy (254 in CI vs 253 locally at the identical commit, reproduced after a rerun) since it currently blocks the required 'Run Python Tests' check despite the PR's own fix being correct and QA-passed.",
