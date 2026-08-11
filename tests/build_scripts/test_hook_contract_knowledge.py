@@ -618,23 +618,36 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    assert source_counts == {"PreToolUse": 2, "PostToolUse": 1}
-    assert source_total == 3
+    assert source_counts == {"PreToolUse": 3, "PostToolUse": 1}
+    assert source_total == 4
     assert host_total == 2
-    assert round(reduction, 1) == 33.3
-    assert "three registrations across two events" in adr_068
-    assert "two PreToolUse shims and one PostToolUse shim" in adr_068
-    assert "saves one host process start" in adr_068
-    assert len(pretool_manifest["shims"]) == 2
-    assert timeout_total == 100
-    assert "current PreToolUse manifest has two shims" in adr_068
-    assert "100 seconds of configured timeout" in adr_068
+    assert round(reduction, 1) == 50.0
+    assert "four registrations across two events" in adr_068
+    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    assert "not for matched-call process savings" in adr_068
+    assert len(pretool_manifest["shims"]) == 3
+    assert timeout_total == 110
+    assert "current PreToolUse manifest has three shims" in adr_068
+    assert "110 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
-    assert "a hang in the first can bypass the second" in adr_068
-    assert "three registrations across two events" in adr_085
-    assert "active manifest contains two shims" in adr_071
-    assert "100 seconds of configured timeout" in adr_071
+    assert "the in-process bypass is latent" in adr_068
+    assert "four registrations across two events" in adr_085
+    for stale in (
+        "requests 105 seconds",
+        "100 seconds of configured timeout",
+        "two-shim PreToolUse",
+        "manifest value is 100 seconds",
+        "saves one host process start",
+        "can skip later gates",
+        "No in-process timeout enforcement",
+        "the spawn cost this ADR removes",
+        "removes process startup",
+    ):
+        assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
+    assert "requests 105 seconds" not in adr_071
+    assert "active manifest contains three shims" in adr_071
+    assert "110 seconds of configured timeout" in adr_071
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 

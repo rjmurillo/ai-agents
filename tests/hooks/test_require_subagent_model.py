@@ -148,6 +148,19 @@ class TestDenyPaths:
         assert _run(monkeypatch, payload) == 2
         assert "general-purpose" in capsys.readouterr().err
 
+    @pytest.mark.parametrize("spoof", ["*", "**", "?", "[a]", "../me", "..\\me"])
+    def test_glob_metacharacter_names_cannot_spoof_the_search(
+        self, monkeypatch, project, _isolated_environment, spoof
+    ):
+        # A wildcard subagent_type must not match real definition files
+        # (CWE-22/CWE-400 shape); the name is unsearchable, so the call
+        # falls through to the model requirement and denies.
+        agent = _isolated_environment / ".claude" / "agents" / "me.md"
+        agent.parent.mkdir(parents=True, exist_ok=True)
+        agent.write_text("body", encoding="utf-8")
+        payload = _claude_payload(project, subagent_type=spoof)
+        assert _run(monkeypatch, payload) == 2
+
     def test_legacy_task_tool_name_denies(self, monkeypatch, project):
         payload = {
             "tool_name": "Task",

@@ -476,8 +476,9 @@ def _original_main(stdin_bytes):
         if not isinstance(agent, str) or not agent:
             return 0
         name = agent.rsplit(":", 1)[-1]  # plugin-scoped type: my-plugin:reviewer
+        searchable = not any(ch in name for ch in "*?[]/\\")  # glob or path chars spoof the search
         project = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
-        if _has_definition(name, Path.home(), project):
+        if searchable and _has_definition(name, Path.home(), project):
             return 0
         print(
             f"Sub-agent '{agent}' has no definition file and this call names no "
