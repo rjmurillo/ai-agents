@@ -127,6 +127,19 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 05f3d4230acc58a3597a20b6150d691d51f40736",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-pr-4828-vendor-provenance-qa"
     }
@@ -136,8 +149,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 8
+    "commits": 6,
+    "files_changed": 10
   },
   "lessons": []
 }

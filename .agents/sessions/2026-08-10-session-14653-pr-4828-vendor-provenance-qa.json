@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report binds code commit cd8f258a0b780c960c864872715881767bf585ef."
+        "Evidence": "QA report binds code commit 05f3d4230acc58a3597a20b6150d691d51f40736."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "49 vendor provenance tests and 86 targeted tests passed; pre_pr passed."
+        "Evidence": "50 vendor provenance tests and 86 targeted tests passed; pre_pr passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -146,9 +146,13 @@
     {
       "action": "Follow-up autofix session 14682 merged origin/main at dc41edcb201baa0bb1da2b94e5ff87b0cff2e921.",
       "result": "Ruff count baseline realigned from 30 to 27 in commit cd8f258a0b780c960c864872715881767bf585ef."
+    },
+    {
+      "action": "Follow-up autofix session 14682 pinned the required status check context to the job name.",
+      "result": "Workflow header and TestWorkflowContract agree on 'Validate Vendor Provenance' in commit 05f3d4230acc58a3597a20b6150d691d51f40736."
     }
   ],
-  "endingCommit": "cd8f258a0b780c960c864872715881767bf585ef",
+  "endingCommit": "05f3d4230acc58a3597a20b6150d691d51f40736",
   "nextSteps": [
     "Push QA report and session log, wait for required checks, then run completion gate."
   ]
