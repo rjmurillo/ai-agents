@@ -45,6 +45,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "QA report binds merge commit 18c94111885054db02bebc4198e617e615e3a0d6."
+      },
+      "completionGate": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Gate evidence at .agents/pr-comments/PR-4606/gate-evidence.json passed four of five criteria. GitHub reports mergeStateStatus BLOCKED because no approval decision exists."
       }
     }
   },
@@ -60,11 +65,15 @@
     {
       "action": "Validated review gates",
       "result": "tests/test_check_suppressed_review_findings.py and tests/test_check_review_thread_resolution_shas.py passed with 24 tests."
+    },
+    {
+      "action": "Verified required CI and completion gate",
+      "result": "All required GitHub checks passed. All nine review threads were resolved. The completion gate remained blocked because mergeStateStatus was BLOCKED and reviewDecision was empty."
     }
   ],
   "endingCommit": "18c94111885054db02bebc4198e617e615e3a0d6",
   "nextSteps": [
-    "Wait for required CI, run the completion gate, and squash merge only after all four conditions pass."
+    "Obtain the required approval decision, rerun the completion gate, and squash merge only after all four conditions pass."
   ],
   "episodeMetrics": {
     "filesChanged": 2,
