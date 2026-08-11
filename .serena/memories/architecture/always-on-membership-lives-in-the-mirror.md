@@ -19,15 +19,14 @@ the number. The two destination trees agree today, measured on this branch after
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 73,216 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 73,216 bytes |
+| `.github/instructions` | Copilot in this repository | 7 rules, 70,297 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,297 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
-`knowledge-persistence`, `lsp-first`, `search-before-building`, `universal`,
-`voice`.
+`knowledge-persistence`, `search-before-building`, `universal`, `voice`.
 
-Those bytes are whole generated files, frontmatter included. The same eight
-rules measure 73,351 bytes at `.claude/rules/`, 135 more, because the generator
+Those bytes are whole generated files, frontmatter included. The same seven
+rules measure 70,413 bytes at `.claude/rules/`, 116 more, because the generator
 drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.

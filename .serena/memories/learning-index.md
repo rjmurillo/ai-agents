@@ -30,6 +30,7 @@
 | skills quantitative break-even file overhead ADR-017 | [skills/skills-quantitative-observations](skills/skills-quantitative-observations.md) |
 | skills retrospective chestertons fence autonomous safety | [skills/skills-retrospective-observations](skills/skills-retrospective-observations.md) |
 | skills validation cross-validation orphan detection | [skills/skills-validation-observations](skills/skills-validation-observations.md) |
+| serena memory subdirectory convention index references atomic memories | [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) |
 | reflect reflection skill learning capture iterative | [retrospective/reflect-observations](retrospective/reflect-observations.md) |
 | retrospective patterns learning extraction chestertons | [retrospective/retrospective-observations](retrospective/retrospective-observations.md) |
 | SkillForge skill creation patterns workflows | [skills/skillforge-observations](skills/skillforge-observations.md) |

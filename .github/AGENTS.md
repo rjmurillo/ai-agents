@@ -648,6 +648,15 @@ reason, as remediation for the red-`main` incident of that date, so it is on
 today and must stay on. See issue #4646 and
 `.serena/memories/decision-every-merge-invalidates-every-open-pr.md`.
 
+**Status note, measured 2026-08-05.** That policy now reads `true` on ruleset
+`11104075`. The paragraph above stays accurate on its own terms: strict checks
+are not what resolves this particular race, and the ratchet tolerance is. Read
+it as a statement about the race, not as a claim about the current setting. Do
+not infer from it that being behind `main` is harmless, because it now blocks
+the merge outright. There is still no merge queue. Issue #4608 records an
+unverified hypothesis about how a future merge group would behave. See issue
+#4646.
+
 **Residual cost.** The baseline sits above the true count until someone records
 it, and that gap absorbs one later regression without firing. `--update` closes
 it. `tests/ci/test_count_ratchet_concurrent_merge.py` pins both the tolerance

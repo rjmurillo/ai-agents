@@ -66,12 +66,7 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
-7. MUST NOT create a git worktree inside the checkout; use a sibling. Gitignore
-   does not hide it from filesystem walkers. On 2026-08-05, 59 nested worktrees
-   made `tests/test_no_verify_prohibition.py` take 422 seconds and inspect
-   scratch prose; after relocation it passed in 0.49 seconds. Move dirty
-   worktrees with `git worktree move`. Details:
-   `.serena/memories/git/git-never-place-worktrees-inside-the-checkout.md`.
+7. MUST NOT nest git worktrees in the checkout.
 
 ## References
 

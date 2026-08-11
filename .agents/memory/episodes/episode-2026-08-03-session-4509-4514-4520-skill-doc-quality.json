@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-03-session-4509-4514-4520-skill-doc-quality",
+  "session": "2026-08-03-session-4509-4514-4520-skill-doc-quality",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4509 (bold file mention with :NN suffix dropped), #4514 (skill docs cite pyproject.toml by absolute line), #4520 (diff-base gate reports unchanged docs)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "closed-unmerited",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "closed-unmerited",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "closed-already",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T20:05:20+00:00",
+      "type": "commit",
+      "content": "Commit: 3664742506956eecf9bb7aef2d6edf677acb3984",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4509-4514-4520-skill-doc-quality"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
