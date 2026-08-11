@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Validate workspace file token budget per issue #1334.
+"""Validate workspace file byte budget per issue #1334.
 
 Workspace files (CLAUDE.md, AGENTS.md, .claude/CLAUDE.md) are injected into
 every agent session context. This script enforces size limits to prevent
-token waste and context truncation.
+context waste and truncation.
 
 Limits:
-  - Total across all workspace files: 6600 bytes
-  - Per-file maximum: 3000 bytes
+  - Total across Claude workspace files: 6100 bytes
+  - Per-file maximum: 4800 bytes
 
 EXIT CODES:
   0  - Success: All workspace files within budget
@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Budget constants (bytes)
-TOTAL_BUDGET_BYTES = 6600
-PER_FILE_BUDGET_BYTES = 3000
+TOTAL_BUDGET_BYTES = 6100
+PER_FILE_BUDGET_BYTES = 4800
 
 # Workspace files injected into agent context (relative to repo root).
 # Claude-side files: CLAUDE.md, AGENTS.md, .claude/CLAUDE.md.
@@ -39,16 +39,15 @@ WORKSPACE_FILES = [
     ".github/copilot-instructions.md",
 ]
 
-# Per-file ceiling overrides: non-regression ratchets for files that cannot
-# yet meet PER_FILE_BUDGET_BYTES. Lower when content is trimmed; never raise
-# without recording the reason in the same change.
+# Per-file ceiling overrides: stricter harness-specific non-regression
+# ratchets. Lower when content is trimmed; never raise without recording the
+# reason in the same change.
 # Files listed here are measured individually; they are excluded from the
 # TOTAL_BUDGET_BYTES shared pool (which applies to the Claude-side trio only).
 FILE_CEILING_BYTES: dict[str, int] = {
-    # Copilot always-on entry point. Ratchet seeded at 6351 bytes (measured
-    # 2025-07-30 on origin/main). Target: reduce to 3000 after moving the
-    # Gotchas section to .agents/governance/ (issue #3991, #3952).
-    ".github/copilot-instructions.md": 6351,
+    # Copilot always-on entry point, ratcheted above the accepted 1,294-byte
+    # harness overlay from issue #4880.
+    ".github/copilot-instructions.md": 1400,
 }
 
 
@@ -112,6 +111,7 @@ def validate_budget(
     standard_total = 0
     for fm in metrics:
         if not fm.exists:
+            result.errors.append(f"{fm.path}: required workspace file is missing")
             continue
         ceiling = ceilings.get(fm.path, per_file_budget)
         if fm.size_bytes > ceiling:
@@ -132,7 +132,7 @@ def validate_budget(
 def main(argv: list[str] | None = None) -> int:
     """Entry point for workspace budget validation."""
     parser = argparse.ArgumentParser(
-        description="Validate workspace file token budget per issue #1334."
+        description="Validate workspace file byte budget per issue #1334."
     )
     parser.add_argument(
         "--path",
@@ -162,15 +162,21 @@ def main(argv: list[str] | None = None) -> int:
 
     # Print file summary
     for fm in result.files:
+        ceiling = FILE_CEILING_BYTES.get(fm.path, args.per_file_budget)
         if not fm.exists:
             status = "MISSING"
-        elif fm.size_bytes > args.per_file_budget:
+        elif fm.size_bytes > ceiling:
             status = "OVER"
         else:
             status = "OK"
         print(f"  {fm.path}: {fm.size_bytes:,} bytes [{status}]")
 
-    print(f"  Total: {result.total_bytes:,} / {args.total_budget:,} bytes")
+    shared_total = sum(
+        fm.size_bytes
+        for fm in result.files
+        if fm.exists and fm.path not in FILE_CEILING_BYTES
+    )
+    print(f"  Shared total: {shared_total:,} / {args.total_budget:,} bytes")
 
     for error in result.errors:
         print(f"ERROR: {error}")

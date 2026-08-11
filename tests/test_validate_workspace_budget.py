@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.validate_workspace_budget import (
+    FILE_CEILING_BYTES,
     PER_FILE_BUDGET_BYTES,
     TOTAL_BUDGET_BYTES,
     WORKSPACE_FILES,
@@ -16,11 +19,14 @@ from scripts.validate_workspace_budget import (
 
 
 class TestConstants:
-    def test_total_budget_is_6600(self) -> None:
-        assert TOTAL_BUDGET_BYTES == 6600
+    def test_total_budget_is_6100(self) -> None:
+        assert TOTAL_BUDGET_BYTES == 6100
 
-    def test_per_file_budget_is_3000(self) -> None:
-        assert PER_FILE_BUDGET_BYTES == 3000
+    def test_per_file_budget_is_4800(self) -> None:
+        assert PER_FILE_BUDGET_BYTES == 4800
+
+    def test_copilot_budget_is_1400(self) -> None:
+        assert FILE_CEILING_BYTES[".github/copilot-instructions.md"] == 1400
 
     def test_workspace_files_includes_expected(self) -> None:
         assert "CLAUDE.md" in WORKSPACE_FILES
@@ -78,10 +84,11 @@ class TestValidateBudget:
         assert not result.is_valid
         assert any("Total" in e for e in result.errors)
 
-    def test_missing_files_ignored(self) -> None:
+    def test_missing_files_fail(self) -> None:
         metrics = [FileMetric(path="gone.md", size_bytes=0, exists=False)]
         result = validate_budget(metrics)
-        assert result.is_valid
+        assert not result.is_valid
+        assert result.errors == ["gone.md: required workspace file is missing"]
 
     def test_total_bytes_property(self) -> None:
         metrics = [
@@ -114,13 +121,27 @@ class TestMain:
         assert main(["--path", str(tmp_path)]) == 0
 
     def test_over_budget_returns_1(self, tmp_path: Path) -> None:
-        (tmp_path / "CLAUDE.md").write_text("x" * 4000, encoding="utf-8")
+        (tmp_path / "CLAUDE.md").write_text("x" * 6001, encoding="utf-8")
         assert main(["--path", str(tmp_path)]) == 1
 
     def test_custom_budgets(self, tmp_path: Path) -> None:
         (tmp_path / "CLAUDE.md").write_text("x" * 500, encoding="utf-8")
         assert main(["--path", str(tmp_path), "--per-file-budget", "100"]) == 1
         assert main(["--path", str(tmp_path), "--per-file-budget", "1000"]) == 0
+
+    def test_summary_uses_override_and_shared_pool(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (tmp_path / "AGENTS.md").write_text("x" * 100, encoding="utf-8")
+        copilot = tmp_path / ".github" / "copilot-instructions.md"
+        copilot.parent.mkdir(parents=True)
+        copilot.write_text("x" * 1900, encoding="utf-8")
+
+        assert main(["--path", str(tmp_path)]) == 1
+
+        output = capsys.readouterr().out
+        assert ".github/copilot-instructions.md: 1,900 bytes [OVER]" in output
+        assert "Shared total: 100 / 6,100 bytes" in output
 
     def test_repo_workspace_files_within_budget(self) -> None:
         """E2E: Verify actual repo workspace files are within budget."""

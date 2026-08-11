@@ -14,7 +14,6 @@ VALIDATION_SCRIPTS_WITH_LOCAL_IMPORTS = (
     "check_skill_portability.py",
     "git_hook_policy.py",
     "instruction_budget.py",
-    "passive_context_budget.py",
     "skill_frontmatter.py",
 )
 
