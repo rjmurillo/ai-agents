@@ -46,6 +46,21 @@ EPISODE_NAME_PREFIX = re.compile(r"^episode-\d{4}-\d{2}-\d{2}-(?:session-\d+-?)?
 EPISODE_RECENCY = re.compile(r"^episode-(\d{4}-\d{2}-\d{2})-(?:session-(\d+)\b)?")
 
 
+def _contained_markdown_files(memory_path: Path) -> list[Path]:
+    """Return Markdown paths whose resolved targets stay under memory_path."""
+    root = memory_path.resolve()
+    contained: list[Path] = []
+    for candidate in memory_path.rglob("*.md"):
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file():
+            contained.append(candidate)
+    return sorted(contained)
+
+
 def _recency_key(name: str) -> tuple[str, int, str]:
     """Order an episode name newest-first under a reverse sort.
 
@@ -91,7 +106,7 @@ def search_serena(
     keywords = query_keywords(query)
 
     results: list[dict[str, Any]] = []
-    for md_file in sorted(memory_path.rglob("*.md")):
+    for md_file in _contained_markdown_files(memory_path):
         rel = md_file.relative_to(memory_path).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
@@ -196,7 +211,7 @@ def get_memory_router_status(
     serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
-        serena_count = len(list(serena_path.rglob("*.md")))
+        serena_count = len(_contained_markdown_files(serena_path))
 
     episodes_available = False
     episode_count = 0

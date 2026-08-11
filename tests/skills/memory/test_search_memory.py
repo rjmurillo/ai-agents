@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -62,6 +64,20 @@ class TestSearchSerena:
 
     def test_missing_directory(self, tmp_path):
         results = search_memory.search_serena("test", tmp_path / "missing", 10)
+        assert results == []
+
+    def test_skips_symlink_that_escapes_memory_root(self, tmp_path):
+        memory_root = tmp_path / "memories"
+        memory_root.mkdir()
+        outside = tmp_path / "outside-security.md"
+        outside.write_text("# secret outside the memory root")
+        try:
+            (memory_root / "security-escape.md").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks require additional privileges on this platform")
+
+        results = search_memory.search_serena("security", memory_root, 10)
+
         assert results == []
 
 
