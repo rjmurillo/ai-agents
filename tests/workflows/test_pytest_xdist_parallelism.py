@@ -1,8 +1,8 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
-Issue #4854. The test job is a four-entry matrix (bulk, mutation, safe-push,
-pr-autofix). Only bulk and mutation use xdist (`-n auto --dist loadfile`).
-Safe-push and pr-autofix stay serial. No hard-coded worker count.
+Issue #4854. The test job is a five-entry matrix. The root and nested bulk
+partitions plus mutation use xdist (`-n auto --dist loadfile`). Safe-push and
+pr-autofix stay serial. No hard-coded worker count.
 
 The coverage combine job downloads artifacts from all matrix legs and merges
 them. The aggregate job gates on both test and coverage.
@@ -24,16 +24,17 @@ _WINDOWS_STEP = "Run Windows path-contract tests"
 
 _EXPECTED_WORKERS = "auto"
 _EXPECTED_DIST = "loadfile"
-_BULK_IGNORES = {
+_ROOT_BULK_IGNORES = {
     "tests/test_ai_review.py",
     "tests/test_verdict.py",
     "tests/test_quality_gate.py",
-    "tests/skills/github/test_wait_for_unresolved_zero.py",
-    "tests/skills/session-end/test_rework_warning.py",
-    "tests/mutation",
     "tests/test_safe_push_pr_branch.py",
     "tests/test_mutation_workspace_signals.py",
     "tests/test_pr_autofix_late_live_state_gate.py",
+}
+_NESTED_BULK_IGNORES = {
+    "tests/skills/github/test_wait_for_unresolved_zero.py",
+    "tests/skills/session-end/test_rework_warning.py",
 }
 
 # Any argv spelling that starts workers or picks a distribution mode.
@@ -65,7 +66,7 @@ def _partition(name: str) -> dict[str, Any]:
 
 
 class TestMatrixStructure:
-    """The test job is a four-partition matrix."""
+    """The test job is a five-partition matrix."""
 
     def test_node_uses_the_runner_system_ca(self) -> None:
         assert _job("test")["env"]["NODE_OPTIONS"] == "--use-system-ca"
@@ -77,9 +78,15 @@ class TestMatrixStructure:
         assert "env.ACT == 'true'" in output
         assert "env.ACT != 'true'" in filter_step["if"]
 
-    def test_four_partitions_exist(self) -> None:
+    def test_five_partitions_exist(self) -> None:
         partitions = [e["partition"] for e in _matrix()]
-        assert partitions == ["bulk", "mutation", "safe-push", "pr-autofix"]
+        assert partitions == [
+            "bulk",
+            "bulk-nested",
+            "mutation",
+            "safe-push",
+            "pr-autofix",
+        ]
 
     def test_job_name_includes_partition(self) -> None:
         name = _job("test")["name"]
@@ -93,19 +100,40 @@ class TestMatrixStructure:
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
             assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
             assert "pytest_args" in entry, f"{entry['partition']} missing pytest_args"
-        assert len({entry["coverage_file"] for entry in _matrix()}) == 4
-        assert len({entry["junit_file"] for entry in _matrix()}) == 4
+        assert len({entry["coverage_file"] for entry in _matrix()}) == 5
+        assert len({entry["junit_file"] for entry in _matrix()}) == 5
 
-    def test_bulk_ignores_owned_files_and_mutation_and_safe_push_and_autofix(self) -> None:
+    def test_root_bulk_ignores_nested_and_owned_files(self) -> None:
         args = _partition("bulk")["pytest_args"]
         ignored = {
             token.removeprefix("--ignore=")
             for token in args.split()
             if token.startswith("--ignore=")
         }
-        assert ignored == _BULK_IGNORES
+        assert ignored == _ROOT_BULK_IGNORES
+        assert "--ignore-glob='tests/*/*'" in args.split()
         assert args.split()[-1] == "tests/"
         assert "-m" not in args, "CI must not drop integration-marked tests"
+
+    def test_nested_bulk_covers_every_non_mutation_test_directory(self) -> None:
+        args = _partition("bulk-nested")["pytest_args"]
+        ignored = {
+            token.removeprefix("--ignore=")
+            for token in args.split()
+            if token.startswith("--ignore=")
+        }
+        selected = {
+            token
+            for token in args.split()
+            if token.startswith("tests/") and not token.startswith("--ignore=")
+        }
+        expected = {
+            f"tests/{path.name}"
+            for path in (_WORKFLOW.parents[2] / "tests").iterdir()
+            if path.is_dir() and path.name not in {"__pycache__", "mutation"}
+        }
+        assert ignored == _NESTED_BULK_IGNORES
+        assert selected == expected
 
     def test_mutation_runs_only_tests_mutation(self) -> None:
         args = _partition("mutation")["pytest_args"]
@@ -124,10 +152,15 @@ class TestMatrixStructure:
 
 
 class TestXdistParallelism:
-    """Only bulk and mutation use xdist; safe-push and pr-autofix stay serial."""
+    """Bulk partitions and mutation use xdist; sensitive files stay serial."""
 
     def test_bulk_uses_xdist(self) -> None:
         args = _partition("bulk")["pytest_args"]
+        assert "-n auto" in args
+        assert "--dist loadfile" in args
+
+    def test_nested_bulk_uses_xdist(self) -> None:
+        args = _partition("bulk-nested")["pytest_args"]
         assert "-n auto" in args
         assert "--dist loadfile" in args
 
@@ -239,12 +272,13 @@ class TestCoverageJob:
         assert dl["with"]["pattern"] == "pytest-results-*"
         assert dl["with"]["merge-multiple"] is True
 
-    def test_combine_uses_four_main_data_inputs(self) -> None:
+    def test_combine_uses_five_main_data_inputs(self) -> None:
         steps = _job("coverage")["steps"]
         combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
         run = combine["run"]
         assert re.findall(r"--main-data\s+(\S+)", run) == [
             "artifacts/.coverage.bulk",
+            "artifacts/.coverage.bulk-nested",
             "artifacts/.coverage.mutation",
             "artifacts/.coverage.safe-push",
             "artifacts/.coverage.pr-autofix",

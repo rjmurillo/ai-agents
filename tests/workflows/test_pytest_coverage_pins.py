@@ -1,6 +1,6 @@
 """Static-contract tests for the pytest coverage-pin split in pytest.yml.
 
-Issue #4854: the test job is now a four-entry matrix. Pin collection and
+Issue #4854: the test job is now a five-entry matrix. Pin collection and
 enforcement steps run only in the bulk partition. The combine step moves to a
 separate coverage job that merges all partition data.
 

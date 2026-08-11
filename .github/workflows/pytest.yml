@@ -136,16 +136,29 @@ jobs:
             junit_file: artifacts/pytest-results.xml
             pytest_args: >-
               -n auto --dist loadfile
+              --ignore-glob='tests/*/*'
               --ignore=tests/test_ai_review.py
               --ignore=tests/test_verdict.py
               --ignore=tests/test_quality_gate.py
-              --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
-              --ignore=tests/skills/session-end/test_rework_warning.py
-              --ignore=tests/mutation
               --ignore=tests/test_safe_push_pr_branch.py
               --ignore=tests/test_mutation_workspace_signals.py
               --ignore=tests/test_pr_autofix_late_live_state_gate.py
               tests/
+          - partition: bulk-nested
+            coverage_file: artifacts/.coverage.bulk-nested
+            junit_file: artifacts/pytest-results-bulk-nested.xml
+            pytest_args: >-
+              -n auto --dist loadfile
+              --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
+              --ignore=tests/skills/session-end/test_rework_warning.py
+              tests/build_scripts tests/ci tests/claude tests/claude_mem
+              tests/commands tests/context-optimizer tests/e2e tests/eval
+              tests/evals tests/eval_scenarios tests/external_signals
+              tests/fixtures tests/forgetful tests/hooks tests/integration
+              tests/lib tests/llm_classification tests/maintenance tests/metrics
+              tests/quality_gate tests/skillbook tests/skills
+              tests/test_memory_sync tests/validation tests/validation_pre_pr
+              tests/workflows
           - partition: mutation
             coverage_file: artifacts/.coverage.mutation
             junit_file: artifacts/pytest-results-mutation.xml
@@ -400,6 +413,7 @@ jobs:
         run: |
           uv run --frozen python scripts/ci/combine_pin_coverage.py \
             --main-data artifacts/.coverage.bulk \
+            --main-data artifacts/.coverage.bulk-nested \
             --main-data artifacts/.coverage.mutation \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
