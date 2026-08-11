@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Current revalidation passed: 148 subprocess tests, 27 pre-PR tests, 29 merged-audit and push-gate tests, 20 focused lefthook tests, and 1,051 Windows path-contract tests; 3 platform exclusions were recorded"
+        "Evidence": "Current revalidation passed: 148 subprocess tests, 27 pre-PR tests, 29 merged-audit and push-gate tests, 20 focused lefthook tests, 1,051 Windows path-contract tests with 3 platform exclusions recorded, and all 50 full pre-PR validations"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -156,6 +156,6 @@
       "outcome": "The legacy filesystem scanner examined 461 ignored pytest artifact files and disagreed with pre-PR; issue #4657 now wires both phases to the same git-scoped fail-closed checker"
     }
   ],
-  "endingCommit": "f12587063f49a422e1117afbf23c33f0f3b39a4f",
+  "endingCommit": "007a090ff5ab20f02083c808017fc47d4bb93303",
   "nextSteps": []
 }
