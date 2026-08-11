@@ -151,6 +151,8 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         # ADR-084 keeps customer-value markdown hooks plugin-only.
         "invoke_markdown_auto_lint.py",
         "invoke_markdownlint_guard.py",
+        # Gate groups do not take the plugin dispatcher's self-host bail.
+        "invoke_push_pr_script_identity_guard.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
@@ -193,6 +195,8 @@ def test_plugin_registrations_are_dispatcher_only():
 # The authorized set is small and shrinking while the running set is what
 # drifts, so this stays cheap and gets stronger as the ROI program completes.
 AUTHORIZED_HOOKS = {
+    "invoke_push_pr_script_identity_guard.py": "#4764: block repository-controlled "
+    "lookalike PR scripts before Python execution",
     "invoke_markdownlint_guard.py": "ADR-084 keeper (customer value)",
     "invoke_markdown_auto_lint.py": "ADR-084 keeper (customer value)",
     "invoke_observation_sync.py": "#3217: relocate to .githooks/CI, authorized until then",

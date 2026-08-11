@@ -219,6 +219,10 @@ What this is not:
 - **Not boiling the ocean.** A flag is an offer, not a unilateral expansion. The user decides whether to take the fix.
 - **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
 
+## Clear The Gate Or Drop The Claim
+
+A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it. `isOutdated` means newer commits landed, not that a thread was addressed.
+
 ## Quick Self-Review
 
 Before sending a response, walk this list:
@@ -235,5 +239,6 @@ Before sending a response, walk this list:
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
 - See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact and a fix offer?
+- Uncleared gate? Clear it, drop the claim, or name who can.
 
 If any answer is wrong, rewrite before sending.

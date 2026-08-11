@@ -1,0 +1,146 @@
+{
+  "id": "episode-2026-08-11-session-10037",
+  "session": "2026-08-11-session-10037",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "pr-autofix PR 4758: fix Validate PR and Run Python Tests required failures",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T01:42:21+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR 4758 branch lease and ran the live-state gate",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T01:43:10+00:00",
+      "type": "milestone",
+      "content": "Disarmed auto-merge before touching the branch",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T01:47:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both required failures from CI logs",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T01:55:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into the branch",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T02:05:00+00:00",
+      "type": "milestone",
+      "content": "Measured what the merge broke",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T02:20:00+00:00",
+      "type": "milestone",
+      "content": "Trimmed the lsp-first prose instead of raising the ceiling",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T02:35:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the three prose documents against the live tree",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T02:40:00+00:00",
+      "type": "milestone",
+      "content": "Caught a self-referential measurement error before it shipped",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T02:24:24+00:00",
+      "type": "commit",
+      "content": "Commit: ce3641d1084338690a381587c4117f34d9d96e69",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-10037"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T02:55:00+00:00",
+      "type": "milestone",
+      "content": "Retrospective: learnings captured for the always-on corpus",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-10037"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 72,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 10
+  },
+  "lessons": []
+}

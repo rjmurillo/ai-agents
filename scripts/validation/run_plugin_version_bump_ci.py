@@ -50,7 +50,12 @@ def main() -> int:
         return 2
     base_ref = validated
     print(f"Fetching {base_ref} for diff base...", flush=True)
-    fetch_base_ref(base_ref)
+    # `fetch_base_ref` is imported through a sys.path insert, so mypy
+    # sees Any. int() states the contract at the boundary instead of
+    # suppressing the warning.
+    fetch_rc = int(fetch_base_ref(base_ref))
+    if fetch_rc != 0:
+        return fetch_rc
 
     base = resolve_base(base_ref)
     if base is None:
