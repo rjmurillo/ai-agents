@@ -44,8 +44,10 @@ Each tier is tried before falling back to the next one:
    they are not a complete inventory.
 2. **Serena second.** Use Serena's list-memories and read-memory capabilities
    only after confirming Serena is active on the repository being
-   consolidated. If the active project is unknown or different, use direct
-   directory access instead. Phase 1 below states what list-memories does and
+   consolidated and the harness reports a finite call timeout. If the active
+   project is unknown, different, or has no verified finite timeout, use
+   direct directory access instead. A Serena timeout or error falls back to
+   direct directory access. Phase 1 below states what list-memories does and
    does not enumerate.
 3. **Direct directory access third.** Only when the above are unavailable,
    read `.serena/memories/` and its topic subdirectories directly. Phase 1's
@@ -83,7 +85,10 @@ consolidate.
    index entries as errors. If the complete inventory cannot be obtained,
    report it and do not run any Phase 2 or Phase 3 writes. Audit at most 500
    memory files in one pass. Stop enumeration after finding file 501, report
-   `>=501`, and do not run any Phase 2 or Phase 3 writes.
+   `>=501`, and do not run any Phase 2 or Phase 3 writes. Before reading
+   contents, inspect file sizes. Stop before any file over 32,768 bytes or
+   before cumulative input exceeds 5,000,000 bytes. Report the breached limit
+   and do not run any Phase 2 or Phase 3 writes.
 2. Skim each file for three signals: **overlap**
    (two or more files cover the same person, project, or preference),
    **staleness** (a one-off task that passed its date), and **thinness** (a
