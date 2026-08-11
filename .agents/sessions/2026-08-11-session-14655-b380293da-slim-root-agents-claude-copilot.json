@@ -150,10 +150,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "7311169d29722e00e712def65136d127f17fd865",
-      "head": "913f31a064cba00898a091e649b5695a47a0f5ab"
+      "head": "ecfeddaefe978a046e0e75ab9cc0108a3ba5f0f8"
     }
   },
-  "endingCommit": "913f31a064",
+  "endingCommit": "ecfeddaefe",
   "nextSteps": [
     "Review and merge the root entrypoint PR.",
     "Add passive-loading fixtures to issue 4853.",
