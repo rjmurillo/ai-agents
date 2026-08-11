@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions",
+  "session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship pytest local fallback and CI partitions under ten minutes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the ACT local pytest fallback on current origin/main after the prior branch mixed closed Issue #4826 evidence with Issue #4854 code.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extracted direct pytest matrix execution into one helper, removed the shared 600-second timeout division, and added a focused regression test.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Focused validation passed: 141 pytest tests and Ruff on both changed Python files.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the code slice as a004eec5f3790649436219daaa0ddb79a9fa0947 and bound the QA report to that commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T03:44:53+00:00",
+      "type": "commit",
+      "content": "Commit: a004eec5f3790649436219daaa0ddb79a9fa0947",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
