@@ -38,9 +38,10 @@ Use this skill when the user says:
 
 Each tier is tried before falling back to the next one:
 
-1. **Memory skills first.** If available, use memory search to rank topic
-   files by keyword. Ranked search results prioritize reads; they are not a
-   complete inventory.
+1. **Memory skills first.** If available, invoke `memory-search`, which owns
+   the canonical `search_memory.py` script, to rank topic files by keyword.
+   Do not reimplement ranking here. Ranked search results prioritize reads;
+   they are not a complete inventory.
 2. **Serena second.** Use Serena's list-memories and read-memory capabilities
    only after confirming Serena is active on the repository being
    consolidated. If the active project is unknown or different, use direct
@@ -199,13 +200,31 @@ here.
 
 ## Output
 
-Finish with a short summary:
+Finish with the standard output envelope:
 
-- Whether the pass completed.
-- Number of files scanned, changed, and deleted.
-- One line per changed file.
-- Any unresolved `[AMBIGUOUS-DATE: ...]` flags or discovery failures.
-- Final index line count and byte size.
+```json
+{
+  "Success": true,
+  "Data": {
+    "Completed": true,
+    "FilesScanned": 0,
+    "FilesChanged": 0,
+    "FilesDeleted": 0,
+    "ChangedFiles": [],
+    "UnresolvedFlags": [],
+    "IndexLines": 0,
+    "IndexBytes": 0
+  },
+  "Error": null,
+  "Metadata": {
+    "Operation": "memory-consolidate"
+  }
+}
+```
+
+On failure, set `Success` and `Data` to `false` and `null`. Put the failure
+code and message in `Error`. Keep memory contents and complete diffs out of
+every field.
 
 ## Verification Gate
 
