@@ -46,6 +46,28 @@ from scripts.maintenance.worktree_report import (
 _GIT_TIMEOUT_SECONDS = 10
 
 
+def _path_confirmed_absent(path: str) -> bool:
+    """True only when ``path`` is confirmed missing, not merely unreadable.
+
+    ``os.path.lexists()`` returns ``False`` for any ``OSError`` raised while
+    probing the path, not only when the path is genuinely absent. A
+    permission error or a transient I/O error on an occupied path would then
+    read as "absent" and print the destructive ``git worktree remove``
+    advice for a path that still exists and simply could not be stat'd. That
+    recreates the "unreadable means absent" defect this module exists to
+    close (issue #4718 review). Only ``FileNotFoundError`` confirms absence;
+    every other ``OSError`` means occupied-or-unknown, so no removal command
+    is printed.
+    """
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
 def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[..., str]) -> str:
     """Explain a kept stale entry, and lead with everything clearing it would destroy.
 
@@ -70,7 +92,7 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
     Every git call runs in the main worktree. The registered checkout is gone
     or has been replaced, which is what made the entry stale.
     """
-    advice = KEEP_STALE_OCCUPIED if os.path.lexists(worktree.path) else KEEP_STALE
+    advice = KEEP_STALE if _path_confirmed_absent(worktree.path) else KEEP_STALE_OCCUPIED
     admin = _gc_stale.admin_dir_for(worktree.path, partial(run_git, cwd=main_path), main_path)
     if admin is None:
         head = _head_warning(worktree.head, main_path, run_git)

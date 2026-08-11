@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.maintenance import _gc_files, _gc_parse, _gc_stale
+from scripts.maintenance import _gc_files, _gc_parse, _gc_reasons, _gc_stale
 from scripts.maintenance.gc_worktrees import (
     Decision,
     Worktree,
@@ -334,3 +334,47 @@ class TestAdminDirLookup:
 
     def test_a_missing_worktrees_container_reports_unknown(self, tmp_path):
         assert _gc_stale.admin_dir_for("/gone", lambda _args: str(tmp_path), str(tmp_path)) is None
+
+
+class TestPathConfirmedAbsent:
+    """``_path_confirmed_absent`` separates "genuinely gone" from "could not tell".
+
+    ``stale_keep_reason`` picks between ``KEEP_STALE`` (safe to print removal
+    advice) and ``KEEP_STALE_OCCUPIED`` (something is there or unreadable, so
+    no removal command is printed) based on this predicate. Before this fix it
+    used ``os.path.lexists()`` directly, which returns ``False`` for any
+    ``OSError`` during the probe, not only a genuinely missing path. That
+    misclassified a permission-denied-but-occupied path as absent and printed
+    the destructive ``git worktree remove`` advice for a path that still
+    exists (issue #4718 review).
+    """
+
+    def test_an_existing_path_is_not_confirmed_absent(self, tmp_path):
+        target = tmp_path / "worktree"
+        target.mkdir()
+        assert _gc_reasons._path_confirmed_absent(str(target)) is False
+
+    def test_a_genuinely_missing_path_is_confirmed_absent(self, tmp_path):
+        assert _gc_reasons._path_confirmed_absent(str(tmp_path / "missing")) is True
+
+    @_NEEDS_PERMISSION_BARRIER
+    def test_a_permission_denied_path_is_not_confirmed_absent(self, tmp_path):
+        """An occupied-but-unreadable path must not read as absent.
+
+        ``lstat`` on the path itself does not require the parent directory
+        to be listable, only searchable, so the barrier is a chmod on the
+        target's parent that blocks the traversal ``lstat`` needs to reach
+        the entry, reproducing a real permission-denied probe.
+        """
+        blocked_dir = tmp_path / "blocked"
+        blocked_dir.mkdir(mode=0o000)
+        target = f"{blocked_dir}/worktree"
+        try:
+            assert _gc_reasons._path_confirmed_absent(target) is False
+        finally:
+            blocked_dir.chmod(0o755)
+
+    def test_a_stat_failure_is_not_confirmed_absent(self, tmp_path):
+        """Any non-ENOENT OSError means occupied-or-unknown, never absent."""
+        with patch.object(os, "lstat", side_effect=PermissionError(13, "denied")):
+            assert _gc_reasons._path_confirmed_absent(str(tmp_path / "worktree")) is False
