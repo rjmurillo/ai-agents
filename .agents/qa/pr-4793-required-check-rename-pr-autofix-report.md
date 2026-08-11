@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10037.json
-qaCommit: 875483b2a729dca46eb07b84125c84ec288839ef
+qaCommit: 78198cde7380a060ff154a229cdcbe5c06867bd5
 ---
 # PR #4793 required-check rename and pr-autofix validation
 
@@ -28,7 +28,7 @@ PASS. The original process-group failure is fixed. The later fast-exit lease-los
 - After merging `origin/main` at `56a59ef228c48757250c76ec61714f5cfe85614b`, the combined focused suite passed 161 tests and the Ruff count ratchet passed.
 - The final setup-poll regression passed 40/40 repeated parametrized cases; the complete pr-autofix and command-generator suite passed 45 tests.
 - Normal `git push origin HEAD:fix/required-check-rename-rule` ran pre-push hooks. Summary included `python-tests` passed in 760.12s and `pre-pr-validation` passed in 79.34s.
-- QA content is bound to `875483b2a729dca46eb07b84125c84ec288839ef`.
+- QA content is bound to `78198cde7380a060ff154a229cdcbe5c06867bd5`.
 
 ## Thread disposition
 

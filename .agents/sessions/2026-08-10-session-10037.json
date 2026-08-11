@@ -188,7 +188,7 @@
       "result": "The post-loop dead-child branch now checks lease loss before returning; a deterministic fake ps/sleep harness passed 40/40 repeated parametrized cases and 45 related tests."
     }
   ],
-  "endingCommit": "875483b2a729dca46eb07b84125c84ec288839ef",
+  "endingCommit": "78198cde7380a060ff154a229cdcbe5c06867bd5",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]
