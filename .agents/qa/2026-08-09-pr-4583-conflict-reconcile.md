@@ -1,11 +1,11 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-reconcile-4583-conflicts-validation-records.json
-qaCommit: 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b
+qaCommit: 5c1e376ef124207f7c65a97f40ac189e3b81a606
 ---
 # QA Report: PR #4583 Merge Conflict Reconciliation And Validation Record Refresh
 
-**SHA**: 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b
+**SHA**: 5c1e376ef124207f7c65a97f40ac189e3b81a606
 **Date**: 2026-08-11
 **Scope**: merge conflict reconciliation and validation record refresh after merging `origin/main`.
 
@@ -23,4 +23,4 @@ PASS. No blocking issue found in the merge-resolution delta.
 
 ## Notes
 
-The previous failure was `QA report is stale`. This refresh binds QA evidence to content commit `7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b` after the 2026-08-11 base merge and validation import repair. The session log records the refreshed validation evidence.
+The previous failure was `QA report is stale`. This refresh binds QA evidence to content commit `5c1e376ef124207f7c65a97f40ac189e3b81a606` after the 2026-08-11 base merge sequence. The session log records the refreshed validation evidence.

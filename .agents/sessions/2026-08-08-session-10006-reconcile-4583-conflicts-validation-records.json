@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Refreshed validation records now bind this session to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
+        "Evidence": "Refreshed validation records now bind this session to content commit 5c1e376ef124207f7c65a97f40ac189e3b81a606."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Revalidated on 2026-08-11 after QA report refresh for content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
+        "Evidence": "Revalidated on 2026-08-11 after QA report refresh for content commit 5c1e376ef124207f7c65a97f40ac189e3b81a606."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -188,15 +188,15 @@
       "result": "Merge completed without conflicts. Final completion gate rerun follows the normal push."
     },
     {
-      "timestamp": "2026-08-11T15:19:38Z",
+      "timestamp": "2026-08-11T15:49:55Z",
       "action": "Refreshed QA validation evidence after later branch changes made the recorded QA report stale.",
       "files": [
         ".agents/qa/2026-08-09-pr-4583-conflict-reconcile.md",
         ".agents/qa/2026-08-09-pr-4583-evalparse-triage.md"
       ],
-      "result": "validate_session_json.py passed again after rebinding QA reports to content commit 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b."
+      "result": "validate_session_json.py passed again after rebinding QA reports to content commit 5c1e376ef124207f7c65a97f40ac189e3b81a606."
     }
   ],
-  "endingCommit": "7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b",
+  "endingCommit": "5c1e376ef124207f7c65a97f40ac189e3b81a606",
   "nextSteps": []
 }
