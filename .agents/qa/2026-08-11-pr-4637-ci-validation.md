@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-2.json
-qaCommit: 8876fb2fe26117263efadbb985ebfdddd2bd7fd3
+qaCommit: bba2a7b1e2599d342bf092e884fb076fe4520503
 ---
 
 # QA Report: PR #4637 CI validation
@@ -13,7 +13,7 @@ qaCommit: 8876fb2fe26117263efadbb985ebfdddd2bd7fd3
 - PR head diagnosed: `0ded1670a456aa1781c386161007616dfd15bf6c`
 - Diagnosed base: `d4cc52d5de0c11f7d36c99a246484f1f192ce584`
 - Refreshed main: `5588065212312c04912c0a520e4fcb8f581037bf`
-- Code-under-test commit: `8876fb2fe26117263efadbb985ebfdddd2bd7fd3`
+- Code-under-test commit: `bba2a7b1e2599d342bf092e884fb076fe4520503`
 
 The report and session update are evidence-only changes. The QA commit above is
 the last code-affecting commit and must remain an ancestor of the final PR head.

@@ -172,7 +172,8 @@
         "e014"
       ],
       "leads_to": [
-        "e015"
+        "e015",
+        "e017"
       ],
       "_source_session": "2026-08-05-session-2"
     },
@@ -208,7 +209,34 @@
       "type": "commit",
       "content": "Commit: 8876fb2fe26117263efadbb985ebfdddd2bd7fd3",
       "caused_by": [
-        "e015"
+        "e015",
+        "e017"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-11T12:42:00+00:00",
+      "type": "milestone",
+      "content": "Validate Spec Coverage still required issue #4597's named seam. Extracted failure classification into scripts/ci/failure_classification.py, retained behavior through the entrypoint, simplified duplicated message construction, and passed 123 focused seam and integration tests at code commit bba2a7b1e2599d342bf092e884fb076fe4520503.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T13:07:45+00:00",
+      "type": "commit",
+      "content": "Commit: bba2a7b1e2599d342bf092e884fb076fe4520503",
+      "caused_by": [
+        "e016"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-2"
@@ -219,7 +247,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 15
   },
   "lessons": []
