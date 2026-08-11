@@ -10,23 +10,33 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
+# REQUIRED_CONTEXTS mirrors ruleset 11104075 on rjmurillo/ai-agents. Refresh it
+# with:
+#
+#   gh api repos/rjmurillo/ai-agents/rulesets/11104075 --jq \
+#     '.rules[] | select(.type=="required_status_checks")
+#      | .parameters.required_status_checks[].context'
+#
+# Measured 2026-08-10: 16 contexts. The earlier 17th, "Aggregate Results", was
+# dropped from the ruleset after three workflows produced a check run under that
+# one name. Only the workflows that produce a context in this set need a
+# merge_group trigger, so ai-session-protocol.yml and test-codeql-integration.yml
+# are deliberately absent from REQUIRED_WORKFLOWS: their aggregate jobs are the
+# renamed producers of the retired context and gate nothing in the queue.
 REQUIRED_WORKFLOWS = {
     "ai-pr-quality-gate.yml",
-    "ai-session-protocol.yml",
     "ai-spec-validation.yml",
     "codeql-analysis.yml",
     "memory-validation.yml",
     "pr-validation.yml",
     "pytest.yml",
     "semantic-pr-title-check.yml",
-    "test-codeql-integration.yml",
     "validate-generated-agents.yml",
     "validate-paths.yml",
     "validate-plugin-version-bump.yml",
 }
 
 REQUIRED_CONTEXTS = {
-    "Aggregate Results",
     "Analyze (actions)",
     "Analyze (python)",
     "Analyst Review",
@@ -47,7 +57,6 @@ REQUIRED_CONTEXTS = {
 
 REQUIRED_PRODUCERS = {
     "ai-pr-quality-gate.yml": {
-        "aggregate": {"Aggregate Results"},
         "analyst-review": {"Analyst Review"},
         "architect-review": {"Architect Review"},
         "devops-review": {"DevOps Review"},
@@ -55,7 +64,6 @@ REQUIRED_PRODUCERS = {
         "roadmap-review": {"Roadmap Review"},
         "security-review": {"Security Review"},
     },
-    "ai-session-protocol.yml": {"aggregate": {"Aggregate Results"}},
     "ai-spec-validation.yml": {"validate-spec": {"Validate Spec Coverage"}},
     "codeql-analysis.yml": {
         "analyze": {"Analyze (actions)", "Analyze (python)"},
@@ -66,9 +74,6 @@ REQUIRED_PRODUCERS = {
     "pr-validation.yml": {"validate-pr": {"Validate PR"}},
     "pytest.yml": {"test": {"Run Python Tests"}},
     "semantic-pr-title-check.yml": {"main": {"Validate PR title"}},
-    "test-codeql-integration.yml": {
-        "aggregate-results": {"Aggregate Results"},
-    },
     "validate-generated-agents.yml": {
         "validate": {"Validate Generated Files"},
     },
@@ -110,20 +115,10 @@ SKIPPED_PRODUCERS: dict[str, SkipPolicy] = {
         },
         "direct": {"aggregate"},
     },
-    "ai-session-protocol.yml": {
-        "gate": None,
-        "indirect": set(),
-        "direct": {"aggregate"},
-    },
     "ai-spec-validation.yml": {
         "gate": None,
         "indirect": set(),
         "direct": {"validate-spec"},
-    },
-    "test-codeql-integration.yml": {
-        "gate": None,
-        "indirect": set(),
-        "direct": {"aggregate-results"},
     },
 }
 
@@ -142,11 +137,9 @@ PR_REAL_JOBS = {
         "roadmap-review",
         "security-review",
     },
-    "ai-session-protocol.yml": {"aggregate"},
     "ai-spec-validation.yml": {"validate-spec"},
     "pr-validation.yml": {"validate-pr"},
     "semantic-pr-title-check.yml": {"main"},
-    "test-codeql-integration.yml": {"aggregate-results"},
 }
 
 
