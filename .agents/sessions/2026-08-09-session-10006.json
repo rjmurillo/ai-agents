@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge commit 3506c511eb created. This log commit follows."
+        "Evidence": "Merge commit 227a7465bd4501b2ffe759c87c4b91628b28f3aa created. This log commit follows."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "31 targeted tests, Ruff, pre-PR validation, and independent Sol Critical/High review passed."
+        "Evidence": "Focused merge-refresh pytest coverage, Ruff ratchet, and review-driven regression checks passed for the refreshed tip."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -140,6 +140,6 @@
       "result": "31 targeted tests passed, Ruff passed, pre-PR validation passed, and independent Sol Critical/High review found no findings."
     }
   ],
-  "endingCommit": "e406bd2cacca03525b5e45317614daa695e9925e",
+  "endingCommit": "227a7465bd4501b2ffe759c87c4b91628b28f3aa",
   "nextSteps": []
 }

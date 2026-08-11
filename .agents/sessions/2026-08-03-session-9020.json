@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 817a3f4, 6a0e4a5, e6d4bd6, 4cba2e0"
+        "Evidence": "The historical fixes remain present through merge commit 227a7465bd4501b2ffe759c87c4b91628b28f3aa."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py passed on push"
+        "Evidence": "Historical fix set revalidated against the refreshed PR tip through the current QA evidence refresh."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -144,6 +144,6 @@
       "action": "Fixed episode metrics for session-9020"
     }
   ],
-  "endingCommit": "e406bd2cacca03525b5e45317614daa695e9925e",
+  "endingCommit": "227a7465bd4501b2ffe759c87c4b91628b28f3aa",
   "nextSteps": []
 }
