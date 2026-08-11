@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread.json
-qaCommit: c063454659cb2b956949abf59ae51a539a4f3553
+qaCommit: 3953850c0bbae36c095e4d398fd48fe8000453bb
 ---
 # PR 4718 occupied stale path fix
 
@@ -25,7 +25,7 @@ move the foreign data first.
 | Command | Result |
 | --- | --- |
 | Missing, linked-checkout, and standalone-repository cases | 3 passed |
-| `pytest tests -q -k "gc_worktrees or gc_anchor or gc_stale"` | 307 passed |
+| `pytest tests -q -k "gc_worktrees or gc_anchor or gc_stale"` | 307 passed after merging current main |
 | `ruff check` on changed Python files | passed |
 | `mypy` changed-files ratchet | passed |
 

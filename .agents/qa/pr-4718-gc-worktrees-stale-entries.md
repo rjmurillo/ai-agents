@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: c063454659cb2b956949abf59ae51a539a4f3553
+qaCommit: 3953850c0bbae36c095e4d398fd48fe8000453bb
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`c063454659cb2b956949abf59ae51a539a4f3553`, which includes main commit
-`56a59ef228c48757250c76ec61714f5cfe85614b`.
+`3953850c0bbae36c095e4d398fd48fe8000453bb`, which includes current main
+at `8cdf5c6d361c22b0ad8809d9620083129feba175`.
 
 The first round closed two review threads. Both were reproduced against real
 git 2.43.0 before the fix and re-broken afterwards. The later reftable finding
@@ -82,7 +82,7 @@ data first.
 | Same GC suite and ratchets re-run after merging `origin/main` at `ff1fcd7b37` | 305 passed, taste 583, ruff 27 <= 30 |
 | Full pre-push Python suite after the current main merge | 27,398 passed, 36 skipped |
 | Reftable anchor readers, real-git anchors, and ceiling ratchet | 42 passed |
-| `pytest tests -q -k "gc_worktrees or gc_anchor or gc_stale"` | 307 passed, 27,283 deselected |
+| Same focused GC suite after merging current main | 307 passed, 27,307 deselected |
 | Occupied path positive, negative, and edge regression cases | 3 passed |
 | `ruff check` and changed-files `mypy` ratchet | passed |
 
