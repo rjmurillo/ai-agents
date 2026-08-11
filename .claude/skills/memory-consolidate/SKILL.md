@@ -141,9 +141,10 @@ Record the full starting commit from `git rev-parse HEAD`. Restore a target
 only from that exact commit through the same shell-free process API, passing
 `["git", "restore", f"--source={starting_commit}", "--worktree", "--", target]`,
 never from the current `HEAD`.
-Index paths must be relative, contain no `..` segment, and resolve under the
-real `.serena/memories/` root. Reject absolute paths and symlink escapes before
-reading, diffing, or deleting a candidate.
+Every path from Serena, memory-search, direct inventory, or an index must be
+relative, contain no `..` segment, and resolve under the real
+`.serena/memories/` root. Reject absolute paths and symlink escapes before
+stat, read, diff, write, or deletion.
 
 - **Merge only genuine duplicates.** Two files are merge candidates only
   when they would both answer the same lookup query about the same person,
@@ -237,9 +238,25 @@ Finish with the standard output envelope:
 }
 ```
 
-On failure, set `Success` and `Data` to `false` and `null`. Put the failure
-code and message in `Error`. Keep memory contents and complete diffs out of
-every field.
+On failure, emit the same envelope with `Success: false`, `Data: null`, and:
+
+```json
+{
+  "Error": {
+    "Message": "<failure summary>",
+    "Code": 1,
+    "Type": "General"
+  },
+  "Metadata": {
+    "Script": "memory-consolidate",
+    "Timestamp": "<ISO-8601 UTC timestamp>",
+    "Phase": "<phase name>",
+    "Rollback": "<complete|not-required|blocked>"
+  }
+}
+```
+
+Keep memory contents and complete diffs out of every field.
 
 ## Verification Gate
 

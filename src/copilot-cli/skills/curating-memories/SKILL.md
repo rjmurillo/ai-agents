@@ -1,6 +1,6 @@
 ---
 name: curating-memories
-description: Guidance for maintaining memory quality through curation. Covers updating outdated memories, marking obsolete content, and linking related knowledge. Use when memories need modification, when new information supersedes old, or when building knowledge graph connections. Use when you say "how do I update a memory", "how do I mark a memory obsolete", or "how do I deduplicate memories".
+description: Guidance for maintaining Forgetful record quality and in-file Serena supersession markers. Covers updating outdated records, marking obsolete content, and linking related knowledge. Use when you say "how do I update a memory", "how do I mark a memory obsolete", or "how do I deduplicate Forgetful memories". Do NOT use for merging or deleting Serena files or tidying Serena indexes; use memory-consolidate.
 license: MIT
 version: 1.1.0
 ---
@@ -21,7 +21,7 @@ index cleanup.
 | `how do I update a memory` | update_memory with PATCH semantics |
 | `how do I mark a memory obsolete` | mark_memory_obsolete with reason |
 | `how do I link related memories` | link_memories bidirectional linking |
-| `how do I deduplicate memories` | Curation workflow: query, analyze, merge |
+| `how do I deduplicate Forgetful memories` | Curation workflow: query, analyze, merge |
 | `how do I clean up stale memories` | Identify and mark obsolete outdated content |
 
 ---
