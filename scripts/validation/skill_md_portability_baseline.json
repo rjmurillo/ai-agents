@@ -85,7 +85,6 @@
     "src/copilot-cli/skills/work-operating-model/SKILL.md": 4,
     "src/copilot-cli/skills/work-operating-model/references/entry-contract.md": 1,
     "src/copilot-cli/skills/work-operating-model/references/layer-questions.md": 1,
-    "templates/agents/analyst.shared.md": 1,
     "templates/agents/architect.shared.md": 10,
     "templates/agents/critic.shared.md": 3,
     "templates/agents/devops.shared.md": 3,
@@ -101,6 +100,7 @@
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
+    ".claude/commands/push-pr.md": 3,
     ".claude/skills/SkillForge/TRANSFORMATION_NOTES.md": 13,
     ".claude/skills/adr-generator/SKILL.md": 6,
     ".claude/skills/adr-generator/references/adr-template.md": 1,
@@ -267,6 +267,7 @@
     "src/copilot-cli/skills/panning-for-gold/SKILL.md": 6,
     "src/copilot-cli/skills/pr-comment-responder/SKILL.md": 4,
     "src/copilot-cli/skills/pr-comment-responder/references/workflow.md": 2,
+    "src/copilot-cli/skills/push-pr/SKILL.md": 3,
     "src/copilot-cli/skills/quality-grades/SKILL.md": 3,
     "src/copilot-cli/skills/requirements-interview/SKILL.md": 5,
     "src/copilot-cli/skills/research-and-incorporate/SKILL.md": 1,
@@ -307,6 +308,7 @@
     "src/copilot-cli/skills/world-model-diagnostic/SKILL.md": 1
   },
   "drift_files": {
+    ".claude/commands/push-pr.md": 2,
     ".claude/skills/SkillForge/TRANSFORMATION_NOTES.md": 22,
     ".claude/skills/adr-review/SKILL.md": 8,
     ".claude/skills/adr-review/references/agent-prompts.md": 1,
@@ -440,6 +442,7 @@
     "src/copilot-cli/skills/panning-for-gold/SKILL.md": 7,
     "src/copilot-cli/skills/pr-comment-responder/SKILL.md": 3,
     "src/copilot-cli/skills/pr-comment-responder/references/workflow.md": 1,
+    "src/copilot-cli/skills/push-pr/SKILL.md": 2,
     "src/copilot-cli/skills/quality-grades/SKILL.md": 4,
     "src/copilot-cli/skills/requirements-interview/SKILL.md": 8,
     "src/copilot-cli/skills/retrospective/SKILL.md": 8,

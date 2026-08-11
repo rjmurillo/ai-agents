@@ -202,7 +202,11 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
 
     fetch_calls: list[str] = []
 
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda base_ref: fetch_calls.append(base_ref))
+    def _record_fetch(base_ref: str) -> int:
+        fetch_calls.append(base_ref)
+        return 0
+
+    monkeypatch.setattr(runner, "fetch_base_ref", _record_fetch)
     monkeypatch.setattr(runner, "resolve_base", lambda base_ref: f"origin/{base_ref}")
     monkeypatch.setattr(runner, "run", lambda cmd, *, check=False, timeout=60: (0, "OK\n", ""))
 
@@ -213,3 +217,145 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
     err = capsys.readouterr().err
     assert "failed branch-name allowlist" in err
     assert "refusing to fall back" in err
+
+
+# --- fetch_base_ref shallow handling (issue #4680) -----------------------
+
+
+def _record_calls(monkeypatch: pytest.MonkeyPatch, shallow_answers: list[str]):
+    """Fake `run` that answers the shallow probe from a queue.
+
+    Dispatch is on argv rather than call order, because `fetch_base_ref`
+    branches and a positional list would silently hand a later call the answer
+    meant for an earlier one.
+    """
+    calls: list[list[str]] = []
+    answers = list(shallow_answers)
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[:2] == ["git", "rev-parse"]:
+            return 0, (answers.pop(0) if answers else "false"), ""
+        return 0, "", ""
+
+    monkeypatch.setattr(base, "run", fake_run)
+    return calls
+
+
+def test_fetch_base_ref_does_not_graft_a_complete_clone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #4680: a depth-limited fetch writes .git/shallow even here.
+
+    Both workflows that reach this helper check out at `fetch-depth: 0`, so
+    `--depth=200` bought nothing and its only effect was the graft. The
+    discriminating assertion is the absence of any depth flag, not the presence
+    of a fetch.
+    """
+    calls = _record_calls(monkeypatch, ["false"])
+
+    base.fetch_base_ref("main")
+
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert len(fetches) == 1, calls
+    assert not any("--depth" in token for token in fetches[0]), fetches[0]
+    assert "--unshallow" not in fetches[0], fetches[0]
+
+
+def test_fetch_base_ref_still_repairs_a_genuinely_shallow_clone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shallow path must keep working, or CI checkouts at depth 1 break."""
+    calls = _record_calls(monkeypatch, ["true", "false"])
+
+    base.fetch_base_ref("main")
+
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert any("--unshallow" in token for c in fetches for token in c), calls
+    # One round trip, not two: --unshallow fetches the ref as well as
+    # completing history, so a preceding --depth fetch bought nothing.
+    assert len(fetches) == 1, calls
+
+
+@pytest.mark.parametrize("shallow", ["false", "true"])
+def test_fetch_base_ref_reports_config_error_when_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    shallow: str,
+) -> None:
+    """A failed base fetch must stop CI before it uses stale history."""
+
+    def fake_run(argv, **kwargs):
+        if argv[:2] == ["git", "rev-parse"]:
+            return 0, shallow, ""
+        if argv[:2] == ["git", "fetch"]:
+            return 1, "", "network unavailable\n"
+        raise AssertionError(f"unexpected command: {argv}")
+
+    monkeypatch.setattr(base, "run", fake_run)
+
+    assert base.fetch_base_ref("main") == 2
+    err = capsys.readouterr().err
+    assert "git fetch failed for origin/main" in err
+    assert "network unavailable" in err
+
+
+def test_fetch_base_ref_reports_config_error_when_the_repair_did_not_take(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The defect this replaces: a swallowed `--unshallow` failure.
+
+    `--unshallow` tolerated failure and the comment claimed the following
+    `rev-parse` was authoritative. It is not: `rev-parse` resolves a base ref
+    perfectly well on a grafted clone, so every range measured afterwards was
+    wrong rather than absent.
+
+    Asserted as a return code rather than an exception because neither caller
+    wraps this in a try block, so a raise would exit 1 with a traceback where
+    the exit-code contract calls for 2, and where both callers already return 2
+    for their other config failures.
+    """
+    _record_calls(monkeypatch, ["true", "true"])
+
+    assert base.fetch_base_ref("main") == 2
+    assert "still shallow" in capsys.readouterr().err
+
+
+def test_install_parity_runner_propagates_fetch_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the wiring, not only the guard.
+
+    `fetch_base_ref` returning 2 proves the helper detected the graft. It
+    proves nothing about whether either runner acts on it, and an unwired
+    caller was the exact shape of the original defect. Driving each `main()`
+    and asserting on the integer it returns is what closes that.
+    """
+    monkeypatch.setenv("PR_BASE_REF", "main")
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda _ref: 2)
+
+    assert runner.main() == 2
+
+
+def test_fetch_base_ref_fails_when_the_probe_cannot_answer(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unanswerable probe cannot prove that range history is complete."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[:2] == ["git", "rev-parse"]:
+            return 2, "", "TimeoutExpired: git rev-parse"
+        return 0, "", ""
+
+    monkeypatch.setattr(base, "run", fake_run)
+
+    assert base.fetch_base_ref("main") == 2
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert fetches == []
+    assert "could not determine whether the repository is shallow" in (
+        capsys.readouterr().err
+    )

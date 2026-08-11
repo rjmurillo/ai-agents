@@ -97,11 +97,16 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 # Repository
 # ---------------------------------------------------------------------------
 
-_GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/.]+)")
+_GITHUB_REMOTE_PATTERN = re.compile(
+    r"^(?:(?:https?|git|ssh)://(?:git@)?|git@)?"
+    r"github\.com[:/]([^/]+)/([^/]+)$"
+)
 
 
 def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
+
+    Preserves dots in repository names and removes only a trailing ``.git``.
 
     Returns:
         RepoInfo with owner and repo, or None if not in a git repo.
@@ -836,7 +841,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
         number
         title
         state
-        author { login }
+        author {
+          login
+          ... on Bot { databaseId }
+          ... on User { databaseId }
+        }
         createdAt
         updatedAt
         mergedAt
@@ -849,7 +858,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
               nodes {
                 id
                 body
-                author { login }
+                author {
+                  login
+                  ... on Bot { databaseId }
+                  ... on User { databaseId }
+                }
                 createdAt
                 path
               }

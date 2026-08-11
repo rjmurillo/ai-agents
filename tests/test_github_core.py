@@ -455,11 +455,36 @@ class TestGetRepoInfo:
             info = get_repo_info()
         assert info == RepoInfo(owner="rjmurillo", repo="ai-agents")
 
+    @pytest.mark.parametrize(
+        "stdout, expected_repo",
+        [
+            ("https://github.com/rjmurillo/moq.analyzers.git\n", "moq.analyzers"),
+            ("git@github.com:rjmurillo/repo.with.dots.git\n", "repo.with.dots"),
+            ("https://github.com/rjmurillo/repo.with.dots\n", "repo.with.dots"),
+        ],
+    )
+    def test_preserves_dots_in_repository_name(self, stdout, expected_repo):
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            info = get_repo_info()
+        assert info == RepoInfo(owner="rjmurillo", repo=expected_repo)
+
     def test_parses_ssh_remote(self):
         stdout = "git@github.com:myorg/myrepo.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
         assert info == RepoInfo(owner="myorg", repo="myrepo")
+
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://gitlab.com/rjmurillo/moq.analyzers.git\n",
+            "https://notgithub.com/rjmurillo/moq.analyzers.git\n",
+            "https://evil.example/github.com/rjmurillo/moq.analyzers.git\n",
+        ],
+    )
+    def test_returns_none_for_non_github_remote(self, stdout):
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
 
     def test_returns_none_when_not_git_repo(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="fatal")):
