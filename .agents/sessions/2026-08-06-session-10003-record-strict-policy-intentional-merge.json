@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Original commits 136881d345 and ded2bf5d8d cover the strict-policy correction, worktree rule, generated mirrors, memory index, and this session log. CI repair commits 8df46ed9c26e7eae155cdbce6264857ed8267517, 7b22cfd0361a4e37a889d8555443b3d3f31ce80b, and 25a6a9a43cc0093dd9ec354aae00b486d147feed restore the instruction budget and synchronize measured corpus claims."
+        "Evidence": "Original commits 136881d345 and ded2bf5d8d cover the strict-policy correction, worktree rule, generated mirrors, memory index, and this session log. CI repair commits 8df46ed9c26e7eae155cdbce6264857ed8267517, 7b22cfd0361a4e37a889d8555443b3d3f31ce80b, and 25a6a9a43cc0093dd9ec354aae00b486d147feed restore the instruction budget and synchronize measured corpus claims. Merge commit 62d1fa99a25b3689c8c9dbd0b8e58783d3b97894 integrates current main while preserving the worktree prohibition."
       },
       "validationPassed": {
         "level": "MUST",
@@ -119,6 +119,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "25a6a9a43cc0093dd9ec354aae00b486d147feed",
+  "endingCommit": "62d1fa99a25b3689c8c9dbd0b8e58783d3b97894",
   "nextSteps": []
 }
