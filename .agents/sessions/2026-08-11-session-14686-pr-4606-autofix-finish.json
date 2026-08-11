@@ -89,12 +89,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This commit carries the session-log and QA-evidence repair for PR 4606."
+        "Evidence": "The follow-up session-evidence commit records the final PR 4606 autofix work commit SHA."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted session validation and QA binding checks passed locally before push."
+        "Evidence": "Targeted pytest coverage, session validation, and QA binding checks passed locally before push."
       }
     }
   },
@@ -114,18 +114,22 @@
     {
       "action": "Prepared guarded push and merge cycle",
       "result": "Local validation, push hooks, required-check polling, and the completion gate all run under the PR lease and live-state wrappers."
+    },
+    {
+      "action": "Closed active suppressed findings",
+      "result": "Hardened argv-dispatch subprocess fakes in the PR gate tests and aligned generate_commands.py with schema validation for command resources."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "1d40f26128f7ca8830f639b3902441507a5e83c5",
   "nextSteps": [
-    "Push the evidence repair, wait for required checks to pass, and merge only if the Ready-to-Merge gate returns all four conditions true."
+    "Wait for required checks to pass, then merge only if the Ready-to-Merge gate returns all four conditions true."
   ],
   "episodeMetrics": {
     "filesChanged": 12,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "332257ae8324d82a309c05b53a9bfd2e782044c3",
-      "head": "332257ae8324d82a309c05b53a9bfd2e782044c3"
+      "head": "1d40f26128f7ca8830f639b3902441507a5e83c5"
     }
   }
 }

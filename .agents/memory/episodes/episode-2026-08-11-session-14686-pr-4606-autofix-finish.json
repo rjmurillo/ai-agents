@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Revalidated failing CI signals",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Rebound stale QA evidence",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Repaired invalid session protocol records",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
     },
     {
@@ -40,6 +46,34 @@
       "type": "milestone",
       "content": "Prepared guarded push and merge cycle",
       "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed active suppressed findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T19:35:08+00:00",
+      "type": "commit",
+      "content": "Commit: 1d40f26128f7ca8830f639b3902441507a5e83c5",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
     }
@@ -49,7 +83,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 12
   },
   "lessons": []
