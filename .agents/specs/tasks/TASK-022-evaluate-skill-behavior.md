@@ -49,6 +49,8 @@ behavior under the local Copilot CLI provider. Record improvement separately.
 - [ ] `eval-prompt-change.py --provider copilot` is used for base and
       working-copy prompts.
 - [ ] Every judgment-bearing changed skill runs three times per scenario.
+- [ ] Every security-critical prompt change uses `--security-critical`, at
+      least five runs, and a 100% pass rate.
 - [ ] Every prompt-change acceptance gate returns PASS.
 - [ ] Every report records delta, improvements, regressions, and
       `has_improvement` for human review.
@@ -62,8 +64,9 @@ behavior under the local Copilot CLI provider. Record improvement separately.
 | File | Action | Description |
 |---|---|---|
 | `tests/evals/skills/aspire-skill-review-scenarios.json` | Create | Skill behavior scenarios |
-| `evals/reports/aspire-skill-review-<run-id>.json` | Create | Eval output |
-| `evals/reports/aspire-skill-review-<run-id>.md` | Create | Human-readable result |
+| `.agents/scratch/aspire-skill-review-<run-id>-raw.json` | Create temporarily | Raw harness output, never committed |
+| `.agents/analysis/aspire-skill-review-eval-<run-id>.json` | Create | Sanitized score and gate summary |
+| `.agents/analysis/aspire-skill-review-eval-<run-id>.md` | Create | Human-readable sanitized result |
 
 ## Implementation Notes
 
@@ -72,9 +75,15 @@ duplicate creation, product-specific copying, and missing source identity.
 Eval spend is authorized. Do not reduce required coverage to save provider
 cost.
 
+Remove every `detail.*.per_run[].raw` field before creating a durable report.
+Keep only scores, gate criteria, delta, improvement and regression IDs,
+flakiness IDs, provider, model, and source metadata. Sanitize the summary before
+commit.
+
 ## Testing Requirements
 
 - Baseline control.
 - Candidate treatment.
 - Negative control that fails when the source pin or overlap gate is removed.
 - Tie handling that marks improvement unproved.
+- A report-shape check that rejects any durable `raw` field.

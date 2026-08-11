@@ -93,13 +93,14 @@ High risks:
 - Sensitive authentication data enters durable artifacts.
 - Generated customer-facing skill copies drift.
 
-Mitigations map to REQ-020 acceptance criteria 1, 7, 8, 9, 10, and 12.
+Mitigations map to REQ-020 acceptance criteria 1, 7, 8, 9, 10, 13, and 14.
 
 ## Testing Strategy
 
 ### Source and matrix
 
 - Reconcile source skill count to matrix row count.
+- Reconcile normalized source skill IDs to matrix skill IDs by set equality.
 - Resolve every citation against the pinned commit.
 - Include negative controls for omitted skills and unresolved paths.
 
@@ -125,6 +126,14 @@ uv run python scripts/eval/eval-prompt-change.py \
 
 Pass when the harness gate returns PASS. Record `has_improvement` and delta as
 non-gating evidence for human review, matching ADR-057.
+
+When TASK-020 classifies the selected prompt as security-critical, add
+`--security-critical --runs 5`. Require a 100% pass rate.
+
+Write the harness's raw report under `.agents/scratch/`. Produce the durable
+report by selecting only scores, gate criteria, delta, improvements,
+regressions, flaky scenario IDs, provider, model, and source metadata. Exclude
+all `detail.*.per_run[].raw` fields before redaction and commit.
 
 Eval spend is authorized. Cost is recorded but does not justify skipping a
 required scenario or model.

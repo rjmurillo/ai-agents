@@ -57,7 +57,8 @@ change set.
 |---|---|---|
 | `.claude/skills/<selected>/SKILL.md` | Modify | Approved generic workflow guidance |
 | `.claude/skills/<selected>/references/*.md` | Create or modify | Detailed evidence patterns |
-| `.claude/skills/<new-skill>/tests/test_skill_structure.py` | Create if needed | New skill structure checks |
+| `.claude/skills/<new-skill>/tests/test_skill_structure.py` | Create if needed | Colocated structure checks required by the skill rule |
+| `tests/skills/<new-skill>/test_<behavior>.py` | Create if needed | Default-collected behavior tests for skill scripts |
 
 ## Implementation Notes
 
@@ -68,5 +69,5 @@ inspiration for retained generic ideas.
 
 - SkillForge quick and full validation.
 - Colocated structure tests for any new skill.
+- Default-collected behavior tests for any new or changed skill script.
 - Reference-link and size checks.
-
