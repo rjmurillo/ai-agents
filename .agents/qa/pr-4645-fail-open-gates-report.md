@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-04-session-9102-fail-open-audit.json
-qaCommit: 919b4846796d3748bcfb163cb24db2967f2acf44
+qaCommit: 160b145de26026b849097f721da8fb3765a272c3
 ---
 
 # PR #4645 fail-open gate closure validation
@@ -9,7 +9,8 @@ qaCommit: 919b4846796d3748bcfb163cb24db2967f2acf44
 ## Scope
 
 Validation of the two fail-open fixes that remain in this PR's diff after the
-base refresh at `919b4846796d3748bcfb163cb24db2967f2acf44`:
+base refresh at `919b4846796d3748bcfb163cb24db2967f2acf44`, bound to the
+evidence commit `160b145de26026b849097f721da8fb3765a272c3`:
 
 - `scripts/ci/check_codeql_sarif.py`
 - `scripts/ci/spec_prepare_context.py`
@@ -47,7 +48,7 @@ step exit 0. It now returns 2 for all three cases with a distinct
 
 ## Evidence
 
-All commands run in the worktree at
+All commands run in the worktree at the base refresh commit
 `919b4846796d3748bcfb163cb24db2967f2acf44`, which is `origin/main` at
 `e88f1d8d7a5c09fd6c55401e2961a19925073b7a` merged into the branch.
 

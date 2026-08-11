@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed branch work as 55b557922c6ea9bf43b0000a9e0a44f070c1bc94, 27e2a81156a07f0565270c96c5f0a15cdf796217, fa4f40e3f85ec9f94c5e80e38493f506daf197c1, and 4139b1c06e92bdf0a76e5c3cf1f930c6563198a1, then refreshed the base against origin/main as 919b4846796d3748bcfb163cb24db2967f2acf44."
+        "Evidence": "Committed branch work as 55b557922c6ea9bf43b0000a9e0a44f070c1bc94, 27e2a81156a07f0565270c96c5f0a15cdf796217, fa4f40e3f85ec9f94c5e80e38493f506daf197c1, and 4139b1c06e92bdf0a76e5c3cf1f930c6563198a1, refreshed the base against origin/main as 919b4846796d3748bcfb163cb24db2967f2acf44, then recorded QA and retrospective evidence through 160b145de26026b849097f721da8fb3765a272c3."
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,7 +138,7 @@
       "detail": "Merged origin/main as 919b4846796d3748bcfb163cb24db2967f2acf44, which took main's ruff count baseline of 30 and cleared the Run Python Tests failure. Added .agents/qa/pr-4645-fail-open-gates-report.md and the missing sessionEnd.qaValidation item for the Validate PR QA gate. Recorded the failure analysis in .agents/retrospective/2026-08-10-pr-4645-autofix.md."
     }
   ],
-  "endingCommit": "919b4846796d3748bcfb163cb24db2967f2acf44",
+  "endingCommit": "160b145de26026b849097f721da8fb3765a272c3",
   "nextSteps": [
     "Open the PR from fix/fail-open-audit after push verification.",
     "Merge PR 4645 once the required checks pass on the refreshed base."
