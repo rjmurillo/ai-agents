@@ -365,6 +365,7 @@ def _create_pr(args: argparse.Namespace, head: str, body: str) -> int:
         input=body if body or args.body_file else None,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=False,
     )
