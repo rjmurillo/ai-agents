@@ -276,6 +276,23 @@ shims, and dedicated tests.
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
+## 2026-08-09 Issue #4764 Survivor Inventory Amendment
+
+The six roles verified that `push_pr_script_identity_guard` joins the surviving
+vendored hook inventory without changing the permission-surface decision.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Three source registrations still emit two host entries. |
+| critic | Accept | Survivor names and counts match generated artifacts. |
+| independent-thinker | Accept | No hidden permission-policy change exists. |
+| security | Accept | The new gate does not revive removed auto-approval. |
+| analyst | Accept | Live registration names match the amendment. |
+| high-level-advisor | Accept | The correction preserves the accepted outcome. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
 ## 2026-07-31 File-Size Suppression Review
 
 The six roles reviewed the narrow file-size suppression for this accepted,
