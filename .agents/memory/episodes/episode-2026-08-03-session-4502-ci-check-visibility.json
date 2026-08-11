@@ -1,0 +1,146 @@
+{
+  "id": "episode-2026-08-03-session-4502-ci-check-visibility",
+  "session": "2026-08-03-session-4502-ci-check-visibility",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix GitHub issues #4359, #4393, #4408, #4487, #4502: CI check visibility, external signal gate crash, hung suite timeout, missing required checks, new why-pr-blocked diagnostic.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T22:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4487: DID_NOT_RUN missing from gate_aggregator._KNOWN. Added _DID_NOT_RUN set, updated _KNOWN, extended aggregate() to yield NEEDS_REVIEW. Added 8 tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T22:10:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4502: test job in pytest.yml had no timeout-minutes. Added timeout-minutes: 45.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T22:15:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4408: .claude/rules/** and .github/instructions/** missing from pytest.yml paths filter. Added both globs to check-paths job.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T22:30:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4359: added fetch_ruleset_required_contexts() and find_missing_required() to checks_rollup.py. Wired MissingRequiredChecks and --base-branch into get_pr_checks.py. Exit 1 when missing.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T22:50:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4393: created why_pr_blocked.py with diagnose(), fetch_pr_data(), main(). Exit codes: 0=no blocker, 1=blocker, 2=not found, 3=API error. 18 tests.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T23:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation proof: 2 mutations killed, cosmetic control survived. Ruff clean.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T01:03:01+00:00",
+      "type": "commit",
+      "content": "Commit: d32301338",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T12:18:19+00:00",
+      "type": "commit",
+      "content": "Commit: fcc28e66c0",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T17:07:05+00:00",
+      "type": "commit",
+      "content": "Commit: 23bbe94d43",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T18:44:29+00:00",
+      "type": "commit",
+      "content": "Commit: 5cc9c72dd3",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 60,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}
