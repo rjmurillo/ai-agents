@@ -11,10 +11,10 @@ it fails the required validation.
 
 | File | Ceiling | Ratchet? | Notes |
 |---|---|---|---|
-| `AGENTS.md` | 4800 bytes | no | Shared gotchas and routing; 4686 bytes accepted by issue #4880 |
+| `AGENTS.md` | 4800 bytes | no | Shared gotchas and routing; 4621 bytes accepted by issue #4880 |
 | `CLAUDE.md` | 4800 bytes | no | Claude-specific overlay |
 | `.claude/CLAUDE.md` | 4800 bytes | no | Path-local Claude overlay |
-| `.github/copilot-instructions.md` | 1400 bytes | yes | Copilot-specific overlay; 1294 bytes accepted by issue #4880 |
+| `.github/copilot-instructions.md` | 1400 bytes | yes | Copilot-specific overlay; 1370 bytes accepted by issue #4880 |
 
 **Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES = 6100`.
 Files with a ratchet are measured only by their individual ceiling.

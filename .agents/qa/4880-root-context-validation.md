@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot.json
-qaCommit: b22eaf7dab4b4401a943c6676b07d199b347f665
+qaCommit: a1a7837d430bc610e0ea81fcdbbc856e05009944
 ---
 
 # Root Context Validation
 
-- Workspace budget: shared 5999 of 6100 bytes, Copilot 1294 of 1400 bytes.
+- Workspace budget: shared 5934 of 6100 bytes, Copilot 1370 of 1400 bytes.
 - Tests: full suite passed, 27,056 tests with 36 skips.
 - Ruff, taste-lints, CWE-78 scan, orphan-ref scan, and scoped markdownlint passed.
 - Workflow security review passed with no CWE findings.
