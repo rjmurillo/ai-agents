@@ -25,15 +25,19 @@ _SCRIPT_RELATIVE_PATH = Path("skills/github/scripts/pr/new_pr.py")
 _DIGEST_CHUNK_BYTES = 1 << 20
 
 
-_TRUSTED_NEW_PR_SHA256 = "f9df25527cb27ec10c2eb70100d664165d81666a825eab848cd90609251dae26"
+_TRUSTED_NEW_PR_SHA256 = "67f765f1e869f292e513fac3fc87b1f062c3625c56c35bf6e9761dea02be35c2"
 
 
 _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256 = (
-    "00f32287461be4a0d0b15b0b7fb8a870d3824fbe4a6427373376fb4c38bda9eb"
+    "31f27188c469b42183c4234c04c5a08b9af0de8d1b9d4375be5342269877a375"
 )
 
 
 _TRUSTED_PR_VALIDATIONS_SHA256 = "e1f87e5918e84526bb24ee6e304fa5f4fe8d00df0c24354b20a92586ce358caa"
+_TRUSTED_NEW_PR_VALIDATIONS_SHA256 = (
+    "4fd85df340baab542b9e73cc0f0a853722df6f094737da53937aa39e7f9df57f"
+)
+_TRUSTED_PREPARE_PR_BODY_SHA256 = "7040677820b84968704534ea6673d62306abc21e0fa638fa49f687dc9b78bc56"
 
 
 def _sha256_digest(stream: BinaryIO) -> hashlib._Hash:
@@ -118,6 +122,8 @@ def _validate_runtime_bundle(script: Path) -> None:
     for name, expected in (
         ("validate_pr_description.py", _TRUSTED_VALIDATE_PR_DESCRIPTION_SHA256),
         ("pr_validations.py", _TRUSTED_PR_VALIDATIONS_SHA256),
+        ("new_pr_validations.py", _TRUSTED_NEW_PR_VALIDATIONS_SHA256),
+        ("prepare_pr_body.py", _TRUSTED_PREPARE_PR_BODY_SHA256),
     ):
         helper = _regular_resolved_file(script.parent / name)
         if helper is None:

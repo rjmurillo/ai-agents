@@ -217,6 +217,7 @@ the number that looks wrong on your branch is the correct number on `main`.
 
 - Never pipe `git push` into `tail`: `$?` then reports `tail`'s status, so a
   rejected push reads as success, and the reject line is truncated away. Use
-  `git push origin <branch> > /tmp/push.log 2>&1; echo "EXIT=$?"` and read the
-  file.
+  Python's `tempfile.NamedTemporaryFile` under `.agents/scratch/`, redirect
+  `git push origin <branch>` into that per-run file, then echo and read the exit
+  code.
 - `.serena/memories/git/git-merge-preflight.md` for detecting upstream deletions.
