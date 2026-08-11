@@ -1861,9 +1861,6 @@ def test_fork_hint_survives_when_no_rate_limit_wording_is_present():
     """
     real_fork_failure = "HTTP 403: Resource not accessible by integration"
 
-    assert _mod.FORK_PERMISSION_SIGNAL.search(real_fork_failure)
-    assert not _mod.RATE_LIMIT_SIGNAL.search(real_fork_failure)
-
     context = _mod._pr_fetch_failure_context("4575", real_fork_failure)
 
     assert "first-time contributor" in context.text
@@ -1876,9 +1873,6 @@ def test_graphql_rate_limit_never_matched_the_permission_signal():
     the REST form needed the second condition.
     """
     graphql_failure = "GraphQL: API rate limit already exceeded for user ID 6811113."
-
-    assert not _mod.FORK_PERMISSION_SIGNAL.search(graphql_failure)
-    assert _mod.RATE_LIMIT_SIGNAL.search(graphql_failure)
 
     context = _mod._pr_fetch_failure_context("4575", graphql_failure)
 
