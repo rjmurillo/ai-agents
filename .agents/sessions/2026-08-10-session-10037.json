@@ -182,9 +182,13 @@
     {
       "action": "Merged the lowered Ruff ratchet from current main",
       "result": "Merged main at 56a59ef228c48757250c76ec61714f5cfe85614b; the ratchet passed, 161 focused tests passed, and focused mypy remained clean."
+    },
+    {
+      "action": "Closed the final setup-poll lease-loss race",
+      "result": "The post-loop dead-child branch now checks lease loss before returning; a deterministic fake ps/sleep harness passed 40/40 repeated parametrized cases and 45 related tests."
     }
   ],
-  "endingCommit": "553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63",
+  "endingCommit": "875483b2a729dca46eb07b84125c84ec288839ef",
   "nextSteps": [
     "Wait for remote required checks, run merge-ready gate, release lease, then enable squash auto-merge only if all conditions pass."
   ]
