@@ -79,7 +79,7 @@ def _has_definition(name: str, home: Path, project: Path) -> bool:
     return False
 
 
-def _spawn_arguments(payload: dict) -> dict | None:
+def _spawn_arguments(payload: dict[str, object]) -> dict[str, object] | None:
     """Normalize tool arguments across payload spellings.
 
     Claude and PascalCase Copilot registrations send ``tool_input`` as an
