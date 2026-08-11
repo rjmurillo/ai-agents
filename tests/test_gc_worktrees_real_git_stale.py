@@ -388,6 +388,7 @@ def test_a_worktree_moved_onto_another_s_old_path_does_not_make_it_healthy(
     assert decision_for(report, victim)["remove"] is False
     assert "stale admin entry" in reason, reason
     assert "checkout-index" in reason, "the victim's staged work must still be named"
+    assert "git worktree remove" not in reason, reason
 
 
 def test_a_standalone_repository_replacing_a_linked_path_is_kept_not_removed(
@@ -428,6 +429,10 @@ def test_a_standalone_repository_replacing_a_linked_path_is_kept_not_removed(
 
     decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     assert decision["remove"] is False, decision["reason"]
+    reason = decision["reason"]
+    assert isinstance(reason, str)
+    assert "registered path is occupied" in reason, reason
+    assert "git worktree remove" not in reason, reason
 
     # The decision leaves the standalone repository and its object database
     # untouched: the ``.git`` directory survives and the commit only it holds is

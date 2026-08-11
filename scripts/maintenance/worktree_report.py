@@ -31,6 +31,10 @@ KEEP_STALE = (
     "If it moved, git worktree repair <new-path> restores it. If it is gone, "
     "git worktree remove <path> clears this entry and no other"
 )
+KEEP_STALE_OCCUPIED = (
+    "stale admin entry; its registered path is occupied by another checkout "
+    "or unrelated data. Inspect or move that path before changing this entry"
+)
 KEEP_ADMIN_ONLY = "would have been removed, but its admin directory is the only anchor for work"
 
 

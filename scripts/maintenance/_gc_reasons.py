@@ -19,6 +19,7 @@ Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 
 from __future__ import annotations
 
+import os.path
 import shlex
 from functools import partial
 from typing import TYPE_CHECKING
@@ -37,6 +38,7 @@ else:
 from scripts.maintenance.worktree_report import (
     KEEP_STALE,
     KEEP_STALE_HEAD_UNKNOWN,
+    KEEP_STALE_OCCUPIED,
     KEEP_STALE_UNREACHABLE,
     Worktree,
 )
@@ -65,16 +67,17 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
     ``.`` glues a period onto the recovery command's last token, and
     ``git branch rescue/x <sha>.`` fails with ``bad object``.
 
-    Every git call runs in the main worktree. The stale entry's own directory
-    is gone, which is what made it stale.
+    Every git call runs in the main worktree. The registered checkout is gone
+    or has been replaced, which is what made the entry stale.
     """
+    advice = KEEP_STALE_OCCUPIED if os.path.lexists(worktree.path) else KEEP_STALE
     admin = _gc_stale.admin_dir_for(worktree.path, partial(run_git, cwd=main_path), main_path)
     if admin is None:
         head = _head_warning(worktree.head, main_path, run_git)
         lead = f"{head} | " if head else ""
         return (
             f"{lead}could not locate its admin entry, so nothing else about it "
-            f"was checked; {KEEP_STALE}"
+            f"was checked; {advice}"
         )
     warnings = [
         _head_warning(worktree.head, main_path, run_git),
@@ -82,7 +85,7 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
         _admin_warning(admin, main_path),
     ]
     lead = "".join(f"{warning} | " for warning in warnings if warning)
-    return f"{lead}{KEEP_STALE}"
+    return f"{lead}{advice}"
 
 
 def reflog_only_work(worktree_path: str, main_path: str, run_git: Callable[..., str]) -> str:
