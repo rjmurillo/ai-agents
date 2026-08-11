@@ -1,18 +1,16 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-09-session-10006.json
-qaCommit: e406bd2cacca03525b5e45317614daa695e9925e
+qaSessionLog: .agents/sessions/2026-08-11-session-14687.json
+qaCommit: 227a7465bd4501b2ffe759c87c4b91628b28f3aa
 ---
 # PR 4543 merge refresh QA
 
-Scope: merge origin/main into PR 4543 and resolve dirty-state conflicts.
+Scope: merge origin/main into PR 4543, preserve the creation-mode fix, and
+resolve the blocking review-thread regression.
 
 Evidence:
 
-- `uv run --frozen pytest tests/ci/test_validate_session_protocol.py tests/skills/session/test_complete_session_log.py tests/skills/session-end/test_rework_warning.py .claude/skills/session-end/tests/test_complete_session_log.py src/copilot-cli/skills/session-end/tests/test_complete_session_log.py -q`: 178 passed.
-- `uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py`: passed for 9 changed Python files.
-- `uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet`: passed.
-- `uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main`: OK, count equals baseline 387.
-- `uv run --frozen python scripts/ci/memory_index_token_ratchet.py`: token counts current.
+- `uv run --frozen pytest tests/ci/test_validate_session_protocol.py tests/test_validate_session_json.py tests/test_lefthook_integration.py -k 'creation_mode or scope_from_git or check_sessions or HistoricalLogsAreExemptByConstruction' -q`: 19 passed.
+- `uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py`: passed for 10 changed Python files.
 
 Result: passed for the merge-conflict resolution scope.
