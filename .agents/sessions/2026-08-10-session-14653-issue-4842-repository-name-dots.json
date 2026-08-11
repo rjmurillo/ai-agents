@@ -113,8 +113,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-10-pr-4856-session-log-collision.md; recurrence recorded on issue 4751 comment 5248134091."
       },
       "reworkWarning": {
         "level": "SHOULD",
