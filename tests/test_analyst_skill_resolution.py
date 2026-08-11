@@ -345,6 +345,17 @@ _TOOL_RE = re.compile(
 )
 _PREP_KEYWORDS = re.compile(r"\b(using|via)\b")
 
+# Anchored "Using/Via <tool>, the analyst ..." prefix. Strategy 4 searched the
+# whole pre-verb prefix, which accepted another actor's clause such as
+# "The compliance-bot calls pull_request_read before the analyst retrieves
+# cache". Only the canonical fronted prepositional phrase qualifies.
+_PRE_TOOL_ANCHOR = re.compile(
+    r"^\W*(?:using|via)\s+(?:its\s+|the\s+)?(?:mcp__github__)?(?:"
+    + "|".join(re.escape(t) for t in _TOOL_NAMES)
+    + r")(?![a-zA-Z0-9_])\s*,?\s*(?:the\s+)?$",
+    re.IGNORECASE,
+)
+
 _NEGATIONS = re.compile(
     r"\b("
     r"do\s+not|don[\u2019']?t|never|"
@@ -597,11 +608,14 @@ def _is_affirmative_directive(line: str) -> bool:
             if all(tool_re_bare.match(it) for it in items):
                 return True
 
-        # Strategy 4: tool BEFORE the analyst+verb in the same clause
-        # (handles "Using pull_request_read, the analyst retrieves context")
+        # Strategy 4: tool BEFORE the analyst+verb, restricted to the anchored
+        # "Using <tool>, the analyst ..." shape. Searching the whole prefix
+        # accepted a different actor's clause, for example
+        # "The compliance-bot calls pull_request_read before the analyst
+        # retrieves cache".
         # Use FULLY MASKED text (clause) so backtick code spans are excluded.
         pre_tool_frag = clause[: verb_match.start()]
-        if _TOOL_RE.search(pre_tool_frag):
+        if _PRE_TOOL_ANCHOR.match(pre_tool_frag):
             return True
 
         # Strategy 5: "declared tool" phrasing within the clause (including
@@ -1434,6 +1448,13 @@ class TestNegativeControls:
         "Return [BLOCKED] only when missing.\n"
     )
 
+    # Fixture 61: another actor holds the tool before the analyst clause
+    TOOL_PRE_ANALYST_OTHER_ACTOR = (
+        "\n### delegation contract\n"
+        "The compliance-bot calls pull_request_read before the analyst retrieves cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
     def test_tool_mixed_provides_rejected(self) -> None:
         """'provides' by other actor must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_PROVIDES)
@@ -1470,6 +1491,36 @@ class TestNegativeControls:
         """Adjacent list items must stay as separate paragraphs."""
         err = _check_retrieval_precedes_blocked(self.TOOL_LIST_ITEMS_MERGED)
         assert err is not None, "Should reject merged list items"
+
+    def test_pre_analyst_tool_by_other_actor_rejected(self) -> None:
+        """A tool owned by another actor before the analyst clause is rejected."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_PRE_ANALYST_OTHER_ACTOR)
+        assert err is not None, "Should reject pre-analyst tool held by another actor"
+        assert not _is_affirmative_directive(
+            "The compliance-bot calls pull_request_read before the analyst retrieves cache."
+        )
+
+    def test_pre_analyst_tool_after_other_actor_clause_rejected(self) -> None:
+        """A fronted using-phrase does not license an intervening actor."""
+        assert not _is_affirmative_directive(
+            "Using pull_request_read, compliance-bot notes the analyst retrieves cache."
+        )
+
+
+class TestPositiveFrontedToolPhrase:
+    """The anchored 'Using <tool>, the analyst ...' shape stays accepted."""
+
+    def test_using_tool_comma_analyst_accepted(self) -> None:
+        """Canonical fronted prepositional phrase is a valid directive."""
+        assert _is_affirmative_directive(
+            "Using pull_request_read, the analyst retrieves the pull request context"
+        )
+
+    def test_via_tool_analyst_accepted(self) -> None:
+        """'Via <tool> the analyst ...' without a comma is also valid."""
+        assert _is_affirmative_directive(
+            "Via pull_request_read the analyst retrieves the pull request context"
+        )
 
 
 class TestPositiveMcpPrefix:

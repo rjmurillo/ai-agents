@@ -269,8 +269,13 @@ def _parse_routing_table(body: str) -> tuple[dict[str, list[str]], list[str]]:
                 continue
             # Parse data rows
             for j in range(data_start, len(lines)):
+                # A code fence, indented block, or HTML comment ends the table.
+                # Markdown stops the table there, so rows after the
+                # interruption belong to a separate block and must not
+                # complete this one.
                 if not operative[j]:
-                    continue
+                    i = j
+                    break
                 raw_row = lines[j]
                 # Strip blockquote prefix
                 row_content = _strip_blockquote(raw_row)
@@ -932,6 +937,51 @@ class TestRoutingFenceBypassRegression:
         )
         routes, _ = _parse_routing_table(body)
         assert routes.get("/pull/<n>") == ["pull_request_read"]
+
+    def test_fence_interrupting_table_ends_it(self) -> None:
+        """Rows after a fence inside a table do not complete that table."""
+        body = (
+            "| URL pattern | Tool |\n"
+            "|---|---|\n"
+            "| `/pull/<N>` | `pull_request_read` |\n"
+            "```\n"
+            "some code\n"
+            "```\n"
+            "| `/issues/<N>` | `issue_read` |\n"
+            "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+            "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes == {"/pull/<n>": ["pull_request_read"]}
+
+    def test_html_comment_interrupting_table_ends_it(self) -> None:
+        """Rows after a multi-line HTML comment do not complete that table."""
+        body = (
+            "| URL pattern | Tool |\n"
+            "|---|---|\n"
+            "| `/pull/<N>` | `pull_request_read` |\n"
+            "<!-- hidden\n"
+            "still hidden -->\n"
+            "| `/issues/<N>` | `issue_read` |\n"
+            "| `/actions/runs/<ID>` | `get_workflow_run` |\n"
+            "| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` |\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes == {"/pull/<n>": ["pull_request_read"]}
+
+    def test_table_after_interruption_parses_on_its_own_header(self) -> None:
+        """A complete table following an interrupted one is still parsed."""
+        body = (
+            "| URL pattern | Tool |\n"
+            "|---|---|\n"
+            "| `/pull/<N>` | `evil_tool` |\n"
+            "```\n"
+            "code\n"
+            "```\n\n" + self.VALID_TABLE
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes["/pull/<n>"] == ["evil_tool", "pull_request_read"]
+        assert "/actions/runs/<id>/job/<jid>" in routes
 
     def test_decoy_in_fence_no_contamination(self) -> None:
         """Hidden decoy table inside fence must not pollute later parse."""
