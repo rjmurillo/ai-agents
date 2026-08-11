@@ -77,7 +77,8 @@
         "e008",
         "e009",
         "e011",
-        "e012"
+        "e012",
+        "e014"
       ],
       "leads_to": [
         "e010"
@@ -161,6 +162,17 @@
         "e010"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed remaining QA reports after canonical command fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
     }
   ],

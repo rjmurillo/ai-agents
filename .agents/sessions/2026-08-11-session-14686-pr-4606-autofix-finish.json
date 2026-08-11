@@ -138,6 +138,10 @@
     {
       "action": "Aligned the canonical pr-review command note",
       "result": "Updated .claude/commands/pr-review.md so the generated Copilot skill keeps the portability fix after build_all regeneration."
+    },
+    {
+      "action": "Refreshed remaining QA reports after canonical command fix",
+      "result": "Updated the final session-specific QA markdown artifacts so every PR 4606 session report still points at the latest portable command fix commit."
     }
   ],
   "endingCommit": "d366919b4c5fdef1b9a9fde9956502bce6977956",
