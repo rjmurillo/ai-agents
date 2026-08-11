@@ -151,9 +151,9 @@
       "kind": "githubPullRequest",
       "pullRequest": 4832,
       "base": "8108ebfea285f7030906a425be28d8707680d001",
-      "head": "9dae885e863d74934caf8e2c02cdc559addd8ab5"
+      "head": "2699e70758a002fb36cb79e4bda9bf9a75084718"
     }
   },
-  "endingCommit": "9dae885e863d74934caf8e2c02cdc559addd8ab5",
+  "endingCommit": "2699e70758a002fb36cb79e4bda9bf9a75084718",
   "nextSteps": []
 }
