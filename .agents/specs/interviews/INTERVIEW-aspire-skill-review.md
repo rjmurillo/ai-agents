@@ -45,8 +45,9 @@ Yes, increasingly so. PR velocity goes up, so we can handle more PRs.
   augmentation, multi-domain work to composition, and weak matches to creation.
 - `.claude/skills/CLAUDE.md` requires concise `SKILL.md` files, progressive
   disclosure, generated mirrors, and skill tests.
-- `scripts/eval/README.md` identifies `copilot-cli` as the provider for testing
-  the models this repository runs.
+- `scripts/eval/_providers.py` maps both `copilot` and `copilot-cli` to the same
+  Copilot CLI transport. The owner prefers the `copilot` provider spelling
+  because that transport exposes the available model set.
 
 ### Connected context from exploring-knowledge-graph
 
@@ -187,7 +188,7 @@ The existing 2.7 P50 PR review-round measure remains a non-gating trend.
 9. WHEN canonical skill sources change, THE SYSTEM SHALL regenerate
    `src/copilot-cli/skills/` SO THAT shipped copies match `.claude/skills/`.
 10. WHEN a judgment-bearing skill changes, THE SYSTEM SHALL run
-    `eval-prompt-change.py` with the `copilot-cli` provider and three runs per
+    `eval-prompt-change.py` with the `copilot` provider and three runs per
     scenario SO THAT the working copy is compared with the base ref.
 11. WHEN the prompt-change eval completes, THE SYSTEM SHALL record its delta,
     improvements, regressions, and `has_improvement` value SO THAT human review

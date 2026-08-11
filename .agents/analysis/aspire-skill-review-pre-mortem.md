@@ -52,7 +52,7 @@ increased review rounds instead of reducing them.
 - **Mitigation:**
   - **Prevention:** DESIGN-019 requires `eval-prompt-change.py`.
   - **Detection:** Dry-run records base and working-copy prompt sources.
-  - **Response:** Reject the report and rerun with `--provider copilot-cli`.
+  - **Response:** Reject the report and rerun with `--provider copilot`.
 - **Owner:** TASK-022 implementer
 - **Status:** Mitigating
 

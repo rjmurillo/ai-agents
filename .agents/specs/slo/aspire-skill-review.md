@@ -39,7 +39,7 @@
   harness gate.
 - **Measurement**:
   `changed_skills_with_prompt_gate_pass / changed_judgment_skills`
-- **Data Source**: `eval-prompt-change.py` reports with the `copilot-cli`
+- **Data Source**: `eval-prompt-change.py` reports with the `copilot`
   provider.
 
 ### SLI 4: Generated consistency
