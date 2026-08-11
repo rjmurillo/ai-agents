@@ -17,6 +17,7 @@ from scripts.github_core import (
     REPO_ROOT_OK,
     FetchStatus,
     RateLimitResult,
+    RateLimitStatus,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
@@ -48,6 +49,8 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import (
     _403_PATTERN,
+    REST_PAGE_PACE_SECONDS,
+    REST_REFUSAL_BACKOFF_SECONDS,
     _retry_after_delay,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
@@ -452,11 +455,36 @@ class TestGetRepoInfo:
             info = get_repo_info()
         assert info == RepoInfo(owner="rjmurillo", repo="ai-agents")
 
+    @pytest.mark.parametrize(
+        "stdout, expected_repo",
+        [
+            ("https://github.com/rjmurillo/moq.analyzers.git\n", "moq.analyzers"),
+            ("git@github.com:rjmurillo/repo.with.dots.git\n", "repo.with.dots"),
+            ("https://github.com/rjmurillo/repo.with.dots\n", "repo.with.dots"),
+        ],
+    )
+    def test_preserves_dots_in_repository_name(self, stdout, expected_repo):
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            info = get_repo_info()
+        assert info == RepoInfo(owner="rjmurillo", repo=expected_repo)
+
     def test_parses_ssh_remote(self):
         stdout = "git@github.com:myorg/myrepo.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
         assert info == RepoInfo(owner="myorg", repo="myrepo")
+
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            "https://gitlab.com/rjmurillo/moq.analyzers.git\n",
+            "https://notgithub.com/rjmurillo/moq.analyzers.git\n",
+            "https://evil.example/github.com/rjmurillo/moq.analyzers.git\n",
+        ],
+    )
+    def test_returns_none_for_non_github_remote(self, stdout):
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            assert get_repo_info() is None
 
     def test_returns_none_when_not_git_repo(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="fatal")):
@@ -581,9 +609,36 @@ class TestGhApiPaginated:
             data = page1 if call_count == 1 else page2
             return _completed(stdout=json.dumps(data))
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ) as sleep:
             result = gh_api_paginated("repos/o/r/issues", page_size=100)
         assert len(result) == 101
+        sleep.assert_called_once_with(REST_PAGE_PACE_SECONDS)
+
+    def test_rate_limit_refusal_retries_page_before_success(self):
+        items = [{"id": 1}]
+        calls: list[list[str]] = []
+        sleeps: list[float] = []
+
+        def _side_effect(command, **kwargs):
+            del kwargs
+            calls.append(command)
+            if len(calls) == 1:
+                return _completed(
+                    rc=1,
+                    stderr="HTTP 403: API rate limit exceeded for user ID 6811113",
+                )
+            return _completed(stdout=json.dumps(items))
+
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep", sleeps.append
+        ), pytest.warns(UserWarning, match="GitHub REST page request refused"):
+            result = gh_api_paginated("repos/o/r/issues")
+
+        assert result == items
+        assert len(calls) == 2
+        assert sleeps == [REST_REFUSAL_BACKOFF_SECONDS[0]]
 
     def test_empty_response(self):
         with patch("subprocess.run", return_value=_completed(stdout="[]")):
@@ -608,7 +663,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(rc=1, stderr="rate limited")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Returning partial results"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
@@ -631,7 +688,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(stdout="not json")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Invalid JSON"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
@@ -1678,23 +1737,27 @@ class TestCheckWorkflowRateLimit:
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
             result = check_workflow_rate_limit()
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert result.core_remaining == 5000
 
     def test_failure_core_below_threshold(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.resources["core"]["Passed"] is False
 
     def test_custom_thresholds_pass(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 10})
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
 
     def test_custom_thresholds_fail(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 100})
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
 
     def test_markdown_summary(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
@@ -1708,6 +1771,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning, match="code_search"):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
 
     def test_raises_on_api_failure(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="API error")):
@@ -1733,6 +1797,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
         assert result.core_remaining == 0
 
 

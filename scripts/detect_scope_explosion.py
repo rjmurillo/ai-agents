@@ -2,7 +2,6 @@
 """Detect scope explosion by counting files changed since branch diverged from main.
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
-Designed to run as a named pre-commit validator from lefthook.yml.
 
 Thresholds:
   10 files: Warning (suggest reviewing scope)
@@ -28,6 +27,18 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.scope_pr_base import (  # noqa: E402
+    is_credible_rescope,
+    resolve_pr_base_branch,
+    strip_remote_prefix,
+)
 
 # Thresholds for scope explosion detection
 WARN_THRESHOLD = 10
@@ -213,6 +224,20 @@ def get_head_files_against_ref(base_ref: str) -> list[str]:
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 
+def is_ancestor(commit: str, ref: str) -> bool:
+    """Return True when ``commit`` is an ancestor-or-equal of ``ref``."""
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, ref],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     """Detect scope explosion on the current branch.
 
@@ -270,6 +295,61 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         current_branch=branch,
         files=tuple(files),
     )
+
+
+def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) -> ScopeResult | None:
+    """Re-measure a blocking result against the PR's real base branch.
+
+    A stacked PR sits on another PR, not on main. Measured against main it
+    carries every file its whole stack touched, which is not the surface any
+    reviewer of this PR reads. Observed on PR #4728: 52 files against main,
+    13 against its actual base.
+
+    Called only when the main-relative count already blocks, so the gh lookup
+    costs nothing on the path almost every commit takes.
+
+    This function can only ever *remove* a block, so every uncertain case has
+    to resolve to None and keep the original result. Four conditions do:
+
+    1. A merge is in progress. ``detect_scope`` picks between the MERGE_HEAD
+       path and the merge-base path by testing ``is_ancestor(MERGE_HEAD,
+       base_ref)``, and that test depends on which base is passed. A second
+       call with a different base can therefore compare in a different mode
+       than the first, and the two numbers are not comparable. Skip entirely.
+    2. gh cannot name exactly one open PR base.
+    3. The PR base is the branch already measured.
+    4. The re-measurement is not a credible narrowing of the first one. See
+       ``is_credible_rescope``.
+
+    The branch name comes from ``blocked.current_branch`` rather than a fresh
+    ``get_current_branch()`` call. Re-reading would let a branch switch between
+    the two measurements produce a PR base belonging to a different branch than
+    the one that was measured.
+    """
+    if get_merge_head_commit() is not None:
+        return None
+    branch = blocked.current_branch
+    if not branch:
+        return None
+    pr_base = resolve_pr_base_branch(branch)
+    if pr_base is None:
+        return None
+    if pr_base == strip_remote_prefix(requested_base or "main"):
+        return None
+    try:
+        rescoped = detect_scope(pr_base)
+    except ScopeDetectionError:
+        return None
+    if not is_credible_rescope(rescoped, blocked, is_ancestor):
+        return None
+    assert rescoped is not None  # narrowed by is_credible_rescope
+    print(
+        f"Measured against origin/{pr_base}, this PR's actual base: "
+        f"{rescoped.file_count} files (against "
+        f"{requested_base or 'main'}: {blocked.file_count}).",
+        file=sys.stderr,
+    )
+    return rescoped
 
 
 def format_bar(count: int, threshold: int) -> str:
@@ -391,6 +471,14 @@ def main() -> int:
         if result is None:
             # Trunk branch only. Unknown scope raises ScopeDetectionError.
             return 0
+
+        # Consult the PR base only when the cheap measurement is about to
+        # block. On the path almost every commit takes this adds no work and
+        # no network call.
+        if result.file_count > BLOCK_THRESHOLD:
+            rescoped = rescope_against_pr_base(args.base_branch, result)
+            if rescoped is not None:
+                result = rescoped
 
         from_prepush = args.base_branch is not None
         return report(result, args.quiet, from_prepush=from_prepush)

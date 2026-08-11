@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14653,
+    "date": "2026-08-10",
+    "branch": "fix/issue-4851-9d8546d8",
+    "startingCommit": "8f8b6696d",
+    "objective": "Own issue 4851 end to end: reproduce cross-harness orchestrator contract drift, implement the smallest complete fix, validate mirrors, and reach terminal PR state."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded; activation tool unavailable in this harness, so repository memory files were read from the isolated worktree."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded Serena initial instructions before code investigation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference; no issue 4851 handoff existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and used issue, PR, claim, checks, and creation workflows."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and used GitHub skill scripts."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, agents-two-pipeline-mirror-recipe, decision-two-pipeline-agent-mirror-recipe, and new-pr-stale-main-ref-trap."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4851-9d8546d8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4851-9d8546d8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree started clean at origin/main commit 8f8b6696d."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8f8b6696d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, generated mirrors, QA evidence, and issue disposition are complete."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable repository quirk met the persistence threshold."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 reported zero issues across the six orchestrator prompt files."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4865-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: a94c0704a9f790839ca446bcfde46ab83e8fc18b after the review-fix round rebound QA evidence to the current code commit)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "75 tests, ruff, mypy, markdownlint, generation, build-all, install parity, drift, catalog, plugin manifest, and session checks passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo issue-4851 tracked through implementation and delivery."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No retrospective required for this bounded prompt parity fix."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Claimed and investigated issue 4851",
+      "result": "Confirmed no existing PR, claimed the issue as rjmurillo, read the full issue discourse, and followed linked issue and PR decision history."
+    },
+    {
+      "action": "Reproduced the defect on current main",
+      "result": "Four shared and Copilot surfaces lacked Context Maintenance, two Claude surfaces lacked Output Bounds, while the drift checker reported orchestrator at 100 percent."
+    },
+    {
+      "action": "Implemented the cross-harness contract",
+      "result": "Consolidated context-maintenance rules, added Output Bounds to Claude, regenerated Copilot and VS Code mirrors, and kept Copilot prompts at 29,468 characters."
+    },
+    {
+      "action": "Added regression fixtures",
+      "result": "Added active-phase continuation, oversized synthesis, adapter isolation, six-surface parity, and prompt-budget tests."
+    },
+    {
+      "action": "Validated the change",
+      "result": "75 targeted tests passed; ruff, markdownlint, generation validation, six-surface install parity, scoped drift, and plugin manifest checks passed."
+    },
+    {
+      "action": "Merged current main and reran gates",
+      "result": "The change remained green. pre_pr.py stayed blocked only by issue 4859, a Windows synthetic merge-tree Ruff overcount of 42 versus the direct count of 27."
+    }
+  ],
+  "endingCommit": "3bab13fed50f5746cae70d974e302dcedae3d7fa",
+  "nextSteps": [],
+  "developmentPhase": {
+    "current": "completion"
+  }
+}
