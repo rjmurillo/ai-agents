@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-4817-qa-analyst-contract-follow-up.json
-qaCommit: 3a097561bbe2a1410f5fa22e82cd1335048b7e90
+qaCommit: cf622b0ce47eeb2e616ae59335df2640836e6263
 ---
 
 # Test Report: PR #4817 -- Analyst Contract Follow-up
@@ -10,11 +10,11 @@ qaCommit: 3a097561bbe2a1410f5fa22e82cd1335048b7e90
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 270 |
-| Passed | 270 |
+| Total Tests | 321 |
+| Passed | 321 |
 | Failed | 0 |
 | Skipped | 0 |
-| Duration | 0.99s |
+| Duration | 5.97s |
 
 ## Scope
 
@@ -115,7 +115,9 @@ a routing table wrapped in `> ``` ... > ``` ` parsed as four live routes, and a
 blockquoted four-space indented table did the same. Either form satisfied the
 production contract with no operative table.
 
-Fixed in commit `3a097561bbe2a1410f5fa22e82cd1335048b7e90`. New
+Fixed in commit `3a097561bbe2a1410f5fa22e82cd1335048b7e90`, re-verified at
+`cf622b0ce47eeb2e616ae59335df2640836e6263` after dropping the empty
+`tests/skills/doc-accuracy/__init__.py` that main had already deleted. New
 `_strip_blockquote_markers` removes `>` plus at most one following space and
 preserves inner indentation, and fence and indented-code detection now run on
 that normalized line. Both docstrings state which stripper each stage may use.
@@ -124,8 +126,8 @@ Verification run at the tested commit:
 
 ```text
 $ uv run --frozen pytest tests/build_scripts/test_github_url_routing_contract.py \
-    tests/test_analyst_skill_resolution.py -q
-============================= 270 passed in 0.99s ==============================
+    tests/test_analyst_skill_resolution.py tests/skills/doc-accuracy/ -q
+============================= 321 passed in 5.97s ==============================
 
 $ uv run --frozen ruff check tests/build_scripts/test_github_url_routing_contract.py
 All checks passed!

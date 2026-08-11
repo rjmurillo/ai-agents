@@ -64,12 +64,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 3a097561bbe2a1410f5fa22e82cd1335048b7e90"
+        "Evidence": "Committed as cf622b0ce47eeb2e616ae59335df2640836e6263"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff clean, 270 tests pass (198 analyst resolution + 72 routing contract)"
+        "Evidence": "Ruff clean, 321 tests pass (198 analyst resolution + 72 routing contract + 51 doc-accuracy)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -131,7 +131,7 @@
     "remediation": "Kept both strippers and documented the boundary in each docstring so a future reader does not collapse them and reintroduce the bypass. Negative controls now cover backtick, tilde, nested, and indented blockquote forms plus the closed-fence pass-through.",
     "observation": "The merge-tree-ratchet pre-push job failed twice with 'ruff could not read <scratch>/tests/skills/doc-accuracy/__init__.py' while the same command passed twice standalone against the same base. Each run materializes its own scratch tree, so the read failure points at a concurrency interaction between the merge-tree-ratchet job and the count ratchets inside pre-pr-validation, not at this branch's diff."
   },
-  "endingCommit": "3a097561bbe2a1410f5fa22e82cd1335048b7e90",
+  "endingCommit": "cf622b0ce47eeb2e616ae59335df2640836e6263",
   "nextSteps": [],
-  "testedCodeSha": "3a097561bbe2a1410f5fa22e82cd1335048b7e90"
+  "testedCodeSha": "cf622b0ce47eeb2e616ae59335df2640836e6263"
 }
