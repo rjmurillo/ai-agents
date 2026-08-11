@@ -35,8 +35,7 @@ These rules apply to every change in this repository.
    checks: `git --no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a
    lefthook configuration override, and a direct edit to an installed hook.
    This rule adds a sixth the ADR does not name, `LEFTHOOK_EXCLUDE`, which
-   disables selected jobs rather than the whole run. Policy forbids all six
-   equally. Naming only
+   disables selected jobs. All six are forbidden. Naming only
    `--no-verify` invites the reading that a different mechanism is sanctioned;
    it is not, and no repository document describes any of them as a supported
    skip. Protected CI is a backstop, not a substitute: a bypassed push shifts
@@ -68,6 +67,7 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
+7. Git worktrees MUST be external.
 
 ## References
 
