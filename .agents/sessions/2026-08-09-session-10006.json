@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge commit 227a7465bd4501b2ffe759c87c4b91628b28f3aa created. This log commit follows."
+        "Evidence": "The merge-refresh outcome remains preserved through commit f290faf92e3b68b774724a7fc08612a24492779a."
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,6 +140,6 @@
       "result": "31 targeted tests passed, Ruff passed, pre-PR validation passed, and independent Sol Critical/High review found no findings."
     }
   ],
-  "endingCommit": "adb209a7112044e50817283132af800357be9f10",
+  "endingCommit": "f290faf92e3b68b774724a7fc08612a24492779a",
   "nextSteps": []
 }

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The historical fixes remain present through merge commit 227a7465bd4501b2ffe759c87c4b91628b28f3aa."
+        "Evidence": "The historical fixes remain present through commit f290faf92e3b68b774724a7fc08612a24492779a."
       },
       "validationPassed": {
         "level": "MUST",
@@ -144,6 +144,6 @@
       "action": "Fixed episode metrics for session-9020"
     }
   ],
-  "endingCommit": "adb209a7112044e50817283132af800357be9f10",
+  "endingCommit": "f290faf92e3b68b774724a7fc08612a24492779a",
   "nextSteps": []
 }
