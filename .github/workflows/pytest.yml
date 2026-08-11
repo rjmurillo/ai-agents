@@ -141,6 +141,7 @@ jobs:
               --ignore=tests/skills/session-end/test_rework_warning.py
               --ignore=tests/mutation
               --ignore=tests/test_safe_push_pr_branch.py
+              --ignore=tests/test_mutation_workspace_signals.py
               --ignore=tests/test_pr_autofix_late_live_state_gate.py
               tests/
           - partition: mutation
@@ -154,6 +155,7 @@ jobs:
             junit_file: artifacts/pytest-results-safe-push.xml
             pytest_args: >-
               tests/test_safe_push_pr_branch.py
+              tests/test_mutation_workspace_signals.py
           - partition: pr-autofix
             coverage_file: artifacts/.coverage.pr-autofix
             junit_file: artifacts/pytest-results-pr-autofix.xml

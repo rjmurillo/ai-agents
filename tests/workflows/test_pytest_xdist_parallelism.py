@@ -32,6 +32,7 @@ _BULK_IGNORES = {
     "tests/skills/session-end/test_rework_warning.py",
     "tests/mutation",
     "tests/test_safe_push_pr_branch.py",
+    "tests/test_mutation_workspace_signals.py",
     "tests/test_pr_autofix_late_live_state_gate.py",
 }
 
@@ -107,9 +108,12 @@ class TestMatrixStructure:
         args = _partition("mutation")["pytest_args"]
         assert args.split() == ["-n", "auto", "--dist", "loadfile", "tests/mutation"]
 
-    def test_safe_push_runs_only_its_file(self) -> None:
+    def test_safe_push_runs_process_sensitive_files(self) -> None:
         args = _partition("safe-push")["pytest_args"]
-        assert args.strip() == "tests/test_safe_push_pr_branch.py"
+        assert args.split() == [
+            "tests/test_safe_push_pr_branch.py",
+            "tests/test_mutation_workspace_signals.py",
+        ]
 
     def test_pr_autofix_runs_only_its_file(self) -> None:
         args = _partition("pr-autofix")["pytest_args"]
