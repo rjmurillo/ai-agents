@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under.json
-qaCommit: efb740a275fe9bba3c5c20bc4cddded5a189283e
+qaCommit: 470dc44e611453cf1e5c0268d73275af0ddb7757
 ---
 
 # QA Report: Issue 4854 pytest CI partitions
@@ -9,7 +9,8 @@ qaCommit: efb740a275fe9bba3c5c20bc4cddded5a189283e
 ## Result
 
 PASS for local runtime and static workflow contracts. Five matrix partitions
-preserve every collected test. Both bulk jobs finish under 135 seconds locally.
+preserve every collected test. Fresh CI passed with every job under seven
+minutes.
 
 ## Evidence
 
@@ -27,8 +28,14 @@ preserve every collected test. Both bulk jobs finish under 135 seconds locally.
   zero missing, extra, or duplicate node IDs.
 - Split coverage combine: four input files merged and emitted coverage XML.
 - Updated workflow contracts: 63 passed in 2.86 seconds.
+- Fresh split CI: all Python jobs passed. Longest job was Windows path
+  contracts at 6 minutes 47 seconds. Nested bulk took 6 minutes 38 seconds.
 - Partition omission negative control: removing `tests/workflows` failed the
   directory coverage guard.
+- Review fixes: 189 local fallback and workflow contracts passed in 6.87
+  seconds. Local fallback now uses the CI wrapper, coverage, JUnit output, and
+  isolated temp roots. Nested ACT rejects non-pytest and mixed workflow batches.
+- Checkout credentials are not persisted in the coverage and aggregate jobs.
 - Security review: OK. Matrix paths are fixed repository constants, shell
   globbing stays quoted, permissions did not change, and each job remains
   capped at ten minutes.
@@ -59,5 +66,4 @@ preserve every collected test. Both bulk jobs finish under 135 seconds locally.
 ## Scope
 
 This report covers local execution, collection parity, workflow structure,
-coverage aggregation, and security review. Branch protection owns the GitHub
-Actions result.
+coverage aggregation, security review, and the successful GitHub Actions run.
