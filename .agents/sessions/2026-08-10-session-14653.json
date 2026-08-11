@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 163342f409e0f6df3b9aca9a0ee7c64ce5efbea5)"
+        "Evidence": "All changes committed (HEAD: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,8 +143,12 @@
     {
       "action": "Merged current origin/main and revalidated",
       "outcome": "Merge completed without conflicts; 249 tests, Ruff, and mirror checks passed on the merged tree."
+    },
+    {
+      "action": "Addressed PR 4856 hostname-boundary review",
+      "outcome": "Confirmed lookalike hosts were accepted, anchored parsing to GitHub remote forms, and passed 251 tests plus a 2-case mutation control."
     }
   ],
-  "endingCommit": "163342f409e0f6df3b9aca9a0ee7c64ce5efbea5",
+  "endingCommit": "78ca60b191b9ae71ada23b1b05694f9b6e1cc847",
   "nextSteps": []
 }
