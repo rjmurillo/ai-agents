@@ -1,0 +1,116 @@
+{
+  "id": "episode-2026-08-10-session-10036",
+  "session": "2026-08-10-session-10036",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Merge origin/main, resolve conflicts, tighten voice prose for .py ceiling",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tighten voice prose",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update byte claims in 6 docs",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run targeted tests",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Run targeted tests   4   1287 passed in 64.34s",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T12:37:09+00:00",
+      "type": "commit",
+      "content": "Commit: 08edf93c5bade8fba702527771254a18c82670e3",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:03:11+00:00",
+      "type": "commit",
+      "content": "Commit: 8415889de3af9ac23bdb6452171f8bca23d8dda2",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10036"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T13:28:59+00:00",
+      "type": "commit",
+      "content": "Commit: 8ad465c05d87866f3d98642b6c65faf445431b6e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10036"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 17
+  },
+  "lessons": []
+}

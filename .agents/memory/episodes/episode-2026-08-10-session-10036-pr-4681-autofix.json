@@ -1,0 +1,104 @@
+{
+  "id": "episode-2026-08-10-session-10036-pr-4681-autofix",
+  "session": "2026-08-10-session-10036-pr-4681-autofix",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add QA evidence required by Validate PR for PR 4681",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired the pr_autofix lease and bound live state",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disarmed auto-merge before acting on non-T1 PR",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the required Validate PR failure",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consolidated existing QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T09:33:04+00:00",
+      "type": "commit",
+      "content": "Commit: 19ce5539071cbae8095f7578af41dd6e0c36d0bf",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T13:43:52+00:00",
+      "type": "commit",
+      "content": "Commit: 3ed1c6018a6a4744b6aafb9bba69c87196660088",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T14:22:39+00:00",
+      "type": "commit",
+      "content": "Commit: ff19bf1c242377caeef795f2aad7655ac0c78169",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10036-pr-4681-autofix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 11
+  },
+  "lessons": []
+}

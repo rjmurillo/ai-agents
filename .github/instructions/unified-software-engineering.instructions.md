@@ -148,6 +148,6 @@ Do not generate these patterns unless explicitly required and justified in the P
 ## Relationship to Other Rules
 
 - This rule is the default. Book-specific depth now lives in the `software-engineering-library` skill and extends it for narrower contexts.
-- When a change to this source file alters concurrency or synchronization semantics (a thread or process pool, an event loop, a queue, a lock, a fan-out), the stress-run obligation in the sibling testing rule applies to the tests that cover it, even when this change touches no test file. That rule is scoped to test paths, so editing production code alone does not load it. Sibling reference, not link: look it up as `testing.md` under `.claude/rules/`, or as `testing.instructions.md` in whichever instruction tree you are reading.
+- Concurrency edits invoke testing MUST 12-13.
 - When a specialized rule and this one disagree, the specialized rule wins inside its scope. Outside that scope, this rule applies.
 - Do not load multiple book-specific rule sets together with this one when one rule alone is enough. Duplicated or overlapping instructions reduce model reliability.

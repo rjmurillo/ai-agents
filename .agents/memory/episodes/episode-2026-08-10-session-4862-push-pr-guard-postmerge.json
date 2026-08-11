@@ -1,0 +1,176 @@
+{
+  "id": "episode-2026-08-10-session-4862-push-pr-guard-postmerge",
+  "session": "2026-08-10-session-4862-push-pr-guard-postmerge",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix five reproduced push-pr guard regressions and split the guard for cohesion",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the extglob bypass and the false denials of read-only commands",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restore Python 3.10 support and stop reporting warnings as a pass",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound brace expansion by bytes, not only by count",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split new_pr.py into a CLI and a validation pipeline",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the 2,685-line guard into nine sibling modules across seven commits",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the three holes a security review reproduced against the merged guard",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the four defects a code review then found",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stop a republished hook from inheriting its predecessor's mtime",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Own the malformed hook payloads in the guard test harness",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "File the tooling defects found while shipping",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T23:40:29+00:00",
+      "type": "commit",
+      "content": "Commit: 8e3832b52e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T23:40:30+00:00",
+      "type": "commit",
+      "content": "Commit: 21dec0a7df263866f0487fb3ea9a4ce87152126b",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T00:12:11+00:00",
+      "type": "commit",
+      "content": "Commit: cc8cd816d9ed4e7a0a201f7f60dbc15d7dab1456",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4862-push-pr-guard-postmerge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 154
+  },
+  "lessons": []
+}
