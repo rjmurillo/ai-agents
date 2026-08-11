@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through d634d728acac084e9223977a6dd307df419aa5f2 before refreshing QA evidence."
+        "evidence": "Changes committed through bca2fa602553abd987aacbcb747463a3b789423d before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Targeted pytest command passed with 50 tests and the subprocess encoding count ratchet passed on commit d634d728acac084e9223977a6dd307df419aa5f2."
+        "evidence": "Targeted pytest command passed with 343 tests and the subprocess encoding count ratchet passed on commit bca2fa602553abd987aacbcb747463a3b789423d."
       },
       "qaValidation": {
         "complete": true,
@@ -128,9 +128,14 @@
       "action": "pr-autofix-4721",
       "result": "Added errors=\"replace\" to new_pr gh subprocess calls in the Claude and Copilot copies; targeted pytest and subprocess encoding ratchet passed.",
       "commit": "d634d728a"
+    },
+    {
+      "action": "pr-autofix-4721-guard-digest",
+      "result": "Refreshed the trusted new_pr.py digest in the push-pr identity guard copies; targeted hook, new_pr, and subprocess ratchet checks passed.",
+      "commit": "bca2fa602"
     }
   ],
-  "endingCommit": "d634d728acac084e9223977a6dd307df419aa5f2",
+  "endingCommit": "bca2fa602553abd987aacbcb747463a3b789423d",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
