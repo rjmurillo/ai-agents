@@ -6226,18 +6226,19 @@ def _pytest_parallel_flags() -> list[str]:
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
-    """Return the pre-push pytest invocations, bulk partition first.
+    """Return pre-push pytest invocations in CI partition order.
 
-    Only the first command runs in parallel. The safe-push and pr-autofix
-    modules each run in a fresh serial pytest process. The latter can leave a
-    grandchild holding a subprocess pipe under heavy worker load, so sharing a
-    process with another test module also makes it flaky.
+    Bulk and mutation tests each use every visible CPU over whole files.
+    Process-sensitive push, signal, and pr-autofix modules run serially in
+    fresh processes.
 
     Raises:
         ValueError: the worker override names something other than ``auto`` or
             a positive integer.
     """
+    mutation_tests = repo_root / "tests" / "mutation"
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    mutation_signal_tests = repo_root / "tests" / "test_mutation_workspace_signals.py"
     pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
@@ -6249,7 +6250,11 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             *_pytest_parallel_flags(),
             str(repo_root / "tests"),
             "--ignore",
+            str(mutation_tests),
+            "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(mutation_signal_tests),
             "--ignore",
             str(pr_autofix_tests),
         ],
@@ -6258,8 +6263,18 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "pytest",
             "-m",
+            "not integration",
+            *_pytest_parallel_flags(),
+            str(mutation_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+            str(mutation_signal_tests),
         ],
         [
             sys.executable,

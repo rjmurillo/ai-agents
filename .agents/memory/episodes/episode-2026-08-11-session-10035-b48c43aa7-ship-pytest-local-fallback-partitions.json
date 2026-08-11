@@ -63,7 +63,8 @@
         "e004",
         "e006",
         "e008",
-        "e010"
+        "e010",
+        "e012"
       ],
       "leads_to": [
         "e007"
@@ -137,6 +138,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the shared pre-push suite into bulk, mutation, push-safety, and pr-autofix commands. The real gate passed in 325.73 seconds at 0479e20938edb419d53443cd72097b826f334d4d.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T04:49:56+00:00",
+      "type": "commit",
+      "content": "Commit: 0479e20938edb419d53443cd72097b826f334d4d",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
     }
@@ -146,8 +171,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 5
+    "commits": 5,
+    "files_changed": 8
   },
   "lessons": []
 }
