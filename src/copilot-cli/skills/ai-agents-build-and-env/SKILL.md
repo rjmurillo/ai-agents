@@ -148,7 +148,7 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 | Two floors, not one | `pyproject.toml project.requires-python` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
 | LF line endings enforced | CRLF in YAML frontmatter breaks the Copilot CLI parser (github/copilot-cli#694); `.gitattributes:59` sets `* text=auto eol=lf` | Configure your editor for LF; never commit CRLF |
 | Pre-push jobs can take minutes | Lefthook runs the named validators in `lefthook.yml` for matching push files | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
-| Skill tests not collected by default | `uv run pytest tests/ -x` skips `.claude/skills/*/tests/` (pyproject testpaths are `tests`, `test`) | New skill tests go in `tests/skills/NAME/` (collected by default suite); legacy colocated tests at `.claude/skills/NAME/tests/` require explicit invocation: `uv run pytest .claude/skills/NAME/tests/ -q`; details in `ai-agents-validation-and-qa` |
+| Skill test locations differ | New tests belong in `tests/skills/NAME/`; legacy suites remain under `.claude/skills/NAME/tests/` | The default suite reaches legacy suites through `tests/test_skill_bundle_suites_run.py`. Invoke a legacy path directly only for targeted diagnosis; details in `ai-agents-validation-and-qa` |
 
 ## Verification
 

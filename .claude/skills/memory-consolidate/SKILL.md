@@ -72,10 +72,15 @@ consolidate.
 
 1. Use memory search to prioritize likely topics when available, then obtain
    the complete inventory with Serena's list-memories capability or recursive
-   direct directory access per the Tool Order above. Read `memory-index.md` in
-   full. Serena list-memories returns top-level and nested memory paths. Use
-   those paths to read each relevant `*-index.md` and skim the atomic memories
-   themselves
+   direct directory access per the Tool Order above. Before reading content,
+   audit at most 2,000 memory files. Stop enumeration after finding file 2,001,
+   report `>=2001`, and do not run any Phase 2 or Phase 3 writes. Inspect file
+   sizes before reading. Stop before any file over 32,768 bytes or before
+   cumulative input exceeds 5,000,000 bytes. Report the breached limit and do
+   not run any Phase 2 or Phase 3 writes. After these gates pass, read
+   `memory-index.md` in full. Serena list-memories returns top-level and nested
+   memory paths. Use those paths to read each relevant `*-index.md` and skim
+   the atomic memories themselves
    (Serena's read-memory capability or direct file reads under
    `.serena/memories/topic/`). A direct top-level `ls` cannot see nested
    memories, so enumerate each topic directory when using the filesystem
@@ -83,12 +88,7 @@ consolidate.
    inventory: compare each topic's Markdown paths with its `*-index.md`
    entries. Add unindexed files to the Phase 1 inventory and record dangling
    index entries as errors. If the complete inventory cannot be obtained,
-   report it and do not run any Phase 2 or Phase 3 writes. Audit at most 500
-   memory files in one pass. Stop enumeration after finding file 501, report
-   `>=501`, and do not run any Phase 2 or Phase 3 writes. Before reading
-   contents, inspect file sizes. Stop before any file over 32,768 bytes or
-   before cumulative input exceeds 5,000,000 bytes. Report the breached limit
-   and do not run any Phase 2 or Phase 3 writes.
+   report it and do not run any Phase 2 or Phase 3 writes.
 2. Skim each file for three signals: **overlap**
    (two or more files cover the same person, project, or preference),
    **staleness** (a one-off task that passed its date), and **thinness** (a
@@ -123,6 +123,7 @@ worktree and index before the first edit:
 ```bash
 git status --short -- .serena/memories
 git ls-files --error-unmatch .serena/memories/memory-index.md
+starting_commit="$(git rev-parse HEAD)"
 ```
 
 Before any Phase 2 or Phase 3 write, run
@@ -136,6 +137,10 @@ observed or wrote. Immediately before rollback, verify every target still
 matches the last expected state written by this pass. Track a deleted target
 as explicitly absent, not as its old hash. If another process changed or
 recreated any target, stop and do not overwrite or restore that file.
+Record the full starting commit from `git rev-parse HEAD`. Restore a target
+only from that exact commit with
+`git restore --source="$starting_commit" --worktree -- "<target>"`, never from
+the current `HEAD`.
 Index paths must be relative, contain no `..` segment, and resolve under the
 real `.serena/memories/` root. Reject absolute paths and symlink escapes before
 reading, diffing, or deleting a candidate.
