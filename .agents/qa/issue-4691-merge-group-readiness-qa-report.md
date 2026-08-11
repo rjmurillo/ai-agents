@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14654.json
-qaCommit: 0ad796bb5b6547834113b058f7b39b38b4368d76
+qaCommit: 29cc49504f3a0e36d6cad674305ecafe002750e5
 ---
 
 # QA Report: Issue 4691 merge-group readiness
@@ -20,10 +20,11 @@ structural test that pins the contract. The branch was rebased onto
 | Trigger fan-out | `pytest tests/ci/test_workflow_trigger_fanout.py` | 69 passed |
 | Frontmatter path filter | `pytest tests/ci/test_frontmatter_gate_paths_filter.py` | 4 passed |
 | Shared event policy | `pytest tests/workflows/test_determine_should_run_from_filters.py` | 26 passed |
+| Local workflow gate | `pytest tests/validation/test_run_workflow_local_test.py` | 143 passed |
 | Lint | `ruff check` on the two changed Python files | All checks passed |
 | Workflow lint | pre-commit `actionlint` and `workflow-validation` | Passed |
 
-Total: 110 tests, 0 failures, measured at `0ad796bb`.
+Total: 253 tests, 0 failures, measured at `29cc4950`.
 
 ## Non-vacuity control
 
