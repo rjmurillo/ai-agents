@@ -153,18 +153,39 @@ def _try_fence_open(stripped_ln: str) -> tuple[str, int] | None:
     return ch, length
 
 
+_BLOCKQUOTE_MARKER = re.compile(r"^ {0,3}>[ \t]?")
+
+
+def _strip_blockquote_markers(line: str) -> str:
+    """Strip CommonMark blockquote markers while preserving inner indentation.
+
+    Each marker is ``>`` plus at most one following space, so a blockquoted
+    indented code block (``>     code``) keeps the four spaces that mark it as
+    code. :func:`_strip_blockquote` eats all whitespace after the marker and
+    must not be used for code-context detection.
+    """
+    previous = None
+    while previous != line:
+        previous = line
+        line = _BLOCKQUOTE_MARKER.sub("", line, count=1)
+    return line
+
+
 def _compute_operative_lines(lines: list[str]) -> list[bool]:
     """Determine which lines are in operative (non-code, non-comment) context.
 
     CommonMark-compliant: tracks fence opener type/length, requires matching
     closer. Handles multi-line HTML comments and 4-space indented code.
+    Blockquote markers are normalized away first, so a fence or indented code
+    block inside a blockquote hides its content the same as an unquoted one.
     """
     in_html_comment = False
     fence_char: str | None = None
     fence_len: int = 0
     operative = [True] * len(lines)
     for idx, ln in enumerate(lines):
-        stripped_ln = ln.strip()
+        content = _strip_blockquote_markers(ln)
+        stripped_ln = content.strip()
         # HTML comment handling (may span multiple lines)
         if in_html_comment:
             operative[idx] = False
@@ -178,7 +199,7 @@ def _compute_operative_lines(lines: list[str]) -> list[bool]:
             continue
         # Fenced code blocks
         if fence_char is not None:
-            if _try_fence_close(ln, fence_char, fence_len):
+            if _try_fence_close(content, fence_char, fence_len):
                 fence_char = None
                 fence_len = 0
             operative[idx] = False
@@ -189,13 +210,18 @@ def _compute_operative_lines(lines: list[str]) -> list[bool]:
             operative[idx] = False
             continue
         # 4-space/tab indented code block
-        if re.match(r"^(?:    |\t)", ln):
+        if re.match(r"^(?:    |\t)", content):
             operative[idx] = False
     return operative
 
 
 def _strip_blockquote(line: str) -> str:
-    """Strip blockquote prefix (> ) from a line if present."""
+    """Strip blockquote prefix (> ) from a line if present.
+
+    Table-row detection only. Use :func:`_strip_blockquote_markers` for any
+    code-context decision: this helper discards the indentation that
+    distinguishes a blockquoted code block from blockquoted prose.
+    """
     if line.strip().startswith(">"):
         return re.sub(r"^(\s*>\s*)+", "", line)
     return line
@@ -858,6 +884,54 @@ class TestRoutingFenceBypassRegression:
         routes, _ = _parse_routing_table(body)
         assert routes, "Blockquote table should be parsed as visible"
         assert "/pull/<n>" in routes
+
+    def test_blockquoted_fence_ignored(self) -> None:
+        """Table inside a blockquoted fence (> ```) must be skipped."""
+        body = (
+            "> ```\n"
+            + "".join("> " + ln for ln in self.VALID_TABLE.splitlines(keepends=True))
+            + "> ```\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside blockquoted fence should be skipped"
+
+    def test_blockquoted_tilde_fence_ignored(self) -> None:
+        """Table inside a blockquoted tilde fence (> ~~~) must be skipped."""
+        body = (
+            "> ~~~\n"
+            + "".join("> " + ln for ln in self.VALID_TABLE.splitlines(keepends=True))
+            + "> ~~~\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside blockquoted tilde fence should be skipped"
+
+    def test_nested_blockquoted_fence_ignored(self) -> None:
+        """Table inside a doubly quoted fence (> > ```) must be skipped."""
+        body = (
+            "> > ```\n"
+            + "".join("> > " + ln for ln in self.VALID_TABLE.splitlines(keepends=True))
+            + "> > ```\n"
+        )
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Table inside nested blockquoted fence should be skipped"
+
+    def test_blockquoted_indented_code_ignored(self) -> None:
+        """Table indented four spaces inside a blockquote must be skipped."""
+        body = "".join(">     " + ln for ln in self.VALID_TABLE.splitlines(keepends=True))
+        routes, _ = _parse_routing_table(body)
+        assert not routes, "Blockquoted indented-code table should be skipped"
+
+    def test_blockquoted_fence_does_not_hide_later_table(self) -> None:
+        """A closed blockquoted fence must not suppress a later real table."""
+        body = (
+            "> ```\n"
+            "> | URL pattern | Tool |\n"
+            "> |---|---|\n"
+            "> | `/pull/<N>` | `evil_tool` |\n"
+            "> ```\n\n" + self.VALID_TABLE
+        )
+        routes, _ = _parse_routing_table(body)
+        assert routes.get("/pull/<n>") == ["pull_request_read"]
 
     def test_decoy_in_fence_no_contamination(self) -> None:
         """Hidden decoy table inside fence must not pollute later parse."""
