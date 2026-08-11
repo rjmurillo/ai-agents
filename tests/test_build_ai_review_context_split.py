@@ -127,7 +127,6 @@ def test_main_maps_output_config_error_to_exit_2(monkeypatch, tmp_path):
 
     # Stub gh to return valid issue data
     import subprocess
-    original_run = subprocess.run
 
     def fake_run(cmd, **kwargs):
         if isinstance(cmd, list) and "gh" in cmd[0]:
@@ -137,7 +136,7 @@ def test_main_maps_output_config_error_to_exit_2(monkeypatch, tmp_path):
                 stdout=json.dumps({"number": 1, "title": "t", "body": "b"}),
                 stderr="",
             )
-        return original_run(cmd, **kwargs)
+        raise AssertionError(f"unexpected subprocess invocation: {cmd!r}")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 

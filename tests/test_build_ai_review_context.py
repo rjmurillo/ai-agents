@@ -1,4 +1,7 @@
 """Tests for ai-review context construction."""
+# taste-lint: ignore file-size -- this legacy regression harness still needs
+# one-file visibility across the ai-review context matrix while the functional
+# split continues in focused companion modules.
 
 from __future__ import annotations
 

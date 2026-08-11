@@ -350,7 +350,7 @@ def _one_failing_diff_leg(failing_spec: str):
     def _run(cmd, **kwargs):
         if cmd[0] == "git" and "diff" in cmd and cmd[-1] == failing_spec:
             return subprocess.CompletedProcess(cmd, 128, stdout="", stderr="fatal: bad object\n")
-        return real_run(cmd, **kwargs)
+        return real_run(cmd, **kwargs)  # subprocess-encoding: strict-ok
 
     return _run
 

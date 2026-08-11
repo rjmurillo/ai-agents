@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.checks_tooling import validate_always_on_corpus_claims
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -22,13 +23,29 @@ from scripts.validation.pre_pr import (
 )
 
 
-def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
+def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
     # pre_pr loads pre_pr_sequence as a flat module for direct script execution.
     # Read through the function so the patch targets that exact module identity.
     sequence = run_all_validations.__globals__["_SEQUENCE"]
+    corpus_gates = {
+        "Documented Interpreter Portability",
+        "Duplicate Test Helper Detection",
+        "Subprocess Encoding Convention",
+        "Unreachable Code Detection",
+    }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
-        if gate.name == "Documented Interpreter Portability"
+        if gate.name in corpus_gates
+        else gate
+        for gate in sequence
+    )
+
+
+def _sequence_with_failing_python_syntax() -> tuple[Any, ...]:
+    sequence = run_all_validations.__globals__["_SEQUENCE"]
+    return tuple(
+        replace(gate, run=lambda _repo_root, _args: False)
+        if gate.name == "Python Syntax (compile gate)"
         else gate
         for gate in sequence
     )
@@ -337,7 +354,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -356,7 +373,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -373,31 +390,125 @@ class TestMain:
         result = main(["--quick", "--skip-tests"])
         assert result == 0
 
+
+class TestHookModeBanner:
+    """The success banner must not claim PR-readiness when running as a hook job.
+
+    Issue #4506: pre_pr.py runs in a parallel lefthook group alongside
+    python-tests, ratchets, and other jobs. It only validates its own subset.
+    Printing "Ready to create pull request!" is a false claim when sibling jobs
+    may still be running or may have failed.
+
+    SKIP_AUTOFIX=1 is the marker lefthook sets on the pre-pr-validation job
+    (lefthook.yml lines 397-401). It is absent in direct interactive use.
+    """
+
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
-    def test_success_output_does_not_claim_push_success(
+    def test_interactive_mode_prints_verification_guidance(
         self,
         mock_which: Any,
         mock_run: Any,
         _mock_sequence: Any,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Issue #4506: success banner must not say 'Ready to create pull request!'."""
+        """Direct invocation (no hook env) must print push-verification guidance."""
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
-        result = main(["--quick", "--skip-tests"])
+        with patch.dict("os.environ", {}, clear=False):
+            import os
+
+            os.environ.pop("SKIP_AUTOFIX", None)
+            result = main(["--quick", "--skip-tests"])
+
         assert result == 0
-        out = capsys.readouterr().out
-        assert "Ready to create pull request" not in out
+        captured = capsys.readouterr()
+        assert "Verify the push landed" in captured.out
+        assert "same SHA" in captured.out
+        assert "sibling hook jobs" not in captured.out
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_hook_mode_does_not_print_pr_ready_banner(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """SKIP_AUTOFIX=1 (hook mode) must suppress the PR-ready banner. Issue #4506."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Verify the push landed" not in captured.out
+        assert "sibling hook jobs" in captured.out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_corpus_gates,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_skip_autofix_zero_is_not_hook_mode(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """SKIP_AUTOFIX=0 is not hook mode; the verification guidance must still print."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "0"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Verify the push landed" in captured.out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_failing_python_syntax,
+    )
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_hook_mode_failure_does_not_print_either_banner(
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A failing run in hook mode must not print either banner."""
+        mock_run.side_effect = _healthy_git_run
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "Verify the push landed" not in captured.out
+        assert "sibling hook jobs" not in captured.out
+
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -420,27 +531,10 @@ class TestMain:
         assert "git ls-remote origin <branch>" in out
         assert "same SHA" in out
 
-    @patch(
-        "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
-    )
-    @patch("subprocess.run")
-    @patch("shutil.which")
-    def test_failure_output_does_not_say_ready(
-        self,
-        mock_which: Any,
-        mock_run: Any,
-        _mock_sequence: Any,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Edge case: a failed run must also not claim readiness."""
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = "error"
-        mock_which.return_value = "/usr/bin/tool"
 
-        result = main(["--quick", "--skip-tests"])
-        out = capsys.readouterr().out
-        assert "Ready to create pull request" not in out
-        assert "All validations passed" not in out
-        assert result != 0
+def test_always_on_corpus_claims_skips_without_test_tree(tmp_path: Path) -> None:
+    (tmp_path / ".github" / "instructions").mkdir(parents=True)
+    missing_script_skip = validate_always_on_corpus_claims.__globals__["MissingScriptSkip"]
+
+    with pytest.raises(missing_script_skip, match="no corpus claim test to run"):
+        validate_always_on_corpus_claims(tmp_path)
