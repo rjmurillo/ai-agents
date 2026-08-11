@@ -20,7 +20,8 @@ Validate the specification branch after merging current `origin/main`.
 | QA refresh | Sessions 14681 and 14682 rebound to the merged commit |
 | Spec frontmatter | PASS |
 | Provider alias tests | PASS |
-| Evidence commits | Split into atomic QA refresh commits |
+| Evidence commits | Authored file counts stayed at or below 5; generated episode companions are policy-exempt |
+| Review corrections | Spec frontmatter, prose, and full pre-PR validation passed |
 
 ## Verdict
 

@@ -10,6 +10,7 @@ related:
 created: 2026-08-11
 updated: 2026-08-11
 author: spec-generator
+source: GH-4905
 tags:
   - skills
   - aspire

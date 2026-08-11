@@ -123,7 +123,7 @@ The work produces four versioned artifacts:
 | DeepWiki | Discover provisional candidates and source paths | Never use alone to authorize a skill change |
 | SkillForge | Classify reuse, augmentation, composition, creation, or rejection | Reject creation when overlap meets an existing threshold |
 | Build generator | Produce Copilot CLI skill copies | Fail on drift or unexpected generated files |
-| Local eval harness | Compare baseline and changed skill behavior | Fail on provider error, regression, or delta below threshold |
+| Local eval harness | Compare baseline and changed skill behavior | Fail on provider error or ADR-057 gate failure; record ties as non-gating evidence |
 | Copilot CLI provider | Exercise models used by repository owners | Keep provider constant within each comparison |
 
 ## Failure modes
