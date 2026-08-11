@@ -166,9 +166,13 @@
     {
       "timestamp": "2026-08-11T06:25:00-07:00",
       "entry": "Merged current main 8cdf5c6d361c22b0ad8809d9620083129feba175 after the named-seam work. Final merged-tree validation passed 247 focused seam, AI-review, and corpus tests plus both count ratchets at merge commit 17ad4d40b41c07b1b0f82855925975bb35d8daad."
+    },
+    {
+      "timestamp": "2026-08-11T06:48:00-07:00",
+      "entry": "The full pre-push suite identified failure_classification.py as a library that needed an explicit workflow-wiring rationale. Added the reasoned _NOT_WORKFLOW_INVOKED entry and passed all 122 wiring checks at code commit cc649bcf21f229d902aa3d0e1238e7e6ed9d99df."
     }
   ],
-  "endingCommit": "17ad4d40b41c07b1b0f82855925975bb35d8daad",
+  "endingCommit": "cc649bcf21f229d902aa3d0e1238e7e6ed9d99df",
   "nextSteps": [
     "Parent session may push the local CI-fix commits after confirming the PR lease remains live.",
     "Rerun PR #4637 checks on the new head; this worktree must not perform remote mutation."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-2.json
-qaCommit: 17ad4d40b41c07b1b0f82855925975bb35d8daad
+qaCommit: cc649bcf21f229d902aa3d0e1238e7e6ed9d99df
 ---
 
 # QA Report: PR #4637 CI validation
@@ -13,7 +13,7 @@ qaCommit: 17ad4d40b41c07b1b0f82855925975bb35d8daad
 - PR head diagnosed: `0ded1670a456aa1781c386161007616dfd15bf6c`
 - Diagnosed base: `d4cc52d5de0c11f7d36c99a246484f1f192ce584`
 - Refreshed main: `8cdf5c6d361c22b0ad8809d9620083129feba175`
-- Code-under-test commit: `17ad4d40b41c07b1b0f82855925975bb35d8daad`
+- Code-under-test commit: `cc649bcf21f229d902aa3d0e1238e7e6ed9d99df`
 
 The report and session update are evidence-only changes. The QA commit above is
 the last code-affecting commit and must remain an ancestor of the final PR head.
@@ -39,6 +39,7 @@ unrelated second refactor.
 | `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref 8cdf5c6d361c22b0ad8809d9620083129feba175` | PASS; count equals baseline 27 |
 | `uv run --frozen pytest tests/ci/test_taste_count_ratchet.py -q` | PASS; 28 tests covering success, failure, and edge behavior |
 | `uv run --frozen pytest tests/ci/test_failure_classification.py tests/test_build_ai_review_context.py tests/test_build_ai_review_context_split.py -q` | PASS; 123 tests covering the named seam and integration behavior |
+| `uv run --frozen pytest tests/ci/test_ci_scripts_are_wired.py -q` | PASS; 114 passed, 8 skipped; helper has a reasoned library declaration |
 | `uv run --frozen pytest tests/test_build_ai_review_context.py tests/test_build_ai_review_context_split.py -q` | PASS; 99 tests |
 | `uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py tests/validation/test_instruction_budget.py -q` | PASS; 123 tests |
 | `uv run --frozen pytest tests/ci/test_spec_extract_refs.py tests/ci/test_spec_load_content.py tests/ci/test_spec_prepare_context.py tests/test_check_spec_failures.py tests/test_generate_spec_report.py -q` | PASS; 74 tests |
