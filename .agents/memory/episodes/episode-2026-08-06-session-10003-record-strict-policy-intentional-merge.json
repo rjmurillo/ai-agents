@@ -9,11 +9,22 @@
   "events": [
     {
       "id": "e001",
+      "timestamp": "2026-08-06T06:33:07+00:00",
+      "type": "commit",
+      "content": "Commit: 136881d345",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
+    },
+    {
+      "id": "e002",
       "timestamp": "2026-08-06T06:44:55+00:00",
       "type": "commit",
       "content": "Commit: ded2bf5d8d",
       "caused_by": [
-        "e002"
+        "e001"
       ],
       "leads_to": [
         "e003"
@@ -21,23 +32,12 @@
       "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
     },
     {
-      "id": "e002",
-      "timestamp": "2026-08-06T06:33:07+00:00",
-      "type": "commit",
-      "content": "Commit: 136881d345",
-      "caused_by": [],
-      "leads_to": [
-        "e001"
-      ],
-      "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
-    },
-    {
       "id": "e003",
-      "timestamp": "2026-08-09T07:18:56+00:00",
+      "timestamp": "2026-08-11T10:04:27+00:00",
       "type": "commit",
-      "content": "Commit: 4f3474ef7760106c7ed56e3c7aeb62f5d9201f0f",
+      "content": "Commit: 8df46ed9c26e7eae155cdbce6264857ed8267517",
       "caused_by": [
-        "e001"
+        "e002"
       ],
       "leads_to": [
         "e004"
@@ -46,9 +46,9 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-09T08:23:56+00:00",
+      "timestamp": "2026-08-11T10:05:18+00:00",
       "type": "commit",
-      "content": "Commit: f2c60c404e8a31afa3385f72d303181d1997db22",
+      "content": "Commit: 7b22cfd0361a4e37a889d8555443b3d3f31ce80b",
       "caused_by": [
         "e003"
       ],
@@ -59,9 +59,9 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-11T10:04:27+00:00",
+      "timestamp": "2026-08-11T10:06:30+00:00",
       "type": "commit",
-      "content": "Commit: 8df46ed9c26e7eae155cdbce6264857ed8267517",
+      "content": "Commit: 25a6a9a43cc0093dd9ec354aae00b486d147feed",
       "caused_by": [
         "e004"
       ],
@@ -72,9 +72,9 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-11T10:05:18+00:00",
+      "timestamp": "2026-08-11T10:43:50+00:00",
       "type": "commit",
-      "content": "Commit: 7b22cfd0361a4e37a889d8555443b3d3f31ce80b",
+      "content": "Commit: 62d1fa99a25b3689c8c9dbd0b8e58783d3b97894",
       "caused_by": [
         "e005"
       ],
@@ -85,9 +85,9 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-11T10:06:30+00:00",
+      "timestamp": "2026-08-11T11:00:17+00:00",
       "type": "commit",
-      "content": "Commit: 25a6a9a43cc0093dd9ec354aae00b486d147feed",
+      "content": "Commit: a444f3f77ec0857cafb13bc0b16bd5781ec3b9a8",
       "caused_by": [
         "e006"
       ],
@@ -98,9 +98,9 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-11T10:43:50+00:00",
+      "timestamp": "2026-08-11T11:19:51+00:00",
       "type": "commit",
-      "content": "Commit: 62d1fa99a25b3689c8c9dbd0b8e58783d3b97894",
+      "content": "Commit: 7f79b060ca7342f68dbd1cb65b15f840b7777463",
       "caused_by": [
         "e007"
       ],
@@ -111,24 +111,11 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-11T11:00:17+00:00",
+      "timestamp": "2026-08-11T12:08:19+00:00",
       "type": "commit",
-      "content": "Commit: a444f3f77ec0857cafb13bc0b16bd5781ec3b9a8",
+      "content": "Commit: e4276d18e76011d988f954cb2693550e4e4c28a5",
       "caused_by": [
         "e008"
-      ],
-      "leads_to": [
-        "e010"
-      ],
-      "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-11T11:19:51+00:00",
-      "type": "commit",
-      "content": "Commit: 7f79b060ca7342f68dbd1cb65b15f840b7777463",
-      "caused_by": [
-        "e009"
       ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10003-record-strict-policy-intentional-merge"
@@ -139,7 +126,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
+    "commits": 9,
     "files_changed": 18
   },
   "lessons": []
