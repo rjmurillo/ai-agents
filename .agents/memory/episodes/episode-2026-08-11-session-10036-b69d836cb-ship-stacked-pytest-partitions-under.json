@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under",
+  "session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship stacked pytest CI partitions under ten minutes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created a clean child branch from the ACT fallback tip and replayed only five functional partition commits.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied the remaining ACT path-filter and single-job concurrency edits without the obsolete duplicate fallback script.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Focused validation passed: 125 pytest tests, Ruff, and actionlint.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Security scan found zero CWE-78 findings in one Python file; security agent review passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Full ACT workflow passed in 331.34 seconds. Collection parity proved 27,148 tests with zero missing, extra, or duplicate node IDs.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T05:03:43+00:00",
+      "type": "commit",
+      "content": "Commit: f8c2a8bb4137772da81fe7630450e0b4353cb480",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
