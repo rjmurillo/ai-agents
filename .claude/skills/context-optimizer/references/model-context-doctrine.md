@@ -176,7 +176,7 @@ as an implementer.
 
 Measured on this branch after the universal rule gained the same-checker item. Two numbers, and they are not interchangeable. The
 **always-on corpus is 7 rules, 70,249 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 98,951 bytes
+of what you touch. The **effective context on a `.py` edit is 98,998 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -207,7 +207,7 @@ always-on file.
 |---|---|---|---|---|
 | `code-quality.md` | 14,152 | always-on | 3 positive, 1 negative | none |
 | `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
-| `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
+| `unified-software-engineering.md` | 8,289 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
 70,365-byte always-on corpus measured at source. `code-quality` and
