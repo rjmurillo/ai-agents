@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-4728-pr-autofix.json
-qaCommit: 384e615fe404bee562b7274b856ec628283a30ad
+qaCommit: 0c7c50f2b3d7db149047b5c83e6c95fba557ec9f
 ---
 
 # QA Report: Issue 4691 merge-group readiness
@@ -9,8 +9,8 @@ qaCommit: 384e615fe404bee562b7274b856ec628283a30ad
 ## Scope
 
 Ten workflows gain a `merge_group:` trigger scoped to `main`, plus the
-structural test that pins the contract. This validation also merges current
-`main` twice, so the commit-count gate grants its documented 40-commit limit.
+structural test that pins the contract. This validation merges current `main`,
+so the commit-count gate grants its documented 40-commit limit.
 It verifies the review fixes for the required `Run Python Tests` producer,
 act's Git exit-128 signature, and the action-specific anti-vacuity controls.
 
@@ -18,11 +18,12 @@ act's Git exit-128 signature, and the action-specific anti-vacuity controls.
 
 - CI root and review fixes: focused pytest command for seven affected suites,
   327 passed.
+- Final base-refresh verification: the 55-test safe-push CI selection passed.
 - Lint: scoped `ruff check` for all changed Python files, all checks passed.
 - Retrospective lint: `npx --yes markdownlint-cli` on the retrospective,
   0 errors.
 
-Total: 327 tests, 0 failures, measured at `384e615f`.
+Total: 382 targeted tests, 0 failures, measured through `0c7c50f2`.
 
 ## Non-vacuity control
 
