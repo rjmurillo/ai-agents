@@ -113,8 +113,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Not invoked. This is a single-PR autofix inside an existing change; the retrospective belongs to the branch that introduced the rescope."
+        "Complete": true,
+        "Evidence": "Learnings captured in the retrospective work-log entry below, which records the self-referential measurement trap and the 26-byte .py headroom on main."
       }
     }
   },
@@ -158,6 +158,11 @@
       "time": "2026-08-11T02:40:00Z",
       "action": "Caught a self-referential measurement error before it shipped",
       "result": "First pass wrote 70,236 and 70,352 on the assumption that shrinking canonical-source-mirror.md shrinks the always-on corpus. It does not: that rule is path-scoped, not always-on, so the live figures stayed 70,249 and 70,365. Corrected against the measurement rather than the arithmetic."
+    },
+    {
+      "time": "2026-08-11T02:55:00Z",
+      "action": "Retrospective: learnings captured for the always-on corpus",
+      "result": "Three learnings. First, a document that quotes a corpus figure is not always part of that corpus: canonical-source-mirror.md is path-scoped, so shrinking it moved nothing, and the arithmetic prediction of 70,236 was wrong where the live measurement of 70,249 was right. Measure after every edit, never predict. Second, the .py always-on ceiling had 26 bytes of headroom on main, so any rule edit larger than a sentence breaches it; the breach reads as an unrelated test failure rather than as a budget message. Third, a scope narrowing that reads as a pure reduction can still grow a per-extension corpus, because the applyTo glob list that replaces two-character universal scope costs 155 characters in every mirror."
     }
   ],
   "endingCommit": "ce3641d1084338690a381587c4117f34d9d96e69",
