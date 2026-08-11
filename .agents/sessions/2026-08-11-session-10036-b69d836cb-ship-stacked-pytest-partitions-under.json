@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 .agents/qa/issue-4854-pytest-ci-partitions.md"
+        "Evidence": "npx markdownlint-cli2 .agents/qa/pr-4886-pytest-ci-partitions.md"
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4854-pytest-ci-partitions.md"
+        "Evidence": ".agents/qa/pr-4886-pytest-ci-partitions.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -146,7 +146,7 @@
   ],
   "endingCommit": "c4039dcf02a86377df4328e256ef65d2c44ac9db",
   "nextSteps": [
-    "Push the stacked child branch.",
-    "Open the child PR against perf/4854-act-local-fallback."
+    "Monitor PR #4886 CI job durations.",
+    "Merge PR #4872 before PR #4886."
   ]
 }
