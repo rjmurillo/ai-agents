@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import socket
+import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -61,6 +63,31 @@ def _contained_markdown_files(memory_path: Path) -> list[Path]:
     return sorted(contained)
 
 
+def _read_stable_text(file_path: Path) -> str:
+    """Read one unchanged regular file without following a final symlink."""
+    before = os.stat(file_path, follow_symlinks=False)
+    if not stat.S_ISREG(before.st_mode):
+        raise OSError(f"Not a regular file: {file_path}")
+
+    descriptor = os.open(file_path, os.O_RDONLY)
+    try:
+        opened = os.fstat(descriptor)
+        after = os.stat(file_path, follow_symlinks=False)
+        identities = {
+            (before.st_dev, before.st_ino),
+            (opened.st_dev, opened.st_ino),
+            (after.st_dev, after.st_ino),
+        }
+        if len(identities) != 1 or not stat.S_ISREG(after.st_mode):
+            raise OSError(f"File changed while opening: {file_path}")
+        with os.fdopen(descriptor, encoding="utf-8") as handle:
+            descriptor = -1
+            return handle.read()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def _recency_key(name: str) -> tuple[str, int, str]:
     """Order an episode name newest-first under a reverse sort.
 
@@ -91,7 +118,7 @@ def estimate_tokens(file_path: Path) -> int:
     if not file_path.is_file():
         return 0
     try:
-        return round(len(file_path.read_text(encoding="utf-8")) / 4)
+        return round(len(_read_stable_text(file_path)) / 4)
     except OSError:
         return 0
 
@@ -118,9 +145,9 @@ def search_serena(
         weighted = stem_hits + DIRECTORY_MATCH_WEIGHT * (len(matching) - stem_hits)
         score = weighted / len(keywords) if keywords else 0
         try:
-            content = md_file.read_text(encoding="utf-8")
+            content = _read_stable_text(md_file)
         except OSError:
-            content = ""
+            continue
         preview = re.sub(r"\s+", " ", content).strip()
         results.append({
             "Name": rel.as_posix(),

@@ -105,6 +105,29 @@ class TestSearchSerena:
 
         assert all("escaped secret content" not in result["Content"] for result in results)
 
+    def test_skips_resolved_file_replaced_by_symlink(self, tmp_path):
+        memory_root = tmp_path / "memories"
+        memory_root.mkdir()
+        inside = memory_root / "inside-security.md"
+        inside.write_text("# contained content")
+        outside = tmp_path / "outside-security.md"
+        outside.write_text("# escaped secret content")
+        validated_paths = search_memory._contained_markdown_files(memory_root)
+        inside.unlink()
+        try:
+            inside.symlink_to(outside)
+        except OSError:
+            pytest.skip("symlinks require additional privileges on this platform")
+
+        with patch.object(
+            search_memory,
+            "_contained_markdown_files",
+            return_value=validated_paths,
+        ):
+            results = search_memory.search_serena("security", memory_root, 10)
+
+        assert results == []
+
 
 class TestSearchEpisodes:
     """Tests for the Tier 2 episode reader (Issue #3630)."""
