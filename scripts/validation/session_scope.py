@@ -24,7 +24,11 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
-from scripts.validation.checks_common import _git_subprocess_env
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from checks_common import _git_subprocess_env
 
 _GIT_TIMEOUT_SECONDS = 30
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")

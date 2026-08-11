@@ -3175,7 +3175,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             "import sys",
             "from collections.abc import Iterable",
             "from pathlib import Path",
-            "from scripts.validation.checks_common import _git_subprocess_env",
+            "from checks_common import _git_subprocess_env",
         ]
 
     def test_an_unresolvable_merge_base_validates_strictly(self) -> None:
