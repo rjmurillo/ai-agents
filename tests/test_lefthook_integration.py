@@ -2078,6 +2078,7 @@ def test_session_policy_requires_and_validates_session(
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
+    monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
     assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
     assert (
@@ -2192,7 +2193,7 @@ def test_pre_commit_session_policy_validates_absent_upstream_path(tmp_path: Path
         assert policy.check_sessions([relative], repo) == 0
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [sys.executable, "scripts/validate_session_json.py", relative, "--creation-mode"]
     ]
 
 
@@ -2288,6 +2289,11 @@ def test_session_policy_propagates_validator_failure_and_skips_merge(
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
+    monkeypatch.setattr(
+        policy,
+        "added_session_paths_in_index",
+        lambda _paths, _repo_root: {".agents/sessions/2026-07-19-session-1-test.json"},
+    )
     path = ".agents/sessions/2026-07-19-session-1-test.json"
     assert policy.check_sessions([path], tmp_path) == 1
 
@@ -7061,14 +7067,28 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
 ) -> None:
     validator_results = iter([_completed(0), _completed(1)])
 
+    commands: list[list[str]] = []
+
     def _dispatch(command, *_args, **_kwargs):
         if command[0] == "git":
             return _completed(0, stdout="deadbee\n")
+        commands.append(command)
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
     monkeypatch.setattr(policy, "_is_session_on_upstream_default", lambda *_args: False)
-    assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
+    assert (
+        policy.validate_branch_sessions(
+            [
+                ".agents/sessions/2026-01-01-session-1.json",
+                ".agents/sessions/2026-01-01-session-1../../x.json",
+                ".agents/sessions/2026-01-02-session-2.json",
+            ],
+            tmp_path,
+        )
+        == 1
+    )
+    assert all("../" not in " ".join(command) for command in commands)
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0

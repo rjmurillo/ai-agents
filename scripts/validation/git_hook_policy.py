@@ -47,7 +47,10 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import session_change_scope
+from scripts.validation.session_scope import (
+    added_session_paths_in_index,
+    session_change_scope,
+)
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1896,13 +1899,22 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
+    new_logs = added_session_paths_in_index(sessions, repo_root)
+    if new_logs is None:
+        print(
+            "ERROR: unable to determine which staged session logs are new; "
+            "refusing to guess creation-mode",
+            file=sys.stderr,
+        )
+        return 1
     for session in sessions:
+        mode = "--creation-mode" if session in new_logs else "--pre-commit"
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                "--pre-commit",
+                mode,
             ],
             repo_root,
         )
@@ -6747,14 +6759,20 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
+    if not session_paths:
+        return 0
     new_logs, has_session_deletion = session_change_scope(
-        paths,
+        session_paths,
         repo_root,
         compare_ref="HEAD",
     )
-    for path in paths:
-        normalized = _safe_relative_path(path)
-        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+    for path in session_paths:
+        if _is_session_on_upstream_default(repo_root, path):
             continue
         command = [sys.executable, "scripts/validate_session_json.py", path]
         exists_at_head = _path_exists_at_head(path, repo_root)

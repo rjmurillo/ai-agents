@@ -23,6 +23,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.ci._session_artifact_name import artifact_name  # noqa: E402
+from scripts.validation.session_scope import (  # noqa: E402  (path set above)
+    committed_session_validation_modes,
+)
 
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
@@ -89,6 +92,22 @@ def must_failure_count(exit_code: int) -> int:
     return 0
 
 
+def _validation_mode_args(session_file: str) -> tuple[list[str] | None, str | None]:
+    normalized = Path(session_file).as_posix()
+    modes = committed_session_validation_modes([normalized], Path.cwd())
+    if modes is None:
+        return None, (
+            "ERROR: unable to determine which committed session logs were added by HEAD; "
+            "refusing to guess creation-mode"
+        )
+    mode = modes.get(normalized, "full")
+    if mode == "creation":
+        return ["--creation-mode"], None
+    if mode == "existing":
+        return ["--existing-log"], None
+    return [], None
+
+
 def _write_results(name: str, verdict: str, must_failures: int, findings: str) -> None:
     _RESULTS.mkdir(parents=True, exist_ok=True)
     (_RESULTS / f"{name}-verdict.txt").write_text(f"{verdict}\n", encoding="utf-8")
@@ -107,11 +126,14 @@ def validate(session_file: str, validation_head: str = "") -> tuple[int, str]:
     """Run the validator. Returns (exit_code, findings)."""
     if Path(session_file).suffix != ".json":
         return 1, "\n".join(_MARKDOWN_UNSUPPORTED)
+    mode_args, error = _validation_mode_args(session_file)
+    if error is not None or mode_args is None:
+        return 1, error or "ERROR: could not determine validation mode"
     command = [
         sys.executable,
         "./scripts/validate_session_json.py",
         session_file,
-        "--scope-from-git",
+        *mode_args,
         "--json-output",
         str(_SUMMARY),
     ]
