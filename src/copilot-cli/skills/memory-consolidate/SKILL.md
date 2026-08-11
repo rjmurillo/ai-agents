@@ -40,9 +40,9 @@ Use these steps in order:
 
 1. **Inventory with Serena.** Use Serena's list-memories capability
    only after confirming Serena is active on the repository being
-   consolidated and the harness reports a finite call timeout. If the active
-   project is unknown, different, unavailable, or has no verified finite
-   timeout, stop after Phase 1 without reading or writing memory files.
+   consolidated. If the active project is unknown, different, unavailable, or
+   the Serena call errors or times out, stop after Phase 1 without reading or
+   writing memory files.
 2. **Validate size from Serena content.** After Phase 1's gates pass, apply the
    atomicity limits documented by `memory-maintenance` to the content Serena
    already returned. Do not invoke a second filesystem reader.
