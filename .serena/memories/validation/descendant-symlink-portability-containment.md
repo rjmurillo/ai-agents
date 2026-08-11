@@ -21,5 +21,5 @@ the repository.
 
 - file and directory symlink escapes under both shipped skill roots
 - escaped `scripts/` directory symlinks under both roots
-- empty or broken external targets that would otherwise return success
+- broken external targets that would otherwise return success
 - tracked non-scan symlink targets escaping during `--update-baseline`
