@@ -60,7 +60,7 @@ No reusable external-review framework is introduced.
 | Provisional discovery | DeepWiki, read-only | N/A | Useful for leads, not authoritative changes |
 | Duplicate policy | SkillForge thresholds | N/A | Existing catalog owner |
 | New skill limit | Zero or one | N/A | User-approved scope cap |
-| Behavioral provider | `copilot-cli` | N/A | Measures models used by repository owners |
+| Behavioral provider | `copilot` | N/A | Uses the Copilot CLI transport and its available model set |
 | Eval gate | Prompt-change PASS | N/A | ADR-057 blocks regressions and high flakiness |
 | Utility verification | Deterministic tests | N/A | Model judgment is the wrong evidence |
 | Mirror ownership | Canonical `.claude/skills/` plus generation | N/A | Prevents hand-edited drift |
@@ -118,13 +118,16 @@ uv run python scripts/eval/eval-prompt-change.py \
   --prompt .claude/skills/<changed-skill>/SKILL.md \
   --scenarios tests/evals/skills/aspire-skill-review-scenarios.json \
   --base-ref origin/main \
-  --provider copilot-cli \
+  --provider copilot \
   --runs 3 \
   --output <report-path>
 ```
 
 Pass when the harness gate returns PASS. Record `has_improvement` and delta as
 non-gating evidence for human review, matching ADR-057.
+
+Eval spend is authorized. Cost is recorded but does not justify skipping a
+required scenario or model.
 
 ### Utility changes
 

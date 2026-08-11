@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14682,
+    "date": "2026-08-11",
+    "branch": "spec/aspire-skill-review",
+    "startingCommit": "f8f93d147b",
+    "objective": "Update Aspire skill spec to prefer copilot eval provider"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project activation tool was not exposed; the environment supplied the active repository and Serena operated on it."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena initial_instructions before repository analysis."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used session-init and verified the eval provider registry and targeted provider tests."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied the usage-mandatory skill-first rule from the prior session context."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored the eval provider preference in Forgetful user notes; no repository memory change required."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "spec/aspire-skill-review"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On spec/aspire-skill-review"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified spec/aspire-skill-review before amendment."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f8f93d147b, parent of the session's first commit per issue #4415 validator contract"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Provider preference applied across every active eval instruction."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No repository memory change. User-level eval provider preference stored in Forgetful notes."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped prose and dash checks run on amended Markdown files."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/021-aspire-skill-review-provider-amendment-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All intended provider amendment files are staged for commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Provider alias tests and spec frontmatter validation passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "validate-skill-changes todo now records --provider copilot and authorized spend."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No retrospective required for this preference-only amendment."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified provider alias behavior",
+      "result": "Both copilot and copilot-cli resolve to the same Copilot CLI provider; targeted tests passed."
+    },
+    {
+      "action": "Amended the Aspire skill review spec",
+      "result": "Eval instructions now use --provider copilot and state that required eval spend is authorized."
+    },
+    {
+      "action": "Persisted the operator preference",
+      "result": "Stored the preference in Forgetful user notes rather than a repository rule."
+    }
+  ],
+  "endingCommit": "1a4d9d9d5b897da8c611a804ee715a1c706766ee",
+  "nextSteps": [
+    "Use --provider copilot for TASK-022 eval runs.",
+    "Do not reduce required model or scenario coverage for cost."
+  ],
+  "developmentPhase": {
+    "current": "specification"
+  }
+}

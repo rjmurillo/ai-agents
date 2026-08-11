@@ -46,7 +46,7 @@ under the local Copilot CLI provider.
 ## Acceptance Criteria
 
 - [ ] Dry-run validates every scenario before provider calls.
-- [ ] `eval-prompt-change.py --provider copilot-cli` is used for base and
+- [ ] `eval-prompt-change.py --provider copilot` is used for base and
       working-copy prompts.
 - [ ] Every judgment-bearing changed skill runs three times per scenario.
 - [ ] Every prompt-change acceptance gate returns PASS.
@@ -69,6 +69,8 @@ under the local Copilot CLI provider.
 
 Keep the provider constant within the run. Use verdict scenarios that detect
 duplicate creation, product-specific copying, and missing source identity.
+Eval spend is authorized. Do not reduce required coverage to save provider
+cost.
 
 ## Testing Requirements
 

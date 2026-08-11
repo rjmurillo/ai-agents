@@ -125,7 +125,7 @@ none (no domain entities)
       `src/copilot-cli/skills/` SO THAT shipped copies match
       `.claude/skills/`.
 - [ ] WHEN a judgment-bearing skill changes, THE SYSTEM SHALL run
-      `eval-prompt-change.py` with the `copilot-cli` provider and three runs per
+      `eval-prompt-change.py` with the `copilot` provider and three runs per
       scenario SO THAT the working copy is compared with the base ref.
 - [ ] WHEN the prompt-change eval completes, THE SYSTEM SHALL record its delta,
       improvements, regressions, and `has_improvement` value SO THAT human
