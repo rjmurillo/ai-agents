@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module groups validators that shell out
+# to external tools. Its line count tracks how many such gates exist, not
+# complexity. The real fix is splitting by area (issue #3073 scope), which is
+# out of scope for adding a single gate.
 """External-tool validations for the pre-PR runner (extracted from
 ``scripts/validation/pre_pr.py``, issue #2223): session-log, Pester,
 markdownlint, actionlint, yamllint, path normalization, planning artifacts,
@@ -15,8 +21,11 @@ from pathlib import Path
 from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from checks_changed_paths import _filtered_targets  # noqa: E402
 from checks_common import (  # noqa: E402
@@ -26,7 +35,8 @@ from checks_common import (  # noqa: E402
 )
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
-from session_scope import new_session_logs  # noqa: E402
+
+from scripts.validation.session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
 # "Linting: N files" prints before any read; Summary's count is files *with
@@ -473,6 +483,43 @@ def validate_instruction_budget(repo_root: Path) -> bool:
             "--ci",
             "--path",
             str(repo_root),
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
+
+
+def validate_always_on_corpus_claims(repo_root: Path) -> bool:
+    """Pin the numeric claims in model-context-doctrine.md to live measurements.
+
+    Runs ``tests/validation/test_always_on_corpus_claims.py`` via pytest so the
+    byte counts, file counts, and multipliers stated in the doctrine doc never
+    drift silently from the actual always-on instruction corpus. The test file
+    itself runs in under 0.5 seconds. The instructions tree is absent in
+    downstream installs, so SKIP rather than FAIL when it is missing.
+    """
+    if not (repo_root / ".github" / "instructions").is_dir():
+        raise MissingScriptSkip(
+            ".github/instructions not present (downstream install); no corpus to check"
+        )
+    test_path = repo_root / "tests" / "validation" / "test_always_on_corpus_claims.py"
+    if not test_path.is_file():
+        raise MissingScriptSkip(
+            "tests/validation/test_always_on_corpus_claims.py not present; "
+            "no corpus claim test to run"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/validation/test_always_on_corpus_claims.py",
+            "-q",
         ],
         cwd=repo_root,
     )

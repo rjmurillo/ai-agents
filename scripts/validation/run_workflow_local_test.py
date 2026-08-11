@@ -68,10 +68,12 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -118,6 +120,7 @@ _WORKFLOW_SUFFIXES = (".yml", ".yaml")
 _ACTIONLINT_TIMEOUT = 60
 _ACT_FULL_TIMEOUT = 600
 _ACT_DRYRUN_TIMEOUT = _ACT_FULL_TIMEOUT
+_PYTEST_WORKFLOW = ".github/workflows/pytest.yml"
 
 # actionlint shells out to shellcheck for ``run:`` scripts. The info and style
 # tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are
@@ -162,7 +165,6 @@ class Report:
     bypassed: bool = False
     degraded: bool = False
     secret_skipped: bool = False
-    missing_secret_names: dict[str, list[str]] = field(default_factory=dict)
     note: str = ""
 
 
@@ -476,13 +478,6 @@ def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     return sorted(name for name in _referenced_secrets(path) if name not in available)
 
 
-def _secret_gap_detail(secret_blocked: Sequence[tuple[str, Sequence[str]]]) -> str:
-    """Return an operator-safe summary without logging secret names."""
-    return "; ".join(
-        f"{rel} needs {len(missing)} locally absent secret(s)" for rel, missing in secret_blocked
-    )
-
-
 # --- Stages --------------------------------------------------------------
 
 
@@ -558,6 +553,108 @@ def _workflow_jobs(wf_path: Path) -> list[str]:
     if not isinstance(jobs, dict):
         return []
     return [str(name) for name in jobs if isinstance(name, str)]
+
+
+def _pytest_matrix_entries(data: object) -> list[object]:
+    """Return the test job's explicit matrix entries."""
+    if not isinstance(data, dict):
+        return []
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+    test_job = jobs.get("test")
+    if not isinstance(test_job, dict):
+        return []
+    strategy = test_job.get("strategy")
+    if not isinstance(strategy, dict):
+        return []
+    matrix = strategy.get("matrix")
+    if not isinstance(matrix, dict):
+        return []
+    includes = matrix.get("include")
+    return includes if isinstance(includes, list) else []
+
+
+def _local_pytest_commands(
+    files: Sequence[str], repo_root: Path
+) -> tuple[list[tuple[list[str], dict[str, str]]], str]:
+    try:
+        import yaml
+    except ImportError:
+        return [], "PyYAML is required for the local fallback"
+
+    commands: list[tuple[list[str], dict[str, str]]] = []
+    for rel in files:
+        try:
+            data = yaml.safe_load((repo_root / rel).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+            return [], f"{rel}: {type(exc).__name__}: {exc}"
+        for index, entry in enumerate(_pytest_matrix_entries(data)):
+            pytest_args = entry.get("pytest_args") if isinstance(entry, dict) else None
+            if not isinstance(pytest_args, str) or not pytest_args.strip():
+                continue
+            try:
+                command = [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "python",
+                    "scripts/ci/run_pytest_non_tmp.py",
+                    "--cov",
+                    "--cov-report=",
+                    f"--junitxml=pytest-{index}.xml",
+                    *shlex.split(pytest_args),
+                ]
+            except ValueError as exc:
+                return [], f"{rel}: invalid pytest_args: {exc}"
+            commands.append(
+                (
+                    command,
+                    {
+                        "COVERAGE_FILE": f".coverage.{index}",
+                        "PYTEST_NON_TMP_ROOT": f"pytest-{index}",
+                    },
+                )
+            )
+    return commands, ""
+
+
+def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    """Run pytest matrix entries directly when already inside act."""
+    stage = "gh act (local-fallback)"
+    commands, error = _local_pytest_commands(files, repo_root)
+    if error:
+        return StageResult(stage, False, error)
+
+    if not commands:
+        return StageResult(stage, False, "no test matrix pytest_args found")
+
+    env = dict(os.environ)
+    env.pop("ACT", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    plugin_root = str(repo_root / ".claude")
+    env["COPILOT_PLUGIN_ROOT"] = plugin_root
+    env["CLAUDE_PLUGIN_ROOT"] = plugin_root
+    with tempfile.TemporaryDirectory(prefix="ai-agents-pytest-") as temp_root:
+        output_root = Path(temp_root)
+        for command, partition_env in commands:
+            command_env = env | {
+                "COVERAGE_FILE": str(output_root / partition_env["COVERAGE_FILE"]),
+                "PYTEST_NON_TMP_ROOT": str(
+                    output_root / partition_env["PYTEST_NON_TMP_ROOT"]
+                ),
+            }
+            command[7] = f"--junitxml={output_root / command[7].removeprefix('--junitxml=')}"
+            returncode, stdout, stderr = _run(
+                command,
+                timeout=_ACT_FULL_TIMEOUT,
+                cwd=repo_root,
+                env=command_env,
+            )
+            if returncode != 0:
+                detail = _with_timeout_hint((stdout + stderr).strip())
+                return StageResult(stage, False, detail)
+    return StageResult(stage, True)
 
 
 def _select_act_event(wf_path: Path) -> str | None:
@@ -697,7 +794,10 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         None,
-        lambda text: bool(_ACT_GIT_PROCESS_ANNOTATION.search(text)),
+        lambda text: (
+            _GIT_REPO_MISSING_PATTERN in text
+            and bool(_ACT_GIT_PROCESS_ANNOTATION.search(text))
+        ),
         "act container cannot resolve the linked-worktree git metadata, so "
         "dorny/paths-filter fails only in local act, not in CI.",
     ),
@@ -837,10 +937,30 @@ def _act_scope_label(line: str) -> str | None:
     return normalized or None
 
 
+def _git_annotation_has_missing_repository_signature(line: str, combined: str) -> bool:
+    """Return whether a Git exit-128 annotation has its documented root cause."""
+    if _ACT_GIT_PROCESS_ANNOTATION.search(line) is None:
+        return False
+    annotation_scope = _act_scope_label(line)
+    return any(
+        _GIT_REPO_MISSING_PATTERN in candidate
+        and (
+            annotation_scope is None
+            or _act_scope_label(candidate) == annotation_scope
+        )
+        for candidate in combined.splitlines()
+    )
+
+
 def _explained_act_limitation_labels(combined: str, event: str | None) -> set[str]:
     """Act log scope labels whose own output matches a known limitation."""
     labels: set[str] = set()
     for line in combined.splitlines():
+        if _git_annotation_has_missing_repository_signature(line, combined):
+            label = _act_scope_label(line)
+            if label is not None:
+                labels.add(label)
+            continue
         if any(
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
@@ -886,6 +1006,8 @@ def _unexplained_error_annotations(
     )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
+            continue
+        if _git_annotation_has_missing_repository_signature(line, combined):
             continue
         if any(
             (scope is None or scope == event) and matches(line)
@@ -1143,12 +1265,10 @@ def run_local_test(
     available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
     secret_blocked: list[tuple[str, list[str]]] = []
-    missing_secret_names: dict[str, list[str]] = {}
     for rel in files:
         missing = _missing_secrets(repo_root / rel, available)
         if missing:
             secret_blocked.append((rel, missing))
-            missing_secret_names[rel] = missing
         else:
             runnable.append(rel)
 
@@ -1181,16 +1301,37 @@ def run_local_test(
         # Every changed workflow needs a locally-absent secret: nothing can run
         # under act. actionlint already validated syntax above; skip only the
         # act run, audibly, instead of blocking on a manual bypass.
-        detail = _secret_gap_detail(secret_blocked)
         report.exit_code = 4
         report.secret_skipped = True
-        report.missing_secret_names = missing_secret_names
         report.note = (
             "unrunnable-locally: changed workflow(s) reference secrets absent "
-            f"from this environment ({detail}). actionlint passed; skipped the "
-            "local act run, which CI runs with the real secrets. Provide them "
-            "via a repo-root .secrets file or the environment to run it locally."
+            "from this environment. actionlint passed; skipped the local act run. "
+            "Provide them via a repo-root .secrets file or the environment."
         )
+        return report
+
+    inside_act = os.environ.get("ACT", "").strip().lower() == "true"
+    if inside_act and runnable != [_PYTEST_WORKFLOW]:
+        report.exit_code = 3
+        report.note = (
+            "unrunnable-locally: nested act execution supports only the pytest workflow"
+        )
+        return report
+
+    local_pytest = runnable == [_PYTEST_WORKFLOW]
+    if local_pytest:
+        if full:
+            local_stage = _local_pytest_stage(runnable, repo_root)
+            report.stages.append(local_stage)
+            if not local_stage.ok:
+                report.exit_code = 1
+                return report
+        if secret_blocked:
+            report.secret_skipped = True
+            report.note = (
+                "skipped workflows with secrets absent locally. "
+                "CI runs them with the real secrets."
+            )
         return report
 
     # Stage 2 (dry-run) needs gh act but not a running Docker daemon: act -n
@@ -1242,11 +1383,10 @@ def run_local_test(
     # The runnable ones passed (exit 0 preserved); surface the skips in the note
     # so the developer sees which files CI will still exercise with real secrets.
     if secret_blocked:
-        detail = _secret_gap_detail(secret_blocked)
         report.secret_skipped = True
-        report.missing_secret_names = missing_secret_names
         skip_note = (
-            f"skipped (secrets absent locally): {detail}. CI runs these with the real secrets."
+            "skipped workflows with secrets absent locally. "
+            "CI runs them with the real secrets."
         )
         report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
@@ -1297,7 +1437,6 @@ def _format_json(report: Report) -> str:
             "bypassed": report.bypassed,
             "degraded": report.degraded,
             "secret_skipped": report.secret_skipped,
-            "missing_secret_names": report.missing_secret_names,
             "note": report.note,
             "stages": [{"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages],
         },

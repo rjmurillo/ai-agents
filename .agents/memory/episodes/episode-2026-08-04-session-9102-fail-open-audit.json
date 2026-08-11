@@ -1,0 +1,176 @@
+{
+  "id": "episode-2026-08-04-session-9102-fail-open-audit",
+  "session": "2026-08-04-session-9102-fail-open-audit",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Audit repo gates for fail-open behavior and fix the highest blast radius defects with regression tests.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Enumerated fail-open candidates",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ranked real defects",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added failing regression tests first",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed fail-open exits",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated with tests and mutation checks",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T08:16:49+00:00",
+      "type": "commit",
+      "content": "Commit: 4139b1c06e92bdf0a76e5c3cf1f930c6563198a1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010",
+        "e012"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 55b557922c6ea9bf43b0000a9e0a44f070c1bc94",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 27e2a81156a07f0565270c96c5f0a15cdf796217",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fa4f40e3f85ec9f94c5e80e38493f506daf197c1",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T02:17:35+00:00",
+      "type": "commit",
+      "content": "Commit: 919b4846796d3748bcfb163cb24db2967f2acf44",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired PR 4645 after base drift",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T03:20:59+00:00",
+      "type": "commit",
+      "content": "Commit: 160b145de26026b849097f721da8fb3765a272c3",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9102-fail-open-audit"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 12
+  },
+  "lessons": []
+}

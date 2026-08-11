@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit markdown-check ran on staged files; no Markdown changed in this session's commits"
+        "Evidence": "npx --yes markdownlint-cli .agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md exited 0"
       },
       "qaValidation": {
         "level": "MUST",

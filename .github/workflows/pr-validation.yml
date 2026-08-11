@@ -241,6 +241,9 @@ jobs:
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # Run merge-tree ratchet is unconditional, so the bot-skip leg shares
+          # this checkout. Default depth 1 creates .git/shallow, and a later
+          # full fetch does not remove that graft.
           fetch-depth: 0
 
       - name: Setup uv for workflow validation
@@ -292,7 +295,8 @@ jobs:
         run: |
           # This job later runs merge-tree and count-ratchet diagnostics that
           # need a merge base. A depth-limited fetch writes .git/shallow for
-          # the whole job, and a later plain fetch does not repair it.
+          # the whole job, and a later plain fetch does not repair it. This job
+          # already checked out full history, so keep this base fetch full-depth.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
@@ -303,7 +307,8 @@ jobs:
           BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # Keep this fetch full-depth; an earlier shallow fetch would graft
-          # .git/shallow for the later merge-tree ratchet.
+          # .git/shallow for the later merge-tree ratchet. See the taste-lint
+          # ratchet step above for why a later plain fetch does not repair it.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4313: 425 atomic memories are unreachable through the retrieval
@@ -317,7 +322,8 @@ jobs:
           BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # Keep this fetch full-depth; an earlier shallow fetch would graft
-          # .git/shallow for the later merge-tree ratchet.
+          # .git/shallow for the later merge-tree ratchet. See the taste-lint
+          # ratchet step above for why a later plain fetch does not repair it.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4441: `memory-token-update` repairs every index token count on
@@ -353,10 +359,10 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
-          # Issue #4518: this fetch MUST NOT be shallow. The two count ratchets
-          # above read a single baseline file at the base ref, so --depth=1 is
-          # enough for them. merge-tree needs a merge base, and a --depth=1
-          # fetch writes .git/shallow and cuts traversal at the fetched commit.
+          # Issue #4518: this fetch MUST NOT be shallow. The count ratchets
+          # above do not need ancestry for their own baseline reads, but
+          # merge-tree needs a merge base, and a --depth=1 fetch writes
+          # .git/shallow and cuts traversal at the fetched commit.
           # git then aborts with "refusing to merge unrelated histories" (rc 128)
           # on any branch behind the base, which is the only case this gate
           # exists to evaluate. Measured: behind+shallow rc=128, behind+full

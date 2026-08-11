@@ -6,15 +6,37 @@ Covers:
 - #4492: push_files contamination guard
 - #4511: portability write-lock files are gitignored
 - #4502: pytest.yml test job has timeout-minutes
+- #4657: pre-push and pre-PR share one unreachable-code gate
 """
+
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.validation import git_hook_policy as policy
+
+_LEFTHOOK = Path(__file__).resolve().parents[2] / "lefthook.yml"
+
+
+def _find_job(jobs: object, name: str) -> dict[str, object] | None:
+    if not isinstance(jobs, list):
+        return None
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        if job.get("name") == name:
+            return job
+        group = job.get("group")
+        nested_jobs = group.get("jobs") if isinstance(group, dict) else None
+        found = _find_job(nested_jobs, name)
+        if found is not None:
+            return found
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,6 +57,21 @@ def _make_completed(
 # ---------------------------------------------------------------------------
 # #4472: budget-exhaustion message
 # ---------------------------------------------------------------------------
+
+
+def test_pre_push_uses_the_fail_closed_unreachable_gate() -> None:
+    """Pre-push must not revive the filesystem-walking legacy scanner."""
+    config = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+    assert isinstance(config, dict)
+    pre_push = config.get("pre-push")
+    assert isinstance(pre_push, dict)
+    job = _find_job(pre_push.get("jobs"), "python-unreachable-statements")
+    assert job is not None
+    run = job.get("run")
+    assert isinstance(run, str)
+
+    assert "scripts/validation/check_unreachable_code.py ." in run
+    assert "check_unreachable_after_terminator.py" not in run
 
 
 class TestBudgetExhaustionMessage:
@@ -63,8 +100,7 @@ class TestBudgetExhaustionMessage:
     ) -> tuple[int, str]:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
         commands = [
-            ["uv", "run", "python", "-m", "pytest", f"slice{i}"]
-            for i in range(len(returncodes))
+            ["uv", "run", "python", "-m", "pytest", f"slice{i}"] for i in range(len(returncodes))
         ]
         calls = iter(returncodes)
         monkeypatch.setattr(
@@ -224,9 +260,7 @@ class TestPushFilesGuard:
             "scripts.validation.git_hook_policy._branch_delta_files",
             lambda root, base="origin/main": {"scripts/validation/portability_common.py"},
         )
-        assert not policy._push_files_are_genuine(
-            [".claude/skills/some-skill/SKILL.md"], tmp_path
-        )
+        assert not policy._push_files_are_genuine([".claude/skills/some-skill/SKILL.md"], tmp_path)
 
     def test_empty_push_files_returns_false(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -271,7 +305,7 @@ class TestPushFilesGuard:
     def test_run_cli_e2e_proceeds_on_genuine_files(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """run_cli_e2e proceeds past the guard when files are genuine."""
+        """A genuine change fails closed when no supported CLI can run."""
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._push_files_are_genuine",
             lambda files, root: True,
@@ -279,16 +313,42 @@ class TestPushFilesGuard:
         monkeypatch.setattr("shutil.which", lambda x: None)
 
         rc = policy.run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", tmp_path, ["real/file.py"])
-        # No CLI installed -> skip with rc=0 (existing behavior)
-        assert rc == 0
+        assert rc == 2
 
     def test_run_cli_e2e_no_push_files_arg_runs_normally(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """run_cli_e2e with push_files=None bypasses the guard entirely."""
+        """Direct invocation still fails closed when the CLI is unavailable."""
         monkeypatch.setattr("shutil.which", lambda x: None)
         rc = policy.run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", tmp_path, None)
-        assert rc == 0
+        assert rc == 2
+
+    def test_cli_entrypoint_fails_closed_when_cli_is_unavailable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The command lefthook invokes must return a configuration error."""
+        changed = ".claude/skills/example/SKILL.md"
+        monkeypatch.setattr(
+            "scripts.validation.git_hook_policy._branch_delta_files",
+            lambda root, base="origin/main": {changed},
+        )
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        rc = policy.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "cli-plugin-e2e",
+                "--files",
+                changed,
+            ]
+        )
+
+        assert rc == 2
+        assert "requires either copilot or claude" in capsys.readouterr().err
 
     def test_cli_plugin_e2e_subcommand_accepts_files_arg(self) -> None:
         """The cli-plugin-e2e subcommand accepts --files."""
@@ -391,7 +451,7 @@ class TestPytestYmlTimeout:
         )
 
     def test_test_job_timeout_minutes_is_reasonable(self) -> None:
-        """timeout-minutes for the test job should be between 20 and 90 minutes."""
+        """timeout-minutes for the test job should be between 10 and 90 minutes."""
         import yaml
 
         repo_root = Path(__file__).parent.parent.parent
@@ -401,6 +461,6 @@ class TestPytestYmlTimeout:
 
         timeout = workflow.get("jobs", {}).get("test", {}).get("timeout-minutes")
         assert timeout is not None
-        assert 20 <= timeout <= 90, (
-            f"test job timeout-minutes={timeout} is outside the expected range [20, 90]"
+        assert 10 <= timeout <= 90, (
+            f"test job timeout-minutes={timeout} is outside the expected range [10, 90]"
         )

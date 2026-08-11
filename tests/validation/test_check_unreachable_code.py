@@ -10,7 +10,8 @@ Covers:
 - Class methods not false-positived when clean
 - Negative control: deliberate unreachable code after return
 - Invalid repo root exits 2
-- Syntax error files skipped gracefully
+- Syntax error files fail closed
+- Empty Python scope fails closed
 - Non-test, non-function scoped unreachable code not flagged (only function bodies)
 """
 
@@ -27,15 +28,24 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "validation"))
 
 from check_unreachable_code import (
+    ScanError,
     find_unreachable_statements,
+    main,
     validate_unreachable_code,
 )
 
 
+def _init_repo(tmp_path: Path) -> None:
+    if not (tmp_path / ".git").exists():
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+
 def _write(tmp_path: Path, name: str, src: str) -> Path:
     """Write a Python source file with dedented content."""
+    _init_repo(tmp_path)
     path = tmp_path / name
     path.write_text(textwrap.dedent(src), encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
     return path
 
 
@@ -54,6 +64,34 @@ def test_clean_function_not_flagged(tmp_path: Path) -> None:
             return x
         """,
     )
+    assert find_unreachable_statements(tmp_path) == []
+
+
+def test_ambient_git_repository_pointers_do_not_reduce_corpus(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "target"
+    foreign = tmp_path / "foreign"
+    target.mkdir()
+    foreign.mkdir()
+    _write(target, "clean.py", "def clean():\n    return 1\n")
+    bad = _write(target, "bad.py", "def bad():\n    return 1\n    x = 2\n")
+    _write(foreign, "clean.py", "def clean():\n    return 1\n")
+    monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+
+    findings = find_unreachable_statements(target)
+
+    assert findings == [(bad, "bad", 3)]
+
+
+def test_untracked_python_files_are_outside_corpus(tmp_path: Path) -> None:
+    _write(tmp_path, "tracked.py", "def tracked():\n    return 1\n")
+    (tmp_path / "scratch.py").write_text(
+        "def scratch():\n    return 1\n    x = 2\n",
+        encoding="utf-8",
+    )
+
     assert find_unreachable_statements(tmp_path) == []
 
 
@@ -101,16 +139,25 @@ def test_statement_after_continue_flagged(tmp_path: Path) -> None:
                 print(i)
         """,
     )
-    # The loop body is nested in the function body, but continue is inside
-    # the for-loop's body. Our scanner walks ALL FunctionDef nodes including
-    # nested blocks via ast.walk - but it only checks func.body directly.
-    # The for-loop body is NOT func.body, so this won't be caught at func level.
-    # This test documents the current scope: only direct function body stmts.
-    # For statements inside loop bodies, the unreachable is in the For node's body.
-    # Our current gate scans func.body only (matching the issue's reference impl).
     findings = find_unreachable_statements(tmp_path)
-    # continue is inside a for-loop body, not direct function body => not flagged
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0][2] == 4
+
+
+def test_statement_after_break_in_loop_is_flagged(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "bad.py",
+        """\
+        def bad():
+            while True:
+                break
+                print("never")
+        """,
+    )
+    findings = find_unreachable_statements(tmp_path)
+    assert len(findings) == 1
+    assert findings[0][2] == 4
 
 
 def test_statement_after_break_in_direct_function_body(tmp_path: Path) -> None:
@@ -174,13 +221,10 @@ def test_class_method_clean_not_flagged(tmp_path: Path) -> None:
     assert find_unreachable_statements(tmp_path) == []
 
 
-def test_syntax_error_skipped_gracefully(tmp_path: Path) -> None:
-    """A file with a syntax error must not crash the scanner."""
-    path = tmp_path / "bad_syntax.py"
-    path.write_text("def broken(:\n    pass\n", encoding="utf-8")
-    # Should return empty and not raise
-    result = find_unreachable_statements(tmp_path)
-    assert isinstance(result, list)
+def test_syntax_error_fails_closed(tmp_path: Path) -> None:
+    _write(tmp_path, "bad_syntax.py", "def broken(:\n    pass\n")
+    with pytest.raises(ScanError, match="could not analyze Python source"):
+        find_unreachable_statements(tmp_path)
 
 
 def test_empty_module_not_flagged(tmp_path: Path) -> None:
@@ -252,9 +296,39 @@ def test_validate_fails_on_unreachable(tmp_path: Path) -> None:
 
 def test_invalid_root_exits_2(tmp_path: Path) -> None:
     missing = tmp_path / "does_not_exist"
-    with pytest.raises(SystemExit) as exc_info:
+    with pytest.raises(ScanError):
         validate_unreachable_code(missing)
-    assert exc_info.value.code == 2
+
+
+def test_cli_exits_two_on_empty_python_scope(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "README.md").write_text("No Python here.\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True)
+
+    result = main([str(tmp_path)])
+
+    assert result == 2
+    assert "zero tracked Python files" in capsys.readouterr().err
+
+
+def test_cli_exits_two_on_invalid_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = main([str(tmp_path / "does_not_exist")])
+
+    assert result == 2
+    assert "repository root not found" in capsys.readouterr().err
+
+
+def test_cli_exits_two_on_too_many_arguments(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = main([str(tmp_path), str(tmp_path)])
+
+    assert result == 2
+    assert "expected at most one repository root" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -265,22 +339,24 @@ def test_invalid_root_exits_2(tmp_path: Path) -> None:
 def test_cli_exits_0_on_clean_tree(tmp_path: Path) -> None:
     import shutil
 
-    (tmp_path / "ok.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    _write(tmp_path, "ok.py", "def f():\n    return 1\n")
     shutil.copy(
         "scripts/validation/check_unreachable_code.py",
         tmp_path / "check_unreachable_code.py",
     )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
     result = subprocess.run(
         [sys.executable, "check_unreachable_code.py"],
         cwd=str(tmp_path),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
     )
     assert result.returncode == 0
 
 
 def test_cli_exits_1_on_unreachable(tmp_path: Path) -> None:
-    (tmp_path / "bad.py").write_text("def f():\n    return 1\n    x = 2\n", encoding="utf-8")
+    _write(tmp_path, "bad.py", "def f():\n    return 1\n    x = 2\n")
     # Run from repo root so the script resolves, but cwd=tmp_path for scan
     import shutil
 
@@ -288,10 +364,12 @@ def test_cli_exits_1_on_unreachable(tmp_path: Path) -> None:
         "scripts/validation/check_unreachable_code.py",
         tmp_path / "check_unreachable_code.py",
     )
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
     result = subprocess.run(
         [sys.executable, "check_unreachable_code.py"],
         cwd=str(tmp_path),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
     )
     assert result.returncode == 1

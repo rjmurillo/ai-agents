@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# taste-lint: ignore file-size, this test needs every required-context contract
+# and mutation control together so a workflow change cannot bypass the queue.
+
 import copy
 from pathlib import Path
 from typing import Any, TypedDict
@@ -72,7 +75,7 @@ REQUIRED_PRODUCERS = {
         "validate-memories": {"Validate memory citations"},
     },
     "pr-validation.yml": {"validate-pr": {"Validate PR"}},
-    "pytest.yml": {"test": {"Run Python Tests"}},
+    "pytest.yml": {"test-result": {"Run Python Tests"}},
     "semantic-pr-title-check.yml": {"main": {"Validate PR title"}},
     "validate-generated-agents.yml": {
         "validate": {"Validate Generated Files"},
@@ -139,7 +142,32 @@ PR_REAL_JOBS = {
     },
     "ai-spec-validation.yml": {"validate-spec"},
     "pr-validation.yml": {"validate-pr"},
+    "pytest.yml": {"test-result"},
     "semantic-pr-title-check.yml": {"main"},
+}
+
+PR_REAL_JOB_MARKERS = {
+    "ai-pr-quality-gate.yml": {
+        "aggregate": "scripts/quality_gate/check_failed_agents.py",
+        "analyst-review": "./.github/actions/agent-review",
+        "architect-review": "./.github/actions/agent-review",
+        "devops-review": "./.github/actions/agent-review",
+        "qa-review": "./.github/actions/agent-review",
+        "roadmap-review": "./.github/actions/agent-review",
+        "security-review": "./.github/actions/agent-review",
+    },
+    "ai-spec-validation.yml": {
+        "validate-spec": "scripts/ci/spec_extract_refs.py",
+    },
+    "pr-validation.yml": {
+        "validate-pr": "scripts/ci/enforce_pr_validation.py",
+    },
+    "pytest.yml": {
+        "test-result": "scripts/ci/require_job_results.py",
+    },
+    "semantic-pr-title-check.yml": {
+        "main": "amannn/action-semantic-pull-request",
+    },
 }
 
 
@@ -309,16 +337,14 @@ def _pull_request_work_errors(
             if not isinstance(job, dict):
                 errors.append(f"{name}: missing real job {job_id}")
                 continue
+            marker = PR_REAL_JOB_MARKERS[name][job_id]
             steps = job.get("steps", [])
             if not any(
-                "uses" in step
-                or (
-                    "run" in step
-                    and not str(step["run"]).strip().startswith("echo ")
-                )
+                marker in str(step.get("uses", ""))
+                or marker in str(step.get("run", ""))
                 for step in steps
             ):
-                errors.append(f"{name}: real job {job_id} became vacuous")
+                errors.append(f"{name}: real job {job_id} lost its required action")
     return errors
 
 
@@ -356,57 +382,91 @@ def test_required_checks_are_merge_group_ready() -> None:
 
 
 @pytest.mark.parametrize(
-    ("workflow_name", "mutation", "expected"),
+    ("workflow_name", "mutation", "expected", "job_id"),
     [
         (
             "validate-paths.yml",
             "drop-trigger",
             "missing merge_group trigger",
+            None,
         ),
         (
             "pytest.yml",
             "drop-force-event",
             "merge_group does not force real work",
+            None,
         ),
         (
             "pr-validation.yml",
             "drop-bypass-marker",
             "merge_group bypass step is missing",
+            None,
+        ),
+        (
+            "ai-pr-quality-gate.yml",
+            "erase-required-marker",
+            "real job analyst-review lost its required action",
+            "analyst-review",
+        ),
+        (
+            "ai-spec-validation.yml",
+            "erase-required-marker",
+            "real job validate-spec lost its required action",
+            "validate-spec",
+        ),
+        (
+            "pr-validation.yml",
+            "erase-required-marker",
+            "real job validate-pr lost its required action",
+            "validate-pr",
+        ),
+        (
+            "pytest.yml",
+            "erase-required-marker",
+            "real job test-result lost its required action",
+            "test-result",
         ),
         (
             "semantic-pr-title-check.yml",
-            "erase-real-work",
-            "real job main became vacuous",
+            "erase-required-marker",
+            "real job main lost its required action",
+            "main",
         ),
         (
             "ai-pr-quality-gate.yml",
             "drop-ref",
             "concurrency omits github.ref",
+            None,
         ),
         (
             "pytest.yml",
             "bare-push",
             "push matches merge queue branches",
+            None,
         ),
         (
             "validate-paths.yml",
             "remove-producer",
             "missing required producer validate",
+            None,
         ),
         (
             "pr-validation.yml",
             "duplicate-context",
             "duplicate required context Validate PR",
+            None,
         ),
         (
             "validate-generated-agents.yml",
             "false-producer",
             "validate is unreachable",
+            None,
         ),
         (
             "pr-validation.yml",
             "drop-base-fallback",
             "merge_group base ref fallback is missing",
+            None,
         ),
     ],
 )
@@ -414,6 +474,7 @@ def test_structural_negative_controls(
     workflow_name: str,
     mutation: str,
     expected: str,
+    job_id: str | None,
 ) -> None:
     workflows = copy.deepcopy(_current_workflows())
     workflow = workflows[workflow_name]
@@ -428,11 +489,13 @@ def test_structural_negative_controls(
         step = workflow["jobs"]["validate-pr"]["steps"][1]
         step["run"] = str(step["run"]).replace("merge_group", "pull_request")
         step["env"]["EVENT_NAME"] = "pull_request"
-    elif mutation == "erase-real-work":
-        workflow["jobs"]["main"]["steps"] = [
-            {"run": "echo skipped"},
-            {"run": "echo still skipped"},
-        ]
+    elif mutation == "erase-required-marker":
+        assert job_id is not None
+        marker = PR_REAL_JOB_MARKERS[workflow_name][job_id]
+        for step in workflow["jobs"][job_id]["steps"]:
+            for key in ("uses", "run"):
+                if key in step:
+                    step[key] = str(step[key]).replace(marker, "removed-required-marker")
     elif mutation == "drop-ref":
         workflow["concurrency"]["group"] = "ai-quality-static"
     elif mutation == "bare-push":

@@ -414,7 +414,10 @@ def test_reader_start_failure_cleans_up_the_child(
     started: dict[str, subprocess.Popen[str]] = {}
 
     def capture_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[str]:
-        process = cast(Any, original_popen(*args, **kwargs))
+        process = cast(
+            Any,
+            original_popen(*args, **kwargs),  # subprocess-encoding: strict-ok
+        )
         started["process"] = process
         return process
 

@@ -59,10 +59,13 @@ pytest collects only `testpaths = ["tests"]` (`pyproject.toml [tool.pytest.ini_o
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
 | `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows, harness-specific suites (`tests/claude_mem/`, `tests/forgetful/`, `tests/claude/skills/`) | `uv run pytest tests/ -x` |
-| `tests/skills/NAME/` | Yes | Tests for a skill's Python scripts (importable via conftest sys.path) | `uv run pytest tests/skills/github/ -x` |
-| `.claude/skills/NAME/tests/` | NO | Per-skill structure tests, colocated with the skill (claude-agents.md MUST 3) | `uv run pytest .claude/skills/NAME/tests/ -q` |
+| `tests/skills/NAME/` | Yes | Structure and behavior tests for a skill; kept outside customer installs | `uv run pytest tests/skills/NAME/ -x` |
+| `.claude/skills/NAME/tests/` | Via bundle-suite runner | Legacy colocated skill tests; do not add new ones | `uv run pytest .claude/skills/NAME/tests/ -q` |
 
-Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI pins only the second location (`.github/workflows/pytest.yml:214-222` runs `tests/skills/github/test_wait_for_unresolved_zero.py`); no workflow collects `.claude/skills/*/tests/` at all, so those files run only when you name them explicitly (issue #3593, `.agents/retrospective/2026-07-28-autopilot-issue-burndown.md:72-74`). When you add a skill, you usually need both (Phase 6).
+Two skill-test locations exist because older skills colocated tests under their
+shipped directories. New tests belong under `tests/skills/NAME/` so customer
+installs contain runtime assets only. `tests/test_skill_bundle_suites_run.py`
+keeps legacy colocated suites running until they migrate.
 
 Useful invocations, all verified (as of 2026-07-03):
 
@@ -70,8 +73,8 @@ Useful invocations, all verified (as of 2026-07-03):
 uv run pytest tests/ -x                                    # full default suite, stop on first failure
 uv run pytest tests/test_ai_review.py -x                   # one file
 uv run pytest tests/ -m unit                               # by marker
-uv run pytest .claude/skills/prose-self-check/tests/ -q    # one skill's colocated tests
-uv run pytest .claude/skills/NAME/tests/ --collect-only -q # prove tests are discoverable without running
+uv run pytest tests/skills/NAME/ --collect-only -q         # prove new skill tests are collected
+uv run pytest .claude/skills/prose-self-check/tests/ -q    # legacy colocated suite
 ```
 
 Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
@@ -126,8 +129,8 @@ Full evidence line in the session log looks like `"qaValidation": { "level": "MU
 
 ### Phase 6: Add tests for a new skill, hook, or script
 
-- [ ] Skill: create `.claude/skills/NAME/tests/test_skill_structure.py` (frontmatter, sections, size, dash checks; copy the shape from `.claude/skills/prose-self-check/tests/`). Required by `.claude/rules/claude-agents.md:18` (MUST 3).
-- [ ] Skill scripts with behavior: add `tests/skills/NAME/test_SCRIPT.py` so the default suite collects them; add `__init__.py` and a `conftest.py` for sys.path if importing the script by module name.
+- [ ] Skill: create `tests/skills/NAME/test_skill_structure.py` for frontmatter, sections, size, and behavior contracts. Do not place new tests inside `.claude/skills/NAME/`; that tree ships to customers.
+- [ ] Skill scripts with behavior: add `tests/skills/NAME/test_SCRIPT.py`; add `__init__.py` and a `conftest.py` for sys.path if importing the script by module name.
 - [ ] Hook: add `tests/hooks/test_NAME.py`; use `tests/hook_test_helpers.py`; cover exit 0 (allow, stdout context), exit 2 (block, stdout message), and malformed-stdin input.
 - [ ] Validation/build script: add `tests/test_NAME.py` or `tests/build_scripts/test_NAME.py`; test exit codes per ADR-035 (0 ok, 1 logic, 2 config, 3 external, 4 auth).
 - [ ] Generated artifact: add a runtime-contract test with a negative control (Phase 3, item 2).
@@ -157,7 +160,7 @@ Before claiming a change meets the evidence bar:
 
 - [ ] Every new/changed function has pos, neg, and edge tests; every error and conditional branch exercised
 - [ ] External I/O mocked in unit tests; CLI exit codes tested where a CLI changed
-- [ ] `uv run pytest tests/ -x` green locally, plus explicit runs for any `.claude/skills/NAME/tests/` you touched
+- [ ] `uv run pytest tests/ -x` green locally, plus explicit runs for any legacy `.claude/skills/NAME/tests/` you touched
 - [ ] Coverage proven at 100% on changed files using the module-name `--cov` form
 - [ ] Generated artifacts have a runtime-contract test with a negative control
 - [ ] Any new threshold or guard shows calibration/self-application evidence in the PR description

@@ -51,10 +51,9 @@ def _write_isolated_test(repo_root: Path, checker_source: str) -> Path:
         encoding="utf-8"
     )
     test_source = test_source.replace(
-        'REPO_ROOT = Path(__file__).resolve().parents[2]\n'
+        "REPO_ROOT = Path(__file__).resolve().parents[2]\n"
         '_VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"',
-        f'REPO_ROOT = Path({str(repo_root)!r})\n'
-        '_VALIDATION_DIR = Path(__file__).resolve().parent',
+        f"REPO_ROOT = Path({str(repo_root)!r})\n_VALIDATION_DIR = Path(__file__).resolve().parent",
     )
     isolated_test = scratch / "test_check_subprocess_encoding.py"
     isolated_test.write_text(test_source, encoding="utf-8")
@@ -161,12 +160,14 @@ def main() -> int:
         # Mutation 1: disable the text= check (replace True with False in _uses_text_mode)
         (
             "mutation-1-disable-text-check",
-            'text_enabled = (\n'
+            "text_enabled = (\n"
             '        _is_true_literal(_keyword_value(call, "text"))\n'
-            '        or _is_true_literal(_keyword_value(call, "universal_newlines"))\n'
             '        or _is_true_literal(_keyword_value(call, "capture_output"))\n'
-            '        or pipe_capture\n'
-            '    )',
+            '        or _is_subprocess_pipe(_keyword_value(call, "stdout"), '
+            "module_aliases, pipe_aliases)\n"
+            '        or _is_subprocess_pipe(_keyword_value(call, "stderr"), '
+            "module_aliases, pipe_aliases)\n"
+            "    )",
             "text_enabled = False",
             True,  # must_kill
             "test_text_only_flagged: text= check disabled but test did not catch it",
@@ -174,10 +175,9 @@ def main() -> int:
         # Mutation 2: disable the errors= detection (always claim errors= present)
         (
             "mutation-2-disable-errors-detection",
-            'if _has_keyword(call, "errors"):\n'
+            'if isinstance(errors_node, ast.Constant) and errors_node.value == "replace":\n'
             "        return False",
-            "if False:\n"
-            "        return False",
+            "if True:\n        return False",
             True,
             (
                 "test_known_bad_input_exits_nonzero: errors= detection disabled"
@@ -195,8 +195,11 @@ def main() -> int:
         # Mutation 4: drop stdout/stderr PIPE capture detection.
         (
             "mutation-4-disable-pipe-capture",
-            "or pipe_capture",
-            "or False",
+            'or _is_subprocess_pipe(_keyword_value(call, "stdout"), '
+            "module_aliases, pipe_aliases)\n"
+            '        or _is_subprocess_pipe(_keyword_value(call, "stderr"), '
+            "module_aliases, pipe_aliases)",
+            "or False\n        or False",
             True,
             "pipe capture detection disabled but tests did not catch it",
         ),
@@ -212,8 +215,15 @@ def main() -> int:
 
     for name, original, replacement, must_kill, fail_msg in mutations:
         _run_mutation(
-            name, original, replacement, must_kill, fail_msg,
-            original_source, checker, repo_root, failures,
+            name,
+            original,
+            replacement,
+            must_kill,
+            fail_msg,
+            original_source,
+            checker,
+            repo_root,
+            failures,
         )
 
     # Verify baseline green

@@ -19,7 +19,7 @@ producers to `AI Quality Gate Results` and `Session Protocol Results`.
 
 The rebase surfaced this as two opaque lines:
 
-```
+```text
 ai-pr-quality-gate.yml: aggregate required names drifted
 ai-session-protocol.yml: aggregate required names drifted
 ```
@@ -52,7 +52,7 @@ gate. A file that does not need to change costs nothing to validate.
 
 The push failed on `validate-paths.yml` with:
 
-```
+```text
 fatal: not a git repository: (null)
 ::error::The process '/usr/bin/git' failed with exit code 128
 ```
@@ -74,6 +74,24 @@ non-git executable and for a different exit code.
 is a dependency on that output. A digest bump silently converts the gate from
 "downgrades a known limitation" to "blocks every push," and the failure names
 the workflow rather than the signature.
+
+## Failure-mode classification
+
+Primary classification: FM-9, confident-incorrectness recurrence.
+
+Finding 1 reused an issue-body snapshot as live ruleset state. Finding 3 treated
+one old annotation as the complete third-party contract. Both cases turned
+partial evidence into a repository-wide assertion. Finding 2 was a scope
+correction, not a separate failure mode.
+
+## Remediation
+
+- Keep the live ruleset query beside the required-context contract and test each
+  producer. Owner: PR #4869.
+- Require both the missing-repository message and Git exit 128 before
+  downgrading the paths-filter annotation. Owner: PR #4869.
+- Enable a merge queue on an eligible repository, then record a real queue run
+  against this contract. Owner: Issue #4774.
 
 ## What went right
 
