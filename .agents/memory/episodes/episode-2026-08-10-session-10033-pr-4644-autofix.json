@@ -52,7 +52,8 @@
         "e005",
         "e006",
         "e008",
-        "e010"
+        "e010",
+        "e012"
       ],
       "leads_to": [
         "e007"
@@ -137,6 +138,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Merged current main without source conflict, then validated the merged code at 09d0412b8690522840b57a0058d01f8496c71620 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T12:08:00+00:00",
+      "type": "commit",
+      "content": "Commit: 09d0412b8690522840b57a0058d01f8496c71620",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
     }
@@ -146,7 +171,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 10
   },
   "lessons": []

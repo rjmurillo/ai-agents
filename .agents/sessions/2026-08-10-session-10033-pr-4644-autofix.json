@@ -100,7 +100,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code and base-refresh merges are committed through ed3e3442b844b95d8a2f661a0c87bfdee6b652c7; this follow-up updates only QA and session evidence."
+        "Evidence": "Validated code and base-refresh merges are committed through 09d0412b8690522840b57a0058d01f8496c71620; this follow-up updates only QA and session evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,10 +134,10 @@
     },
     {
       "action": "Refreshed branch against main",
-      "result": "Merged current main without source conflict, then validated the merged code at ed3e3442b844b95d8a2f661a0c87bfdee6b652c7 with 97 passing focused tests."
+      "result": "Merged current main without source conflict, then validated the merged code at 09d0412b8690522840b57a0058d01f8496c71620 with 97 passing focused tests."
     }
   ],
-  "endingCommit": "ed3e3442b844b95d8a2f661a0c87bfdee6b652c7",
+  "endingCommit": "09d0412b8690522840b57a0058d01f8496c71620",
   "nextSteps": [
     "Verify required CI and the completion gate after the documentation-only evidence update."
   ]
