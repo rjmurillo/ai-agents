@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-09-pr-4543-merge-refresh.md"
+        "Evidence": ".agents/qa/2026-08-11-session-14687-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
