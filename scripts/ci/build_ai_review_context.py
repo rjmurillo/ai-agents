@@ -120,7 +120,7 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
     """
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
     if result.returncode == 0 and result.stdout.strip():
-        return result.stdout.strip()
+        return str(result.stdout).strip()
     if PERMANENT_AUTH_FAILURE.search(_failure_text(result)):
         return ""
     file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
