@@ -25,6 +25,7 @@ _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
     (".agents", "analysis"),
     (".agents", "critique"),
     (".agents", "memory"),
+    (".agents", "scratch"),
 )
 
 # Generated artifacts named in prose that no clean checkout contains. Listed as
@@ -59,7 +60,7 @@ _KNOWN_SUBDIRS = frozenset({
     "agents", "platforms", "lib", "review-axes",
     "skills", "commands", "hooks", "rules",
     "validation", "architecture", "sessions",
-    "analysis", "retrospective", "security",
+    "analysis", "retrospective", "security", "scratch",
     "governance", "critique", "memory", "references",
     "scripts", "tests", "modules", "utils",
 })

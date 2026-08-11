@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from scripts.maintenance import _gc_reasons, _gc_stale
 from scripts.maintenance.worktree_report import GcReport
 
 
@@ -64,6 +65,45 @@ def apply_removals(
     to a single git call, and a HEAD that moved inside it is skipped rather
     than removed.
 
+    A HEAD comparison is not enough on its own, for two reasons found by
+    review. The value it compares against has to be the one the recheck
+    actually decided on, which is why each candidate carries it: reading the
+    HEADs after the recheck returned meant a commit landing between the two
+    reads became the expected value and then matched itself. And a worktree can
+    commit and go back: check out a branch, commit, reset, and HEAD ends where
+    it started while the commit survives with nothing but that worktree's
+    reflog naming it. No comparison of HEAD against HEAD can see that one.
+
+    The suspended-operation probe is run again here too, for the same reason
+    and against the same window. A ``git merge --no-commit`` started after the
+    recheck moves no HEAD and writes no reflog entry, so neither check above
+    can see it, and the commit it holds is anchored only by a pseudo-ref inside
+    the directory about to be deleted. The probe costs two file reads and no
+    subprocess, so closing this window is nearly free.
+
+    So the reflog probe is run again for each candidate immediately before its
+    own removal, after the HEAD check. It asks the question that actually
+    matters, whether removing this entry orphans a commit, against the
+    repository as it is at that instant rather than as the plan found it. It
+    costs one admin-directory lookup and one ``rev-list`` per candidate, and
+    only for candidates that got that far. It cannot replace the HEAD check:
+    ``rev-list --not --all`` examines every worktree's HEAD, so a commit that
+    is still this worktree's own HEAD reads as reachable right up until the
+    removal destroys the thing making it so. For the same reason the HEAD check
+    cannot precede the probe alone: a commit landing while the probe's
+    subprocess runs passes the earlier HEAD read and then reads as reachable to
+    the probe, so the HEAD is read a second time after the probe returns, and a
+    move seen only then withholds the removal.
+
+    The checkout identity is re-read last, against the same window. Removals run
+    in series, so between the recheck and this candidate's turn the directory at
+    its path can be deleted and replaced, or another worktree can be moved onto
+    it. ``git worktree remove`` names a path, so it would then act on whatever
+    now sits there rather than on the entry the plan reviewed. The recheck
+    excluded that at plan time, but only as the plan found it; re-asking here
+    costs two file reads and skips the candidate when the checkout at its path
+    is no longer the one the entry records.
+
     Refuses to mutate anything when either report is partial. A truncated run
     inspects whichever worktrees the clock allowed, so applying it would remove
     a different set than the dry run a reader reviewed. Rerun with
@@ -89,7 +129,6 @@ def apply_removals(
 
     still_safe = {decision.path: decision for decision in fresh.candidates}
     fresh_reasons = {decision.path: decision.reason for decision in fresh.decisions}
-    heads = {decision.path: _head_of(decision.path, run_git) for decision in fresh.candidates}
 
     for decision in report.candidates:
         if decision.path not in still_safe:
@@ -98,9 +137,37 @@ def apply_removals(
                 f"{decision.path}: skipped, changed since the plan: {changed}"
             )
             continue
-        moved = _head_moved_since(decision.path, heads.get(decision.path), run_git)
+        moved = _head_moved_since(decision.path, still_safe[decision.path].head, run_git)
         if moved:
             report.remove_errors.append(f"{decision.path}: skipped, {moved}")
+            continue
+        orphaned = _gc_reasons.reflog_only_work(decision.path, fresh.main_worktree, run_git)
+        if orphaned:
+            report.remove_errors.append(f"{decision.path}: skipped, {orphaned}")
+            continue
+        # The reflog probe runs a subprocess, and a commit can land while it
+        # does. That commit stays this worktree's HEAD, so the probe's own
+        # ``rev-list --not --all`` reads it as reachable and reports no orphan,
+        # and the HEAD check above already passed before the commit existed.
+        # Re-reading HEAD here is what catches it; without this second read the
+        # removal would delete the only thing anchoring that commit.
+        moved_during_probe = _head_moved_since(
+            decision.path, still_safe[decision.path].head, run_git
+        )
+        if moved_during_probe:
+            report.remove_errors.append(
+                f"{decision.path}: skipped, {moved_during_probe}, seen only after the reflog probe"
+            )
+            continue
+        operation = _gc_stale.in_progress_operation(decision.path)
+        if operation is not None:
+            report.remove_errors.append(f"{decision.path}: skipped, {operation} since the recheck")
+            continue
+        if not _gc_stale.linked_checkout_present(decision.path):
+            report.remove_errors.append(
+                f"{decision.path}: skipped, its checkout is no longer the one "
+                "registered at that path since the recheck"
+            )
             continue
         try:
             remove_worktree(decision.path, run_git)

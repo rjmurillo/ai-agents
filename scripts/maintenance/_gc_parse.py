@@ -10,6 +10,15 @@ the records this module produces.
 the working tree, and it carries a human-readable reason. Dropping the reason
 would leave the caller unable to tell a deleted worktree from a moved one.
 
+One limitation is deliberate. Porcelain does not quote paths, so a worktree
+whose path contains a newline splits across two lines and parses to the text
+before the newline. Git offers ``-z`` for exactly this. It is not used here
+because neither reachable construction loses a commit: when a real worktree
+occupies the truncated path, removal targets that worktree and the newline one
+survives untouched; when nothing occupies it, the admin entry cannot be found
+and the caller refuses on that ground alone. See the memory
+``git/git-a-newline-in-a-worktree-path-splits-porcelain-but-fails-safe``.
+
 Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 """
 
