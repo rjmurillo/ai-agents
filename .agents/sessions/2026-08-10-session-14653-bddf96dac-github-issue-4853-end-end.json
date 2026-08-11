@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and QA commits are ancestors of b7b74d561727e0b32aa5c8592ccb827e4adc9b94 after merging current origin/main."
+        "Evidence": "Implementation and QA commits are ancestors of 58c15556601fab1ffdc60494c594de135746aeb9 after merging current origin/main."
       },
       "validationPassed": {
         "level": "MUST",
@@ -149,7 +149,7 @@
       "result": "Binary resolved claude-opus-5 but exited 4 because no Claude authentication exists on this machine."
     }
   ],
-  "endingCommit": "b7b74d561727e0b32aa5c8592ccb827e4adc9b94",
+  "endingCommit": "58c15556601fab1ffdc60494c594de135746aeb9",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
