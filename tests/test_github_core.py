@@ -461,6 +461,8 @@ class TestGetRepoInfo:
             ("https://github.com/rjmurillo/moq.analyzers.git\n", "moq.analyzers"),
             ("git@github.com:rjmurillo/repo.with.dots.git\n", "repo.with.dots"),
             ("https://github.com/rjmurillo/repo.with.dots\n", "repo.with.dots"),
+            ("https://alice@github.com/rjmurillo/moq.analyzers.git\n", "moq.analyzers"),
+            ("git+ssh://git@github.com/rjmurillo/repo.with.dots.git\n", "repo.with.dots"),
         ],
     )
     def test_preserves_dots_in_repository_name(self, stdout, expected_repo):
