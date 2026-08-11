@@ -303,7 +303,7 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 2. Record progress in the session log per the Session Capture Protocol: delegations returned, conflicts resolved, the next concrete routing step. That is the state the next session inherits.
 3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
 
-**Duplicate routing is a defect.** Check the session log before routing. Do not re-delegate work already routed this session.
+**Duplicate routing is a defect.** Check the session log before routing. Do not re-delegate work that is still in flight, or work whose return you already hold and still trust. A failed delegation may be retried once you change the approach or the context it carries.
 
 **Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
 
