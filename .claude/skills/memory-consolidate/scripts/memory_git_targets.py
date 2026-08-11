@@ -60,6 +60,7 @@ def _git_dir(cwd: Path | None = None) -> Path:
 
 
 def _manifest_path(cwd: Path | None = None) -> Path:
+    _repo_root(cwd)
     return _git_dir(cwd) / MANIFEST_NAME
 
 

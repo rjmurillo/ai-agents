@@ -379,6 +379,17 @@ class TestMain:
         assert mgt.show_manifest_path(repo) == mgt.EXIT_OK
         assert capsys.readouterr().out.strip() == str(mgt._manifest_path(repo))
 
+    def test_path_and_cleanup_require_repository_identity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            mgt,
+            "_repo_root",
+            lambda cwd=None: (_ for _ in ()).throw(RuntimeError("redirected")),
+        )
+        assert mgt.show_manifest_path() == mgt.EXIT_CONFIG
+        assert mgt.cleanup() == mgt.EXIT_CONFIG
+
     def test_no_args(self) -> None:
         assert mgt.main([]) == mgt.EXIT_CONFIG
 

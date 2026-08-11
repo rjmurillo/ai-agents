@@ -41,23 +41,15 @@ Use these steps in order:
 1. **Inventory with Serena.** Use Serena's list-memories capability
    only after confirming Serena is active on the repository being
    consolidated and the harness reports a finite call timeout. If the active
-   project is unknown, different, or has no verified finite timeout, use
-   direct directory access instead. A Serena timeout or error falls back to
-   direct directory access. Phase 1 below states what list-memories does and
-   does not enumerate.
-2. **Inventory through direct directory access.** When Serena is unavailable,
-   read `.serena/memories/` and its topic subdirectories directly. Phase 1's
-   bounded stale-index audit uses the complete inventory from whichever step
-   succeeded. Direct subdirectory enumeration is required only for the
-   filesystem fallback.
-3. **Validate size budget with memory-maintenance.** After Phase 1's file-count
+   project is unknown, different, unavailable, or has no verified finite
+   timeout, stop after Phase 1 without reading or writing memory files.
+2. **Validate size budget with memory-maintenance.** After Phase 1's file-count
    and byte gates pass, invoke `memory-maintenance`, which owns the canonical
    `test_memory_size.py` script, to confirm atomicity limits still hold. Do
    not reimplement size validation here.
 
-Before any write, require a complete inventory from Serena list-memories or,
-when Serena is unavailable, recursive direct directory access. If neither can
-produce a complete inventory, stop after Phase 1.
+Before any write, require a complete inventory from Serena list-memories. If
+Serena cannot produce it, stop after Phase 1.
 
 ## Process
 
@@ -68,9 +60,8 @@ consolidate.
 
 ### Phase 1: Take Stock
 
-1. Obtain the complete inventory with Serena's list-memories capability or
-   recursive direct directory access per the Tool Order above. Before reading
-   content,
+1. Obtain the complete inventory with Serena's list-memories capability.
+   Before reading content,
    audit at most 2,000 memory files. Stop enumeration after finding file 2,001,
    report `>=2001`, and do not run any Phase 2 or Phase 3 writes. Inspect file
    sizes before reading. Stop before any file over 32,768 bytes or before
@@ -79,15 +70,12 @@ consolidate.
    `memory-index.md` in full and use memory-maintenance to validate size budgets.
    Serena list-memories returns top-level and nested memory paths. Use those
    paths to read each relevant `*-index.md` and skim the atomic memories
-   themselves
-   (Serena's read-memory capability or direct file reads under
-   `.serena/memories/topic/`). A direct top-level `ls` cannot see nested
-   memories, so enumerate each topic directory when using the filesystem
-   fallback. Then perform one bounded stale-index audit from the same complete
-   inventory: compare each topic's Markdown paths with its `*-index.md`
-   entries. Add unindexed files to the Phase 1 inventory and record dangling
-   index entries as errors. If the complete inventory cannot be obtained,
-   report it and do not run any Phase 2 or Phase 3 writes.
+   themselves through Serena's read-memory capability. Then perform one
+   bounded stale-index audit from the same complete inventory: compare each
+   topic's Markdown paths with its `*-index.md` entries. Add unindexed files
+   to the Phase 1 inventory and record dangling index entries as errors. If
+   the complete inventory cannot be obtained, report it and do not run any
+   Phase 2 or Phase 3 writes.
 2. Skim each file for three signals: **overlap**
    (two or more files cover the same person, project, or preference),
    **staleness** (a one-off task that passed its date), and **thinness** (a
@@ -145,7 +133,7 @@ overwriting it. Restore only from the recorded starting commit through
 `python3 "$SCRIPTS_DIR/memory_git_targets.py" restore`, never from the current
 `HEAD`. Run `python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success
 or rollback.
-Every path from Serena, memory-maintenance, direct inventory, or an index must be
+Every path from Serena, memory-maintenance, or an index must be
 relative, contain no `..` segment, and resolve under the real
 `.serena/memories/` root. Reject absolute paths and symlink escapes before
 stat, read, diff, write, or deletion.
