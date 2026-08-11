@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill.json
-qaCommit: 412ea861f1357a24bcfa2306ef710fa775381c45
+qaCommit: cfe586aed5530e6e93067588baada23ae328c7a9
 ---
 
 # Memory Consolidate Validation
@@ -21,6 +21,6 @@ qaCommit: 412ea861f1357a24bcfa2306ef710fa775381c45
 - Every deletion path now requires explicit human confirmation.
 - Focused skill and activation validation: 44 passed.
 - Bundle and support-skill validation: 21 passed.
-- Search containment and skill contract validation: 29 passed.
+- Search containment and skill contract validation: 31 passed.
 - Session episode commit references are unique and match the commit metric.
 - Changed executable-file security scan: no CWE-78 findings.
