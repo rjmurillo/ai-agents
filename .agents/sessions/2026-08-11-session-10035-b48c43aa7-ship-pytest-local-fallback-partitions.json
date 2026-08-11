@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "a004eec5f3790649436219daaa0ddb79a9fa0947"
+        "Evidence": "8177af6e5fe85b78ef7fd79625cbb4284bf57f45"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "141 focused pytest tests passed in 5.84 seconds; Ruff and git diff --check passed"
+        "Evidence": "143 focused pytest tests passed in 7.91 seconds; Ruff, taste ratchet, and git diff --check passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -130,9 +130,12 @@
     },
     {
       "entry": "Committed the code slice as a004eec5f3790649436219daaa0ddb79a9fa0947 and bound the QA report to that commit."
+    },
+    {
+      "entry": "Merged current origin/main, flattened matrix parsing to clear the taste ratchet, and rebound QA to 8177af6e5fe85b78ef7fd79625cbb4284bf57f45."
     }
   ],
-  "endingCommit": "a004eec5f3790649436219daaa0ddb79a9fa0947",
+  "endingCommit": "8177af6e5fe85b78ef7fd79625cbb4284bf57f45",
   "nextSteps": [
     "Open the atomic local fallback PR.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
