@@ -100,7 +100,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code changes are committed through 181db77b164d7bf6e8cebafb970f583b6e17a138; this evidence-only follow-up is pending commit."
+        "Evidence": "Validated code and base-refresh merges are committed through 83c89b849c17a42077616daa0aebe78e3525da83; this follow-up updates only QA and session evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,11 +134,11 @@
     },
     {
       "action": "Refreshed branch against main",
-      "result": "Resolved only the session-evidence filename collision and Ruff baseline conflict, then validated the merged code at 181db77b164d7bf6e8cebafb970f583b6e17a138 with 97 passing focused tests."
+      "result": "Merged current main without source conflict, then validated the merged code at 83c89b849c17a42077616daa0aebe78e3525da83 with 97 passing focused tests."
     }
   ],
-  "endingCommit": "181db77b164d7bf6e8cebafb970f583b6e17a138",
+  "endingCommit": "83c89b849c17a42077616daa0aebe78e3525da83",
   "nextSteps": [
-    "Commit and push the evidence-only fix, then verify Validate PR reruns successfully."
+    "Verify required CI and the completion gate after the documentation-only evidence update."
   ]
 }
