@@ -125,13 +125,12 @@ Use a file-writing tool to write a JSON object with `startingCommit` and a
 `memory_git_targets.py check`; it validates the commit, containment, symlinks,
 duplicates, and tracking. Include deletion candidates in the manifest. If
 `check` fails, do not write.
-Record each target's content hash. Before each write, deletion, or rollback,
-verify the target matches the last state this pass observed or wrote. Track a
-deleted target as absent. If another process changed a target, stop without
-overwriting it. Restore only from the recorded starting commit through
-`python3 "$SCRIPTS_DIR/memory_git_targets.py" restore`, never from the current
-`HEAD`. Run `python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success
-or rollback.
+Use Serena's edit, write, and delete capabilities for memory mutations. Never
+use a filesystem file-writing tool. Re-read the target through Serena
+immediately before mutation and compare its content hash with the last state
+this pass observed. If it changed, stop without writing. On any partial
+failure, leave the Git diff for review and do not auto-restore files. Run
+`python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success or failure.
 Every path from Serena or an index must be
 relative, contain no `..` segment, and resolve under the real
 `.serena/memories/` root. Reject absolute paths and symlink escapes before
@@ -262,8 +261,8 @@ exact files expected to change or be deleted. After editing, inspect the final
 diff locally and include only paths, counts, and verification status in the
 summary. Never copy memory contents or the complete diff into output or logs.
 The actual changed-file set must match the declared set. If any check fails,
-apply the hash check above before restoring touched memory files from git and
-report the failure instead of claiming completion.
+stop and report the failure instead of auto-restoring files or claiming
+completion.
 
 | Operation | Verification |
 |-----------|---------------|
