@@ -89,22 +89,22 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 .agents/qa/issue-4854-act-local-fallback.md"
+        "Evidence": "npx markdownlint-cli2 .agents/qa/pr-4872-act-local-fallback.md"
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4854-act-local-fallback.md"
+        "Evidence": ".agents/qa/pr-4872-act-local-fallback.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "6914c7893afd735a0a038c7030d1598c72cf7610"
+        "Evidence": "0479e20938edb419d53443cd72097b826f334d4d"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "141 fallback tests passed in 5.83 seconds; Ruff and taste ratchet passed"
+        "Evidence": "Real four-partition pre-push pytest gate passed in 325.73 seconds; focused tests, Ruff, taste ratchet, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -139,11 +139,14 @@
     },
     {
       "entry": "The first direct partition run inherited the context-mode plugin root. Pinned both plugin-root variables to the checkout and rebound QA to 6914c7893afd735a0a038c7030d1598c72cf7610."
+    },
+    {
+      "entry": "Split the shared pre-push suite into bulk, mutation, push-safety, and pr-autofix commands. The real gate passed in 325.73 seconds at 0479e20938edb419d53443cd72097b826f334d4d."
     }
   ],
-  "endingCommit": "6914c7893afd735a0a038c7030d1598c72cf7610",
+  "endingCommit": "0479e20938edb419d53443cd72097b826f334d4d",
   "nextSteps": [
-    "Open the atomic local fallback PR.",
+    "Update PR #4872 with the final parent commits.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
   ]
 }
