@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through d1be49b399de977141711c9a3135a5fc3a5a6ea1 before refreshing QA evidence."
+        "evidence": "Changes committed through d634d728acac084e9223977a6dd307df419aa5f2 before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Targeted pytest command passed with 204 tests on current PR head."
+        "evidence": "Targeted pytest command passed with 50 tests and the subprocess encoding count ratchet passed on commit d634d728acac084e9223977a6dd307df419aa5f2."
       },
       "qaValidation": {
         "complete": true,
@@ -123,9 +123,14 @@
       "action": "fix-review-threads",
       "description": "Address PR review comments: anchor test paths, accept tempfile variants, fix tee exit-code masking",
       "commit": "9b849847e"
+    },
+    {
+      "action": "pr-autofix-4721",
+      "result": "Added errors=\"replace\" to new_pr gh subprocess calls in the Claude and Copilot copies; targeted pytest and subprocess encoding ratchet passed.",
+      "commit": "d634d728a"
     }
   ],
-  "endingCommit": "d1be49b399de977141711c9a3135a5fc3a5a6ea1",
+  "endingCommit": "d634d728acac084e9223977a6dd307df419aa5f2",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"

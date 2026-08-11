@@ -73,7 +73,8 @@
         "e003",
         "e004",
         "e005",
-        "e008"
+        "e008",
+        "e014"
       ],
       "leads_to": [
         "e007"
@@ -164,6 +165,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "pr-autofix-4721",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T16:34:19+00:00",
+      "type": "commit",
+      "content": "Commit: d634d728acac084e9223977a6dd307df419aa5f2",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-4654-security-cluster"
     }
@@ -173,7 +198,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 38
   },
   "lessons": []
