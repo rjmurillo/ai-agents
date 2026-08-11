@@ -178,6 +178,10 @@ reading, diffing, or deleting a candidate.
   reasoning behind a decision, who owns or should be contacted about
   something. The test is re-derivation cost, not topic.
 
+Before removing facts from or rewriting the semantic content of a surviving
+file, summarize the proposed removals by path and get human confirmation.
+Evidence identifies a candidate edit; it never authorizes that edit.
+
 ### Phase 3: Tidy the Index
 
 Update every affected topic `*-index.md` and
