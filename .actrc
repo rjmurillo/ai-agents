@@ -19,5 +19,8 @@
 # Enable caching support (for actions/cache)
 --cache-server-path=.cache
 
+# Each pytest partition already uses every available CPU through pytest-xdist.
+--concurrent-jobs=1
+
 # Use linux/amd64 architecture for compatibility
 --container-architecture=linux/amd64
