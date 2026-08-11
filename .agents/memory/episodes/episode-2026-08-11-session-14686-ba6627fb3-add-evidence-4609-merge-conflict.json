@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict",
+  "session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add QA evidence for PR 4609 after merge conflict resolution.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired lease and checked live state",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created external worktree and reproduced merge state",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved merge and validation blockers",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the resolved branch",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prepared QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T17:02:27+00:00",
+      "type": "commit",
+      "content": "Commit: 4c38a671ab97b873c570463498ecfb32ac67bcc9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-ba6627fb3-add-evidence-4609-merge-conflict"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

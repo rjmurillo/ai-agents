@@ -93,6 +93,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Workflow Local Run',
     'Review Marker (SHA-bound /review)',
     'Instruction Budget (always-on)',
+    'Always-on Corpus Claims',
 )
 
 QUICK_SKIPPED: frozenset[str] = frozenset(

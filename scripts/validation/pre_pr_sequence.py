@@ -83,6 +83,7 @@ from checks_spec import (
 )
 from checks_tooling import (
     validate_agent_drift,
+    validate_always_on_corpus_claims,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_instruction_budget,
@@ -322,6 +323,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # language-universal .github/instructions/*.instructions.md files, so the
     # always-on corpus cannot grow silently on a new all-language rule.
     _Gate("Instruction Budget (always-on)", _root_only(validate_instruction_budget)),
+    # Pins the numeric claims in model-context-doctrine.md to live measurements.
+    # The budget gate above checks a ceiling; this gate checks the exact figures
+    # (byte counts, file counts, multipliers) stated in the doctrine doc, so a
+    # rule growing by 400 bytes surfaces locally in under 0.5 seconds instead of
+    # 17 minutes later in CI. Issue #4285.
+    _Gate("Always-on Corpus Claims", _root_only(validate_always_on_corpus_claims)),
 )
 
 
