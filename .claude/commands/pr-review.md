@@ -11,9 +11,9 @@ ultrathink
 Respond to PR review comments for: $ARGUMENTS
 
 Load configuration from `pr-review-config.yaml` for scripts, completion criteria,
-error recovery, and failure handling tables. In this repository it lives at
-`.claude/commands/pr-review-config.yaml`. The bundled Copilot CLI copy is a
-reference artifact, not a runnable completion-gate config.
+error recovery, and failure handling tables. In this repository the live config
+sits beside the PR review command. The bundled Copilot CLI copy is a reference
+artifact, not a runnable completion-gate config.
 
 ## Context
 
