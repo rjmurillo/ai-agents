@@ -73,7 +73,8 @@
         "e003",
         "e004",
         "e005",
-        "e007"
+        "e007",
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
@@ -83,6 +84,17 @@
       "timestamp": "2026-08-11T00:00:00+00:00",
       "type": "milestone",
       "content": "Rebound historical QA records",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split QA evidence into a final atomic batch",
       "caused_by": [],
       "leads_to": [
         "e006"
