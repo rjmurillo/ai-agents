@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9999,
+    "date": "2026-08-05",
+    "branch": "fix/harness-and-eval-4497-4524-4121",
+    "startingCommit": "5ec85be51a",
+    "objective": "Fix mutation harness restore, portability Git isolation, and eval max_retries diagnostics"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP resource list checked; activate_project tool was not exposed in Copilot tool surface, cwd project used."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions tool returned the Serena manual for this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created .agents/sessions/2026-08-05-session-9999.json on branch fix/harness-and-eval-4497-4524-4121."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded git-workflow-and-versioning, github, session-init, and session-end skills; GitHub skill script catalog available."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS Skill Usage Constraints section and used GitHub skill scripts for issue coordination."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md for language, workflow, commit, and session constraints."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index plus ci-line-swap-mutations-reuse-stale-bytecode and mutation-testing-false-green memories; requested quality/add-missing-state-not-sentinel was absent from listed memories and files."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported fix/harness-and-eval-4497-4524-4121."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch is fix/harness-and-eval-4497-4524-4121, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before edits, before commits, and after commit set; only session log remained."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session started from 5ec85be51a."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session start and session end items have evidence in this JSON log."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read and left unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed .serena/memories/ci/mutation-harness-restore-failure-safe-writes.md in 27b83009be."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end markdown lint reported no markdown files changed after final test commit."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4636-harness-eval-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work commits b649182f4d, 756b0bafe4, 1a86957691, 27b83009be, 110f7871f7, and 036fdfee44 are recorded before this session log commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-05-session-9999.json passed after final test alignment."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo table updated through mutation-proof and push-pr phases."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospective recorded at .agents/retrospective/2026-08-11-pr-4636-autofix.md; existing CI and session guidance covered both learnings."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "session-end reported rework-warning: none."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged issue 4497",
+      "result": "Reproduced reachable empty-file loss on forced restore write failure and fixed restore through sibling file replacement.",
+      "files": [
+        "scripts/ci/mutation_harness_ciperms.py",
+        "tests/ci/test_mutation_harness_ciperms.py"
+      ]
+    },
+    {
+      "action": "Triaged issue 4121",
+      "result": "Reproduced max_retries=0 returning unknown with zero attempts and changed it to ValueError before transport resolution.",
+      "files": [
+        "scripts/eval/_eval_api_adapter.py",
+        "tests/eval/test_providers.py"
+      ]
+    },
+    {
+      "action": "Triaged issue 4524",
+      "result": "Measured GIT_ICASE_PATHSPECS leak changing portability coverage and unified Git isolation through shared helpers.",
+      "files": [
+        "scripts/validation/portability_common.py",
+        "scripts/validation/portability_git.py",
+        "tests/validation/test_portability_common.py"
+      ]
+    },
+    {
+      "action": "Mutation-proved fixes",
+      "result": "Seven load-bearing mutants died and one cosmetic control survived with pycache purged before every run.",
+      "files": [
+        "/home/richard/src/scratch/harnessfix_mutation_proof.py"
+      ]
+    }
+  ],
+  "endingCommit": "f301b90b40191c17745330cef77f49557d21ec12",
+  "nextSteps": []
+}
