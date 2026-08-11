@@ -3554,6 +3554,9 @@ class TestCheckSessionsCreationMode:
         assert rc == 0
         assert validate_commands, "expected exactly one validator call"
         assert "--creation-mode" in validate_commands[0], "new log must get --creation-mode"
+        assert "--pre-commit" not in validate_commands[0], (
+            "new log must not run pre-commit validation"
+        )
 
     def test_check_sessions_no_creation_mode_for_existing_log(self) -> None:
         """A staged edit must NOT keep getting creation-mode forever."""

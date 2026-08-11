@@ -26,6 +26,7 @@ from scripts.ci._session_artifact_name import artifact_name  # noqa: E402
 from scripts.validation.session_scope import (  # noqa: E402  (path set above)
     committed_session_validation_modes,
 )
+
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
 _RESULT_MD = Path("validation-result.md")

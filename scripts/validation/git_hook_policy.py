@@ -1752,17 +1752,14 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
     for session in sessions:
-        command = [
-            sys.executable,
-            "scripts/validate_session_json.py",
-            session,
-            "--pre-commit",
-        ]
+        command = [sys.executable, "scripts/validate_session_json.py", session]
         if session in new_logs:
             # Only the staged add that creates the log gets --creation-mode.
             # Later commits that edit the same path must run the full checklist
             # instead of skipping protocol-compliance checks forever.
             command.append("--creation-mode")
+        else:
+            command.append("--pre-commit")
         result = _run_command(command, repo_root)
         if result.returncode != 0:
             _print_process_output(result)
