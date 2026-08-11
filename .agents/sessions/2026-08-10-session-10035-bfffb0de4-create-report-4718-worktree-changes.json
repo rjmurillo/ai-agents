@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Created isolated worktree, acquired lease, checked live state, ran the targeted GC suite, wrote QA evidence, and validated the session log."
+        "Evidence": "Created isolated worktree, acquired lease, checked live state, ran the targeted GC suite, wrote QA evidence, and validated the session log. The autofix round then reproduced both open review findings against real git, fixed both, and re-ran the suite and the ratchets."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,12 +84,12 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No durable memory was added. Existing worktree and PR memories already cover the reusable guidance this run used."
+        "Evidence": "No durable memory was added. Existing worktree and PR memories already cover the reusable guidance, and both new git behaviors are recorded as docstrings in the code they govern."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ran markdownlint-cli2 with a literal path, :.agents/qa/pr-4718-gc-worktrees-stale-entries.md, because the repo config excludes .agents/** from glob-based linting."
+        "Evidence": "Ran markdownlint-cli2 with a literal path, :.agents/qa/pr-4718-gc-worktrees-stale-entries.md, because the repo config excludes .agents/** from glob-based linting. Branch markdown also went through scripts/validation/pre_pr.py."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at 49a0cc9224b49d2def524d44406aa108045c893d after subprocess decoding cleanup."
+        "Evidence": "PR code validated at d1b04dd837c440488b6cbb42f03a183990f6321e: 6771e31616 ref-lock guard, cb15548e3a rescue-chain delimiter, d1b04dd837 test-suite split."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 64 and passed 64 for GC anchor and real-git stale suites; subprocess encoding count ratchet passed with 236 violations <= baseline 253."
+        "Evidence": "305 GC tests passed at d1b04dd837. Reverting only the two source files failed 7 of the new tests, which is the negative control. Taste count ratchet returned to 583, ruff 27 <= 30, subprocess encoding 236 <= 253."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -138,10 +138,26 @@
     {
       "action": "Fixed CI subprocess encoding ratchet",
       "outcome": "Added errors=\"replace\" to branch-added text-mode subprocess calls in GC real-git tests, then reran the targeted GC suite and subprocess encoding count ratchet."
+    },
+    {
+      "action": "Autofix round: reproduced the per-worktree ref lock finding against real git 2.43.0",
+      "outcome": "With refs/worktree/<name>.lock held, in_progress_operation answered None, worktree_ref_oids answered [], and git worktree remove deleted the worktree, exited 0, and printed nothing."
+    },
+    {
+      "action": "Autofix round: reproduced the rescue-chain finding",
+      "outcome": "With seven orphans the copied slice ended in prose and bash exited 2 with a syntax error on the unescaped open parenthesis before creating any rescue branch."
+    },
+    {
+      "action": "Autofix round: fixed both defects and added coverage",
+      "outcome": "in_progress_operation now walks the admin refs tree for any lock file and answers unknown on an unreadable walk; the orphan count moved behind the established pipe delimiter. Six new tests plus two updated assertions; reverting only the two source files failed 7 of them."
+    },
+    {
+      "action": "Autofix round: merged current main and repaired the taste count ratchet",
+      "outcome": "The merge exposed tests/test_gc_worktrees_real_git_stale.py as the one file-size violation the branch adds over main. Splitting the rescue-command cases into their own module returned the count to the 583 baseline with both files under 500 lines."
     }
   ],
-  "endingCommit": "49a0cc9224b49d2def524d44406aa108045c893d",
+  "endingCommit": "d1b04dd837c440488b6cbb42f03a183990f6321e",
   "nextSteps": [
-    "Push the QA refresh and wait for required CI to pass before restoring auto-merge."
+    "Reply to both review threads with the measured evidence, resolve them, and merge once all four Ready-to-Merge conditions hold."
   ]
 }

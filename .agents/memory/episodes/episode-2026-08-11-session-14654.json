@@ -1,0 +1,128 @@
+{
+  "id": "episode-2026-08-11-session-14654",
+  "session": "2026-08-11-session-14654",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 4718 review threads: per-worktree ref lock guard and rescue-chain delimiter",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR lease and cleared the live-state gate",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the per-worktree ref lock finding against real git 2.43.0",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the rescue-chain finding",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed both defects",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added coverage and ran the negative control",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and repaired the taste count ratchet",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T01:37:04+00:00",
+      "type": "commit",
+      "content": "Commit: 6771e31616",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T01:37:45+00:00",
+      "type": "commit",
+      "content": "Commit: cb15548e3a",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-11-session-14654"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T01:50:21+00:00",
+      "type": "commit",
+      "content": "Commit: d1b04dd837c440488b6cbb42f03a183990f6321e",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14654"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 7
+  },
+  "lessons": []
+}
