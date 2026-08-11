@@ -148,7 +148,7 @@
       "result": "Added security-critical eval handling, sanitized report flow, redaction transform semantics, test-location clarity, corrected mappings, and consistent N/A values."
     }
   ],
-  "endingCommit": "7e03e6b541",
+  "endingCommit": "5b5827b3bd",
   "nextSteps": [
     "Push branch and create linked issue and pull request.",
     "Monitor checks and review threads until merged."

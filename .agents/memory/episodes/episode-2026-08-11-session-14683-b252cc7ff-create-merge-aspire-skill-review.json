@@ -137,6 +137,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T15:02:33+00:00",
+      "type": "commit",
+      "content": "Commit: 5b5827b3bd",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
     }
@@ -146,8 +159,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 16
+    "commits": 5,
+    "files_changed": 18
   },
   "lessons": []
 }

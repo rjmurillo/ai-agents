@@ -186,7 +186,10 @@ mirrors, and Copilot-provider behavioral evaluation.
 ### T007: Eval output leaks prompt or credentials
 
 - [ ] Use the eval harness fixed provider error categories.
-- [ ] Persist scored results, not raw provider process output.
+- [ ] Write raw harness output only under `.agents/scratch/`.
+- [ ] Remove every `detail.*.per_run[].raw` field from the durable summary.
+- [ ] Persist only sanitized scores, gate criteria, scenario IDs, provider,
+      model, and source metadata.
 - [ ] Map to acceptance criterion 10.
 
 ### T008: Unbounded eval spend

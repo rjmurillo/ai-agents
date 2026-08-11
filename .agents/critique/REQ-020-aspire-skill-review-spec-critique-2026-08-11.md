@@ -3,6 +3,10 @@
 ## Verdict
 NEEDS_REVISION - Confidence: HIGH
 
+This verdict records the initial review. It is superseded by
+`.agents/critique/REQ-020-aspire-skill-review-spec-approval-2026-08-11.md`
+after all approval conditions were resolved.
+
 ## Summary
 The spec suite (INTERVIEW, REQ-020, DESIGN-019, TASK-019 through TASK-023, CVA, pre-mortem, threat model, SLO) defines a commit-pinned Aspire skill review with targeted augmentations. The most critical concern is that REQ-020's Dependencies section lists `eval-knowledge-integration.py`, the wrong harness, contradicting every other artifact that correctly requires `eval-prompt-change.py`, and that acceptance criterion 11's "improvement" semantics conflict with the actual harness code where `has_improvement` is explicitly `NON_GATING_CRITERIA`.
 

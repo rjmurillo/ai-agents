@@ -46,9 +46,10 @@ Generate shipped Copilot skill copies and clear every targeted repository gate.
 - [ ] Canonical and generated skills match.
 - [ ] SkillForge and targeted tests pass.
 - [ ] Portability, dash, reference, and drift checks pass.
-- [ ] Every new durable analysis and eval artifact passes
-      `scripts/redact_secrets.py` and a targeted scan for unredacted SAML
-      authorization URLs, emails, and internal hostnames.
+- [ ] Every new durable analysis and eval artifact is transformed through
+      `scripts/redact_secrets.py` into a sanitized file before commit.
+- [ ] Only the sanitized file replaces the original after a targeted scan finds
+      no unredacted SAML authorization URLs, emails, or internal hostnames.
 - [ ] `pre_pr.py` exits 0.
 - [ ] Final report records every source decision and eval verdict.
 
