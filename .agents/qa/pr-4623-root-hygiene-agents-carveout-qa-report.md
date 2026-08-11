@@ -1,19 +1,20 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-pr-4623.json
-qaCommit: 28af171f58891bbe293144f5a728805150e2820c
+qaCommit: 9202e6aecda4336c83a4ed270cdc1ff978c0cdf3
 ---
 
 # QA Report: PR #4623 - Root Hygiene and Agents Carveout
 
 ## Summary
 
-Validated the CI remediation and original features in this PR at commit `28af171f58891bbe293144f5a728805150e2820c`:
+Validated the CI remediation, original features, and clean main refresh in this PR at commit `9202e6aecda4336c83a4ed270cdc1ff978c0cdf3`:
 
 1. **Root-hygiene pre-commit policy** - blocks staged files whose root entry is not in `ALLOWED_REPO_ROOT_ENTRIES`, skips during merge state, allows deletions of disallowed files.
 2. **Implementer scaffold predicate change** - keys on `.agents/SESSION-PROTOCOL.md` presence rather than bare `.agents/` directory, preserving the "cannot list" hard-stop guard.
 3. **Implementer scaffold evaluator alignment** - checks the consumer-install wording and block messages for the new ownership predicate across all generated prompts.
 4. **Vendor portability declaration** - declares the template's scaffold-path dependencies and verifies the vendored agent preserves toolkit-only blocks.
+5. **Main refresh** - cleanly merges the current main branch after the pre-push merge-tree ratchet found a stale file count.
 
 ## Test Results
 
@@ -25,6 +26,10 @@ Validated the CI remediation and original features in this PR at commit `28af171
 24 passed in 14.25s
 ```
 
+```
+27322 passed, 36 skipped, 2 warnings in 203.27s
+```
+
 | Category | Count | Status |
 |----------|-------|--------|
 | Root-hygiene tests | 4 | [PASS] |
@@ -33,6 +38,7 @@ Validated the CI remediation and original features in this PR at commit `28af171
 | Implementer scaffold predicate tests | 3 | [PASS] |
 | Other collected tests | 35 | [PASS] |
 | Scaffold evaluator, predicate, portability, and vendored-install tests | 24 | [PASS] |
+| Pre-merge pre-push suite | 27322 | [PASS] |
 
 ## Ruff Results
 
@@ -79,11 +85,11 @@ All 5 generated mirrors (`.claude/agents/implementer.md`, `.github/agents/implem
 
 ```
 Promised: root-hygiene policy, scaffold predicate change, evaluator alignment, portability declaration, generated mirror sync, tests, lefthook config
-Delivered: all of the above at HEAD 28af171f58
+Delivered: all of the above at HEAD 9202e6aecd after a clean main refresh
 Gap: none
 Result: PASS
 ```
 
 **Status**: PASS
 **Confidence**: High
-**Rationale**: The original 44 tests and the 24 CI-remediation evaluator, predicate, portability, and vendored-install tests pass, the linter is clean, the generator is in sync, logic is sound for all three policy behaviors, and no conflict artifacts were detected.
+**Rationale**: The original 44 tests, the 24 CI-remediation evaluator, predicate, portability, and vendored-install tests, and the 27322-test pre-merge pre-push suite pass. The linter is clean, the generator is in sync, the main refresh was clean, logic is sound for all three policy behaviors, and no conflict artifacts were detected.
