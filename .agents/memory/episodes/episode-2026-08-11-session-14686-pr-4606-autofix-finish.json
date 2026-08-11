@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-11-session-14686-pr-4606-autofix-finish",
+  "session": "2026-08-11-session-14686-pr-4606-autofix-finish",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Finish PR 4606 autofix by repairing stale QA evidence, fixing invalid session logs, and re-running the merge gates.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revalidated failing CI signals",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound stale QA evidence",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired invalid session protocol records",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prepared guarded push and merge cycle",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 12
+  },
+  "lessons": []
+}
