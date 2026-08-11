@@ -101,7 +101,8 @@
         "e014",
         "e017",
         "e033",
-        "e035"
+        "e035",
+        "e038"
       ],
       "leads_to": [
         "e009"
@@ -470,6 +471,30 @@
       "caused_by": [
         "e036"
       ],
+      "leads_to": [
+        "e039"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered from the whole-tree subprocess count regression",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-11T13:39:17+00:00",
+      "type": "commit",
+      "content": "Commit: 700b641113ec4937df18ce0b27b94da4bafd96ea",
+      "caused_by": [
+        "e037"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
@@ -479,8 +504,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 26,
-    "files_changed": 66
+    "commits": 27,
+    "files_changed": 78
   },
   "lessons": []
 }

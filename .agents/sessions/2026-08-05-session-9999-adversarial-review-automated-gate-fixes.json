@@ -162,8 +162,12 @@
     {
       "action": "Refreshed against the latest main",
       "outcome": "Two guarded trial and final merge cycles were conflict-free as main advanced; 498 combined branch and latest-main tests passed, and the Windows path-contract suite passed 1,051 tests with 3 skipped"
+    },
+    {
+      "action": "Recovered from the whole-tree subprocess count regression",
+      "outcome": "Repaired the 34-finding checker delta without raising the baseline; the count returned to 253, Ruff passed, and 523 focused tests passed"
     }
   ],
-  "endingCommit": "5f8c51d2b16668856ec1a1762f928994fc7a95bf",
+  "endingCommit": "700b641113ec4937df18ce0b27b94da4bafd96ea",
   "nextSteps": []
 }
