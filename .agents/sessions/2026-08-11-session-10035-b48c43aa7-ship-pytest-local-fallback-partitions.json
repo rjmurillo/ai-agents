@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "0479e20938edb419d53443cd72097b826f334d4d"
+        "Evidence": "9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Real four-partition pre-push pytest gate passed in 325.73 seconds; focused tests, Ruff, taste ratchet, and security review passed"
+        "Evidence": "Real four-partition pre-push pytest gate passed in 325.73 seconds; 142 fallback tests, Ruff, taste ratchet, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,9 +142,12 @@
     },
     {
       "entry": "Split the shared pre-push suite into bulk, mutation, push-safety, and pr-autofix commands. The real gate passed in 325.73 seconds at 0479e20938edb419d53443cd72097b826f334d4d."
+    },
+    {
+      "entry": "Routed the known pytest workflow directly to the local matrix runner so workflow-local pre-push avoids gh act clones. Bound QA to 9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612."
     }
   ],
-  "endingCommit": "0479e20938edb419d53443cd72097b826f334d4d",
+  "endingCommit": "9bd3e2d6101fba5ad8dcafe4750e0b58b97cd612",
   "nextSteps": [
     "Update PR #4872 with the final parent commits.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
