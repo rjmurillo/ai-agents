@@ -299,6 +299,26 @@ class TestReflogsBeyondHead:
         assert _gc_anchors.reflog_oids(tmp_path) is None
 
 
+class TestRefStorageBackend:
+    """A backend the filesystem readers cannot inspect must fail closed."""
+
+    def test_a_reftable_admin_directory_is_unknown_not_empty(self, tmp_path):
+        admin = tmp_path / "wt"
+        reftable = admin / "reftable"
+        reftable.mkdir(parents=True)
+        (reftable / "tables.list").write_text("0x000000000001-0x000000000002.ref\n")
+
+        assert _gc_anchors.reflog_oids(admin) is None
+        assert _gc_stale.unreachable_admin_commits(admin, str(tmp_path), 5.0) is None
+
+    def test_a_dangling_reftable_marker_is_unknown(self, tmp_path):
+        admin = tmp_path / "wt"
+        admin.mkdir()
+        (admin / "reftable").symlink_to(tmp_path / "gone", target_is_directory=True)
+
+        assert _gc_anchors.reflog_oids(admin) is None
+
+
 class TestReflogParsingIsPerLine:
     """One line a reader understands does not vouch for the rest of the file."""
 

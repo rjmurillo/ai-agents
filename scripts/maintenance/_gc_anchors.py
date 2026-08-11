@@ -38,7 +38,13 @@ def reflog_oids(admin: Path) -> list[str] | None:
     understood, so it answers "unknown" rather than "nothing at risk". Reading
     a truncated or unexpectedly encoded reflog as empty is the same silent
     all-clear the rest of this probe is built to avoid.
+
+    Reftable stores this worktree's refs and reflogs together under
+    ``<admin>/reftable``. The files-backend readers below cannot inspect that
+    format, so its presence answers "unknown" rather than an empty anchor list.
     """
+    if not nothing_at(admin / "reftable"):
+        return None
     logs = walk_files(admin / "logs")
     if logs is None:
         return None
