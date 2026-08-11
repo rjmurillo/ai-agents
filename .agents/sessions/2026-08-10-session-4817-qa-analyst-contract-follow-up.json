@@ -64,12 +64,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 3cb3b798e1241981a1d10b1fb21b0ad4c97866fe"
+        "Evidence": "Base refresh merged as 772449424871a9a9baa60d3832f2459557784e79"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff clean, 328 tests pass (202 analyst resolution + 75 routing contract + 51 doc-accuracy)"
+        "Evidence": "Post-merge focused validation passed: 277 tests (202 analyst resolution + 75 routing contract)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -126,6 +126,10 @@
     {
       "task": "Resolve PR 4817 rescan threads: table interruption and fronted tool phrase",
       "outcome": "Reproduced both. A fence or multi-line HTML comment inside a routing table only skipped that row, so orphan rows after it completed the route set; any non-operative line now ends the table. Strategy 4 searched the whole pre-verb prefix, so 'The compliance-bot calls pull_request_read before the analyst retrieves cache' passed; the prefix must now match the anchored 'Using or Via <tool>, the analyst' shape. Seven controls added, 328 targeted tests pass."
+    },
+    {
+      "task": "Refresh PR 4817 against main",
+      "outcome": "Merged origin/main at 976fef3998c82edd325df5faddccbc85ca47fdbc into the PR head without source changes. Focused post-merge validation passed all 277 analyst resolution and routing contract tests."
     }
   ],
   "retrospective": {
@@ -135,7 +139,7 @@
     "remediation": "Kept both strippers and documented the boundary in each docstring so a future reader does not collapse them and reintroduce the bypass. Negative controls now cover backtick, tilde, nested, and indented blockquote forms plus the closed-fence pass-through.",
     "observation": "The merge-tree-ratchet pre-push job failed twice with 'ruff could not read <scratch>/tests/skills/doc-accuracy/__init__.py' while the same command passed twice standalone against the same base. Each run materializes its own scratch tree, so the read failure points at a concurrency interaction between the merge-tree-ratchet job and the count ratchets inside pre-pr-validation, not at this branch's diff."
   },
-  "endingCommit": "3cb3b798e1241981a1d10b1fb21b0ad4c97866fe",
+  "endingCommit": "772449424871a9a9baa60d3832f2459557784e79",
   "nextSteps": [],
-  "testedCodeSha": "3cb3b798e1241981a1d10b1fb21b0ad4c97866fe"
+  "testedCodeSha": "772449424871a9a9baa60d3832f2459557784e79"
 }

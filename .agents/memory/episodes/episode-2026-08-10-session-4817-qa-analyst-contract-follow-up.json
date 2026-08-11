@@ -63,7 +63,8 @@
         "e004",
         "e009",
         "e016",
-        "e019"
+        "e019",
+        "e021"
       ],
       "leads_to": [
         "e006"
@@ -254,6 +255,30 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refresh PR 4817 against main",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-11T09:30:51+00:00",
+      "type": "commit",
+      "content": "Commit: 772449424871a9a9baa60d3832f2459557784e79",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-4817-qa-analyst-contract-follow-up"
     }
@@ -263,7 +288,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 6
   },
   "lessons": []
