@@ -89,7 +89,6 @@
     "templates/agents/critic.shared.md": 3,
     "templates/agents/devops.shared.md": 3,
     "templates/agents/explainer.shared.md": 2,
-    "templates/agents/implementer.shared.md": 33,
     "templates/agents/merge-resolver.shared.md": 1,
     "templates/agents/orchestrator.shared.md": 5,
     "templates/agents/pr-comment-responder.shared.md": 5,
@@ -305,7 +304,8 @@
     "src/copilot-cli/skills/steering-matcher/SKILL.md": 3,
     "src/copilot-cli/skills/style-enforcement/SKILL.md": 2,
     "src/copilot-cli/skills/threat-modeling/SKILL.md": 8,
-    "src/copilot-cli/skills/world-model-diagnostic/SKILL.md": 1
+    "src/copilot-cli/skills/world-model-diagnostic/SKILL.md": 1,
+    "templates/agents/implementer.shared.md": 39
   },
   "drift_files": {
     ".claude/commands/push-pr.md": 2,
@@ -473,6 +473,7 @@
     "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md": 2,
     "src/copilot-cli/skills/steering-matcher/SKILL.md": 3,
     "src/copilot-cli/skills/style-enforcement/SKILL.md": 2,
-    "src/copilot-cli/skills/threat-modeling/SKILL.md": 7
+    "src/copilot-cli/skills/threat-modeling/SKILL.md": 7,
+    "templates/agents/implementer.shared.md": 12
   }
 }

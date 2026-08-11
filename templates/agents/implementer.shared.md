@@ -16,6 +16,8 @@ tools_copilot:
   - serena/*
 ---
 
+<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. Issue #4580. -->
+
 # Implementer Agent
 
 > **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
