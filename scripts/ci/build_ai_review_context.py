@@ -459,7 +459,7 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     """
     from scripts.ci.failure_classification import classify_pr_fetch_failure
 
-    detail = _redact_secrets(detail.strip()) or "GitHub API returned no diagnostic output"
+    detail = _redact_secrets(detail.strip())
     result = classify_pr_fetch_failure(pr_number, detail)
     print(result.warning)
     return ReviewContext(result.context_text, "error", True)

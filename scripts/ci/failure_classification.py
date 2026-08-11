@@ -92,10 +92,9 @@ def classify_pr_fetch_failure(
         and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
-    warning = f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}"
-    context_text = (
-        f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {detail}{hint}"
-    )
+    message = f"Could not fetch PR #{pr_number}: {detail}{hint}"
+    warning = f"::warning::{message}"
+    context_text = f"INFRASTRUCTURE_FAILURE: {message}"
     return FailureClassification(
         detail=detail,
         hint=hint,
