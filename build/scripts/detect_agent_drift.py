@@ -884,14 +884,22 @@ def _exit_code(
     Vendored (src) drift blocks except for agents listed in
     ``_ADVISORY_VENDORED_DRIFT``. Install (.claude/agents vs .github/agents)
     drift is advisory by default because the two self-host copies carry large
-    pre-existing structural differences (Issue #2267);
+    pre-existing structural differences (Issue #2267). Required agent sections
+    are always blocking, including in the install comparison;
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
     blocking_drift = any(
         (
             r.status == "DRIFT DETECTED"
-            and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
+            and (
+                bool(
+                    REQUIRED_AGENT_SECTIONS.get(r.agent_name, frozenset())
+                    & set(r.drifting_sections)
+                )
+                or fail_on_install
+                or r.comparison != _INSTALL_COMPARISON_LABEL
+            )
             and not (
                 r.comparison != _INSTALL_COMPARISON_LABEL
                 and r.agent_name in _ADVISORY_VENDORED_DRIFT
