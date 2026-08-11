@@ -157,6 +157,64 @@ Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 """,
         encoding="utf-8",
     )
+    (scripts_dir / "final_poll_mutation.py").write_text(
+        """\
+import os
+import time
+from pathlib import Path
+
+Path(os.environ["MUTATION_PID_FILE"]).write_text(str(os.getpid()), encoding="utf-8")
+while True:
+    time.sleep(1)
+""",
+        encoding="utf-8",
+    )
+    fake_sleep = scripts_dir / "sleep"
+    fake_sleep.write_text(
+        """#!/usr/bin/env python3
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+duration = sys.argv[1]
+if duration == "0.01" and os.environ.get("FINAL_POLL_EXIT"):
+    count_file = Path(os.environ["FINAL_POLL_SLEEP_COUNT"])
+    count = int(count_file.read_text(encoding="utf-8")) if count_file.exists() else 0
+    count += 1
+    count_file.write_text(str(count), encoding="utf-8")
+    if count == 10:
+        pid = int(Path(os.environ["MUTATION_PID_FILE"]).read_text(encoding="utf-8"))
+        os.kill(pid, signal.SIGTERM)
+        while True:
+            try:
+                state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").split()[2]
+                if state == "Z":
+                    break
+            except (FileNotFoundError, ProcessLookupError):
+                break
+            time.sleep(0.001)
+time.sleep(float(duration))
+""",
+        encoding="utf-8",
+    )
+    fake_sleep.chmod(0o755)
+    fake_ps = scripts_dir / "ps"
+    fake_ps.write_text(
+        """#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+
+if os.environ.get("FINAL_POLL_EXIT") and "pgid=" in sys.argv:
+    print("1")
+    raise SystemExit(0)
+raise SystemExit(subprocess.run(["/usr/bin/ps", *sys.argv[1:]]).returncode)
+""",
+        encoding="utf-8",
+    )
+    fake_ps.chmod(0o755)
 
 
 def _run_race(
@@ -167,6 +225,7 @@ def _run_race(
     immediate_lease_failure: bool = False,
     mutation_command: str | None = None,
     spawn_delayed_child: bool = False,
+    exit_on_final_setup_poll: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -178,6 +237,8 @@ def _run_race(
     mutation_log = tmp_path / "mutation"
     mutation_child_log = tmp_path / "mutation-child"
     mutation_started_log = tmp_path / "mutation-started"
+    mutation_pid_file = tmp_path / "mutation-pid"
+    final_poll_sleep_count = tmp_path / "final-poll-sleep-count"
     renew_count = tmp_path / "renew-count"
     guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
     guard = _extract_guard(guard_text)
@@ -196,7 +257,10 @@ def _run_race(
         )
     else:
         lease_failure_override = ""
-    mutation_invocation = mutation_command or 'python3 "$SCRIPTS_DIR/mutation.py"'
+    if exit_on_final_setup_poll:
+        mutation_invocation = 'python3 "$SCRIPTS_DIR/final_poll_mutation.py"'
+    else:
+        mutation_invocation = mutation_command or 'python3 "$SCRIPTS_DIR/mutation.py"'
 
     harness = f"""\
 set -u
@@ -233,6 +297,7 @@ fi
 """
     env = {
         **os.environ,
+        "PATH": f"{scripts_dir}{os.pathsep}{os.environ['PATH']}",
         "PR_STATE_FILE": str(state_file),
         "CHECK_LOG": str(check_log),
         "LEASE_LOG": str(lease_log),
@@ -244,6 +309,9 @@ fi
         if renewal_failure or spawn_delayed_child
         else "",
         "MUTATION_STARTED_LOG": str(mutation_started_log) if spawn_delayed_child else "",
+        "MUTATION_PID_FILE": str(mutation_pid_file),
+        "FINAL_POLL_SLEEP_COUNT": str(final_poll_sleep_count),
+        "FINAL_POLL_EXIT": "1" if exit_on_final_setup_poll else "",
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -497,3 +565,23 @@ def test_fast_exit_stops_delayed_child_after_lease_loss(
     assert "mutation-skipped:75" in result.stdout
     assert "mutation-ran" not in result.stdout
     assert not (tmp_path / "mutation-child").exists()
+
+
+def test_final_setup_poll_exit_reports_lease_loss(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        exit_on_final_setup_poll=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert not mutation_log.exists()
+    assert "Mutation completed as lease ownership was lost for #4349" in result.stdout
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout

@@ -205,11 +205,20 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         sleep 0.01
     done
     if [ "$mutation_pgid" != "$mutation_pid" ]; then
-        if ! kill -0 "$mutation_pid" 2>/dev/null; then
+        mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+        if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
             if wait "$mutation_pid"; then
-                return 0
+                mutation_rc=0
+            else
+                mutation_rc=$?
             fi
-            return $?
+            if lease_renewal_failed; then
+                stop_mutation_group "$mutation_pid"
+                echo "Mutation completed as lease ownership was lost for #$PR"
+                cleanup_pr_autofix
+                return 75
+            fi
+            return "$mutation_rc"
         fi
         kill "$mutation_pid" 2>/dev/null || true
         wait "$mutation_pid" 2>/dev/null || true
