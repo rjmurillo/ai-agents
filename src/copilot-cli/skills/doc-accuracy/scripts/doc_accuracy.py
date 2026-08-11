@@ -17,11 +17,13 @@ Exit Codes:
 import argparse
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class SourceSymbol:
     signature: str
     visibility: str = "public"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "kind": self.kind,
@@ -62,7 +64,7 @@ class DocFile:
     referenced_symbols: list[str]
     mapped_source_files: list[str]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
             "size_bytes": self.size_bytes,
@@ -86,7 +88,7 @@ class Claim:
     symbols_referenced: list[str]
     mapped_source: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "file": self.file,
@@ -110,10 +112,10 @@ class Finding:
     file: str
     line: int
     description: str
-    evidence: dict
+    evidence: dict[str, Any]
     suggested_fix: str = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "claim_id": self.claim_id,
@@ -160,33 +162,131 @@ EXCLUDE_DIRS = {
     ".doc-accuracy",
 }
 
+_GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
-def _iter_git_files(repo_root: Path):
+# Environment variables that can redirect git to a foreign repository,
+# inject configuration, or alter revision/object resolution.
+# Sanitized from every git subprocess to ensure -C <repo_root> is authoritative.
+# Source: `git rev-parse --local-env-vars` plus all GIT_CONFIG_* variables.
+_GIT_ENV_DENY_EXACT = frozenset((
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_GRAFT_FILE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_SHALLOW_FILE",
+    "GIT_PREFIX",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+))
+
+# Prefix patterns: any env var starting with these is stripped.
+_GIT_ENV_DENY_PREFIXES = ("GIT_CONFIG_",)
+
+# Force repository-contained graft, replace, and shallow metadata off. Also
+# ignore user and system config, which can install an executable fsmonitor.
+_GIT_ENV_FORCE = {
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_SYSTEM": os.devnull,
+    "GIT_GRAFT_FILE": os.devnull,
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_SHALLOW_FILE": os.devnull,
+}
+
+
+def _git_env() -> dict[str, str]:
+    """Return a sanitized copy of os.environ without git repo/config vars."""
+    env = os.environ.copy()
+    for key in tuple(env):
+        normalized = key.upper()
+        if (
+            normalized in _GIT_ENV_DENY_EXACT
+            or any(normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
+        ):
+            del env[key]
+    env.update(_GIT_ENV_FORCE)
+    return env
+
+
+def _git_command(repo_root: Path, *args: str) -> list[str]:
+    """Build a Git command with executable config and replacements disabled."""
+    return [
+        "git",
+        "--no-replace-objects",
+        "-c", "core.fsmonitor=false",
+        "-C", str(repo_root),
+        *args,
+    ]
+
+
+def _repo_relative(path: Path, repo_root: Path) -> str:
+    """Return a Git-compatible repository-relative path on every platform."""
+    return path.relative_to(repo_root).as_posix()
+
+
+class _GitError(Exception):
+    """Classified git failure carrying an ADR-035 exit code."""
+
+    def __init__(self, exit_code: int, message: str) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+def _decode_stderr(raw: bytes | str | None) -> str:
+    """Decode subprocess stderr which may be bytes or str."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode(errors="replace").strip()
+    return raw.strip()
+
+
+def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
 
-    Uses ``git ls-files --cached --others --exclude-standard`` so that paths
-    listed in ``.gitignore`` (generated files, caches, vendored trees) are
-    excluded automatically. Falls back to ``repo_root.rglob("*")`` when the
-    directory is not inside a git repository.
+    Uses ``git ls-files -z --cached --others --exclude-standard`` with
+    NUL-separated output so that paths containing newlines or special
+    characters are handled correctly. Falls back to ``repo_root.rglob("*")``
+    when the directory is not inside a git repository and *require_git* is
+    ``False``.
+
+    When *require_git* is ``True`` (diff-base/Git-scoped mode), a
+    ``_GitError(3)`` is raised instead of falling back, because rglob
+    would silently bypass the Git-backed scoping contract.
     """
     try:
         result = subprocess.run(
-            [
-                "git", "-C", str(repo_root),
-                "ls-files", "--cached", "--others", "--exclude-standard",
-            ],
+            _git_command(
+                repo_root,
+                "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+            ),
             capture_output=True,
             check=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+            timeout=_GIT_TIMEOUT,
+            env=_git_env(),
         )
-        for rel in result.stdout.splitlines():
-            if rel:
+        for rel_bytes in result.stdout.split(b"\x00"):
+            if rel_bytes:
+                rel = os.fsdecode(rel_bytes)
                 yield repo_root / rel
         return
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
+    except subprocess.CalledProcessError as exc:
+        if require_git:
+            raise _GitError(
+                3, f"ls-files: git index error: "
+                f"{_decode_stderr(exc.stderr)}",
+            ) from exc
+    except FileNotFoundError:
+        if require_git:
+            raise _GitError(3, "ls-files: git binary not found") from None
     yield from repo_root.rglob("*")
 
 
@@ -352,25 +452,171 @@ def _count_code_blocks(content: str) -> int:
 
 
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
-    """Get files changed since diff_base."""
+    """Get files changed between diff_base and HEAD (committed changes only).
+
+    Uses a deterministic validation sequence:
+
+    1. Verify git work-tree environment (sanitized env, ``-C repo_root``).
+    2. Resolve each revision to an OID and verify object accessibility.
+    3. Resolve ``<revision>^{commit}``; non-commit bases are config exit 2.
+    4. Diff by resolved commit OIDs using NUL-separated output (``-z``).
+
+    All git commands use ``_git_env()`` to strip inherited repository-
+    selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
+
+    Raises
+    ------
+    _GitError
+        Classified failure (exit 2 = config, exit 3 = external).
+    OSError
+        When git binary is not found.
+    subprocess.TimeoutExpired
+        When any git call exceeds ``_GIT_TIMEOUT``.
+    """
+    env = _git_env()
+
+    # Phase 1: verify git environment
+    try:
+        wt_result = subprocess.run(
+            _git_command(repo_root, "rev-parse", "--is-inside-work-tree"),
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"rev-parse: not a git repository: "
+            f"{_decode_stderr(exc.stderr)}",
+        ) from exc
+    if wt_result.stdout.strip().lower() != b"true":
+        raise _GitError(
+            3, "rev-parse: not inside a git work tree",
+        )
+
+    def resolve_commit(ref: str, *, invalid_exit: int) -> str:
+        try:
+            raw_result = subprocess.run(
+                _git_command(
+                    repo_root,
+                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    ref,
+                ),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 1:
+                raise _GitError(
+                    invalid_exit, f"rev-parse: unknown revision '{ref}'",
+                ) from exc
+            raise _GitError(
+                3, f"rev-parse: failed to resolve '{ref}' "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+
+        raw_oid_bytes = raw_result.stdout.strip()
+        if re.fullmatch(
+            rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", raw_oid_bytes
+        ) is None:
+            raise _GitError(
+                3, f"rev-parse: malformed object ID for '{ref}'",
+            )
+        raw_oid = raw_oid_bytes.decode("ascii")
+
+        try:
+            subprocess.run(
+                _git_command(repo_root, "cat-file", "-e", raw_oid),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise _GitError(
+                3, f"cat-file: object {raw_oid[:12]} not accessible "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+
+        try:
+            commit_result = subprocess.run(
+                _git_command(
+                    repo_root,
+                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    f"{ref}^{{commit}}",
+                ),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 1:
+                try:
+                    subprocess.run(
+                        _git_command(repo_root, "cat-file", "-e", raw_oid),
+                        capture_output=True, check=True,
+                        timeout=_GIT_TIMEOUT, env=env,
+                    )
+                except subprocess.CalledProcessError as missing_exc:
+                    raise _GitError(
+                        3, f"cat-file: object {raw_oid[:12]} not accessible "
+                        f"(rc {missing_exc.returncode}): "
+                        f"{_decode_stderr(missing_exc.stderr)}",
+                    ) from missing_exc
+                raise _GitError(
+                    invalid_exit,
+                    f"rev-parse: invalid commit revision '{ref}'",
+                ) from exc
+            raise _GitError(
+                3, f"rev-parse: failed to peel '{ref}' to a commit "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+
+        oid_bytes = commit_result.stdout.strip()
+        if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
+            raise _GitError(
+                3, f"rev-parse: malformed commit ID for '{ref}'",
+            )
+        oid = oid_bytes.decode("ascii")
+
+        try:
+            subprocess.run(
+                _git_command(repo_root, "cat-file", "-e", f"{oid}^{{commit}}"),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise _GitError(
+                3, f"cat-file: commit {oid[:12]} not accessible "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+        return oid
+
+    # Phases 2-3: resolve and verify immutable commit IDs.
+    oid = resolve_commit(diff_base, invalid_exit=2)
+    head_oid = resolve_commit("HEAD", invalid_exit=3)
+
+    # Phase 4: diff by resolved OIDs, NUL-separated output.
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", diff_base, "--"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=repo_root,
+            _git_command(
+                repo_root,
+                "diff", "--no-ext-diff", "--name-only", "-z",
+                oid, head_oid, "--",
+            ),
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
         )
-        return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
-    except subprocess.CalledProcessError:
-        return set()
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"diff: git failed after ref validation: "
+            f"{_decode_stderr(exc.stderr)}",
+        ) from exc
+    return {
+        os.fsdecode(f) for f in result.stdout.split(b"\x00") if f
+    }
 
 
 def run_assessment(
     repo_root: Path,
     doc_globs: list[str] | None = None,
     diff_base: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Phase 1: Build assessment of documentation and source files."""
     if doc_globs is None:
         doc_globs = DOC_GLOBS
@@ -386,18 +632,12 @@ def run_assessment(
             if p.is_file() and not _should_exclude(p, repo_root):
                 doc_files_set.add(p)
 
-    if changed_files is not None:
-        doc_files_set = {
-            p for p in doc_files_set
-            if str(p.relative_to(repo_root)) in changed_files
-        }
-
     # Enumerate source files
     source_files: dict[str, str] = {}  # path -> content
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in _iter_git_files(repo_root):
+    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
@@ -406,7 +646,7 @@ def run_assessment(
         if not lang:
             continue
 
-        rel_path = str(p.relative_to(repo_root))
+        rel_path = _repo_relative(p, repo_root)
         try:
             content = p.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -425,7 +665,12 @@ def run_assessment(
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
     for doc_path in sorted(doc_files_set):
-        rel_path = str(doc_path.relative_to(repo_root))
+        rel_path = _repo_relative(doc_path, repo_root)
+        # When diff_base is set, only process documentation files that were
+        # changed since that base. Source files are always fully indexed so
+        # symbol resolution works across the whole repo.
+        if changed_files is not None and rel_path not in changed_files:
+            continue
         try:
             content = doc_path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -455,11 +700,11 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in _iter_git_files(repo_root):
+    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
         name = p.name.lower()
-        rel = str(p.relative_to(repo_root))
+        rel = _repo_relative(p, repo_root)
         if "benchmark" in name:
             benchmark_files.append(rel)
         elif "bench" in name and p.suffix in (".json", ".csv", ".md"):
@@ -542,8 +787,8 @@ def _extract_quantitative_claims(line: str) -> list[str]:
 
 def run_claim_extraction(
     repo_root: Path,
-    assessment: dict,
-) -> dict:
+    assessment: dict[str, Any],
+) -> dict[str, Any]:
     """Phase 2: Extract verifiable claims from documentation files."""
     claims: list[Claim] = []
     claim_counter = 0
@@ -674,9 +919,9 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 
 def run_compilability_check(
-    assessment: dict,
-    claims_data: dict,
-) -> dict:
+    assessment: dict[str, Any],
+    claims_data: dict[str, Any],
+) -> dict[str, Any]:
     """Phase 3: Verify symbols in code examples exist in the codebase."""
     findings: list[Finding] = []
     finding_counter = 0
@@ -797,9 +1042,9 @@ SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def check_gate(
-    compilability_data: dict | None,
+    compilability_data: dict[str, Any] | None,
     severity_threshold: str,
-) -> dict:
+) -> dict[str, Any]:
     """Evaluate findings against severity threshold.
 
     Returns a gate_result dict with verdict and counts.
@@ -827,10 +1072,10 @@ def check_gate(
 
 
 def generate_markdown_report(
-    assessment: dict | None,
-    claims_data: dict | None,
-    compilability_data: dict | None,
-    gate_result: dict,
+    assessment: dict[str, Any] | None,
+    claims_data: dict[str, Any] | None,
+    compilability_data: dict[str, Any] | None,
+    gate_result: dict[str, Any],
     output_path: Path,
 ) -> None:
     """Write a markdown summary report to output_path."""
@@ -886,10 +1131,10 @@ def generate_markdown_report(
 
 
 def _print_summary(
-    assessment: dict | None,
-    claims_data: dict | None,
-    compilability_data: dict | None,
-    gate_result: dict,
+    assessment: dict[str, Any] | None,
+    claims_data: dict[str, Any] | None,
+    compilability_data: dict[str, Any] | None,
+    gate_result: dict[str, Any],
 ) -> None:
     """Print a text summary to stdout."""
     print("\n--- Documentation Accuracy Summary ---")
@@ -918,7 +1163,7 @@ def _print_summary(
     )
 
 
-def _load_json_artifact(path: Path, name: str) -> dict | None:
+def _load_json_artifact(path: Path, name: str) -> dict[str, Any] | None:
     """Load a JSON artifact file, returning None with error on failure."""
     if not path.exists():
         print(
@@ -926,7 +1171,11 @@ def _load_json_artifact(path: Path, name: str) -> dict | None:
             file=sys.stderr,
         )
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        print(f"ERROR: {name} is not a JSON object.", file=sys.stderr)
+        return None
+    return cast(dict[str, Any], data)
 
 
 # ---------------------------------------------------------------------------
@@ -1009,7 +1258,20 @@ def main(argv: list[str] | None = None) -> int:
     # Phase 1: Assessment
     if 1 in phases or 2 in phases or 3 in phases:
         print("Phase 1: Assessment...", file=sys.stderr)
-        assessment = run_assessment(target, diff_base=args.diff_base)
+        try:
+            assessment = run_assessment(target, diff_base=args.diff_base)
+        except _GitError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return exc.exit_code
+        except OSError as exc:
+            print(f"ERROR: git not available: {exc}", file=sys.stderr)
+            return 3
+        except subprocess.TimeoutExpired as exc:
+            print(
+                f"ERROR: git timed out ({_GIT_TIMEOUT}s): {exc.cmd}",
+                file=sys.stderr,
+            )
+            return 3
         (output_dir / "assessment.json").write_text(
             json.dumps(assessment, indent=2), encoding="utf-8"
         )

@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4578,
+    "date": "2026-08-10",
+    "branch": "autofix-qa-4578",
+    "startingCommit": "54da2422fd84069420c982ba803c3e2e4853e712",
+    "objective": "Add QA evidence for PR 4578 Validate PR gate."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this run."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this run."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Compacted task handoff supplied prior PR state."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log: .agents/sessions/2026-08-10-session-4578-qa-report.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used repository PR scripts under .claude/skills/github/scripts/pr/."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill active for PR operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied lease, live-state, worktree, hook, and no-bypass constraints."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Compacted context supplied prior session memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned autofix-qa-4578."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch autofix-qa-4578 is not main or master."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "54da2422fd84069420c982ba803c3e2e4853e712"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report created for PR 4578."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Did not edit HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable repository learning was created."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report uses existing markdown table and heading style."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report and session log are committed in this session; final SHA is recorded by git history."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen pytest tests/test_get_pr_checks.py tests/skills/github/test_why_pr_blocked.py tests/external_signals/test_gate_aggregator.py -q passed with 183 passed in 0.92s after merging origin/main."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4578-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-10T11:20:00Z",
+      "entry": "Acquired pr_autofix lease for PR 4578 and live-state gate returned ACT."
+    },
+    {
+      "time": "2026-08-10T11:25:00Z",
+      "entry": "Ran targeted test command: uv run --frozen pytest tests/test_get_pr_checks.py tests/skills/github/test_why_pr_blocked.py tests/external_signals/test_gate_aggregator.py -q. Result: 183 passed in 1.06s."
+    },
+    {
+      "time": "2026-08-10T11:30:00Z",
+      "entry": "Created QA report bound to pre-report code commit 332ff6bcefe263198637733ab141fb0d855a62e9."
+    },
+    {
+      "time": "2026-08-10T12:50:00Z",
+      "entry": "Merged origin/main, reran targeted tests, and rebound QA report to 54da2422fd84069420c982ba803c3e2e4853e712."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "7547a7971efea179553c9fd2cae3ea3dd791b93d",
+      "head": "54da2422fd84069420c982ba803c3e2e4853e712"
+    }
+  }
+}

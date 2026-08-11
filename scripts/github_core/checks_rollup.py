@@ -1,3 +1,4 @@
+# mypy: disable-error-code="type-arg", follow-imports=skip
 """Shared logic for grouping and evaluating GitHub status check rollups.
 
 This module encodes the required-check semantics used by both get_pr_checks.py
@@ -10,7 +11,9 @@ This is documented in issue #2325 and PR #1887 retrospective.
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from collections import defaultdict
 
 # A GitHub Actions check-run details URL carries the workflow run identity:
@@ -43,34 +46,42 @@ def extract_workflow_run_number(details_url: str | None) -> int | None:
 def partition_rows_by_run(
     rows: list[dict],
     url_key: str,
+    run_id_key: str | None = None,
+    run_attempt_key: str | None = None,
 ) -> list[list[dict]]:
-    """Split same-named rows into groups that share one workflow run.
+    """Split same-named rows into groups that share one workflow attempt.
 
-    Rows whose workflow run id cannot be determined are each returned as their
-    own single-row group, so cross-run precedence still applies to them exactly
-    as it did before. Only rows proven to come from the same run are grouped,
-    which keeps the change surgical: supersession semantics (issue #2208) are
-    untouched for every row that is not a proven same-run sibling.
+    GraphQL exposes ``runAttempt`` for Actions checks. A rerun keeps the same
+    workflow run id, so grouping on the id alone conflates stale failures with
+    the latest attempt. Rows without workflow identity remain singletons.
 
     Refs issue #4499: two jobs of one run named "Run Python Tests" (one
     FAILURE, one SKIPPED) were collapsed to the SKIPPED row, so the failure
     vanished and CIPassing reported true against a red PR.
     """
-    by_run: dict[str, list[dict]] = {}
-    order: list[str] = []
+    by_run: dict[tuple[str, int], list[dict]] = {}
+    order: list[tuple[str, int]] = []
     singletons: list[list[dict]] = []
 
     for row in rows:
-        run_id = extract_workflow_run_id(row.get(url_key))
+        run_id_value = row.get(run_id_key) if run_id_key else None
+        run_id = (
+            str(run_id_value)
+            if run_id_value is not None
+            else extract_workflow_run_id(row.get(url_key))
+        )
         if run_id is None:
             singletons.append([row])
             continue
-        if run_id not in by_run:
-            by_run[run_id] = []
-            order.append(run_id)
-        by_run[run_id].append(row)
+        attempt_value = row.get(run_attempt_key) if run_attempt_key else None
+        attempt = int(attempt_value) if attempt_value is not None else 1
+        run_key = (run_id, attempt)
+        if run_key not in by_run:
+            by_run[run_key] = []
+            order.append(run_key)
+        by_run[run_key].append(row)
 
-    return [by_run[run_id] for run_id in order] + singletons
+    return [by_run[run_key] for run_key in order] + singletons
 
 
 def group_checks_by_name(
@@ -146,3 +157,66 @@ def extract_required_check_lists(
             pending_required.append(name)
 
     return pending_required, failed_required
+
+
+def fetch_ruleset_required_contexts(
+    owner: str, repo: str, branch: str = "main"
+) -> list[str] | None:
+    """Return the required status check context names from the branch ruleset.
+    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
+    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
+    repos that use rulesets instead of branch protection).
+
+    Returns a sorted list of context strings, or None if the API call fails
+    (callers should treat None as unknown rather than empty). Refs issue #4359.
+    """
+    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}?per_page=100"
+    result = subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", endpoint],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, list):
+        return None
+    rules = (
+        [rule for page in payload for rule in page]
+        if payload and all(isinstance(page, list) for page in payload)
+        else payload
+    )
+
+    contexts: list[str] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        if rule.get("type") != "required_status_checks":
+            continue
+        params = rule.get("parameters") or {}
+        for check_entry in params.get("required_status_checks") or []:
+            if isinstance(check_entry, dict):
+                ctx = check_entry.get("context")
+            else:
+                ctx = None
+            if ctx and isinstance(ctx, str):
+                contexts.append(ctx)
+    return sorted(set(contexts))
+
+
+def find_missing_required(
+    ruleset_contexts: list[str],
+    reported_check_names: set[str],
+) -> list[str]:
+    """Return context names required by the ruleset but absent from the rollup.
+
+    A context that the ruleset requires but that never triggered any check run
+    is invisible to isRequired-based tooling (because isRequired is only set on
+    checks that did report). This function bridges that gap. Refs issue #4359.
+    """
+    return sorted(c for c in ruleset_contexts if c not in reported_check_names)

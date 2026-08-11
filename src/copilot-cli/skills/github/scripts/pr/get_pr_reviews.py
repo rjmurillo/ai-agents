@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fetch submitted reviews for a GitHub Pull Request.
 
-Returns each review's id, node_id, author, state, body, submitted timestamp,
-and URL. Paginates via REST so large review threads do not truncate.
+Returns each review's `id`, `node_id`, legacy `author`, `aliases`, additive
+canonical identity fields, verdict state, body, submitted timestamp, URL, and
+commit ID. Paginates via REST so large review histories do not truncate.
 
 Issue #4378: ``get_pr_reviewers.py`` discards review state and body, so an
 agent cannot read APPROVED/REQUEST_CHANGES verdicts or their accompanying
@@ -23,13 +24,13 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
+# Two rungs, both portable. The plugin-root variables win when the host exports
+# them; otherwise walk up from this file to the bundled library.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -44,6 +45,7 @@ from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
+from github_core.bot_config import canonicalize_login
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -52,12 +54,14 @@ from github_core.output import (
 )
 
 _SCRIPT = "get_pr_reviews.py"
+_VALID_STATES = ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING")
 
 # Canonical alias map for known bot identities.
 # Maps each observed alias to the canonical name kept in output.
 # The raw alias is preserved in the ``aliases`` list for audit.
 _BOT_ALIASES: dict[str, str] = {
     "copilot-pull-request-reviewer": "Copilot",
+    "copilot-pull-request-reviewer[bot]": "Copilot",
     "github-actions": "github-actions[bot]",
 }
 
@@ -80,6 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pull-request", type=int, required=True, help="Pull request number",
     )
+    parser.add_argument(
+        "--state",
+        default="",
+        help=f"Filter by review state. One of: {', '.join(_VALID_STATES)}",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -101,19 +110,30 @@ def _fetch_reviews(
     owner: str, repo: str, pr: int, fmt: str,
 ) -> list[dict[str, object]]:
     """Page through the PR's reviews via REST. Raises SystemExit on error."""
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
-            "--paginate",
-            "--slurp",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
+                "--paginate",
+                "--slurp",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            f"Timed out fetching reviews for PR #{pr}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"pull_request": pr},
+        )
+        raise SystemExit(3) from None
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         not_found = "not found" in error_str.lower() or "Could not resolve" in error_str
@@ -162,19 +182,33 @@ def _canonicalize_login(login: str) -> tuple[str, list[str]]:
     return canonical, aliases
 
 
-def _normalize(item: dict[str, object]) -> dict[str, object]:
+def _normalize(item: dict[str, Any]) -> dict[str, Any]:
+    """Preserve legacy author fields and add canonical identity metadata."""
     user = item.get("user")
-    raw_login = user.get("login") if isinstance(user, dict) else ""
-    canonical, aliases = _canonicalize_login(raw_login or "")
+    observed_value = user.get("login") if isinstance(user, dict) else None
+    if observed_value is not None and not isinstance(observed_value, str):
+        raise ValueError("Review author login is not a string")
+    observed = observed_value
+    author_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(author_id, int):
+        author_id = None
+    author, aliases = _canonicalize_login(observed or "")
+    author_canonical = (
+        canonicalize_login(observed, author_id) if observed else None
+    )
     return {
         "id": item.get("id"),
         "node_id": item.get("node_id"),
-        "author": canonical,
+        "author": author,
         "aliases": aliases,
+        "author_id": author_id,
+        "author_observed": observed,
+        "author_canonical": author_canonical,
         "state": item.get("state"),
         "body": item.get("body") or "",
         "submittedAt": item.get("submitted_at"),
         "url": item.get("html_url"),
+        "commit_id": item.get("commit_id"),
     }
 
 
@@ -183,12 +217,37 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
     pr: int = args.pull_request
 
+    state_filter = args.state.strip().upper()
+    if state_filter and state_filter not in _VALID_STATES:
+        write_skill_error(
+            f"Invalid --state {args.state!r}. Valid states: {', '.join(_VALID_STATES)}",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"pull_request": pr, "state": args.state},
+        )
+        return 1
+
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
     raw = _fetch_reviews(owner, repo, pr, fmt)
-    reviews = [_normalize(r) for r in raw]
+    try:
+        reviews = [_normalize(r) for r in raw]
+    except ValueError as exc:
+        write_skill_error(
+            f"Failed to normalize reviews for PR #{pr}: {exc}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"pull_request": pr},
+        )
+        return 3
+    if state_filter:
+        reviews = [review for review in reviews if review["state"] == state_filter]
 
     data = {
         "pull_request": pr,

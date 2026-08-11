@@ -141,6 +141,21 @@ both `hooks.json` and the referenced `plugin-*` dispatch group. Generated output
   `agent-harness-reference`. This memory records generator invariants, not the
   complete host contract.
 
+## Command identity guards
+
+Treat wrapper parsing as a policy boundary, not shell emulation. The push-PR
+identity guard rejects GNU `env` split-string forms, including abbreviated long
+options and clustered `-S`, because `env` reparses one argument into executable
+arguments after the guard runs. It also rejects shell evaluator wrappers,
+including BusyBox shell applets and clustered execution flags such as `-xc`.
+Unknown `env` options fail closed.
+
+The allowed path remains one exact direct invocation after supported
+non-evaluating wrappers are normalized. Runtime tests must exercise both the
+canonical Claude guard and the generated Copilot shim. Cover expansion syntax,
+alternate interpreters, quoting, path normalization, benign commands, nested
+wrappers, and wrapper option abbreviations.
+
 ## Evidence
 
 PR 3076 sessions 3045 and 3046 covered positive, protected, filesystem-error,
