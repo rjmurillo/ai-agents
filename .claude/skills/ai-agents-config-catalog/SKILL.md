@@ -121,10 +121,11 @@ all.
 Two independent registration sources serve different consumers. Do not force
 parity between them:
 
-| Surface | Consumer | Shape re-verified 2026-07-22 |
+| Surface | Consumer | Shape re-verified 2026-08-11 |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | 5 events, 7 groups |
-| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 3 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 4 groups |
+| `.github/hooks/require-subagent-model.json` | Copilot CLI in this repository (cloud agent from the default branch) | native `preToolUse`, matcher `task`, direct registration |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.
