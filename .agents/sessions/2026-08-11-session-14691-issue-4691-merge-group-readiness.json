@@ -156,6 +156,6 @@
       "detail": "Wrote .agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md covering the ruleset drift the test could not explain, the blocker that dissolved once the change was priced instead of the gate, and the third-party annotation signature that turned a downgrade into a hard block."
     }
   ],
-  "endingCommit": "a2a29087f59310864d32f22ba6012fb55dc8ff51",
+  "endingCommit": "7162dbd8a39c41135b7182162d39308e6ae963ce",
   "nextSteps": []
 }

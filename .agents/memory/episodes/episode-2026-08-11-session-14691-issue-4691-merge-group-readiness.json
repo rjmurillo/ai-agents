@@ -135,6 +135,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T03:22:02+00:00",
+      "type": "commit",
+      "content": "Commit: 7162dbd8a39c41135b7182162d39308e6ae963ce",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
     }
@@ -144,7 +157,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 55
   },
   "lessons": []
