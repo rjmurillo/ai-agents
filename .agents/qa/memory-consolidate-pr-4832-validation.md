@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10031-b355a9b8c-create-consolidate-memory-skill.json
-qaCommit: cfe586aed5530e6e93067588baada23ae328c7a9
+qaCommit: 9dae885e863d74934caf8e2c02cdc559addd8ab5
 ---
 
 # Memory Consolidate Validation
@@ -24,3 +24,4 @@ qaCommit: cfe586aed5530e6e93067588baada23ae328c7a9
 - Search containment and skill contract validation: 31 passed.
 - Session episode commit references are unique and match the commit metric.
 - Changed executable-file security scan: no CWE-78 findings.
+- Instruction ceiling ratchet: 16 passed, Markdown usage 72,784 of 83,000 bytes.
