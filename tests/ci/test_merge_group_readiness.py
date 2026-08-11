@@ -1,7 +1,7 @@
-from __future__ import annotations
-
 # taste-lint: ignore file-size, this test needs every required-context contract
 # and mutation control together so a workflow change cannot bypass the queue.
+
+from __future__ import annotations
 
 import copy
 from pathlib import Path
