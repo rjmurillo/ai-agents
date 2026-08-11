@@ -439,6 +439,35 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     ]
 
 
+def test_pytest_workflow_uses_local_fallback_without_act(
+    all_tools, monkeypatch, tmp_path
+):
+    workflow_name = ".github/workflows/pytest.yml"
+    workflow = tmp_path / workflow_name
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("jobs: {}\n", encoding="utf-8")
+    monkeypatch.delenv("ACT", raising=False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(
+        w,
+        "_act_dryrun_stage",
+        lambda *_: pytest.fail("pytest workflow must skip gh act dry-run"),
+    )
+    monkeypatch.setattr(
+        w,
+        "_local_pytest_stage",
+        lambda f, r: _ok("gh act (local-fallback)"),
+    )
+
+    report = w.run_local_test([workflow_name], tmp_path)
+
+    assert report.exit_code == 0
+    assert [stage.stage for stage in report.stages] == [
+        "actionlint",
+        "gh act (local-fallback)",
+    ]
+
+
 def test_no_full_skips_execution_stage(all_tools, monkeypatch, tmp_path):
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))

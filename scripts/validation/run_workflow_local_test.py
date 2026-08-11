@@ -1246,7 +1246,10 @@ def run_local_test(
         )
         return report
 
-    if os.environ.get("ACT", "").strip().lower() == "true":
+    local_pytest = os.environ.get("ACT", "").strip().lower() == "true" or runnable == [
+        ".github/workflows/pytest.yml"
+    ]
+    if local_pytest:
         if full:
             local_stage = _local_pytest_stage(runnable, repo_root)
             report.stages.append(local_stage)
