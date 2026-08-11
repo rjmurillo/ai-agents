@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-issue-4842-repository-name-dots.json
-qaCommit: 652892ea0300b62ffc6e54c74d5edfc0bf8fd8b5
+qaCommit: 42f83d67cedb87e4fe0dd27e9ea4b63f84185810
 ---
 
 # Issue 4842 QA
