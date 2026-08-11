@@ -166,8 +166,12 @@
     {
       "action": "Recovered from the whole-tree subprocess count regression",
       "outcome": "Repaired the 34-finding checker delta without raising the baseline; the count returned to 253, Ruff passed, and 523 focused tests passed"
+    },
+    {
+      "action": "Refreshed main after the count-ratchet repair",
+      "outcome": "The guarded trial and final merges were conflict-free, the subprocess count remained 253, and 131 latest-main tests passed"
     }
   ],
-  "endingCommit": "700b641113ec4937df18ce0b27b94da4bafd96ea",
+  "endingCommit": "a87a6fd031be2aa81d59531fece261996e99e5ed",
   "nextSteps": []
 }
