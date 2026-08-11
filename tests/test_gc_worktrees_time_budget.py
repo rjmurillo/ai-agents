@@ -32,7 +32,10 @@ from scripts.maintenance.gc_worktrees import (
     main,
     parse_args,
 )
-from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
+from tests.gc_worktree_fixtures import (  # noqa: F401
+    checkout_is_present,
+    no_reflog_only_work,
+)
 
 _MODULE = "scripts.maintenance.gc_worktrees"
 
@@ -289,7 +292,9 @@ class TestPartialReportsRefuseToMutate:
     def test_a_partial_report_removes_nothing(self):
         report = self._report(
             [
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
                 Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET),
             ]
         )
@@ -330,7 +335,9 @@ class TestPartialReportsRefuseToMutate:
         """Negative control: the guard must not fire on a full inspection."""
         report = self._report(
             [
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
                 Decision("/repo/b", "feat/b", remove=False, reason=KEEP_MAIN),
             ]
         )
@@ -367,7 +374,7 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
     def test_an_unavailable_scan_removes_nothing(self):
         """Positive: the candidate is not removed and prune does not run."""
         report = self._report(
-            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD)],
             occupancy_unavailable=True,
         )
         with (
@@ -380,7 +387,7 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
     def test_the_refusal_names_proc_and_the_remedy(self):
         """Positive: the operator learns what was not checked and what to do."""
         report = self._report(
-            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD)],
             occupancy_unavailable=True,
         )
         with (
@@ -399,7 +406,7 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         refuses unconditionally.
         """
         report = self._report(
-            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base")],
+            [Decision("/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD)],
             occupancy_unavailable=False,
         )
         with (
@@ -435,7 +442,9 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         """
         report = self._report(
             [
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
                 Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET),
             ],
             occupancy_unavailable=True,

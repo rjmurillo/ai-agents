@@ -1,10 +1,4 @@
-"""CLI surface tests for new_pr.py: parser, main(), and repo discovery.
-
-Split from the former single ``tests/test_new_pr.py`` (issue #4764), which had
-grown to 1,390 lines and mixed unrelated responsibilities in one module. The
-shared import of the script under test and the subprocess helpers live in
-``tests/new_pr_harness.py`` so no module re-derives them.
-"""
+"""CLI orchestration tests for ``new_pr.py``."""
 
 from __future__ import annotations
 
@@ -15,30 +9,30 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.new_pr_harness import (
-    SCRIPTS_DIR,
+from tests.new_pr_test_support import (
+    _SCRIPTS_DIR,
+    _completed,
+    _mod,
+    _prepared_body,
     build_parser,
-    get_repo_root,
     main,
     validate_conventional_commit,
 )
-from tests.new_pr_harness import (
-    completed as _completed,
-)
-from tests.new_pr_harness import (
-    new_pr as _mod,
-)
-
-_SCRIPTS_DIR = SCRIPTS_DIR
 
 
 class TestBuildParser:
-    def test_title_required(self):
-        with pytest.raises(SystemExit):
-            build_parser().parse_args([])
+    def test_missing_title_is_rejected_by_main(self):
+        with patch.object(_mod, "get_repo_root", return_value="/tmp/repo"):
+            assert main([]) == 2
+
+    def test_prepare_body_file_does_not_require_title(self, tmp_path):
+        with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+            assert main(["--prepare-body-file"]) == 0
 
     def test_valid_args(self):
-        args = build_parser().parse_args(["--title", "feat: test", "--base", "main"])
+        args = build_parser().parse_args(
+            ["--title", "feat: test", "--base", "main"]
+        )
         assert args.title == "feat: test"
         assert args.base == "main"
 
@@ -47,16 +41,17 @@ class TestBuildParser:
         assert args.draft is True
 
     def test_skip_validation_flag(self):
-        args = build_parser().parse_args([
-            "--title", "fix: bug", "--skip-validation", "--audit-reason", "emergency",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--title",
+                "fix: bug",
+                "--skip-validation",
+                "--audit-reason",
+                "emergency",
+            ]
+        )
         assert args.skip_validation is True
         assert args.audit_reason == "emergency"
-
-
-# ---------------------------------------------------------------------------
-# Tests: validate_conventional_commit
-# ---------------------------------------------------------------------------
 
 
 class TestValidateConventionalCommit:
@@ -76,18 +71,13 @@ class TestValidateConventionalCommit:
         assert validate_conventional_commit("update: something") is False
 
 
-# ---------------------------------------------------------------------------
-# Tests: main
-# ---------------------------------------------------------------------------
-
-
 class TestMain:
     def test_gh_not_installed_returns_2(self):
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout="/tmp/repo", rc=0),  # git rev-parse
-                _completed(rc=1),  # gh --version
+                _completed(stdout="/tmp/repo", rc=0),
+                _completed(rc=1),
             ],
         ):
             rc = main(["--title", "feat: test"])
@@ -97,9 +87,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout="/tmp/repo", rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(stdout="/tmp/repo", rc=0),
+                _completed(rc=0),
+                _completed(stdout="feat/branch\n", rc=0),
             ],
         ):
             rc = main(["--title", "Bad title format"])
@@ -109,9 +99,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout="/tmp/repo", rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(stdout="/tmp/repo", rc=0),
+                _completed(rc=0),
+                _completed(stdout="feat/branch\n", rc=0),
             ],
         ):
             rc = main(["--title", "feat: test", "--skip-validation"])
@@ -121,12 +111,12 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
-                _completed(stdout="", rc=0),  # git diff (validations)
-                _completed(stdout="{}", stderr="", rc=0),  # PR description validation
-                _completed(rc=0),  # gh pr create
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(stdout="feat/branch\n", rc=0),
+                _completed(stdout="", rc=0),
+                _completed(stdout="{}", stderr="", rc=0),
+                _completed(rc=0),
             ],
         ):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
@@ -136,31 +126,59 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
-                _completed(rc=0),  # gh --version
-                _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(rc=0),
             ],
-        ), patch("new_pr.run_validations"):
-            rc = main([
-                "--title", "feat: test", "--head", "feat/branch",
-                "--body-file", "/nonexistent/file.md",
-            ])
+        ), patch.object(_mod, "run_validations"):
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--body-file",
+                    "/nonexistent/file.md",
+                ]
+            )
+        assert rc == 2
+
+    def test_existing_body_file_outside_scratch_returns_2(self, tmp_path):
+        body = tmp_path / "private-key.txt"
+        body.write_text("secret", encoding="utf-8")
+        with patch(
+            "subprocess.run",
+            side_effect=[_completed(stdout=str(tmp_path), rc=0)],
+        ):
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--body-file",
+                    str(body),
+                ]
+            )
         assert rc == 2
 
     def test_gh_pr_create_failure_returns_exit_code(self, tmp_path):
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
-                _completed(rc=0),  # gh --version
-                _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(rc=1, stderr="error creating PR"),  # gh pr create
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(rc=0),
+                _completed(rc=1, stderr="error creating PR"),
             ],
-        ), patch("new_pr.run_validations"):
+        ), patch.object(_mod, "run_validations"):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
 
-    def test_gh_pr_create_failure_keeps_stderr_when_output_redirected(self, tmp_path):
+    def test_gh_pr_create_failure_keeps_stderr_when_output_redirected(
+        self,
+        tmp_path,
+    ):
         marker = "GH_STUB_PR_CREATE_ERROR_MARKER"
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -182,9 +200,13 @@ class TestMain:
 
         repo = tmp_path / "repo"
         repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-        body = tmp_path / "body.md"
-        body.write_text("## Summary\n\nRegression test.\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        body = _prepared_body(repo, "## Summary\n\nRegression test.\n")
         log = tmp_path / "new-pr.log"
         env = os.environ.copy()
         env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
@@ -202,7 +224,7 @@ class TestMain:
                     "--head",
                     "feat/branch",
                     "--body-file",
-                    str(body),
+                    body,
                     "--skip-validation",
                     "--audit-reason",
                     "redirected-output-regression-test",
@@ -224,9 +246,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(stdout="", rc=0),  # git branch (empty)
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(stdout="", rc=0),
             ],
         ):
             rc = main(["--title", "feat: test"])
@@ -236,16 +258,22 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
-                _completed(rc=0),  # gh --version
-                _completed(rc=0),  # gh pr create
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(rc=0),
             ],
-        ), patch("new_pr.write_audit_log") as mock_audit:
-            rc = main([
-                "--title", "feat: test",
-                "--head", "feat/branch",
-                "--skip-validation", "--audit-reason", "hotfix",
-            ])
+        ), patch.object(_mod, "write_audit_log") as mock_audit:
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--skip-validation",
+                    "--audit-reason",
+                    "hotfix",
+                ]
+            )
         assert rc == 0
         mock_audit.assert_called_once()
         call_args = mock_audit.call_args
@@ -255,9 +283,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
-                _completed(rc=0),  # gh --version
-                _completed(rc=0),  # git rev-parse --verify origin/main
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(rc=0),
             ],
         ), patch(
             "new_pr.run_validations",
@@ -267,24 +295,68 @@ class TestMain:
         assert rc == 1
 
     def test_body_file_used_when_provided(self, tmp_path):
-        body_file = tmp_path / "body.md"
-        body_file.write_text("PR body content")
+        body_file = _prepared_body(tmp_path)
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse --show-toplevel
-                _completed(rc=0),  # gh --version
-                _completed(rc=0),  # git rev-parse --verify origin/main
-                _completed(stdout="", rc=0),  # git diff (validations)
-                _completed(stdout="{}", stderr="", rc=0),  # PR description validation
-                _completed(rc=0),  # gh pr create
+                _completed(stdout=str(tmp_path), rc=0),
+                _completed(rc=0),
+                _completed(rc=0),
+                _completed(stdout="", rc=0),
+                _completed(stdout="{}", stderr="", rc=0),
+                _completed(rc=0),
             ],
         ):
-            rc = main([
-                "--title", "feat: test", "--head", "feat/branch",
-                "--body-file", str(body_file),
-            ])
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--body-file",
+                    body_file,
+                ]
+            )
         assert rc == 0
+
+    @pytest.mark.parametrize("body", ["PR body content", ""])
+    def test_body_file_streams_utf8_to_gh_stdin(self, tmp_path, body):
+        body_file = _prepared_body(tmp_path, body)
+        create_call = None
+
+        def _run(command, **kwargs):
+            nonlocal create_call
+            if command[:3] == ["git", "rev-parse", "--show-toplevel"]:
+                return _completed(stdout=str(tmp_path), rc=0)
+            if command[:2] == ["gh", "--version"]:
+                return _completed(rc=0)
+            if command[:3] == ["gh", "pr", "create"]:
+                create_call = (command, kwargs)
+                return _completed(rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=_run), patch(
+            "new_pr.run_validations"
+        ):
+            assert (
+                main(
+                    [
+                        "--title",
+                        "feat: test",
+                        "--head",
+                        "feat/branch",
+                        "--body-file",
+                        body_file,
+                    ]
+                )
+                == 0
+            )
+
+        assert create_call is not None
+        command, kwargs = create_call
+        assert command[-2:] == ["--body-file", "-"]
+        assert kwargs["input"] == body
+        assert kwargs["encoding"] == "utf-8"
 
     def test_draft_flag_passed(self, tmp_path):
         calls = []
@@ -292,77 +364,130 @@ class TestMain:
         def _side_effect(*args, **kwargs):
             calls.append(args[0] if args else kwargs.get("args", []))
             if len(calls) == 1:
-                return _completed(stdout=str(tmp_path), rc=0)  # git rev-parse
+                return _completed(stdout=str(tmp_path), rc=0)
             if len(calls) == 2:
-                return _completed(rc=0)  # gh --version
+                return _completed(rc=0)
             if len(calls) == 3:
-                return _completed(stdout="", rc=0)  # git diff
+                return _completed(stdout="", rc=0)
             if len(calls) == 4:
-                return _completed(stdout="{}", stderr="", rc=0)  # PR description validation
-            return _completed(rc=0)  # gh pr create
+                return _completed(stdout="{}", stderr="", rc=0)
+            return _completed(rc=0)
 
         with patch("subprocess.run", side_effect=_side_effect):
-            rc = main([
-                "--title", "feat: test", "--head", "feat/branch", "--draft",
-            ])
+            rc = main(
+                [
+                    "--title",
+                    "feat: test",
+                    "--head",
+                    "feat/branch",
+                    "--draft",
+                ]
+            )
         assert rc == 0
         gh_pr_create_args = calls[-1]
         assert "--draft" in gh_pr_create_args
 
 
-# ---------------------------------------------------------------------------
-# Tests: get_repo_root
-# ---------------------------------------------------------------------------
+class TestMainUsesResolvedValidationBase:
+    """main() uses a remote ref for validation and a bare GitHub base."""
 
+    def _base_calls(self, branch: str = "feat/x"):
+        return [
+            _completed(rc=0),
+            _completed(stdout=branch + "\n"),
+            _completed(rc=0),
+        ]
 
-class TestGetRepoRoot:
-    def test_not_in_git_repo_exits_2(self):
-        with patch(
-            "subprocess.run",
-            return_value=_completed(rc=128, stderr="not a git repository"),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                get_repo_root()
-            assert exc.value.code == 2
+    def test_validation_base_uses_origin_ref_not_local(self, tmp_path):
+        """run_validations receives origin/main when the ref resolves."""
+        calls = self._base_calls()
+        calls.append(_completed(rc=0))
 
-    def test_returns_repo_root(self):
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout="/home/user/repo\n", rc=0),
-        ):
-            assert get_repo_root() == "/home/user/repo"
+        with patch("subprocess.run", side_effect=calls):
+            with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                with patch.object(_mod, "run_validations") as mock_val:
+                    main(["--title", "feat: test", "--base", "main"])
 
-    def test_uses_show_toplevel(self):
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _completed(stdout="/home/user/repo\n", rc=0)
-            get_repo_root()
-            assert mock_run.call_args.args[0] == [
-                "git",
-                "rev-parse",
-                "--show-toplevel",
+        mock_val.assert_called_once()
+        assert mock_val.call_args[0][1] == "origin/main"
+
+    def test_gh_pr_create_still_receives_bare_base(self, tmp_path):
+        """gh pr create --base gets the bare branch, not origin/main."""
+        captured: list[list[str]] = []
+
+        def _side(argv, **kwargs):
+            if argv and argv[0] == "gh" and "create" in argv:
+                captured.append(list(argv))
+                return _completed(rc=0)
+            if argv and argv == ["git", "branch", "--show-current"]:
+                return _completed(stdout="feat/x\n")
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=_side):
+            with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                with patch.object(_mod, "run_validations"):
+                    main(["--title", "feat: test", "--base", "main"])
+
+        assert captured, "gh pr create never called"
+        gh_argv = captured[-1]
+        base_idx = gh_argv.index("--base")
+        assert gh_argv[base_idx + 1] == "main"
+
+    def test_explicit_validation_base_overrides_auto_resolve(self, tmp_path):
+        """--validation-base bypasses origin resolution entirely."""
+        calls = [
+            _completed(rc=0),
+            _completed(stdout="feat/x\n"),
+            _completed(rc=0),
+        ]
+
+        with patch("subprocess.run", side_effect=calls):
+            with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                with patch.object(_mod, "run_validations") as mock_val:
+                    main(
+                        [
+                            "--title",
+                            "feat: test",
+                            "--base",
+                            "main",
+                            "--validation-base",
+                            "refs/remotes/upstream/main",
+                        ]
+                    )
+
+        mock_val.assert_called_once()
+        assert mock_val.call_args[0][1] == "refs/remotes/upstream/main"
+
+    def test_validation_base_falls_back_when_no_remote(self, tmp_path):
+        """Without origin/<base>, validation uses the bare base."""
+        calls = [
+            _completed(rc=0),
+            _completed(stdout="feat/x\n"),
+            _completed(rc=1),
+            _completed(rc=0),
+        ]
+
+        with patch("subprocess.run", side_effect=calls):
+            with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
+                with patch.object(_mod, "run_validations") as mock_val:
+                    main(["--title", "feat: test", "--base", "main"])
+
+        mock_val.assert_called_once()
+        assert mock_val.call_args[0][1] == "main"
+
+    def test_build_parser_accepts_validation_base(self):
+        args = build_parser().parse_args(
+            [
+                "--title",
+                "feat: test",
+                "--base",
+                "main",
+                "--validation-base",
+                "origin/main",
             ]
+        )
+        assert args.validation_base == "origin/main"
 
-    def test_git_env_strips_hook_overrides(self, monkeypatch):
-        monkeypatch.setenv("GIT_DIR", "/wrong/git")
-        monkeypatch.setenv("GIT_WORK_TREE", "/wrong/worktree")
-        monkeypatch.setenv("GIT_COMMON_DIR", "/wrong/common")
-        monkeypatch.setenv("GIT_INDEX_FILE", "/wrong/index")
-        env = _mod._git_env()
-        assert "GIT_DIR" not in env
-        assert "GIT_WORK_TREE" not in env
-        assert "GIT_COMMON_DIR" not in env
-        assert "GIT_INDEX_FILE" not in env
-
-    def test_returns_worktree_top_not_main_checkout(self):
-        """In a linked worktree, repo root is the worktree top (#2387)."""
-        worktree_top = "/repo/.git/worktrees/feat/checkout"
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout=worktree_top + "\n", rc=0),
-        ):
-            assert get_repo_root() == worktree_top
-
-
-# ---------------------------------------------------------------------------
-# Tests: run_validations
-# ---------------------------------------------------------------------------
+    def test_build_parser_validation_base_defaults_to_empty(self):
+        args = build_parser().parse_args(["--title", "feat: test"])
+        assert args.validation_base == ""

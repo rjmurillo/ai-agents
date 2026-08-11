@@ -87,6 +87,19 @@ def _fake_repo_with_skill(root: Path) -> Path:
     skill = root / SKILL_RELPATH
     skill.parent.mkdir(parents=True, exist_ok=True)
     skill.write_text("")
+    allocator = skill.with_name("prepare_pr_body.py")
+    allocator.write_text(
+        (
+            REPO_ROOT
+            / ".claude"
+            / "skills"
+            / "github"
+            / "scripts"
+            / "pr"
+            / "prepare_pr_body.py"
+        ).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     return skill
 
 
@@ -246,39 +259,52 @@ class TestDispatch:
         assert "pwsh" not in command
         assert not any(arg.endswith(".ps1") for arg in command)
 
-    def test_passes_title_and_default_base(
+    def test_omits_default_base_for_skill_detection(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
         _, command = self._run(mock_root, tmp_path, ["--title", "fix: t"])
         assert command[command.index("--title") + 1] == "fix: t"
-        assert command[command.index("--base") + 1] == "main"
+        assert "--base" not in command
 
     def test_omits_optional_flags_when_unset(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
         _, command = self._run(mock_root, tmp_path, ["--title", "fix: t"])
-        for flag in ("--head", "--body", "--body-file", "--draft", "--skip-validation"):
+        for flag in (
+            "--base", "--head", "--body", "--body-file", "--draft", "--skip-validation",
+        ):
             assert flag not in command
 
     def test_forwards_every_optional_flag(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
+        source_body = tmp_path / "b.md"
+        source_body.write_text("body file", encoding="utf-8")
         _, command = self._run(
             mock_root,
             tmp_path,
             [
                 "--title", "fix: t", "--base", "release", "--head", "topic",
-                "--body", "text", "--body-file", "b.md", "--draft",
+                "--body-file", str(source_body), "--draft",
                 "--skip-validation", "--audit-reason", "hotfix",
             ],
         )
         assert command[command.index("--base") + 1] == "release"
         assert command[command.index("--head") + 1] == "topic"
-        assert command[command.index("--body") + 1] == "text"
-        assert command[command.index("--body-file") + 1] == "b.md"
+        assert "--body" not in command
+        prepared = command[command.index("--body-file") + 1]
+        assert prepared.startswith(".agents/scratch/pr-body-")
         assert command[command.index("--audit-reason") + 1] == "hotfix"
         assert "--draft" in command
         assert "--skip-validation" in command
+
+    def test_forwards_inline_body(
+        self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
+    ) -> None:
+        _, command = self._run(
+            mock_root, tmp_path, ["--title", "fix: t", "--body", "text"]
+        )
+        assert command[command.index("--body") + 1] == "text"
 
     def test_audit_reason_is_dropped_without_skip_validation(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path

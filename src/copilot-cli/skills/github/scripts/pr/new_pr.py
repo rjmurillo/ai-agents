@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -51,22 +50,39 @@ def _load_sibling(name: str):
     spec.loader.exec_module(module)
     return module
 
-
-_validations = _load_sibling("pr_validations")
+# Load validate_pr_description first: new_pr_validations imports from it,
+# and under -I mode the sibling directory is not on sys.path. Loading it
+# here puts it into sys.modules so the bare import succeeds.
+_validate_desc = _load_sibling("validate_pr_description")
+_validations = _load_sibling("new_pr_validations")
+_prepare = _load_sibling("prepare_pr_body")
+_pr_val = _load_sibling("pr_validations")
 
 # Re-exported so `new_pr.<name>` stays the import surface for callers and
 # tests. The split is an internal reorganization, not an interface change.
-run_validations = _validations.run_validations
-validate_no_escaped_newlines = _validations.validate_no_escaped_newlines
-_extract_validatable_session_logs = _validations._extract_validatable_session_logs
-_report_not_run = _validations._report_not_run
-_WarningLog = _validations._WarningLog
+run_validations = _pr_val.run_validations
+validate_no_escaped_newlines = _pr_val.validate_no_escaped_newlines
 _DASH_RE = _validations._DASH_RE
 _SKILL_SCAN_EXTENSIONS = _validations._SKILL_SCAN_EXTENSIONS
-_SESSION_LOG_FILENAME_RE = _validations._SESSION_LOG_FILENAME_RE
-_UNTRUSTED_REPOSITORY_VALIDATORS = _validations._UNTRUSTED_REPOSITORY_VALIDATORS
-_UNTRUSTED_REPOSITORY_REASON = _validations._UNTRUSTED_REPOSITORY_REASON
 _git_env = _validations._git_env
+_resolve_validation_base = _validations._resolve_validation_base
+
+# Main's pr_validations.py adds warning/untrusted-repo infrastructure.
+# Re-export those symbols so test harnesses can import them from new_pr.
+_report_not_run = _pr_val._report_not_run
+_WarningLog = _pr_val._WarningLog
+_UNTRUSTED_REPOSITORY_VALIDATORS = _pr_val._UNTRUSTED_REPOSITORY_VALIDATORS
+_UNTRUSTED_REPOSITORY_REASON = _pr_val._UNTRUSTED_REPOSITORY_REASON
+_extract_validatable_session_logs = _pr_val._extract_validatable_session_logs
+_SESSION_LOG_FILENAME_RE = _pr_val._SESSION_LOG_FILENAME_RE
+
+# Re-export from prepare_pr_body
+PreparePrBodyError = _prepare.PreparePrBodyError
+prepare_pr_body = _prepare.prepare_pr_body
+read_prepared_pr_body = _prepare.read_prepared_pr_body
+
+# Re-export from validate_pr_description
+_CONVENTIONAL_COMMIT_PATTERN = _validate_desc._CONVENTIONAL_COMMIT_PATTERN
 
 # Python 3.10 compatibility (issue #4764). `datetime.UTC` is an alias for
 # `datetime.timezone.utc` that CPython added in 3.11, so
@@ -84,38 +100,13 @@ _git_env = _validations._git_env
 # The repository development floor is unchanged: pyproject.toml still declares
 # `requires-python = ">=3.14"`. Only host-executed scripts write to 3.10.
 _UTC = timezone.utc
-
-_CONVENTIONAL_COMMIT_PATTERN = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
-    r"(\(.+\))?!?: .+"
-)
+_DEFAULT_BASE_CANDIDATES = ("main", "master", "dev")
 
 
-def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
-    """Return the git ref to use for local validation diffs.
-
-    The ``--base`` value (e.g. ``main``) names a branch on GitHub. In a linked
-    worktree the local ref of that name is never advanced after the worktree is
-    created, so ``git diff main...HEAD`` diffs against a merge-base that may be
-    hundreds of commits stale and includes unrelated files (issues #4461, #4489).
-
-    Resolution priority:
-    1. ``explicit`` -- when the caller passes ``--validation-base``, trust it.
-    2. ``origin/{pr_base}`` -- when the remote-tracking ref exists, use it.
-       This ref is kept current by normal ``git fetch`` without checking out
-       ``{pr_base}`` locally, so it is always correct in a worktree.
-    3. ``pr_base`` fallback -- non-remote repos or unusual layouts where no
-       ``origin/`` remote exists.
-
-    The returned ref is used ONLY for ``git diff``; ``gh pr create --base``
-    always receives the bare ``pr_base`` name, which is what GitHub expects.
-    """
-    if explicit:
-        return explicit
-
-    remote_ref = f"origin/{pr_base}"
+def _git_ref_exists(repo_root: str, ref: str) -> bool:
     result = subprocess.run(
-        ["git", "rev-parse", "--verify", remote_ref],
+        ["git", "show-ref", "--verify", "--quiet", ref],
+        cwd=repo_root,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -123,14 +114,37 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
         timeout=10,
         env=_git_env(),
     )
-    if result.returncode == 0:
-        return remote_ref
-    return pr_base
+    return result.returncode == 0
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _detect_default_branch(repo_root: str) -> str:
+    """Return the valid origin default branch, then known fallbacks, else main."""
+    if not (Path(repo_root) / ".git").exists():
+        return "main"
+
+    result = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    remote_prefix = "refs/remotes/origin/"
+    remote_head = result.stdout.strip()
+    if result.returncode == 0 and remote_head.startswith(remote_prefix):
+        branch = remote_head.removeprefix(remote_prefix)
+        if branch and _git_ref_exists(repo_root, f"{remote_prefix}{branch}"):
+            return branch
+
+    for prefix in ("refs/remotes/origin", "refs/heads"):
+        for branch in _DEFAULT_BASE_CANDIDATES:
+            if _git_ref_exists(repo_root, f"{prefix}/{branch}"):
+                return branch
+
+    return "main"
 
 
 def get_repo_root() -> str:
@@ -216,10 +230,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a GitHub PR with validation guardrails.",
     )
-    parser.add_argument("--title", required=True, help="PR title in conventional commit format")
+    parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
-    parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--prepare-body-file",
+        action="store_true",
+        help="Create a private .agents/scratch/pr-body-*.md path and exit",
+    )
+    parser.add_argument(
+        "--base",
+        default="",
+        help="Target branch (default: repository default branch)",
+    )
     parser.add_argument(
         "--validation-base",
         default="",
@@ -242,12 +265,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    repo_root = get_repo_root()
+def _prepare_body_file(repo_root: str) -> int:
+    """Create a secure prepared-body path and print it."""
+    try:
+        print(prepare_pr_body(Path(repo_root)).as_posix())
+    except (OSError, PreparePrBodyError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    return 0
 
-    # Require gh CLI
-    gh_check = subprocess.run(
+
+def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
+    """Validate body arguments and securely read a prepared body file."""
+    if not args.title:
+        print("--title is required", file=sys.stderr)
+        return None
+    if args.body and args.body_file:
+        print("--body and --body-file are mutually exclusive", file=sys.stderr)
+        return None
+
+    body: str = str(args.body)
+    if args.body_file:
+        try:
+            body = str(read_prepared_pr_body(Path(repo_root), args.body_file))
+        except (OSError, UnicodeError, PreparePrBodyError) as exc:
+            print(f"Invalid body file: {exc}", file=sys.stderr)
+            return None
+    return body
+
+
+def _gh_is_available() -> bool:
+    """Return whether the GitHub CLI can be executed."""
+    result = subprocess.run(
         ["gh", "--version"],
         capture_output=True,
         text=True,
@@ -255,28 +304,39 @@ def main(argv: list[str] | None = None) -> int:
         errors="replace",
         timeout=10,
     )
-    if gh_check.returncode != 0:
+    if result.returncode != 0:
         print("gh CLI not found. Install: https://cli.github.com/", file=sys.stderr)
-        return 2
+        return False
+    return True
 
-    # Get current branch if head not specified
-    head = args.head
+
+def _resolve_head(explicit_head: str) -> str | None:
+    """Return the requested head or the current branch."""
+    if explicit_head:
+        return explicit_head
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    head = result.stdout.strip()
     if not head:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            env=_git_env(),
-        )
-        head = result.stdout.strip()
-        if not head:
-            print("Could not determine current branch", file=sys.stderr)
-            return 2
+        print("Could not determine current branch", file=sys.stderr)
+        return None
+    return head
 
-    # Validate conventional commit format
+
+def _run_pre_creation_validations(
+    args: argparse.Namespace,
+    repo_root: str,
+    head: str,
+    body: str,
+) -> int | None:
+    """Validate the request or write the audited validation skip."""
     if not validate_conventional_commit(args.title):
         return 2
 
@@ -284,7 +344,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Title: {args.title}")
     print()
 
-    # Handle validation skip with audit
     if args.skip_validation:
         if not args.audit_reason:
             print(
@@ -295,32 +354,40 @@ def main(argv: list[str] | None = None) -> int:
         print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
         write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
-    else:
-        validation_base = _resolve_validation_base(args.base, args.validation_base)
-        if validation_base != args.base:
-            print(
-                f"  Note: validating diff against {validation_base!r} "
-                f"(local {args.base!r} may be stale in a worktree). "
-                f"GitHub PR base remains {args.base!r}.",
-                file=sys.stderr,
-            )
-        try:
-            run_validations(
-                repo_root,
-                validation_base,
-                head,
-                title=args.title,
-                body=args.body,
-                body_file=args.body_file,
-            )
-        except SystemExit:
-            raise
-        except Exception as exc:
-            print(f"Validation failed: {exc}", file=sys.stderr)
-            return 1
+        return None
 
-    # Build gh pr create command
-    gh_args = [
+    validation_base = _resolve_validation_base(args.base, args.validation_base)
+    if validation_base != args.base:
+        print(
+            f"  Note: validating diff against {validation_base!r} "
+            f"(local {args.base!r} may be stale in a worktree). "
+            f"GitHub PR base remains {args.base!r}.",
+            file=sys.stderr,
+        )
+    try:
+        run_validations(
+            repo_root,
+            validation_base,
+            head,
+            title=args.title,
+            body=body,
+            body_file="",
+        )
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"Validation failed: {exc}", file=sys.stderr)
+        return 1
+    return None
+
+
+def _build_gh_args(
+    args: argparse.Namespace,
+    head: str,
+    body: str,
+) -> list[str]:
+    """Build the ``gh pr create`` command."""
+    arguments = [
         "gh",
         "pr",
         "create",
@@ -331,23 +398,25 @@ def main(argv: list[str] | None = None) -> int:
         "--title",
         args.title,
     ]
-
-    if args.body:
-        gh_args.extend(["--body", args.body])
-    elif args.body_file:
-        if not os.path.exists(args.body_file):
-            print(f"Body file not found: {args.body_file}", file=sys.stderr)
-            return 2
-        gh_args.extend(["--body-file", args.body_file])
-
+    if body or args.body_file:
+        arguments.extend(["--body-file", "-"])
     if args.draft:
-        gh_args.append("--draft")
+        arguments.append("--draft")
+    return arguments
 
-    # Create PR
+
+def _create_pr(args: argparse.Namespace, head: str, body: str) -> int:
+    """Create the pull request and report the result."""
     print("Creating PR...")
     sys.stdout.flush()
     result = subprocess.run(
-        gh_args, text=True, encoding="utf-8", errors="replace", timeout=60, check=False
+        _build_gh_args(args, head, body),
+        input=body if body or args.body_file else None,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
     )
     exit_code = result.returncode
 
@@ -363,6 +432,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PR creation failed (exit code: {exit_code})", file=sys.stderr)
 
     return exit_code
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    repo_root = get_repo_root()
+
+    if args.prepare_body_file:
+        return _prepare_body_file(repo_root)
+
+    args.base = args.base or _detect_default_branch(repo_root)
+    body = _read_body(args, repo_root)
+    if body is None:
+        return 2
+
+    if not _gh_is_available():
+        return 2
+
+    head = _resolve_head(args.head)
+    if head is None:
+        return 2
+
+    validation_exit = _run_pre_creation_validations(args, repo_root, head, body)
+    if validation_exit is not None:
+        return validation_exit
+
+    return _create_pr(args, head, body)
 
 
 if __name__ == "__main__":

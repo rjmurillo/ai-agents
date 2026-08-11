@@ -6,6 +6,8 @@ on:
     # NOTE: No paths filter here - use dorny/paths-filter internally
     # This ensures skip-validation job runs to satisfy required checks
     # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+  merge_group:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -22,8 +24,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     outputs:
-      memories-changed: ${{ steps.filter.outputs.memories }}
-      code-changed: ${{ steps.filter.outputs.code }}
+      should-run-validation: ${{ steps.determine.outputs.should-run-validation }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,6 +32,7 @@ jobs:
       - name: Check path filters
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           filters: |
             memories:
@@ -41,6 +43,16 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
 
+      - name: Determine if validation should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: memories,code
+          FORCE_RUN_EVENTS: merge_group
+          OUTPUT_NAME: should-run-validation
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
+
   validate-memories:
     name: Validate memory citations
     needs: check-paths
@@ -50,10 +62,9 @@ jobs:
       - name: Check if validation needed
         id: should-run
         env:
-          MEMORIES_CHANGED: ${{ needs.check-paths.outputs.memories-changed }}
-          CODE_CHANGED: ${{ needs.check-paths.outputs.code-changed }}
+          SHOULD_VALIDATE: ${{ needs.check-paths.outputs.should-run-validation }}
         run: |
-          if [ "$MEMORIES_CHANGED" != "true" ] && [ "$CODE_CHANGED" != "true" ]; then
+          if [ "$SHOULD_VALIDATE" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no memory or code changes detected"
           fi
