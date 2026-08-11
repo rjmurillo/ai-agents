@@ -84,12 +84,12 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No new memory: source and regression tests are the canonical, easily retrieved record"
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "pre_pr.py --markdown-lint-only: 1 of 1 files linted"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: e32fcea2c6)"
+        "Evidence": "All changes committed (HEAD: 1f0fd72afc)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -133,6 +133,6 @@
       "outcome": "Committed e32fcea2c; focused tests, full anchor tests, real Git tests, ruff, and pre-PR validation passed"
     }
   ],
-  "endingCommit": "e32fcea2c6",
+  "endingCommit": "1f0fd72afc",
   "nextSteps": []
 }

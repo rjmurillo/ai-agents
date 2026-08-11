@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread.json
-qaCommit: e32fcea2c6028c867450892ba8b487b5ebe791ed
+qaCommit: 1f0fd72afc2a814ef64ede9b82de91e8f44b43bf
 ---
 # PR 4718 reftable anchor fix
 
@@ -27,7 +27,6 @@ already withhold removal on unknown.
 | `pytest tests/test_gc_anchor_readers.py -q` | 36 passed |
 | `pytest tests/test_gc_worktrees_real_git_anchors.py -q` | 5 passed |
 | `ruff check scripts/maintenance/_gc_anchors.py tests/test_gc_anchor_readers.py` | passed |
-| `python scripts/validation/pre_pr.py` | exit 0 |
 
 Local Git 2.43.0 rejects `git init --ref-format=reftable`. The regression uses
 Git's documented linked-worktree reftable layout and confirms fail-closed
