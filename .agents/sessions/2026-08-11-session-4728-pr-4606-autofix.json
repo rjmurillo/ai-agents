@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 4606,
+    "number": 4728,
     "date": "2026-08-11",
     "branch": "fix/revthreads-completion-gate",
     "startingCommit": "4d3ad1749d666048d6ee44e13aad117845701661",
