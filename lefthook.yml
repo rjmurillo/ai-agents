@@ -85,6 +85,14 @@ pre-commit:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
 
+          # Issue #4600: .gitignore names root litter one filename at a time,
+          # so agent-authored scratch matches no entry.
+          - name: root-scratch-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py root-scratch {staged_files}
+            skip:
+              - merge
+
           # Issue #3671: nothing stopped a conflict marker reaching a commit.
           - name: conflict-marker-policy
             timeout: 2m

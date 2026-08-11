@@ -282,6 +282,7 @@ def test_pull_request_read_declared(path: Path) -> None:
         f"{path.relative_to(REPO_ROOT)}: pull_request_read not declared"
     )
 
+
 # --- Section-aware validation helpers (shared by production tests and negative controls) ---
 
 
@@ -292,7 +293,7 @@ def _extract_blocked_section(text: str) -> str:
         raise ValueError("No [BLOCKED] found in text")
     section_start = text.rfind("\n#", 0, idx)
     section_end = text.find("\n#", idx)
-    return text[max(0, section_start):section_end if section_end != -1 else len(text)].lower()
+    return text[max(0, section_start) : section_end if section_end != -1 else len(text)].lower()
 
 
 def _check_blocked_conditional(section: str) -> str | None:
@@ -309,7 +310,7 @@ def _check_blocked_conditional(section: str) -> str | None:
 
     # Get the line containing [blocked]
     line_start = section.rfind("\n", 0, blocked_pos) + 1
-    blocked_line = section[line_start:section.find("\n", blocked_pos)]
+    blocked_line = section[line_start : section.find("\n", blocked_pos)]
     if any(w in blocked_line for w in conditional_words):
         return None
 
@@ -326,18 +327,48 @@ def _check_blocked_conditional(section: str) -> str | None:
 
 
 _TOOL_NAMES = (
-    "pull_request_read", "issue_read", "list_workflow_runs",
-    "get_workflow_run", "get_job_logs",
+    "pull_request_read",
+    "issue_read",
+    "list_workflow_runs",
+    "get_workflow_run",
+    "get_job_logs",
+    "get_file_contents",
+    "list_commits",
 )
 
-_IMPERATIVES = re.compile(
-    r"\b(call|use|invoke|attempt|retrieve\s+.*?(?:via|using|with))\b",
+# Word-boundary regex matching any declared tool name, with optional mcp__github__ prefix.
+# Prevents substring matches like "not_pull_request_read".
+_TOOL_RE = re.compile(
+    r"(?<![a-zA-Z0-9_])(?:mcp__github__)?("
+    + "|".join(re.escape(t) for t in _TOOL_NAMES)
+    + r")(?![a-zA-Z0-9_])",
+)
+_PREP_KEYWORDS = re.compile(r"\b(using|via)\b")
+
+# Anchored "Using/Via <tool>, the analyst ..." prefix. Strategy 4 searched the
+# whole pre-verb prefix, which accepted another actor's clause such as
+# "The compliance-bot calls pull_request_read before the analyst retrieves
+# cache". Only the canonical fronted prepositional phrase qualifies.
+_PRE_TOOL_ANCHOR = re.compile(
+    r"^\W*(?:using|via)\s+(?:its\s+|the\s+)?(?:mcp__github__)?(?:"
+    + "|".join(re.escape(t) for t in _TOOL_NAMES)
+    + r")(?![a-zA-Z0-9_])\s*,?\s*(?:the\s+)?$",
     re.IGNORECASE,
 )
 
 _NEGATIONS = re.compile(
-    r"\b(do\s+not|don[\u2019']?t|never|cannot|must\s+not|forbidden|"
-    r"deprecated|was\s+deprecated|is\s+not|prohibited)\b",
+    r"\b("
+    r"do\s+not|don[\u2019']?t|never|"
+    r"cannot|can[\u2019']?t|"
+    r"must\s+not|mustn[\u2019']?t|"
+    r"should\s+not|shouldn[\u2019']?t|"
+    r"shall\s+not|shan[\u2019']?t|"
+    r"will\s+not|won[\u2019']?t|"
+    r"would\s+not|wouldn[\u2019']?t|"
+    r"could\s+not|couldn[\u2019']?t|"
+    r"may\s+not|might\s+not|"
+    r"forbidden|deprecated|was\s+deprecated|is\s+not|prohibited"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -356,9 +387,16 @@ _NON_DIRECTIVE = re.compile(
 )
 
 
-def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
-    """Return True if line is structural markup or inside a fenced block."""
+def _is_skippable_line(
+    raw_line: str, stripped: str, in_fence: bool, *, after_list: bool = False
+) -> bool:
+    """Return True if line is structural markup, inside a fenced block,
+    or inside a 4-space/tab indented code block."""
     if in_fence:
+        return True
+    # Markdown indented code block: 4+ spaces or tab at start of raw line.
+    # Per CommonMark, NOT a code block after a list item (continuation).
+    if (raw_line.startswith("    ") or raw_line.startswith("\t")) and not after_list:
         return True
     return (
         not stripped
@@ -366,6 +404,22 @@ def _is_skippable_line(stripped: str, in_fence: bool) -> bool:
         or stripped.startswith(">")
         or stripped.startswith("#")
     )
+
+
+def _is_markdown_list_item(stripped: str) -> bool:
+    """Recognize all CommonMark list markers: -, *, + (unordered); N. or N) (ordered)."""
+    if stripped.startswith(("- ", "* ", "+ ")):
+        return True
+    return bool(re.match(r"\d+[.)][\s]", stripped))
+
+
+def _append_logical_line(logical_lines: list[str], stripped: str) -> None:
+    if _is_markdown_list_item(stripped):
+        logical_lines.append(stripped)
+    elif logical_lines and logical_lines[-1] != "":
+        logical_lines[-1] += " " + stripped
+    else:
+        logical_lines.append(stripped)
 
 
 def _line_has_tool_reference(line: str) -> bool:
@@ -377,38 +431,201 @@ def _line_has_tool_reference(line: str) -> bool:
     # Strip all quote forms: ASCII double/single + Unicode curly quotes
     stripped = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', "", line)
     stripped = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", "", stripped)
-    if any(t in stripped for t in _TOOL_NAMES):
+    if _TOOL_RE.search(stripped):
         return True
     return "retrieve" in stripped.lower() and "declared" in stripped.lower()
 
 
+def _find_hard_clause_boundary(text: str) -> int:
+    """Return offset of the first hard clause boundary in *text*.
+
+    Hard boundaries are structural punctuation that unconditionally ends the
+    analyst's verb phrase: comma, semicolon, colon, open-paren, or coordinating
+    conjunction (and/or). This replaces English verb morphology inference with
+    a structural rule. Parenthetical tool lists are handled by a separate
+    strategy that validates content.
+
+    Returns len(text) if no boundary found.
+    """
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in ",;:(":
+            return i
+        # "and" or "or" as conjunction (not inside a word)
+        if ch in "ao":
+            rest = text[i:]
+            m = re.match(r"\b(and|or)\b", rest)
+            if m:
+                return i
+        i += 1
+    return len(text)
+
+
 def _is_affirmative_directive(line: str) -> bool:
-    """Return True if line is an affirmative directive addressed to the analyst.
+    """Return True if line is an affirmative directive with analyst as subject
+    and a declared tool reference in the SAME clause.
+
+    Splits on clause boundaries (semicolon, period-space) and requires
+    analyst+verb+tool to co-occur in a single clause. This rejects
+    mixed-actor clauses like "compliance-bot uses tool; analyst retrieves
+    cache" where analyst and tool are in different clauses.
 
     Accepts:
-    - Bare imperatives (implied "you" = analyst): "use X to retrieve"
-    - Explicitly analyst-attributed: "the analyst should use X"
+    - "The analyst retrieves PR data using pull_request_read"
 
     Rejects:
-    - Any other named agent as subject
-    - Example/documentation markers
-    - Negated verbs
-    - Imperative verbs only inside inline-code spans
+    - Mixed clauses: "bot uses pull_request_read; analyst retrieves cache"
+    - Bare imperatives: "use pull_request_read to retrieve"
+    - Passive: "pull_request_read is used by the analyst"
+    - Negated: "the analyst should not call pull_request_read"
     """
     if _NON_DIRECTIVE.search(line):
         return False
     if _NEGATIONS.search(line):
         return False
-    # Reject if another agent is named (attribution to non-analyst)
     if _OTHER_AGENT.search(line):
         return False
 
-    # Check if imperative verb exists in prose (outside inline-code spans)
-    prose = re.sub(r"`[^`]*`", "", line)
-    if _IMPERATIVES.search(prose):
-        return True
-    if "retrieval via declared tools" in prose.lower():
-        return True
+    # Equal-length masking: replace quoted/code spans with spaces so offsets
+    # are preserved between the masked string and the original.
+    def _mask(m: re.Match[str]) -> str:
+        return " " * len(m.group(0))
+
+    # quote_masked: only quotes stripped (preserves backtick tool refs for search)
+    quote_masked = re.sub(r'["\u201c\u201d][^"\u201c\u201d]*["\u201c\u201d]', _mask, line)
+    quote_masked = re.sub(r"['\u2018\u2019][^'\u2018\u2019]*['\u2018\u2019]", _mask, quote_masked)
+    # fully masked: code spans AND quotes stripped (for analyst+verb detection)
+    masked = re.sub(r"`[^`]*`", _mask, quote_masked)
+    lower = masked.lower()
+
+    # Reject passive voice
+    if re.search(r"\b(is|are|be)\s+(used|called|invoked|retrieved)", lower):
+        return False
+
+    # Split into clauses on semicolons, sentence boundaries, and slashes
+    # (used as alternatives/separators in prose).
+    # Use fully masked text to find analyst+verb (not inside code/quotes).
+    # Use quote_masked (quotes hidden, backticks preserved) for tool search
+    # so backtick-formatted tools like `mcp__github__pull_request_read` are
+    # found but quoted examples like "pull_request_read" are rejected.
+    clause_split = r"[;.](?:\s|$)|\s/\s"
+    clauses = re.split(clause_split, lower)
+    tool_lower = quote_masked.lower()
+    tool_clauses = re.split(clause_split, tool_lower)
+
+    # Subordinating conjunctions: boundaries for tool search scope
+    subord = r"\b(while|but|although|whereas|however|when|where|if)\b"
+
+    # Structural clause boundary: instead of trying to detect other actors'
+    # verbs (impossible with infinite English morphology), treat ANY comma or
+    # coordinating conjunction as a HARD stop for tool search UNLESS:
+    # 1. It immediately precedes a via/using phrase (canonical "X, using tool")
+    # 2. The tool appears inside parentheses after the verb (canonical
+    #    "tools (tool1, tool2, ...)")
+    # 3. The comma separates noun objects before a "using/via" keyword
+    # This matches the two canonical shapes in the analyst template:
+    #   "analyst retrieves X using tool"
+    #   "analyst retrieves X via its declared read-only tools"
+    #   "analyst retrieves X ... tools (tool1, tool2, ...)"
+    # Prep keywords searched at module-level _PREP_KEYWORDS
+
+    for i, clause in enumerate(clauses):
+        # Require analyst as grammatical subject in MASKED text (not preceded
+        # by hyphen, rejects "non-analyst", must be true word boundary).
+        # Masking ensures analyst+verb inside code spans is not accepted.
+        verb_match = re.search(
+            r"(?<![-])\banalyst\b\s+"
+            r"(?:(?:directly|then|also|always)\s+)?"
+            r"(?:(?:should|will|can|shall|would|could|might|must|may)\s+)?"
+            r"([a-z]{2,}(?:es|[^aeiou]s|ies)|[a-z]{3,})\b"
+            r"(?:\s+(?:up|into|at|for|on)\b)?",
+            clause,
+        )
+        if not verb_match:
+            continue
+        # Reject analyst+verb inside subordinate/relative/parenthetical context.
+        # Leading subordinate conjunction before analyst makes it a dependent clause.
+        pre = clause[: verb_match.start()].strip()
+        _leading_subord = re.match(
+            r"^(when|if|where|while|although|unless|before|after|until)\b",
+            pre,
+            re.IGNORECASE,
+        )
+        if _leading_subord:
+            continue
+        # Relative pronoun (that/which/who) preceding analyst = relative clause.
+        if re.search(r"\S+\s+(?:that|which|who|whom)\b", pre):
+            continue
+        # Analyst inside parenthetical = not main-clause subject.
+        _open_parens = pre.count("(") - pre.count(")")
+        if _open_parens > 0:
+            continue
+        # Structural tool search: tool must appear in the same simple clause
+        # as analyst+verb. Uses hard structural boundaries (comma, conjunction,
+        # colon, parenthetical actor) instead of English verb detection.
+        after_verb = clause[verb_match.end() :]
+        main_frag = re.split(subord, after_verb)[0]
+
+        # Use quote-masked text for tool search (same offsets).
+        tool_clause = tool_clauses[i] if i < len(tool_clauses) else ""
+
+        # Strategy 1: tool as DIRECT object (before any comma/conjunction/paren).
+        # Parenthetical content is handled separately by Strategy 3.
+        hard_stop = _find_hard_clause_boundary(main_frag)
+        direct_frag = tool_clause[verb_match.end() : verb_match.end() + hard_stop]
+        if _TOOL_RE.search(direct_frag):
+            return True
+
+        # Strategy 2: tool in a "using/via" phrase (may follow commas that
+        # separate noun objects). Find "using" or "via" OUTSIDE parentheses,
+        # then search for tool between that keyword and end of fragment.
+        # Strip parenthetical content before searching for prep keywords.
+        no_parens = re.sub(r"\([^)]*\)", lambda m: " " * len(m.group()), main_frag)
+        prep_match = _PREP_KEYWORDS.search(no_parens)
+        if prep_match:
+            after_prep = main_frag[prep_match.end() :]
+            prep_stop = _find_hard_clause_boundary(after_prep)
+            prep_frag = tool_clause[
+                verb_match.end() + prep_match.end() : verb_match.end()
+                + prep_match.end()
+                + prep_stop
+            ]
+            if _TOOL_RE.search(prep_frag):
+                return True
+
+        # Strategy 3: tool inside parentheses after the verb ONLY if the
+        # parenthetical is a tool enumeration (canonical shape: "tools (t1, t2)")
+        # Reject parentheticals with prose/actors ("(provided by bot using tool)")
+        paren_match = re.search(r"\(([^)]+)\)", main_frag)
+        if paren_match:
+            paren_content = paren_match.group(1).strip()
+            # Accept only if ALL comma-separated items are tool names
+            items = [it.strip().strip("`") for it in paren_content.split(",")]
+            tool_re_bare = re.compile(
+                r"^(?:mcp__github__)?(?:" + "|".join(re.escape(t) for t in _TOOL_NAMES) + r")$"
+            )
+            if all(tool_re_bare.match(it) for it in items):
+                return True
+
+        # Strategy 4: tool BEFORE the analyst+verb, restricted to the anchored
+        # "Using <tool>, the analyst ..." shape. Searching the whole prefix
+        # accepted a different actor's clause, for example
+        # "The compliance-bot calls pull_request_read before the analyst
+        # retrieves cache".
+        # Use FULLY MASKED text (clause) so backtick code spans are excluded.
+        pre_tool_frag = clause[: verb_match.start()]
+        if _PRE_TOOL_ANCHOR.match(pre_tool_frag):
+            return True
+
+        # Strategy 5: "declared tool" phrasing within the clause (including
+        # after a using/via keyword, which is the canonical template shape).
+        if "declared" in main_frag and "tool" in main_frag:
+            # Verify "declared" appears either before the hard stop or after
+            # a prep keyword (using/via) - both are structurally safe.
+            if ("declared" in main_frag[:hard_stop]) or prep_match:
+                return True
+
     return False
 
 
@@ -430,17 +647,30 @@ def _check_retrieval_precedes_blocked(section: str) -> str | None:
     if blocked_pos == -1:
         return "No [blocked] in section"
 
+    # Join continuation lines into logical paragraphs for clause analysis
     in_fence = False
+    logical_lines: list[str] = []
     for line in section[:blocked_pos].split("\n"):
         stripped = line.strip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             continue
-        if _is_skippable_line(stripped, in_fence):
+        _after_list = bool(
+            logical_lines and logical_lines[-1] and _is_markdown_list_item(logical_lines[-1])
+        )
+        if _is_skippable_line(line, stripped, in_fence, after_list=_after_list):
+            # End current paragraph
+            if logical_lines and logical_lines[-1] != "":
+                logical_lines.append("")
             continue
-        if not _line_has_tool_reference(line):
+        _append_logical_line(logical_lines, stripped)
+
+    for paragraph in logical_lines:
+        if not paragraph:
             continue
-        if _is_affirmative_directive(line):
+        if not _line_has_tool_reference(paragraph):
+            continue
+        if _is_affirmative_directive(paragraph):
             return None
 
     return "No affirmative tool invocation directive found before BLOCKED"
@@ -457,7 +687,7 @@ def _check_identity_conditional(text: str) -> str | None:
     if table_start == -1:
         # No table means no mandatory identity - acceptable
         return None
-    table_section = text[table_start:table_start + 500].lower()
+    table_section = text[table_start : table_start + 500].lower()
     if "when present" not in table_section:
         return "Identity table does not mark local columns as conditional ('when present')"
     return None
@@ -511,8 +741,7 @@ class TestNegativeControls:
 
     # Fixture 1: unconditional BLOCKED (no "only when/if/after")
     UNCONDITIONAL_BLOCKED_SECTION = (
-        "\n### delegation contract\n"
-        "return [blocked] missing pr metadata.\n"
+        "\n### delegation contract\nreturn [blocked] missing pr metadata.\n"
     )
 
     # Fixture 2: BLOCKED with conditional but retrieval only AFTER it
@@ -561,7 +790,7 @@ class TestNegativeControls:
     # Fixture 8: Actions URL routing test
     ACTIONS_URL_ROUTED = (
         "\n### delegation contract\n"
-        "use get_workflow_run to retrieve CI data directly. "
+        "the analyst uses get_workflow_run to retrieve CI data directly. "
         "return [blocked] only when retrieval via declared tools fails.\n"
     )
 
@@ -666,6 +895,132 @@ class TestNegativeControls:
     TOOL_SMART_QUOTED = (
         "\n### delegation contract\n"
         "\u201cuse pull_request_read to retrieve data\u201d. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 23: bare imperative without analyst actor (must reject)
+    TOOL_BARE_IMPERATIVE = (
+        "\n### delegation contract\n"
+        "use pull_request_read to retrieve PR data. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 24: passive voice (must reject)
+    TOOL_PASSIVE_VOICE = (
+        "\n### delegation contract\n"
+        "pull_request_read is used by the analyst to retrieve PR data. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 25: compliance-bot agent (must reject)
+    TOOL_COMPLIANCE_BOT = (
+        "\n### delegation contract\n"
+        "the compliance-bot uses pull_request_read to check. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 26: analyst should not (negated analyst directive)
+    TOOL_ANALYST_NEGATED = (
+        "\n### delegation contract\n"
+        "the analyst should not call pull_request_read directly. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 27: coordinator instructs analyst (analyst as object)
+    TOOL_ANALYST_AS_OBJECT = (
+        "\n### delegation contract\n"
+        "the coordinator instructs analyst to call pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 28: analyst may not (negated modal)
+    TOOL_ANALYST_MAY_NOT = (
+        "\n### delegation contract\n"
+        "the analyst may not invoke pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 29: analyst will not (negated modal)
+    TOOL_ANALYST_WILL_NOT = (
+        "\n### delegation contract\n"
+        "the analyst will not call pull_request_read directly. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 30: shouldn't contraction (must reject)
+    TOOL_ANALYST_SHOULDNT = (
+        "\n### delegation contract\n"
+        "the analyst shouldn't call pull_request_read directly. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 31: mustn't contraction (must reject)
+    TOOL_ANALYST_MUSTNT = (
+        "\n### delegation contract\n"
+        "the analyst mustn't invoke pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 32: won't contraction (must reject)
+    TOOL_ANALYST_WONT = (
+        "\n### delegation contract\n"
+        "the analyst won't use pull_request_read here. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 33: could not (must reject)
+    TOOL_ANALYST_COULD_NOT = (
+        "\n### delegation contract\n"
+        "the analyst could not call pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 34: might not (must reject)
+    TOOL_ANALYST_MIGHT_NOT = (
+        "\n### delegation contract\n"
+        "the analyst might not use pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 35: directive in 4-space indented code block (must reject)
+    TOOL_IN_INDENTED_CODE = (
+        "\n### delegation contract\n"
+        "    the analyst retrieves PR data using pull_request_read.\n"
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 36: directive in tab-indented code block (must reject)
+    TOOL_IN_TAB_INDENTED = (
+        "\n### delegation contract\n"
+        "\tthe analyst retrieves PR data using pull_request_read.\n"
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 37: mixed-actor clause (must reject)
+    TOOL_MIXED_ACTOR = (
+        "\n### delegation contract\n"
+        "compliance-bot uses pull_request_read; analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 38: analyst+verb but tool in different clause (must reject)
+    TOOL_SPLIT_CLAUSE = (
+        "\n### delegation contract\n"
+        "pull_request_read is available. The analyst retrieves context. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 39: tool before analyst verb, not after (must reject)
+    TOOL_BEFORE_VERB = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache while pull_request_read is available. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 40: substring tool name (must reject)
+    TOOL_SUBSTRING_NAME = (
+        "\n### delegation contract\n"
+        "the analyst retrieves PR data using not_pull_request_read. "
         "return [blocked] only when missing.\n"
     )
 
@@ -778,3 +1133,743 @@ class TestNegativeControls:
         """Tool in Unicode curly-quoted example must not satisfy guard."""
         err = _check_retrieval_precedes_blocked(self.TOOL_SMART_QUOTED)
         assert err is not None, "Should reject smart-quoted example"
+
+    def test_tool_bare_imperative_rejected(self) -> None:
+        """Bare imperative without analyst actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BARE_IMPERATIVE)
+        assert err is not None, "Should reject actorless bare imperative"
+
+    def test_tool_passive_voice_rejected(self) -> None:
+        """Passive voice must not satisfy guard even with analyst mentioned."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_PASSIVE_VOICE)
+        assert err is not None, "Should reject passive voice"
+
+    def test_tool_compliance_bot_rejected(self) -> None:
+        """Directive attributed to compliance-bot must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMPLIANCE_BOT)
+        assert err is not None, "Should reject compliance-bot directive"
+
+    def test_tool_analyst_negated_rejected(self) -> None:
+        """'analyst should not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_NEGATED)
+        assert err is not None, "Should reject negated analyst directive"
+
+    def test_tool_analyst_as_object_rejected(self) -> None:
+        """Analyst as object of another agent's verb must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_AS_OBJECT)
+        assert err is not None, "Should reject analyst-as-object"
+
+    def test_tool_analyst_may_not_rejected(self) -> None:
+        """'analyst may not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MAY_NOT)
+        assert err is not None, "Should reject 'may not' negation"
+
+    def test_tool_analyst_will_not_rejected(self) -> None:
+        """'analyst will not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_WILL_NOT)
+        assert err is not None, "Should reject 'will not' negation"
+
+    def test_tool_analyst_shouldnt_rejected(self) -> None:
+        """'analyst shouldn't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_SHOULDNT)
+        assert err is not None, "Should reject shouldn't contraction"
+
+    def test_tool_analyst_mustnt_rejected(self) -> None:
+        """'analyst mustn't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MUSTNT)
+        assert err is not None, "Should reject mustn't contraction"
+
+    def test_tool_analyst_wont_rejected(self) -> None:
+        """'analyst won't' contraction must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_WONT)
+        assert err is not None, "Should reject won't contraction"
+
+    def test_tool_analyst_could_not_rejected(self) -> None:
+        """'analyst could not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_COULD_NOT)
+        assert err is not None, "Should reject 'could not'"
+
+    def test_tool_analyst_might_not_rejected(self) -> None:
+        """'analyst might not' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ANALYST_MIGHT_NOT)
+        assert err is not None, "Should reject 'might not'"
+
+    def test_tool_in_indented_code_rejected(self) -> None:
+        """Directive in 4-space indented code block must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_INDENTED_CODE)
+        assert err is not None, "Should reject 4-space indented code"
+
+    def test_tool_in_tab_indented_rejected(self) -> None:
+        """Directive in tab-indented code block must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_TAB_INDENTED)
+        assert err is not None, "Should reject tab-indented code"
+
+    def test_tool_mixed_actor_rejected(self) -> None:
+        """Mixed-actor clause: tool in bot clause, analyst in separate clause."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_ACTOR)
+        assert err is not None, "Should reject mixed-actor clauses"
+
+    def test_tool_split_clause_rejected(self) -> None:
+        """Tool in one clause, analyst+verb in another clause."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SPLIT_CLAUSE)
+        assert err is not None, "Should reject split-clause tool reference"
+
+    def test_tool_before_verb_rejected(self) -> None:
+        """Tool in subordinate 'while' clause, not verb argument."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BEFORE_VERB)
+        assert err is not None, "Should reject tool in subordinate clause"
+
+    def test_tool_substring_name_rejected(self) -> None:
+        """Substring tool name like not_pull_request_read must not match."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SUBSTRING_NAME)
+        assert err is not None, "Should reject substring tool name"
+
+    # Fixture 41: subordinate 'when' clause (tool in conditional, not direct arg)
+    TOOL_IN_WHEN_CLAUSE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache when pull_request_read is available. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 42: non-analyst as prefixed/hyphenated word
+    TOOL_NON_ANALYST_PREFIX = (
+        "\n### delegation contract\n"
+        "non-analyst retrieves PR data using pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 43: comma-separated mixed actors
+    TOOL_COMMA_MIXED_ACTORS = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot calls pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 44: conjunction mixed actors
+    TOOL_AND_MIXED_ACTORS = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data and release-bot calls pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 45: comma mixed actors variant
+    TOOL_COMMA_COMPLIANCE_BOT = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache, compliance-bot uses pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    def test_tool_in_when_clause_rejected(self) -> None:
+        """Tool in subordinate 'when' clause is not a direct argument."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_WHEN_CLAUSE)
+        assert err is not None, "Should reject tool in subordinate 'when' clause"
+
+    def test_tool_non_analyst_prefix_rejected(self) -> None:
+        """Hyphenated 'non-analyst' must not match analyst as actor."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_NON_ANALYST_PREFIX)
+        assert err is not None, "Should reject non-analyst prefix"
+
+    def test_tool_comma_mixed_actors_rejected(self) -> None:
+        """Comma-separated mixed actors must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMMA_MIXED_ACTORS)
+        assert err is not None, "Should reject comma mixed actors"
+
+    def test_tool_and_mixed_actors_rejected(self) -> None:
+        """Conjunction mixed actors must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_AND_MIXED_ACTORS)
+        assert err is not None, "Should reject conjunction mixed actors"
+
+    def test_tool_comma_compliance_bot_rejected(self) -> None:
+        """Comma mixed actors with compliance-bot must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_COMMA_COMPLIANCE_BOT)
+        assert err is not None, "Should reject compliance-bot mixed actor"
+
+    # Fixture 46: masked-span offset misalignment (HIGH 1)
+    TOOL_MASKED_SPAN = (
+        "\n### delegation contract\n"
+        "`xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx pull_request_read`"
+        " The analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 47: masked-span with backtick quotes, short masking
+    TOOL_MASKED_SPAN_SHORT = (
+        "\n### delegation contract\n"
+        "`xx pull_request_read` The analyst retrieves cache. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 48: reads verb mixed actor (HIGH 2)
+    TOOL_READS_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot reads pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 49: fetches verb mixed actor (HIGH 2)
+    TOOL_FETCHES_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, release-bot fetches pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 50: gets verb mixed actor (HIGH 2)
+    TOOL_GETS_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves cache and release-bot gets pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 51: accesses verb mixed actor (HIGH 2)
+    TOOL_ACCESSES_MIXED = (
+        "\n### delegation contract\n"
+        "the analyst retrieves data, compliance-bot accesses pull_request_read. "
+        "return [blocked] only when missing.\n"
+    )
+
+    def test_tool_masked_span_rejected(self) -> None:
+        """Equal-length masked code span must not leak tool into search."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MASKED_SPAN)
+        assert err is not None, "Should reject masked-span tool"
+
+    def test_tool_masked_span_short_rejected(self) -> None:
+        """Short masked code span boundary must not leak tool."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MASKED_SPAN_SHORT)
+        assert err is not None, "Should reject short masked-span tool"
+
+    def test_tool_reads_mixed_rejected(self) -> None:
+        """'reads' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_READS_MIXED)
+        assert err is not None, "Should reject reads mixed actor"
+
+    def test_tool_fetches_mixed_rejected(self) -> None:
+        """'fetches' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_FETCHES_MIXED)
+        assert err is not None, "Should reject fetches mixed actor"
+
+    def test_tool_gets_mixed_rejected(self) -> None:
+        """'gets' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_GETS_MIXED)
+        assert err is not None, "Should reject gets mixed actor"
+
+    def test_tool_accesses_mixed_rejected(self) -> None:
+        """'accesses' verb by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ACCESSES_MIXED)
+        assert err is not None, "Should reject accesses mixed actor"
+
+    # Fixture 52: tool in ASCII double-quoted example via _is_affirmative_directive
+    TOOL_DOUBLE_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        'The analyst retrieves "pull_request_read" cache. '
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 53: tool in ASCII single-quoted example via _is_affirmative_directive
+    TOOL_SINGLE_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves 'pull_request_read' cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 54: tool in Unicode curly-quoted directive
+    TOOL_CURLY_QUOTED_DIRECTIVE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves \u201cpull_request_read\u201d cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 55: tool in backtick code span (QA mandatory reproducer)
+    TOOL_BACKTICK_SPAN_MANDATORY = (
+        "\n### delegation contract\n"
+        "`" + "x" * 32 + " pull_request_read` The analyst retrieves cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    def test_tool_double_quoted_rejected(self) -> None:
+        """Tool in double quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_DOUBLE_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject double-quoted tool"
+        assert not _is_affirmative_directive('The analyst retrieves "pull_request_read" cache')
+
+    def test_tool_single_quoted_in_directive_rejected(self) -> None:
+        """Tool in single quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_SINGLE_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject single-quoted tool"
+        assert not _is_affirmative_directive("The analyst retrieves 'pull_request_read' cache")
+
+    def test_tool_curly_quoted_rejected(self) -> None:
+        """Tool in curly quotes must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_CURLY_QUOTED_DIRECTIVE)
+        assert err is not None, "Should reject curly-quoted tool"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves \u201cpull_request_read\u201d cache"
+        )
+
+    def test_tool_backtick_span_mandatory_rejected(self) -> None:
+        """QA mandatory reproducer: 32-char backtick span must reject."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_BACKTICK_SPAN_MANDATORY)
+        assert err is not None, "Should reject backtick-span tool"
+        line = "`" + "x" * 32 + " pull_request_read` The analyst retrieves cache"
+        assert not _is_affirmative_directive(line)
+
+    # Fixture 56: mixed-actor "provides" verb (HIGH 1)
+    TOOL_MIXED_PROVIDES = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, compliance-bot provides pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 57: mixed-actor with a verb not named in the old allowlist
+    TOOL_MIXED_OWNS = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, compliance-bot owns pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 58: mixed-actor "reads" after conjunction (HIGH 1)
+    TOOL_MIXED_READS_CONJ = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache and the release-bot reads pull_request_read. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 59: tool as subject "remains" (HIGH 1)
+    TOOL_REMAINS_AVAILABLE = (
+        "\n### delegation contract\n"
+        "The analyst retrieves cache, pull_request_read remains available. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 60: adjacent list items must not merge (HIGH 2)
+    TOOL_LIST_ITEMS_MERGED = (
+        "\n### delegation contract\n"
+        "- The analyst retrieves cache\n"
+        "- compliance-bot calls pull_request_read\n"
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    # Fixture 61: another actor holds the tool before the analyst clause
+    TOOL_PRE_ANALYST_OTHER_ACTOR = (
+        "\n### delegation contract\n"
+        "The compliance-bot calls pull_request_read before the analyst retrieves cache. "
+        "Return [BLOCKED] only when missing.\n"
+    )
+
+    def test_tool_mixed_provides_rejected(self) -> None:
+        """'provides' by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_PROVIDES)
+        assert err is not None, "Should reject mixed-actor provides"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, compliance-bot provides pull_request_read"
+        )
+
+    def test_tool_mixed_owns_rejected(self) -> None:
+        """Any verb by another bot subject must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_OWNS)
+        assert err is not None, "Should reject mixed-actor owns"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, compliance-bot owns pull_request_read"
+        )
+
+    def test_tool_mixed_reads_conjunction_rejected(self) -> None:
+        """'reads' after 'and' by other actor must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_MIXED_READS_CONJ)
+        assert err is not None, "Should reject mixed-actor reads conjunction"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache and the release-bot reads pull_request_read"
+        )
+
+    def test_tool_remains_available_rejected(self) -> None:
+        """Tool as subject with 'remains' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_REMAINS_AVAILABLE)
+        assert err is not None, "Should reject tool-remains-available"
+        assert not _is_affirmative_directive(
+            "The analyst retrieves cache, pull_request_read remains available"
+        )
+
+    def test_list_items_not_merged(self) -> None:
+        """Adjacent list items must stay as separate paragraphs."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_LIST_ITEMS_MERGED)
+        assert err is not None, "Should reject merged list items"
+
+    def test_pre_analyst_tool_by_other_actor_rejected(self) -> None:
+        """A tool owned by another actor before the analyst clause is rejected."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_PRE_ANALYST_OTHER_ACTOR)
+        assert err is not None, "Should reject pre-analyst tool held by another actor"
+        assert not _is_affirmative_directive(
+            "The compliance-bot calls pull_request_read before the analyst retrieves cache."
+        )
+
+    def test_pre_analyst_tool_after_other_actor_clause_rejected(self) -> None:
+        """A fronted using-phrase does not license an intervening actor."""
+        assert not _is_affirmative_directive(
+            "Using pull_request_read, compliance-bot notes the analyst retrieves cache."
+        )
+
+
+class TestPositiveFrontedToolPhrase:
+    """The anchored 'Using <tool>, the analyst ...' shape stays accepted."""
+
+    def test_using_tool_comma_analyst_accepted(self) -> None:
+        """Canonical fronted prepositional phrase is a valid directive."""
+        assert _is_affirmative_directive(
+            "Using pull_request_read, the analyst retrieves the pull request context"
+        )
+
+    def test_via_tool_analyst_accepted(self) -> None:
+        """'Via <tool> the analyst ...' without a comma is also valid."""
+        assert _is_affirmative_directive(
+            "Via pull_request_read the analyst retrieves the pull request context"
+        )
+
+
+class TestPositiveMcpPrefix:
+    """MCP-prefixed tool names must be accepted in affirmative directives."""
+
+    def test_mcp_prefixed_tool_accepted(self) -> None:
+        """Backtick-wrapped mcp__github__pull_request_read is valid."""
+        assert _is_affirmative_directive(
+            "The analyst retrieves PR data using mcp__github__pull_request_read"
+        )
+
+    def test_mcp_prefixed_in_section(self) -> None:
+        """Full section with mcp-prefixed tool passes wrapper."""
+        section = (
+            "\n### delegation contract\n"
+            "The analyst retrieves PR data using `mcp__github__pull_request_read`. "
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"MCP-prefixed tool should pass: {err}"
+
+
+class TestPositiveListItems:
+    """Positive: analyst directive in a list item should pass."""
+
+    def test_list_item_with_tool_passes(self) -> None:
+        """Single list item with analyst+verb+tool passes."""
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves PR data using pull_request_read\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"Single list item should pass: {err}"
+
+    def test_wrapped_continuation_passes(self) -> None:
+        """Genuine wrapped line (non-list) continuation still merges."""
+        section = (
+            "\n### delegation contract\n"
+            "The analyst retrieves PR data\n"
+            "using pull_request_read for context.\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        err = _check_retrieval_precedes_blocked(section)
+        assert err is None, f"Wrapped continuation should pass: {err}"
+
+
+# --- Negative controls: structural boundary bypasses (review round) ---
+
+
+class TestNegativeStructuralBoundary:
+    """Non-suffixed actors, colon, parenthetical must be caught."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache: bot calls pull_request_read",
+            "The analyst retrieves cache (provided by compliance-bot using pull_request_read)",
+            "The analyst retrieves cache, coordinator documents pull_request_read",
+            "The analyst retrieves cache, platform advertises pull_request_read",
+            "The analyst retrieves cache, system makes pull_request_read available",
+            "The analyst retrieves cache; release-bot uses pull_request_read",
+            "The analyst retrieves cache, the compliance-bot provides pull_request_read",
+            "The analyst retrieves cache and the release-bot reads pull_request_read",
+            "The analyst retrieves cache, orchestrator owns pull_request_read",
+        ],
+        ids=[
+            "colon",
+            "parenthetical",
+            "documents",
+            "advertises",
+            "makes-available",
+            "semicolon",
+            "article-provides",
+            "conjunction-reads",
+            "owns",
+        ],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache (provided by compliance-bot using pull_request_read)",
+            "The analyst retrieves cache, platform advertises pull_request_read",
+            "The analyst retrieves cache: bot calls pull_request_read",
+        ],
+        ids=["parenthetical-wrap", "advertises-wrap", "colon-wrap"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        section = "\n### delegation contract\n" + line + ". Return [BLOCKED] only when missing.\n"
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+
+# --- Negative controls: CommonMark list markers ---
+
+
+class TestNegativeAllListMarkers:
+    """All CommonMark markers prevent cross-actor merging."""
+
+    @pytest.mark.parametrize(
+        "marker",
+        ["- ", "* ", "+ ", "1. ", "1) ", "2. ", "10) "],
+        ids=["dash", "star", "plus", "1dot", "1paren", "2dot", "10paren"],
+    )
+    def test_list_marker_cross_bind(self, marker: str) -> None:
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves cache\n"
+            f"{marker}compliance-bot calls pull_request_read\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+    def test_positive_wrapped_list_continuation(self) -> None:
+        """Indented continuation of a list item is joined correctly."""
+        section = (
+            "\n### delegation contract\n"
+            "- The analyst retrieves PR context\n"
+            "  using pull_request_read directly.\n"
+            "Return [BLOCKED] only when missing.\n"
+        )
+        assert _check_retrieval_precedes_blocked(section) is None
+
+
+# --- Positive: all 7 canonical tools ---
+
+
+class TestAllCanonicalTools:
+    """All 7 tools from analyst.shared.md accepted bare and MCP-prefixed."""
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "pull_request_read",
+            "issue_read",
+            "list_workflow_runs",
+            "get_workflow_run",
+            "get_job_logs",
+            "get_file_contents",
+            "list_commits",
+        ],
+    )
+    def test_bare(self, tool: str) -> None:
+        assert _is_affirmative_directive(f"The analyst retrieves context using {tool} directly.")
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "mcp__github__pull_request_read",
+            "mcp__github__get_file_contents",
+            "mcp__github__list_commits",
+        ],
+        ids=["pr-mcp", "file-mcp", "commits-mcp"],
+    )
+    def test_mcp_prefixed(self, tool: str) -> None:
+        assert _is_affirmative_directive(f"The analyst retrieves context using `{tool}` directly.")
+
+
+# --- Negative controls: subordinate/relative/parenthetical context ---
+
+
+class TestNegativeClauseContext:
+    """Analyst+verb in dependent context must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "When the analyst uses pull_request_read, return BLOCKED",
+            "If analyst retrieves pull_request_read, log the event",
+            "Where the analyst calls pull_request_read, caching applies",
+            "While analyst uses pull_request_read, monitor progress",
+            "Unless the analyst retrieves pull_request_read first, block",
+            "The tool that the analyst uses is pull_request_read",
+            "Data which the analyst retrieves via pull_request_read is cached",
+            "The process (analyst retrieves pull_request_read) is complex",
+            "Check (the analyst uses pull_request_read) before proceeding",
+        ],
+        ids=[
+            "when",
+            "if",
+            "where",
+            "while",
+            "unless",
+            "that-relative",
+            "which-relative",
+            "paren-embed",
+            "paren-article",
+        ],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "When the analyst uses pull_request_read, log the event",
+            "The tool that the analyst uses is pull_request_read",
+            "The process (analyst retrieves pull_request_read) is complex",
+        ],
+        ids=["when-wrap", "relative-wrap", "paren-wrap"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        section = "\n### delegation contract\n" + line + ".\nReturn [BLOCKED] only when missing.\n"
+        assert _check_retrieval_precedes_blocked(section) is not None
+
+
+class TestPositiveMainClauseControls:
+    """Legitimate main-clause analyst directives remain accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves PR data using pull_request_read directly.",
+            "The analyst uses pull_request_read to fetch context.",
+            "The analyst retrieves data using pull_request_read so that it can proceed.",
+            "The analyst calls pull_request_read before returning results.",
+        ],
+        ids=["using", "to-fetch", "so-that", "before-return"],
+    )
+    def test_main_clause_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
+
+
+class TestNegativeMixedActorBoundary:
+    """Mixed-actor clauses with structural boundaries must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst retrieves cache, coordinator will expose pull_request_read.",
+            "The analyst retrieves cache / coordinator exposes pull_request_read",
+            "The analyst retrieves cache: system provides pull_request_read",
+            "The analyst retrieves cache, someone provides pull_request_read.",
+        ],
+        ids=["modal-boundary", "slash-boundary", "colon-boundary", "provides-boundary"],
+    )
+    def test_direct_helper_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+
+class TestPositiveStructuralVerbs:
+    """Analyst with structural verb forms (3rd-person-singular, phrasal) accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst fetches PR context using pull_request_read",
+            "The analyst consults pull_request_read for data",
+            "The analyst looks up pull_request_read",
+            "The analyst accesses pull_request_read directly",
+            "Using pull_request_read, the analyst retrieves context",
+            "Via pull_request_read the analyst accesses PR data",
+        ],
+        ids=["fetches", "consults", "looks-up", "accesses", "tool-before-actor", "via-tool"],
+    )
+    def test_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
+
+
+class TestPositiveModalDirectives:
+    """Analyst with modal + base verb forms accepted."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "analyst should read pull_request_read",
+            "analyst will call pull_request_read",
+            "analyst can query issue_read",
+            "The analyst must retrieve pull_request_read before proceeding",
+            "The analyst may use get_job_logs for CI context",
+            "The analyst shall invoke list_commits",
+        ],
+        ids=[
+            "should-read",
+            "will-call",
+            "can-query",
+            "must-retrieve",
+            "may-use",
+            "shall-invoke",
+        ],
+    )
+    def test_modal_accepted(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is True
+
+
+class TestNegativeModalCrossedActor:
+    """Modal directives attributed to non-analyst must be rejected."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "coordinator should call pull_request_read",
+            "release-bot will invoke pull_request_read",
+            "the analyst retrieves data, coordinator can read pull_request_read",
+        ],
+        ids=["coordinator-should", "bot-will", "mixed-modal"],
+    )
+    def test_modal_rejected(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+
+class TestNegativeStructuralClauseBoundary:
+    """Crossed-actor clauses rejected by structural hard boundary (HIGH 1 regressions)."""
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst reads cache, pipeline put pull_request_read in scope.",
+            "The analyst reads cache and coordinator wrote pull_request_read in docs.",
+            "The analyst reads cache, platform ought to expose pull_request_read.",
+            "The analyst reads cache, witness saw pull_request_read.",
+            "The analyst retrieves data, release-bot reads pull_request_read",
+            "The analyst retrieves data, release-bot fetches pull_request_read",
+            "The analyst retrieves cache and release-bot gets pull_request_read",
+            "The analyst retrieves data, compliance-bot accesses pull_request_read",
+            "The analyst retrieves cache, compliance-bot provides pull_request_read",
+            "The analyst retrieves cache and the release-bot reads pull_request_read",
+            "The analyst retrieves cache, pull_request_read remains available",
+        ],
+        ids=[
+            "pipeline-put",
+            "coordinator-wrote",
+            "platform-ought",
+            "witness-saw",
+            "bot-reads",
+            "bot-fetches",
+            "bot-gets",
+            "bot-accesses",
+            "bot-provides",
+            "the-bot-reads",
+            "tool-as-subject",
+        ],
+    )
+    def test_direct_rejects(self, line: str) -> None:
+        assert _is_affirmative_directive(line) is False
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "The analyst reads cache, pipeline put pull_request_read in scope.",
+            "The analyst reads cache and coordinator wrote pull_request_read in docs.",
+            "The analyst reads cache, platform ought to expose pull_request_read.",
+            "The analyst reads cache, witness saw pull_request_read.",
+        ],
+        ids=["pipeline-put", "coordinator-wrote", "platform-ought", "witness-saw"],
+    )
+    def test_production_wrapper_rejects(self, line: str) -> None:
+        doc = "\n### delegation contract\n" + line + " return [blocked] only when missing.\n"
+        err = _check_retrieval_precedes_blocked(doc)
+        assert err is not None

@@ -1,12 +1,12 @@
 ---
 name: memory
-version: 0.3.0
+version: 0.4.0
 description: Thin router for the tiered memory system. Points callers at the
   focused sub-skills for each operation, Tier 1 search, the reflexion write path,
-  the memory-first gate, and maintenance. Use when you ask "what do we know about
-  X", "recall prior context", or "search memory" and are not sure which operation
-  you need. Do NOT use for adding citations (use memory-enhancement) or narrative
-  cross-system reports (use memory-documentary).
+  the memory-first gate, maintenance, and consolidation. Use when you ask "what
+  do we know about X", "recall prior context", or "search memory" and are not
+  sure which operation you need. Do NOT use for adding citations (use
+  memory-enhancement) or narrative cross-system reports (use memory-documentary).
 license: MIT
 metadata:
   adr: ADR-037, ADR-038, ADR-063
@@ -29,6 +29,7 @@ right one so a caller loads only the surface it needs.
 | Record a completed session | No | `memory-reflexion` sub-skill |
 | Pre-change memory-first gate | No | `memory-gate` sub-skill |
 | Health, token count, benchmark | No | `memory-maintenance` sub-skill |
+| Periodic durable/dated consolidation, index tidy | No | `memory-consolidate` sub-skill |
 | Agent needs deep context | No | `exploring-knowledge-graph` skill |
 | Human at CLI | No | `/memory-search` command |
 
@@ -49,6 +50,7 @@ matches your task; each carries a smaller context than the full memory surface.
 | `memory-reflexion` | Tier 2 episode extraction | You are recording a completed session |
 | `memory-gate` | Memory-First Gate (BLOCKING) and Chesterton's Fence protocol | You are about to change an existing system |
 | `memory-maintenance` | Health check, token count, size validation, benchmark, density | You are maintaining the memory stores |
+| `memory-consolidate` | Periodic durable/dated consolidation, overlap merge, index tidy | You are doing a periodic memory cleanup pass |
 
 ---
 
@@ -60,6 +62,7 @@ Use this skill when the user says:
 - `check memory health` for system status (routes to memory-maintenance)
 - `extract episode from session` for session replay (routes to memory-reflexion)
 - `memory-first gate` before changing an existing system (routes to memory-gate)
+- `consolidate memory` for a periodic durable/dated review and index tidy (routes to memory-consolidate)
 
 ---
 
@@ -82,6 +85,9 @@ What do you need?
 │
 ├─► Check health, count tokens, benchmark, or improve graph density?
 │   └─► memory-maintenance sub-skill
+│
+├─► Periodic pass: separate durable from dated, merge overlaps, tidy the index?
+│   └─► memory-consolidate sub-skill
 │
 └─► Not sure which tier?
     └─► Start with memory-search (Tier 1), escalate if insufficient
@@ -268,6 +274,7 @@ Invoke via the portable root form:
 | `memory-reflexion` | Tier 2 episode extraction (ADR-063) |
 | `memory-gate` | Memory-First Gate and Chesterton's Fence protocol (ADR-063) |
 | `memory-maintenance` | Health, token count, size, benchmark, density (ADR-063) |
+| `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |

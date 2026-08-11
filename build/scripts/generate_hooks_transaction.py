@@ -169,10 +169,24 @@ class HookGenerationTransaction:
 
     @staticmethod
     def _apply_target_metadata(staged: Path, target: Path) -> None:
+        """Carry the target's permissions and ownership onto its replacement.
+
+        Times are deliberately NOT carried. ``shutil.copystat`` copies them,
+        which left a regenerated hook holding its previous modification time.
+        CPython invalidates ``__pycache__`` on modification time and size, so a
+        rewrite that keeps both serves the OLD bytecode: measured in issue
+        #4764 after repinning a SHA-256 constant, where the digest is a
+        fixed-width hex string and the file size therefore did not change. The
+        guard ran the stale module and denied a valid invocation.
+
+        Before the guard was split it ran as ``__main__``, which is never
+        cached, so nothing in this tree exercised the hazard. Its sibling
+        modules are ordinary imports and are cached like any other.
+        """
         if not target.is_file():
             return
         target_stat = target.stat(follow_symlinks=False)
-        shutil.copystat(target, staged, follow_symlinks=False)
+        os.chmod(staged, stat.S_IMODE(target_stat.st_mode))
         if not _IS_WINDOWS:
             shutil.chown(
                 staged,
