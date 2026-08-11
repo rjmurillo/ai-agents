@@ -114,7 +114,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "No separate retrospective artifact needed; durable learning recorded in Serena memory ci/mutation-harness-restore-failure-safe-writes."
+        "Evidence": "Retrospective recorded at .agents/retrospective/2026-08-11-pr-4636-autofix.md; existing CI and session guidance covered both learnings."
       },
       "reworkWarning": {
         "level": "SHOULD",
