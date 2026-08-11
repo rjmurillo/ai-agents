@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-08-session-10006-process-4681-fleet-merge",
+  "session": "2026-08-08-session-10006-process-4681-fleet-merge",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Process PR 4681 fleet merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T14:30:00+00:00",
+      "type": "milestone",
+      "content": "Triage PR 4681 and linked issues 4680 and 4518",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T15:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge current main and validate branch behavior",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T15:40:00+00:00",
+      "type": "milestone",
+      "content": "Resolve independent Critical and High review findings",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T16:31:00+00:00",
+      "type": "milestone",
+      "content": "Merge latest main and run final gates",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T16:32:34+00:00",
+      "type": "commit",
+      "content": "Commit: 2d67b414cb933b57047c55640750e7f2f0312e80",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T16:32:34+00:00",
+      "type": "commit",
+      "content": "Commit: 2d67b414cb",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:43:52+00:00",
+      "type": "commit",
+      "content": "Commit: 3ed1c6018a6a4744b6aafb9bba69c87196660088",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T14:22:39+00:00",
+      "type": "commit",
+      "content": "Commit: ff19bf1c242377caeef795f2aad7655ac0c78169",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-process-4681-fleet-merge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 121,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 13
+  },
+  "lessons": []
+}

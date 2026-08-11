@@ -59,7 +59,20 @@ from yaml_loader import ConfigError  # noqa: E402
 # Files required at runtime by one emitted hook but not dispatched themselves.
 # No hook currently declares a companion; the mechanism and its tests stay so a
 # future companion can be added without re-plumbing the generator.
-_COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {}
+_COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
+    "PreToolUse/invoke_push_pr_script_identity_guard.py": (
+        "_push_pr_guard_commands.py",
+        "_push_pr_guard_evaluators.py",
+        "_push_pr_guard_expansion.py",
+        "_push_pr_guard_git.py",
+        "_push_pr_guard_git_tables.py",
+        "_push_pr_guard_identity.py",
+        "_push_pr_guard_lex.py",
+        "_push_pr_guard_scope.py",
+        "_push_pr_guard_tables.py",
+    ),
+}
+
 _DISPATCHER_ARTIFACT_NAMES = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
 
 

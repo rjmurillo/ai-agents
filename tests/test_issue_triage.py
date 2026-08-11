@@ -83,6 +83,7 @@ def _run_issue_triage_cli(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
         cwd=_REPO_ROOT,
         env=env,

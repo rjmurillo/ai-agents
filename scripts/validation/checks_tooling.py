@@ -32,6 +32,7 @@ from checks_common import (  # noqa: E402
 )
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
+from session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
 # "Linting: N files" prints before any read; Summary's count is files *with
@@ -63,6 +64,36 @@ def _find_latest_session_log(repo_root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _prepr_session_command(
+    python_script: Path,
+    log_path: Path,
+    relative_path: str,
+    new_logs: set[str],
+    validation_head: str,
+) -> list[str]:
+    """Build the pre-PR validator command for one changed session log."""
+    command = [sys.executable, str(python_script), str(log_path)]
+    if relative_path in new_logs:
+        return [*command, "--validation-head", validation_head]
+    return [*command, "--existing-log"]
+
+
+def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
+    """Return JSON session paths from NUL-delimited git output.
+
+    Pre-PR validates the committed branch state. A dirty worktree that removes a
+    changed session log must fail closed in validation, not disappear from the
+    candidate list because the local file is absent.
+    """
+    del repo_root
+    return [
+        path
+        for path in output.split("\0")
+        if path.startswith(".agents/sessions/")
+        and path.endswith(".json")
+    ]
+
+
 def validate_session_end(repo_root: Path) -> bool:
     """Validate session logs changed on the branch.
 
@@ -76,7 +107,7 @@ def validate_session_end(repo_root: Path) -> bool:
         return True
 
     exit_code, stdout, _ = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only",
+        ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
          "--diff-filter=ACMR", f"{base_ref}...HEAD"],
         timeout=30,
     )
@@ -84,14 +115,11 @@ def validate_session_end(repo_root: Path) -> bool:
         print("[WARNING] Session validation skipped: git diff failed")
         return True
 
-    changed_logs = [
-        repo_root / p for p in stdout.splitlines()
-        if p.startswith(".agents/sessions/") and p.endswith(".json")
-        and (repo_root / p).is_file()
-    ]
-    if not changed_logs:
+    changed_paths = _changed_session_paths(stdout, repo_root)
+    if not changed_paths:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
+    new_logs = new_session_logs(changed_paths, repo_root, compare_ref="HEAD")
 
     _, validation_head, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
@@ -106,16 +134,18 @@ def validate_session_end(repo_root: Path) -> bool:
         )
 
     failed = False
-    for log_path in changed_logs:
+    for relative_path in changed_paths:
+        log_path = repo_root / relative_path
         print(f"Validating session log: {log_path.name}")
+        command = _prepr_session_command(
+            python_script,
+            log_path,
+            relative_path,
+            new_logs,
+            validation_head,
+        )
         exit_code, stdout, stderr = _run_subprocess(
-            [
-                sys.executable,
-                str(python_script),
-                str(log_path),
-                "--validation-head",
-                validation_head,
-            ]
+            command
         )
         output = (stdout or "") + (stderr or "")
         if output.strip():

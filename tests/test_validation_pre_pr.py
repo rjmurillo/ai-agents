@@ -213,7 +213,7 @@ class TestValidateSessionEnd:
         ):
             with patch(
                 "checks_tooling._run_subprocess",
-                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\n", ""),
+                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\0", ""),
             ):
                 with pytest.raises(MissingScriptSkip):
                     validate_session_end(tmp_path)
@@ -235,7 +235,7 @@ class TestValidateSessionEnd:
         def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
             seen.append(command)
             if "diff" in command:
-                return 0, ".agents/sessions/2025-12-01-session-1.json\n", ""
+                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
             if "rev-parse" in command:
                 return 0, f"{head}\n", ""
             return 0, "", ""
@@ -243,10 +243,46 @@ class TestValidateSessionEnd:
         with patch(
             "checks_tooling._resolve_branch_base_ref",
             return_value="origin/main",
+        ), patch(
+            "checks_tooling.new_session_logs",
+            return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
             assert validate_session_end(tmp_path) is True
 
         assert seen[-1][-2:] == ["--validation-head", head]
+
+    def test_existing_historical_log_is_validated_as_a_record(
+        self, tmp_path: Path
+    ) -> None:
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        log = sessions / "2025-12-01-session-1.json"
+        log.write_text("{}", encoding="utf-8")
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        validator = scripts / "validate_session_json.py"
+        validator.write_text("", encoding="utf-8")
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
+            seen.append(command)
+            if "diff" in command:
+                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
+            if "rev-parse" in command:
+                return 0, f"{'c' * 40}\n", ""
+            return 0, "", ""
+
+        with patch(
+            "checks_tooling._resolve_branch_base_ref",
+            return_value="origin/main",
+        ), patch(
+            "checks_tooling.new_session_logs",
+            return_value=set(),
+        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+            assert validate_session_end(tmp_path) is True
+
+        assert seen[-1][-1] == "--existing-log"
+        assert "--validation-head" not in seen[-1]
 
     def test_unresolvable_head_fails_closed(self, tmp_path: Path) -> None:
         sessions = tmp_path / ".agents" / "sessions"
@@ -261,7 +297,7 @@ class TestValidateSessionEnd:
         def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
             seen.append(command)
             if "diff" in command:
-                return 0, ".agents/sessions/2025-12-01-session-1.json\n", ""
+                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
             if "rev-parse" in command:
                 return 1, "", "bad ref"
             return 1, "", "invalid validation head"
@@ -269,6 +305,9 @@ class TestValidateSessionEnd:
         with patch(
             "checks_tooling._resolve_branch_base_ref",
             return_value="origin/main",
+        ), patch(
+            "checks_tooling.new_session_logs",
+            return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
             assert validate_session_end(tmp_path) is False
 

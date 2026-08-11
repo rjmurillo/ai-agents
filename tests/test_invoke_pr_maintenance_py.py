@@ -562,6 +562,25 @@ class TestMain:
         assert main([]) == 0
         assert "thresholds not met" in capsys.readouterr().err
 
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_indeterminate_rate_limit_says_so(
+        self, mock_rate: MagicMock, capsys
+    ) -> None:
+        from scripts.github_core import RateLimitResult, RateLimitStatus
+
+        mock_rate.return_value = RateLimitResult(
+            status=RateLimitStatus.COULD_NOT_DETERMINE,
+            core_remaining=4984,
+            resources={},
+            summary_markdown="",
+            probe_error="REST (`gh api meta`): probe call failed",
+        )
+
+        assert main([]) == 0
+        err = capsys.readouterr().err
+        assert "could_not_determine" in err
+        assert "probe call failed" in err
+
     @patch(
         "scripts.invoke_pr_maintenance.check_workflow_rate_limit",
         side_effect=RuntimeError("gh: command not found"),

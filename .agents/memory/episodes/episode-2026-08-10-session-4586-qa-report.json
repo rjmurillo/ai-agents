@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-08-10-session-4586-qa-report",
+  "session": "2026-08-10-session-4586-qa-report",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add QA evidence for PR 4586 Validate PR gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T11:20:00+00:00",
+      "type": "milestone",
+      "content": "Acquired pr_autofix lease for PR 4586 and live-state gate returned ACT.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q. Result: 336 passed in 2.82s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "test",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/skills/doc-accuracy/test_doc_accuracy.py tests/test_validation_pr_description.py -q. Result: 336 passed in 2.82s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T11:30:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report bound to pre-report code commit 042c48239bb79ffc9aed4b980687f7a4e3de0513.",
+      "caused_by": [
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T12:50:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main, reran targeted tests, and rebound QA report to ef4140558e8323c9bb176946f3cb89d06d2aa2a1.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e007",
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T09:33:08+00:00",
+      "type": "commit",
+      "content": "Commit: 042c48239bb79ffc9aed4b980687f7a4e3de0513",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:35:00+00:00",
+      "type": "milestone",
+      "content": "Fixed mypy type annotations, reran targeted tests, and rebound QA report to 1dab2578057cf0c60985444ee200ac78d6a2f780.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T12:36:41+00:00",
+      "type": "commit",
+      "content": "Commit: ef4140558e8323c9bb176946f3cb89d06d2aa2a1",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T13:35:00+00:00",
+      "type": "milestone",
+      "content": "Fixed mypy type annotations, reran targeted tests, and rebound QA report to d08463638b6f986d73892bb0e54177732086a768.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T15:58:44+00:00",
+      "type": "commit",
+      "content": "Commit: d08463638b6f986d73892bb0e54177732086a768",
+      "caused_by": [
+        "e007",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4586-qa-report"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 135,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 2
+  },
+  "lessons": []
+}
