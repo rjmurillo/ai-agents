@@ -454,7 +454,7 @@ The last row is the common case and the easy one to skip. As of 2026-08-04,
 `code-quality.md` (14,152 bytes) already has a scenario file carrying four
 scenarios, added by PR #4017, and no scored result anywhere in
 `evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
-in the corpus behind `voice.md` (17,527 bytes). `pragmatic-programmer.md`
+in the corpus behind `voice.md` (17,966 bytes). `pragmatic-programmer.md`
 (11,375 bytes) sits on the same footing with four scenarios of its own, and was
 itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
 now loads on a code edit and not otherwise.
@@ -466,7 +466,7 @@ while the gap stays open, which is why reading the scenario directory is a
 worse signal than reading `evals/reports/`.
 
 Note that always-on status is declared **three** different ways: `applyTo:
-'**'` (six rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
+'**'` (five rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
 carrying `**` (one, `knowledge-persistence.md`, which uses the block-list form
 rather than the inline `paths: ["**"]`). A survey that greps for one convention
 misses the others, and a regex written for the inline form misses the block
@@ -474,12 +474,12 @@ list. That is how an earlier draft got the ranking wrong and then, after a
 correction that added only the second form, still undercounted. Enumerate by
 parsing frontmatter.
 
-Eight rules is the corpus. Do not hardcode its size; it changes on every rule
+Seven rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 135 bytes less than the
+generated `.github/instructions/` mirrors, which total 116 bytes less than the
 `.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
-not one. `generate_rules.py` strips `priority:` from the seven rules that carry
-it, worth 131 bytes, and it converts `code-quality.md` from `alwaysApply: true`
+not one. `generate_rules.py` strips `priority:` from the six rules that carry
+it, worth 112 bytes, and it converts `code-quality.md` from `alwaysApply: true`
 to `applyTo: '**'`, worth the remaining 4 bytes.
 
 ```bash

@@ -236,3 +236,28 @@ class TestWriteDriftJobSummary:
     def test_manifest_parity_failure_shows_failed(self) -> None:
         text = wdjs.build_summary("success", "success", "failure")
         assert "Failed" in text
+
+    def test_main_returns_error_when_summary_path_is_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path))
+        monkeypatch.setenv("VALIDATE_CONCLUSION", "success")
+        monkeypatch.setenv("LIB_MIRROR_CONCLUSION", "success")
+        monkeypatch.setenv("MANIFEST_PARITY_CONCLUSION", "success")
+        rc = wdjs.main()
+        assert rc == wdjs.EXIT_ERROR
+        err = capsys.readouterr().err
+        assert "cannot write summary" in err
+
+    def test_main_returns_error_when_summary_path_unwritable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        bad = tmp_path / "no" / "such" / "dir" / "summary.md"
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(bad))
+        monkeypatch.setenv("VALIDATE_CONCLUSION", "success")
+        monkeypatch.setenv("LIB_MIRROR_CONCLUSION", "success")
+        monkeypatch.setenv("MANIFEST_PARITY_CONCLUSION", "success")
+        rc = wdjs.main()
+        assert rc == wdjs.EXIT_ERROR
+        err = capsys.readouterr().err
+        assert "cannot write summary" in err

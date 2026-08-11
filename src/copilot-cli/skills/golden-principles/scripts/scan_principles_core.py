@@ -197,7 +197,7 @@ def _git_root() -> str:
             capture_output=True,
             check=True,
             encoding="utf-8",
-            errors="ignore",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
@@ -233,7 +233,7 @@ def get_diff_files(base: str) -> list[str]:
             capture_output=True,
             check=True,
             encoding="utf-8",
-            errors="ignore",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
@@ -277,7 +277,7 @@ def _run_git_diff(base: str) -> str:
             check=True,
             cwd=root,
             encoding="utf-8",
-            errors="ignore",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:

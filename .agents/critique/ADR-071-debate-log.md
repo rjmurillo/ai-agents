@@ -181,6 +181,23 @@ runtime probe remains limited to 2 seconds.
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
 
+## 2026-08-09 Issue #4764 Timeout Amendment
+
+The six roles verified the updated runtime-contract residual after the active
+PreToolUse manifest grew to two shims.
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Two shims, 100 seconds, and 105 seconds match artifacts. |
+| critic | Accept | The amendment changes facts, not the accepted contract. |
+| independent-thinker | Accept | The host-enforcement uncertainty stays explicit. |
+| security | Accept | Fail-open impact now covers every active guard. |
+| analyst | Accept | Manifest and generated hook values match exactly. |
+| high-level-advisor | Accept | The update is sufficient and proportionate. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
 ## 2026-07-22 PR #3292 Release Convergence
 
 The six roles reviewed the supply-chain amendment, current workflow, Renovate

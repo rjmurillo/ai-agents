@@ -131,7 +131,9 @@ def _run_aggregate(known_guards: list[str], source: str | None) -> dict[str, Any
         cmd.extend(["--guard", g])
     if source:
         cmd.extend(["--source", source])
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False
+    )
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         raise SystemExit(proc.returncode)
@@ -148,6 +150,8 @@ def _run_classify(summary: dict[str, Any], treat_unseen_as_inert: bool) -> dict[
         input=json.dumps(summary),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if proc.returncode != 0:

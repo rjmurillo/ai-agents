@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-10-session-10021-pr-4621-postmerge-qa",
+  "session": "2026-08-10-session-10021-pr-4621-postmerge-qa",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Bind post-merge QA evidence for PR #4621",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked PR live state, acquired lease autofix-postmergeqa-4621, and disabled auto-merge before mutation.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inspected resolved diff and ran the smallest relevant pytest suite on the current tree.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Inspected resolved diff and ran the smallest relevant pytest suite on the current tree.      520 passed, 1 warning.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report .agents/qa/4621-pr-postmerge-qa-report.md bound to the exact code commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T09:40:59+00:00",
+      "type": "commit",
+      "content": "Commit: f1964289ec337fa0cb040e422b2c462cedf8d6dd",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e007"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T12:05:32+00:00",
+      "type": "commit",
+      "content": "Commit: f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report .agents/qa/pr-4621-postmerge-qa-report.md bound to the exact code commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10021-pr-4621-postmerge-qa"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -767,6 +767,7 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["diff"] == "diff output"
+        assert output["Data"]["context_fetch_failures"] == []
 
     def test_include_diff_with_stat(self, capsys):
         """--diff-stat appends --stat to the diff command."""
@@ -790,7 +791,7 @@ class TestMainDiffAndFiles:
         assert "--stat" in calls[1]
 
     def test_include_diff_failure(self, capsys):
-        """Diff fetch failure leaves diff as None."""
+        """Diff fetch failure records an explicit context gap."""
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -809,6 +810,9 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["diff"] is None
+        assert output["Data"]["context_fetch_failures"] == [
+            {"field": "diff", "message": "diff failed"}
+        ]
 
     def test_include_changed_files(self, capsys):
         call_count = 0
@@ -829,6 +833,7 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["files"] == ["file1.py", "file2.py"]
+        assert output["Data"]["context_fetch_failures"] == []
 
     def test_include_changed_files_filters_blanks(self, capsys):
         """Blank lines in name-only output are filtered."""
@@ -852,7 +857,7 @@ class TestMainDiffAndFiles:
         assert output["Data"]["files"] == ["a.py", "b.py"]
 
     def test_include_changed_files_failure(self, capsys):
-        """Changed-files fetch failure leaves files as None."""
+        """Changed-files fetch failure records an explicit context gap."""
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -871,6 +876,47 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["files"] is None
+        assert output["Data"]["context_fetch_failures"] == [
+            {"field": "files", "message": "files failed"}
+        ]
+
+    def test_diff_and_files_failures_without_output_use_return_code_fallback(self, capsys):
+        """Blank child output still produces actionable diff and file failure records."""
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            if call_count == 2:
+                return _completed(rc=17)
+            return _completed(rc=19)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main([
+                "--pull-request", "50",
+                "--include-diff",
+                "--include-changed-files",
+            ])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["context_fetch_failures"] == [
+            {
+                "field": "diff",
+                "message": "gh pr diff exited with return code 17 and no error output",
+            },
+            {
+                "field": "files",
+                "message": (
+                    "gh pr diff --name-only exited with return code 19 and no error output"
+                ),
+            },
+        ]
 
     def test_both_diff_and_files(self, capsys):
         """Both flags trigger two additional subprocess calls."""

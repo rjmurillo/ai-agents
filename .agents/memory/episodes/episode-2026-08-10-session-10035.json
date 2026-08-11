@@ -1,0 +1,382 @@
+{
+  "id": "episode-2026-08-10-session-10035",
+  "session": "2026-08-10-session-10035",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Enable bounded four-worker pytest-xdist parallelism for Issue 4823",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read Issue 4823, the prerequisite branch diff, and the matching rule files",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added pytest-xdist to both dev dependency tables and regenerated the lock",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a bounded worker-count parser to the pre-push gate",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the four-worker flags to the CI main pytest step",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the validation gates",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded one flaky failure seen in a parallel coverage run",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the push path on a throwaway branch",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and resolved the prerequisite session conflict",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the worker contract on xdist's own -n auto instead of a fixed count",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inverted the contract tests to forbid a hard-coded worker count",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the pre-push gate at -n auto and found two failing tests",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "error",
+      "content": "Ran the pre-push gate at -n auto and found two failing tests    48 of 48 workers over 25400 items in 227.72s, wall 3:50.52, peak RSS 551908 KB by /usr/bin/time -v, zero worker crashes, 2 failed in tests/test_mutation_workspace_signals.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root-caused the two failures to a repo-global emptiness assertion",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "The tests asserted marker_directory(REPO_ROOT) was empty while tests/test_mutation_workspace.py wrote markers into that same shared directory from another worker. Reproduced 2 failed and 24 passed for 3 of 3 runs at -n 2 --dist loadfile; serial control 26 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "error",
+      "content": "Root-caused the two failures to a repo-global emptiness assertion    The tests asserted marker_directory(REPO_ROOT) was empty while tests/test_mutation_workspace.py wrote markers into that same shared directory from another worker. Reproduced 2 failed and 24 passed for 3 of 3 runs at -n 2 --dist loadfile; serial control 26 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped both assertions to the marker their own run created",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Commit 953338d6f. Each test asserts the marker exists while the run is live before asserting it is gone, so mutating the suffix to .NOPE fails both tests instead of passing vacuously. 26 passed for 3 of 3 runs at -n 2 --dist loadfile.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the full pre-push gate at -n auto after the fix",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "48 of 48 workers, 25364 passed with 36 skips in 232.15s, wall 3:57.40, peak RSS 547032 KB. All 10 grep hits for crash markers are test names containing the word crashed, so no worker crashed.",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Compared serial and -n auto coverage on the CI-shaped command",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded two wall-clock deadline tests that failed in one of two coverage runs",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared both mandatory doc-accuracy findings on the QA report",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the push blocker is cleared",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renumbered this session from 10034 to 10035 after main claimed 10034",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-10T07:07:14+00:00",
+      "type": "commit",
+      "content": "Commit: 5306e1d2e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e029"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T07:12:59+00:00",
+      "type": "commit",
+      "content": "Commit: 7d8aaa893",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-10T07:15:16+00:00",
+      "type": "commit",
+      "content": "Commit: 4599e70f8",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-10T08:59:55+00:00",
+      "type": "commit",
+      "content": "Commit: 953338d6fe8cfcd86206fb6a467060bb66d5693b",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main after CI reported a stale lint baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10035"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-10T12:14:16+00:00",
+      "type": "commit",
+      "content": "Commit: 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10035"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 4,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 15
+  },
+  "lessons": []
+}

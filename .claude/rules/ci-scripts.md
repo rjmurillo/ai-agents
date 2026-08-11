@@ -22,7 +22,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 2. **Shift-left validation**. Before pushing, MUST run `uv run python scripts/validation/pre_pr.py` and resolve any failures.
 3. **Python for new scripts**. New scripts MUST be Python per ADR-042. MUST NOT create new `*.sh` bash scripts.
 4. **Exit codes**. Scripts MUST follow the exit code contract: `0`=ok, `1`=logic, `2`=config, `3`=external, `4`=auth (`AGENTS.md`).
-5. **Tests required**. New validation scripts MUST ship with pytest or Pester coverage in `tests/` or `.claude/skills/<name>/tests/`.
+5. **Tests required**. New validation scripts MUST have tests under `tests/`. Do not add CI tests to shipped skill directories.
 6. **Pin Actions to SHA**. Workflow changes MUST pin every Action reference to a commit SHA.
 7. **Verify worktree identity before writing**. A script that resolves the repository root and then writes to it MUST confirm the current directory is inside the resolved root before the first write (`Path.cwd().resolve().is_relative_to(top_level)`). `git rev-parse --show-toplevel` reports a claim, not a fact about where you are: a local `core.worktree` value or a `GIT_WORK_TREE` environment variable redirects it to a directory you are not standing in, and `git status` then reports every tracked file as deleted because it is looking somewhere else. Measured: an ordinary `git worktree add` sets neither, a moved worktree still resolves correctly, and a worktree whose main checkout moved away fails closed with a non-zero exit. So the redirection is always something a person or a tool set on purpose, which is exactly why a script that inherits it has no way to notice.
 8. **Anchor helper resolution on the absolute top level**. A resolver that walks candidate roots to find a repository helper MUST anchor its in-repo rung on `git rev-parse --show-toplevel`, and MUST order that rung ahead of any out-of-repo root. A bare relative `.claude` rung only resolves when cwd happens to be the repository root; invoked from a subdirectory it falls through to a copy under `~/.copilot/installed-plugins` or `~/.claude/plugins/cache`, which can be arbitrarily old. `check_skill_resolver_anchoring.py` enforces this for `SKILL.md` resolvers; the same requirement binds resolvers written anywhere else, where nothing enforces it for you.
@@ -46,10 +46,12 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 21. **A stdin-consuming pre-push job MUST stay `piped: true`, never `parallel: true`, unless one producer job captures the ref-update stdin once into a push-scoped immutable artifact for every consumer to read instead of declaring its own `use_stdin: true`.** On Lefthook 2.1.10, parallel `use_stdin: true` jobs race the shared stream, so a consumer can receive a truncated or duplicated payload instead of the full copy `piped: true` delivers. Evidence: `.agents/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.
 
+22. **A job `name:` is a branch-protection identifier. Emit both names before requiring the new one.** GitHub matches a required status check against a workflow job's check-run name, which is the job `name:` or the job id when `name:` is absent. Composite-action metadata under `.github/actions/` does not create check runs by itself; only consuming workflow jobs do. Check the full protected-branch set, not one guessed ruleset: `gh api repos/OWNER/REPO/rules/branches/main --jq '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]'`. Compare it with check-run names from a fresh PR run, because `gh pr checks` cannot show a context that never ran. No-gap rename sequence: emit old and new names, merge to `main`, require the new context, remove the old requirement, then remove the old alias. The gap sequence is still valid but less safe: drop the old requirement, merge the rename, observe the new check, then require it. Requiring the new name before `main` emits it blocks every PR. Measured 2026-08-09: required `Session Protocol Results` and `AI Quality Gate Results` existed only on an unmerged PR, so `main` took no commits for five hours.
+
 ## SHOULD
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
-2. **Logging structure**. Scripts SHOULD emit structured output (JSON or key=value) to allow automated parsing.
+2. **Logging structure**. If another script, workflow step, or test parses a script's stdout, that script SHOULD emit JSON or `key=value` lines for the parsed fields, and the parser test SHOULD consume a real sample from that output shape. Human-only logs are exempt.
 3. **Use skills when available**. SHOULD prefer `.claude/skills/<name>` over inline `gh`, `git`, or shell commands.
 
 ## MUST NOT
@@ -119,3 +121,4 @@ bytes over its ceiling.
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
 - Issue #4262. gate merged red against its own corpus and blocked all pushes
+- PR #4784. required-check rename landed after the ruleset required it, deadlocking every PR for five hours
