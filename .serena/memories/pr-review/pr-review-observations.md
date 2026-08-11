@@ -73,7 +73,10 @@ These are scenarios to handle:
 - GraphQL pagination with `first: 100` captures old threads but misses newest - need to query both `first: N` and `last: N` for comprehensive coverage when dealing with large review thread counts (Session 7, PR #908, 2026-01-16)
   - Evidence: Query with first: 100 returned old resolved threads but didn't include most recent unresolved threads at end of list
 
-- Workspace budget check: AGENTS.md + CLAUDE.md each have 3000-byte limit enforced by `scripts/validate_workspace_budget.py`. Exceeding blocks `Run Python Tests` on ALL open PRs merging against main. Run `python3 scripts/validate_workspace_budget.py --path .` before starting any PR session. (Session 14, 2026-04-26)
+- Workspace budget check: `scripts/validate_workspace_budget.py` owns the
+  current accepted-state ceilings. Root instruction and validator changes run
+  both the dedicated budget workflow and Python tests. Run
+  `python3 scripts/validate_workspace_budget.py --path .` before review.
 - stash pop during concurrent autofix-pr push produces UU (unmerged) conflicts. Run git status before staging. Take upstream fix for the shared file; verify no duplicate tests before committing. (Session 15, 2026-05-10)
 - Semgrep security gate wins over CodeRabbit style suggestions when they conflict. If CodeRabbit demands wording that Semgrep's `skill-roleplay-persona-attack` rule flags, keep the Semgrep-safe wording and explain in the thread reply. (Session 14, 2026-04-26)
 

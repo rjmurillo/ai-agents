@@ -1,6 +1,12 @@
 # AGENTS.md Workspace Budget Fix (Session 1835, 2026-05-18)
 
-**Context**: `AGENTS.md` drifted over the 3072-byte per-file budget enforced by `tests/test_workspace_limits.py::test_per_file_limit[AGENTS.md]` (MAX_PER_FILE=3072, MAX_TOTAL=6758 for AGENTS.md + CLAUDE.md). The test runs on every PR via the pytest CI workflow (AC-3).
+**Historical context**: `AGENTS.md` drifted over the 3072-byte per-file budget
+used in 2026-05. Those figures describe the incident, not the current gate.
+
+**Current state (2026-08-11, issue #4880)**:
+`scripts/validate_workspace_budget.py` owns a 4800-byte default file ceiling, a
+6100-byte shared Claude pool, and a 1400-byte Copilot overlay ratchet.
+`tests/test_workspace_limits.py` imports the same constants.
 
 ## Root Cause
 
@@ -21,6 +27,6 @@ AGENTS.md reached 3228 B (156 B over cap) as content accumulated without trackin
 
 ## Files
 
-- `AGENTS.md` -- injected per-turn; 2791 B post-fix
+- `AGENTS.md` -- injected per-turn; historical post-fix size was 2791 B
 - `tests/test_workspace_limits.py` -- hard cap enforcement
 - `scripts/validate_workspace_budget.py` -- second validator (also checks `.claude/CLAUDE.md`)

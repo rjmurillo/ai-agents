@@ -28,8 +28,8 @@ figure, references the same issue (#3419), implements exactly the prescribed
 per-language ratchet, and is wired into `.github/workflows/instruction-budget.yml`
 as `uv run --frozen python3 -m scripts.validation.instruction_budget --ci`.
 Supporting modules: `instruction_budget_globs.py`,
-`instruction_budget_constants.py`, `instruction_budget_types.py`, plus
-`passive_context_budget.py`.
+`instruction_budget_constants.py`, and `instruction_budget_types.py`. Root
+workspace files are gated separately by `scripts/validate_workspace_budget.py`.
 
 It landed in `db46e0305` on 2026-07-27. The note was written 2026-07-26. The
 repo shipped the fix the day after the gap was recorded.

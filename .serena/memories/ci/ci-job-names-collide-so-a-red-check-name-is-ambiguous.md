@@ -17,26 +17,20 @@ definitions.
     passive-context-budget.yml   :: validate-budget
 ```
 
-These measure different corpora with different validators and different units.
+These measure different corpora with different validators and the same byte
+unit.
 `instruction-budget.yml` runs `scripts.validation.instruction_budget`, which
 reads `.github/instructions/*.instructions.md` and scores only the rules whose
 `applyTo` glob is universal for a language (`is_language_universal`), in **bytes
 per language extension** against `DEFAULT_CEILINGS_BYTES`.
-`passive-context-budget.yml` runs `scripts/validation/passive_context_budget.py`
-over three whole files, in **tokens**:
+`passive-context-budget.yml` runs `scripts/validate_workspace_budget.py` over
+`AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`, and
+`.github/copilot-instructions.md`, in **bytes** against the root-layer
+accepted-state ratchets.
 
-```python
-DEFAULT_BUDGETS: dict[str, int] = {
-    "AGENTS.md": 2000,
-    "CLAUDE.md": 2000,
-    ".claude/CLAUDE.md": 4000,
-}
-```
-
-That module's own docstring claims it also covers `memory-index.md`. It does
-not. Read `DEFAULT_BUDGETS`, not the docstring. A red row reading
-`Validate budget` says neither which workflow nor which corpus, and editing the
-wrong one costs a full push and CI cycle to learn nothing.
+A red row reading `Validate budget` says neither which workflow nor which
+corpus, and editing the wrong one costs a full push and CI cycle to learn
+nothing.
 
 ## Two kinds of collision
 

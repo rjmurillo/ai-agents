@@ -70,6 +70,14 @@ Key insight: information present every turn without decision points is used reli
 | Serena atomic memories | Aligned |
 | Just-in-time retrieval | Aligned |
 
+## Routing Is Part of Retrieval
+
+[2026-08-11] [user:#4880]: A skill or reference does not make always-on routing
+redundant by itself. Retrieval is reliable only when a task-matching description
+points to the reference, the task necessarily opens its canonical file, or a
+mechanical gate loads or enforces it. Root routing that creates that path is
+part of progressive disclosure, not duplicate procedure text.
+
 ## Analysis
 
 Full analysis: `.agents/analysis/context-engineering.md`
