@@ -89,7 +89,7 @@
       "type": "milestone",
       "content": "Synced dependent docs-of-record: agent-harness-reference, ai-agents-architecture-contract (+provenance), ai-agents-config-catalog, ai-agents-portability-campaign; hook_dispatch.py stale timeout docstring; knowledge-test pins and refutations; mirrors regenerated.",
       "caused_by": [
-        "e009"
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-plugin"
@@ -116,6 +116,32 @@
         "e006"
       ],
       "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-plugin"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T06:30:57+00:00",
+      "type": "commit",
+      "content": "Commit: 1560ee129",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-plugin"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T06:33:40+00:00",
+      "type": "commit",
+      "content": "Commit: f13afa6e5d54f199ca7039d3498ddfbad0e8d2ef",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
         "e007"
       ],
       "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-plugin"
@@ -126,8 +152,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 26
+    "commits": 4,
+    "files_changed": 29
   },
   "lessons": []
 }
