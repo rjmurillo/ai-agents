@@ -22,11 +22,11 @@ from tests.new_pr_test_support import (
 
 class TestBuildParser:
     def test_missing_title_is_rejected_by_main(self):
-        with patch("new_pr.get_repo_root", return_value="/tmp/repo"):
+        with patch.object(_mod, "get_repo_root", return_value="/tmp/repo"):
             assert main([]) == 2
 
     def test_prepare_body_file_does_not_require_title(self, tmp_path):
-        with patch("new_pr.get_repo_root", return_value=str(tmp_path)):
+        with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
             assert main(["--prepare-body-file"]) == 0
 
     def test_valid_args(self):
@@ -130,7 +130,7 @@ class TestMain:
                 _completed(rc=0),
                 _completed(rc=0),
             ],
-        ), patch("new_pr.run_validations"):
+        ), patch.object(_mod, "run_validations"):
             rc = main(
                 [
                     "--title",
@@ -171,7 +171,7 @@ class TestMain:
                 _completed(rc=0),
                 _completed(rc=1, stderr="error creating PR"),
             ],
-        ), patch("new_pr.run_validations"):
+        ), patch.object(_mod, "run_validations"):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
 
@@ -262,7 +262,7 @@ class TestMain:
                 _completed(rc=0),
                 _completed(rc=0),
             ],
-        ), patch("new_pr.write_audit_log") as mock_audit:
+        ), patch.object(_mod, "write_audit_log") as mock_audit:
             rc = main(
                 [
                     "--title",
