@@ -50,10 +50,10 @@ Use these steps in order:
    bounded stale-index audit uses the complete inventory from whichever step
    succeeded. Direct subdirectory enumeration is required only for the
    filesystem fallback.
-3. **Rank approved paths with memory-search.** After Phase 1's file-count and
-   byte gates pass, invoke `memory-search`, which owns the canonical
-   `search_memory.py` script, against approved paths only. Do not reimplement
-   ranking here.
+3. **Validate size budget with memory-maintenance.** After Phase 1's file-count
+   and byte gates pass, invoke `memory-maintenance`, which owns the canonical
+   `test_memory_size.py` script, to confirm atomicity limits still hold. Do
+   not reimplement size validation here.
 
 Before any write, require a complete inventory from Serena list-memories or,
 when Serena is unavailable, recursive direct directory access. If neither can
@@ -76,7 +76,7 @@ consolidate.
    sizes before reading. Stop before any file over 32,768 bytes or before
    cumulative input exceeds 5,000,000 bytes. Report the breached limit and do
    not run any Phase 2 or Phase 3 writes. After these gates pass, read
-   `memory-index.md` in full and use memory-search to rank only approved paths.
+   `memory-index.md` in full and use memory-maintenance to validate size budgets.
    Serena list-memories returns top-level and nested memory paths. Use those
    paths to read each relevant `*-index.md` and skim the atomic memories
    themselves
@@ -125,23 +125,27 @@ git ls-files --error-unmatch .serena/memories/memory-index.md
 starting_commit="$(git rev-parse HEAD)"
 ```
 
-For target-dependent Git operations, use only an argument-list process API with
-the shell disabled. For each file in the declared change set, pass
-`["git", "ls-files", "--error-unmatch", "--", target]`. If only a
-command-string shell is available, do not modify files. If any target is
-untracked, do not write any files; report the missing rollback path. Before
-deleting a candidate, apply the same check to that candidate explicitly.
-Record each target's content hash before editing. Immediately before every
-write or deletion, verify the target still matches the last hash this pass
-observed or wrote. Immediately before rollback, verify every target still
-matches the last expected state written by this pass. Track a deleted target
-as explicitly absent, not as its old hash. If another process changed or
-recreated any target, stop and do not overwrite or restore that file.
-Record the full starting commit from `git rev-parse HEAD`. Restore a target
-only from that exact commit through the same shell-free process API, passing
-`["git", "restore", f"--source={starting_commit}", "--worktree", "--", target]`,
-never from the current `HEAD`.
-Every path from Serena, memory-search, direct inventory, or an index must be
+Use the bundled helper for target-dependent Git operations. Its commands carry
+no target paths, so command-string terminals remain safe:
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory-consolidate/scripts"
+python3 "$SCRIPTS_DIR/memory_git_targets.py" path
+```
+
+Use a file-writing tool to write a JSON object with `startingCommit` and a
+`targets` array to the printed path. Never use shell interpolation. Run
+`memory_git_targets.py check`; it validates the commit, containment, symlinks,
+duplicates, and tracking. Include deletion candidates in the manifest. If
+`check` fails, do not write.
+Record each target's content hash. Before each write, deletion, or rollback,
+verify the target matches the last state this pass observed or wrote. Track a
+deleted target as absent. If another process changed a target, stop without
+overwriting it. Restore only from the recorded starting commit through
+`python3 "$SCRIPTS_DIR/memory_git_targets.py" restore`, never from the current
+`HEAD`. Run `python3 "$SCRIPTS_DIR/memory_git_targets.py" cleanup` after success
+or rollback.
+Every path from Serena, memory-maintenance, direct inventory, or an index must be
 relative, contain no `..` segment, and resolve under the real
 `.serena/memories/` root. Reject absolute paths and symlink escapes before
 stat, read, diff, write, or deletion.
@@ -257,6 +261,12 @@ On failure, emit the same envelope with `Success: false`, `Data: null`, and:
 ```
 
 Keep memory contents and complete diffs out of every field.
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `memory_git_targets.py` | Validate, restore, and clean a fixed Git target manifest | 0 ok, 1 logic, 2 config, 3 external |
 
 ## Verification Gate
 
