@@ -66,6 +66,13 @@ def _partition(name: str) -> dict[str, Any]:
 class TestMatrixStructure:
     """The test job is a four-partition matrix."""
 
+    def test_local_act_runs_all_tests_without_paths_filter(self) -> None:
+        check_paths = _job("check-paths")
+        output = check_paths["outputs"]["python-changed"]
+        filter_step = [s for s in check_paths["steps"] if s.get("id") == "filter"][0]
+        assert "env.ACT == 'true'" in output
+        assert "env.ACT != 'true'" in filter_step["if"]
+
     def test_four_partitions_exist(self) -> None:
         partitions = [e["partition"] for e in _matrix()]
         assert partitions == ["bulk", "mutation", "safe-push", "pr-autofix"]
