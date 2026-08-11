@@ -35,6 +35,13 @@ LINK_WITH_COUNT = re.compile(
 LINK_WITHOUT_COUNT = re.compile(
     r'\[([^\]]+)\]\(([^)]+\.md)\)(?!\s*\(\d+\))'
 )
+MEMORY_LINK_TARGET = re.compile(
+    r'\[[^\]]+\]\(([^)]+\.md)\)(?:\s*\(\d+\))?'
+)
+
+
+class DuplicateMemoryIndexEntryError(ValueError):
+    """Raised when duplicate memory-index rows cannot be healed safely."""
 
 
 def update_line(line: str, memories_dir: Path) -> str:
@@ -80,6 +87,41 @@ def update_line(line: str, memories_dir: Path) -> str:
         result = result.replace(old_str, new_str, 1)
 
     return result
+
+
+def _memory_link_targets(line: str) -> list[str]:
+    return [match.group(1) for match in MEMORY_LINK_TARGET.finditer(line)]
+
+
+def collapse_duplicate_rows(lines: list[str]) -> tuple[list[str], bool]:
+    """Collapse union-merged duplicate rows after token counts match."""
+    kept_lines: list[str] = []
+    seen_memory_rows: set[str] = set()
+    changed = False
+
+    for line_number, line in enumerate(lines, start=1):
+        targets = _memory_link_targets(line)
+        unique_targets = sorted(set(targets))
+        if not unique_targets:
+            kept_lines.append(line)
+            continue
+
+        if len(targets) != len(unique_targets):
+            repeated = sorted({
+                target for target in unique_targets if targets.count(target) > 1
+            })
+            raise DuplicateMemoryIndexEntryError(
+                f"Line {line_number} repeats memory link(s): {', '.join(repeated)}"
+            )
+
+        if line in seen_memory_rows:
+            changed = True
+            continue
+
+        kept_lines.append(line)
+        seen_memory_rows.add(line)
+
+    return kept_lines, changed
 
 
 def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
@@ -135,13 +177,14 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
         else:
             updated_lines.append(line)
 
-    updated = "\n".join(updated_lines)
+    collapsed_lines, collapsed = collapse_duplicate_rows(updated_lines)
+    updated = "\n".join(collapsed_lines)
 
     if updated != original:
         index_path.write_text(updated, encoding="utf-8")
         return True
 
-    return False
+    return collapsed
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -159,8 +202,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = _build_parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args([] if argv is None else argv)
 
     if not HAS_TIKTOKEN:
         print("Warning: tiktoken not installed. Token counts not updated.", file=sys.stderr)
@@ -193,7 +236,11 @@ def main() -> int:
         print("memory-index.md token counts are current")
         return 0
 
-    modified = update_memory_index(index_path, memories_dir)
+    try:
+        modified = update_memory_index(index_path, memories_dir)
+    except DuplicateMemoryIndexEntryError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     if modified:
         print("Updated token counts in memory-index.md")
@@ -204,4 +251,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
