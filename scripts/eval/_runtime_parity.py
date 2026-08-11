@@ -275,6 +275,7 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     (workspace / "PARITY_FIXTURE.md").write_text(fixture.prompt, encoding="utf-8")
     for relative, content in fixture.setup_files.items():
