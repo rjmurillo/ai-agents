@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14655-b380293da-slim-root-agents-claude-copilot.json
-qaCommit: 3f7118e3dd40743a2dbb8357faae73001c01a0cc
+qaCommit: b22eaf7dab4b4401a943c6676b07d199b347f665
 ---
 
 # Root Context Validation

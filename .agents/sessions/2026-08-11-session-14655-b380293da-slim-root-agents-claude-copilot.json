@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Task changes committed through 3f7118e3dd; unrelated pre-existing untracked artifacts remain outside scope"
+        "Evidence": "Task changes committed through b22eaf7dab; unrelated pre-existing untracked artifacts remain outside scope"
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,7 +145,7 @@
       "outcome": "Recreated the final diff on origin/main after concurrent hook-policy merges and completed the full 27,056-test suite."
     }
   ],
-  "endingCommit": "3f7118e3dd",
+  "endingCommit": "b22eaf7dab",
   "nextSteps": [
     "Review and merge the root entrypoint PR.",
     "Add passive-loading fixtures to issue 4853.",
