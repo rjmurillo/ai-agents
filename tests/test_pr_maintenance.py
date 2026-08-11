@@ -15,6 +15,7 @@ from scripts.pr_maintenance import (
     EnvironmentResult,
     MaintenanceResults,
     RateLimitResult,
+    RateLimitStatus,
     check_workflow_environment,
     check_workflow_rate_limit,
     create_blocked_prs_alert,
@@ -105,6 +106,7 @@ class TestCheckWorkflowRateLimit:
             result = check_workflow_rate_limit()
 
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert result.core_remaining == 5000
 
     def test_failure_when_core_below_threshold(self):
@@ -112,6 +114,7 @@ class TestCheckWorkflowRateLimit:
             result = check_workflow_rate_limit()
 
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.resources["core"]["Passed"] is False
 
     def test_failure_when_search_below_threshold(self):
@@ -119,6 +122,7 @@ class TestCheckWorkflowRateLimit:
             result = check_workflow_rate_limit()
 
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.resources["search"]["Passed"] is False
 
     def test_custom_thresholds_pass(self):
@@ -126,12 +130,14 @@ class TestCheckWorkflowRateLimit:
             result = check_workflow_rate_limit(resource_thresholds={"core": 100})
 
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
 
     def test_custom_thresholds_fail(self):
         with patch("subprocess.run", side_effect=_mock_subprocess_run(RATE_LIMIT_CUSTOM)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 200})
 
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
 
     def test_markdown_summary_generated(self):
         with patch("subprocess.run", side_effect=_mock_subprocess_run(RATE_LIMIT_ALL_OK)):

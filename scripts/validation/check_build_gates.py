@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,7 @@ _REQUIRED_GATES: tuple[tuple[str, re.Pattern[str]], ...] = (
 _MANDATORY_SECTION: re.Pattern[str] = re.compile(
     r"^##\s+Mandatory Exit Gates\b", re.MULTILINE
 )
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
 
 _BUILD_MD_RELPATH = Path(".claude/commands/build.md")
 
@@ -66,6 +68,36 @@ class GateViolation:
     kind: str  # "skill" or "section"
     name: str
     message: str
+
+
+def _option_value(arguments: list[str], option: str) -> str | None:
+    values: list[str | None] = []
+    for index, argument in enumerate(arguments):
+        if argument == option:
+            value_index = index + 1
+            values.append(
+                arguments[value_index] if value_index < len(arguments) else None
+            )
+        elif argument.startswith(f"{option}="):
+            values.append(argument.partition("=")[2])
+    if len(values) != 1:
+        return None
+    return values[0]
+
+
+def _has_regression_arguments(line: str) -> bool:
+    for inline_code in _INLINE_CODE.findall(line):
+        try:
+            arguments = shlex.split(inline_code)
+        except ValueError:
+            continue
+        if (
+            "--changed-only" in arguments
+            and _option_value(arguments, "--base") == "origin/main"
+            and _option_value(arguments, "--gate-mode") == "regression"
+        ):
+            return True
+    return False
 
 
 def collect_violations(repo_root: Path) -> list[GateViolation]:
@@ -117,6 +149,26 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                     ),
                 )
             )
+
+    code_quality_lines = [
+        line
+        for line in text.splitlines()
+        if _REQUIRED_GATES[0][1].search(line)
+    ]
+    if code_quality_lines and not any(
+        _has_regression_arguments(line) for line in code_quality_lines
+    ):
+        violations.append(
+            GateViolation(
+                kind="arguments",
+                name="code-qualities-assessment",
+                message=(
+                    "code-qualities-assessment must use "
+                    "'--changed-only --base origin/main --gate-mode regression' "
+                    "so inherited debt does not fail the build."
+                ),
+            )
+        )
 
     return violations
 

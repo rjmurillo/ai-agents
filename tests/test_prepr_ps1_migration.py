@@ -103,7 +103,7 @@ class TestSessionEndGate:
                 "checks_tooling._run_subprocess",
                 side_effect=[
                     # git diff returns the session log path
-                    (0, ".agents/sessions/2099-01-01-session-01.json\n", ""),
+                    (0, ".agents/sessions/2099-01-01-session-01.json\0", ""),
                     # git rev-parse resolves the validation endpoint
                     (0, f"{'c' * 40}\n", ""),
                     # validator invocation fails

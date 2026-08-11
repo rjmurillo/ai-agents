@@ -8,6 +8,7 @@ from pathlib import Path
 
 from scripts.ci import count_ratchet
 from scripts.ci import taste_count_ratchet as ratchet
+from tests.ci.ratchet_test_helpers import make_baseline_writer
 
 
 def _report(error_count: int) -> str:
@@ -71,10 +72,7 @@ def _fake_scan(
     return _run
 
 
-def _write_baseline(tmp_path: Path, value: str) -> Path:
-    path = tmp_path / "taste_count_baseline.txt"
-    path.write_text(value, encoding="utf-8")
-    return path
+_write_baseline = make_baseline_writer("taste_count_baseline.txt")
 
 
 def test_count_equal_to_baseline_passes(tmp_path, monkeypatch, capsys):
@@ -469,7 +467,8 @@ def test_a_git_that_cannot_be_launched_is_not_bootstrap(tmp_path, monkeypatch):
         if cmd[0] == "git" and "rev-parse" in cmd:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         kwargs.pop("encoding", None)
-        return real_run(cmd, encoding="utf-8", **kwargs)
+        kwargs.pop("errors", None)
+        return real_run(cmd, encoding="utf-8", errors="replace", **kwargs)
 
     monkeypatch.setattr(subprocess, "run", _run)
     baseline = tmp_path / "baseline.txt"

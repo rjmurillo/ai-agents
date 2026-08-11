@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10033,
+    "date": "2026-08-10",
+    "branch": "perf/4822-pytest-signal-shadow",
+    "startingCommit": "3b3c53e2f",
+    "objective": "Issue 4822 phase 1: resolve the authoritative pytest.yml verdict in shadow mode"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable in this Copilot session; repository files and live GitHub API data supplied the fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable; followed AGENTS.md and committed repository instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and get_issue_comments.py for issues 4822 and 1855."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Path-scoped rules read: universal, ci-scripts, python, security, testing, session-logs, plus frontmatter of every other rule file."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md, root CLAUDE.md, .github/AGENTS.md, and scripts/AGENTS.md read. .github/CLAUDE.md and scripts/CLAUDE.md are claude-mem stubs with no directives."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue 4822 and issue 1855 threads in full; 1855 edit log confirms the ADR acceptance criterion was removed on 2026-05-02, so no ADR was written."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/4822-pytest-signal-shadow"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/4822-pytest-signal-shadow, confirmed with git branch --show-current"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree at session start."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3b3c53e2f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end MUST items carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory written; the resolver docstring carries the canonical pytest.yml contract and the observed live payload shapes."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: this change adds no Markdown. The only .agents file is this JSON session log."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4845-shadow-pytest-signal-test-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Resolver, tests, and the workflow step committed atomically as 99a4ed7305830ac74a58532d7eab35f38dd749b5, review fixes as 9a0f4ce702dba1e28cf2ae00c595175a5086e06b, the file-size simplification as 0e88151ee59f70e5384ae26fae78382700debfa0, the aggregation test-data correction as 34cf0678081c6e41041e464c8c098d6c8ef9b8af, the PR 4845 report discovery fix as addd9410f09c00236f381bb7689c0d692e752b95, the lint-baseline merge as 69f0d2f6a18e0ceb74820e4a354866333743bf60, the xdist-bearing main merge as c784dca71fe80d6fcd11f132f864ebde2e3cf75c, final review fixes as 2360162d7e93850cce70b450ff923c810bdaeafe, the blocking sibling correction as f968dfc87b8f96923c84e500b00697c9fb1b7856, and the final size-gate cleanup as e28753afaf61456e27718ac3b64618cb13b94df8. Each evidence commit follows its code commit because the QA report must bind to a full commit SHA and session-logs rules forbid amending."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check, ruff format --check, and mypy clean. actionlint and yamllint exit 0 on the workflow. Taste count ratchet 581 of baseline 583. At 0e88151e taste-lints reports 0 errors on both authored files, where it previously reported 2 file-size errors, and pre_pr.py passes. At 34cf0678, all 83 focused tests, Ruff, and taste-lints pass. After merge c784dca71, all 83 focused tests pass in 0.52 seconds. At 2360162d7, all 86 focused tests pass in 0.49 seconds, Ruff and actionlint pass, yamllint adds no new warning, security review reports no exploitable issue, and full pre_pr.py passes all 50 validations. At f968dfc87, all 88 focused tests pass in 0.49 seconds, Ruff passes, and an independent code review reports PASS. At e28753afa, all 88 focused tests pass in 1.22 seconds, Ruff passes, taste-lints reports zero errors at 492 and 498 lines, and independent review reports PASS."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4822 phase 1 scope only; the duplicate authoritative run is deliberately untouched."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred. Phase 1 is an observation-only proof of concept; the retrospective belongs after shadow data is collected."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Mirrored the canonical pytest.yml job contract",
+      "result": "yaml.safe_load confirmed two jobs both named Run Python Tests: test (line 111) owning the Run pytest step (line 260) and skip-tests (line 427) owning the skip step (line 441). A name match alone cannot decide a verdict, so classification is by step name."
+    },
+    {
+      "action": "Added scripts/quality_gate/resolve_pytest_signal.py",
+      "result": "Stdlib-only resolver. Validates a 40-hex expected head, re-reads the live head from refs/pull/N/head, rejects stale heads and push runs, picks the latest run attempt, classifies executor versus pass-through jobs by step name, applies worst-wins severity across duplicate job names, and returns PASS, FAIL, SKIPPED, PENDING, STALE, CANCELLED, or UNKNOWN with a fixed-vocabulary reason. Argv-list subprocess calls, no shell."
+    },
+    {
+      "action": "Verified the resolver against live GitHub API payloads",
+      "result": "Run 31360441685 reports run conclusion success with both Run Python Tests jobs success, yet the suite never ran; the resolver returns SKIPPED where a conclusion read would have returned PASS. Runs 31355229018, 31362376502, 31361938848, and 31360447277 resolve to PASS, CANCELLED, PENDING, and UNKNOWN respectively. End-to-end run against PR 4819 returned PASS with agreement AGREE."
+    },
+    {
+      "action": "Added tests/quality_gate/test_resolve_pytest_signal.py",
+      "result": "57 tests covering stale head, push rejection, latest attempt, sibling failure wins, pass-through-only SKIPPED, pending, no run, cancelled, 403, malformed data, output sanitation, and the CLI contract. Includes a regression pin built from the real green-but-unrun payload."
+    },
+    {
+      "action": "Added the shadow step to .github/workflows/ai-pr-quality-gate.yml",
+      "result": "One step appended to run-tests plus actions: read on that job. Existing outputs, step names, and check names are unchanged; the authoritative duplicate pytest run still executes. continue-on-error and an unconditional exit 0 keep the shadow step from changing any verdict."
+    },
+    {
+      "action": "Review finding 1: closed sibling failure masking in aggregate()",
+      "result": "aggregate() returned inside the tier loop, so the first non-empty tier decided outright and an executor PASS or SKIPPED masked a lower-tier FAIL. The deciding tier now sets a base verdict and every lower-tier status outside BENIGN_SIBLING_STATUSES escalates it through worst(). Escalation is downward only because all jobs carry the same required check name, so an unhealthy sibling means that check is not green whatever the executor observed. PASS, SKIPPED and UNKNOWN stay benign: UNKNOWN so a failure to classify cannot erase a directly observed PASS, and SKIPPED because pytest.yml ships a real skip-tests job with empty steps, so escalating it would turn every ordinary green PR into SKIPPED. That inverse is pinned by test_a_benign_sibling_does_not_disturb_an_executor_pass and by a dedicated mutant. Two dead fallbacks were removed once every job was shown to classify into exactly one of three tiers."
+    },
+    {
+      "action": "Review finding 2: bound candidate runs to the requested pull request",
+      "result": "Runs were matched on head SHA alone, and a SHA can head more than one PR, so another PR's run could supply the verdict. binds_to_pr() now requires the number in the run pull_requests array, falling back to comparing head_repository.full_name against the already validated repository constant when GitHub omits the list. Live reads on 2026-08-10 proved that omission is normal rather than anomalous: open PRs 4832, 4833, 4834 and 4817 each carry their own number while every run of merged PR 4819 carries an empty list, so treating empty as failure would break the resolver on closed PRs. The fallback is a comparison against a trusted constant, never an ingestion, and a fork cannot match the upstream full name. Runs that match the SHA but bind to nothing now resolve UNKNOWN with REASON_RUN_NOT_BOUND, distinct from PENDING for no run at all. Proven on a real payload: the run for PR 4833 binds as 4833 and is rejected as 4834."
+    },
+    {
+      "action": "Review finding 3: made the shadow observable rather than silent",
+      "result": "A shadow that speaks only on disagreement cannot be told apart from a dead one. emit() now prints exactly one greppable ::notice::shadow-pytest-sample line on every invocation carrying status, agreement and compared, exposes shadow_pytest_compared as a fourth output for sample counting, and warns when no sample was collected. The workflow step condition moved to !cancelled() so a failing local pytest run still yields a sample while a cancelled job spends no API calls."
+    },
+    {
+      "action": "Extended the mutation harness from 9 to 18 mutants and found a real gap",
+      "result": "All 17 real mutants DEAD, control SURVIVED, restore byte-identical. The harness requires each needle to occur exactly once, which caught a genuine hole: the raw-agreement-reason mutant stopped applying once liveness gave its target two call sites, and splitting it per branch showed the sanitizer on the no-sample warning was unobserved. A mutant against that branch survived until test_the_no_sample_warning_sanitizes_the_reason_it_is_handed was added."
+    },
+    {
+      "action": "Validated the review fixes and committed as 9a0f4ce7",
+      "result": "83 focused tests pass, up from 57. 637 pass across tests/quality_gate/ and tests/workflows/. pre_pr.py exits 0, which included fixing two mypy union-attr errors the ratchet caught in the test file: tests are type-checked even though mypy reports tests.* as an unused section. A usable_scan() helper now returns a non-optional RunScan and fails by name, leaving scan_runs() for the one test that asserts the None path. taste count ratchet 581 against baseline 583, unchanged. actionlint exit 0, yamllint adds no new warning. Three files changed, still five authored files total."
+    },
+    {
+      "action": "Simplified both authored files under the 500-line taste-lints gate, committed as 0e88151e",
+      "result": "The resolver fell from 729 to 494 lines and its tests from 988 to 491, clearing the two file-size errors that were blocking the build. The file budget forbade a sixth file, so the fix was deletion, not extraction: a 125-line module docstring that restated the workflow, three single-caller wrappers inlined into their only callers, four near-identical status functions collapsed into job_status(job, kind) driven by the _GREEN_STATUS table whose insertion order already encoded the tier order, gh_json returning the payload or None instead of a pair the callers re-validated, and the RunScan container, worst(), build_parser() and __all__ deleted. In the tests, repeated GhFake literals became one gh_stub() and families of one-line tests became dict-driven parametrize tables, which is why 83 cases survive a 497-line cut."
+    },
+    {
+      "action": "Proved the simplification changed no behaviour",
+      "result": "A differential harness loaded the pre-change and post-change modules side by side and compared status, reason, stdout, stderr and every output key across 24 API scenarios by 5 local statuses, plus main() over 6 argument vectors: zero differences, and --help is byte-identical. A 20-mutant battery covering the whole contract (stale head, push filter, head SHA, PR binding, fork rejection, run and attempt selection, the skipped pytest step, pass-through tiering, incomplete jobs, tier precedence, sibling escalation and its benign inverse, unrecognised conclusions, unbound runs, the job-name filter, sanitation, config exit, and both unreadable-payload guards) killed all 20 from a clean tree. Cohesion stays 1.0: that score is a function of file length and definition count, so only splitting the module can move it."
+    },
+    {
+      "action": "Corrected the skipped-executor sibling-failure test input",
+      "result": "The skip-hides-no-fail case now uses executor conclusion success with a skipped pytest step instead of the unrecognised conclusion s. All 83 focused tests pass, Ruff passes, and taste-lints has no blocking finding at 34cf0678."
+    },
+    {
+      "action": "Merged main after PR 4844 shipped pytest-xdist",
+      "result": "Merge commit c784dca71fe80d6fcd11f132f864ebde2e3cf75c imports the all-CPU pytest policy. The shadow resolver code is unchanged, and all 83 focused tests pass in 0.52 seconds."
+    },
+    {
+      "time": "2026-08-10T14:49:00Z",
+      "action": "Resolved final PR 4845 review defects",
+      "result": "Commit 2360162d7e93850cce70b450ff923c810bdaeafe preserves absent local pytest output as UNCOMPARED, normalizes uppercase expected SHAs inside resolve(), rejects non-finite and non-positive timeouts, and sources the PR number directly from the pull_request event. All 86 focused tests pass in 0.49 seconds. Ruff and actionlint pass. Security review reports no exploitable issue."
+    },
+    {
+      "time": "2026-08-10T16:21:50Z",
+      "action": "Closed the blocking sibling fail-open review finding",
+      "result": "Commit f968dfc87b8f96923c84e500b00697c9fb1b7856 separates benign completed-success unclassified jobs from public UNKNOWN conclusions. An executor PASS plus action_required now resolves UNKNOWN, while an unclassified deciding tier cannot mask a failing sibling. All 88 focused tests pass in 0.49 seconds, Ruff passes, and independent review reports PASS."
+    },
+    {
+      "time": "2026-08-10T16:58:42Z",
+      "action": "Returned both new resolver files below the size gate",
+      "result": "Commit e28753afaf61456e27718ac3b64618cb13b94df8 removes only redundant docstring prose. The resolver is 492 lines and its tests are 498 lines. All 88 focused tests pass, Ruff passes, taste-lints reports zero errors, and independent review reports PASS."
+    }
+  ],
+  "endingCommit": "e28753afaf61456e27718ac3b64618cb13b94df8",
+  "nextSteps": [
+    "Push PR 4845 and collect shadow agreement data across real pull requests. Grep CI logs for shadow-pytest-sample to count samples and confirm the shadow is alive.",
+    "Expect frequent PENDING versus PASS disagreements: pytest.yml has a 45 minute budget while ai-pr-quality-gate run-tests has 10 minutes. Measuring that rate is the point of phase 1.",
+    "Confirm actions: read suffices for the workflow GITHUB_TOKEN; local runs used a personal token.",
+    "Watch for shadow_pytest_compared=false runs. A sustained run of them means the resolver is not collecting data and phase 2 has no evidence base.",
+    "Phase 2, only after the disagreement rate is understood: consume the resolved status and retire the duplicate run."
+  ]
+}
