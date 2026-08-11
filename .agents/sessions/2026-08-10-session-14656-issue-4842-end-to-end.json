@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "Scoped markdownlint ran; .agents/** is excluded by repository configuration, so zero files were selected."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847)"
+        "Evidence": "All changes committed (HEAD: b0f27f53fe4ca49c2b12e36c733024d5a401181e)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,8 +147,12 @@
     {
       "action": "Addressed PR 4856 hostname-boundary review",
       "outcome": "Confirmed lookalike hosts were accepted, anchored parsing to GitHub remote forms, and passed 251 tests plus a 2-case mutation control."
+    },
+    {
+      "action": "Preserved credentialed and git+ssh remotes",
+      "outcome": "Expanded the anchored prefix without weakening host validation; 253 tests passed and 2 mutation cases failed under the restricted pattern."
     }
   ],
-  "endingCommit": "78ca60b191b9ae71ada23b1b05694f9b6e1cc847",
+  "endingCommit": "b0f27f53fe4ca49c2b12e36c733024d5a401181e",
   "nextSteps": []
 }
