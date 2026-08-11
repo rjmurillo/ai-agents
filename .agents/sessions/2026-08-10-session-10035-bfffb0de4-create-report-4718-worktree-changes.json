@@ -113,8 +113,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Retrospective not needed for this evidence-only session."
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-11-pr-4718-silent-probes.md records both review findings, their measured reproductions, and the ratchet regression the main merge exposed."
       }
     }
   },
