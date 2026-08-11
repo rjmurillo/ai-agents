@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce",
+  "session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own issue 4851 end to end: reproduce cross-harness orchestrator contract drift, implement the smallest complete fix, validate mirrors, and reach terminal PR state.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed and investigated issue 4851",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the defect on current main",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented the cross-harness contract",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added regression fixtures",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the change",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and reran gates",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T23:32:24+00:00",
+      "type": "commit",
+      "content": "Commit: c2cd517ba6f822e5aa95de98d6dc9795be939e34",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14653-b55ae1eb8-issue-4851-end-end-reproduce"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 8
+  },
+  "lessons": []
+}
