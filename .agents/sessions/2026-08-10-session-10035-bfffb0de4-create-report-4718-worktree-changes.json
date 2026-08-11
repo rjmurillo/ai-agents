@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Created isolated worktree, acquired lease, checked live state, ran the targeted GC suite, wrote QA evidence, and validated the session log. The autofix round then reproduced both open review findings against real git, fixed both, and re-ran the suite and the ratchets."
+        "Evidence": "Created isolated worktree, acquired lease, checked live state, ran the targeted GC suite, wrote QA evidence, and validated the session log. The autofix rounds reproduced all three review findings, fixed them, and re-ran the focused and full suites."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR code validated at d1b04dd837c440488b6cbb42f03a183990f6321e: 6771e31616 ref-lock guard, cb15548e3a rescue-chain delimiter, d1b04dd837 test-suite split. Evidence and retrospective landed at 04ca40d652e01a05f332d7e9b4091b282dab426b."
+        "Evidence": "PR code validated at d1b04dd837c440488b6cbb42f03a183990f6321e: 6771e31616 ref-lock guard, cb15548e3a rescue-chain delimiter, d1b04dd837 test-suite split. The reftable fail-closed fix landed at e32fcea2c6028c867450892ba8b487b5ebe791ed and was validated after merging origin/main at 56a59ef228c48757250c76ec61714f5cfe85614b."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "305 GC tests passed at d1b04dd837 and again at 1d1ea7fe53811ea07f8758d2916997ca02ffcb8c after merging origin/main at ff1fcd7b37. Reverting only the two source files failed 7 of the new tests, which is the negative control. Taste count ratchet returned to 583, ruff 27 <= 30, subprocess encoding 236 <= 253."
+        "Evidence": "305 GC tests passed at d1b04dd837 and again at 1d1ea7fe53811ea07f8758d2916997ca02ffcb8c after merging origin/main at ff1fcd7b37. Reverting only the two source files failed 7 of the new tests, which is the negative control. At 1f0fd72afc2a814ef64ede9b82de91e8f44b43bf, 27,398 full-suite tests and 42 focused anchor and ratchet tests passed. Taste count ratchet returned to 583, ruff 27 <= 30, subprocess encoding 236 <= 253."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -160,8 +160,8 @@
       "outcome": "Both sides added episode-2026-08-11-session-14654.json under the same session number. The branch copy was orphaned when session 14654 was consolidated into this log, so main's copy was taken byte for byte. The GC suite and the ratchets were re-run after the merge."
     }
   ],
-  "endingCommit": "1d1ea7fe53811ea07f8758d2916997ca02ffcb8c",
+  "endingCommit": "1f0fd72afc2a814ef64ede9b82de91e8f44b43bf",
   "nextSteps": [
-    "Reply to both review threads with the measured evidence, resolve them, and merge once all four Ready-to-Merge conditions hold."
+    "Reply to the remaining reftable review thread, resolve it, and merge once all four Ready-to-Merge conditions hold."
   ]
 }

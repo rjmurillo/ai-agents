@@ -1,23 +1,25 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 1d1ea7fe53811ea07f8758d2916997ca02ffcb8c
+qaCommit: 1f0fd72afc2a814ef64ede9b82de91e8f44b43bf
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`1d1ea7fe53811ea07f8758d2916997ca02ffcb8c`, which is the merge of current `origin/main` at `ff1fcd7b37`.
+`1f0fd72afc2a814ef64ede9b82de91e8f44b43bf`, which includes `origin/main`
+at `56a59ef228c48757250c76ec61714f5cfe85614b`.
 
-This round closes the two open review threads. Both were reproduced against real
-git 2.43.0 before the fix and re-broken afterwards.
+The first round closed two review threads. Both were reproduced against real
+git 2.43.0 before the fix and re-broken afterwards. The later reftable finding
+was also reproduced before its fail-closed fix.
 
 ## Live state and setup
 
 - Acquired the PR lease with `pr_autofix_lease.py`: `action=ACT`, `reason=free`.
 - `check_pr_live_state.py` returned `ACT` for PR #4718 at head
-  `21b0a779de451a7bb93e6fdafbc01bff599ce69f`, base `main`.
+  `b39762eb4d7f2f83db8657f9f36968ab02943196`, base `main`.
 - Worked in the isolated worktree `/home/richard/sessions/autofix-4718`.
 
 ## Finding 1: a per-worktree ref lock did not stop a removal
@@ -48,6 +50,14 @@ creating a single rescue branch. The count now sits behind the `" | "`
 delimiter the staged-work rescue already uses, which is where `command_of` and a
 reader both stop.
 
+## Finding 3: reftable anchors looked empty
+
+The files-backend readers walked only `logs/` and `refs/`. A linked worktree
+using reftable stores both under `<admin>/reftable`, so the probe returned an
+empty anchor list and allowed removal. `reflog_oids` now returns unknown when
+the reftable marker exists or cannot be proven absent. Existing callers
+withhold removal on unknown.
+
 ## Test execution results
 
 | Command | Result |
@@ -60,6 +70,8 @@ reader both stop.
 | `scripts/ci/subprocess_encoding_count_ratchet.py` | OK, 236 <= baseline 253 |
 | `ruff check` and `ruff format --check` on every changed file | clean |
 | Same GC suite and ratchets re-run after merging `origin/main` at `ff1fcd7b37` | 305 passed, taste 583, ruff 27 <= 30 |
+| Full pre-push Python suite after the current main merge | 27,398 passed, 36 skipped |
+| Reftable anchor readers, real-git anchors, and ceiling ratchet | 42 passed |
 
 New coverage: five real-git cases for the ref lock, including one that drives a
 prepared `git update-ref --stdin` transaction so git itself writes the lock, a
@@ -79,6 +91,6 @@ raised.
 
 ## Verdict
 
-PASS. Both review findings are fixed at the root, each with a real-git
-reproduction and a negative control, and every ratchet is back at or under its
-baseline.
+PASS. All three review findings are fixed at the root. The original two have
+real-git reproductions and negative controls. The reftable reader now fails
+closed, and every ratchet is at or under its baseline.
