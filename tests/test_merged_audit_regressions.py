@@ -5,7 +5,7 @@ from pathlib import Path
 
 from scripts.ci.cli_exit_contract_coverage import covered_stems
 from scripts.validation.check_subprocess_encoding import find_violations
-from scripts.validation.check_unreachable_after_terminator import scan_tree
+from scripts.validation.check_unreachable_code import _find_in_block
 
 
 def test_unreachable_gate_detects_nested_block_after_return() -> None:
@@ -17,11 +17,13 @@ def f(flag):
     return 0
 """
 
-    violations = scan_tree(ast.parse(source), Path("nested_case.py"))
+    tree = ast.parse(source)
+    function = tree.body[0]
+    assert isinstance(function, ast.FunctionDef)
 
-    assert len(violations) == 1
-    assert violations[0].func_name == "f"
-    assert violations[0].terminator_type == "Return"
+    violations = _find_in_block(function.body, Path("nested_case.py"), function.name)
+
+    assert violations == [(Path("nested_case.py"), "f", 5)]
 
 
 def test_unreachable_gate_ignores_nested_function_body_for_outer_function() -> None:
@@ -33,9 +35,19 @@ def outer():
     return inner()
 """
 
-    violations = scan_tree(ast.parse(source), Path("nested_function.py"))
+    tree = ast.parse(source)
+    functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+    violations = [
+        finding
+        for function in functions
+        for finding in _find_in_block(
+            function.body,
+            Path("nested_function.py"),
+            function.name,
+        )
+    ]
 
-    assert [violation.func_name for violation in violations] == ["inner"]
+    assert [function_name for _, function_name, _ in violations] == ["inner"]
 
 
 def test_subprocess_encoding_accepts_mixed_case_utf8_alias() -> None:
