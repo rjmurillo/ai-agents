@@ -64,12 +64,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Base refresh merged as ae4f36af5342299a7997b8870eb02611f1e0b303"
+        "Evidence": "Base refresh merged as e448e4a76169c67d226e1dd3feb14e1ebc72a712"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Post-merge focused validation passed: 277 tests (202 analyst resolution + 75 routing contract) in 1.16s"
+        "Evidence": "Post-merge focused validation passed: 277 tests (202 analyst resolution + 75 routing contract) in 1.01s"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -129,7 +129,7 @@
     },
     {
       "task": "Refresh PR 4817 against main",
-      "outcome": "Merged the latest origin/main at 77c2783aa32cc09f9084f15337cb0861685d10ff into the PR head without source changes. Focused post-merge validation passed all 277 analyst resolution and routing contract tests."
+      "outcome": "Merged the latest origin/main at e9c548a090dc7c2ffb91be9eea249e4d7f4bf01a into the PR head without source changes. Focused post-merge validation passed all 277 analyst resolution and routing contract tests."
     }
   ],
   "retrospective": {
@@ -139,7 +139,7 @@
     "remediation": "Kept both strippers and documented the boundary in each docstring so a future reader does not collapse them and reintroduce the bypass. Negative controls now cover backtick, tilde, nested, and indented blockquote forms plus the closed-fence pass-through.",
     "observation": "The merge-tree-ratchet pre-push job failed twice with 'ruff could not read <scratch>/tests/skills/doc-accuracy/__init__.py' while the same command passed twice standalone against the same base. Each run materializes its own scratch tree, so the read failure points at a concurrency interaction between the merge-tree-ratchet job and the count ratchets inside pre-pr-validation, not at this branch's diff."
   },
-  "endingCommit": "ae4f36af5342299a7997b8870eb02611f1e0b303",
+  "endingCommit": "e448e4a76169c67d226e1dd3feb14e1ebc72a712",
   "nextSteps": [],
-  "testedCodeSha": "ae4f36af5342299a7997b8870eb02611f1e0b303"
+  "testedCodeSha": "e448e4a76169c67d226e1dd3feb14e1ebc72a712"
 }
