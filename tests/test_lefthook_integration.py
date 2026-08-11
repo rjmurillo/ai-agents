@@ -2160,7 +2160,7 @@ def test_pre_commit_session_policy_validates_changed_upstream_content(
         assert policy.check_sessions([relative], repo) == 1
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [sys.executable, "scripts/validate_session_json.py", relative, "--creation-mode"]
     ]
 
 
@@ -2193,7 +2193,7 @@ def test_pre_commit_session_policy_validates_absent_upstream_path(tmp_path: Path
         assert policy.check_sessions([relative], repo) == 0
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [sys.executable, "scripts/validate_session_json.py", relative, "--creation-mode"]
     ]
 
 

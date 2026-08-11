@@ -3492,7 +3492,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             commands.append(command)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        stub, _ = self._stub(added=(branch_owned,), tracked=(branch_owned,))
+        stub, _ = self._stub(added=(), tracked=(branch_owned,))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(
@@ -3505,7 +3505,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         ):
             git_hook_policy.validate_branch_sessions([branch_owned], Path.cwd())
         assert commands
-        assert "--existing-log" not in commands[0]
+        assert "--existing-log" in commands[0]
         assert "--creation-mode" not in commands[0]
 
     def test_the_hook_passes_the_flag_only_for_a_historical_log(self) -> None:
@@ -3803,7 +3803,8 @@ class TestCheckSessionsCreationMode:
             commands.append(command)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
+        stub, _ = self._stub(added=(new_path,), tracked=(new_path,))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
@@ -3813,7 +3814,7 @@ class TestCheckSessionsCreationMode:
                 return_value=None,
             ),
         ):
-            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+            git_hook_policy.validate_branch_sessions([new_path], Path.cwd())
         assert commands
         assert "--creation-mode" not in commands[0]
         assert "--existing-log" not in commands[0]
