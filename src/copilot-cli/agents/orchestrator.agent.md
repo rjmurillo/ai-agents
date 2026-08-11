@@ -203,6 +203,17 @@ After all delegated work returns:
 
 Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
 
+## Context Maintenance
+
+Before each user message, re-read the active plan, relevant artifacts, and exact prior decisions. Then:
+
+- **Continue, do not restart.** Resume the active phase. Never repeat completed phases.
+- **Do not re-ask answered questions.** Use recorded answers unless new evidence invalidates them.
+- **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
+- **Preserve work across compaction.** Re-read the plan and session log, then continue from the recorded state.
+
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+
 ## Output Bounds
 
 | Output phase | Cap |
@@ -251,14 +262,7 @@ Use when drift is detected: wrong approach, lost context after compaction, exper
 
 ### Event-Driven TODO Review
 
-Re-read the TODO list and plan after any of these events, not on a fixed cadence:
-
-- Phase completion (a delegated agent returned, a subtask finished)
-- Major transitions (switching workstreams, handing off, changing tiers)
-- Interruptions or pauses (context compaction, tool failure, external wait)
-- **Before asking the user anything** (most important; prevents stale questions and re-work)
-
-If the TODO list no longer matches the plan, update the plan first, then the TODO list, then act.
+Apply Context Maintenance after phase completion, major transitions, interruptions, and before asking the user anything. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
 
 ### Session Capture Protocol
 
@@ -299,7 +303,7 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 2. Record progress in the session log per the Session Capture Protocol: delegations returned, conflicts resolved, the next concrete routing step. That is the state the next session inherits.
 3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
 
-**Check the session log before you route, not your recall.** Do not re-delegate a task you already routed this session. It wastes an agent and can return output that conflicts with the return you already hold. The log of open delegations is the authority on what is in flight; your memory of it is not. Re-reading a return you already read is verification, which this repository requires; it is never a reason to stop.
+**Duplicate routing is a defect.** Check the session log before routing. Do not re-delegate work that is still in flight, or work whose return you already hold and still trust. A failed delegation may be retried once you change the approach or the context it carries.
 
 **Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
 

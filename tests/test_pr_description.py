@@ -320,6 +320,55 @@ class TestOverall:
         assert result.returncode == 1
 
 
+class TestEscapedNewlineGuardWiring:
+    """Drive the CLI, not the helper, so the guard cannot drift dead."""
+
+    _BODY = (
+        "## Summary\n\nAdded auth.\n\n"
+        "| Type | Reference |\n|------|--------|\n| **Issue** | Refs #1 |\n\n"
+        "## Type of Change\n\n- [x] Bug fix\n\n"
+        "## Changes\n\n- Added validation\n"
+    )
+
+    def test_cli_rejects_body_with_literal_escaped_newlines(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "fix: reject escaped body newlines",
+                "--body",
+                self._BODY.replace("\n", "\\n"),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        assert result.returncode == 1
+        assert result.stdout == ""
+        assert "literal backslash-n" in result.stderr
+        assert "--body-file" in result.stderr
+
+    def test_cli_accepts_same_body_with_real_newlines(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                SCRIPT,
+                "--title",
+                "fix: reject escaped body newlines",
+                "--body",
+                self._BODY,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        assert result.returncode == 0
+        assert "Validation passed" in result.stderr
+
+
 class TestExitMessageMatchesExitCode:
     """Regression tests for #2369: the printed summary must agree with the exit code.
 
