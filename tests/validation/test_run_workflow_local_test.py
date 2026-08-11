@@ -545,7 +545,7 @@ def test_empty_env_secret_is_absent(monkeypatch, tmp_path):
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 4
     assert r.secret_skipped is True
-    assert "1 locally absent secret(s)" in r.note
+    assert "reference secrets absent" in r.note
 
 
 def test_quoted_empty_env_secret_is_absent(monkeypatch, tmp_path):
@@ -559,19 +559,19 @@ def test_quoted_empty_env_secret_is_absent(monkeypatch, tmp_path):
 
 
 def test_all_workflows_secret_blocked_is_exit_4(monkeypatch, tmp_path):
-    # A changed workflow that needs a locally-absent secret cannot run under
-    # act. actionlint (static, no secrets) still runs; only the act run is
-    # skipped audibly (exit 4). The actionlint stage is recorded (#2841 review).
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
-    r = w.run_local_test([WF], tmp_path)
-    assert r.exit_code == 4
-    assert r.secret_skipped is True
-    assert "BOT_PAT_2841" not in r.note
-    assert "1 locally absent secret(s)" in r.note
-    assert [s.stage for s in r.stages] == ["actionlint"]
+
+    report = w.run_local_test([WF], tmp_path)
+
+    assert report.exit_code == 4
+    assert report.secret_skipped is True
+    assert "BOT_PAT_2841" not in report.note
+    assert WF not in report.note
+    assert "reference secrets absent" in report.note
+    assert [stage.stage for stage in report.stages] == ["actionlint"]
 
 
 def test_all_secret_blocked_lints_before_skipping(monkeypatch, tmp_path):
@@ -673,16 +673,12 @@ def test_secret_in_comment_is_not_blocking(all_tools, monkeypatch, tmp_path):
 
 
 def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_path):
-    # One workflow needs an absent secret (skipped), one is clean (runs).
-    # actionlint lints BOTH; the act stages receive only the runnable file; the
-    # skipped file is surfaced in the note (exit 0 preserved).
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     clean = ".github/workflows/clean.yml"
     blocked = ".github/workflows/blocked.yml"
     _write_wf_secrets(tmp_path, clean)
     _write_wf_secrets(tmp_path, blocked, "BOT_PAT_2841")
     seen = {}
-
     monkeypatch.setattr(
         w, "_actionlint_stage", lambda f, r: seen.__setitem__("lint", list(f)) or _ok("actionlint")
     )
@@ -690,20 +686,19 @@ def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_pat
         w, "_act_dryrun_stage", lambda f, r: seen.__setitem__("act", list(f)) or _ok("gh act -n")
     )
     monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
-    r = w.run_local_test([blocked, clean], tmp_path)
-    assert r.exit_code == 0
-    assert r.secret_skipped is True
-    assert r.missing_secret_names == {blocked: ["BOT_PAT_2841"]}
+
+    report = w.run_local_test([blocked, clean], tmp_path)
+
+    assert report.exit_code == 0
+    assert report.secret_skipped is True
     assert seen["lint"] == [blocked, clean]
     assert seen["act"] == [clean]
-    assert "BOT_PAT_2841" not in r.note
-    assert "1 locally absent secret(s)" in r.note
-    assert "blocked.yml" in r.note
+    assert "BOT_PAT_2841" not in report.note
+    assert blocked not in report.note
+    assert "skipped workflows with secrets absent locally" in report.note
 
 
 def test_mixed_skip_note_visible_in_text_format(all_tools, monkeypatch, tmp_path):
-    # The mixed-batch skip note must appear in exit-0 text output so the hook
-    # can surface it instead of reporting a silent clean pass (#2841 review).
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     clean = ".github/workflows/clean.yml"
     blocked = ".github/workflows/blocked.yml"
@@ -712,11 +707,13 @@ def test_mixed_skip_note_visible_in_text_format(all_tools, monkeypatch, tmp_path
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
-    r = w.run_local_test([blocked, clean], tmp_path)
-    text = w._format_text(r)
+
+    text = w._format_text(w.run_local_test([blocked, clean], tmp_path))
+
     assert "OK" in text
-    assert "skipped (secrets absent locally)" in text
-    assert "blocked.yml" in text
+    assert "skipped workflows with secrets absent locally" in text
+    assert "BOT_PAT_2841" not in text
+    assert blocked not in text
 
 
 def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
@@ -728,31 +725,41 @@ def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
-    r = w.run_local_test([blocked, clean], tmp_path)
-    payload = json.loads(w._format_json(r))
+
+    payload = json.loads(w._format_json(w.run_local_test([blocked, clean], tmp_path)))
+
     assert payload["secret_skipped"] is True
-    assert payload["missing_secret_names"] == {blocked: ["BOT_PAT_2841"]}
+    assert "missing_secret_names" not in payload
     assert payload["exit_code"] == 0
+    assert "BOT_PAT_2841" not in json.dumps(payload)
+    assert blocked not in json.dumps(payload)
 
 
-def test_format_json_exposes_missing_secret_names_for_exit_4(all_tools, monkeypatch, tmp_path):
+def test_format_json_omits_missing_secret_names_for_exit_4(
+    all_tools, monkeypatch, tmp_path
+):
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
-    r = w.run_local_test([WF], tmp_path)
-    payload = json.loads(w._format_json(r))
+
+    payload = json.loads(w._format_json(w.run_local_test([WF], tmp_path)))
+
     assert payload["secret_skipped"] is True
-    assert payload["missing_secret_names"] == {WF: ["BOT_PAT_2841"]}
-    assert "BOT_PAT_2841" not in w._format_text(r)
+    assert "missing_secret_names" not in payload
+    assert "BOT_PAT_2841" not in json.dumps(payload)
+    assert WF not in json.dumps(payload)
 
 
 def test_exit_4_text_format_omits_secret_name():
     report = w.Report(
-        exit_code=4, note="unrunnable-locally: x.yml needs 1 locally absent secret(s)."
+        exit_code=4,
+        note="unrunnable-locally: changed workflow(s) reference secrets absent.",
     )
+
     text = w._format_text(report)
+
     assert "SKIPPED" in text
-    assert "locally absent secret" in text
+    assert "reference secrets absent" in text
     assert "BOT_PAT_2841" not in text
 
 

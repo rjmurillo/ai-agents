@@ -66,7 +66,9 @@
         "e010",
         "e012",
         "e014",
-        "e016"
+        "e016",
+        "e018",
+        "e020"
       ],
       "leads_to": [
         "e007"
@@ -212,6 +214,54 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "CodeQL alerts 150 and 151 found secret metadata flowing to text and JSON logs. Removed missing secret names and workflow paths from output at 95ec5cd9808cdfb4967b809af3f3601a778e4492.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-11T06:05:57+00:00",
+      "type": "commit",
+      "content": "Commit: 95ec5cd9808cdfb4967b809af3f3601a778e4492",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved the duplicate-run guard into the focused pytest policy file. The final branch has no diff in tests/test_lefthook_integration.py, avoiding repeated Semgrep timeouts.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-11T06:14:39+00:00",
+      "type": "commit",
+      "content": "Commit: 74362e2a20069136702b533c72a80f593ad80e6c",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions"
     }
@@ -221,7 +271,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 9,
     "files_changed": 10
   },
   "lessons": []

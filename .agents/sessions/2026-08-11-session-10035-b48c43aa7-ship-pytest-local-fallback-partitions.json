@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8ecfa4de06047e820c4e5aebe775181dea69c992"
+        "Evidence": "74362e2a20069136702b533c72a80f593ad80e6c"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Real four-partition pre-push pytest gate passed in 325.73 seconds; 142 fallback tests, Ruff, taste ratchet, and security review passed"
+        "Evidence": "Real four-partition pre-push pytest gate passed in 325.73 seconds; 142 secret-safe fallback tests, Ruff, taste ratchet, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -148,9 +148,15 @@
     },
     {
       "entry": "Removed the duplicate full pytest workflow-local run. The workflow hook now uses actionlint-only for pytest.yml, with runtime owned by the partitioned pytest hook."
+    },
+    {
+      "entry": "CodeQL alerts 150 and 151 found secret metadata flowing to text and JSON logs. Removed missing secret names and workflow paths from output at 95ec5cd9808cdfb4967b809af3f3601a778e4492."
+    },
+    {
+      "entry": "Moved the duplicate-run guard into the focused pytest policy file. The final branch has no diff in tests/test_lefthook_integration.py, avoiding repeated Semgrep timeouts."
     }
   ],
-  "endingCommit": "8ecfa4de06047e820c4e5aebe775181dea69c992",
+  "endingCommit": "74362e2a20069136702b533c72a80f593ad80e6c",
   "nextSteps": [
     "Update PR #4872 with the final parent commits.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."

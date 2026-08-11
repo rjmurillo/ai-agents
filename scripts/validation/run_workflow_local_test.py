@@ -163,7 +163,6 @@ class Report:
     bypassed: bool = False
     degraded: bool = False
     secret_skipped: bool = False
-    missing_secret_names: dict[str, list[str]] = field(default_factory=dict)
     note: str = ""
 
 
@@ -475,13 +474,6 @@ def _referenced_secrets(path: Path) -> set[str]:
 def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     """Secrets ``path`` references that are absent from ``available`` (sorted)."""
     return sorted(name for name in _referenced_secrets(path) if name not in available)
-
-
-def _secret_gap_detail(secret_blocked: Sequence[tuple[str, Sequence[str]]]) -> str:
-    """Return an operator-safe summary without logging secret names."""
-    return "; ".join(
-        f"{rel} needs {len(missing)} locally absent secret(s)" for rel, missing in secret_blocked
-    )
 
 
 # --- Stages --------------------------------------------------------------
@@ -1196,12 +1188,10 @@ def run_local_test(
     available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
     secret_blocked: list[tuple[str, list[str]]] = []
-    missing_secret_names: dict[str, list[str]] = {}
     for rel in files:
         missing = _missing_secrets(repo_root / rel, available)
         if missing:
             secret_blocked.append((rel, missing))
-            missing_secret_names[rel] = missing
         else:
             runnable.append(rel)
 
@@ -1234,15 +1224,12 @@ def run_local_test(
         # Every changed workflow needs a locally-absent secret: nothing can run
         # under act. actionlint already validated syntax above; skip only the
         # act run, audibly, instead of blocking on a manual bypass.
-        detail = _secret_gap_detail(secret_blocked)
         report.exit_code = 4
         report.secret_skipped = True
-        report.missing_secret_names = missing_secret_names
         report.note = (
             "unrunnable-locally: changed workflow(s) reference secrets absent "
-            f"from this environment ({detail}). actionlint passed; skipped the "
-            "local act run, which CI runs with the real secrets. Provide them "
-            "via a repo-root .secrets file or the environment to run it locally."
+            "from this environment. actionlint passed; skipped the local act run. "
+            "Provide them via a repo-root .secrets file or the environment."
         )
         return report
 
@@ -1257,12 +1244,10 @@ def run_local_test(
                 report.exit_code = 1
                 return report
         if secret_blocked:
-            detail = _secret_gap_detail(secret_blocked)
             report.secret_skipped = True
-            report.missing_secret_names = missing_secret_names
             report.note = (
-                f"skipped (secrets absent locally): {detail}. "
-                "CI runs these with the real secrets."
+                "skipped workflows with secrets absent locally. "
+                "CI runs them with the real secrets."
             )
         return report
 
@@ -1315,11 +1300,10 @@ def run_local_test(
     # The runnable ones passed (exit 0 preserved); surface the skips in the note
     # so the developer sees which files CI will still exercise with real secrets.
     if secret_blocked:
-        detail = _secret_gap_detail(secret_blocked)
         report.secret_skipped = True
-        report.missing_secret_names = missing_secret_names
         skip_note = (
-            f"skipped (secrets absent locally): {detail}. CI runs these with the real secrets."
+            "skipped workflows with secrets absent locally. "
+            "CI runs them with the real secrets."
         )
         report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
@@ -1370,7 +1354,6 @@ def _format_json(report: Report) -> str:
             "bypassed": report.bypassed,
             "degraded": report.degraded,
             "secret_skipped": report.secret_skipped,
-            "missing_secret_names": report.missing_secret_names,
             "note": report.note,
             "stages": [{"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages],
         },

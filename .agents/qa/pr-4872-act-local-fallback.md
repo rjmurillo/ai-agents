@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10035-b48c43aa7-ship-pytest-local-fallback-partitions.json
-qaCommit: 8ecfa4de06047e820c4e5aebe775181dea69c992
+qaCommit: 74362e2a20069136702b533c72a80f593ad80e6c
 ---
 
 # QA Report: PR 4872 local pytest loop
@@ -17,7 +17,7 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
 
 ## Evidence
 
-- Final fallback file: 142 passed in 5.85 seconds.
+- Final fallback file: 142 passed in 5.86 seconds.
 - `uv run ruff check scripts/validation/run_workflow_local_test.py
   tests/validation/test_run_workflow_local_test.py`: passed.
 - `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref
@@ -32,6 +32,8 @@ use `-n auto --dist loadfile`. Push-safety and pr-autofix modules stay serial.
 - Workflow-local pre-push passes `--no-full` for `pytest.yml`, so actionlint
   runs once and the dedicated pytest hook owns runtime execution.
 - Workflow-local routing tests: 6 passed, 809 deselected in 1.03 seconds.
+- Text and JSON output omit missing secret names and affected workflow paths.
+- Focused pytest policy file: 38 passed in 0.79 seconds.
 - Child workers receive checkout-local `COPILOT_PLUGIN_ROOT` and
   `CLAUDE_PLUGIN_ROOT` values.
 - Real pre-push pytest gate: 325.73 seconds total.
