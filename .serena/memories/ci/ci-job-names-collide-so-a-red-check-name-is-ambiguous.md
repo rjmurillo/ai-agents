@@ -34,27 +34,22 @@ nothing.
 
 ## Two kinds of collision
 
-**Same name, mutually exclusive jobs.** `YAML Lint` (`lint` and `skip-lint`) and
-`Validate Skillbook` declare one name on a pair whose `if:` conditions are exact
-complements, so at most one can fail. That pattern is deliberate: it keeps a
-required check present when the path filter skips the real work. Both still
-appear in `gh run view`, one `success` and one `skipped`.
+**Same name, mutually exclusive jobs.** `YAML Lint` (`lint` and `skip-lint`),
+`Validate Skillbook`, and `Run Python Tests` declare one name on jobs whose
+`if:` conditions are complements, so at most one can fail. That pattern keeps
+a required check present when the path filter skips the real work. Both jobs
+still appear in `gh run view`, one `success` and one `skipped`.
 
-**Same name, jobs that both run.** The complement is not guaranteed, and two
-workflows get this wrong:
+**Same name, jobs that both run.** The complement is not guaranteed:
 
 ```
-pytest.yml                 test           if: <none>          <- always runs
-                           skip-tests     if: python-changed != 'true'
 agent-drift-detection.yml  check-paths    if: <none>          <- always runs
                            validate / bypass-warning / skip    (one of three)
 ```
 
-`test` carries no job-level `if:`, so when Python did not change, both
-`Run Python Tests` jobs complete in the same run. `Agent Drift Detection` names
-four jobs, and `check-paths` always runs alongside whichever of the other three
-fires. Observed on PR 4438: two rows named `Run Python Tests`, **both FAILURE**.
-Do not assume a duplicated name means one row is a skip shim.
+`Agent Drift Detection` names four jobs, and `check-paths` always runs alongside
+whichever of the other three fires. Do not assume a duplicated name means one
+row is a skip shim.
 
 **Cross-workflow reuse.** Different workflows, different subsystems, same name,
 both able to run and to fail:
@@ -103,8 +98,8 @@ for k, v in sorted(n.items()):
 '
 ```
 
-Measured 2026-08-11 on the issue #4880 branch: **156 job definitions produce
-132 unique display names.** Twelve names are used by more than one definition.
+Measured 2026-08-11 on the issue #4880 branch: **159 job definitions produce
+135 unique display names.** Twelve names are used by more than one definition.
 Count definitions, not names: the two numbers differ by 24 and are easy to
 conflate. Jobs without `name:` use their job ID as the display name.
 

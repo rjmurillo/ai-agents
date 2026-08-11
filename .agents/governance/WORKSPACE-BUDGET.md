@@ -11,7 +11,7 @@ it fails the required validation.
 
 | File | Ceiling | Ratchet? | Notes |
 |---|---|---|---|
-| `AGENTS.md` | 4800 bytes | no | Shared gotchas and routing; 4621 bytes accepted by issue #4880 |
+| `AGENTS.md` | 4800 bytes | no | Shared gotchas and routing; 4666 bytes accepted by issue #4880 |
 | `CLAUDE.md` | 4800 bytes | no | Claude-specific overlay |
 | `.claude/CLAUDE.md` | 4800 bytes | no | Path-local Claude overlay |
 | `.github/copilot-instructions.md` | 1400 bytes | yes | Copilot-specific overlay; 1370 bytes accepted by issue #4880 |

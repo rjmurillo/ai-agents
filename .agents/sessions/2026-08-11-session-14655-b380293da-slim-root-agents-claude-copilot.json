@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Task changes committed through f55f53ccda; unrelated pre-existing untracked artifacts remain outside scope"
+        "Evidence": "Task changes committed through cef879e06a; unrelated pre-existing untracked artifacts remain outside scope"
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,10 +142,18 @@
     },
     {
       "task": "Rebuild on current main",
-      "outcome": "Recreated the final diff on origin/main after concurrent hook-policy merges and completed the full 27,056-test suite."
+      "outcome": "Rebased the final diff on current origin/main and completed the full 27,434-test suite."
     }
   ],
-  "endingCommit": "f55f53ccda",
+  "episodeMetrics": {
+    "filesChanged": 33,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "7311169d29722e00e712def65136d127f17fd865",
+      "head": "913f31a064cba00898a091e649b5695a47a0f5ab"
+    }
+  },
+  "endingCommit": "913f31a064",
   "nextSteps": [
     "Review and merge the root entrypoint PR.",
     "Add passive-loading fixtures to issue 4853.",
