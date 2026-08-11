@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-1-fix-append-target-merge-conflicts.json
-qaCommit: e6faaca7502582f2c1beaf31a6d4cafef6c6f1d7
+qaCommit: eb2a7789c2080b632acca51cd05066e4dfab756a
 ---
 
 # QA Report: PR #4618 - Fix append target merge conflicts
