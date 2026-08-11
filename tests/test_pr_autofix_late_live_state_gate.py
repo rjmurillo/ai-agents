@@ -149,6 +149,9 @@ if child_log:
             child_log,
         ]
     )
+    started_log = os.environ.get("MUTATION_STARTED_LOG")
+    if started_log:
+        Path(started_log).write_text("started\\n", encoding="utf-8")
 time.sleep(float(os.environ.get("MUTATION_SLEEP_SECONDS", "0")))
 Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 """,
@@ -174,21 +177,25 @@ def _run_race(
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
     mutation_child_log = tmp_path / "mutation-child"
+    mutation_started_log = tmp_path / "mutation-started"
     renew_count = tmp_path / "renew-count"
     guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
     mutation_sleep = "0.5" if renewal_failure else "0"
-    lease_failure_override = (
-        "lease_failure_checks=0\n"
-        "lease_renewal_failed() {\n"
-        "    lease_failure_checks=$((lease_failure_checks + 1))\n"
-        "    [ \"$lease_failure_checks\" -ge 2 ]\n"
-        "}\n"
-        if immediate_lease_failure
-        else ""
-    )
+    if immediate_lease_failure and spawn_delayed_child:
+        lease_failure_override = 'lease_renewal_failed() {\n    [ -e "$MUTATION_STARTED_LOG" ]\n}\n'
+    elif immediate_lease_failure:
+        lease_failure_override = (
+            "lease_failure_checks=0\n"
+            "lease_renewal_failed() {\n"
+            "    lease_failure_checks=$((lease_failure_checks + 1))\n"
+            '    [ "$lease_failure_checks" -ge 2 ]\n'
+            "}\n"
+        )
+    else:
+        lease_failure_override = ""
     mutation_invocation = mutation_command or 'python3 "$SCRIPTS_DIR/mutation.py"'
 
     harness = f"""\
@@ -236,6 +243,7 @@ fi
         "MUTATION_CHILD_LOG": str(mutation_child_log)
         if renewal_failure or spawn_delayed_child
         else "",
+        "MUTATION_STARTED_LOG": str(mutation_started_log) if spawn_delayed_child else "",
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -325,7 +333,7 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     assert "lease_renewal_failed" in guard
     assert "cleanup_pr_autofix" in text
     assert "release_pr_lease()" in text
-    assert "if [ \"$MUTATION_RC\" -ne 75 ]; then" in text
+    assert 'if [ "$MUTATION_RC" -ne 75 ]; then' in text
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
@@ -475,7 +483,7 @@ def test_fast_exit_stops_delayed_child_after_lease_loss(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, _lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, _mutation_log = _run_race(
         tmp_path,
         "OPEN",
         guarded_doc,
@@ -485,7 +493,7 @@ def test_fast_exit_stops_delayed_child_after_lease_loss(
 
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
-    assert mutation_log.read_text(encoding="utf-8") == "ran\n"
+    assert (tmp_path / "mutation-started").read_text(encoding="utf-8") == "started\n"
     assert "mutation-skipped:75" in result.stdout
     assert "mutation-ran" not in result.stdout
     assert not (tmp_path / "mutation-child").exists()
