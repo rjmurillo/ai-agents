@@ -73,6 +73,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,6 +120,7 @@ _WORKFLOW_SUFFIXES = (".yml", ".yaml")
 _ACTIONLINT_TIMEOUT = 60
 _ACT_FULL_TIMEOUT = 600
 _ACT_DRYRUN_TIMEOUT = _ACT_FULL_TIMEOUT
+_PYTEST_WORKFLOW = ".github/workflows/pytest.yml"
 
 # actionlint shells out to shellcheck for ``run:`` scripts. The info and style
 # tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are
@@ -573,28 +575,56 @@ def _pytest_matrix_entries(data: object) -> list[object]:
     return includes if isinstance(includes, list) else []
 
 
-def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    """Run pytest matrix entries directly when already inside act."""
-    stage = "gh act (local-fallback)"
+def _local_pytest_commands(
+    files: Sequence[str], repo_root: Path
+) -> tuple[list[tuple[list[str], dict[str, str]]], str]:
     try:
         import yaml
     except ImportError:
-        return StageResult(stage, False, "PyYAML is required for the local fallback")
+        return [], "PyYAML is required for the local fallback"
 
-    commands: list[list[str]] = []
+    commands: list[tuple[list[str], dict[str, str]]] = []
     for rel in files:
         try:
             data = yaml.safe_load((repo_root / rel).read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-            return StageResult(stage, False, f"{rel}: {type(exc).__name__}: {exc}")
-        for entry in _pytest_matrix_entries(data):
+            return [], f"{rel}: {type(exc).__name__}: {exc}"
+        for index, entry in enumerate(_pytest_matrix_entries(data)):
             pytest_args = entry.get("pytest_args") if isinstance(entry, dict) else None
             if not isinstance(pytest_args, str) or not pytest_args.strip():
                 continue
             try:
-                commands.append(["uv", "run", "pytest", *shlex.split(pytest_args)])
+                command = [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "python",
+                    "scripts/ci/run_pytest_non_tmp.py",
+                    "--cov",
+                    "--cov-report=",
+                    f"--junitxml=pytest-{index}.xml",
+                    *shlex.split(pytest_args),
+                ]
             except ValueError as exc:
-                return StageResult(stage, False, f"{rel}: invalid pytest_args: {exc}")
+                return [], f"{rel}: invalid pytest_args: {exc}"
+            commands.append(
+                (
+                    command,
+                    {
+                        "COVERAGE_FILE": f".coverage.{index}",
+                        "PYTEST_NON_TMP_ROOT": f"pytest-{index}",
+                    },
+                )
+            )
+    return commands, ""
+
+
+def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    """Run pytest matrix entries directly when already inside act."""
+    stage = "gh act (local-fallback)"
+    commands, error = _local_pytest_commands(files, repo_root)
+    if error:
+        return StageResult(stage, False, error)
 
     if not commands:
         return StageResult(stage, False, "no test matrix pytest_args found")
@@ -605,16 +635,25 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     plugin_root = str(repo_root / ".claude")
     env["COPILOT_PLUGIN_ROOT"] = plugin_root
     env["CLAUDE_PLUGIN_ROOT"] = plugin_root
-    for command in commands:
-        returncode, stdout, stderr = _run(
-            command,
-            timeout=_ACT_FULL_TIMEOUT,
-            cwd=repo_root,
-            env=env,
-        )
-        if returncode != 0:
-            detail = _with_timeout_hint((stdout + stderr).strip())
-            return StageResult(stage, False, detail)
+    with tempfile.TemporaryDirectory(prefix="ai-agents-pytest-") as temp_root:
+        output_root = Path(temp_root)
+        for command, partition_env in commands:
+            command_env = env | {
+                "COVERAGE_FILE": str(output_root / partition_env["COVERAGE_FILE"]),
+                "PYTEST_NON_TMP_ROOT": str(
+                    output_root / partition_env["PYTEST_NON_TMP_ROOT"]
+                ),
+            }
+            command[7] = f"--junitxml={output_root / command[7].removeprefix('--junitxml=')}"
+            returncode, stdout, stderr = _run(
+                command,
+                timeout=_ACT_FULL_TIMEOUT,
+                cwd=repo_root,
+                env=command_env,
+            )
+            if returncode != 0:
+                detail = _with_timeout_hint((stdout + stderr).strip())
+                return StageResult(stage, False, detail)
     return StageResult(stage, True)
 
 
@@ -1233,9 +1272,15 @@ def run_local_test(
         )
         return report
 
-    local_pytest = os.environ.get("ACT", "").strip().lower() == "true" or runnable == [
-        ".github/workflows/pytest.yml"
-    ]
+    inside_act = os.environ.get("ACT", "").strip().lower() == "true"
+    if inside_act and runnable != [_PYTEST_WORKFLOW]:
+        report.exit_code = 3
+        report.note = (
+            "unrunnable-locally: nested act execution supports only the pytest workflow"
+        )
+        return report
+
+    local_pytest = runnable == [_PYTEST_WORKFLOW]
     if local_pytest:
         if full:
             local_stage = _local_pytest_stage(runnable, repo_root)

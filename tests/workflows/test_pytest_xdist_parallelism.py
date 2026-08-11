@@ -95,6 +95,15 @@ class TestMatrixStructure:
     def test_matrix_job_skips_when_python_inputs_are_unchanged(self) -> None:
         assert _job("test")["if"] == "needs.check-paths.outputs.python-changed == 'true'"
 
+    def test_read_only_checkouts_do_not_persist_credentials(self) -> None:
+        for job_name in ("coverage", "test-result"):
+            checkout = next(
+                step
+                for step in _job_steps(job_name)
+                if str(step.get("uses", "")).startswith("actions/checkout@")
+            )
+            assert checkout["with"]["persist-credentials"] is False
+
     def test_each_partition_has_coverage_and_junit(self) -> None:
         for entry in _matrix():
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"

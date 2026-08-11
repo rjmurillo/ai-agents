@@ -381,7 +381,8 @@ def test_all_stages_pass(all_tools, monkeypatch, tmp_path):
 
 
 def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
-    workflow = tmp_path / WF
+    workflow_name = ".github/workflows/pytest.yml"
+    workflow = tmp_path / workflow_name
     workflow.parent.mkdir(parents=True)
     workflow.write_text(
         """jobs:
@@ -407,14 +408,25 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
         assert env is not None
         assert env["COPILOT_PLUGIN_ROOT"] == str(tmp_path / ".claude")
         assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / ".claude")
+        assert Path(env["PYTEST_NON_TMP_ROOT"]).parent == Path(env["COVERAGE_FILE"]).parent
+        normalized = [*cmd]
+        normalized[7] = f"--junitxml={Path(cmd[7].removeprefix('--junitxml=')).name}"
         calls.append(
-            (cmd, timeout, cwd, env["PYTHONDONTWRITEBYTECODE"], env.get("ACT"))
+            (
+                normalized,
+                timeout,
+                cwd,
+                env["PYTHONDONTWRITEBYTECODE"],
+                env.get("ACT"),
+                Path(env["COVERAGE_FILE"]).name,
+                Path(env["PYTEST_NON_TMP_ROOT"]).name,
+            )
         )
         return 0, "", ""
 
     monkeypatch.setattr(w, "_run", fake_run)
 
-    report = w.run_local_test([WF], tmp_path)
+    report = w.run_local_test([workflow_name], tmp_path)
 
     assert report.exit_code == 0
     assert [stage.stage for stage in report.stages] == [
@@ -423,20 +435,82 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     ]
     assert calls == [
         (
-            ["uv", "run", "pytest", "-n", "auto", "--dist", "loadfile", "tests/"],
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "scripts/ci/run_pytest_non_tmp.py",
+                "--cov",
+                "--cov-report=",
+                "--junitxml=pytest-0.xml",
+                "-n",
+                "auto",
+                "--dist",
+                "loadfile",
+                "tests/",
+            ],
             600,
             tmp_path,
             "1",
             None,
+            ".coverage.0",
+            "pytest-0",
         ),
         (
-            ["uv", "run", "pytest", "tests/test_safe_push_pr_branch.py"],
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "scripts/ci/run_pytest_non_tmp.py",
+                "--cov",
+                "--cov-report=",
+                "--junitxml=pytest-1.xml",
+                "tests/test_safe_push_pr_branch.py",
+            ],
             600,
             tmp_path,
             "1",
             None,
+            ".coverage.1",
+            "pytest-1",
         ),
     ]
+
+
+def test_act_true_rejects_non_pytest_workflow(all_tools, monkeypatch, tmp_path):
+    monkeypatch.setenv("ACT", "true")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(
+        w,
+        "_local_pytest_stage",
+        lambda *_: pytest.fail("non-pytest workflow must not use pytest fallback"),
+    )
+    _write_wf_secrets(tmp_path, WF)
+
+    report = w.run_local_test([WF], tmp_path)
+
+    assert report.exit_code == 3
+    assert "nested act execution supports only the pytest workflow" in report.note
+
+
+def test_act_true_rejects_mixed_workflow_batch(all_tools, monkeypatch, tmp_path):
+    pytest_workflow = ".github/workflows/pytest.yml"
+    monkeypatch.setenv("ACT", "true")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(
+        w,
+        "_local_pytest_stage",
+        lambda *_: pytest.fail("mixed workflow batch must not use pytest fallback"),
+    )
+    _write_wf_secrets(tmp_path, pytest_workflow)
+    _write_wf_secrets(tmp_path, WF)
+
+    report = w.run_local_test([pytest_workflow, WF], tmp_path)
+
+    assert report.exit_code == 3
+    assert "nested act execution supports only the pytest workflow" in report.note
 
 
 def test_pytest_workflow_uses_local_fallback_without_act(
