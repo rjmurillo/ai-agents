@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-3310a37d-pr-4637-qa.json
-qaCommit: 2ba8668996f5a3009f4cfb9418d16f03b83f19e6
+qaCommit: 77f1a929823a5860904f4857627a2ea3e316bd1e
 ---
 
 # QA Report: GH Retry Helpers Extraction (PR #4637)
@@ -10,10 +10,12 @@ qaCommit: 2ba8668996f5a3009f4cfb9418d16f03b83f19e6
 
 - PR: #4637
 - Branch: `fix/4597-3275-split-and-smoke`
-- QA commit: `2ba8668996f5a3009f4cfb9418d16f03b83f19e6`
+- QA commit: `77f1a929823a5860904f4857627a2ea3e316bd1e`
 - Session log: `.agents/sessions/2026-08-11-session-3310a37d-pr-4637-qa.json`
 - Refresh reason: required `Validate PR` failed after the merge-to-main CI fix because the
-  previous QA report was still bound to commit `80236b38509475b55a2308ae1f91b68cf8ee968f`.
+  previous QA report was still bound to commit `80236b38509475b55a2308ae1f91b68cf8ee968f`, and the
+  final pre-push pass also needed a one-line mypy-safe return cast in
+  `scripts/ci/build_ai_review_context.py`.
 
 ## Code paths checked
 
@@ -30,6 +32,7 @@ qaCommit: 2ba8668996f5a3009f4cfb9418d16f03b83f19e6
 |---|---|
 | `uv run --frozen pytest tests/test_build_ai_review_context_split.py` | PASS, 11 passed |
 | `uv run --frozen pytest tests/test_build_ai_review_context.py tests/ci/test_ci_scripts_are_wired.py tests/ci/test_failure_classification.py` | PASS |
+| `uv run --frozen mypy scripts/ci/build_ai_review_context.py` | PASS |
 | `uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref origin/main` | PASS, `count == baseline 238` |
 | `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main` | PASS, `count == baseline 583` |
 | `uv run --frozen python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main` | PASS |
@@ -51,5 +54,5 @@ qaCommit: 2ba8668996f5a3009f4cfb9418d16f03b83f19e6
 
 ## Verdict
 
-PASS. The merged PR head `2ba8668996f5a3009f4cfb9418d16f03b83f19e6` preserves the split, fixes the CI
-ratchet regressions, and is now backed by current QA evidence.
+PASS. The validated PR head `77f1a929823a5860904f4857627a2ea3e316bd1e` preserves the split, fixes the CI
+ratchet regressions, satisfies the changed-file mypy gate, and is now backed by current QA evidence.

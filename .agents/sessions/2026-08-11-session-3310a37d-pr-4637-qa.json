@@ -89,12 +89,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence files are committed after validating code commit 2ba8668996f5a3009f4cfb9418d16f03b83f19e6."
+        "Evidence": "QA evidence files are committed after validating code commit 77f1a929823a5860904f4857627a2ea3e316bd1e."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Split tests, related ai-review tests, subprocess encoding ratchet, taste count ratchet, merge-tree ratchet, and the real-git taste baseline test all passed against commit 2ba8668996f5a3009f4cfb9418d16f03b83f19e6."
+        "Evidence": "Split tests, related ai-review tests, mypy for scripts/ci/build_ai_review_context.py, subprocess encoding ratchet, taste count ratchet, merge-tree ratchet, and the real-git taste baseline test all passed against commit 77f1a929823a5860904f4857627a2ea3e316bd1e."
       },
       "qaValidation": {
         "level": "MUST",
@@ -119,16 +119,20 @@
     {
       "time": "2026-08-11T19:09:00Z",
       "entry": "Validate PR failed because the earlier QA report was stale after the merge-to-main refresh; created new QA evidence bound to 2ba8668996f5a3009f4cfb9418d16f03b83f19e6."
+    },
+    {
+      "time": "2026-08-11T19:16:00Z",
+      "entry": "The final pre-push pass surfaced a changed-file mypy error in get_pr_name_only; fixed the return cast, reran mypy and the full build_ai_review_context pytest file, and rebound QA evidence to 77f1a929823a5860904f4857627a2ea3e316bd1e."
     }
   ],
-  "endingCommit": "2ba8668996f5a3009f4cfb9418d16f03b83f19e6",
+  "endingCommit": "77f1a929823a5860904f4857627a2ea3e316bd1e",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "256aacfd7ba367a3b79e675c50a69d4dae790481",
-      "head": "2ba8668996f5a3009f4cfb9418d16f03b83f19e6"
+      "head": "77f1a929823a5860904f4857627a2ea3e316bd1e"
     }
   }
 }

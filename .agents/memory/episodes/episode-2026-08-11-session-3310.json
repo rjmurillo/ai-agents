@@ -52,7 +52,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-3310"
     },
     {
@@ -67,14 +69,38 @@
         "e003"
       ],
       "_source_session": "2026-08-11-session-3310"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T19:16:00+00:00",
+      "type": "milestone",
+      "content": "The final pre-push pass surfaced a changed-file mypy error in get_pr_name_only; fixed the return cast, reran mypy and the full build_ai_review_context pytest file, and rebound QA evidence to 77f1a929823a5860904f4857627a2ea3e316bd1e.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-3310"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T19:16:23+00:00",
+      "type": "commit",
+      "content": "Commit: 77f1a929823a5860904f4857627a2ea3e316bd1e",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-3310"
     }
   ],
   "metrics": {
-    "duration_minutes": 49,
+    "duration_minutes": 56,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []
