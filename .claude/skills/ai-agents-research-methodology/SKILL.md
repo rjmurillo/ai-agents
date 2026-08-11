@@ -269,7 +269,7 @@ volatile facts:
 | #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40`; `.claude/skills/buy-vs-build-framework/SKILL.md:66` | `grep -n "13" AGENTS.md` |
+| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md` "New capability"; `.claude/skills/buy-vs-build-framework/SKILL.md` "Quick" row | `grep -n "13" AGENTS.md` |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |

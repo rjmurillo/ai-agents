@@ -92,11 +92,18 @@ Always-on content earns its slot only if it passes all three:
    it fails here.
 2. **It cannot be retrieved on demand.** If a skill description would cause
    the model to go get it at the right moment, it belongs in the skill.
-3. **Getting it wrong is expensive.** Security hole, data loss, irreversible
-   action, or a mistake that survives review. Cheap-to-catch mistakes do not
-   qualify.
+3. **Getting it wrong is expensive or repeatedly observed.** Security holes,
+   data loss, irreversible actions, mistakes that survive review, and recurrent
+   omissions qualify. Cheap-to-catch one-offs do not.
 
 A rule that fails any of the three belongs in progressive disclosure.
+
+“Unique to this context” is necessary, not sufficient. A unique fact still
+fails the second test when retrieval is reliable. Reliable means a task-matching
+skill description points to a reachable reference, the task necessarily opens
+the canonical file, or a mechanical gate loads or enforces the fact. A bare
+reference or nearby file is not enough. Generic engineering advice fails the
+first test immediately.
 
 ### Arbitration is not restatement
 
