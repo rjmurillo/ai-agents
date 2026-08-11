@@ -49,7 +49,7 @@ EPISODE_RECENCY = re.compile(r"^episode-(\d{4}-\d{2}-\d{2})-(?:session-(\d+)\b)?
 def _contained_markdown_files(memory_path: Path) -> list[Path]:
     """Return Markdown paths whose resolved targets stay under memory_path."""
     root = memory_path.resolve()
-    contained: list[Path] = []
+    contained: set[Path] = set()
     for candidate in memory_path.rglob("*.md"):
         try:
             resolved = candidate.resolve(strict=True)
@@ -57,7 +57,7 @@ def _contained_markdown_files(memory_path: Path) -> list[Path]:
         except (OSError, ValueError):
             continue
         if resolved.is_file():
-            contained.append(candidate)
+            contained.add(resolved)
     return sorted(contained)
 
 
@@ -104,10 +104,11 @@ def search_serena(
         return []
 
     keywords = query_keywords(query)
+    memory_root = memory_path.resolve()
 
     results: list[dict[str, Any]] = []
     for md_file in _contained_markdown_files(memory_path):
-        rel = md_file.relative_to(memory_path).with_suffix("")
+        rel = md_file.relative_to(memory_root).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
         stem_hits = sum(1 for kw in keywords if kw in stem)
