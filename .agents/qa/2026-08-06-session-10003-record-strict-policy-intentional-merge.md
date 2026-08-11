@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-06-session-10003-record-strict-policy-intentional-merge.json
-qaCommit: e4276d18e76011d988f954cb2693550e4e4c28a5
+qaCommit: 73836cd7d04417cb7363d8f04ec77fc35ef9e2b4
 ---
 
 # Session 10003 strict policy merge QA
