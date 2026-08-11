@@ -1,8 +1,7 @@
-# Passive Context Token Budget Validation
+# Passive Context Byte Budget Validation
 #
-# Validates that passive context files (AGENTS.md, CLAUDE.md) stay within
-# their token budgets. Implements the Vercel research recommendation of
-# <8KB compressed passive context per file.
+# Validates repository-owned root instruction files against local byte
+# ratchets accepted under issue #4880.
 #
 # Exit codes: 0 = pass, 1 = budget exceeded
 #
@@ -47,9 +46,12 @@ jobs:
               - 'AGENTS.md'
               - 'CLAUDE.md'
               - '.claude/CLAUDE.md'
+              - '.github/copilot-instructions.md'
             validator:
-              - 'scripts/validation/passive_context_budget.py'
-              - 'tests/test_validation_passive_context_budget.py'
+              - 'scripts/validate_workspace_budget.py'
+              - 'tests/test_workspace_limits.py'
+              - 'tests/test_validate_workspace_budget.py'
+              - 'tests/test_root_instruction_layers.py'
 
       - name: Determine if budget validation should run
         id: determine
@@ -76,8 +78,7 @@ jobs:
           python-version: '3.14'
 
       - name: Run budget validator
-        run: |
-          python3 -m scripts.validation.passive_context_budget --ci
+        run: python3 scripts/validate_workspace_budget.py --path .
 
   skip-budget:
     name: Skip budget (no changes)

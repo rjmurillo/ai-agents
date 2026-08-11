@@ -396,11 +396,8 @@ def _entry_points() -> frozenset[str]:
 
     Three spellings count, because all three appear in this repository:
     the repo-relative path, the bare file name, and the dotted module form
-    that ``python -m`` takes. Missing the third is not hypothetical: this
-    guard's first run reported ``passive_context_budget.py`` unreachable
-    while ``passive-context-budget.yml`` runs
-    ``python3 -m scripts.validation.passive_context_budget --ci``, and took
-    ``token_budget.py`` down with it because it is only imported from there.
+    that ``python -m`` takes. Missing the third once hid a live validation
+    module and its transitive imports.
     """
     workflow_text = "\n".join(_strip_commented_lines(body) for _, body in _live_run_blocks())
     # Hook configs are YAML and shell, where `#` opens a comment, so a
@@ -618,16 +615,12 @@ class TestTheReachabilityProbeWorks:
         assert _module_path("build/scripts/y.py") == "build.scripts.y"
 
     def test_a_module_invoked_with_dash_m_is_reachable(self) -> None:
-        """passive-context-budget.yml uses `python3 -m`, not a file path.
-
-        This is the concrete case the path-only probe missed on its first run.
-        """
-        assert "scripts/validation/passive_context_budget.py" in _reachable()
+        assert "scripts/validation/check_skill_portability.py" in _reachable()
 
     def test_a_library_reached_only_through_a_dash_m_entry_point_is_reachable(
         self,
     ) -> None:
-        """token_budget.py has exactly one importer, and it is that module."""
+        """Transitive libraries remain reachable through module entry points."""
         assert "scripts/validation/token_budget.py" in _reachable()
 
     def test_the_graph_reaches_files_that_are_not_guarded_scripts(self) -> None:
