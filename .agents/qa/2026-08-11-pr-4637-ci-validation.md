@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-2.json
-qaCommit: bba2a7b1e2599d342bf092e884fb076fe4520503
+qaCommit: 17ad4d40b41c07b1b0f82855925975bb35d8daad
 ---
 
 # QA Report: PR #4637 CI validation
@@ -12,8 +12,8 @@ qaCommit: bba2a7b1e2599d342bf092e884fb076fe4520503
 - Branch: `fix/4597-3275-split-and-smoke`
 - PR head diagnosed: `0ded1670a456aa1781c386161007616dfd15bf6c`
 - Diagnosed base: `d4cc52d5de0c11f7d36c99a246484f1f192ce584`
-- Refreshed main: `5588065212312c04912c0a520e4fcb8f581037bf`
-- Code-under-test commit: `bba2a7b1e2599d342bf092e884fb076fe4520503`
+- Refreshed main: `8cdf5c6d361c22b0ad8809d9620083129feba175`
+- Code-under-test commit: `17ad4d40b41c07b1b0f82855925975bb35d8daad`
 
 The report and session update are evidence-only changes. The QA commit above is
 the last code-affecting commit and must remain an ancestor of the final PR head.
@@ -35,8 +35,8 @@ unrelated second refactor.
 
 | Command | Result |
 |---|---|
-| `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref 5588065212312c04912c0a520e4fcb8f581037bf` | PASS; count equals lowered baseline 582 |
-| `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref 5588065212312c04912c0a520e4fcb8f581037bf` | PASS; count equals baseline 27 |
+| `uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref 8cdf5c6d361c22b0ad8809d9620083129feba175` | PASS; count equals lowered baseline 582 |
+| `uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref 8cdf5c6d361c22b0ad8809d9620083129feba175` | PASS; count equals baseline 27 |
 | `uv run --frozen pytest tests/ci/test_taste_count_ratchet.py -q` | PASS; 28 tests covering success, failure, and edge behavior |
 | `uv run --frozen pytest tests/ci/test_failure_classification.py tests/test_build_ai_review_context.py tests/test_build_ai_review_context_split.py -q` | PASS; 123 tests covering the named seam and integration behavior |
 | `uv run --frozen pytest tests/test_build_ai_review_context.py tests/test_build_ai_review_context_split.py -q` | PASS; 99 tests |
@@ -50,5 +50,5 @@ unrelated second refactor.
 
 The first full pre-push run selected a moving `origin/main` and exposed three
 unrelated repository-wide test failures. After merging refreshed main at
-`5588065212312c04912c0a520e4fcb8f581037bf`, those three exact tests pass. The
+`8cdf5c6d361c22b0ad8809d9620083129feba175`, those three exact tests pass. The
 taste baseline remains a net improvement over main, falling from 583 to 582.

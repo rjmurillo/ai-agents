@@ -238,16 +238,42 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-11T13:25:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main 8cdf5c6d361c22b0ad8809d9620083129feba175 after the named-seam work. Final merged-tree validation passed 247 focused seam, AI-review, and corpus tests plus both count ratchets at merge commit 17ad4d40b41c07b1b0f82855925975bb35d8daad.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-11T13:26:07+00:00",
+      "type": "commit",
+      "content": "Commit: 17ad4d40b41c07b1b0f82855925975bb35d8daad",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-2"
     }
   ],
   "metrics": {
-    "duration_minutes": 8959,
+    "duration_minutes": 9002,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 15
   },
   "lessons": []
