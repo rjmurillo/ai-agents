@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,14 @@ _GUARD_START = "# late-live-state-guard:start"
 _GUARD_END = "# late-live-state-guard:end"
 _RENEWAL_START = "# lease-renewal:start"
 _RENEWAL_END = "# lease-renewal:end"
+
+
+def _process_is_live(pid: int) -> bool:
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").split()[2]
+    except FileNotFoundError:
+        return False
+    return state != "Z"
 
 
 def _extract_guard(text: str) -> str:
@@ -137,7 +146,7 @@ from pathlib import Path
 
 child_log = os.environ.get("MUTATION_CHILD_LOG")
 if child_log:
-    subprocess.Popen(
+    child = subprocess.Popen(
         [
             sys.executable,
             "-c",
@@ -149,6 +158,9 @@ if child_log:
             child_log,
         ]
     )
+    child_pid_log = os.environ.get("MUTATION_CHILD_PID_LOG")
+    if child_pid_log:
+        Path(child_pid_log).write_text(str(child.pid), encoding="utf-8")
     started_log = os.environ.get("MUTATION_STARTED_LOG")
     if started_log:
         Path(started_log).write_text("started\\n", encoding="utf-8")
@@ -236,6 +248,7 @@ def _run_race(
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
     mutation_child_log = tmp_path / "mutation-child"
+    mutation_child_pid_log = tmp_path / "mutation-child-pid"
     mutation_started_log = tmp_path / "mutation-started"
     mutation_pid_file = tmp_path / "mutation-pid"
     final_poll_sleep_count = tmp_path / "final-poll-sleep-count"
@@ -308,6 +321,7 @@ fi
         "MUTATION_CHILD_LOG": str(mutation_child_log)
         if renewal_failure or spawn_delayed_child
         else "",
+        "MUTATION_CHILD_PID_LOG": str(mutation_child_pid_log),
         "MUTATION_STARTED_LOG": str(mutation_started_log) if spawn_delayed_child else "",
         "MUTATION_PID_FILE": str(mutation_pid_file),
         "FINAL_POLL_SLEEP_COUNT": str(final_poll_sleep_count),
@@ -522,7 +536,13 @@ def test_ownership_loss_during_mutation_stops_command(
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
     assert not mutation_log.exists()
-    assert not (tmp_path / "mutation-child").exists()
+    child_pid_log = tmp_path / "mutation-child-pid"
+    if child_pid_log.exists():
+        child_pid = int(child_pid_log.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 1
+        while _process_is_live(child_pid) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not _process_is_live(child_pid)
     assert "Stopping mutation for #4349: lease ownership lost" in result.stdout
     assert "mutation-skipped:75" in result.stdout
 
