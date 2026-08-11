@@ -1,18 +1,19 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection.json
-qaCommit: 093b588e394b9dccf144d62e4b68f79c299afbee
+qaCommit: 89d586d49106d864ba40f75b8c759cec8f544614
 ---
 
-# QA Report: Issue #4843 -- Default Branch Detection
+# QA Report: PR #4878, Issue #4843 Default Branch Detection
 
-**Date**: 2026-08-10
-**Commit**: 093b588e394b9dccf144d62e4b68f79c299afbee
-**Worktree**: `C:\Users\rimuri\.copilot\session-state\9d8546d8-9a5c-4572-b4f9-94f87bdf5a8d\files\issue-4843`
+**Date**: 2026-08-11
+**Commit**: 89d586d49106d864ba40f75b8c759cec8f544614
+**Worktree**: Isolated PR worktree
 
 ## Scope
 
-Validate that omitting `--base` triggers automatic detection of the repository default branch in `new_pr.py` and `new_validated_pr.py`.
+Validate default branch detection after merging current `origin/main`. Preserve
+the default-branch behavior and the push-pr identity guard.
 
 ### Requirements Verified
 
@@ -33,7 +34,23 @@ Validate that omitting `--base` triggers automatic detection of the repository d
 - `tests/test_new_pr.py` -- 13 new tests in `TestDetectDefaultBranch`, 2 orchestration tests
 - `tests/test_new_validated_pr.py` -- 2 updated, 1 renamed test
 
-## Test Execution
+## Current Validation
+
+**Command**:
+
+```text
+uv run pytest tests/hooks/test_push_pr_guard_*.py tests/test_new_pr_*.py -q
+```
+
+**Result**: 1,081 passed in 133.27s.
+
+```text
+uv run python build/scripts/build_all.py --check
+```
+
+**Result**: Passed. Generated Copilot artifacts match canonical sources.
+
+## Historical Validation Before Merge
 
 ### 1. Focused unit tests: `TestDetectDefaultBranch` (13 tests)
 
@@ -126,8 +143,8 @@ Match: True
 
 | Metric | Value |
 |--------|-------|
-| Total tests run | 19 |
-| Passed | 19 |
+| Current tests run | 1,081 |
+| Passed | 1,081 |
 | Failed | 0 |
 | Skipped | 0 |
 | Ruff violations | 0 |

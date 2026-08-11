@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection",
+  "session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own issue 4843 default branch detection end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked coordination and reproduced issue 4843",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented default branch detection",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Generated the Copilot mirror and tested behavior",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent review and QA",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revalidated the merged PR",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T18:07:49+00:00",
+      "type": "commit",
+      "content": "Commit: 89d586d49106d864ba40f75b8c759cec8f544614",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 112
+  },
+  "lessons": []
+}
