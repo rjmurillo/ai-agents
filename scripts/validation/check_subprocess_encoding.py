@@ -1708,9 +1708,12 @@ def _collect_sources(repo_root: Path) -> list[Path]:
     return sources
 
 
-def _scan_all(repo_root: Path) -> tuple[list[tuple[Path, int]], int]:
-    """Return violations and the number of tracked source files examined."""
-    sources = _collect_sources(repo_root)
+def _scan_all(
+    repo_root: Path,
+    sources: list[Path] | None = None,
+) -> tuple[list[tuple[Path, int]], int]:
+    """Return violations and the number of source files examined."""
+    sources = _collect_sources(repo_root) if sources is None else sources
     results: list[tuple[Path, int]] = []
     for path in sources:
         try:
@@ -1729,9 +1732,12 @@ def _scan_all(repo_root: Path) -> tuple[list[tuple[Path, int]], int]:
     return results, len(sources)
 
 
-def find_all_violations(repo_root: Path) -> list[tuple[Path, int]]:
+def find_all_violations(
+    repo_root: Path,
+    sources: list[Path] | None = None,
+) -> list[tuple[Path, int]]:
     """Return ``(path, lineno)`` pairs for every flagged call site."""
-    return _scan_all(repo_root)[0]
+    return _scan_all(repo_root, sources)[0]
 
 
 def validate_subprocess_encoding(repo_root: Path) -> bool:
