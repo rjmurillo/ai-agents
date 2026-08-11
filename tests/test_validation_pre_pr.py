@@ -381,7 +381,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -403,7 +403,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -428,7 +428,7 @@ class TestMain:
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
-        new_callable=_sequence_with_passing_doc_interpreter,
+        new_callable=_sequence_with_passing_corpus_gates,
     )
     @patch("subprocess.run")
     @patch("shutil.which")
