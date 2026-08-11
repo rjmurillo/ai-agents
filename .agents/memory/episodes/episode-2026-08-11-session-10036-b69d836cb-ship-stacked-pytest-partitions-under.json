@@ -11,242 +11,20 @@
       "id": "e001",
       "timestamp": "2026-08-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created a clean child branch from the ACT fallback tip and replayed only five functional partition commits.",
+      "content": "Shipped PR #4886 as one stack: direct local pytest execution, all-CPU xdist partitions, combined coverage, secret-safe output, system CA support, and a root versus nested bulk split. Exact collection parity held at 27,154 tests. Fresh CI passed with a 6 minute 47 second longest job. Review fixes aligned the local fallback with CI, rejected unsupported nested ACT batches, and removed persisted checkout credentials.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e002"
       ],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Applied the remaining ACT path-filter and single-job concurrency edits without the obsolete duplicate fallback script.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e003",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Focused validation passed: 125 pytest tests, Ruff, and actionlint.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e004",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Security scan found zero CWE-78 findings in one Python file; security agent review passed.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Full ACT workflow passed in 331.34 seconds. Collection parity proved 27,148 tests with zero missing, extra, or duplicate node IDs.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-08-11T05:03:43+00:00",
-      "type": "commit",
-      "content": "Commit: f8c2a8bb4137772da81fe7630450e0b4353cb480",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e007",
-        "e009",
-        "e011",
-        "e013",
-        "e014",
-        "e015",
-        "e017",
-        "e019"
-      ],
-      "leads_to": [
-        "e008"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Merged parent routing commit so pytest.yml uses the direct local matrix runner during pre-push. Bound QA to 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-08-11T05:23:57+00:00",
-      "type": "commit",
-      "content": "Commit: 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [
-        "e010"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Merged the parent duplicate-run guard. workflow-local now actionlints pytest.yml while the partitioned pytest hook owns runtime execution.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-11T05:32:44+00:00",
-      "type": "commit",
-      "content": "Commit: ea679cd1afe34499434843a922ae217015120e44",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e012"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Merged the parent CodeQL fix. Secret names and affected workflow paths no longer reach text or JSON logs.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-08-11T06:19:57+00:00",
-      "type": "commit",
-      "content": "Commit: c4039dcf02a86377df4328e256ef65d2c44ac9db",
-      "caused_by": [
-        "e010"
-      ],
-      "leads_to": [
-        "e016"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Collapsed the stack into PR #4886 after PR #4872 monolithic CI ran 741.58 seconds and failed the pr-autofix module that the partitioned workflow isolates.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Retargeted PR #4886 to main and closed PR #4872 as superseded.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Live matrix CI exposed the self-hosted runner CA at actions/setup-node. Added Node's native --use-system-ca option and a parsed workflow contract test.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-08-11T07:04:01+00:00",
-      "type": "commit",
-      "content": "Commit: 6af4669941c0f9864782551a2ecbb21fcb75c1c0",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e018"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fresh CI reached 98 percent in the bulk partition, then the ten-minute job cap cancelled it after 624 seconds. Split root and nested bulk tests into separate all-CPU matrix jobs. Local runtimes were 50.91 and 134.47 seconds, with exact 26,754-test collection parity.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e018",
-      "timestamp": "2026-08-11T07:47:14+00:00",
-      "type": "commit",
-      "content": "Commit: efb740a275fe9bba3c5c20bc4cddded5a189283e",
-      "caused_by": [
-        "e016"
-      ],
-      "leads_to": [
-        "e020"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e019",
-      "timestamp": "2026-08-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Shipped PR #4886 as one stack: direct local pytest execution, all-CPU xdist partitions, combined coverage, secret-safe output, system CA support, and a root versus nested bulk split. Exact collection parity held at 27,154 tests. Fresh CI passed with a 6 minute 47 second longest job. Review fixes aligned the local fallback with CI, rejected unsupported nested ACT batches, and removed persisted checkout credentials.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
-    },
-    {
-      "id": "e020",
       "timestamp": "2026-08-11T08:16:48+00:00",
       "type": "commit",
       "content": "Commit: 470dc44e611453cf1e5c0268d73275af0ddb7757",
       "caused_by": [
-        "e018"
+        "e001"
       ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
@@ -257,7 +35,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 1,
     "files_changed": 13
   },
   "lessons": []

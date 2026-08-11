@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fresh Python CI passed with a 6 minute 47 second longest job; split bulk collection matched all 26,754 node IDs exactly; root and nested bulk jobs passed locally in 50.91 and 134.47 seconds; 189 review-fix contracts, Ruff, actionlint, coverage combine, security scan, and security review passed"
+        "Evidence": "Fresh Python CI passed with a 6 minute 47 second longest job; split bulk collection matched all 26,754 node IDs exactly; root and nested bulk jobs passed locally in 50.91 and 134.47 seconds; 189 review-fix contracts, Ruff, actionlint, coverage combine, security scan, security review, and the two-event episode validation passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
