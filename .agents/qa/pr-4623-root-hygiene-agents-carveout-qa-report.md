@@ -1,22 +1,27 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-pr-4623.json
-qaCommit: e6ecc1391d2765e573a881cd1381224825264c29
+qaCommit: 541ac224adb6319bcb683b0a267f86f54e45a236
 ---
 
 # QA Report: PR #4623 - Root Hygiene and Agents Carveout
 
 ## Summary
 
-Validated the two features in this PR at commit `e6ecc1391d2765e573a881cd1381224825264c29`:
+Validated the CI remediation and original features in this PR at commit `541ac224adb6319bcb683b0a267f86f54e45a236`:
 
 1. **Root-hygiene pre-commit policy** - blocks staged files whose root entry is not in `ALLOWED_REPO_ROOT_ENTRIES`, skips during merge state, allows deletions of disallowed files.
 2. **Implementer scaffold predicate change** - keys on `.agents/SESSION-PROTOCOL.md` presence rather than bare `.agents/` directory, preserving the "cannot list" hard-stop guard.
+3. **Implementer scaffold evaluator alignment** - checks the consumer-install wording and block messages for the new ownership predicate across all generated prompts.
 
 ## Test Results
 
 ```
 44 passed in 0.67s
+```
+
+```
+22 passed in 0.19s
 ```
 
 | Category | Count | Status |
@@ -26,6 +31,7 @@ Validated the two features in this PR at commit `e6ecc1391d2765e573a881cd1381224
 | Configuration named-jobs test | 1 | [PASS] |
 | Implementer scaffold predicate tests | 3 | [PASS] |
 | Other collected tests | 35 | [PASS] |
+| Implementer scaffold evaluator and predicate tests | 22 | [PASS] |
 
 ## Ruff Results
 
@@ -33,7 +39,7 @@ Validated the two features in this PR at commit `e6ecc1391d2765e573a881cd1381224
 All checks passed!
 ```
 
-No lint violations in `git_hook_policy.py`, `test_lefthook_integration.py`, or `test_implementer_scaffold_predicate.py`.
+No lint violations in `git_hook_policy.py`, `test_lefthook_integration.py`, `test_implementer_scaffold_predicate.py`, or `test_implementer_scaffold_gate.py`.
 
 ## Generator Validation
 
@@ -71,12 +77,12 @@ All 5 generated mirrors (`.claude/agents/implementer.md`, `.github/agents/implem
 ## Verdict
 
 ```
-Promised: root-hygiene policy, scaffold predicate change, generated mirror sync, tests, lefthook config
-Delivered: all of the above at HEAD e6ecc1391d
+Promised: root-hygiene policy, scaffold predicate change, evaluator alignment, generated mirror sync, tests, lefthook config
+Delivered: all of the above at HEAD 541ac224ad
 Gap: none
 Result: PASS
 ```
 
 **Status**: PASS
 **Confidence**: High
-**Rationale**: All 44 tests pass, linter clean, generator in sync, logic is sound for all three policy behaviors, no conflict artifacts detected.
+**Rationale**: The original 44 tests and the 22 CI-remediation evaluator and predicate tests pass, the linter is clean, the generator is in sync, logic is sound for all three policy behaviors, and no conflict artifacts were detected.

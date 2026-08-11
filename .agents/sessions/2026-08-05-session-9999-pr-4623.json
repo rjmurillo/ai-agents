@@ -138,9 +138,13 @@
     {
       "time": "2026-08-05T07:40:00Z",
       "entry": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed."
+    },
+    {
+      "time": "2026-08-11T16:36:00Z",
+      "entry": "T2 CI remediation: reproduced 12 stale evaluator assertions after the SESSION-PROTOCOL.md scaffold-ownership change. Updated the evaluator contract, then passed its 22 targeted evaluator and predicate tests plus Ruff checks in commit 541ac224ad."
     }
   ],
-  "endingCommit": "e6ecc1391d2765e573a881cd1381224825264c29",
+  "endingCommit": "541ac224adb6319bcb683b0a267f86f54e45a236",
   "nextSteps": [
     "Merge PR #4623 once CI required checks pass."
   ]
