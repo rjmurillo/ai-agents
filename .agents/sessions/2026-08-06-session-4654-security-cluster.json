@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through 26a41d583e8e1347f4ecc56fc9ad2022be61d328 before refreshing QA evidence."
+        "evidence": "Changes committed through 09f086fd967b85ae1f6ffbae709a1d747fa93e17 before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "scripts/validation/pre_pr.py passed on commit 26a41d583e8e1347f4ecc56fc9ad2022be61d328 after refreshing session evidence for the latest main merge."
+        "evidence": "scripts/validation/pre_pr.py passed on commit 09f086fd967b85ae1f6ffbae709a1d747fa93e17 after refreshing session evidence for the third main merge."
       },
       "qaValidation": {
         "complete": true,
@@ -148,9 +148,14 @@
       "action": "pr-autofix-4721-refresh-main-2",
       "result": "Merged current main again after merge-tree ratchets detected new drift and regenerated the combined skill Markdown portability baseline to resolve the conflict.",
       "commit": "26a41d583"
+    },
+    {
+      "action": "pr-autofix-4721-refresh-main-3",
+      "result": "Merged current main a third time so the branch tip records the lowered subprocess encoding baseline of 238; the push-event required check Run Python Tests failed at 253 while the pull_request merge-ref run passed.",
+      "commit": "09f086fd9"
     }
   ],
-  "endingCommit": "26a41d583e8e1347f4ecc56fc9ad2022be61d328",
+  "endingCommit": "09f086fd967b85ae1f6ffbae709a1d747fa93e17",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
