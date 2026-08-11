@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-11-session-4728-pr-autofix",
+  "session": "2026-08-11-session-4728-pr-autofix",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Resolve PR #4869 T4: Validate PR commit-count failure and all review threads.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired branch ownership",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound live PR identity",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed CI root cause",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated local changes",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T18:07:32+00:00",
+      "type": "commit",
+      "content": "Commit: f963718cffca4a86eefd7a88a132e7f7c916a65a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T18:16:55+00:00",
+      "type": "commit",
+      "content": "Commit: 384e615fe404bee562b7274b856ec628283a30ad",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-4728-pr-autofix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}

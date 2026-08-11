@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-11-session-14691-issue-4691-merge-group-readiness.json
-qaCommit: 49a24e5012c176849d474a3d2001a9a048c50a70
+qaSessionLog: .agents/sessions/2026-08-11-session-4728-pr-autofix.json
+qaCommit: 384e615fe404bee562b7274b856ec628283a30ad
 ---
 
 # QA Report: Issue 4691 merge-group readiness
@@ -9,22 +9,20 @@ qaCommit: 49a24e5012c176849d474a3d2001a9a048c50a70
 ## Scope
 
 Ten workflows gain a `merge_group:` trigger scoped to `main`, plus the
-structural test that pins the contract. The branch was rebased onto
-`origin/main` and re-measured after the rebase, not before it.
+structural test that pins the contract. This validation also merges current
+`main` twice, so the commit-count gate grants its documented 40-commit limit.
+It verifies the review fixes for the required `Run Python Tests` producer,
+act's Git exit-128 signature, and the action-specific anti-vacuity controls.
 
 ## Evidence
 
-| Check | Command | Result |
-|---|---|---|
-| Readiness contract | `pytest tests/ci/test_merge_group_readiness.py` | 11 passed |
-| Trigger fan-out | `pytest tests/ci/test_workflow_trigger_fanout.py` | 69 passed |
-| Frontmatter path filter | `pytest tests/ci/test_frontmatter_gate_paths_filter.py` | 4 passed |
-| Shared event policy | `pytest tests/workflows/test_determine_should_run_from_filters.py` | 26 passed |
-| Local workflow gate | `pytest tests/validation/test_run_workflow_local_test.py` | 143 passed |
-| Lint | `ruff check` on the two changed Python files | All checks passed |
-| Workflow lint | pre-commit `actionlint` and `workflow-validation` | Passed |
+- CI root and review fixes: focused pytest command for seven affected suites,
+  327 passed.
+- Lint: scoped `ruff check` for all changed Python files, all checks passed.
+- Retrospective lint: `npx --yes markdownlint-cli` on the retrospective,
+  0 errors.
 
-Total: 253 tests, 0 failures, measured at `49a24e50`.
+Total: 327 tests, 0 failures, measured at `384e615f`.
 
 ## Non-vacuity control
 
@@ -34,11 +32,10 @@ errors, including `ai-pr-quality-gate.yml: missing merge_group trigger` and
 `codeql-analysis.yml: missing shared event policy`. The contract therefore
 fails against the unfixed tree, which is what issue #4691 asks for.
 
-Ten parametrized structural negative controls cover the other direction: each
-mutates one workflow (drop the trigger, drop the force event, drop the bypass
-marker, erase the real work, drop `github.ref`, bare `push`, remove a producer,
-duplicate a context, make a producer unreachable, drop the base-ref fallback)
-and asserts the matching error appears.
+Fourteen parametrized structural negative controls cover the other direction.
+They mutate required triggers, force events, bypass markers, each workflow's
+validation action, `github.ref`, `push`, producers, contexts, reachability,
+and the base-ref fallback. Each mutation must produce its matching error.
 
 ## Required-context inventory
 
