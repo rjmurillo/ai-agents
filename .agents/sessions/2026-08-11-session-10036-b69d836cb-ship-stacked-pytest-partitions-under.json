@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f"
+        "Evidence": "ea679cd1afe34499434843a922ae217015120e44"
       },
       "validationPassed": {
         "level": "MUST",
@@ -136,9 +136,12 @@
     },
     {
       "entry": "Merged parent routing commit so pytest.yml uses the direct local matrix runner during pre-push. Bound QA to 8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f."
+    },
+    {
+      "entry": "Merged the parent duplicate-run guard. workflow-local now actionlints pytest.yml while the partitioned pytest hook owns runtime execution."
     }
   ],
-  "endingCommit": "8b35f6b2d10d1dfd1a3bd63ae878e8761236b44f",
+  "endingCommit": "ea679cd1afe34499434843a922ae217015120e44",
   "nextSteps": [
     "Push the stacked child branch.",
     "Open the child PR against perf/4854-act-local-fallback."
