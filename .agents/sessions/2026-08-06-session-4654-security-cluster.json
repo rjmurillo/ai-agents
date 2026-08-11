@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through bca2fa602553abd987aacbcb747463a3b789423d before refreshing QA evidence."
+        "evidence": "Changes committed through a8af360ee368c1922f3ad2dad72b5a17d0d05200 before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Targeted pytest command passed with 343 tests and the subprocess encoding count ratchet passed on commit bca2fa602553abd987aacbcb747463a3b789423d."
+        "evidence": "scripts/validation/pre_pr.py passed on commit a8af360ee368c1922f3ad2dad72b5a17d0d05200 after refreshing session evidence on the merged branch."
       },
       "qaValidation": {
         "complete": true,
@@ -133,9 +133,14 @@
       "action": "pr-autofix-4721-guard-digest",
       "result": "Refreshed the trusted new_pr.py digest in the push-pr identity guard copies; targeted hook, new_pr, and subprocess ratchet checks passed.",
       "commit": "bca2fa602"
+    },
+    {
+      "action": "pr-autofix-4721-refresh-main",
+      "result": "Merged current main into the PR branch to satisfy merged-tree ratchets before the guarded push.",
+      "commit": "a8af360ee"
     }
   ],
-  "endingCommit": "bca2fa602553abd987aacbcb747463a3b789423d",
+  "endingCommit": "a8af360ee368c1922f3ad2dad72b5a17d0d05200",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
