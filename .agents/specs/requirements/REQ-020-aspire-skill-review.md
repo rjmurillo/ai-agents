@@ -128,6 +128,9 @@ none (no domain entities)
 - [ ] WHEN a judgment-bearing skill changes, THE SYSTEM SHALL run
       `eval-prompt-change.py` with the `copilot` provider and three runs per
       scenario SO THAT the working copy is compared with the base ref.
+- [ ] WHEN TASK-020 classifies a prompt change as security-critical, THE SYSTEM
+      SHALL run `eval-prompt-change.py --security-critical` with at least five
+      runs and a 100% pass rate SO THAT ADR-057's higher-risk gate applies.
 - [ ] WHEN the prompt-change eval completes, THE SYSTEM SHALL record its delta,
       improvements, regressions, and `has_improvement` value SO THAT human
       review can distinguish a measured gain from a non-regressing no-op.

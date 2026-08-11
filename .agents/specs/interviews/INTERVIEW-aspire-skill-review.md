@@ -94,7 +94,7 @@ or composition. Create at most one skill, and only for a verified gap.
 ## Ontology
 
 - O1 Entities: N/A
-- O2 Ubiquitous language: n/A
+- O2 Ubiquitous language: N/A
 - O3 Relationships: N/A
 - O4 Aggregate boundaries: N/A
 - O5 Decision rules: N/A

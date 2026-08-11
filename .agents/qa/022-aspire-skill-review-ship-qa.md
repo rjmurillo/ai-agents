@@ -24,6 +24,8 @@ Validate the specification branch after merging current `origin/main`.
 | Review corrections | Spec frontmatter, prose, and full pre-PR validation passed |
 | Independent re-review | All material findings resolved |
 | Final QA binding | Sessions rebound to the last non-evidence correction commit |
+| Bot review fixes | Full pre-PR validation passed |
+| Security review | Eval report sanitization design approved |
 
 ## Verdict
 

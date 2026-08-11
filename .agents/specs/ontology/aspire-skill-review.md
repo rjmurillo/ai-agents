@@ -6,7 +6,7 @@ N/A
 
 ## O2 Ubiquitous language
 
-n/A
+N/A
 
 ## O3 Relationships
 
