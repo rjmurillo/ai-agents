@@ -405,6 +405,8 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
 
     def fake_run(cmd, *, timeout, cwd=None, env=None):
         assert env is not None
+        assert env["COPILOT_PLUGIN_ROOT"] == str(tmp_path / ".claude")
+        assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / ".claude")
         calls.append(
             (cmd, timeout, cwd, env["PYTHONDONTWRITEBYTECODE"], env.get("ACT"))
         )
