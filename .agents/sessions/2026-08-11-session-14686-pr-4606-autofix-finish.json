@@ -126,9 +126,13 @@
     {
       "action": "Split QA evidence into a final atomic batch",
       "result": "Committed the last two refreshed PR 4606 QA reports separately to satisfy the five-authored-file commit limit."
+    },
+    {
+      "action": "Fixed Copilot skill portability note",
+      "result": "Removed the repo-only .claude/commands/pr-review-config.yaml path from the shipped Copilot pr-review skill so plugin users no longer see a path they do not own."
     }
   ],
-  "endingCommit": "1d40f26128f7ca8830f639b3902441507a5e83c5",
+  "endingCommit": "da00292d8ce4a1a45d826577719e57d00e7e417b",
   "nextSteps": [
     "Wait for required checks to pass, then merge only if the Ready-to-Merge gate returns all four conditions true."
   ],
@@ -137,7 +141,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "332257ae8324d82a309c05b53a9bfd2e782044c3",
-      "head": "1d40f26128f7ca8830f639b3902441507a5e83c5"
+      "head": "da00292d8ce4a1a45d826577719e57d00e7e417b"
     }
   }
 }
