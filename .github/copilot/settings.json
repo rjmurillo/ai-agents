@@ -4,5 +4,44 @@
   "contextTier": "long_context",
   "respectGitignore": true,
   "mergeStrategy": "rebase",
-  "includeCoAuthoredBy": true
+  "includeCoAuthoredBy": true,
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "ai-agents": {
+      "source": {
+        "source": "github",
+        "repo": "rjmurillo/ai-agents"
+      }
+    },
+    "agent-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "MattKotsenas/agent-plugins"
+      }
+    },
+    "graybeard": {
+      "source": {
+        "source": "github",
+        "repo": "Virag-Koradiya/graybeard"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "ponytail@ponytail": true,
+    "project-toolkit@ai-agents": false,
+    "git-good@agent-plugins": true,
+    "graybeard@graybeard": true
+  }
 }
