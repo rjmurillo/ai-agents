@@ -99,7 +99,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4606-qa-report.md"
+        "Evidence": ".agents/qa/pr-4606-session-4606-qa-report.md"
       }
     }
   },
@@ -129,14 +129,14 @@
       "entry": "Fixed fast mutation process-group race, regenerated command mirrors, reran targeted tests, and rebound QA report to 8f070f9f7ef85eb80d394f50420d3a447c1de87f."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "332257ae8324d82a309c05b53a9bfd2e782044c3",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
-      "head": "8f070f9f7ef85eb80d394f50420d3a447c1de87f"
+      "head": "332257ae8324d82a309c05b53a9bfd2e782044c3"
     }
   }
 }
