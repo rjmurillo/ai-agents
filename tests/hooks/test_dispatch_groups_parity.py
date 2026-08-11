@@ -153,6 +153,9 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         "invoke_markdownlint_guard.py",
         # Gate groups do not take the plugin dispatcher's self-host bail.
         "invoke_push_pr_script_identity_guard.py",
+        # #4874: same reason, and a settings.json twin would trip the
+        # validate_duplicate_entries contract (same script, event, matcher).
+        "invoke_require_subagent_model.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
@@ -195,6 +198,8 @@ def test_plugin_registrations_are_dispatcher_only():
 # The authorized set is small and shrinking while the running set is what
 # drifts, so this stays cheap and gets stronger as the ROI program completes.
 AUTHORIZED_HOOKS = {
+    "invoke_require_subagent_model.py": "#4874: deny sub-agent spawns that would "
+    "silently inherit the session model on Claude and Copilot CLI",
     "invoke_push_pr_script_identity_guard.py": "#4764: block repository-controlled "
     "lookalike PR scripts before Python execution",
     "invoke_markdownlint_guard.py": "ADR-084 keeper (customer value)",
