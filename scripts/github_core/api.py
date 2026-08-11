@@ -109,7 +109,8 @@ def get_repo_info() -> RepoInfo | None:
     Preserves dots in repository names and removes only a trailing ``.git``.
 
     Returns:
-        RepoInfo with owner and repo, or None if not in a git repo.
+        RepoInfo with owner and repo, or None when Git is unavailable, the
+        origin lookup fails or times out, or the origin is not a GitHub URL.
     """
     try:
         result = subprocess.run(
