@@ -758,19 +758,24 @@ def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[s
     two invariants that carry the safety (which marker deselects run, and which
     module is targeted versus ignored) while tolerating benign additions such
     as ``-q`` or ``--maxfail``.
+
+    Flags whose value is a separate argv token are consumed as pairs. Without
+    that, the ``auto`` in ``-n auto`` and the ``loadfile`` in ``--dist
+    loadfile`` (issue #4823) parse as bare words and land in ``targets``, which
+    would report the bulk command as targeting two paths that do not exist.
     """
+    value_flags = frozenset({"-m", "--ignore", "-n", "--numprocesses", "--dist"})
     marker = ""
     targets: list[str] = []
     ignores: list[str] = []
     index = 0
     while index < len(command):
         token = command[index]
-        if token == "-m":
-            marker = command[index + 1]
-            index += 2
-            continue
-        if token == "--ignore":
-            ignores.append(command[index + 1])
+        if token in value_flags:
+            if token == "-m":
+                marker = command[index + 1]
+            elif token == "--ignore":
+                ignores.append(command[index + 1])
             index += 2
             continue
         if token.startswith("--ignore="):
@@ -785,7 +790,12 @@ def _pytest_marker_and_paths(command: list[str]) -> tuple[str, list[str], list[s
 
 def test_pre_push_pytest_commands_include_safe_push_module() -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    mutation_tests = str(repo_root / "tests" / "mutation")
     safe_push_tests = str(repo_root / "tests" / "test_safe_push_pr_branch.py")
+    mutation_signal_tests = str(
+        repo_root / "tests" / "test_mutation_workspace_signals.py"
+    )
+    pr_autofix_tests = str(repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py")
 
     commands = git_hook_policy._pytest_commands(repo_root)
     parsed = [_pytest_marker_and_paths(command) for command in commands]
@@ -794,18 +804,37 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
         assert command[:3] == [sys.executable, "-m", "pytest"]
 
     bulk = [entry for entry in parsed if safe_push_tests in entry[2]]
+    mutation_targeted = [entry for entry in parsed if mutation_tests in entry[1]]
     targeted = [entry for entry in parsed if safe_push_tests in entry[1]]
+    pr_autofix_targeted = [entry for entry in parsed if pr_autofix_tests in entry[1]]
 
     assert len(bulk) == 1, parsed
+    assert len(mutation_targeted) == 1, parsed
     assert len(targeted) == 1, parsed
+    assert len(pr_autofix_targeted) == 1, parsed
 
     bulk_marker, bulk_targets, _ = bulk[0]
     assert bulk_marker == "not integration"
     assert str(repo_root / "tests") in bulk_targets
+    assert mutation_tests in bulk[0][2]
+    assert mutation_signal_tests in bulk[0][2]
+    assert pr_autofix_tests in bulk[0][2]
 
-    targeted_marker, _, targeted_ignores = targeted[0]
+    mutation_marker, mutation_targets, mutation_ignores = mutation_targeted[0]
+    assert mutation_marker == "not integration"
+    assert mutation_targets == [mutation_tests]
+    assert mutation_tests not in mutation_ignores
+
+    targeted_marker, targeted_targets, targeted_ignores = targeted[0]
     assert targeted_marker == "not integration and not safe_push_transport"
     assert safe_push_tests not in targeted_ignores
+    assert mutation_signal_tests in targeted_targets
+    assert mutation_signal_tests not in targeted_ignores
+    assert pr_autofix_tests not in targeted_targets
+
+    pr_autofix_marker, _, pr_autofix_ignores = pr_autofix_targeted[0]
+    assert pr_autofix_marker == "not integration"
+    assert pr_autofix_tests not in pr_autofix_ignores
 
     # The transport tests must never run under pre-push, so no command may
     # reach this module without deselecting the safe_push_transport marker.
@@ -818,6 +847,33 @@ def test_pre_push_pytest_commands_include_safe_push_module() -> None:
         if reaches_module:
             assert "not integration" in marker, (marker, targets)
             assert "not safe_push_transport" in marker, (marker, targets)
+
+
+def test_safe_push_partition_is_the_serial_one(tmp_path: Path) -> None:
+    """Parallelism (issue #4823) must not reach the safe-push partition.
+
+    That partition targets the process-sensitive push and signal modules. Its
+    narrower marker expression deselects the real-transport tests. The full policy, worker
+    count, and the CI half live in
+    ``tests/validation/test_pytest_parallelism_policy.py`` and
+    ``tests/workflows/test_pytest_xdist_parallelism.py``; this assertion sits
+    next to the transport-exclusion guard above because both protect the same
+    command.
+    """
+    bulk, mutation, safe_push, pr_autofix = git_hook_policy._pytest_commands(tmp_path)
+
+    assert "-n" in bulk and "--dist" in bulk
+    assert "-n" in mutation and "--dist" in mutation
+    assert str(tmp_path / "tests" / "mutation") in mutation
+    assert "-n" not in safe_push
+    assert "--numprocesses" not in safe_push
+    assert "--dist" not in safe_push
+    assert str(tmp_path / "tests" / "test_safe_push_pr_branch.py") in safe_push
+    assert str(tmp_path / "tests" / "test_mutation_workspace_signals.py") in safe_push
+    assert str(tmp_path / "tests" / "test_pr_autofix_late_live_state_gate.py") in pr_autofix
+    assert "-n" not in pr_autofix
+    assert "--numprocesses" not in pr_autofix
+    assert "--dist" not in pr_autofix
 
 
 def test_object_id_validator_loads_from_real_module() -> None:

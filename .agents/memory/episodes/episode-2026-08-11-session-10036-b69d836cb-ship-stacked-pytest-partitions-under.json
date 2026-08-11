@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under",
+  "session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship stacked pytest CI partitions under ten minutes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Shipped PR #4886 as one stack: direct local pytest execution, all-CPU xdist partitions, combined coverage, secret-safe output, system CA support, and a root versus nested bulk split. Exact collection parity held at 27,154 tests. Fresh CI passed with a 6 minute 47 second longest job. Review fixes aligned the local fallback with CI, rejected unsupported nested ACT batches, and removed persisted checkout credentials.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T08:16:48+00:00",
+      "type": "commit",
+      "content": "Commit: 470dc44e611453cf1e5c0268d73275af0ddb7757",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 13
+  },
+  "lessons": []
+}

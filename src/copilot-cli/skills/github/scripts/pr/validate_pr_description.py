@@ -142,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         body = path.read_text(encoding="utf-8")
 
+    validate_no_escaped_newlines(body)
+
     full_text = f"{args.title}\n{body}"
 
     # Run validations
@@ -234,10 +236,6 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 def validate_no_escaped_newlines(body_content: str) -> None:
     r"""Reject a body whose line breaks are literal backslash-n. Issue #3777.
 
@@ -293,3 +291,7 @@ def validate_no_escaped_newlines(body_content: str) -> None:
         file=sys.stderr,
     )
     raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

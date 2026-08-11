@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-09-session-10020-recover-4684-fleet-completion",
+  "session": "2026-08-09-session-10020-recover-4684-fleet-completion",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Recover PR 4684 after fleet completion",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:38:00+00:00",
+      "type": "milestone",
+      "content": "Reassess PR 4684 live state and issue merit",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-09-session-10020-recover-4684-fleet-completion"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:45:00+00:00",
+      "type": "milestone",
+      "content": "Merge current main without rebase",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-09-session-10020-recover-4684-fleet-completion"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T01:10:00+00:00",
+      "type": "milestone",
+      "content": "Run recursive Critical and High review",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-09-session-10020-recover-4684-fleet-completion"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T03:30:00+00:00",
+      "type": "milestone",
+      "content": "Run final local gates",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10020-recover-4684-fleet-completion"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T00:47:17+00:00",
+      "type": "commit",
+      "content": "Commit: 8a731844c0552f8f8852c4833b99241c4c181c77",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-09-session-10020-recover-4684-fleet-completion"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 172,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

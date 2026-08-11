@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 
 Retrieves CI check information using GraphQL statusCheckRollup API.
@@ -47,6 +48,8 @@ from github_core.api import (
 from github_core.checks_rollup import (
     extract_required_check_lists,
     extract_workflow_run_number,
+    fetch_ruleset_required_contexts,
+    find_missing_required,
     group_checks_by_name,
     partition_rows_by_run,
 )
@@ -66,6 +69,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
+            baseRefName
             mergeable
             mergeStateStatus
             commits(last: 1) {
@@ -87,6 +91,12 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                         status
                                         conclusion
                                         detailsUrl
+                                        checkSuite {
+                                            workflowRun {
+                                                databaseId
+                                                runAttempt
+                                            }
+                                        }
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -124,6 +134,12 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                 status
                                 conclusion
                                 detailsUrl
+                                checkSuite {
+                                    workflowRun {
+                                        databaseId
+                                        runAttempt
+                                    }
+                                }
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
@@ -168,12 +184,15 @@ def normalize_check(ctx: dict) -> dict | None:
     if typename == "CheckRun":
         status = ctx.get("status", "")
         conclusion = ctx.get("conclusion", "")
+        workflow_run = ((ctx.get("checkSuite") or {}).get("workflowRun") or {})
         return {
             "Name": ctx.get("name", ""),
             "Type": "CheckRun",
             "State": status,
             "Conclusion": conclusion,
             "DetailsUrl": ctx.get("detailsUrl", ""),
+            "WorkflowRunId": workflow_run.get("databaseId"),
+            "WorkflowRunAttempt": workflow_run.get("runAttempt"),
             "IsRequired": ctx.get("isRequired", False),
             "IsPending": status in _PENDING_STATUSES,
             "IsPassing": conclusion in _PASSING_CONCLUSIONS,
@@ -246,27 +265,33 @@ def _dedupe_rank(check: dict) -> tuple[int, int]:
     return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
 
 
-def _check_workflow_run_number(check: dict) -> int | None:
-    """Return a CheckRun workflow run id when the details URL exposes one."""
+def _check_workflow_key(check: dict) -> tuple[int, int] | None:
+    """Return the Actions workflow run and attempt identity."""
     if check.get("Type") != "CheckRun":
         return None
-    return extract_workflow_run_number(check.get("DetailsUrl"))
+    run_number = check.get("WorkflowRunId")
+    if run_number is None:
+        run_number = extract_workflow_run_number(check.get("DetailsUrl"))
+    if run_number is None:
+        return None
+    attempt = check.get("WorkflowRunAttempt")
+    return int(run_number), int(attempt) if attempt is not None else 1
 
 
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
     """Pick the latest workflow run when all candidates have run provenance."""
     check_run_pairs = [
-        (check, _check_workflow_run_number(check))
+        (check, _check_workflow_key(check))
         for check in candidates
         if check.get("Type") == "CheckRun"
     ]
     if check_run_pairs and all(
-        run_number is not None for _, run_number in check_run_pairs
+        run_key is not None for _, run_key in check_run_pairs
     ):
-        latest_run = max(run_number for _, run_number in check_run_pairs)
+        latest_run = max(run_key for _, run_key in check_run_pairs)
         latest_candidates = [
-            check for check, run_number in check_run_pairs
-            if run_number == latest_run
+            check for check, run_key in check_run_pairs
+            if run_key == latest_run
         ]
         return sorted(latest_candidates, key=_dedupe_rank)[0]
     return sorted(candidates, key=_dedupe_rank)[0]
@@ -282,13 +307,24 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
     Refs issue #4499.
     """
     representatives: list[dict[Any, Any]] = []
-    for group in partition_rows_by_run(rows, "DetailsUrl"):
+    for group in partition_rows_by_run(
+        rows,
+        "DetailsUrl",
+        "WorkflowRunId",
+        "WorkflowRunAttempt",
+    ):
         if len(group) == 1:
-            representatives.append(group[0])
+            representatives.append({
+                **group[0],
+                "_RunIsRequired": bool(group[0].get("IsRequired")),
+            })
             continue
         failing = [row for row in group if row.get("IsFailing")]
         pool = failing if failing else group
-        representatives.append(sorted(pool, key=_dedupe_rank)[0])
+        representatives.append({
+            **sorted(pool, key=_dedupe_rank)[0],
+            "_RunIsRequired": any(row.get("IsRequired") for row in group),
+        })
     return representatives
 
 
@@ -326,11 +362,17 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     deduped = []
     for name in order:
         candidates = _collapse_same_run_siblings(rows_by_name[name])
+        if required_by_name[name]:
+            candidates = [
+                check for check in candidates
+                if check.get("_RunIsRequired")
+            ]
         best = _select_cross_run_winner(candidates)
         winner = {
             **best,
             "IsRequired": required_by_name[name],
         }
+        winner.pop("_RunIsRequired", None)
         winner["IsPending"] = pending_by_name[name]
         deduped.append(winner)
     return deduped
@@ -409,6 +451,7 @@ def fetch_checks(
     if not commits:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": pr.get("baseRefName"),
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -422,6 +465,7 @@ def fetch_checks(
     if not rollup:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": pr.get("baseRefName"),
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -457,6 +501,7 @@ def fetch_checks(
 
     return {
         "Number": pr.get("number"),
+        "BaseBranch": pr.get("baseRefName"),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Checks": checks,
@@ -471,12 +516,18 @@ def build_output(
     owner: str,
     repo: str,
     required_only: bool = False,
+    ruleset_contexts: list[str] | None = None,
 ) -> dict:
     """Build the final output object from check data.
 
     Groups checks by name and ORs the required status across all rows
     for each name, matching test_pr_merge_ready.py semantics. Returns
     structured lists of pending and failed required checks.
+
+    If ``ruleset_contexts`` is provided (from the branch ruleset API), computes
+    ``MissingRequired``: context names the ruleset requires but that never
+    reported any check run. These are invisible to isRequired-based logic.
+    Refs issue #4359.
     """
     checks_value = check_data.get("Checks")
     if checks_value is None:
@@ -563,11 +614,27 @@ def build_output(
         filtered_checks, is_required_by_name
     )
 
+    # Issue #4359: required checks that never triggered any run are invisible
+    # to isRequired-based logic. Cross-reference against the branch ruleset to
+    # surface them as a distinct MISSING state.
+    reported_names = {
+        c.get("Name", "")
+        for c in checks
+        if c.get("IsRequired")
+    }
+    missing_required: list[str] | None
+    if ruleset_contexts is not None:
+        missing_required = find_missing_required(ruleset_contexts, reported_names)
+    else:
+        missing_required = None
+    all_passing = all_passing and not missing_required
+
     return {
         "Success": True,
         "Number": check_data.get("Number"),
         "Owner": owner,
         "Repo": repo,
+        "BaseBranch": check_data.get("BaseBranch"),
         "OverallState": check_data.get("OverallState", "UNKNOWN"),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
@@ -598,6 +665,10 @@ def build_output(
         # failed ones and from non-required checks.
         "PendingRequiredChecks": pending_required,
         "FailedRequiredChecks": failed_required,
+        # Issue #4359: required checks from the branch ruleset that produced no
+        # check run at all. None when the ruleset fetch was skipped or failed
+        # (caller should treat as unknown, not empty).
+        "MissingRequiredChecks": missing_required,
     }
 
 
@@ -628,6 +699,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-only", action="store_true",
         help="Filter output to required checks only",
     )
+    parser.add_argument(
+        "--base-branch", default=None,
+        help="Base branch to read the ruleset from for missing-check detection "
+             "(default: PR base branch). Pass empty string to skip ruleset fetch.",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -649,6 +725,13 @@ def _resolve_status(
             "(empty rollup; not treated as passing)",
             "WARNING",
         )
+    missing = output.get("MissingRequiredChecks")
+    if missing:
+        return (
+            f"PR #{number}: {len(missing)} required check(s) never reported "
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            "FAIL",
+        )
     if output["FailedCount"] > 0:
         return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
     if timed_out_pending:
@@ -665,6 +748,44 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
+def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | None:
+    """Return an exit code if check_data carries an error, else None."""
+    if check_data.get("Error") == "NotFound":
+        write_skill_error(
+            check_data["Message"],
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 2
+    if check_data.get("Error") == "ApiError":
+        write_skill_error(
+            check_data["Message"],
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 3
+    return None
+
+
+def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
+    """Return the exit code derived from the final output dict."""
+    if checks_incomplete or timed_out_pending:
+        return 7
+    if output["FailedCount"] > 0:
+        return 1
+    if output.get("MissingRequiredChecks"):
+        return 1
+    if not output.get("MergeRefUsable", True):
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -675,31 +796,24 @@ def main(argv: list[str] | None = None) -> int:
 
     fmt = get_output_format(args.output_format)
 
-    start_time = time.monotonic()
-    max_iterations = math.ceil(args.timeout_seconds / 10)
-    iteration = 0
-    settled = False
-    checks_incomplete = False
+    check_data = fetch_checks(owner, repo, args.pull_request)
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+    if rc is not None:
+        return rc
 
-    while True:
-        iteration += 1
-        check_data = fetch_checks(owner, repo, args.pull_request)
-
-        # Handle errors
-        if check_data.get("Error") == "NotFound":
+    # Issue #4359: fetch the target branch ruleset once, before polling, so
+    # missing-check detection uses a stable and relevant snapshot.
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(check_data.get("BaseBranch") or "")
+    )
+    ruleset_contexts: list[str] | None = None
+    if base_branch:
+        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+        if ruleset_contexts is None:
             write_skill_error(
-                check_data["Message"],
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 2
-
-        if check_data.get("Error") == "ApiError":
-            write_skill_error(
-                check_data["Message"],
+                f"Failed to read required checks for base branch {base_branch!r}",
                 3,
                 error_type="ApiError",
                 output_format=fmt,
@@ -708,7 +822,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
-        output = build_output(check_data, owner, repo, args.required_only)
+    start_time = time.monotonic()
+    max_iterations = math.ceil(args.timeout_seconds / 10)
+    iteration = 0
+    settled = False
+    checks_incomplete = False
+
+    while True:
+        iteration += 1
+
+        output = build_output(
+            check_data, owner, repo, args.required_only, ruleset_contexts
+        )
         checks_incomplete = checks_incomplete or bool(
             output.get("ChecksIncomplete", False)
         )
@@ -736,11 +861,14 @@ def main(argv: list[str] | None = None) -> int:
             break
 
         time.sleep(10)
+        check_data = fetch_checks(owner, repo, args.pull_request)
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        if rc is not None:
+            return rc
 
     output["ChecksIncomplete"] = checks_incomplete
     timed_out_pending = not settled and output["PendingCount"] > 0
 
-    # Determine status for human output
     summary, status = _resolve_status(
         output, args.timeout_seconds, timed_out_pending, checks_incomplete
     )
@@ -753,13 +881,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_pr_checks.py",
     )
 
-    if output["FailedCount"] > 0:
-        return 1
-    if not output.get("MergeRefUsable", True):
-        return 1
-    if checks_incomplete or timed_out_pending:
-        return 7
-    return 0
+    return _exit_code(output, checks_incomplete, timed_out_pending)
 
 
 if __name__ == "__main__":

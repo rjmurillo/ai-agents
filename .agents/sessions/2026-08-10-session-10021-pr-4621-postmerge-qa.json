@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10021,
+    "date": "2026-08-10",
+    "branch": "autofix/postmergeqa-4621",
+    "startingCommit": "6e1df21ed8a3c3c6aebd6d2174a4b4c139c9f6a9",
+    "objective": "Bind post-merge QA evidence for PR #4621"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions; activate_project is not exposed in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read task context and repository instructions; HANDOFF.md was not modified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded github skill and used PR helper scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied skill-first GitHub workflow."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents rules and session-log instructions relevant to .agents artifacts."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No task-specific Serena memory was needed."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "autofix/postmergeqa-4621"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch autofix/postmergeqa-4621 targets PR head, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created isolated worktree at current remote head."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6e1df21ed8a3c3c6aebd6d2174a4b4c139c9f6a9"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report created for exact code commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new convention required a Serena memory update."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-10-session-10021-pr-4621-postmerge-qa.json passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report binds code commit f90f6e6ebfa29980e97a370e7fd4594e23f57d1d."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "520 targeted pytest tests passed on the current tree."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4621 QA report added."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4621-postmerge-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Checked PR live state, acquired lease autofix-postmergeqa-4621, and disabled auto-merge before mutation.",
+      "result": "PR #4621 remained actionable."
+    },
+    {
+      "action": "Inspected resolved diff and ran the smallest relevant pytest suite on the current tree.",
+      "result": "520 passed, 1 warning."
+    },
+    {
+      "action": "Created QA report .agents/qa/pr-4621-postmerge-qa-report.md bound to the exact code commit.",
+      "result": "Report records f90f6e6ebfa29980e97a370e7fd4594e23f57d1d as code commit under test."
+    }
+  ],
+  "endingCommit": "f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
+  "nextSteps": [
+    "Push QA report and session binding, wait for required checks, then run completion gate."
+  ]
+}

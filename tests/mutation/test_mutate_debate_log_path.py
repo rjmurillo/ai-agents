@@ -81,6 +81,7 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
             **__import__("os").environ,
             "PYTHONDONTWRITEBYTECODE": "1",
         },
+        timeout=300,
     )
 
 
@@ -118,11 +119,13 @@ def _apply_positive_mutant(
     wt_target = wt_path / _TARGET_REL
     wt_target.write_bytes(mutated)
 
-    result = _run_tests_in(wt_path)
-
-    # Restore original bytes before asserting so the restore check below
-    # always runs against the unmodified file.
-    wt_target.write_bytes(original)
+    try:
+        result = _run_tests_in(wt_path)
+    finally:
+        wt_target.write_bytes(original)
+        assert wt_target.read_bytes() == original, (
+            f"{label}: scratch worktree target was not restored to original bytes"
+        )
 
     _assert_suite_ran(result, label)
 
@@ -132,6 +135,39 @@ def _apply_positive_mutant(
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
     return _OUTCOME_DEAD
+
+
+def test_run_tests_uses_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        recorded.update(kwargs)
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    _run_tests_in(tmp_path)
+
+    assert recorded["timeout"] == 300
+
+
+def test_positive_mutant_restores_target_when_test_run_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original = b"before\n"
+    target = tmp_path / _TARGET_REL
+    target.parent.mkdir(parents=True)
+    target.write_bytes(original)
+
+    def raise_timeout(_wt_path: Path) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd="pytest", timeout=300)
+
+    monkeypatch.setattr(sys.modules[__name__], "_run_tests_in", raise_timeout)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        _apply_positive_mutant(tmp_path, original, b"before", b"after", "timeout")
+
+    assert target.read_bytes() == original
 
 
 @pytest.fixture()
@@ -180,13 +216,6 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M1"
-    # Restore check: suite passes against the unmodified tree.
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M1-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M1.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +240,6 @@ def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> No
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M2"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M2-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M2.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -244,12 +267,6 @@ def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) 
     )
     assert outcome == _OUTCOME_DEAD
     assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M3"
-    result = _run_tests_in(scratch_worktree)
-    _assert_suite_ran(result, "M3-restore-check")
-    assert result.returncode == 0, (
-        "Tests failed against unmodified worktree after M3.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    )
 
 
 # ---------------------------------------------------------------------------
