@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "27 commits from 8e3832b52e through 21dec0a7df on fix/4764-postmerge-regressions"
+        "Evidence": "28 commits from 8e3832b52e through cc8cd816d9 on fix/4764-postmerge-regressions"
       },
       "validationPassed": {
         "level": "MUST",
@@ -165,7 +165,7 @@
       "outcome": "Issues #4857 atomic-commit shim miscount, #4858 dispatcher timeout dropped, #4861 e2e fails instead of skipping on expired CLI auth"
     }
   ],
-  "endingCommit": "21dec0a7df263866f0487fb3ea9a4ce87152126b",
+  "endingCommit": "cc8cd816d9ed4e7a0a201f7f60dbc15d7dab1456",
   "nextSteps": [
     "Verify PR #4862 CI and address failures",
     "Do not merge or enable auto-merge"
