@@ -90,6 +90,17 @@ class TestCleanPatterns:
         """
         assert _findings(source, tmp_path) == []
 
+    def test_project_root_joined_to_tempfile_factory_is_not_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        source = """\
+            import tempfile
+            _PROJECT_ROOT = Path("/repo")
+            def test_something():
+                (_PROJECT_ROOT / tempfile.mkdtemp() / "out.txt").write_text("hello")
+        """
+        assert _findings(source, tmp_path) == []
+
     def test_no_root_binding_not_flagged(self, tmp_path: Path) -> None:
         source = """\
             def test_something(tmp_path):

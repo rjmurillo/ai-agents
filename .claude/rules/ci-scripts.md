@@ -46,6 +46,8 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 21. **A stdin-consuming pre-push job MUST stay `piped: true`, never `parallel: true`, unless one producer job captures the ref-update stdin once into a push-scoped immutable artifact for every consumer to read instead of declaring its own `use_stdin: true`.** On Lefthook 2.1.10, parallel `use_stdin: true` jobs race the shared stream, so a consumer can receive a truncated or duplicated payload instead of the full copy `piped: true` delivers. Evidence: `.agents/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.
 
+22. **A job `name:` is a branch-protection identifier. Emit both names before requiring the new one.** GitHub matches a required status check against a workflow job's check-run name, which is the job `name:` or the job id when `name:` is absent. Composite-action metadata under `.github/actions/` does not create check runs by itself; only consuming workflow jobs do. Check the full protected-branch set, not one guessed ruleset: `gh api repos/OWNER/REPO/rules/branches/main --jq '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]'`. Compare it with check-run names from a fresh PR run, because `gh pr checks` cannot show a context that never ran. No-gap rename sequence: emit old and new names, merge to `main`, require the new context, remove the old requirement, then remove the old alias. The gap sequence is still valid but less safe: drop the old requirement, merge the rename, observe the new check, then require it. Requiring the new name before `main` emits it blocks every PR. Measured 2026-08-09: required `Session Protocol Results` and `AI Quality Gate Results` existed only on an unmerged PR, so `main` took no commits for five hours.
+
 ## SHOULD
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
@@ -119,3 +121,4 @@ bytes over its ceiling.
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
 - Issue #4262. gate merged red against its own corpus and blocked all pushes
+- PR #4784. required-check rename landed after the ruleset required it, deadlocking every PR for five hours

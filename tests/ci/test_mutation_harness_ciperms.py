@@ -131,9 +131,7 @@ class TestApplyMutation:
         assert result.outcome == harness.DID_NOT_APPLY
         assert "byte-identical" in result.note
 
-    def test_file_is_mutated_during_the_run_and_restored_after(
-        self, tmp_path, monkeypatch
-    ):
+    def test_file_is_mutated_during_the_run_and_restored_after(self, tmp_path, monkeypatch):
         mutation = self._mutation(tmp_path)
         seen: list[bytes] = []
 
@@ -163,6 +161,85 @@ class TestApplyMutation:
         with pytest.raises(RuntimeError):
             harness.apply_mutation(mutation)
         assert mutation.target_file.read_bytes() == b"target\n"
+
+    def test_pycache_is_purged_before_pytest_runs(self, tmp_path, monkeypatch):
+        mutation = self._mutation(tmp_path)
+        pycache = mutation.target_file.parent / "__pycache__"
+        pycache.mkdir()
+        (pycache / "sample.cpython-314.pyc").write_bytes(b"stale")
+
+        def fake_run(_test_filter):
+            assert not pycache.exists()
+            return _proc(1)
+
+        monkeypatch.setattr(harness, "_run_tests", fake_run)
+
+        result = harness.apply_mutation(mutation)
+
+        assert result.outcome == harness.DEAD
+
+    def test_pycache_purge_failure_is_not_run_and_restores(
+        self, tmp_path, monkeypatch
+    ):
+        mutation = self._mutation(tmp_path)
+        pycache = mutation.target_file.parent / "__pycache__"
+        pycache.mkdir()
+        monkeypatch.setattr(
+            harness,
+            "purge_bytecode",
+            lambda _path: (_ for _ in ()).throw(OSError("locked")),
+        )
+        monkeypatch.setattr(
+            harness,
+            "_run_tests",
+            lambda _test_filter: pytest.fail("pytest should not run after purge failure"),
+        )
+
+        result = harness.apply_mutation(mutation)
+
+        assert result.outcome == harness.NOT_RUN
+        assert "pycache purge failed" in result.note
+        assert mutation.target_file.read_bytes() == b"target\n"
+
+    def test_verify_mismatch_restores_before_did_not_apply(
+        self, tmp_path, monkeypatch
+    ):
+        mutation = self._mutation(tmp_path)
+        real_replace = harness._write_bytes_by_sibling_replace
+
+        def write_wrong_mutant(target, data, purpose):
+            if purpose == "mutant":
+                target.write_bytes(b"wrong\n")
+                return
+            real_replace(target, data, purpose)
+
+        monkeypatch.setattr(harness, "_write_bytes_by_sibling_replace", write_wrong_mutant)
+        monkeypatch.setattr(
+            harness,
+            "_run_tests",
+            lambda _test_filter: pytest.fail("pytest should not run after verify mismatch"),
+        )
+
+        result = harness.apply_mutation(mutation)
+
+        assert result.outcome == harness.DID_NOT_APPLY
+        assert "mutant bytes differed" in result.note
+        assert mutation.target_file.read_bytes() == b"target\n"
+
+
+class TestRunTests:
+    def test_run_tests_disables_bytecode_writes(self, monkeypatch):
+        captured = {}
+
+        def fake_run(*args, **kwargs):
+            captured["env"] = kwargs["env"]
+            return _proc(0)
+
+        monkeypatch.setattr(harness.subprocess, "run", fake_run)
+
+        harness._run_tests("tests/example.py::test_example")
+
+        assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
 class TestVerifyRepoRoot:
@@ -202,17 +279,13 @@ class TestMainExitCodes:
     def test_all_dead_exits_zero(self, monkeypatch):
         assert self._run_main(monkeypatch, [harness.DEAD, harness.DEAD]) == 0
 
-    @pytest.mark.parametrize(
-        "outcome", [harness.SURVIVED, harness.NOT_RUN, harness.DID_NOT_APPLY]
-    )
+    @pytest.mark.parametrize("outcome", [harness.SURVIVED, harness.NOT_RUN, harness.DID_NOT_APPLY])
     def test_any_non_dead_outcome_fails(self, monkeypatch, outcome):
         assert self._run_main(monkeypatch, [harness.DEAD, outcome]) == 1
 
     def test_not_run_is_reported_as_unmeasured(self, monkeypatch, capsys):
         self._run_main(monkeypatch, [harness.NOT_RUN])
         assert "unmeasured rather than killed" in capsys.readouterr().out
-
-
 
 
 class TestRestoreFailureExitCode:
@@ -259,6 +332,30 @@ class TestRestoreFailureExitCode:
             f"Expected exit 2 (tree dirty / restore failed), got {excinfo.value.code}. "
             "A caller cannot distinguish this from a surviving mutant (exit 1)."
         )
+        assert mutation.target_file.read_bytes() == b"changed\n"
+
+    def test_truncate_then_fail_during_restore_does_not_empty_target(self, tmp_path, monkeypatch):
+        """A failed restore write may truncate scratch, never the target file."""
+        mutation = self._mutation(tmp_path)
+        original_write = mutation.target_file.__class__.write_bytes
+        write_count = [0]
+
+        def patched_write(self_path, data):
+            write_count[0] += 1
+            if write_count[0] == 2:
+                with self_path.open("wb"):
+                    pass
+                raise OSError("simulated failure after truncate")
+            return original_write(self_path, data)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness.apply_mutation(mutation)
+
+        assert excinfo.value.code == 2
+        assert mutation.target_file.read_bytes() == b"changed\n"
 
     def test_oserror_on_restore_prints_recovery_hint(self, tmp_path, monkeypatch, capsys):
         """The recovery command must appear in stderr."""
@@ -314,9 +411,7 @@ class TestRestoreFailureExitCode:
             harness.apply_mutation(mutation)
         assert excinfo.value.code == 2
 
-    def test_oserror_on_restore_verification_exits_2(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_oserror_on_restore_verification_exits_2(self, tmp_path, monkeypatch, capsys):
         """OSError while checking restored bytes exits 2."""
         mutation = self._mutation(tmp_path)
         original_read = mutation.target_file.__class__.read_bytes
@@ -324,7 +419,7 @@ class TestRestoreFailureExitCode:
 
         def patched_read(self_path):
             read_count[0] += 1
-            if read_count[0] >= 2:
+            if read_count[0] >= 3:
                 raise OSError("simulated read-back failure")
             return original_read(self_path)
 
@@ -334,7 +429,9 @@ class TestRestoreFailureExitCode:
         with pytest.raises(SystemExit) as excinfo:
             harness.apply_mutation(mutation)
         assert excinfo.value.code == 2
-        assert "could not verify restore" in capsys.readouterr().err
+        assert "could not restore" in capsys.readouterr().err
+        assert original_read(mutation.target_file) == b"target\n"
+
 
 class TestMutationsAreRunnable:
     """Regression guards for the two silent-failure classes.
@@ -373,6 +470,5 @@ class TestMutationsAreRunnable:
             cwd=REPO_ROOT,
         )
         assert proc.returncode == 0, (
-            f"pytest exited {proc.returncode} collecting {filters}:\n"
-            f"{proc.stderr or proc.stdout}"
+            f"pytest exited {proc.returncode} collecting {filters}:\n{proc.stderr or proc.stdout}"
         )
