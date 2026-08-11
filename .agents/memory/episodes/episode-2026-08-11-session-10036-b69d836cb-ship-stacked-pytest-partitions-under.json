@@ -75,7 +75,8 @@
         "e005",
         "e007",
         "e009",
-        "e011"
+        "e011",
+        "e013"
       ],
       "leads_to": [
         "e008"
@@ -150,6 +151,17 @@
         "e010"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Collapsed the stack into PR #4886 after PR #4872 monolithic CI ran 741.58 seconds and failed the pr-autofix module that the partitioned workflow isolates.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
     }
   ],

@@ -142,11 +142,14 @@
     },
     {
       "entry": "Merged the parent CodeQL fix. Secret names and affected workflow paths no longer reach text or JSON logs."
+    },
+    {
+      "entry": "Collapsed the stack into PR #4886 after PR #4872 monolithic CI ran 741.58 seconds and failed the pr-autofix module that the partitioned workflow isolates."
     }
   ],
   "endingCommit": "c4039dcf02a86377df4328e256ef65d2c44ac9db",
   "nextSteps": [
     "Monitor PR #4886 CI job durations.",
-    "Merge PR #4872 before PR #4886."
+    "Close PR #4872 as superseded by PR #4886."
   ]
 }
