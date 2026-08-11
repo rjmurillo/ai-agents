@@ -146,6 +146,10 @@
     {
       "action": "Closed follow-up command schema gaps",
       "result": "Rejected dot-only resourceSuffixes in both command validators, covered the new edge case in tests, and allowed excludeFilenames in the command schema to match generator support."
+    },
+    {
+      "action": "Refreshed remaining QA reports after command suffix fix",
+      "result": "Updated the final session-specific QA markdown artifacts so the session-end checks and Validate PR stay pinned to the latest validator fix commit."
     }
   ],
   "endingCommit": "573c81888894aea4f17c26a3254e3756c9ec6205",
