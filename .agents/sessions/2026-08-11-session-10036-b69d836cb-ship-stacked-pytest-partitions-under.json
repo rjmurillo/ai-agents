@@ -145,11 +145,14 @@
     },
     {
       "entry": "Collapsed the stack into PR #4886 after PR #4872 monolithic CI ran 741.58 seconds and failed the pr-autofix module that the partitioned workflow isolates."
+    },
+    {
+      "entry": "Retargeted PR #4886 to main and closed PR #4872 as superseded."
     }
   ],
   "endingCommit": "c4039dcf02a86377df4328e256ef65d2c44ac9db",
   "nextSteps": [
     "Monitor PR #4886 CI job durations.",
-    "Close PR #4872 as superseded by PR #4886."
+    "Merge PR #4886 after required checks pass."
   ]
 }
