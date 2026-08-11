@@ -65,7 +65,8 @@
         "e009",
         "e010",
         "e011",
-        "e012"
+        "e012",
+        "e017"
       ],
       "leads_to": [
         "e006"
@@ -200,6 +201,30 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Autofix round: resolved the add/add episode conflict from the second main merge",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T03:21:43+00:00",
+      "type": "commit",
+      "content": "Commit: 1d1ea7fe53811ea07f8758d2916997ca02ffcb8c",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes"
     }
@@ -209,7 +234,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 3
   },
   "lessons": []

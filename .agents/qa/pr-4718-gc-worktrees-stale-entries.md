@@ -1,15 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 04ca40d652e01a05f332d7e9b4091b282dab426b
+qaCommit: 1d1ea7fe53811ea07f8758d2916997ca02ffcb8c
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`04ca40d652e01a05f332d7e9b4091b282dab426b`, with current `origin/main` merged in
-at `e88f1d8d7a`.
+`1d1ea7fe53811ea07f8758d2916997ca02ffcb8c`, which is the merge of current `origin/main` at `ff1fcd7b37`.
 
 This round closes the two open review threads. Both were reproduced against real
 git 2.43.0 before the fix and re-broken afterwards.
@@ -60,6 +59,7 @@ reader both stop.
 | `scripts/ci/ruff_count_ratchet.py` | OK, 27 <= baseline 30 |
 | `scripts/ci/subprocess_encoding_count_ratchet.py` | OK, 236 <= baseline 253 |
 | `ruff check` and `ruff format --check` on every changed file | clean |
+| Same GC suite and ratchets re-run after merging `origin/main` at `ff1fcd7b37` | 305 passed, taste 583, ruff 27 <= 30 |
 
 New coverage: five real-git cases for the ref lock, including one that drives a
 prepared `git update-ref --stdin` transaction so git itself writes the lock, a
