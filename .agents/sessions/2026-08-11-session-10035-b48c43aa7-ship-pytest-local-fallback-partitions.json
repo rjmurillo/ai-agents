@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8177af6e5fe85b78ef7fd79625cbb4284bf57f45"
+        "Evidence": "5d2bed8edea08d65aa8ba14f8b192616c7119b5a"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "143 focused pytest tests passed in 7.91 seconds; Ruff, taste ratchet, and git diff --check passed"
+        "Evidence": "141 fallback tests passed in 5.82 seconds; Ruff and taste ratchet passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -133,9 +133,12 @@
     },
     {
       "entry": "Merged current origin/main, flattened matrix parsing to clear the taste ratchet, and rebound QA to 8177af6e5fe85b78ef7fd79625cbb4284bf57f45."
+    },
+    {
+      "entry": "A real ACT run showed gh act dry-run still cloned remote actions. Moved the ACT guard before all gh act setup and rebound QA to 5d2bed8edea08d65aa8ba14f8b192616c7119b5a."
     }
   ],
-  "endingCommit": "8177af6e5fe85b78ef7fd79625cbb4284bf57f45",
+  "endingCommit": "5d2bed8edea08d65aa8ba14f8b192616c7119b5a",
   "nextSteps": [
     "Open the atomic local fallback PR.",
     "Stack the pytest workflow partition and coverage aggregation PR on this branch."
