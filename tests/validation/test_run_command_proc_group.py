@@ -216,7 +216,7 @@ def test_run_command_passes_start_new_session_to_popen(tmp_path: Path) -> None:
 
     def recording_popen(*args, **kwargs):
         popen_calls.append({"start_new_session": kwargs.get("start_new_session")})
-        return real_popen(*args, **kwargs)
+        return real_popen(*args, **kwargs)  # subprocess-encoding: strict-ok
 
     target = "scripts.validation.git_hook_policy.subprocess.Popen"
     with mock.patch(target, side_effect=recording_popen):
