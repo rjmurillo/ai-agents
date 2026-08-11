@@ -1,9 +1,11 @@
 """Contract tests for the changed-file ruff ratchet in pytest.yml (Issue #2939).
 
-The repository carries a pre-existing backlog of ruff findings (2026 as of
-2026-06-01), so CI must fail only on new violations in changed Python files.
-These tests pin the ratchet contract so a later edit cannot silently restore a
-repo-wide report-only run or drop the gating/skip condition.
+The repository carries a pre-existing backlog of ruff findings, so CI must
+fail only on new violations in changed Python files. These tests pin the
+ratchet contract so a later edit cannot silently restore a repo-wide
+report-only run or drop the gating/skip condition.
+
+Issue #4854: the ruff step now runs only in the bulk matrix partition.
 """
 
 from __future__ import annotations
@@ -112,14 +114,12 @@ class TestRuffStepIsBlockingRatchet:
 
 
 class TestRuffStepGating:
-    """Edge: the step honors the existing skip gate and carries no injection surface."""
+    """Edge: the step runs once, in the bulk partition."""
 
-    def test_ruff_step_gated_by_skip_condition(self) -> None:
+    def test_ruff_step_runs_only_in_bulk_partition(self) -> None:
         step = _find_ruff_step()
         assert step is not None
-        # Reuses the same gate every other step in the test job uses so the
-        # ruff step is skipped when no Python files changed.
-        assert step.get("if") == "steps.should-run.outputs.skip != 'true'"
+        assert step.get("if") == "matrix.partition == 'bulk'"
 
     def test_ruff_step_has_no_untrusted_interpolation(self) -> None:
         """The run command must not interpolate untrusted GitHub event data."""

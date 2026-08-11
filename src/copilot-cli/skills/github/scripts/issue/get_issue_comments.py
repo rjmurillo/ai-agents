@@ -28,11 +28,8 @@ import sys
 import time
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -124,15 +121,23 @@ def _run_comment_page(
     endpoint = f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100&page={page}"
     attempts = len(ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS) + 1
     for attempt in range(attempts):
-        result = subprocess.run(
-            ["gh", "api", endpoint],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["gh", "api", endpoint],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            result = subprocess.CompletedProcess(
+                ["gh", "api", endpoint],
+                3,
+                stdout="",
+                stderr=f"Timed out fetching comments for issue #{issue}",
+            )
         if result.returncode == 0:
             return result
 
