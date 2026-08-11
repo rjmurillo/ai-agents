@@ -13,6 +13,8 @@ on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
     branches: [main]
+  merge_group:
+    branches: [main]
 
 permissions:
   contents: read
@@ -32,7 +34,7 @@ permissions:
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
-  group: pr-validation-${{ github.event.pull_request.number }}
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -57,12 +59,15 @@ jobs:
       - name: Check if validation should run
         id: should-run
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           $actor = $env:GITHUB_ACTOR
           $excludedBots = @('dependabot[bot]', 'github-actions[bot]', 'renovate[bot]')
-          
-          if ($actor -in $excludedBots) {
-            Write-Host "Skipping validation for bot actor: $actor"
+          $shouldSkip = $env:EVENT_NAME -eq 'merge_group' -or $actor -in $excludedBots
+
+          if ($shouldSkip) {
+            Write-Host "Skipping PR-shaped validation for event or actor"
             "skip=true" >> $env:GITHUB_OUTPUT
           } else {
             Write-Host "Running validation for actor: $actor"
@@ -286,7 +291,7 @@ jobs:
       # gate would pass while the debt grew.
       - name: Run taste-lint error-count ratchet
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # This job later runs merge-tree and count-ratchet diagnostics that
           # need a merge base. A depth-limited fetch writes .git/shallow for
@@ -299,7 +304,7 @@ jobs:
       # ensures net-new suppressions are visible and blocked on a regression.
       - name: Run type-ignore count ratchet
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # Keep this fetch full-depth; an earlier shallow fetch would graft
           # .git/shallow for the later merge-tree ratchet. See the taste-lint
@@ -314,7 +319,7 @@ jobs:
       # reason the conflict-marker gate below does.
       - name: Run unindexed-memory count ratchet
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # Keep this fetch full-depth; an earlier shallow fetch would graft
           # .git/shallow for the later merge-tree ratchet. See the taste-lint
@@ -352,7 +357,7 @@ jobs:
       # message rather than blocking on a check that duplicates the merge gate.
       - name: Run merge-tree ratchet
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           # Issue #4518: this fetch MUST NOT be shallow. The count ratchets
           # above do not need ancestry for their own baseline reads, but

@@ -15,7 +15,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (4327)
+|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3568)
 |injected instructions stale snapshot always-on context lags repo file cache canonical grep the rule before acting manifest bump reversal: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
@@ -29,6 +29,7 @@
 |github pr issue cli gh api review comment batch response label milestone create tag priority: [skills-github-cli-index](skills-github-cli-index.md) (597), [skills-pr-review-index](skills-pr-review-index.md) (1096), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
+|pr autofix lease bare checkout wrong branch local head sha mismatch dedicated worktree audit merge-forward: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
 |gh extension notify combine metrics milestone webhook grep sub-issue: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |copilot review false-positive triage response cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
@@ -66,7 +67,7 @@
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
-|sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
+|sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (811)
 |quality gate unknown verdict infra downgrade fail closed raw token unrecognized FOOBAR blocking: [quality/unknown-verdict-infra-downgrade-stays-blocking](quality/unknown-verdict-infra-downgrade-stays-blocking.md) (226)
 |git merge union driver append-only semantic duplicate gitattributes conflict: [quality/union-merge-hides-semantic-duplicates](quality/union-merge-hides-semantic-duplicates.md) (911)
 |squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (968)
@@ -120,7 +121,7 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (765)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (923)
 |git stash push -m after double dash parsed as pathspec silent no stash checkout destroys work verify refs/stash: [git/git-stash-m-after-double-dash-is-a-pathspec](git/git-stash-m-after-double-dash-is-a-pathspec.md) (678)
 |script absolute path wrong worktree repo_root __file__ validates own tree false pass token updater containment check candidate path: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side endingCommit session log stack last merge wins validator proves existence not correctness: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1185)
@@ -144,7 +145,7 @@
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
-|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2519), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
+|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1133), [eval-multiprovider-transport](eval-multiprovider-transport.md) (712), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 

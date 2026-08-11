@@ -140,81 +140,30 @@ Owner decision recorded 2026-08-03: enable a merge queue, sequenced after the
 drain rather than before it, since a queue serializes merges and would have made
 the drain slower.
 
-**Superseded 2026-08-05: the merge queue is not available to this repository, so
-do not plan around it.** GitHub gates merge queues to organization-owned
-repositories. `rjmurillo/ai-agents` is public but owned by a user account, so it
-does not qualify:
+## Implementation update, 2026-08-11
 
-```
-gh api repos/rjmurillo/ai-agents --jq '{visibility, owner_type: .owner.type}'
-  -> {"visibility":"public","owner_type":"User"}
-gh api orgs/rjmurillo
-  -> 404 Not Found
-```
+Issue #4691's workflow inventory changed during implementation. Ruleset
+11104075 requires 16 contexts from 10 workflows. Both `Analyze` contexts come
+from `codeql-analysis.yml`; `ai-metrics-analysis.yml` is not a required-check
+producer.
 
-The gating string is GitHub's own, from
-`data/reusables/gated-features/merge-queue.md` in `github/docs`: "Pull request
-merge queues are available in any public repository owned by an organization, or
-in private repositories owned by organizations using GitHub Enterprise Cloud."
-Public plus user-owned is the one combination that fails. Enabling it requires
-transferring the repository to an organization first. Work on `merge_group`
-triggers is dead code until that happens. A partial attempt was made on
-2026-08-05 and reverted in the working tree before any commit, so it leaves no
-trace in history.
+The code-readiness change adds `merge_group` support to those 10 workflows.
+Tree-sensitive checks run against the queued merge ref. PR-shaped checks
+conclude at job level because the PR already passed the same required context
+before queue entry. Structural tests pin all 16 live contexts, main-only event
+targeting, queue-ref concurrency, path-filter forcing, and PR anti-vacuity.
+Local `gh act merge_group` execution ran `Validate Path Normalization` against
+3,967 tracked Markdown files.
 
-**Do not "correct" `strict_required_status_checks_policy` back to `false`. It is
-deliberately `true`.** This is the trap that the stale `false` reading recorded
-earlier in this memory sets for the next agent, and it was walked into on
-2026-08-05. Ruleset `11104075` version `45433643` armed strict at
-2026-08-04 21:52 PT, hours after the red-`main` incident, as the remediation the
-retrospective left open. Issue #4646 is open against exactly this drift and says
-so plainly:
+Code readiness does not enable the queue. The repository API reports
+`owner.type = User`, while GitHub limits merge queues to organization-owned
+repositories for this configuration. The owner must transfer the repository to
+an organization or GitHub must expand eligibility before the ruleset gains a
+`merge_queue` rule.
 
-> Strict checks defend against the "individually green pull requests do not
-> compose" failure in #4503. The problem is that nothing in the repository was
-> updated to match, so every agent that consults the recorded value is now
-> working from an inverted fact.
-
-`docs/merge-guards.md` agrees: "Require Branches to be Up to Date. Enabled. Yes.
-Rationale: Ensures validation runs against latest `main`, prevents race
-conditions."
-
-The near miss, recorded so the reasoning is not repeated: strict was read as an
-unexplained throttle, set to `false` at 22:08 PT, and restored to `true` at
-22:29 PT the same evening once the ruleset history and #4646 were checked. The
-lesson is procedural. Before changing a live protection setting, read
-`gh api repos/rjmurillo/ai-agents/rulesets/11104075/history` and search the
-issue tracker for the setting's name. A setting that contradicts a committed
-memory is more likely to be a deliberate change the memory has not caught up to
-than it is to be drift.
-
-**The merge-tree ratchet is not a substitute for strict, and must not be cited
-as one.** `scripts/ci/merge_tree_ratchet_check.py` (issue #4398) is blocking on
-every pull request: it runs in job `validate-pr` of `pr-validation.yml`, whose
-name `Validate PR` is one of the 17 required contexts, with no `if` guard and no
-`continue-on-error`. It evaluates five ratchets from
-`scripts/ci/merge_tree_ratchet_registry.py` against the merged result: ruff
-count, taste count, type-ignore count, memory-index count, and the CLI exit
-contract. `merge_tree_ratchet_check.py` imports `RATCHETS` and iterates that
-registry. Strict is what makes the other sixteen required contexts run against
-a tree containing current `main`.
-
-The registry reached `main` through PR #4545 in commit `11b8fb8833`, after an
-earlier version of this memory correctly recorded that it was branch-only.
-That dated correction then became stale. Verify the current `RATCHETS` entries
-before quoting a count instead of relying on either historical state.
-
-The uncovered class is the one that caused the incident. `Run Python Tests`
-carries whole-tree assertions, including the pinned corpus figures in
-`tests/validation/test_always_on_corpus_claims.py`. Two pull requests that each
-edit a different always-on rule and each update the figure to their own
-measurement both pass alone and fail merged. That is root cause 2 of the
-2026-08-04 retrospective, and it is not in the merge-tree registry.
-
-Two holes would open if strict were disabled: the stale-base hole for every
-check outside those five ratchets, and the concurrent-admission hole (#4345),
-where three pull requests each pass alone and breach only when all three land. A
-merge queue would have closed both, and it is unavailable on this repository.
+`strict_required_status_checks_policy` is deliberately `true`. It prevents a
+branch behind main from merging on checks that never saw current main. The
+merge-tree ratchet complements strict checks, it does not replace them.
 
 ## Corollary: the merged result can be red even when every input was green
 

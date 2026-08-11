@@ -1,0 +1,202 @@
+{
+  "id": "episode-2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection",
+  "session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own issue 4843 default branch detection end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked coordination and reproduced issue 4843",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented default branch detection",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Generated the Copilot mirror and tested behavior",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent review and QA",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revalidated the merged PR",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T18:07:49+00:00",
+      "type": "commit",
+      "content": "Commit: 89d586d49106d864ba40f75b8c759cec8f544614",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007",
+        "e009",
+        "e011",
+        "e013",
+        "e014"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored the CI taste-count ratchet after merging current main",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T19:05:30+00:00",
+      "type": "commit",
+      "content": "Commit: 33074b1f83b928ad263df3113bf90a7cbd851a16",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored default-branch detection after merge resolution",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T19:27:25+00:00",
+      "type": "commit",
+      "content": "Commit: 8fdad794d41e6d511c6111fe7787f25875e22223",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main and retained default-branch detection",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T19:35:37+00:00",
+      "type": "commit",
+      "content": "Commit: 90449dafd32b977ea01e449e28350969337d4c34",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed trusted push-pr script digests",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 78eb048052da40c685272016818f4ee4f850a0d2",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T19:53:49+00:00",
+      "type": "commit",
+      "content": "Commit: 78eb0480520f4e81cfadfb5ec40a7334b983369a",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14653-b9e2467b9-issue-4843-default-branch-detection"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 118
+  },
+  "lessons": []
+}

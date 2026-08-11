@@ -1642,12 +1642,56 @@ def test_act_limitation_hint_downgrades_when_every_annotation_is_explained() -> 
 
 
 def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() -> None:
-    combined = "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+    combined = (
+        "fatal: not a git repository: (null)\n"
+        "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+    )
     assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_explains_paths_filter_resolved_git_path_annotation() -> None:
+    # dorny/paths-filter at digest 61f87a10 annotates the resolved executable
+    # instead of the argv it ran. The stale literal made this read as an
+    # unexplained annotation and blocked every push touching a workflow that
+    # uses the action, on an unmodified main.
+    combined = (
+        "[Validate Path Normalization/Check Changed Paths]   | "
+        "fatal: not a git repository: (null)\n"
+        "[Validate Path Normalization/Check Changed Paths]   "
+        "::error::The process '/usr/bin/git' failed with exit code 128"
+    )
+    assert w._act_limitation_hint(combined, "push") is not None
+
+
+def test_act_limitation_hint_blocks_non_git_process_annotation() -> None:
+    # Same annotation shape, different executable. Nothing about a failing
+    # linter is an act limitation, so the run must keep blocking.
+    combined = (
+        "[A/Lint]   fatal: not a git repository\n"
+        "[A/Lint]   ::error::The process '/usr/bin/eslint' failed with exit code 128"
+    )
+    assert w._act_limitation_hint(combined, "push") is None
+
+
+def test_act_limitation_hint_blocks_git_process_annotation_with_other_exit_code() -> None:
+    # 128 is the no-repository exit. A different code is the action reporting a
+    # real git failure, which CI would reproduce.
+    combined = (
+        "[A/Filter]   fatal: not a git repository\n"
+        "[A/Filter]   ::error::The process '/usr/bin/git' failed with exit code 1"
+    )
+    assert w._act_limitation_hint(combined, "push") is None
+
+
+def test_act_limitation_hint_blocks_git_exit_128_without_missing_repository() -> None:
+    text = "::error::The process '/usr/bin/git' failed with exit code 128"
+
+    assert w._act_limitation_hint(text, "push") is None
 
 
 def test_act_limitation_hint_attributes_aggregator_cascade_to_limitation() -> None:
     combined = (
+        "[CLI Smoke/Check Changed Paths]   fatal: not a git repository: (null)\n"
         "[CLI Smoke/Check Changed Paths]   ::error::The process "
         "'git rev-parse --abbrev-ref HEAD' failed with exit code 128\n"
         "[CLI Smoke/Smoke Result]   ::error::Check changed paths result: failure"
@@ -2078,7 +2122,7 @@ def test_run_passes_start_new_session_to_popen() -> None:
 
     def recording_popen(*args, **kwargs):
         popen_calls.append({"start_new_session": kwargs.get("start_new_session")})
-        return real_popen(*args, **kwargs)
+        return real_popen(*args, **kwargs)  # subprocess-encoding: strict-ok
 
     with mock.patch("run_workflow_local_test.subprocess.Popen", side_effect=recording_popen):
         w._run([sys.executable, "-c", "print('hi')"], timeout=5)

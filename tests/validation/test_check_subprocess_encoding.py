@@ -1,4 +1,4 @@
-# taste-lint: ignore file-size, alias regressions stay co-located for issue #4261.
+# taste-lint: ignore file-size, one suite owns the validator's flow and mutation matrix.
 """Tests for scripts/validation/check_subprocess_encoding.py (issue #4261).
 
 Guards the gate that catches subprocess calls pinning UTF-8 without
@@ -14,39 +14,16 @@ Coverage:
 - neg/missing-errors-run: subprocess.run with encoding + text=True, no errors -> flagged
 - neg/missing-errors-check_output: subprocess.check_output (decodes unconditionally) -> flagged
 - neg/missing-errors-capture_output: capture_output=True with encoding, no errors -> flagged
-- neg/missing-errors-stdout-pipe: stdout=subprocess.PIPE with encoding -> flagged
-- neg/missing-errors-stderr-pipe: stderr=subprocess.PIPE with encoding -> flagged
-- neg/alias-pipe-capture: subprocess call and PIPE aliases still resolve -> flagged
-- neg/assigned-module-alias: `sp = subprocess` and derived aliases still resolve -> flagged
-- neg/function-local-alias: aliases created inside a function still resolve there -> flagged
-- neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
-- neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
-- neg/function-alias-use-before-rebind: aliased function calls still capture pre-rebind state
-- neg/branch-local-function-order: branch-defined deferred functions honor outer call-time order
-- neg/tuple-swap-order: destructuring alias swaps use the pre-assignment snapshot
-- neg/tuple-unpack-alias: tuple/list unpacking preserves alias bindings
-- neg/branch-join-alias: a subprocess alias in one branch still flags after the join
-- neg/lambda-body: violating subprocess calls inside lambdas are flagged
-- neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
-- neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
-- neg/class-method-order: class methods honor outer late-bind and rebind order
-- neg/class-attribute-aliases: class-scoped callable and PIPE aliases still resolve
-- neg/transitive-deferred-order: nested deferred calls preserve the outer call snapshot
-- neg/match-guard-order: match guards capture deferred call order before later rebinds
-- neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
-- pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
-- pos/shadowed-run-helper: unrelated local `run` helper aliases stay clean
-- pos/shadowed-imported-run: later rebinding of imported `run` stays clean
-- pos/inner-scope-alias-leak: function-local aliases do not leak outward
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
-- edge/errors-wrong-value: errors="strict" counts as present -> not flagged
-- edge/syntax-error: file with invalid Python -> returns empty list (no crash)
+- edge/errors-wrong-value: errors="strict" remains a violation
+- edge/syntax-error: invalid Python fails closed
 - edge/empty-source: empty source -> no violations
-- edge/explicit-empty-scan: explicit paths with no scannable files -> failure
 - edge/invalid-root: non-existent directory -> exit 2
+- edge/empty-scope: zero tracked scripts -> exit 2
+- edge/git-failure: unavailable tracked-file inventory -> exit 2
 - integration: no tracked file under scripts/ has a violation after the fix
 - cli/exit-zero: repo root with no violations -> main() returns 0
 - cli/exit-one: source with a violation -> main() returns 1
@@ -55,6 +32,7 @@ Coverage:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -72,6 +50,18 @@ from check_subprocess_encoding import (
     validate_subprocess_encoding,
 )
 
+
+def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
+    """Create a repository with the supplied tracked files."""
+    for rel, text in files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
 # ---------------------------------------------------------------------------
 # Positive: compliant calls (no violations expected)
 # ---------------------------------------------------------------------------
@@ -84,10 +74,6 @@ from check_subprocess_encoding import (
             "import subprocess\n"
             'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")',
             "compliant: has errors=replace",
-        ),
-        (
-            'import subprocess\nsubprocess.run(["x"], encoding="utf-8", errors="strict")',
-            "compliant: errors present (strict counts as present)",
         ),
         (
             'import subprocess\nsubprocess.run(["x"], encoding="utf-8")',
@@ -130,14 +116,75 @@ def test_subprocess_run_missing_errors_capture_output() -> None:
     assert find_violations(source) == [2]
 
 
-def test_subprocess_run_missing_errors_stdout_pipe() -> None:
-    source = 'import subprocess\nsubprocess.run(["x"], stdout=subprocess.PIPE, encoding="utf-8")'
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_subprocess_run_missing_errors_explicit_pipe(stream: str) -> None:
+    source = f'import subprocess\nsubprocess.run(["x"], {stream}=subprocess.PIPE, encoding="utf-8")'
     assert find_violations(source) == [2]
 
 
-def test_subprocess_run_missing_errors_stderr_pipe() -> None:
-    source = 'import subprocess\nsubprocess.run(["x"], stderr=subprocess.PIPE, encoding="utf-8")'
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_subprocess_run_missing_errors_module_aliased_pipe(stream: str) -> None:
+    source = f'import subprocess as sp\nsp.run(["x"], {stream}=sp.PIPE, encoding="utf-8")'
     assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            'from subprocess import PIPE, run\nrun(["x"], stdout=PIPE, encoding="utf-8")',
+            2,
+        ),
+        (
+            "from subprocess import PIPE as pipe, run as runner\n"
+            'runner(["x"], stderr=pipe, encoding="utf-8")',
+            2,
+        ),
+        (
+            "import subprocess as sp\n"
+            "pipe = sp.PIPE\n"
+            "runner = sp.run\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            4,
+        ),
+    ],
+)
+def test_subprocess_pipe_aliases_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner, pipe = sp.run, sp.PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+        (
+            "from subprocess import PIPE, run\n"
+            "runner, pipe = run, PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner: object = sp.run\n"
+            "pipe: object = sp.PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            4,
+        ),
+        (
+            "import subprocess as sp\n"
+            "pipe = other = sp.PIPE\n"
+            'sp.run(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+    ],
+)
+def test_non_simple_subprocess_rebindings_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
 
 
 def test_subprocess_check_output_missing_errors() -> None:
@@ -146,498 +193,17 @@ def test_subprocess_check_output_missing_errors() -> None:
     assert find_violations(source) == [2]
 
 
-def test_aliased_check_output_missing_errors() -> None:
-    source = 'from subprocess import check_output as co\nco(["x"], encoding="utf-8")'
+def test_subprocess_getstatusoutput_missing_errors() -> None:
+    source = 'import subprocess\nsubprocess.getstatusoutput("x", encoding="utf-8")'
     assert find_violations(source) == [2]
 
 
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            'runner(["x"], encoding="utf-8")',
-            [3],
-        ),
-        (
-            "from subprocess import check_output as co\n"
-            "runner = co\n"
-            'runner(["x"], encoding="utf-8")',
-            [3],
-        ),
-    ],
-)
-def test_local_callable_aliases_are_flagged(source: str, expected: list[int]) -> None:
-    assert find_violations(source) == expected
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "sp = subprocess\n"
-            'sp.run(["x"], text=True, encoding="utf-8")',
-            [3],
-        ),
-        (
-            "import subprocess\n"
-            "sp = subprocess\n"
-            "runner = sp.check_output\n"
-            'runner(["x"], encoding="utf-8")',
-            [4],
-        ),
-    ],
-)
-def test_assigned_module_aliases_are_flagged(source: str, expected: list[int]) -> None:
-    assert find_violations(source) == expected
-
-
-def test_function_local_aliases_are_flagged() -> None:
+def test_subprocess_getstatusoutput_replace_is_allowed() -> None:
+    """Mutation control: the new entry point still accepts replacement decoding."""
     source = (
-        "import subprocess\n"
-        "def wrapper():\n"
-        "    runner = subprocess.check_output\n"
-        '    runner(["x"], encoding="utf-8")\n'
-    )
-    assert find_violations(source) == [4]
-
-
-def test_alias_used_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        'runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-    )
-    assert find_violations(source) == [3]
-
-
-def test_function_alias_call_used_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "def wrapper():\n"
-        '    runner(["x"], encoding="utf-8")\n'
-        "wrapper()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [4]
-
-
-def test_function_call_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "def wrapper():\n"
-        '    runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-        "wrapper()\n"
+        'import subprocess\nsubprocess.getstatusoutput("x", encoding="utf-8", errors="replace")'
     )
     assert find_violations(source) == []
-
-
-def test_function_alias_used_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "def wrapper():\n"
-        '    runner(["x"], encoding="utf-8")\n'
-        "alias = wrapper\n"
-        "alias()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [4]
-
-
-def test_function_alias_called_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "def wrapper():\n"
-        '    runner(["x"], encoding="utf-8")\n'
-        "alias = wrapper\n"
-        "runner = print\n"
-        "alias()\n"
-    )
-    assert find_violations(source) == []
-
-
-def test_branch_local_function_used_after_late_outer_bind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "if cond:\n"
-        "    def wrapper():\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "runner = subprocess.check_output\n"
-        "alias = wrapper\n"
-        "alias()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [4]
-
-
-def test_branch_local_function_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "if cond:\n"
-        "    runner = subprocess.check_output\n"
-        "    def wrapper():\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-    )
-    assert find_violations(source) == []
-
-
-def test_tuple_alias_swap_uses_pre_assignment_snapshot() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "other = print\n"
-        "runner, other = other, runner\n"
-        'other(["x"], encoding="utf-8")\n'
-    )
-    assert find_violations(source) == [5]
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "runner, _ = subprocess.check_output, print\n"
-            'runner(["x"], encoding="utf-8")\n',
-            [3],
-        ),
-        (
-            "import subprocess\n"
-            "sp, _ = subprocess, print\n"
-            'sp.run(["x"], text=True, encoding="utf-8")\n',
-            [3],
-        ),
-        (
-            "import subprocess\n"
-            "pipe, _ = subprocess.PIPE, print\n"
-            'subprocess.run(["x"], stdout=pipe, encoding="utf-8")\n',
-            [3],
-        ),
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            "def wrapper():\n"
-            '    runner(["x"], encoding="utf-8")\n'
-            "alias, _ = wrapper, print\n"
-            "alias()\n"
-            "runner = print\n",
-            [4],
-        ),
-    ],
-)
-def test_tuple_unpacked_aliases_are_flagged(source: str, expected: list[int]) -> None:
-    assert find_violations(source) == expected
-
-
-def test_branch_join_alias_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "if cond:\n"
-        "    runner = subprocess.check_output\n"
-        "else:\n"
-        "    runner = print\n"
-        'runner(["x"], encoding="utf-8")\n'
-    )
-    assert find_violations(source) == [6]
-
-
-def test_lambda_body_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        'runner = lambda: subprocess.run(["x"], text=True, encoding="utf-8")\n'
-    )
-    assert find_violations(source) == [2]
-
-
-def test_lambda_alias_used_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        'wrapper = lambda: runner(["x"], encoding="utf-8")\n'
-        "wrapper()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [3]
-
-
-def test_lambda_alias_called_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        'wrapper = lambda: runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-        "wrapper()\n"
-    )
-    assert find_violations(source) == []
-
-
-def test_branch_local_lambda_used_after_late_outer_bind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "if cond:\n"
-        '    wrapper = lambda: runner(["x"], encoding="utf-8")\n'
-        "runner = subprocess.check_output\n"
-        "alias = wrapper\n"
-        "alias()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [3]
-
-
-def test_branch_local_lambda_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "if cond:\n"
-        "    runner = subprocess.check_output\n"
-        '    wrapper = lambda: runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-        "wrapper()\n"
-    )
-    assert find_violations(source) == []
-
-
-def test_match_guard_deferred_call_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "def wrapper():\n"
-        '    runner(["x"], encoding="utf-8")\n'
-        "match value:\n"
-        "    case _ if wrapper():\n"
-        "        pass\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [4]
-
-
-def test_class_method_used_after_late_outer_bind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "class C:\n"
-        "    def method(self):\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "runner = subprocess.check_output\n"
-        "C().method()\n"
-    )
-    assert find_violations(source) == [4]
-
-
-def test_class_method_call_before_later_rebind_is_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "class C:\n"
-        "    def method(self):\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "C().method()\n"
-        "runner = print\n"
-    )
-    assert find_violations(source) == [5]
-
-
-def test_class_method_call_before_later_bind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = print\n"
-        "class C:\n"
-        "    def method(self):\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "C().method()\n"
-        "runner = subprocess.check_output\n"
-    )
-    assert find_violations(source) == []
-
-
-def test_class_method_after_later_rebind_is_not_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        "class C:\n"
-        "    def method(self):\n"
-        '        runner(["x"], encoding="utf-8")\n'
-        "runner = print\n"
-    )
-    assert find_violations(source) == []
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "class C:\n"
-            "    runner = subprocess.check_output\n"
-            'C.runner(["x"], encoding="utf-8")\n',
-            [4],
-        ),
-        (
-            "import subprocess\n"
-            "class C:\n"
-            "    runner = subprocess.check_output\n"
-            'C().runner(["x"], encoding="utf-8")\n',
-            [4],
-        ),
-        (
-            "import subprocess\n"
-            "class C:\n"
-            "    PIPE = subprocess.PIPE\n"
-            'subprocess.run(["x"], stdout=C.PIPE, encoding="utf-8")\n',
-            [4],
-        ),
-    ],
-)
-def test_class_attribute_aliases_are_flagged(
-    source: str,
-    expected: list[int],
-) -> None:
-    assert find_violations(source) == expected
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            "def inner():\n"
-            '    runner(["x"], encoding="utf-8")\n'
-            "def outer():\n"
-            "    inner()\n"
-            "outer()\n"
-            "runner = print\n",
-            [4],
-        ),
-        (
-            "import subprocess\n"
-            "runner = print\n"
-            "def inner():\n"
-            '    runner(["x"], encoding="utf-8")\n'
-            "def outer():\n"
-            "    inner()\n"
-            "outer()\n"
-            "runner = subprocess.check_output\n",
-            [],
-        ),
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            'inner = lambda: runner(["x"], encoding="utf-8")\n'
-            "def outer():\n"
-            "    inner()\n"
-            "outer()\n"
-            "runner = print\n",
-            [3],
-        ),
-        (
-            "import subprocess\n"
-            "runner = print\n"
-            'inner = lambda: runner(["x"], encoding="utf-8")\n'
-            "def outer():\n"
-            "    inner()\n"
-            "outer()\n"
-            "runner = subprocess.check_output\n",
-            [],
-        ),
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            "def inner():\n"
-            '    runner(["x"], encoding="utf-8")\n'
-            "outer = lambda: inner()\n"
-            "outer()\n"
-            "runner = print\n",
-            [4],
-        ),
-        (
-            "import subprocess\n"
-            "runner = print\n"
-            "def inner():\n"
-            '    runner(["x"], encoding="utf-8")\n'
-            "outer = lambda: inner()\n"
-            "outer()\n"
-            "runner = subprocess.check_output\n",
-            [],
-        ),
-    ],
-)
-def test_transitive_deferred_calls_honor_call_order(
-    source: str,
-    expected: list[int],
-) -> None:
-    assert find_violations(source) == expected
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            "class C:\n"
-            "    def inner(self):\n"
-            '        runner(["x"], encoding="utf-8")\n'
-            "    def outer(self):\n"
-            "        self.inner()\n"
-            "C().outer()\n"
-            "runner = print\n",
-            [5],
-        ),
-        (
-            "import subprocess\n"
-            "runner = print\n"
-            "class C:\n"
-            "    def inner(self):\n"
-            '        runner(["x"], encoding="utf-8")\n'
-            "    def outer(self):\n"
-            "        self.inner()\n"
-            "C().outer()\n"
-            "runner = subprocess.check_output\n",
-            [],
-        ),
-        (
-            "import subprocess\n"
-            "runner = subprocess.check_output\n"
-            "class C:\n"
-            "    @classmethod\n"
-            "    def inner(cls):\n"
-            '        runner(["x"], encoding="utf-8")\n'
-            "    @classmethod\n"
-            "    def outer(cls):\n"
-            "        cls.inner()\n"
-            "C.outer()\n"
-            "runner = print\n",
-            [6],
-        ),
-        (
-            "import subprocess\n"
-            "runner = print\n"
-            "class C:\n"
-            "    @classmethod\n"
-            "    def inner(cls):\n"
-            '        runner(["x"], encoding="utf-8")\n'
-            "    @classmethod\n"
-            "    def outer(cls):\n"
-            "        cls.inner()\n"
-            "C.outer()\n"
-            "runner = subprocess.check_output\n",
-            [],
-        ),
-    ],
-)
-def test_transitive_class_method_calls_honor_call_order(
-    source: str,
-    expected: list[int],
-) -> None:
-    assert find_violations(source) == expected
 
 
 def test_from_import_run_missing_errors() -> None:
@@ -645,52 +211,34 @@ def test_from_import_run_missing_errors() -> None:
     assert find_violations(source) == [2]
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        (
-            "from subprocess import PIPE as CAPTURE, run as srun\n"
-            'srun(["x"], stdout=CAPTURE, encoding="utf-8")'
-        ),
-        (
-            "import subprocess as sp\n"
-            'sp.run(["x"], stderr=sp.PIPE, encoding="utf-8")'
-        ),
-    ],
-)
-def test_pipe_capture_aliases_are_flagged(source: str) -> None:
+def test_strict_errors_remains_a_violation() -> None:
+    source = (
+        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8", errors="strict")'
+    )
     assert find_violations(source) == [2]
 
 
 @pytest.mark.parametrize(
-    "source,expected",
+    "source,expected_line",
     [
         (
-            "import subprocess\n"
-            "capture = subprocess.PIPE\n"
-            'subprocess.run(["x"], stdout=capture, encoding="utf-8")',
-            [3],
+            'import subprocess as sp\nsp.run(["x"], text=True, encoding="utf-8")',
+            2,
         ),
         (
-            "from subprocess import PIPE as CAPTURE\n"
-            "pipe = CAPTURE\n"
-            'subprocess.run(["x"], stderr=pipe, encoding="utf-8")',
-            [3],
+            'from subprocess import run as runner\nrunner(["x"], text=True, encoding="utf-8")',
+            2,
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.run\n"
+            'runner(["x"], text=True, encoding="utf-8")',
+            3,
         ),
     ],
 )
-def test_local_pipe_aliases_are_flagged(source: str, expected: list[int]) -> None:
-    assert find_violations(source) == expected
-
-
-def test_assigned_module_pipe_aliases_are_flagged() -> None:
-    source = (
-        "import subprocess\n"
-        "sp = subprocess\n"
-        "pipe = sp.PIPE\n"
-        'sp.run(["x"], stdout=pipe, encoding="utf-8")'
-    )
-    assert find_violations(source) == [4]
+def test_subprocess_aliases_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
 
 
 def test_splat_kwargs_flagged_conservatively() -> None:
@@ -699,31 +247,1058 @@ def test_splat_kwargs_flagged_conservatively() -> None:
     assert find_violations(source) == [2]
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"text": True})',
-        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"capture_output": True})',
-        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"stdout": subprocess.PIPE})',
-    ],
-)
-def test_splat_kwargs_text_semantics_are_flagged(source: str) -> None:
-    assert find_violations(source) == [2]
-
-
-def test_universal_newlines_missing_errors_is_flagged() -> None:
-    source = 'import subprocess\nsubprocess.run(["x"], universal_newlines=True, encoding="utf-8")'
-    assert find_violations(source) == [2]
-
-
 def test_multiple_violations_reported() -> None:
     source = (
-        'import subprocess\n'
+        "import subprocess\n"
         'subprocess.run(["a"], text=True, encoding="utf-8")\n'
         'subprocess.run(["b"], capture_output=True, encoding="utf-8")\n'
     )
     lines = find_violations(source)
     assert lines == [2, 3]
+
+
+def test_conditional_rebinding_preserves_possible_subprocess_alias() -> None:
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "if use_fake:\n"
+        "    runner = fake\n"
+        'runner(["x"], capture_output=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [5]
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "for value in maybe_empty:\n"
+            "    runner = fake\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            5,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "while condition:\n"
+            "    runner = fake\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            5,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "try:\n"
+            "    runner = fake\n"
+            "except NameError:\n"
+            "    pass\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            7,
+        ),
+    ],
+)
+def test_control_flow_rebinding_preserves_possible_subprocess_alias(
+    source: str, expected_line: int
+) -> None:
+    assert find_violations(source) == [expected_line]
+
+
+def test_exhaustive_non_subprocess_branches_clear_subprocess_alias() -> None:
+    """Mutation control: joining branches must not retain impossible aliases."""
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "if use_first_fake:\n"
+        "    runner = first_fake\n"
+        "else:\n"
+        "    runner = second_fake\n"
+        'runner(["x"], capture_output=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_loop_target_clears_outer_subprocess_alias_inside_body() -> None:
+    """Mutation control: an unknown loop value must not inherit the outer alias."""
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "for runner in factories:\n"
+        '    runner(["x"], capture_output=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner = fake\n"
+            "for runner in [sp.run]:\n"
+            '    runner(["x"], capture_output=True, encoding="utf-8")\n',
+            4,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = fake\n"
+            "for runner in [sp.run]:\n"
+            "    pass\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            5,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = fake\n"
+            '[runner(["x"], capture_output=True, encoding="utf-8") for runner in [sp.run]]\n',
+            3,
+        ),
+    ],
+)
+def test_static_iteration_subprocess_bindings_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "for runner in [fake]:\n"
+            "    pass\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n'
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            '[runner(["x"], capture_output=True, encoding="utf-8") for runner in [fake]]\n'
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            'invoke = lambda runner: runner(["x"], capture_output=True, encoding="utf-8")\n'
+        ),
+    ],
+)
+def test_iteration_and_lambda_shadowing_do_not_leak_outer_alias(source: str) -> None:
+    """Mutation control: lexical targets replace the outer binding."""
+    assert find_violations(source) == []
+
+
+def test_nested_comprehension_propagates_static_subprocess_binding() -> None:
+    source = (
+        "import subprocess as sp\n"
+        '[fn(["x"], text=True, encoding="utf-8") for row in [[sp.run]] for fn in row]\n'
+    )
+    assert find_violations(source) == [2]
+
+
+def test_splat_only_kwargs_flagged_fail_closed() -> None:
+    source = (
+        "import subprocess\n"
+        'opts = {"text": True, "encoding": "utf-8"}\n'
+        'subprocess.run(["x"], **opts)\n'
+    )
+    assert find_violations(source) == [3]
+
+
+def test_splat_only_kwargs_passes_with_explicit_replacement_errors() -> None:
+    """Mutation control: explicit replacement handling makes unknown kwargs safe."""
+    source = (
+        "import subprocess\n"
+        'opts = {"text": True, "encoding": "utf-8"}\n'
+        'subprocess.run(["x"], errors="replace", **opts)\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_splat_capture_mode_flagged_fail_closed() -> None:
+    source = (
+        "import subprocess\n"
+        'opts = {"capture_output": True}\n'
+        'subprocess.run(["x"], encoding="utf-8", **opts)\n'
+    )
+    assert find_violations(source) == [3]
+
+
+def test_splat_capture_mode_passes_with_explicit_replacement_errors() -> None:
+    """Mutation control: explicit replacement handling covers splat capture mode."""
+    source = (
+        "import subprocess\n"
+        'opts = {"capture_output": True}\n'
+        'subprocess.run(["x"], encoding="utf-8", errors="replace", **opts)\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess as sp\n"
+            "from contextlib import nullcontext\n"
+            "with nullcontext(sp.run) as runner:\n"
+            '    runner(["x"], text=True, encoding="utf-8")\n',
+            [4],
+        ),
+        (
+            "import subprocess as sp\n"
+            "from contextlib import nullcontext\n"
+            "runner = sp.run\n"
+            "with nullcontext(fake) as runner:\n"
+            '    runner(["x"], text=True, encoding="utf-8")\n',
+            [],
+        ),
+    ],
+)
+def test_with_target_updates_subprocess_binding(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess as sp\n"
+            "match (sp.run,):\n"
+            "    case (runner,):\n"
+            '        runner(["x"], text=True, encoding="utf-8")\n',
+            [4],
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "match (fake,):\n"
+            "    case (runner,):\n"
+            '        runner(["x"], text=True, encoding="utf-8")\n',
+            [],
+        ),
+    ],
+)
+def test_match_capture_updates_subprocess_binding(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess as sp\n"
+            "def outer():\n"
+            "    import fake_subprocess as sp\n"
+            "    def inner():\n"
+            "        global sp\n"
+            '        sp.run(["x"], text=True, encoding="utf-8")\n',
+            [6],
+        ),
+        (
+            "import fake_subprocess as sp\n"
+            "def outer():\n"
+            "    import subprocess as sp\n"
+            "    def inner():\n"
+            "        global sp\n"
+            '        sp.run(["x"], text=True, encoding="utf-8")\n',
+            [],
+        ),
+        (
+            "import fake_subprocess as runner\n"
+            "import subprocess as sp\n"
+            "def outer():\n"
+            "    def inner():\n"
+            "        nonlocal runner\n"
+            '        runner(["x"], text=True, encoding="utf-8")\n'
+            "    runner = sp.run\n",
+            [6],
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "def outer():\n"
+            "    def inner():\n"
+            "        nonlocal runner\n"
+            '        runner(["x"], text=True, encoding="utf-8")\n'
+            "    runner = fake\n",
+            [],
+        ),
+    ],
+)
+def test_global_and_nonlocal_use_declared_scope_bindings(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
+def test_loop_else_without_break_replaces_subprocess_alias() -> None:
+    """Mutation control: an unavoidable else removes the stale loop-body state."""
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "for _ in [1]:\n"
+        "    pass\n"
+        "else:\n"
+        "    runner = fake\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_loop_else_with_break_preserves_possible_subprocess_alias() -> None:
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "for stop in [True, False]:\n"
+        "    if stop:\n"
+        "        break\n"
+        "else:\n"
+        "    runner = fake\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_comprehension_walrus_updates_enclosing_subprocess_alias() -> None:
+    source = (
+        "import subprocess as sp\n"
+        "runner = fake\n"
+        "[(runner := sp.run) for _ in [1]]\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [4]
+
+
+def test_empty_comprehension_preserves_preexisting_alias() -> None:
+    """Mutation control: a walrus in an empty comprehension never executes."""
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "[(runner := fake) for _ in []]\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [4]
+
+
+def test_irrefutable_match_drops_impossible_incoming_alias() -> None:
+    """Mutation control: a wildcard case always replaces the prior binding."""
+    source = (
+        "import subprocess as sp\n"
+        "runner = sp.run\n"
+        "match value:\n"
+        "    case _:\n"
+        "        runner = fake\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_terminating_match_case_does_not_hide_reachable_sibling_case() -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke(values):\n"
+        "    for value in values:\n"
+        "        match value:\n"
+        "            case 1:\n"
+        "                break\n"
+        "            case _:\n"
+        "                runner = subprocess.run\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [9]
+
+
+def test_exhaustive_terminating_match_keeps_following_call_unreachable() -> None:
+    """Mutation control: no match case reaches the call after the match."""
+    source = (
+        "import subprocess\n"
+        "for value in values:\n"
+        "    match value:\n"
+        "        case 1:\n"
+        "            break\n"
+        "        case _:\n"
+        "            continue\n"
+        '    subprocess.run(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_module_alias_defined_after_function_is_visible_at_runtime() -> None:
+    source = (
+        "def invoke():\n"
+        '    sp.run(["x"], text=True, encoding="utf-8")\n'
+        "import subprocess as sp\n"
+        "invoke()\n"
+    )
+    assert find_violations(source) == [2]
+
+
+def test_module_constant_defined_after_function_is_visible_at_runtime() -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    if ENABLED:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "ENABLED = False\n"
+        "invoke()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_late_true_module_constant_does_not_hide_violation() -> None:
+    """Mutation control: a true late-bound constant keeps the call reachable."""
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    if ENABLED:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "ENABLED = True\n"
+        "invoke()\n"
+    )
+    assert find_violations(source) == [4]
+
+
+def test_mutated_module_constant_does_not_hide_earlier_violation() -> None:
+    source = (
+        "import subprocess\n"
+        "ENABLED = True\n"
+        "def invoke():\n"
+        "    if ENABLED:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "try:\n"
+        "    invoke()\n"
+        "finally:\n"
+        "    ENABLED = False\n"
+    )
+    assert find_violations(source) == [5]
+
+
+def test_single_assignment_module_constant_still_prunes_dead_branch() -> None:
+    """Mutation control: one late assignment remains a stable module constant."""
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    if ENABLED:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "ENABLED = False\n"
+        "invoke()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_module_walrus_mutation_prevents_constant_pruning() -> None:
+    source = (
+        "import subprocess\n"
+        "FLAG = True\n"
+        "def invoke():\n"
+        "    if FLAG:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "invoke()\n"
+        "(FLAG := False)\n"
+    )
+    assert find_violations(source) == [5]
+
+
+def test_module_constant_with_nested_global_writer_is_not_stable() -> None:
+    source = (
+        "import subprocess\n"
+        "FLAG = False\n"
+        "def enable():\n"
+        "    global FLAG\n"
+        "    FLAG = True\n"
+        "def invoke():\n"
+        "    if FLAG:\n"
+        '        subprocess.run(["x"], text=True, encoding="utf-8")\n'
+        "enable()\n"
+        "invoke()\n"
+    )
+    assert find_violations(source) == [8]
+
+
+def test_nested_function_resolves_late_enclosing_alias() -> None:
+    source = (
+        "def outer():\n"
+        "    def inner():\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+        "    import subprocess\n"
+        "    runner = subprocess.run\n"
+        "    inner()\n"
+        "outer()\n"
+    )
+    assert find_violations(source) == [3]
+
+
+def test_nested_function_resolves_late_walrus_alias() -> None:
+    source = (
+        "import subprocess\n"
+        "def outer():\n"
+        "    def inner():\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+        "    (runner := subprocess.run)\n"
+        "    inner()\n"
+        "outer()\n"
+    )
+    assert find_violations(source) == [4]
+
+
+def test_nested_function_local_binding_shadows_enclosing_alias() -> None:
+    """Mutation control: a local declaration prevents closure resolution."""
+    source = (
+        "def outer():\n"
+        "    import subprocess\n"
+        "    runner = subprocess.run\n"
+        "    def inner():\n"
+        "        runner = len\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+        "    inner()\n"
+        "outer()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_finally_sees_binding_active_when_try_statement_raises() -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    runner = len\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        "        explode()\n"
+        "        runner = len\n"
+        "    finally:\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+        "invoke()\n"
+    )
+    assert find_violations(source) == [9]
+
+
+def test_finally_sees_exception_state_inside_compound_statement() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        "    if condition():\n"
+        "        runner = subprocess.run\n"
+        "        explode()\n"
+        "    runner = len\n"
+        "finally:\n"
+        '    runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [9]
+
+
+def test_outer_finally_sees_exception_state_inside_nested_try() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        "        explode()\n"
+        "    finally:\n"
+        "        pass\n"
+        "    runner = len\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [11]
+
+
+def test_nested_try_normal_path_can_clear_subprocess_binding() -> None:
+    """Mutation control: a nonraising nested try reaches the clearing assignment."""
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    try:\n"
+        "        runner = len\n"
+        "    finally:\n"
+        "        pass\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_with_body_exception_state_reaches_handler() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = len\n"
+        "try:\n"
+        "    with nullcontext():\n"
+        "        runner = subprocess.run\n"
+        "        explode()\n"
+        "        runner = len\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [10]
+
+
+def test_later_with_item_failure_retains_earlier_item_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = len\n"
+        "try:\n"
+        "    with nullcontext(subprocess.run) as runner, explode():\n"
+        "        runner = len\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_with_context_walrus_binding_reaches_handler() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = len\n"
+        "try:\n"
+        "    with nullcontext() as _, explode(runner := subprocess.run):\n"
+        "        runner = len\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_nonraising_with_context_walrus_clears_stale_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    with nullcontext(runner := len):\n"
+        "        raise ValueError()\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_raising_nullcontext_argument_retains_prior_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    with nullcontext(resolve_value()) as runner:\n"
+        "        runner = len\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_nullcontext_descriptor_failure_retains_prior_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "from contextlib import nullcontext\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    with nullcontext(holder.value) as runner:\n"
+        "        runner = len\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+@pytest.mark.parametrize("loop", ("for _ in flaky_iter():", "while condition():"))
+def test_repeated_loop_test_exception_retains_body_binding(loop: str) -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        f"    {loop}\n"
+        "        runner = subprocess.run\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [7]
+
+
+def test_match_guard_exception_retains_pattern_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        "    match (subprocess.run,):\n"
+        "        case (runner,) if explode():\n"
+        "            pass\n"
+        "except Exception:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_caught_nested_exception_does_not_reach_outer_finally() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    try:\n"
+        "        raise ValueError()\n"
+        "    except ValueError:\n"
+        "        runner = len\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_exception_handler_catches_explicit_exception_subclass() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        "        raise ValueError()\n"
+        "    except Exception:\n"
+        "        runner = len\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_exception_handler_catches_explicit_error_after_delete() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "payload = object()\n"
+        "try:\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        "        del payload\n"
+        "        raise ValueError()\n"
+        "    except Exception:\n"
+        "        runner = len\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize("exception", ("KeyboardInterrupt", "SystemExit"))
+def test_exception_handler_does_not_catch_base_exception_subclasses(
+    exception: str,
+) -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "try:\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        f"        raise {exception}()\n"
+        "    except Exception:\n"
+        "        runner = len\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [10]
+
+
+def test_return_and_raise_terminate_unreachable_flow() -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke(value):\n"
+        "    match value:\n"
+        "        case 1:\n"
+        "            return\n"
+        "        case _:\n"
+        "            raise ValueError()\n"
+        '    subprocess.run([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "abrupt",
+    (
+        "return (runner := subprocess.run)",
+        "raise RuntimeError(runner := subprocess.run)",
+    ),
+)
+def test_abrupt_expression_binding_reaches_finally(abrupt: str) -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    runner = len\n"
+        "    try:\n"
+        f"        {abrupt}\n"
+        "    finally:\n"
+        '        runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [7]
+
+
+@pytest.mark.parametrize(
+    "binding,expected",
+    (("subprocess.run", [9]), ("len", [])),
+)
+def test_nested_finally_transforms_escaping_exception_state(
+    binding: str,
+    expected: list[int],
+) -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "try:\n"
+        "    try:\n"
+        "        raise ValueError()\n"
+        "    finally:\n"
+        f"        runner = {binding}\n"
+        "finally:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == expected
+
+
+def test_nested_finally_return_clears_binding_before_outer_finally() -> None:
+    source = (
+        "import subprocess\n"
+        "def invoke(fallback=len):\n"
+        "    runner = subprocess.run\n"
+        "    try:\n"
+        "        try:\n"
+        "            raise ValueError()\n"
+        "        finally:\n"
+        "            return (runner := fallback)\n"
+        "    finally:\n"
+        '        runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_finally_ignores_subprocess_binding_after_nonraising_try() -> None:
+    """Mutation control: the normal path clears the alias before finally."""
+    source = (
+        "import subprocess\n"
+        "def invoke():\n"
+        "    runner = subprocess.run\n"
+        "    try:\n"
+        "        runner = len\n"
+        "    finally:\n"
+        '        runner(["x"], text=True, encoding="utf-8")\n'
+        "invoke()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_generator_walrus_does_not_execute_at_creation() -> None:
+    """Mutation control: a lazy generator cannot clear the live alias yet."""
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "values = ((runner := len) for _ in [1])\n"
+        'runner(["cmd"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [4]
+
+
+def test_deterministic_for_retains_last_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "for runner in [subprocess.run, len]:\n"
+        "    pass\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_deterministic_for_checks_each_body_binding() -> None:
+    """Mutation control: exact exit state must not hide earlier iterations."""
+    source = (
+        "import subprocess\n"
+        "for runner in [subprocess.run, len]:\n"
+        '    runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [3]
+
+
+def test_while_false_body_does_not_change_bindings() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "while False:\n"
+        "    runner = subprocess.run\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_while_true_does_not_retain_impossible_pre_loop_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "while True:\n"
+        "    runner = len\n"
+        "    break\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_while_true_only_retains_reachable_conditional_break_binding() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "while True:\n"
+        "    runner = len\n"
+        "    if ready():\n"
+        "        break\n"
+        "    runner = subprocess.run\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_while_true_break_after_later_iteration_retains_subprocess_binding() -> None:
+    """Mutation control: a later iteration can break before clearing the alias."""
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "while True:\n"
+        "    if ready():\n"
+        "        break\n"
+        "    runner = subprocess.run\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [7]
+
+
+@pytest.mark.parametrize("terminator", ("break", "continue"))
+def test_loop_terminator_state_includes_finally_rebinding(terminator: str) -> None:
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "while condition():\n"
+        "    try:\n"
+        "        runner = subprocess.run\n"
+        f"        {terminator}\n"
+        "    finally:\n"
+        "        runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_finally_can_create_subprocess_break_binding() -> None:
+    """Mutation control: the break exit must include assignments from finally."""
+    source = (
+        "import subprocess\n"
+        "runner = len\n"
+        "while True:\n"
+        "    try:\n"
+        "        break\n"
+        "    finally:\n"
+        "        runner = subprocess.run\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_unreachable_break_does_not_bypass_loop_else() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "for _ in [1]:\n"
+        "    if False:\n"
+        "        break\n"
+        "else:\n"
+        "    runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize("terminator", ["break", "continue"])
+def test_conditional_loop_exit_preserves_subprocess_binding(terminator: str) -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "for stop in [True]:\n"
+        "    if stop:\n"
+        f"        {terminator}\n"
+        "    runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [7]
+
+
+def test_non_exiting_loop_path_can_clear_subprocess_binding() -> None:
+    """Mutation control: the false condition reaches the later assignment."""
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "for stop in [False]:\n"
+        "    if stop:\n"
+        "        continue\n"
+        "    runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_join_drops_constant_cleared_on_one_branch() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "flag = True\n"
+        "if condition():\n"
+        "    flag = dynamic()\n"
+        "if flag:\n"
+        "    runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [8]
+
+
+def test_join_retains_constant_known_on_every_branch() -> None:
+    """Mutation control: equivalent known values still allow branch pruning."""
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.run\n"
+        "flag = True\n"
+        "if condition():\n"
+        "    flag = 1\n"
+        "if flag:\n"
+        "    runner = len\n"
+        'runner([], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "runner, *rest = [fake]\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            [],
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = fake\n"
+            "runner, *rest = [sp.run]\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            [4],
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner = sp.run\n"
+            "*rest, runner = [fake]\n"
+            'runner(["x"], capture_output=True, encoding="utf-8")\n',
+            [],
+        ),
+    ],
+)
+def test_starred_assignment_updates_subprocess_bindings(source: str, expected: list[int]) -> None:
+    """Regression and mutation controls for extended iterable unpacking."""
+    assert find_violations(source) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -737,10 +1312,22 @@ def test_encoding_variable_not_flagged() -> None:
     assert find_violations(source) == []
 
 
-def test_utf8_aliases_flagged() -> None:
-    for alias in ("utf8", "UTF-8", "UTF8", "utf_8", "UTF_8"):
-        source = f'import subprocess\nsubprocess.run(["x"], text=True, encoding="{alias}")'
-        assert find_violations(source) == [2], f"alias {alias!r} not flagged"
+@pytest.mark.parametrize(
+    "alias",
+    ("utf8", "UTF-8", "UTF8", "utf_8", "UTF_8", "Utf-8", "uTf_8", "cp65001", "CP65001"),
+)
+def test_utf8_aliases_flagged(alias: str) -> None:
+    source = f'import subprocess\nsubprocess.run(["x"], text=True, encoding="{alias}")'
+    assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize("alias", ("cp65001", "CP65001", "Utf-8", "uTf_8"))
+def test_utf8_aliases_accept_replacement_errors(alias: str) -> None:
+    """Mutation control: every accepted UTF-8 alias passes with replacement decoding."""
+    source = (
+        f'import subprocess\nsubprocess.run(["x"], text=True, encoding="{alias}", errors="replace")'
+    )
+    assert find_violations(source) == []
 
 
 def test_non_utf8_encoding_not_flagged() -> None:
@@ -748,58 +1335,39 @@ def test_non_utf8_encoding_not_flagged() -> None:
     assert find_violations(source) == []
 
 
-def test_shadowed_run_helper_is_not_flagged() -> None:
-    source = (
-        "def run(argv, *, text=False, encoding=None):\n"
-        "    return argv\n"
-        "runner = run\n"
-        'runner(["x"], text=True, encoding="utf-8")\n'
-    )
-    assert find_violations(source) == []
-
-
-def test_shadowed_imported_run_is_not_flagged() -> None:
-    source = (
-        "from subprocess import run\n"
-        "def run(argv, *, text=False, encoding=None):\n"
-        "    return argv\n"
-        'run(["x"], text=True, encoding="utf-8")\n'
-    )
-    assert find_violations(source) == []
-
-
-def test_inner_scope_aliases_do_not_leak_outward() -> None:
-    source = (
-        "import subprocess\n"
-        "def wrapper():\n"
-        "    runner = subprocess.check_output\n"
-        'runner(["x"], encoding="utf-8")\n'
-    )
-    assert find_violations(source) == []
-
-
-def test_lambda_parameters_shadow_aliases() -> None:
-    source = (
-        "import subprocess\n"
-        "runner = subprocess.check_output\n"
-        'fn = lambda runner: runner(["x"], encoding="utf-8")\n'
-    )
-    assert find_violations(source) == []
-
-
-def test_syntax_error_returns_empty() -> None:
+def test_syntax_error_fails_closed() -> None:
     source = "def foo(:\n    pass\n"
-    assert find_violations(source) == []
+    with pytest.raises(SyntaxError):
+        find_violations(source)
+
+
+def test_ambient_git_repository_pointers_do_not_reduce_corpus(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = make_repo(
+        tmp_path / "target",
+        {
+            "scripts/clean.py": "x = 1\n",
+            "scripts/bad.py": (
+                'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n'
+            ),
+        },
+    )
+    foreign = make_repo(
+        tmp_path / "foreign",
+        {"scripts/clean.py": "x = 1\n"},
+    )
+    monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+
+    findings = find_all_violations(target)
+
+    assert findings == [(target / "scripts/bad.py", 2)]
 
 
 def test_multiline_call_flagged() -> None:
     source = (
-        "import subprocess\n"
-        "subprocess.run(\n"
-        '    ["x"],\n'
-        "    text=True,\n"
-        '    encoding="utf-8",\n'
-        ")\n"
+        'import subprocess\nsubprocess.run(\n    ["x"],\n    text=True,\n    encoding="utf-8",\n)\n'
     )
     lines = find_violations(source)
     assert lines == [2], "multiline call should be flagged at its start line"
@@ -836,9 +1404,8 @@ def test_suppression_comment_on_multiline_open_paren() -> None:
 def test_no_violations_in_scripts(tmp_path: Path) -> None:
     """After the fix, no tracked scripts/ file should be flagged."""
     violations = find_all_violations(REPO_ROOT)
-    assert violations == [], (
-        "Unexpected violations in scripts/:\n"
-        + "\n".join(f"  {p}:{ln}" for p, ln in violations)
+    assert violations == [], "Unexpected violations in scripts/:\n" + "\n".join(
+        f"  {p}:{ln}" for p, ln in violations
     )
 
 
@@ -848,8 +1415,16 @@ def test_no_violations_in_scripts(tmp_path: Path) -> None:
 
 
 def test_main_exits_zero_on_clean_tree(tmp_path: Path) -> None:
-    (tmp_path / "scripts").mkdir()
-    result = main([str(tmp_path)])
+    repo = make_repo(
+        tmp_path,
+        {
+            "scripts/clean.py": (
+                "import subprocess\n"
+                'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")\n'
+            )
+        },
+    )
+    result = main([str(repo)])
     assert result == 0
 
 
@@ -859,31 +1434,55 @@ def test_main_exits_two_on_missing_root() -> None:
 
 
 def test_validate_subprocess_encoding_returns_true_on_clean(tmp_path: Path) -> None:
-    (tmp_path / "scripts").mkdir()
-    assert validate_subprocess_encoding(tmp_path) is True
+    repo = make_repo(tmp_path, {"scripts/clean.py": "value = 1\n"})
+    assert validate_subprocess_encoding(repo) is True
 
 
 def test_validate_subprocess_encoding_returns_false_on_violation(tmp_path: Path) -> None:
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    violating = scripts / "bad.py"
-    violating.write_text(
-        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n',
-        encoding="utf-8",
+    repo = make_repo(
+        tmp_path,
+        {
+            "scripts/bad.py": (
+                'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n'
+            )
+        },
     )
-    assert validate_subprocess_encoding(tmp_path) is False
+    assert validate_subprocess_encoding(repo) is False
 
 
-def test_validate_subprocess_encoding_fails_when_explicit_scan_is_empty(
+def test_main_exits_two_when_git_reports_zero_tracked_scripts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    notes = tmp_path / "notes.txt"
-    notes.write_text("not Python\n", encoding="utf-8")
+    repo = make_repo(tmp_path, {"README.md": "No scripts here.\n"})
 
-    result = validate_subprocess_encoding(tmp_path, [notes])
+    result = main([str(repo)])
 
-    assert result is False
-    assert "no scannable Python files" in capsys.readouterr().err
+    assert result == 2
+    assert "zero tracked Python files" in capsys.readouterr().err
+
+
+def test_main_exits_two_when_git_cannot_list_sources(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "clean.py").write_text("value = 1\n", encoding="utf-8")
+
+    result = main([str(tmp_path)])
+
+    assert result == 2
+    assert "git could not list tracked scripts" in capsys.readouterr().err
+
+
+def test_main_exits_two_on_tracked_syntax_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"scripts/bad.py": "def broken(:\n"})
+
+    result = main([str(repo)])
+
+    assert result == 2
+    assert "could not analyze tracked source" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -896,8 +1495,7 @@ def test_mutation_removing_encoding_check_breaks_detection() -> None:
     Instead, verify the detector is NOT trivially always-true or always-false."""
     # compliant source must pass
     clean = (
-        "import subprocess\n"
-        'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")'
+        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8", errors="replace")'
     )
     assert find_violations(clean) == []
     # violating source must fail
@@ -912,23 +1510,32 @@ def test_detector_requires_text_mode_to_flag() -> None:
     calls that don't decode at all.
     """
     binary_with_encoding = 'import subprocess\nsubprocess.run(["x"], encoding="utf-8")'
-    assert find_violations(binary_with_encoding) == [], (
-        "Binary-mode call should not be flagged"
-    )
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        'import subprocess\nsubprocess.run(["x"], stdout=subprocess.PIPE)',
-        'import subprocess as sp\nsp.run(["x"], stderr=sp.PIPE)',
-    ],
-)
-def test_pipe_capture_without_text_semantics_is_not_flagged(source: str) -> None:
-    assert find_violations(source) == []
+    assert find_violations(binary_with_encoding) == [], "Binary-mode call should not be flagged"
 
 
 def test_detector_requires_subprocess_to_flag() -> None:
     """Non-subprocess encoding= arguments must not be flagged."""
     file_open = 'open("f", "r", encoding="utf-8")'
     assert find_violations(file_open) == []
+
+
+def test_detector_requires_real_pipe_capture_to_flag() -> None:
+    """Mutation control: an unrelated PIPE-like value does not enable decoding."""
+    source = (
+        "class Local:\n"
+        "    PIPE = object()\n"
+        "local = Local()\n"
+        "import subprocess\n"
+        'subprocess.run(["x"], stdout=local.PIPE, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_tuple_rebinding_preserves_target_value_pairing() -> None:
+    """Mutation control: tuple analysis must not assign PIPE to another target."""
+    source = (
+        "import subprocess as sp\n"
+        "pipe, ordinary = sp.PIPE, object()\n"
+        'sp.run(["x"], stdout=ordinary, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
