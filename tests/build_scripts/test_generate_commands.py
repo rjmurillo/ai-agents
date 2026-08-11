@@ -266,7 +266,7 @@ artifacts:
 
 def test_resource_suffixes_must_be_non_empty_dotted_list(tmp_path: Path) -> None:
     _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
-    cases = ("[]", '["yaml"]')
+    cases = ("[]", '["yaml"]', '["."]')
     for index, suffixes in enumerate(cases, start=1):
         cfg = tmp_path / f"p-{index}.yaml"
         cfg.write_text(

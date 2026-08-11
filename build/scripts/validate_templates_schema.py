@@ -66,6 +66,7 @@ COMMANDS_KEYS = {
     "resourceSuffixes",
     "transform",
     "appendFrontmatter",
+    "excludeFilenames",
 }
 RULES_KEYS = {
     "sourceDir",
@@ -233,7 +234,10 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
             not isinstance(suffixes, list)
             or not suffixes
             or not all(
-                isinstance(item, str) and item.startswith(".") for item in suffixes
+                isinstance(item, str)
+                and item.startswith(".")
+                and len(item) > 1
+                for item in suffixes
             )
         ):
             errors.append(

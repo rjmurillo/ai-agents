@@ -42,6 +42,7 @@ artifacts:
     outputDir: "src/copilot-cli/skills"
     resourceOutputDir: "src/copilot-cli/commands"
     resourceSuffixes: [".yaml"]
+    excludeFilenames: ["AGENTS.md"]
     transform: "command-to-skill"
     appendFrontmatter:
       user-invocable: true
@@ -188,6 +189,35 @@ def test_unknown_artifact_key_rejected(tmp_path: Path) -> None:
     target = _write(tmp_path, body)
     errors, _ = vts.validate_file(target)
     assert any("unknown keys" in e.lower() for e in errors)
+
+
+def test_commands_exclude_filenames_is_allowed(tmp_path: Path) -> None:
+    body = (
+        MINIMAL_VALID
+        + 'artifacts:\n'
+        + '  commands:\n'
+        + '    sourceDir: ".claude/commands"\n'
+        + '    outputDir: "src/copilot-cli/skills"\n'
+        + '    excludeFilenames: ["AGENTS.md"]\n'
+    )
+    target = _write(tmp_path, body)
+    errors, _ = vts.validate_file(target)
+    assert errors == []
+
+
+def test_dot_only_command_resource_suffix_rejected(tmp_path: Path) -> None:
+    body = (
+        MINIMAL_VALID
+        + 'artifacts:\n'
+        + '  commands:\n'
+        + '    sourceDir: ".claude/commands"\n'
+        + '    outputDir: "src/copilot-cli/skills"\n'
+        + '    resourceOutputDir: "src/copilot-cli/commands"\n'
+        + '    resourceSuffixes: ["."]\n'
+    )
+    target = _write(tmp_path, body)
+    errors, _ = vts.validate_file(target)
+    assert any("resourceSuffixes" in e for e in errors)
 
 
 # --- Negative: path safety (REQ-003-009) ------------------------------------

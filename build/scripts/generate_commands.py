@@ -103,7 +103,12 @@ def _resolve_resource_suffixes(stanza: dict[str, object]) -> set[str]:
     if (
         not isinstance(suffixes, list)
         or not suffixes
-        or not all(isinstance(item, str) and item.startswith(".") for item in suffixes)
+        or not all(
+            isinstance(item, str)
+            and item.startswith(".")
+            and len(item) > 1
+            for item in suffixes
+        )
     ):
         raise GenerateCommandsError(
             "`artifacts.commands.resourceSuffixes`: must be a "
