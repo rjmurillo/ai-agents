@@ -1,5 +1,8 @@
 """Core tests for scripts.validation.pre_pr orchestration."""
 
+# taste-lint: ignore file-size, shared process fixtures and ordering assertions
+# make splitting these orchestration tests into modules less clear to maintain.
+
 from __future__ import annotations
 
 from dataclasses import replace

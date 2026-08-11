@@ -1,0 +1,215 @@
+{
+  "id": "episode-2026-08-11-session-14691-issue-4691-merge-group-readiness",
+  "session": "2026-08-11-session-14691-issue-4691-merge-group-readiness",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Re-evaluate issue 4691 merge-group readiness against live ruleset state",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "supersede",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "investigate",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "measure",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "rebase",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T02:15:31+00:00",
+      "type": "commit",
+      "content": "Commit: 14bb9fd423a86bac47acda45a291740137a5372f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e014"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T03:19:41+00:00",
+      "type": "commit",
+      "content": "Commit: a2a29087f59310864d32f22ba6012fb55dc8ff51",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T03:22:02+00:00",
+      "type": "commit",
+      "content": "Commit: 7162dbd8a39c41135b7182162d39308e6ae963ce",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T03:25:07+00:00",
+      "type": "commit",
+      "content": "Commit: 49a24e5012c176849d474a3d2001a9a048c50a70",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "T4 QA evidence refresh",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T18:16:55+00:00",
+      "type": "commit",
+      "content": "Commit: 384e615fe404bee562b7274b856ec628283a30ad",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T19:24:16+00:00",
+      "type": "commit",
+      "content": "Commit: 0c7c50f2b3d7db149047b5c83e6c95fba557ec9f",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14691-issue-4691-merge-group-readiness"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 57
+  },
+  "lessons": []
+}

@@ -679,8 +679,21 @@ def _select_act_event(wf_path: Path) -> str | None:
 # .git directory, so git-calling actions such as dorny/paths-filter abort with
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
-_ACT_GIT_REV_PARSE_ANNOTATION = (
-    "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+# dorny/paths-filter shells out to git through @actions/exec, which annotates a
+# nonzero exit as ``::error::The process '<argv0>' failed with exit code N``.
+# In the act container the repository arrives through ``docker cp`` without a
+# usable .git, so that git call exits 128 and the annotation is the act-only
+# limitation one layer up from _GIT_REPO_MISSING_PATTERN.
+#
+# ``<argv0>`` is not stable across releases of the action. It emitted
+# ``git rev-parse --abbrev-ref HEAD`` when this rule was written and emits the
+# resolved executable path ``/usr/bin/git`` at digest 61f87a10 (measured
+# 2026-08-10 against an unmodified main, so the stale literal blocked every push
+# that touched a workflow using the action). Match either shape, still pinned to
+# a git executable and to exit code 128, so a genuine action failure with a
+# different exit code keeps blocking.
+_ACT_GIT_PROCESS_ANNOTATION = re.compile(
+    r"::error::The process '(?:[^']*/)?git(?: [^']*)?' failed with exit code 128"
 )
 
 # dorny/paths-filter resolves its comparison base from the event payload. On a
@@ -781,7 +794,10 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         None,
-        lambda text: _ACT_GIT_REV_PARSE_ANNOTATION in text,
+        lambda text: (
+            _GIT_REPO_MISSING_PATTERN in text
+            and bool(_ACT_GIT_PROCESS_ANNOTATION.search(text))
+        ),
         "act container cannot resolve the linked-worktree git metadata, so "
         "dorny/paths-filter fails only in local act, not in CI.",
     ),
@@ -921,10 +937,30 @@ def _act_scope_label(line: str) -> str | None:
     return normalized or None
 
 
+def _git_annotation_has_missing_repository_signature(line: str, combined: str) -> bool:
+    """Return whether a Git exit-128 annotation has its documented root cause."""
+    if _ACT_GIT_PROCESS_ANNOTATION.search(line) is None:
+        return False
+    annotation_scope = _act_scope_label(line)
+    return any(
+        _GIT_REPO_MISSING_PATTERN in candidate
+        and (
+            annotation_scope is None
+            or _act_scope_label(candidate) == annotation_scope
+        )
+        for candidate in combined.splitlines()
+    )
+
+
 def _explained_act_limitation_labels(combined: str, event: str | None) -> set[str]:
     """Act log scope labels whose own output matches a known limitation."""
     labels: set[str] = set()
     for line in combined.splitlines():
+        if _git_annotation_has_missing_repository_signature(line, combined):
+            label = _act_scope_label(line)
+            if label is not None:
+                labels.add(label)
+            continue
         if any(
             (scope is None or scope == event) and matches(line)
             for scope, matches, _ in _ACT_LIMITATION_RULES
@@ -970,6 +1006,8 @@ def _unexplained_error_annotations(
     )
     for line in combined.splitlines():
         if _ACT_ERROR_ANNOTATION not in line:
+            continue
+        if _git_annotation_has_missing_repository_signature(line, combined):
             continue
         if any(
             (scope is None or scope == event) and matches(line)

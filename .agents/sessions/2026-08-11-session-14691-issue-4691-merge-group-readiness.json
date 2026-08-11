@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14691,
+    "date": "2026-08-11",
+    "branch": "fix/4691-merge-group-support",
+    "startingCommit": "99adc94e635d4b8f0784a5ea232290b611c527d8",
+    "objective": "Re-evaluate issue 4691 merge-group readiness against live ruleset state"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools resolved for this worktree; list_memories and read_memory answered"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only, not modified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts inventory listed (gh-native, issue, pr, milestone, notifications, reactions, utils)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/GOTCHAS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "decision-every-merge-invalidates-every-open-pr read, including the merge-queue boundary section this branch added"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4691-merge-group-support"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4691-merge-group-support"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean apart from the tracked edits committed in this session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "99adc94e63"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items complete before the final session-log commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/decision-every-merge-invalidates-every-open-pr.md carries the merge-queue boundary section on this branch"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx --yes markdownlint-cli .agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md exited 0"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4691-merge-group-readiness-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scope correction committed; branch rebased onto origin/main with no residual working-tree change"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py and pre_pr.py run before push"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo fix-4691 updated at session end"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "triage",
+      "detail": "Issue #4691 open, no PR, main still declares merge_group in 0 of 62 workflows, so main does not supersede the branch. Local worktree found at ai-agents2-fix-4691 on fix/4691-merge-group-support."
+    },
+    {
+      "action": "supersede",
+      "detail": "The 2026-08-08 session-10021 log and its episode were removed. Both were added by this branch, so session_scope classifies them as a creation-mode claim that must be complete, and that session ended blocked with no qaValidation and an endingCommit the rebase orphaned. Its findings are carried in this log's investigate and measure entries rather than left as an incomplete claim."
+    },
+    {
+      "action": "investigate",
+      "detail": "Prior blocker re-measured rather than retried. The workflow-local-run gate full-acts every changed workflow per job at a 600 second budget. test-codeql-integration.yml installs a 788,113,376 byte CodeQL bundle with --force and budgets 15 to 20 CI minutes per job, so no local run can fit. The catthehacker runner images were already cached on 2026-07-29, before the 2026-08-08 failure, so no new cache exists and the large download was not repeated."
+    },
+    {
+      "action": "measure",
+      "detail": "Queried ruleset 11104075 live. It now requires 16 contexts, not the 17 the issue recorded. Aggregate Results was retired and main renamed its two survivors to AI Quality Gate Results and Session Protocol Results, which is why the rebased test reported name drift."
+    },
+    {
+      "action": "implement",
+      "detail": "Mapped all 16 live contexts to producing jobs. Every one resolves to 10 workflows. ai-session-protocol.yml and test-codeql-integration.yml produce none, so both return to their main content and leave the readiness contract. The refresh command for the context set now sits next to it in the test."
+    },
+    {
+      "action": "rebase",
+      "detail": "Rebased 8 commits onto origin/main twice, resolving three conflicts: memory-validation.yml kept main's quoting with the branch's SHOULD_VALIDATE condition, ai-session-protocol.yml merged inputs.pr_number with github.ref and !cancelled() before the file was reverted, memory-index.md took main."
+    },
+    {
+      "action": "test",
+      "detail": "110 tests pass across test_merge_group_readiness.py, test_workflow_trigger_fanout.py, test_frontmatter_gate_paths_filter.py, and test_determine_should_run_from_filters.py. Loading the readiness checks against the origin/main workflow tree produced 27 errors, which is the non-vacuity control the issue asks for."
+    },
+    {
+      "action": "fix",
+      "detail": "The push then failed on validate-paths.yml with 'fatal: not a git repository: (null)' and \"::error::The process '/usr/bin/git' failed with exit code 128\". run_workflow_local_test.py already treats the missing container .git as an act-only limitation, but its per-line matcher pinned the literal argv 'git rev-parse --abbrev-ref HEAD'. dorny/paths-filter at digest 61f87a10 annotates the resolved executable instead, so the annotation read as unexplained and the stage failed closed. Reproduced against origin/main's copy of the workflow under act's default event, so it blocked every push touching a workflow that uses the action. The matcher is now a regex over both shapes, pinned to a git executable and exit code 128, with negative controls for a non-git executable and a different exit code."
+    },
+    {
+      "action": "retrospective",
+      "detail": "Wrote .agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md covering the ruleset drift the test could not explain, the blocker that dissolved once the change was priced instead of the gate, and the third-party annotation signature that turned a downgrade into a hard block."
+    },
+    {
+      "action": "T4 QA evidence refresh",
+      "detail": "PR #4869 T4 re-ran the affected checks after review remediation. The QA report now binds commit 384e615fe404bee562b7274b856ec628283a30ad and records 327 passing focused tests."
+    }
+  ],
+  "endingCommit": "0c7c50f2b3d7db149047b5c83e6c95fba557ec9f",
+  "nextSteps": []
+}

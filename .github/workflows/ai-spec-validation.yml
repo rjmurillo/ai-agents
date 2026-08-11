@@ -13,6 +13,9 @@ on:
     # No path filter - workflow runs on ALL PRs to satisfy required check
     # Path filtering done at job level using dorny/paths-filter
 
+  merge_group:
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       pr_number:
@@ -42,7 +45,7 @@ permissions:
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
-  group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -70,7 +73,7 @@ jobs:
     name: Check Changed Paths
     runs-on: ubuntu-24.04-arm
     needs: debounce
-    if: always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
+    if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     outputs:
       has-code-changes: ${{ steps.filter.outputs.code }}
     steps:
@@ -94,7 +97,7 @@ jobs:
     needs: check-paths
     # always() required: transitive dependency on debounce (which may be SKIPPED)
     # would otherwise cause this job to be skipped even when check-paths succeeds
-    if: always() && needs.check-paths.result == 'success'
+    if: github.event_name != 'merge_group' && always() && needs.check-paths.result == 'success'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.

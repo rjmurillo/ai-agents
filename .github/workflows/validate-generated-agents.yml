@@ -17,6 +17,8 @@ on:
     branches:
       - main
     # NO paths filter - use dorny/paths-filter internally to satisfy required checks
+  merge_group:
+    branches: [main]
   workflow_dispatch: # Allow manual triggering
 
 concurrency:
@@ -32,8 +34,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.agents }}
+      should-run-agents: ${{ steps.determine.outputs.should-run-agents }}
 
     steps:
       - name: Checkout repository
@@ -42,8 +43,7 @@ jobs:
       - name: Check for relevant file changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
-        # Skip paths-filter for workflow_dispatch as it may not have proper context
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           filters: |
             agents:
@@ -71,6 +71,16 @@ jobs:
               - '.github/workflows/**'
               - 'tests/ci/test_validation_scripts_are_reachable.py'
               - 'tests/ci/test_frontmatter_gate_paths_filter.py'
+
+      - name: Determine if validation should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: agents
+          FORCE_RUN_EVENTS: merge_group
+          OUTPUT_NAME: should-run-agents
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
 
   validate:
     name: Validate Generated Files
