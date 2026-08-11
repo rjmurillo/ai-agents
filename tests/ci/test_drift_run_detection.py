@@ -32,6 +32,16 @@ def test_write_github_output_appends_to_file(
     assert out.read_text() == "drift_detected=true\n"
 
 
+def test_write_github_output_preserves_existing_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "output.txt"
+    out.write_text("previous=1\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    write_github_output("drift_detected", "true")
+    assert out.read_text() == "previous=1\ndrift_detected=true\n"
+
+
 def test_write_github_output_falls_back_to_stdout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -71,6 +81,20 @@ def test_drift_detected_returns_zero_and_sets_true(
     with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(1)):
         assert run() == 0
     assert "drift_detected=true" in out.read_text()
+
+
+def test_detection_runs_with_install_drift_failure_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    out = tmp_path / "gh_out.txt"
+    out.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    with patch(
+        "scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(0)
+    ) as run_detection:
+        assert run() == 0
+    command = run_detection.call_args.args[0]
+    assert "--fail-on-install-drift" in command
 
 
 def test_crash_propagates_exit_code(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

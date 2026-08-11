@@ -23,6 +23,8 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches: [main]
   workflow_dispatch: # Allow manual triggering
 
 jobs:
@@ -33,16 +35,14 @@ jobs:
     permissions:
       contents: read
     outputs:
-      # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-run-validation: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+      should-run-validation: ${{ steps.determine.outputs.should-run-validation }}
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for validatable file changes
         uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
         id: filter
-        # Skip paths-filter for workflow_dispatch as it may not have proper context
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           filters: |
             paths:
@@ -50,10 +50,22 @@ jobs:
               - 'build/scripts/validate_path_normalization.py'
               - '.github/workflows/validate-paths.yml'
 
+      - name: Determine if validation should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: paths
+          FORCE_RUN_EVENTS: merge_group
+          OUTPUT_NAME: should-run-validation
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
+
       - name: Report path check result
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "Manual trigger - running validation"
+          elif [ "${{ github.event_name }}" = "merge_group" ]; then
+            echo "Merge group - running validation"
           else
             echo "Validatable files changed: ${{ steps.filter.outputs.paths }}"
           fi

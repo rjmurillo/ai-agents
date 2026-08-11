@@ -24,6 +24,7 @@ exactly the way these 82 directories did.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import shutil
@@ -60,8 +61,9 @@ def _suite_dirs(root: Path) -> list[Path]:
     return sorted(p for p in absolute.glob("*/tests") if p.is_dir())
 
 
+@functools.cache
 def _run_tree(root: Path) -> subprocess.CompletedProcess[str]:
-    """Run every bundle suite under one tree root in a dedicated subprocess."""
+    """Run each bundle tree once per pytest session."""
     targets = [str(p.relative_to(_REPO_ROOT)) for p in _suite_dirs(root)]
     temp_root = (
         outside_every_repository(_REPO_ROOT)

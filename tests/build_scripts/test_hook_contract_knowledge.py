@@ -618,23 +618,23 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    assert source_counts == {"PreToolUse": 1, "PostToolUse": 1}
-    assert source_total == 2
+    assert source_counts == {"PreToolUse": 2, "PostToolUse": 1}
+    assert source_total == 3
     assert host_total == 2
-    assert round(reduction, 1) == 0.0
-    assert "two registrations across two events" in adr_068
-    assert "one PreToolUse shim and one PostToolUse shim" in adr_068
-    assert "saves no current host process start" in adr_068
-    assert len(pretool_manifest["shims"]) == 1
-    assert timeout_total == 90
-    assert "current PreToolUse manifest has one shim" in adr_068
-    assert "90-second configured value" in adr_068
+    assert round(reduction, 1) == 33.3
+    assert "three registrations across two events" in adr_068
+    assert "two PreToolUse shims and one PostToolUse shim" in adr_068
+    assert "saves one host process start" in adr_068
+    assert len(pretool_manifest["shims"]) == 2
+    assert timeout_total == 100
+    assert "current PreToolUse manifest has two shims" in adr_068
+    assert "100 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
-    assert "cannot bypass a later PreToolUse shim" in adr_068
-    assert "two registrations across two events" in adr_085
-    assert "active manifest contains one shim" in adr_071
-    assert "90-second configured timeout" in adr_071
+    assert "a hang in the first can bypass the second" in adr_068
+    assert "three registrations across two events" in adr_085
+    assert "active manifest contains two shims" in adr_071
+    assert "100 seconds of configured timeout" in adr_071
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 

@@ -1,0 +1,178 @@
+{
+  "id": "episode-2026-08-09-session-10006",
+  "session": "2026-08-09-session-10006",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Refresh PR 4543 4546 and 4693 after main advances",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reopened fleet-pr-4693 and inspected live PR and worktree state.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR #4543 lease, passed the live-state gate, and confirmed auto-merge was disabled.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main normally and resolved two conflicts.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the PR #4543 merge.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T18:35:41+00:00",
+      "type": "commit",
+      "content": "Commit: b680217688a45bc2a699e59359303cde9b9ce340",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T06:32:55+00:00",
+      "type": "commit",
+      "content": "Commit: 1803af61e296fe41d0d401f9361620e98845c3c9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T07:52:24+00:00",
+      "type": "commit",
+      "content": "Commit: 66b6244a7b0319a60b5305fbb92a52c051a4bebc",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T08:23:56+00:00",
+      "type": "commit",
+      "content": "Commit: e406bd2cacca03525b5e45317614daa695e9925e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T19:41:45+00:00",
+      "type": "commit",
+      "content": "Commit: 227a7465bd4501b2ffe759c87c4b91628b28f3aa",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T20:12:27+00:00",
+      "type": "commit",
+      "content": "Commit: adb209a7112044e50817283132af800357be9f10",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T20:33:35+00:00",
+      "type": "commit",
+      "content": "Commit: f290faf92e3b68b774724a7fc08612a24492779a",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T21:02:18+00:00",
+      "type": "commit",
+      "content": "Commit: d400dcff0739836270db64103666c9fdee6fbd69",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10006"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 16
+  },
+  "lessons": []
+}

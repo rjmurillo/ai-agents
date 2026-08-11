@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, cohesive GC reporter; crossed 500 only by the #4770 main merge.
 """Garbage-collect stale git worktrees safely.
 
 Agent and PR workflows create git worktrees that accumulate without cleanup.
@@ -36,7 +37,8 @@ USAGE:
 
 EXIT CODES:
   0 - Success (dry-run completed, or apply removed/kept as planned)
-  2 - Error: configuration or runtime error (git failure, bad base ref)
+  2 - Apply ran, but one or more removals were withheld or failed
+  3 - External: a git subprocess failed (for example, an unusable base ref)
 
 See: ADR-035 Exit Code Standardization
 Related: Issue #2761 (worktree accumulation starves markdown LSP), #2759
@@ -84,6 +86,7 @@ from scripts.maintenance.worktree_occupancy import (  # noqa: E402
     occupied_paths,
 )
 from scripts.maintenance.worktree_report import (  # noqa: E402
+    KEEP_ADMIN_ONLY,
     KEEP_BARE,
     KEEP_DETACHED,
     KEEP_DIRTY,
@@ -91,7 +94,6 @@ from scripts.maintenance.worktree_report import (  # noqa: E402
     KEEP_LOCKED,
     KEEP_MAIN,
     KEEP_OCCUPIED,
-    KEEP_REFLOG_ONLY,
     KEEP_TIME_BUDGET,
     KEEP_UNPUSHED,
     Decision,
@@ -186,7 +188,6 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
-
 def decide(
     worktree: Worktree,
     main_path: str,
@@ -197,7 +198,7 @@ def decide(
     cwds: frozenset[str] = frozenset(),
     remote_head_refs: frozenset[str] | None = None,
     origin_upstreams: dict[str, str] | None = None,
-    checkout_present: Callable[[str], bool] = _gc_stale.linked_checkout_present,
+    checkout_present: Callable[[str], bool] | None = None,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -212,10 +213,12 @@ def decide(
     rather than ``KEEP_DETACHED``. Both keep the worktree, so the fail-safe
     invariant holds either way.
 
-    A ``prunable`` worktree is always kept. The marker means git cannot find
-    the working tree, and three different situations produce it: the directory
-    was deleted and abandoned, the directory was deleted while its index still
-    held staged content, or the directory was **moved and is still in use**.
+    A stale worktree is always kept. Staleness is not ``prunable`` alone: git
+    sets that marker only when the recorded directory is gone, and it computes
+    it at all only for entries it would consider pruning. Three different
+    situations produce a stale entry: the directory was deleted and abandoned,
+    the directory was deleted while its index still held staged content, or the
+    directory was **moved and is still in use**.
     Nothing in the admin record separates them, and removing the entry silently
     orphans staged blobs in the second case and breaks a live checkout in the
     third. So the report names the entry, lists everything clearing it would
@@ -230,6 +233,11 @@ def decide(
         reason = KEEP_BARE if worktree.bare else KEEP_MAIN
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
+    # Resolved here rather than as a default argument. A default binds the
+    # probe at import, so a test that replaces the module attribute never
+    # reaches it and quietly measures production behaviour instead.
+    present = checkout_present or _gc_stale.linked_checkout_present
+
     def kept(reason: str) -> Decision:
         """Attach the stale-entry risk to whichever structural reason won.
 
@@ -241,14 +249,15 @@ def decide(
         this work, and the report already discloses those entries as
         uninspected.
 
-        Staleness here is not ``prunable`` alone. Verified against real git:
-        git suppresses the ``prunable`` marker for a locked worktree even when
-        its directory is gone, because it will not prune a locked entry
-        regardless. So a missing directory counts on its own. That check costs
-        one ``stat`` and cannot fire on a healthy worktree, whose directory is
-        present by definition.
+        Staleness here is not ``prunable`` alone, for the same reason it is not
+        on the unlocked path. Verified against real git: git suppresses the
+        ``prunable`` marker for a locked worktree even when its directory is
+        gone, because it will not prune a locked entry regardless. So a missing
+        or foreign checkout counts on its own. That check is two file reads and
+        cannot fire on a healthy worktree, whose marker points back by
+        definition.
         """
-        if _gc_stale.is_stale(worktree, checkout_present):
+        if _gc_stale.is_stale(worktree, present):
             return Decision(
                 worktree.path,
                 worktree.branch,
@@ -258,22 +267,42 @@ def decide(
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
     def removable(reason: str) -> Decision:
-        """A removal, unless the entry's own reflog is the last anchor for work.
+        """A removal, unless something in the worktree is still anchoring work.
 
         Clean, merged, and fully pushed all describe the current HEAD. They say
         nothing about commits the worktree reached and left, which its own
-        reflog alone still names. Removing the entry deletes that reflog, so the
-        last question asked before proposing a removal is whether the removal is
-        provably lossless. An unreadable probe answers no.
+        reflog alone still names, and nothing about a suspended merge, rebase,
+        cherry-pick, revert, or bisect, whose pseudo-ref is the only thing
+        reaching the other side. Removing the entry deletes both. So the last
+        questions asked before proposing a removal are whether anything is
+        running here and whether the removal is provably lossless. An
+        unreadable probe answers no.
+
+        Both live here rather than earlier in ``decide`` because this is the
+        one place a ``remove=True`` is constructed, which makes them impossible
+        to bypass by reordering the checks above. The cost of that is a
+        worktree kept for another reason reporting that other reason instead;
+        the operation is only named when it would otherwise have been removed,
+        which is the case that matters.
         """
+        operation = _gc_stale.in_progress_operation(worktree.path)
+        if operation is not None:
+            reason = _gc_reasons.suspended_operation_reason(operation)
+            return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
         loss = _gc_reasons.reflog_only_work(worktree.path, main_path, _run_git)
         if not loss:
-            return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+            return Decision(
+                worktree.path,
+                worktree.branch,
+                remove=True,
+                reason=reason,
+                head=worktree.head,
+            )
         return Decision(
             worktree.path,
             worktree.branch,
             remove=False,
-            reason=f"{KEEP_REFLOG_ONLY} ({reason}); {loss}",
+            reason=f"{KEEP_ADMIN_ONLY} ({reason}); {loss}",
         )
 
     if worktree.locked:
@@ -285,7 +314,7 @@ def decide(
     if not inspect:
         return _keep(worktree, KEEP_TIME_BUDGET)
 
-    if worktree.prunable:
+    if _gc_stale.is_stale(worktree, present):
         return Decision(
             worktree.path,
             worktree.branch,
@@ -462,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
             )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 2
+        return 3
 
     if args.json:
         print(json.dumps(asdict(report), indent=2))

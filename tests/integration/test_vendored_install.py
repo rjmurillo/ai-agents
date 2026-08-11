@@ -262,6 +262,17 @@ def test_review_skill_names_every_canonical_axis(vendored_root: Path) -> None:
         assert role in text, f"/review dispatcher does not name canonical axis: {role}"
 
 
+def test_vendored_implementer_preserves_toolkit_scaffold_blocks(
+    vendored_root: Path,
+) -> None:
+    """Vendored implementer separates consumer-owned and toolkit scaffolds."""
+    implementer = vendored_root / ".claude" / "agents" / "implementer.md"
+    text = implementer.read_text(encoding="utf-8")
+
+    assert "[BLOCKED] No prior session context available" in text
+    assert "consumer-owned .agents/ without ai-agents session scaffold" in text
+
+
 def test_review_skill_dispatches_by_discovery_not_fixed_count(
     vendored_root: Path,
 ) -> None:

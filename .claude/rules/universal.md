@@ -11,13 +11,14 @@ These rules apply to every change in this repository.
 
 1. **Branch discipline**. MUST NOT push or commit directly to `main` or `master`. Create a feature branch first.
 2. **Issue linkage**. Every PR MUST reference an issue with `Fixes #<n>` or `Refs #<n>` in the description.
-3. **Verify every closing keyword against the diff before merging.** `Fixes #<n>` is an instruction to GitHub, not a note to the reader: merging executes it whether or not the diff does the work. Confirm each claimed issue is actually closed by the diff, and downgrade the rest to `Refs #<n>` with the reason in the body. A claim is supported only when you can name the hunk. Measured 2026-08-03 across five PRs: 15 keywords failed this check, including two already-closed issues and one whose fix lived in another PR. The failure is silent and inverts the signal, since the backlog shrinks exactly as it becomes less accurate.
+3. **Verify closing keywords against the diff before merging.** `Fixes #<n>` closes on merge; tie each claim to a named hunk. Downgrade unsupported claims to `Refs #<n>` with reason. Missing closing keywords are not automatically defects. Agent-authored PR bodies SHOULD use `These references do not close their linked items:` for bare `Refs`. Read the body before adding a closing keyword to another author's PR. Post-merge body edits are inert; close orphaned issues with a comment citing the merge commit. Evidence: on 2026-08-03, 15 claimed closing keywords across five PRs were unsupported, and four of seven keyword-free PRs repaired from title matches explicitly should not close the issue.
 4. **Verify a red remote check with equivalent evidence, or report it unreproduced.** MUST NOT claim a red remote check is cleared by a local run unless the checker, ruleset, flags, and version are demonstrably identical. State the command and why it is the same check; if you cannot, say the check is red and you could not reproduce it. A different tool produces evidence about a different check, and calling that "resolved" tells the reader to disregard a live finding.
 5. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
 6. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
 7. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 8. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
 9. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
+10. **Git identity cannot prove a human acted.**
 
 ## SHOULD
 
@@ -34,8 +35,7 @@ These rules apply to every change in this repository.
    checks: `git --no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a
    lefthook configuration override, and a direct edit to an installed hook.
    This rule adds a sixth the ADR does not name, `LEFTHOOK_EXCLUDE`, which
-   disables selected jobs rather than the whole run. Policy forbids all six
-   equally. Naming only
+   disables selected jobs. All six are forbidden. Naming only
    `--no-verify` invites the reading that a different mechanism is sanctioned;
    it is not, and no repository document describes any of them as a supported
    skip. Protected CI is a backstop, not a substitute: a bypassed push shifts
@@ -67,6 +67,7 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
+7. Git worktrees MUST be external.
 
 ## References
 

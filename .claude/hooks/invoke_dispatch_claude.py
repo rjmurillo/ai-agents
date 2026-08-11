@@ -161,17 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if _project_self_hosts_plugin():
-            return 0
-    except Exception as exc:
-        print(
-            f"claude-hook-dispatch: self-host check failed for group "
-            f"{args.group!r}: {type(exc).__name__}: {exc}",
-            file=sys.stderr,
-        )
-        return _BLOCK_EXIT_CODE
-
-    try:
         event, mode, shims = _load_group(args.group)
     except Exception as exc:
         print(
@@ -180,6 +169,18 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return _BLOCK_EXIT_CODE
+
+    if mode not in {"gate", "gate_all"}:
+        try:
+            if _project_self_hosts_plugin():
+                return 0
+        except Exception as exc:
+            print(
+                f"claude-hook-dispatch: self-host check failed for group "
+                f"{args.group!r}: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            return _BLOCK_EXIT_CODE
 
     try:
         raw_stdin, oversized_exit = _read_payload(mode)

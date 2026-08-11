@@ -33,7 +33,10 @@ from scripts.maintenance.gc_worktrees import (
     format_report,
     is_merged_to_base,
 )
-from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
+from tests.gc_worktree_fixtures import (  # noqa: F401
+    checkout_is_present,
+    no_reflog_only_work,
+)
 
 _MODULE = "scripts.maintenance.gc_worktrees"
 
@@ -367,8 +370,10 @@ class TestApplyRemovals:
             apply=True,
             main_worktree=_MAIN,
             decisions=[
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
-                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
+                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed", head=_STUB_HEAD),
                 Decision("/repo/c", "feat/c", remove=False, reason=KEEP_LOCKED),
             ],
         )
@@ -394,8 +399,10 @@ class TestApplyRemovals:
             apply=True,
             main_worktree=_MAIN,
             decisions=[
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
-                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
+                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed", head=_STUB_HEAD),
             ],
         )
 

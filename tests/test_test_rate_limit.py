@@ -21,15 +21,17 @@ sys.path.insert(
 
 import test_rate_limit  # must come after sys.path setup
 
-from scripts.github_core.api import RateLimitResult
+from scripts.github_core.api import RateLimitResult, RateLimitStatus
 
 
 def _make_result(
     success: bool = True,
     core_remaining: int = 500,
+    status: RateLimitStatus | None = None,
 ) -> RateLimitResult:
     return RateLimitResult(
         success=success,
+        status=status,
         resources={
             "core": {
                 "Remaining": core_remaining,
@@ -58,6 +60,17 @@ class TestMain:
             success=False, core_remaining=10
         )
         assert test_rate_limit.main([]) == 1
+
+    @patch("test_rate_limit.check_workflow_rate_limit")
+    def test_indeterminate_rate_limit_returns_one(
+        self, mock_check: MagicMock, capsys
+    ) -> None:
+        mock_check.return_value = _make_result(
+            success=False,
+            status=RateLimitStatus.COULD_NOT_DETERMINE,
+        )
+        assert test_rate_limit.main([]) == 1
+        assert "could_not_determine" in capsys.readouterr().err
 
     @patch("test_rate_limit.check_workflow_rate_limit")
     def test_runtime_error_returns_one(self, mock_check: MagicMock) -> None:
