@@ -25,12 +25,6 @@
         1
       ]
     ],
-    "code-qualities-assessment/scripts/assess.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "codeql-scan/scripts/invoke_codeql_scan.py": [
       [
         "result = subprocess.run(",
@@ -143,12 +137,6 @@
         2
       ]
     ],
-    "github/scripts/pr/get_pr_comments_by_reviewer.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "github/scripts/pr/get_pr_context.py": [
       [
         "diff_result = subprocess.run(",
@@ -175,12 +163,6 @@
       [
         "result = subprocess.run(",
         2
-      ]
-    ],
-    "github/scripts/pr/get_pr_reviewers.py": [
-      [
-        "pr_result = subprocess.run(",
-        0
       ]
     ],
     "github/scripts/pr/get_pull_requests.py": [
@@ -363,48 +345,6 @@
     "security-scan/scripts/scan_vulnerabilities.py": [
       [
         "result = subprocess.run(",
-        0
-      ]
-    ],
-    "session-end/scripts/complete_session_log.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ],
-      [
-        "result = subprocess.run(",
-        1
-      ],
-      [
-        "result = subprocess.run(",
-        2
-      ],
-      [
-        "result = subprocess.run(",
-        3
-      ],
-      [
-        "result = subprocess.run(",
-        4
-      ],
-      [
-        "result = subprocess.run(",
-        5
-      ],
-      [
-        "result = subprocess.run(",
-        6
-      ],
-      [
-        "result = subprocess.run(",
-        7
-      ],
-      [
-        "staged = subprocess.run(",
-        0
-      ],
-      [
-        "unstaged = subprocess.run(",
         0
       ]
     ],
