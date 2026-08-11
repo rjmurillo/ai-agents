@@ -1,0 +1,377 @@
+{
+  "id": "episode-2026-08-10-session-10037",
+  "session": "2026-08-10-session-10037",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Process PR #4793 required checks and review threads",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed PR #4793 required checks from live logs",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pr-autofix mutation process-group handling",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed fast-exit lease-loss path after review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated required-check rename guidance",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and refreshed generated artifacts",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved review threads with replies",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and pushed normally",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T12:46:05+00:00",
+      "type": "commit",
+      "content": "Commit: 08ecc12b6744c283e8ca9b672254f655a555173c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e010",
+        "e011",
+        "e013",
+        "e015",
+        "e017",
+        "e019",
+        "e020",
+        "e022",
+        "e024",
+        "e026"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T13:30:43+00:00",
+      "type": "commit",
+      "content": "Commit: ee9f058bbdb88ca41475bf90f76964774f54e132",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed colliding session 10036 artifacts introduced during merge conflict recovery",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed CI fast-exit lease-loss race",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T14:21:59+00:00",
+      "type": "commit",
+      "content": "Commit: d826cf42fd02ecf62ad68ae1cd047730ffb9d0eb",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main after Validate PR conflict failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-10T14:43:30+00:00",
+      "type": "commit",
+      "content": "Commit: 75489ac95c2dc3500dc2c8b473c3094cdf02fb76",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed spawned-child lease-loss review thread",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-10T14:58:36+00:00",
+      "type": "commit",
+      "content": "Commit: fcb82e727264ef61a41b90471234cf0f462996d0",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed slash command validation failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-10T15:18:40+00:00",
+      "type": "commit",
+      "content": "Commit: 7ec7e6293b9b504319fdcc138cf1dcac7f95730e",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stabilized the delayed-child lease-loss regression",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main and refreshed instruction budgets",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-11T10:18:39+00:00",
+      "type": "commit",
+      "content": "Commit: 20009d516a891805be145912d0d2ff44e63dca8c",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed post-merge cross-platform type checking",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-11T10:53:56+00:00",
+      "type": "commit",
+      "content": "Commit: 5b93e19aa630deb1e09602ab419419934f1d5e86",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged the lowered Ruff ratchet from current main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-11T11:04:45+00:00",
+      "type": "commit",
+      "content": "Commit: 553f1a9b0bda0bd51f2db5053bdd0d3cc62d3a63",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final setup-poll lease-loss race",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-11T11:36:17+00:00",
+      "type": "commit",
+      "content": "Commit: 875483b2a729dca46eb07b84125c84ec288839ef",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-11T12:04:55+00:00",
+      "type": "commit",
+      "content": "Commit: 78198cde7380a060ff154a229cdcbe5c06867bd5",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-10-session-10037"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-11T12:28:12+00:00",
+      "type": "commit",
+      "content": "Commit: 1f557812f0dca9a3b29428b3e7513799d3dc0cb9",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10037"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 14
+  },
+  "lessons": []
+}

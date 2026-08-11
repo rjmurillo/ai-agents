@@ -1,10 +1,9 @@
-"""Repo-root walkers must skip registered worktrees.
+"""The remaining repo-root walker must skip registered worktrees.
 
-A registered worktree holds a full second copy of the tree. Three gates walked
-the repository root without skipping them, so each parsed ~92,000 Python
-files instead of ~6,800 and tripped a 120s timeout, blocking every push from a
-clone that uses worktrees. Two are pytest gates; the third is the unreachable
-statement scanner lefthook runs as `check_unreachable_after_terminator.py .`.
+A registered worktree holds a full second copy of the tree. The no-verify gate
+walked the repository root without skipping worktrees, so it parsed duplicated
+files and could time out. The duplicate-helper gate is now git-scoped, and the
+obsolete filesystem unreachable scanner was deleted.
 
 This is the same bug issue #4160 fixed in `_python_sources`, recurring in
 siblings that did not inherit the fix. Both halves of that fix are load
@@ -30,8 +29,6 @@ from unittest.mock import patch
 
 import pytest
 
-import scripts.validation.check_unreachable_after_terminator as unreachable
-import tests.test_no_duplicate_module_level_defs as dupes
 import tests.test_no_verify_prohibition as noverify
 
 
@@ -41,43 +38,6 @@ def _make_tree(root: Path) -> None:
     (root / ".claude" / "worktrees" / "wt_a" / "scripts").mkdir(
         parents=True, exist_ok=True
     )
-
-
-class TestDuplicateDefsWalker:
-    """collect_duplicates ignores worktree copies but not the real tree."""
-
-    def test_worktree_duplicate_is_not_reported(self, tmp_path: Path) -> None:
-        _make_tree(tmp_path)
-        decoy = tmp_path / ".claude" / "worktrees" / "wt_a" / "scripts" / "d.py"
-        decoy.write_text("def f():\n    pass\n\n\ndef f():\n    pass\n")
-
-        found = dupes.collect_duplicates(tmp_path)
-
-        assert found == [], f"worktree copy should be skipped, got {found}"
-
-    def test_real_duplicate_is_still_reported(self, tmp_path: Path) -> None:
-        """Negative control: the gate still catches what it exists to catch."""
-        _make_tree(tmp_path)
-        real = tmp_path / "scripts" / "r.py"
-        real.write_text("def g():\n    pass\n\n\ndef g():\n    pass\n")
-
-        found = dupes.collect_duplicates(tmp_path)
-
-        assert [p for p, _, _ in found] == [real], f"expected {real}, got {found}"
-
-    def test_root_named_worktrees_is_not_skipped_whole(self, tmp_path: Path) -> None:
-        """Issue #4160: skipping on absolute parts makes the gate a no-op."""
-        root = tmp_path / "worktrees" / "wt_fix"
-        (root / "scripts").mkdir(parents=True, exist_ok=True)
-        real = root / "scripts" / "r.py"
-        real.write_text("def h():\n    pass\n\n\ndef h():\n    pass\n")
-
-        found = dupes.collect_duplicates(root)
-
-        assert [p for p, _, _ in found] == [real], (
-            "repo living under a 'worktrees' dir must still be scanned; "
-            f"got {found}"
-        )
 
 
 class TestNoVerifyWalker:
@@ -160,55 +120,10 @@ class TestNoTrackedFileHidesBehindTheSkip:
 
         assert offenders == [], (
             "These tracked files sit under a directory named 'worktrees', so "
-            "the duplicate-defs and no-verify gates skip them silently. Either "
+            "the no-verify gate skips them silently. Either "
             "rename the directory or add the path to _KNOWN with a reason: "
             f"{offenders}"
         )
-
-
-class TestUnreachableWalker:
-    """The lefthook gate `check_unreachable_after_terminator.py .` walks the repo root."""
-
-    def test_worktree_file_is_not_scanned(self, tmp_path: Path) -> None:
-        real = tmp_path / "real.py"
-        real.write_text("x = 1\n", encoding="utf-8")
-        wt = tmp_path / "worktrees" / "wf_1" / "copy.py"
-        wt.parent.mkdir(parents=True)
-        wt.write_text("x = 1\n", encoding="utf-8")
-
-        found = unreachable._iter_paths([tmp_path])
-
-        assert real in found
-        assert wt not in found
-
-    def test_root_named_worktrees_keeps_its_files(self, tmp_path: Path) -> None:
-        """The relative-parts half. Absolute matching would skip the root whole."""
-        root = tmp_path / "worktrees"
-        root.mkdir()
-        kept = root / "real.py"
-        kept.write_text("x = 1\n", encoding="utf-8")
-
-        found = unreachable._iter_paths([root])
-
-        assert found == [kept], f"walker went silent under a worktrees root, got {found}"
-
-    def test_explicit_file_argument_is_never_skipped(self, tmp_path: Path) -> None:
-        """A file named on the command line is scanned even inside a worktree."""
-        wt = tmp_path / "worktrees" / "wf_1" / "copy.py"
-        wt.parent.mkdir(parents=True)
-        wt.write_text("x = 1\n", encoding="utf-8")
-
-        assert unreachable._iter_paths([wt]) == [wt]
-
-
-class TestSkipSetContract:
-    """The skip constant itself carries worktrees."""
-
-    def test_worktrees_in_skip_set(self) -> None:
-        assert "worktrees" in dupes._SKIP
-
-    def test_worktrees_in_unreachable_skip_set(self) -> None:
-        assert "worktrees" in unreachable._SKIP
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke run
