@@ -77,7 +77,8 @@
         "e009",
         "e011",
         "e013",
-        "e014"
+        "e014",
+        "e015"
       ],
       "leads_to": [
         "e008"
@@ -151,7 +152,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e016"
+      ],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
     },
     {
@@ -175,6 +178,28 @@
         "e006"
       ],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live matrix CI exposed the self-hosted runner CA at actions/setup-node. Added Node's native --use-system-ca option and a parsed workflow contract test.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T07:04:01+00:00",
+      "type": "commit",
+      "content": "Commit: 6af4669941c0f9864782551a2ecbb21fcb75c1c0",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
     }
   ],
   "metrics": {
@@ -182,8 +207,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 10
   },
   "lessons": []
 }

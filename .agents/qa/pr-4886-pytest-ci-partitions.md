@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under.json
-qaCommit: c4039dcf02a86377df4328e256ef65d2c44ac9db
+qaCommit: 6af4669941c0f9864782551a2ecbb21fcb75c1c0
 ---
 
 # QA Report: Issue 4854 pytest CI partitions
@@ -19,6 +19,7 @@ target.
 - Serial safety partition: 55 passed in 9.48 seconds.
 - Focused workflow and coverage contracts: 125 passed in 3.46 seconds.
 - xdist matrix contract: 41 passed in 1.07 seconds.
+- System CA workflow contract: 42 passed in 1.22 seconds.
 - Local fallback routing: 142 passed in 5.85 seconds.
 - Workflow-local duplicate-run guard: 6 passed, 809 deselected in 1.03
   seconds.
@@ -28,7 +29,8 @@ target.
 - Ruff and actionlint passed.
 - CWE-78 scan: zero findings in one scanned Python file.
 - Security agent review: PASS for action pins, permissions, matrix arguments,
-  artifact boundaries, path filtering, required-check behavior, and secrets.
+  artifact boundaries, path filtering, required-check behavior, secrets, and
+  system CA trust.
 
 ## Partition Counts
 

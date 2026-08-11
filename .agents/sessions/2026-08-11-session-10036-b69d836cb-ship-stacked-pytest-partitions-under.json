@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "c4039dcf02a86377df4328e256ef65d2c44ac9db"
+        "Evidence": "6af4669941c0f9864782551a2ecbb21fcb75c1c0"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ACT workflow passed in 331.34 seconds; 27,148 full and partitioned node IDs matched exactly; 142 local routing tests, focused tests, Ruff, actionlint, security scan, and security review passed"
+        "Evidence": "ACT workflow passed in 331.34 seconds; 27,148 full and partitioned node IDs matched exactly; 142 local routing tests, 42 system CA workflow tests, Ruff, actionlint, security scan, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -148,9 +148,12 @@
     },
     {
       "entry": "Retargeted PR #4886 to main and closed PR #4872 as superseded."
+    },
+    {
+      "entry": "Live matrix CI exposed the self-hosted runner CA at actions/setup-node. Added Node's native --use-system-ca option and a parsed workflow contract test."
     }
   ],
-  "endingCommit": "c4039dcf02a86377df4328e256ef65d2c44ac9db",
+  "endingCommit": "6af4669941c0f9864782551a2ecbb21fcb75c1c0",
   "nextSteps": [
     "Monitor PR #4886 CI job durations.",
     "Merge PR #4886 after required checks pass."
