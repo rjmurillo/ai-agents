@@ -125,6 +125,8 @@ jobs:
     permissions:
       contents: read
       checks: write
+    env:
+      NODE_OPTIONS: --use-system-ca
     strategy:
       fail-fast: false
       matrix:

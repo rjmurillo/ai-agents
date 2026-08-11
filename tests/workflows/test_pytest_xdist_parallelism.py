@@ -67,6 +67,9 @@ def _partition(name: str) -> dict[str, Any]:
 class TestMatrixStructure:
     """The test job is a four-partition matrix."""
 
+    def test_node_uses_the_runner_system_ca(self) -> None:
+        assert _job("test")["env"]["NODE_OPTIONS"] == "--use-system-ca"
+
     def test_local_act_runs_all_tests_without_paths_filter(self) -> None:
         check_paths = _job("check-paths")
         output = check_paths["outputs"]["python-changed"]
