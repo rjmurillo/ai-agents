@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-10-session-14653.json
+qaSessionLog: .agents/sessions/2026-08-10-session-14656-issue-4842-end-to-end.json
 qaCommit: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847
 ---
 
