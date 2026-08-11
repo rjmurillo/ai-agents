@@ -996,6 +996,21 @@ class TestWorkflowContract:
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
         assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in wf
 
+    def test_required_check_context_matches_job_name(self) -> None:
+        """The documented required-check context must be the emitted context.
+
+        GitHub reports a job's ``name:`` as the check-run context; the
+        workflow-level ``name:`` is never emitted as a context. A rollout
+        instruction naming the workflow would leave branch protection waiting
+        on a context that never arrives, so the documented context is pinned
+        to the job name here and drifts loudly instead of silently.
+        """
+        import yaml
+
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        job_name = yaml.safe_load(wf)["jobs"]["provenance"]["name"]
+        assert f"\n# Required status check context: {job_name}\n" in wf
+
     def test_workflow_runs_validator_with_uv_frozen(self) -> None:
         """vendor-provenance.yml must run the validator in the uv env."""
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()

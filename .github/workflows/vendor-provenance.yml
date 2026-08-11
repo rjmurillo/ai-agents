@@ -7,9 +7,19 @@
 # - NO candidate code is ever executed
 # - persist-credentials: false on the single checkout
 #
-# Once merged and configured as a required status check, this gate prevents
-# any PR from merging tampered vendor content regardless of what that PR
-# modifies in its own workflow or validator copies.
+# Rollout: GitHub reports a job's `name:` as the check-run context, not the
+# workflow `name:`. Requiring the workflow name would wait forever because it
+# is never emitted. Configure branch protection with exactly this context:
+#
+# Required status check context: Validate Vendor Provenance
+#
+# The line above is pinned to the job `name:` below by
+# tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract, so the
+# instruction cannot drift from the emitted context.
+#
+# Once configured, this gate prevents any PR from merging tampered vendor
+# content regardless of what that PR modifies in its own workflow or
+# validator copies.
 
 name: Vendor Provenance
 
