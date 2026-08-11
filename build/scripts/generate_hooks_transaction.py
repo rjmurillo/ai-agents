@@ -94,9 +94,7 @@ class HookGenerationTransaction:
     def delete_many(self, targets: Iterable[Path]) -> None:
         """Delete targets while retaining one rollback copy per path."""
         delete_order = list(dict.fromkeys(targets))
-        backed_up_targets = {
-            target for target in delete_order if target in self._backups
-        }
+        backed_up_targets = {target for target in delete_order if target in self._backups}
         for target in delete_order:
             self._backup_target(target)
         for target in delete_order:
