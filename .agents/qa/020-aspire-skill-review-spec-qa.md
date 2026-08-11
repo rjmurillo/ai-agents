@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation.json
-qaCommit: 0f831d50eb53d8ee6f39db2ad6ddbe5aed5572b1
+qaCommit: 82b96e8443285d7fca32d884a8288997d57cde6e
 ---
 
 # QA Report: Aspire Skill Review Specification
