@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-pr-4636.json
-qaCommit: b852b9d7a6288bc78a655d42de9d1078503c0913
+qaCommit: f2053fafa9e0bdcd5c46ad4e344069208da579bc
 ---
 
 # QA Report: PR #4636 Harness And Eval Fixes
