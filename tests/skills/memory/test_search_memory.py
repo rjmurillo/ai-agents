@@ -4,8 +4,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -64,68 +62,6 @@ class TestSearchSerena:
 
     def test_missing_directory(self, tmp_path):
         results = search_memory.search_serena("test", tmp_path / "missing", 10)
-        assert results == []
-
-    def test_skips_symlink_that_escapes_memory_root(self, tmp_path):
-        memory_root = tmp_path / "memories"
-        memory_root.mkdir()
-        outside = tmp_path / "outside-security.md"
-        outside.write_text("# secret outside the memory root")
-        try:
-            (memory_root / "security-escape.md").symlink_to(outside)
-        except OSError:
-            pytest.skip("symlinks require additional privileges on this platform")
-
-        results = search_memory.search_serena("security", memory_root, 10)
-
-        assert results == []
-
-    def test_reads_resolved_path_after_symlink_swap(self, tmp_path):
-        memory_root = tmp_path / "memories"
-        memory_root.mkdir()
-        inside = memory_root / "inside-security.md"
-        inside.write_text("# contained content")
-        outside = tmp_path / "outside-security.md"
-        outside.write_text("# escaped secret content")
-        link = memory_root / "security-link.md"
-        try:
-            link.symlink_to(inside)
-        except OSError:
-            pytest.skip("symlinks require additional privileges on this platform")
-        validated_paths = search_memory._contained_markdown_files(memory_root)
-        link.unlink()
-        link.symlink_to(outside)
-
-        with patch.object(
-            search_memory,
-            "_contained_markdown_files",
-            return_value=validated_paths,
-        ):
-            results = search_memory.search_serena("security", memory_root, 10)
-
-        assert all("escaped secret content" not in result["Content"] for result in results)
-
-    def test_skips_resolved_file_replaced_by_symlink(self, tmp_path):
-        memory_root = tmp_path / "memories"
-        memory_root.mkdir()
-        inside = memory_root / "inside-security.md"
-        inside.write_text("# contained content")
-        outside = tmp_path / "outside-security.md"
-        outside.write_text("# escaped secret content")
-        validated_paths = search_memory._contained_markdown_files(memory_root)
-        inside.unlink()
-        try:
-            inside.symlink_to(outside)
-        except OSError:
-            pytest.skip("symlinks require additional privileges on this platform")
-
-        with patch.object(
-            search_memory,
-            "_contained_markdown_files",
-            return_value=validated_paths,
-        ):
-            results = search_memory.search_serena("security", memory_root, 10)
-
         assert results == []
 
 

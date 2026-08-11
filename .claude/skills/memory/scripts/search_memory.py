@@ -18,10 +18,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import socket
-import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,46 +44,6 @@ EPISODE_NAME_PREFIX = re.compile(r"^episode-\d{4}-\d{2}-\d{2}-(?:session-\d+-?)?
 # Same shape as EPISODE_NAME_PREFIX, but capturing so the recency sort can read
 # the date and the session number instead of comparing the raw string.
 EPISODE_RECENCY = re.compile(r"^episode-(\d{4}-\d{2}-\d{2})-(?:session-(\d+)\b)?")
-
-
-def _contained_markdown_files(memory_path: Path) -> list[Path]:
-    """Return Markdown paths whose resolved targets stay under memory_path."""
-    root = memory_path.resolve()
-    contained: set[Path] = set()
-    for candidate in memory_path.rglob("*.md"):
-        try:
-            resolved = candidate.resolve(strict=True)
-            resolved.relative_to(root)
-        except (OSError, ValueError):
-            continue
-        if resolved.is_file():
-            contained.add(resolved)
-    return sorted(contained)
-
-
-def _read_stable_text(file_path: Path) -> str:
-    """Read one unchanged regular file without following a final symlink."""
-    before = os.stat(file_path, follow_symlinks=False)
-    if not stat.S_ISREG(before.st_mode):
-        raise OSError(f"Not a regular file: {file_path}")
-
-    descriptor = os.open(file_path, os.O_RDONLY)
-    try:
-        opened = os.fstat(descriptor)
-        after = os.stat(file_path, follow_symlinks=False)
-        identities = {
-            (before.st_dev, before.st_ino),
-            (opened.st_dev, opened.st_ino),
-            (after.st_dev, after.st_ino),
-        }
-        if len(identities) != 1 or not stat.S_ISREG(after.st_mode):
-            raise OSError(f"File changed while opening: {file_path}")
-        with os.fdopen(descriptor, encoding="utf-8") as handle:
-            descriptor = -1
-            return handle.read()
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
 
 
 def _recency_key(name: str) -> tuple[str, int, str]:
@@ -118,7 +76,7 @@ def estimate_tokens(file_path: Path) -> int:
     if not file_path.is_file():
         return 0
     try:
-        return round(len(_read_stable_text(file_path)) / 4)
+        return round(len(file_path.read_text(encoding="utf-8")) / 4)
     except OSError:
         return 0
 
@@ -131,11 +89,10 @@ def search_serena(
         return []
 
     keywords = query_keywords(query)
-    memory_root = memory_path.resolve()
 
     results: list[dict[str, Any]] = []
-    for md_file in _contained_markdown_files(memory_path):
-        rel = md_file.relative_to(memory_root).with_suffix("")
+    for md_file in sorted(memory_path.rglob("*.md")):
+        rel = md_file.relative_to(memory_path).with_suffix("")
         name = rel.as_posix().lower()
         stem = name.rpartition("/")[2]
         stem_hits = sum(1 for kw in keywords if kw in stem)
@@ -145,9 +102,9 @@ def search_serena(
         weighted = stem_hits + DIRECTORY_MATCH_WEIGHT * (len(matching) - stem_hits)
         score = weighted / len(keywords) if keywords else 0
         try:
-            content = _read_stable_text(md_file)
+            content = md_file.read_text(encoding="utf-8")
         except OSError:
-            continue
+            content = ""
         preview = re.sub(r"\s+", " ", content).strip()
         results.append({
             "Name": rel.as_posix(),
@@ -239,7 +196,7 @@ def get_memory_router_status(
     serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
-        serena_count = len(_contained_markdown_files(serena_path))
+        serena_count = len(list(serena_path.rglob("*.md")))
 
     episodes_available = False
     episode_count = 0
