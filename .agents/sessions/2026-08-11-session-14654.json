@@ -4,7 +4,7 @@
     "number": 14654,
     "date": "2026-08-11",
     "branch": "fix/4691-merge-group-support",
-    "startingCommit": "45e38cf9c87f34d67f68a4b03de7547203c54996",
+    "startingCommit": "99adc94e635d4b8f0784a5ea232290b611c527d8",
     "objective": "Re-evaluate issue 4691 merge-group readiness against live ruleset state"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "45e38cf9c8"
+        "Evidence": "99adc94e63"
       }
     },
     "sessionEnd": {
@@ -148,6 +148,6 @@
       "detail": "110 tests pass across test_merge_group_readiness.py, test_workflow_trigger_fanout.py, test_frontmatter_gate_paths_filter.py, and test_determine_should_run_from_filters.py. Loading the readiness checks against the origin/main workflow tree produced 27 errors, which is the non-vacuity control the issue asks for."
     }
   ],
-  "endingCommit": "df344bc3b31a3230ff0a04d57e43c4f65c78b6eb",
+  "endingCommit": "0ad796bb5b6547834113b058f7b39b38b4368d76",
   "nextSteps": []
 }
