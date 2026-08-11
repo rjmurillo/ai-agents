@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review.json
-qaCommit: a4863b3071ccedecc50011b6087b23f457fb4abb
+qaCommit: 3c77d5b54e06a12c4ffceff1a4d4a4e060d4bfd5
 ---
 
 # QA Report: Aspire Skill Review Ship
