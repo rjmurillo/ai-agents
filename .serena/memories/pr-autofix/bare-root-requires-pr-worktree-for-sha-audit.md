@@ -24,7 +24,8 @@ PR #4762 on 2026-08-07:
 
 ## Operational pattern
 
-1. Use helper scripts from the bare root only for read-only PR context.
-2. Switch to the dedicated PR worktree before branch mutation.
-3. Renew or acquire the lease there.
-4. Verify local `HEAD`, remote branch tip, and PR head SHA match before push.
+1. Acquire the lease before creating or selecting the PR worktree.
+2. Treat a bare root's `local_head_sha` as diagnostic mismatch evidence only.
+3. Create or switch to the dedicated PR worktree.
+4. Renew the lease from that worktree before branch mutation.
+5. Verify local `HEAD`, remote branch tip, and PR head SHA match before push.
