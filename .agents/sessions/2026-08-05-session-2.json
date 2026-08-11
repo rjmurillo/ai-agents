@@ -94,12 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code split committed as 5b9ea144bd after rebasing onto current origin/main."
+        "Evidence": "Code split and CI ratchet correction are committed through eb0d27ef499de452951e0adcca57160567617d64."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted validation passed: ruff check, mypy, pytest for build_ai_review_context, context mode enforcement, CI script wiring. Byte-identical proof passed for session-log context output."
+        "Evidence": "Bound-base validation passed: 99 ai-review tests, 123 instruction-corpus tests, 28 taste-ratchet tests, 74 spec-pipeline tests, scoped Ruff, scoped mypy, and both count ratchets against d4cc52d5de0c11f7d36c99a246484f1f192ce584."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-11-pr-4637-ci-validation.md"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,11 +142,19 @@
     {
       "timestamp": "2026-08-05T01:20:00-07:00",
       "entry": "Validated split: ruff passed, 255 pytest cases passed with 5 skipped, output diff was byte-identical, mutation controls killed required mutants and preserved cosmetic control."
+    },
+    {
+      "timestamp": "2026-08-11T03:50:00-07:00",
+      "entry": "Diagnosed PR #4637 CI at head 0ded1670a456aa1781c386161007616dfd15bf6c and base d4cc52d5de0c11f7d36c99a246484f1f192ce584. The instruction-corpus failures were stale/base-owned: the branch changes none of the measured instruction inputs, and all 123 focused corpus tests pass locally."
+    },
+    {
+      "timestamp": "2026-08-11T03:58:00-07:00",
+      "entry": "Ran taste_count_ratchet.py --update against the bound base; the measured count improved from 583 to 580. Committed the lowered baseline as eb0d27ef499de452951e0adcca57160567617d64 and completed focused lint, type, ratchet, ai-review, corpus, and spec-pipeline validation."
     }
   ],
-  "endingCommit": "5b9ea144bd",
+  "endingCommit": "eb0d27ef499de452951e0adcca57160567617d64",
   "nextSteps": [
-    "Push issue 4597 branch and open PR with REST once GitHub API limiter allows mutation.",
-    "Start separate issue 3275 branch after issue 4597 PR is opened."
+    "Parent session may push the local CI-fix commits after confirming the PR lease remains live.",
+    "Rerun PR #4637 checks on the new head; this worktree must not perform remote mutation."
   ]
 }
