@@ -140,7 +140,7 @@
       "evidence": "Five behavioral mutants died and one cosmetic control survived in /home/richard/src/scratch/mut_revthreads.log."
     }
   ],
-  "endingCommit": "332257ae8324d82a309c05b53a9bfd2e782044c3",
+  "endingCommit": "1d40f26128f7ca8830f639b3902441507a5e83c5",
   "nextSteps": [],
   "tasks": [
     {
@@ -159,7 +159,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
-      "head": "332257ae8324d82a309c05b53a9bfd2e782044c3"
+      "head": "1d40f26128f7ca8830f639b3902441507a5e83c5"
     }
   }
 }

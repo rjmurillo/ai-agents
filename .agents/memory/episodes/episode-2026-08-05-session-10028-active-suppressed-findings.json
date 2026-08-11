@@ -137,6 +137,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T19:35:08+00:00",
+      "type": "commit",
+      "content": "Commit: 1d40f26128f7ca8830f639b3902441507a5e83c5",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
     }
@@ -146,7 +159,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 2
   },
   "lessons": []
