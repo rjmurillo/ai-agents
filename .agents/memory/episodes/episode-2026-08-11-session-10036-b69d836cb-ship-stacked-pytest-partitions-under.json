@@ -78,7 +78,8 @@
         "e011",
         "e013",
         "e014",
-        "e015"
+        "e015",
+        "e017"
       ],
       "leads_to": [
         "e008"
@@ -198,6 +199,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fresh CI reached 98 percent in the bulk partition, then the ten-minute job cap cancelled it after 624 seconds. Split root and nested bulk tests into separate all-CPU matrix jobs. Local runtimes were 50.91 and 134.47 seconds, with exact 26,754-test collection parity.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T07:47:14+00:00",
+      "type": "commit",
+      "content": "Commit: efb740a275fe9bba3c5c20bc4cddded5a189283e",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-10036-b69d836cb-ship-stacked-pytest-partitions-under"
     }
@@ -207,8 +232,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 10
+    "commits": 6,
+    "files_changed": 11
   },
   "lessons": []
 }
