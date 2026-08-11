@@ -259,18 +259,20 @@ class TestDispatch:
         assert "pwsh" not in command
         assert not any(arg.endswith(".ps1") for arg in command)
 
-    def test_passes_title_and_default_base(
+    def test_omits_default_base_for_skill_detection(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
         _, command = self._run(mock_root, tmp_path, ["--title", "fix: t"])
         assert command[command.index("--title") + 1] == "fix: t"
-        assert command[command.index("--base") + 1] == "main"
+        assert "--base" not in command
 
     def test_omits_optional_flags_when_unset(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
         _, command = self._run(mock_root, tmp_path, ["--title", "fix: t"])
-        for flag in ("--head", "--body", "--body-file", "--draft", "--skip-validation"):
+        for flag in (
+            "--base", "--head", "--body", "--body-file", "--draft", "--skip-validation",
+        ):
             assert flag not in command
 
     def test_forwards_every_optional_flag(

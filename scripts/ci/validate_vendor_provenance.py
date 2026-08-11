@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, trust-boundary validator remains one portable entry point.
 """Trusted vendor provenance validator (base-branch owned).
 
 Runs from BASE branch via pull_request_target. Validates candidate vendor tree
