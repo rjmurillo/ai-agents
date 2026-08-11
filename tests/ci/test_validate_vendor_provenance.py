@@ -12,13 +12,17 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
 import textwrap
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 SCRIPT = "scripts/ci/validate_vendor_provenance.py"
 
@@ -775,6 +779,92 @@ class TestManifestTreeCoverage:
         assert "Manifest 'files' is not a mapping of path to string" in r.stdout
         assert "Manifest 'executables' is not a list of paths" in r.stdout
         assert "Traceback" not in r.stderr
+
+
+# ── Candidate materialization (export-ignore trap) ──────────────────────────
+
+def _git(
+    cwd: Path, env: dict[str, str], *args: str,
+) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc
+
+
+def _git_env(home: Path) -> dict[str, str]:
+    """Isolate Git from developer and system configuration."""
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "gitconfig").write_text("", encoding="utf-8")
+    env = dict(os.environ)
+    env.update({
+        "GIT_CONFIG_GLOBAL": str(home / "gitconfig"),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "HOME": str(home),
+    })
+    return env
+
+
+def _commit_candidate_repo(repo: Path, env: dict[str, str]) -> str:
+    _git(repo.parent, env, "init", "-q", "-b", "main", str(repo))
+    _git(repo, env, "config", "user.email", "ci@example.com")
+    _git(repo, env, "config", "user.name", "ci")
+    _git(repo, env, "add", "-A")
+    _git(repo, env, "commit", "-qm", "candidate commit")
+    return _git(repo, env, "rev-parse", "HEAD").stdout.strip()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestCandidateMaterialization:
+    """Thread PRRT_kwDOQoWRls6YABvq: candidate `.gitattributes` must not hide files.
+
+    `git archive` honours `export-ignore` from the candidate commit, so a PR
+    could mark a vendor file `export-ignore`, keep it in the tree that merges,
+    and keep it out of the extracted candidate the gate inspects. The workflow
+    materializes through a temporary index instead, the same control
+    `scripts/ci/merge_tree_materialization.py` uses and
+    `tests/ci/test_merge_tree_materialization.py::test_export_ignored_scored_file_is_still_materialized`
+    covers for the merge ratchets.
+    """
+
+    def test_export_ignored_vendor_file_reaches_the_gate(
+        self, tmp_path: Path,
+    ) -> None:
+        """An export-ignored vendor file is materialized and then blocked."""
+        from scripts.ci.merge_tree_materialization import materialize_tree
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        root, vendor = _candidate_with_manifest(repo)
+        hidden_rel = "candidate/v/node_modules/hidden.js"
+        _write(repo / hidden_rel, b"hidden-payload")
+        _write(repo / ".gitattributes", f"{hidden_rel} export-ignore\n".encode())
+        env = _git_env(tmp_path / "git-home")
+        head = _commit_candidate_repo(repo, env)
+
+        archive = tmp_path / "candidate.tar"
+        _git(repo, env, "archive", "--format=tar", "--output", str(archive), head)
+        with tarfile.open(archive) as tar:
+            archived = set(tar.getnames())
+        # Witness the trap: the archive path drops the file the tree keeps.
+        assert "candidate/v/package.json" in archived
+        assert hidden_rel not in archived
+
+        destination = tmp_path / "materialized"
+        assert materialize_tree(repo, head, destination)
+        assert (destination / hidden_rel).is_file()
+
+        r = _run_manifest_case(destination / "candidate")
+        assert r.returncode == 1
+        assert "Files in vendor tree absent from manifest" in r.stdout
+        assert "node_modules/hidden.js" in r.stdout
+        assert vendor.is_dir()
 
 
 # ── CLI2 config authentication (fail closed) ────────────────────────────────
