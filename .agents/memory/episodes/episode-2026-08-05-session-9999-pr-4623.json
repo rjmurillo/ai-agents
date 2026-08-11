@@ -132,7 +132,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-05-session-9999-pr-4623"
     },
     {
@@ -147,15 +149,39 @@
         "e010"
       ],
       "_source_session": "2026-08-05-session-9999-pr-4623"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T16:51:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push validation exposed an undeclared vendored scaffold-path dependency and a stale vendored-install assertion. Declared the dependency, regenerated agent outputs, ratcheted the portability baseline, and passed 24 focused portability, vendored-install, evaluator, and predicate tests in commit 28af171f58.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4623"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T16:53:08+00:00",
+      "type": "commit",
+      "content": "Commit: 28af171f58891bbe293144f5a728805150e2820c",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999-pr-4623"
     }
   ],
   "metrics": {
-    "duration_minutes": 9256,
+    "duration_minutes": 9271,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 16
+    "commits": 5,
+    "files_changed": 19
   },
   "lessons": []
 }
