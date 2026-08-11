@@ -148,6 +148,6 @@
       "detail": "110 tests pass across test_merge_group_readiness.py, test_workflow_trigger_fanout.py, test_frontmatter_gate_paths_filter.py, and test_determine_should_run_from_filters.py. Loading the readiness checks against the origin/main workflow tree produced 27 errors, which is the non-vacuity control the issue asks for."
     }
   ],
-  "endingCommit": "437ac41835c53ca5bd208aa71313ce387d832598",
+  "endingCommit": "df344bc3b31a3230ff0a04d57e43c4f65c78b6eb",
   "nextSteps": []
 }
