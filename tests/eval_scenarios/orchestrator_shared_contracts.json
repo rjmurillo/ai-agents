@@ -1,0 +1,32 @@
+{
+  "scenarios": [
+    {
+      "id": "context-active-phase",
+      "desc": "Continue the active third phase without restarting completed phases",
+      "input": "Phase 1 analyst investigation is complete. Phase 2 architect review is complete. The user already approved option B. Phase 3 implementer work is active but not started. Continue the task without repeating completed work or asking the approval question again.",
+      "expected_verdict": "CONTINUE_ACTIVE_PHASE",
+      "verdict_options": [
+        "CONTINUE_ACTIVE_PHASE",
+        "RESTART_COMPLETED_PHASES",
+        "ASK_AGAIN",
+        "OTHER"
+      ],
+      "expected_reason_contains": "continue, do not restart",
+      "rationale": "Context Maintenance requires resuming the active phase, using recorded answers, and not repeating completed work."
+    },
+    {
+      "id": "bounded-synthesis",
+      "desc": "Bound a large completed synthesis without further delegation",
+      "input": "The analyst returned 2,000 words of findings. The architect confirmed the recommendation. No unresolved conflict remains. Classify how you will synthesize the result for the user.",
+      "expected_verdict": "BOUND_SYNTHESIS",
+      "verdict_options": [
+        "BOUND_SYNTHESIS",
+        "UNBOUNDED_SYNTHESIS",
+        "DELEGATE_MORE",
+        "OTHER"
+      ],
+      "expected_reason_contains": "400 words or 4 paragraphs",
+      "rationale": "Output Bounds requires a completed synthesis to stop at 400 words or four paragraphs and cut the weakest finding first."
+    }
+  ]
+}
