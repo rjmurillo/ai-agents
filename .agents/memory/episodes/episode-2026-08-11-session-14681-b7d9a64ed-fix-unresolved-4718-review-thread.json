@@ -89,6 +89,19 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T14:44:23+00:00",
+      "type": "commit",
+      "content": "Commit: 7325eab3b",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread"
     }
@@ -98,7 +111,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 12
   },
   "lessons": []
