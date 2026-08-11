@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-10035-bfffb0de4-create-report-4718-worktree-changes.json
-qaCommit: 7325eab3b15d7f98cf5f4cfe97e65e1308048a62
+qaCommit: aae9ffddc4ebe5c07bbd89c5f46a8570ad746958
 ---
 # Test Report: PR #4718 GC worktree stale entries
 
 ## Scope
 
 Branch `fix/gc-worktrees-stale-entries`, code tip
-`7325eab3b15d7f98cf5f4cfe97e65e1308048a62`, which includes current main
-at `dc41edcb201baa0bb1da2b94e5ff87b0cff2e921`.
+`aae9ffddc4ebe5c07bbd89c5f46a8570ad746958`, which includes current main
+at `e73a99bc6c2fe95070a6d73294b1b246b047027a`.
 
 The first round closed two review threads. Both were reproduced against real
 git 2.43.0 before the fix and re-broken afterwards. The later reftable finding

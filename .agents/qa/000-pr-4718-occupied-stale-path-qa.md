@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b7d9a64ed-fix-unresolved-4718-review-thread.json
-qaCommit: 7325eab3b15d7f98cf5f4cfe97e65e1308048a62
+qaCommit: aae9ffddc4ebe5c07bbd89c5f46a8570ad746958
 ---
 # PR 4718 occupied stale path fix
 

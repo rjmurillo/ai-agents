@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Occupied-path fix committed at c06345465 and current main merged at 7325eab3b"
+        "Evidence": "Occupied-path fix committed at c06345465 and current main merged at aae9ffddc"
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,10 +134,10 @@
     },
     {
       "task": "Fix unsafe stale advice for occupied paths",
-      "outcome": "Committed c06345465; reproduced the destructive advice, resolved the current-main memory-index conflict at 7325eab3b, and passed 307 focused GC tests plus ruff"
+      "outcome": "Committed c06345465; reproduced the destructive advice, resolved the current-main memory-index conflict, merged current main at aae9ffddc, and passed 307 focused GC tests plus ruff"
     }
   ],
-  "endingCommit": "7325eab3b",
+  "endingCommit": "aae9ffddc",
   "nextSteps": [
     "Push through the live-state mutation guard",
     "Reply to and resolve the occupied-path review thread",
