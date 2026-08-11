@@ -23,6 +23,8 @@ tier: builder
 isolation_required: true
 ---
 
+<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. Issue #4580. -->
+
 # Implementer Agent
 
 > **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
@@ -102,19 +104,19 @@ Read these files in order:
 
 **Fallback rules:**
 
-- **Vendor install or consumer-owned `.agents/`:** If `.agents/` is missing at the repo root, or `.agents/` exists but has neither HANDOFF.md nor AGENT-INSTRUCTIONS.md, you are running from a downstream install without this repo's session scaffold. The directory may be consumer-owned workspace state. Skip the `.agents/` scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. If `.agents/` is missing, note `[INFO] Vendor install: no .agents/ scaffold; proceeding without session-protocol gates`. If `.agents/` exists without either scaffold file, note `[INFO] Vendor install: consumer-owned .agents/ without toolkit scaffold; proceeding without session-protocol gates`. Proceed.
-- If you cannot list `.agents/` or cannot determine whether either scaffold file exists → stop and report `[BLOCKED] Cannot determine .agents scaffold ownership`.
-- If `.agents/` has HANDOFF.md or AGENT-INSTRUCTIONS.md, it is the toolkit session scaffold. Apply the hard stops below.
-- If the toolkit session scaffold exists but `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] Toolkit session scaffold incomplete: HANDOFF.md missing`. Do not proceed.
-- If the toolkit session scaffold exists but `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Toolkit session scaffold incomplete: AGENT-INSTRUCTIONS.md missing`.
-- If the toolkit session scaffold exists but the root `AGENTS.md` is missing → stop and report `[BLOCKED] Toolkit session scaffold incomplete: root AGENTS.md missing`.
-- If `.agents/` exists but `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/` exists but `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
+- **Consumer install (no ai-agents session scaffold):** If `.agents/` is missing, or `.agents/` exists but `.agents/SESSION-PROTOCOL.md` is missing, you are running from a downstream install or a repo whose `.agents/` directory is owned by that consumer. A consumer-owned `.agents/` directory without that file is workspace state, not the ai-agents scaffold, and must not trigger the scaffold gates. Skip the ai-agents session-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. If `.agents/` exists, read files inside it only when the consumer's own docs tell you to. If `.agents/` is missing, note `[INFO] Consumer install: no .agents/ scaffold; proceeding without session-protocol gates`. If `.agents/` exists without SESSION-PROTOCOL.md, note `[INFO] Consumer install: consumer-owned .agents/ without ai-agents session scaffold; proceeding without session-protocol gates`. Proceed. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
+- If you cannot list `.agents/` or cannot determine whether SESSION-PROTOCOL.md exists, stop and report `[BLOCKED] Cannot determine .agents scaffold ownership`.
+- If `.agents/SESSION-PROTOCOL.md` exists, it is the ai-agents session scaffold. Apply the hard stops below.
+- If `.agents/SESSION-PROTOCOL.md` exists but `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context available`. Do not proceed.
+- If `.agents/SESSION-PROTOCOL.md` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing: stop and report `[BLOCKED] Project configuration incomplete`.
+- If `.agents/SESSION-PROTOCOL.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
+- If `.agents/` exists but `.agents/CLAUDE.md` is missing: note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/` exists but `.agents/architecture/` is missing: note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
-**Success definition**: When the toolkit session scaffold exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When `.agents/` is absent or consumer-owned (vendor install), this section is satisfied by the skip note above plus any root docs you read.
+**Success definition**: When `.agents/SESSION-PROTOCOL.md` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
 
-**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The vendor-install carve-out (issues #1908 and #4580) keeps it from being hostile to downstream installs. Those installs ship the agent definition without the in-repo scaffold. The hard stops still fire when the toolkit session scaffold is present but incomplete. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a vendor install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The scaffold carve-out (issues #1908 and #4580) keys on ownership, not on the directory name. `.agents/SESSION-PROTOCOL.md` declares the ai-agents session scaffold. A consumer-owned `.agents/` directory without that file is not the scaffold and must not trigger the scaffold gates. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a consumer install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
 
 ## Plan Validation Protocol
 
