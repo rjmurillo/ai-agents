@@ -171,3 +171,37 @@ def test_outputs_module_has_no_mutable_exception_alias():
                 __import__("pytest").fail(
                     f"Aliased OutputConfigError found as {name}"
                 )
+
+
+# --- Tests for gh_retry_helpers extraction (issue #4597) ---
+
+_GH_RETRY_MODULE_PATH = _REPO_ROOT / "scripts/gh_retry_helpers.py"
+
+
+def test_gh_retry_helpers_stays_below_taste_file_size_cap():
+    """Issue #4597: extracted module must not itself exceed the 500-line cap."""
+    source = _GH_RETRY_MODULE_PATH.read_text(encoding="utf-8")
+    assert len(source.splitlines()) <= 500
+
+
+def test_gh_retry_helpers_are_extracted_from_ci_entrypoint():
+    """Issue #4597: GH retry/invoke helpers live in a separate module."""
+    entrypoint_source = _SCRIPT_PATH.read_text(encoding="utf-8")
+    gh_retry_source = _GH_RETRY_MODULE_PATH.read_text(encoding="utf-8")
+
+    # The entrypoint imports from the module rather than defining inline
+    assert "from gh_retry_helpers import" in entrypoint_source
+    assert "def run_gh(" not in entrypoint_source
+    assert "def _invoke_gh_once(" not in entrypoint_source
+    assert "def _retry_delay(" not in entrypoint_source
+
+    # The extracted module defines these functions
+    assert "def run_gh(" in gh_retry_source
+    assert "def _invoke_gh_once(" in gh_retry_source
+    assert "def _retry_delay(" in gh_retry_source
+
+
+def test_ci_entrypoint_under_500_lines():
+    """Issue #4597: the entrypoint must stay at or below the 500-line taste-lint cap."""
+    source = _SCRIPT_PATH.read_text(encoding="utf-8")
+    assert len(source.splitlines()) <= 500
