@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-issue-4842-repository-name-dots.json
-qaCommit: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847
+qaCommit: 652892ea0300b62ffc6e54c74d5edfc0bf8fd8b5
 ---
 
 # Issue 4842 QA
@@ -19,6 +19,9 @@ repositories whose names contain dots. The one-line parser fix is merited.
 - Ruff passed on the canonical source and test file.
 - Security scan found 0 CWE-78 findings in 2 files.
 - Plugin library mirror check passed.
+- Re-run on the merge commit that brought in current main: `tests/test_github_core.py`
+  passed 251 tests and Ruff passed on the canonical source, both plugin mirrors, and
+  the test file.
 
 The file-level quality scorer reported the existing 829-line module below its
 cohesion threshold. This change adds no function, branch, or dependency.

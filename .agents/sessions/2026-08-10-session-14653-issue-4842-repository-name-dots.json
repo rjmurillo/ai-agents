@@ -147,8 +147,12 @@
     {
       "action": "Addressed PR 4856 hostname-boundary review",
       "outcome": "Confirmed lookalike hosts were accepted, anchored parsing to GitHub remote forms, and passed 251 tests plus a 2-case mutation control."
+    },
+    {
+      "action": "Merged current main into the branch and resolved the session-log filename collision",
+      "outcome": "Kept main's 2026-08-10-session-14653.json byte for byte, moved this branch's log to 2026-08-10-session-14653-issue-4842-repository-name-dots.json, and re-ran QA on the merged tree with 251 tests passing and Ruff clean."
     }
   ],
-  "endingCommit": "78ca60b191b9ae71ada23b1b05694f9b6e1cc847",
+  "endingCommit": "652892ea0300b62ffc6e54c74d5edfc0bf8fd8b5",
   "nextSteps": []
 }

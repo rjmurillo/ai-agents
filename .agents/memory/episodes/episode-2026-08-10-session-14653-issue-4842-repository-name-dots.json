@@ -1,0 +1,127 @@
+{
+  "id": "episode-2026-08-10-session-14653-issue-4842-repository-name-dots",
+  "session": "2026-08-10-session-14653-issue-4842-repository-name-dots",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own issue #4842 end to end: reproduce repository-name truncation, implement the narrow fix with tests and generated mirrors, validate, create PR, and pursue closure.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked issue ownership and full discourse",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced and assessed issue 4842",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed repository-name parsing",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the change",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main and revalidated",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR 4856 hostname-boundary review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main into the branch and resolved the session-log filename collision",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T23:59:23+00:00",
+      "type": "commit",
+      "content": "Commit: 78ca60b191b9ae71ada23b1b05694f9b6e1cc847",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T01:32:45+00:00",
+      "type": "commit",
+      "content": "Commit: 652892ea0300b62ffc6e54c74d5edfc0bf8fd8b5",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14653-issue-4842-repository-name-dots"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 7
+  },
+  "lessons": []
+}
