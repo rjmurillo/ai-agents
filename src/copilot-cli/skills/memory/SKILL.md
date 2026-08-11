@@ -274,7 +274,7 @@ Invoke via the portable root form:
 | `memory-reflexion` | Tier 2 episode extraction (ADR-063) |
 | `memory-gate` | Memory-First Gate and Chesterton's Fence protocol (ADR-063) |
 | `memory-maintenance` | Health, token count, size, benchmark, density (ADR-063) |
-| `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy (ADR-063) |
+| `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |

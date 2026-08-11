@@ -90,6 +90,8 @@ def test_consolidation_contract() -> None:
 def test_discovery_index_and_output_contract() -> None:
     for phrase in (
         "top-level and nested memory paths",
+        "ranked search results prioritize reads; they are not a complete inventory",
+        "require a complete inventory from serena list-memories",
         "direct top-level `ls` cannot see nested memories",
         "*-index.md",
         "bounded stale-index audit",
@@ -121,3 +123,7 @@ def test_discovery_index_and_output_contract() -> None:
             "- `consolidate memory` for a periodic durable/dated review and "
             "index tidy"
         ) in router
+        assert (
+            "| `memory-consolidate` | Periodic durable/dated consolidation, "
+            "merge, index tidy (ADR-063) |"
+        ) not in router

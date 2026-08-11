@@ -38,8 +38,9 @@ Use this skill when the user says:
 
 Each tier is tried before falling back to the next one:
 
-1. **Memory skills first.** If available, use memory search to rank and list
-   topic files by keyword.
+1. **Memory skills first.** If available, use memory search to rank topic
+   files by keyword. Ranked search results prioritize reads; they are not a
+   complete inventory.
 2. **Serena second.** Use Serena's list-memories and read-memory capabilities
    only after confirming Serena is active on the repository being
    consolidated. If the active project is unknown or different, use direct
@@ -53,6 +54,9 @@ Each tier is tried before falling back to the next one:
 
 These three tiers govern discovery only: how you find out which memory files
 exist.
+Before any write, require a complete inventory from Serena list-memories or,
+when Serena is unavailable, recursive direct directory access. If neither can
+produce a complete inventory, stop after Phase 1.
 
 ## Process
 
@@ -63,11 +67,12 @@ consolidate.
 
 ### Phase 1: Take Stock
 
-1. List the top-level memory files (memory search, Serena's list-memories
-   capability, or direct `ls .serena/memories` per the Tool Order above) and
-   read `memory-index.md` in full. Serena list-memories returns top-level and
-   nested memory paths. Use those paths to read each relevant `*-index.md` and
-   skim the atomic memories themselves
+1. Use memory search to prioritize likely topics when available, then obtain
+   the complete inventory with Serena's list-memories capability or recursive
+   direct directory access per the Tool Order above. Read `memory-index.md` in
+   full. Serena list-memories returns top-level and nested memory paths. Use
+   those paths to read each relevant `*-index.md` and skim the atomic memories
+   themselves
    (Serena's read-memory capability or direct file reads under
    `.serena/memories/topic/`). A direct top-level `ls` cannot see nested
    memories, so enumerate each topic directory when using the filesystem
