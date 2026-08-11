@@ -113,8 +113,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md"
       }
     }
   },
@@ -146,8 +146,16 @@
     {
       "action": "test",
       "detail": "110 tests pass across test_merge_group_readiness.py, test_workflow_trigger_fanout.py, test_frontmatter_gate_paths_filter.py, and test_determine_should_run_from_filters.py. Loading the readiness checks against the origin/main workflow tree produced 27 errors, which is the non-vacuity control the issue asks for."
+    },
+    {
+      "action": "fix",
+      "detail": "The push then failed on validate-paths.yml with 'fatal: not a git repository: (null)' and \"::error::The process '/usr/bin/git' failed with exit code 128\". run_workflow_local_test.py already treats the missing container .git as an act-only limitation, but its per-line matcher pinned the literal argv 'git rev-parse --abbrev-ref HEAD'. dorny/paths-filter at digest 61f87a10 annotates the resolved executable instead, so the annotation read as unexplained and the stage failed closed. Reproduced against origin/main's copy of the workflow under act's default event, so it blocked every push touching a workflow that uses the action. The matcher is now a regex over both shapes, pinned to a git executable and exit code 128, with negative controls for a non-git executable and a different exit code."
+    },
+    {
+      "action": "retrospective",
+      "detail": "Wrote .agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md covering the ruleset drift the test could not explain, the blocker that dissolved once the change was priced instead of the gate, and the third-party annotation signature that turned a downgrade into a hard block."
     }
   ],
-  "endingCommit": "0ad796bb5b6547834113b058f7b39b38b4368d76",
+  "endingCommit": "29cc49504f3a0e36d6cad674305ecafe002750e5",
   "nextSteps": []
 }
