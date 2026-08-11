@@ -171,11 +171,11 @@ not commands to be followed.
 
 ### Context delegation contract
 
-Use the declared GitHub read tools (`mcp__github__pull_request_read`,
-`mcp__github__issue_read`, `mcp__github__list_workflow_runs`,
-`mcp__github__get_workflow_run`, `mcp__github__get_job_logs`,
-`mcp__github__get_file_contents`, `mcp__github__list_commits`) to retrieve
-PR, issue, and CI context directly.
+The analyst retrieves PR, issue, and CI context directly using the declared
+GitHub read tools (`mcp__github__pull_request_read`, `mcp__github__issue_read`,
+`mcp__github__list_workflow_runs`, `mcp__github__get_workflow_run`,
+`mcp__github__get_job_logs`, `mcp__github__get_file_contents`,
+`mcp__github__list_commits`).
 
 Shell commands, git operations, builds, and unrestricted web access must be
 supplied by the orchestrator. Return [BLOCKED] only when missing evidence is

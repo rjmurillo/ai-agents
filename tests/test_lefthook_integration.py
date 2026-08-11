@@ -588,6 +588,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "handoff-protection",
         "session-policy",
         "staged-dash-policy",
+        "root-scratch-policy",
         "action-pin-policy",
         "markdown-autofix",
         "markdown-check",
@@ -10458,3 +10459,106 @@ def test_semgrep_command_excludes_python37_compat_family() -> None:
     assert any(
         "python.lang.compatibility.python37" in v for v in exclude_values
     ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
+
+
+_ROOT_SCRATCH_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
+    ("investigation_dump", ["pr4147_threads.json"], ["pr4147_threads.json"]),
+    ("timestamped_report", ["report.20260804.000717.json"], ["report.20260804.000717.json"]),
+    ("loose_markdown", ["adr091.md"], ["adr091.md"]),
+    ("root_file_in_head", ["README.md"], []),
+    ("allowlisted_new_root_file", ["pyproject.toml"], []),
+    ("root_dotfile", [".actrc"], []),
+    ("nested_path", [".agents/sessions/2026-08-04-session-1.json"], []),
+    ("deeply_nested_path", ["scripts/validation/report.json"], []),
+    ("no_paths", [], []),
+)
+
+
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [pytest.param(paths, expected, id=name) for name, paths, expected in _ROOT_SCRATCH_CASES],
+)
+def test_root_scratch_detection(paths: list[str], expected: list[str]) -> None:
+    assert policy._root_scratch_violations(paths, ["README.md", "AGENTS.md"]) == expected
+
+
+def test_root_scratch_violations_are_sorted_and_deduplicated() -> None:
+    violations = policy._root_scratch_violations(
+        ["z.json", "a.json", "z.json"],
+        ["README.md"],
+    )
+
+    assert violations == ["a.json", "z.json"]
+
+
+def test_is_repo_root_path_rejects_nested_and_empty() -> None:
+    assert policy._is_repo_root_path("adr091.md") is True
+    assert policy._is_repo_root_path("docs/adr091.md") is False
+    assert policy._is_repo_root_path("") is False
+
+
+def test_root_scratch_policy_blocks_a_newly_staged_root_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "readme\n")
+    _write_file(repo, "pr4147_threads.json", "{}\n")
+    _git(repo, "add", "pr4147_threads.json")
+
+    assert policy.check_root_scratch(["pr4147_threads.json"], repo) == 1
+    error = capsys.readouterr().err
+    assert "pr4147_threads.json" in error
+    assert "ROOT_SCRATCH_ALLOWLIST" in error
+
+
+def test_root_scratch_policy_allows_edits_to_root_files_already_in_head(
+    tmp_path: Path,
+) -> None:
+    """Identity in HEAD is the primary allowance; no allowlist entry needed."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "docs-of-record.md", "v1\n")
+    _write_file(repo, "docs-of-record.md", "v2\n")
+    _git(repo, "add", "docs-of-record.md")
+
+    assert policy.check_root_scratch(["docs-of-record.md"], repo) == 0
+
+
+def test_root_scratch_policy_allows_dotfiles_and_nested_paths(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "readme\n")
+    _write_file(repo, ".newrc", "config\n")
+    _write_file(repo, "docs/report.json", "{}\n")
+    _git(repo, "add", "-f", ".newrc", "docs/report.json")
+
+    assert policy.check_root_scratch([".newrc", "docs/report.json"], repo) == 0
+
+
+def test_root_scratch_policy_rejects_an_unsafe_path(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "readme\n")
+
+    assert policy.check_root_scratch(["../outside.json"], repo) == 2
+
+
+def test_root_scratch_policy_fails_closed_when_head_is_unreadable(tmp_path: Path) -> None:
+    """An unborn HEAD yields no known-root set, so the gate gets stricter."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write_file(repo, "scratch.json", "{}\n")
+    _git(repo, "add", "scratch.json")
+
+    assert policy._head_root_entries(repo) == []
+    assert policy.check_root_scratch(["scratch.json"], repo) == 1
+
+
+def test_root_scratch_policy_is_wired_into_pre_commit() -> None:
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    job = _job_map(config, "pre-commit")["root-scratch-policy"]
+
+    assert str(job["run"]).endswith("git_hook_policy.py root-scratch {staged_files}")
+    assert job["skip"] == ["merge"]
