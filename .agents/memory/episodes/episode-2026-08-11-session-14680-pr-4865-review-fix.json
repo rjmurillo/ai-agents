@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-11-session-14654",
-  "session": "2026-08-11-session-14654",
+  "id": "episode-2026-08-11-session-14680-pr-4865-review-fix",
+  "session": "2026-08-11-session-14680-pr-4865-review-fix",
   "timestamp": "2026-08-11T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e002",
@@ -29,7 +29,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e003",
@@ -40,7 +40,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e004",
@@ -51,7 +51,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e005",
@@ -62,7 +62,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e006",
@@ -73,7 +73,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e007",
@@ -84,7 +84,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e008",
@@ -95,7 +95,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e009",
@@ -108,7 +108,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e010",
@@ -121,7 +121,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e011",
@@ -131,8 +131,10 @@
       "caused_by": [
         "e012"
       ],
-      "leads_to": [],
-      "_source_session": "2026-08-11-session-14654"
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e012",
@@ -154,7 +156,7 @@
       "leads_to": [
         "e011"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     },
     {
       "id": "e013",
@@ -167,7 +169,44 @@
         "e009",
         "e010"
       ],
-      "_source_session": "2026-08-11-session-14654"
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T01:57:52+00:00",
+      "type": "commit",
+      "content": "Commit: 0a86466bd46904eb89897cba854638ed3a226fd3",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T01:30:55+00:00",
+      "type": "commit",
+      "content": "Commit: a94c0704a9",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T02:14:57+00:00",
+      "type": "commit",
+      "content": "Commit: 3bab13fed50f5746cae70d974e302dcedae3d7fa",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14680-pr-4865-review-fix"
     }
   ],
   "metrics": {
@@ -175,8 +214,8 @@
     "tool_calls": null,
     "errors": 2,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 8
+    "commits": 6,
+    "files_changed": 17
   },
   "lessons": []
 }
