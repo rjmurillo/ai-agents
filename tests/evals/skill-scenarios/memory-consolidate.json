@@ -7,6 +7,7 @@
       "desc": "User asks to consolidate memory using the skill's own trigger phrase, with no technique named",
       "input": "It has been months since anyone reviewed our memory files, and I want a future session to orient fast without re-asking me things. Please consolidate Serena memory. Answer in 5 short bullets describing your plan, then close with the pass's usual closing report. Do not modify any files.",
       "expected_signals": [
+        "human confirmation naming exact path before delete",
         "delete",
         "git",
         "AMBIGUOUS-DATE",
@@ -14,7 +15,7 @@
         "index line count"
       ],
       "expected_gate": "memory-consolidate-pass",
-      "rationale": "The input carries only the skill's documented Serena-specific trigger phrase (`consolidate Serena memory`) and names no technique, so any durable-versus-dated split, richer-path merge, or closing report in the response is attributable to the skill, not to echoing the prompt. The skill should delete confirmed duplicates in one pass, rely on git for recovery, flag unresolved dates as `AMBIGUOUS-DATE`, and report the scanned-file and index counts."
+      "rationale": "The input carries only the skill's documented Serena-specific trigger phrase (`consolidate Serena memory`) and names no technique, so any durable-versus-dated split, richer-path merge, or closing report in the response is attributable to the skill, not to echoing the prompt. The skill must request human confirmation naming the exact path before any deletion, rely on git for recovery, flag unresolved dates as `AMBIGUOUS-DATE`, and report the scanned-file and index counts."
     },
     {
       "id": "S2",
@@ -29,6 +30,7 @@
       "desc": "Seeded edge case exercises duplicate deletion and ambiguous dates",
       "input": "Plan a memory consolidation for these snapshots without modifying files. people/alex.md records a current communication preference. people/alex-old.md repeats that preference with less detail. projects/launch.md says only `next week` with no source stamp or recoverable date. Use the normal closing report.",
       "expected_signals": [
+        "human confirmation naming exact path before delete",
         "delete",
         "git",
         "AMBIGUOUS-DATE",
@@ -36,7 +38,7 @@
         "unresolved"
       ],
       "expected_gate": "memory-consolidate-edge-pass",
-      "rationale": "This fixture forces three branches from the skill: merge unique facts and delete the confirmed duplicate with git as recovery, flag the unanchored relative date rather than guessing, and report changed-file counts plus unresolved flags."
+      "rationale": "This fixture forces three branches from the skill: request human confirmation naming the exact path before deletion, merge unique facts and delete the confirmed duplicate with git as recovery, flag the unanchored relative date rather than guessing, and report changed-file counts plus unresolved flags."
     },
     {
       "id": "S4",
