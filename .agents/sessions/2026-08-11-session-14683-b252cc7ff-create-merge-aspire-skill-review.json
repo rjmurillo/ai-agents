@@ -146,6 +146,10 @@
     {
       "action": "Addressed Copilot review threads",
       "result": "Added security-critical eval handling, sanitized report flow, redaction transform semantics, test-location clarity, corrected mappings, and consistent N/A values."
+    },
+    {
+      "action": "Committed final bot-review QA evidence",
+      "result": "Commit 119a2603ec refreshed session 14681 and the shipping QA report."
     }
   ],
   "endingCommit": "3e97effb17",

@@ -27,6 +27,7 @@ Validate the specification branch after merging current `origin/main`.
 | Bot review fixes | Full pre-PR validation passed |
 | Security review | Eval report sanitization design approved |
 | Final full pre-PR validation | PASS after all Copilot review fixes |
+| Final evidence split | QA bindings committed in policy-sized groups |
 
 ## Verdict
 
