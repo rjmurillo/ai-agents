@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-12-issue-4904-retrospective-phase-contract.md"
+        "Evidence": ".agents/qa/2026-08-12-pr-4925-issue-4904-retrospective-phase-contract.md"
       },
       "changesCommitted": {
         "level": "MUST",
