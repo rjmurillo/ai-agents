@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: f70d63cf34)"
+        "Evidence": "All changes committed (HEAD: 6fbb412326)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,7 +134,7 @@
     },
     {
       "action": "Pinned the local python-tests job to four workers.",
-      "outcome": "All partitions remain enabled; direct and CI calls retain auto."
+      "outcome": "The local cap uses up to four process-visible CPUs; direct and CI calls retain auto."
     },
     {
       "action": "Consumed the worker override before child pytest execution.",
@@ -145,7 +145,7 @@
       "outcome": "Full hook suite and all review gates passed."
     }
   ],
-  "endingCommit": "f70d63cf34",
+  "endingCommit": "6fbb412326",
   "nextSteps": [
     "Merge this PR, then push and merge #4923.",
     "Retry the blocked #4871 branch after both prerequisites land."
