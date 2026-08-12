@@ -248,9 +248,9 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
 
 
 def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
-    value = stanza.get("excludeFilenames")
-    if value is None:
+    if "excludeFilenames" not in stanza:
         return []
+    value = stanza["excludeFilenames"]
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         return [
             f"`artifacts.{name}.excludeFilenames`: must be a list of strings"
