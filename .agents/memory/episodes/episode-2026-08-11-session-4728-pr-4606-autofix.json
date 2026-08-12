@@ -127,6 +127,19 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-4728-pr-4606-autofix"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-12T00:00:21+00:00",
+      "type": "commit",
+      "content": "Commit: a94d7cd2a797249dd3e68326b8f14d9d2a79bd74",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-4728-pr-4606-autofix"
     }
@@ -136,7 +149,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 2
   },
   "lessons": []
