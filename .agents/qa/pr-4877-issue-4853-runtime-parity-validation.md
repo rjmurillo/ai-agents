@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 1c1941c7db5d7c067d5610ab2b31d8413d7e5386
+qaCommit: 1794672d6898dc458e765f7679c4b61fa90ba0a4
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,9 @@ machine.
 ## Deterministic evidence
 
 - `uv run ruff check` on both modules and the test file: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py -q`: 16 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 27 passed.
+- `uv run pytest tests/eval -q`: 1960 passed, 4 skipped.
+- `uv run ruff check scripts/eval tests/eval`: All checks passed.
 - Coverage: 89 percent across `_runtime_parity.py` and
   `eval_runtime_parity.py`.
 - `eval_runtime_parity.py --dry-run`: four fixtures and both controls loaded.

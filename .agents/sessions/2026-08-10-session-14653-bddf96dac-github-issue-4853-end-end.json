@@ -157,7 +157,7 @@
       "result": "PR description passed. Validate PR required a PR-numbered QA report, so the report was renamed."
     }
   ],
-  "endingCommit": "1c1941c7db5d7c067d5610ab2b31d8413d7e5386",
+  "endingCommit": "1794672d6898dc458e765f7679c4b61fa90ba0a4",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
