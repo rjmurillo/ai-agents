@@ -60,9 +60,21 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refresh inherited QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     }
   ],

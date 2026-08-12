@@ -139,6 +139,10 @@
     {
       "task": "Run independent review",
       "outcome": "A separate GPT-5.6 Sol artifact-only review returned CLEAN"
+    },
+    {
+      "task": "Refresh inherited QA evidence",
+      "outcome": "Pinned the prior issue QA report to the post-merge commit so session validation excludes later documentation-only commits"
     }
   ],
   "endingCommit": "e3be5c7ae6",
