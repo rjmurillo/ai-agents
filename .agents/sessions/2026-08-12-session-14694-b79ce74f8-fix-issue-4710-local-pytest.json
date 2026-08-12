@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14694,
+    "date": "2026-08-12",
+    "branch": "fix/4710-local-pytest-workers",
+    "startingCommit": "463f88999",
+    "objective": "Fix issue 4710 local pytest worker contention"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions were initialized in the parent workflow."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tool contract loaded before the parent investigation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub, session, analysis, review, security, and memory skills were loaded."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first requirements applied."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root, scripts, tests, and security constraints loaded before edits."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched pytest worker and pre-push timeout memories before changing policy."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4710-local-pytest-workers"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4710-local-pytest-workers"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified clean external worktree before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "463f88999"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Changed Markdown paths are under .agents and .serena, both excluded by repository markdownlint configuration."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4932-issue-4710-local-pytest-workers-validation.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed through e35bb589a; only closing artifacts remain."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed after completion."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue, PR, and parent workflow task state updated."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue #4823 and #4854 decisions before changing xdist policy.",
+      "outcome": "Preserved CI auto scaling and narrowed the correction to local pre-push."
+    },
+    {
+      "action": "Measured repeated local pre-push failures.",
+      "outcome": "A 48-thread host produced 9 then 33 subprocess timeouts while isolated nodes passed."
+    },
+    {
+      "action": "Capped local python-tests at up to four process-visible CPUs.",
+      "outcome": "The local cap uses up to four process-visible CPUs; direct and CI calls retain auto."
+    },
+    {
+      "action": "Consumed the worker override before child pytest execution.",
+      "outcome": "Policy tests inside pytest observe the default environment."
+    },
+    {
+      "action": "Ran full, targeted, security, and adversarial gates.",
+      "outcome": "Full hook suite and all review gates passed."
+    },
+    {
+      "action": "Corrected final QA and episode wording after review.",
+      "outcome": "Aggregate counts and CPU-aware cap wording now match the implementation."
+    }
+  ],
+  "endingCommit": "0044d3410e",
+  "nextSteps": [
+    "Merge this PR, then push and merge #4923.",
+    "Retry the blocked #4871 branch after both prerequisites land."
+  ]
+}
