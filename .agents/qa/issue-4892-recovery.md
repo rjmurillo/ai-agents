@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892.json
-qaCommit: 1f51b96f9c11610f995f583605e503c956d9a5e4
+qaCommit: e3be5c7ae623f6d109ca23403673b39e6bd893fa
 ---
 
 # Issue 4892 Recovery QA

@@ -3,7 +3,7 @@
   "session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Recover validate and ship issue 4892",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Recover prior issue 4892 work",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Reproduce the current claim",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Validate the recovered fix",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     },
     {
@@ -40,6 +46,22 @@
       "type": "milestone",
       "content": "Run independent review",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T15:19:49+00:00",
+      "type": "commit",
+      "content": "Commit: e3be5c7ae6",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     }
@@ -49,7 +71,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
