@@ -6437,9 +6437,8 @@ def parse_pytest_worker_cap(raw: str) -> int:
 
 def _visible_cpu_count() -> int:
     """Return CPUs available to this process, with a Python 3.10 fallback."""
-    process_counter = getattr(os, "process_cpu_count", None)
-    if process_counter is not None:
-        process_count = process_counter()
+    if sys.version_info >= (3, 13):
+        process_count = os.process_cpu_count()
         if process_count:
             return process_count
     affinity_reader = getattr(os, "sched_getaffinity", None)

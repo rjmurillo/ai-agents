@@ -282,6 +282,7 @@ def test_visible_cpu_count_falls_back_to_one(
 def test_visible_cpu_count_uses_sched_affinity_on_python_310(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(sys, "version_info", (3, 10))
     monkeypatch.delattr(os, "process_cpu_count", raising=False)
     monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1}, raising=False)
     monkeypatch.setattr(os, "cpu_count", lambda: 64)
