@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes",
+  "session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Consolidate Serena memories and tidy indexes",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
