@@ -93,22 +93,6 @@ Apply these rules when engineering principles appear to disagree.
 - If behavior must change, keep the behavior change distinct from structural cleanup where practical.
 - Use small, verified transformations instead of big-bang rewrites.
 
-## Default Work Workflow
-
-For every non-trivial task:
-
-1. Understand the requested behavior and the affected area.
-2. Identify the current safety net: tests, types, assertions, logs, examples, or manual checks.
-3. If the area is risky or unclear, characterize current behavior before redesigning it.
-4. Identify the simplest change that preserves or improves architecture.
-5. Make preparatory refactors only when they make the requested change safer or clearer.
-6. Implement the behavior or structural change in small reviewable steps.
-7. Add or update proportionate tests and checks.
-8. Review the diff for duplication, naming, boundary leaks, hidden assumptions, and operational risk.
-9. Stop when the requested change is done and further cleanup would be speculative.
-
-Do not silently broaden scope beyond the task.
-
 ## Forbidden Patterns
 
 Do not generate these patterns unless explicitly required and justified in the PR description. When you encounter these patterns in code you are not actively touching, leave them alone unless removing them is part of the task; track separately rather than expand scope.
