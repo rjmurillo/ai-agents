@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end",
+  "session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Own GitHub issue 4892 end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage issue 4892 and its linked discourse",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce scratch target leakage and masked failure output",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement the root-cause fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add regression coverage and validate",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T06:20:36+00:00",
+      "type": "commit",
+      "content": "Commit: ab8cd906f5c387af0a526c25415b4bb5fef3b19d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
