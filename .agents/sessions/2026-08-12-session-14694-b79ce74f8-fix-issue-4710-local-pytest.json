@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items verified and validation passed"
+        "Evidence": "All MUST items completed with evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -89,27 +89,27 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+        "Evidence": "NOT LINTED: no changed markdown files"
       },
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4710-local-pytest-workers-validation.md"
+        "Evidence": ".agents/qa/pr-4932-issue-4710-local-pytest-workers-validation.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 353e8c578d)"
+        "Evidence": "Implementation committed through e35bb589a; only closing artifacts remain."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed"
+        "Evidence": "scripts/validate_session_json.py passed after completion."
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Issue, PR, and parent workflow task state updated."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -149,7 +149,7 @@
       "outcome": "Aggregate counts and CPU-aware cap wording now match the implementation."
     }
   ],
-  "endingCommit": "353e8c578d",
+  "endingCommit": "e35bb589aa",
   "nextSteps": [
     "Merge this PR, then push and merge #4923.",
     "Retry the blocked #4871 branch after both prerequisites land."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest.json
-qaCommit: 353e8c578d8cf26fb805601a472c86ea4d9abe83
+qaCommit: e35bb589aab9ec81396c2498f17225f78dccf0f2
 ---
 
 # Issue 4710 local pytest worker validation
