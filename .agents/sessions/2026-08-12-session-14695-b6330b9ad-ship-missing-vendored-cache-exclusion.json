@@ -120,14 +120,17 @@
   },
   "workLog": [
     {
+      "timestamp": "2026-08-12T14:14:04Z",
       "action": "Verified PR #4935 merged before the final review fix was pushed.",
       "outcome": "Merged main contains the cache-free helper and both consumer tests, but not direct coverage for every ignore pattern."
     },
     {
+      "timestamp": "2026-08-12T15:02:51Z",
       "action": "Created a focused branch from current origin/main.",
       "outcome": "The branch adds one helper regression test and no runtime changes."
     },
     {
+      "timestamp": "2026-08-12T15:09:09Z",
       "action": "Ran focused QA and adversarial review.",
       "outcome": "20 tests passed, 1 real-CLI test skipped, Ruff passed, and GPT-5.6 Sol returned PASS."
     }
