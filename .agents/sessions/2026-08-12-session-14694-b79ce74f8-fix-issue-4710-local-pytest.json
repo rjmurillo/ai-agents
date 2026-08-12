@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 6fbb412326)"
+        "Evidence": "All changes committed (HEAD: 353e8c578d)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -149,7 +149,7 @@
       "outcome": "Aggregate counts and CPU-aware cap wording now match the implementation."
     }
   ],
-  "endingCommit": "6fbb412326",
+  "endingCommit": "353e8c578d",
   "nextSteps": [
     "Merge this PR, then push and merge #4923.",
     "Retry the blocked #4871 branch after both prerequisites land."
