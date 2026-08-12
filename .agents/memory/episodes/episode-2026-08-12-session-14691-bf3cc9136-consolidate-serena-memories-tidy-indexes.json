@@ -3,17 +3,76 @@
   "session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Consolidate Serena memories and tidy indexes",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inventoried Serena memory and enforced size gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created a feature branch and committed the five incoming memory files.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed duplicate, stale, thin, and index candidates.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored all unconfirmed consolidation edits after adversarial review.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T06:01:42+00:00",
+      "type": "commit",
+      "content": "Commit: 532de59949",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 2
+    "commits": 1,
+    "files_changed": 7
   },
   "lessons": []
 }
