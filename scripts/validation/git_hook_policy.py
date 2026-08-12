@@ -6438,6 +6438,12 @@ def parse_pytest_worker_cap(raw: str) -> int:
     return cap
 
 
+def _visible_cpu_count() -> int:
+    """Return CPUs available to this process, with a Python 3.10 fallback."""
+    counter = getattr(os, "process_cpu_count", os.cpu_count)
+    return counter() or 1
+
+
 def _pytest_parallel_flags() -> list[str]:
     """Return the xdist argv fragment for the bulk pre-push partition."""
     worker_override = os.environ.get(PYTEST_WORKERS_ENV)
@@ -6445,8 +6451,7 @@ def _pytest_parallel_flags() -> list[str]:
     cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
     if not (worker_override and worker_override.strip()) and cap_raw and cap_raw.strip():
         cap = parse_pytest_worker_cap(cap_raw)
-        visible_cpus = os.cpu_count() or cap
-        workers = str(min(cap, visible_cpus))
+        workers = str(min(cap, _visible_cpu_count()))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 

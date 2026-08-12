@@ -250,12 +250,23 @@ def test_local_worker_cap_never_exceeds_visible_cpus(
 ) -> None:
     monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
-    monkeypatch.setattr(os, "cpu_count", lambda: visible_cpus)
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: visible_cpus)
 
     bulk, mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == expected
     assert _flag_value(mutation, _WORKER_FLAGS) == expected
+
+
+@pytest.mark.parametrize(("visible_cpus", "expected"), [(None, 1), (2, 2)])
+def test_visible_cpu_count_uses_process_affinity(
+    monkeypatch: pytest.MonkeyPatch,
+    visible_cpus: int | None,
+    expected: int,
+) -> None:
+    monkeypatch.setattr(os, "process_cpu_count", lambda: visible_cpus)
+
+    assert policy._visible_cpu_count() == expected
 
 
 def test_explicit_worker_override_wins_over_local_cap(
