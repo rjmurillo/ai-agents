@@ -155,9 +155,13 @@
     {
       "action": "Created draft PR 4877 and checked CI",
       "result": "PR description passed. Validate PR required a PR-numbered QA report, so the report was renamed."
+    },
+    {
+      "action": "Closed the final three review findings",
+      "result": "Exposed each harness question capability, rejected malformed JSONL as an external failure, split credentials by harness, and passed 1975 eval tests with 4 skipped."
     }
   ],
-  "endingCommit": "aa1d1635c096d11a42bd844fdc42e5a11baaca7b",
+  "endingCommit": "b78da6a33a613c57ca6d814edf7ad2de03a6cd96",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]

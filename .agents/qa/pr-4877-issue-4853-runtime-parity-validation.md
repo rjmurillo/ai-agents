@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: aa1d1635c096d11a42bd844fdc42e5a11baaca7b
+qaCommit: b78da6a33a613c57ca6d814edf7ad2de03a6cd96
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,8 +22,16 @@ machine.
 ## Deterministic evidence
 
 - `uv run ruff check` on both modules and the test file: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 38 passed.
-- `uv run pytest tests/eval -q`: 1971 passed, 4 skipped.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 42 passed.
+- `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
+- Malformed JSONL text and non-object JSON now exit 3 and record an external
+  runtime failure.
+- Claude receives only Anthropic credentials. Copilot receives only GitHub
+  credentials.
+- The consequential-choice fixture exposes `AskUserQuestion` to Claude and
+  `ask_user` to Copilot. Copilot no longer receives `--no-ask-user` for that
+  fixture, so the report can record either a structured event or the text
+  fallback.
 - Live CLI probe of the shipped `build_argv`: Copilot exits 0 in 10.8s and answers in prose with `--no-ask-user`, with the flag removed, and with `--available-tools=ask_user --allow-tool=ask_user`. No question tool call in any run. Claude reaches the auth check instead of failing agent resolution, which is the evidence the agent rename works.
 - `uv run ruff check scripts/eval tests/eval`: All checks passed.
 - Coverage: 89 percent across `_runtime_parity.py` and
