@@ -50,3 +50,19 @@ module path, with the original exception preserved as `__cause__`. Before
 that, a missing file produced a bare `FileNotFoundError` while a missing
 symbol produced a `RuntimeError`, so workflow logs told two different stories
 for the same class of failure.
+
+## Worker count refinement
+
+Issue #4823 correctly uses `-n auto` for isolated CI jobs. The local pre-push
+suite is not isolated. Lefthook runs `python-tests` beside other CPU-heavy jobs
+in one parallel group.
+
+On 2026-08-12, three normal pushes on a 48-thread host produced 9, then 33
+subprocess timeout failures. The same nodes passed immediately when isolated.
+The local hook now sets `AI_AGENTS_PYTEST_WORKERS=4`. CI and direct calls keep
+the `auto` default. `run_pytest` consumes the control variable before starting
+child pytest processes, so policy tests observe an ordinary environment.
+
+This is not a reduction in coverage. Every partition still runs. The cap
+reduces local scheduler contention while preserving the suite-wide timeout
+budget above.
