@@ -142,6 +142,16 @@ required scenario or model.
 
 Run targeted deterministic tests for script output, exit codes, and edge cases.
 
+### Final eval ownership
+
+The single judgment-bearing changed skill is `.claude/skills/SkillForge/SKILL.md`
+(the external-skill-source adaptation guardrail added in TASK-021). Its behavior
+is measured by `tests/evals/skills/aspire-skill-review-scenarios.json` under the
+`copilot` provider, comparing `origin/main` (before) with the working copy
+(after). No other skill changed, so no other prompt-change eval is owed. The five
+reuse decisions changed no skill and the eighteen reject decisions ported no
+content, so they carry no eval; they are evidenced by the cited decision matrix.
+
 ### Generated artifacts
 
 - Run `uv run python build/scripts/build_all.py`.
@@ -150,9 +160,19 @@ Run targeted deterministic tests for script output, exit codes, and edge cases.
 
 ## Open Questions
 
-- Which source candidates survive authorized retrieval and overlap scoring?
-- Which exact canonical skills change?
-- Does any candidate justify the one allowed new skill?
+Resolved by TASK-019 and TASK-020:
+
+- Which source candidates survive authorized retrieval and overlap scoring? All
+  23 were retrieved and scored; 5 route to an existing local owner (reuse), 18
+  are product-specific (reject).
+- Which exact canonical skills change? Only `.claude/skills/SkillForge/SKILL.md`
+  plus its new `references/external-skill-source-adaptation.md`.
+- Does any candidate justify the one allowed new skill? No; every generic idea
+  had an existing local owner, so zero new skills were created.
 - Which final eval scenario belongs to each changed judgment-bearing skill?
+  `tests/evals/skills/aspire-skill-review-scenarios.json` belongs to SkillForge.
 - Which exact canonical and generated paths replace the co-change checklist
-  wildcards after TASK-020?
+  wildcards after TASK-020? Recorded in REQ-020's co-change checklist:
+  `.claude/skills/SkillForge/SKILL.md`,
+  `.claude/skills/SkillForge/references/external-skill-source-adaptation.md`, and
+  their `src/copilot-cli/skills/SkillForge/` generated mirrors.
