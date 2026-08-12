@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-12-session-14693-b9b72ddc3-fix-issue-4923
 qaCommit: d82552f886014a95abc25a02c251b99008d3b21e
 ---
 
-# Issue 4923 vendored copy validation
+# PR 4935 issue 4923 vendored copy validation
 
 ## Result
 

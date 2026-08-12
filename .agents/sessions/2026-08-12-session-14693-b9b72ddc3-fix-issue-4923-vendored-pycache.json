@@ -94,12 +94,12 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4923-vendored-copy-validation.md"
+        "Evidence": ".agents/qa/pr-4935-issue-4923-vendored-copy-validation.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 4e8d2b5d13)"
+        "Evidence": "Implementation and final review committed through 92c7a8bf4."
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,10 +143,14 @@
     {
       "action": "Ran targeted, stress, lint, and adversarial review gates.",
       "outcome": "18 tests passed, 1 real-CLI test skipped, 30 stress runs passed, and final Sol review was clean."
+    },
+    {
+      "action": "Opened PR #4935.",
+      "outcome": "The focused PR closes issue #4923 and carries the reviewed cache-free fixture fix."
     }
   ],
   "endingCommit": "d82552f886",
   "nextSteps": [
-    "Merge this PR, then retry the blocked #4871 branch push."
+    "Clear PR #4935 checks and review threads, merge it, then retry the blocked #4871 branch push."
   ]
 }
