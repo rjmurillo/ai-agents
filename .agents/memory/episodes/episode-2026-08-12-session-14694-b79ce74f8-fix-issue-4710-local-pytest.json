@@ -77,7 +77,7 @@
       "id": "e007",
       "timestamp": "2026-08-12T11:11:21+00:00",
       "type": "commit",
-      "content": "Commit: e35bb589aa",
+      "content": "Commit: e35bb589a",
       "caused_by": [
         "e001",
         "e002",
@@ -85,6 +85,19 @@
         "e004",
         "e005",
         "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T11:51:18+00:00",
+      "type": "commit",
+      "content": "Commit: 7785127b74",
+      "caused_by": [
+        "e007"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
@@ -95,8 +108,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 8
+    "commits": 2,
+    "files_changed": 9
   },
   "lessons": []
 }

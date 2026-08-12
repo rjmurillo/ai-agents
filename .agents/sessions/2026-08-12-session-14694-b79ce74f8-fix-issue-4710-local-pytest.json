@@ -149,7 +149,7 @@
       "outcome": "Aggregate counts and CPU-aware cap wording now match the implementation."
     }
   ],
-  "endingCommit": "e35bb589aa",
+  "endingCommit": "7785127b74",
   "nextSteps": [
     "Merge this PR, then push and merge #4923.",
     "Retry the blocked #4871 branch after both prerequisites land."
