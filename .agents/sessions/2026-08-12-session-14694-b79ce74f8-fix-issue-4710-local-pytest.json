@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "Changed Markdown paths are under .agents and .serena, both excluded by repository markdownlint configuration."
       },
       "qaValidation": {
         "level": "MUST",

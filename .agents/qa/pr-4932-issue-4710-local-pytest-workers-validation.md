@@ -14,7 +14,7 @@ The parent removes both worker-control variables before child pytest starts.
 
 ## Evidence
 
-- 887 worker-policy and Lefthook integration tests passed.
+- 888 worker-policy and Lefthook integration tests passed.
 - The capped hook partitions passed 27,853 tests with 37 skipped.
 - Mutation, safe-push, and pr-autofix partitions also passed.
 - Ruff and `lefthook validate` passed.
