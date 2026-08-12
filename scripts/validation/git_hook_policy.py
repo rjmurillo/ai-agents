@@ -483,12 +483,13 @@ CLI_E2E_TIMEOUT_SECONDS = 1_140
 # every machine that is not the machine it was measured on.
 PYTEST_WORKERS_AUTO = "auto"
 PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
-# Direct calls and CI keep the host-relative `auto` default. The local pre-push
-# job pins four workers through this variable because it runs beside other
-# CPU-heavy jobs in one parallel Lefthook group. Issue #4710 measured 48 workers
-# starving subprocess tests until their 15-second caps fired. Developers can
-# still override the local count to reproduce concurrency behavior.
+# Explicit developer override. Direct calls and CI otherwise keep `auto`.
 PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
+# Local pre-push sets this cap because it runs beside other CPU-heavy jobs in
+# one parallel Lefthook group. Issue #4710 measured 48 workers starving
+# subprocess tests until their 15-second caps fired. The cap never exceeds the
+# host's visible CPU count, and an explicit PYTEST_WORKERS_ENV value wins.
+PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
 # `loadfile` sends every test in one file to one worker. That is the weakest
 # distribution mode xdist offers and the point: module-scoped fixtures, module
 # state, and file-local temp directories keep behaving the way they do serially.
@@ -6424,18 +6425,37 @@ def parse_pytest_workers(raw: str | None) -> str:
     return str(workers)
 
 
+def parse_pytest_worker_cap(raw: str) -> int:
+    """Return a positive local worker cap."""
+    candidate = raw.strip()
+    rejection = f"{PYTEST_WORKER_CAP_ENV} must be a positive integer, got {raw!r}"
+    try:
+        cap = int(candidate)
+    except ValueError:
+        raise ValueError(rejection) from None
+    if cap < 1:
+        raise ValueError(rejection)
+    return cap
+
+
 def _pytest_parallel_flags() -> list[str]:
     """Return the xdist argv fragment for the bulk pre-push partition."""
-    workers = parse_pytest_workers(os.environ.get(PYTEST_WORKERS_ENV))
+    worker_override = os.environ.get(PYTEST_WORKERS_ENV)
+    workers = parse_pytest_workers(worker_override)
+    cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
+    if not (worker_override and worker_override.strip()) and cap_raw and cap_raw.strip():
+        cap = parse_pytest_worker_cap(cap_raw)
+        visible_cpus = os.cpu_count() or cap
+        workers = str(min(cap, visible_cpus))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
     """Return pre-push pytest invocations in CI partition order.
 
-    Bulk and mutation tests each use every visible CPU over whole files.
-    Process-sensitive push, signal, and pr-autofix modules run serially in
-    fresh processes.
+    Bulk and mutation tests use the selected worker policy over whole files.
+    Direct calls default to every visible CPU. Local pre-push may apply a cap.
+    Process-sensitive push, signal, and pr-autofix modules run serially.
 
     Raises:
         ValueError: the worker override names something other than ``auto`` or
@@ -6503,6 +6523,8 @@ def run_pytest(repo_root: Path) -> int:
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         "SKIP_RETROSPECTIVE_GATE",
+        PYTEST_WORKER_CAP_ENV,
+        PYTEST_WORKERS_ENV,
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
@@ -6513,7 +6535,6 @@ def run_pytest(repo_root: Path) -> int:
         return 2
     # The parent consumes this control before pytest starts. Leaving it in the
     # child environment changes tests that verify the default worker policy.
-    env.pop(PYTEST_WORKERS_ENV, None)
     # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
     # command. Splitting the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the

@@ -19,8 +19,8 @@ would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``parallel_flags`` is the guard on that.
 
 Direct calls and CI use ``auto``, xdist's own name for one worker per logical
-CPU. The local pre-push job pins four workers because it runs beside other
-CPU-heavy jobs in one parallel Lefthook group.
+CPU. The local pre-push job caps workers at four because it runs beside other
+CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
 ``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
 everything else. The parent consumes this control before starting pytest so
 policy tests inside the child process still observe the default environment.
@@ -241,11 +241,59 @@ def test_env_override_reaches_the_bulk_command(
     assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
 
 
+@pytest.mark.parametrize(("visible_cpus", "expected"), [(1, "1"), (2, "2"), (4, "4"), (64, "4")])
+def test_local_worker_cap_never_exceeds_visible_cpus(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    visible_cpus: int,
+    expected: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    monkeypatch.setattr(os, "cpu_count", lambda: visible_cpus)
+
+    bulk, mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == expected
+    assert _flag_value(mutation, _WORKER_FLAGS) == expected
+
+
+def test_explicit_worker_override_wins_over_local_cap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "8")
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+
+    bulk, mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == "8"
+    assert _flag_value(mutation, _WORKER_FLAGS) == "8"
+
+
+@pytest.mark.parametrize("raw", ["", "auto", "0", "-1", "four"])
+def test_invalid_local_worker_cap_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raw: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, raw)
+
+    if not raw.strip():
+        bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+        assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
+        return
+
+    with pytest.raises(ValueError, match=policy.PYTEST_WORKER_CAP_ENV):
+        _pytest_commands_by_partition(tmp_path)
+
+
 def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "4")
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
     seen_commands: list[list[str]] = []
     seen_envs: list[dict[str, str]] = []
 
@@ -258,7 +306,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     ) -> subprocess.CompletedProcess[str]:
         del repo_root, timeout_seconds
         seen_commands.append(command)
-        seen_envs.append(process_env)
+        seen_envs.append(process_env.copy())
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(policy, "_run_command", capture_run)
@@ -267,6 +315,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     assert policy.run_pytest(tmp_path) == 0
 
     assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "4"
+    assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
 
 
@@ -274,6 +323,7 @@ def test_unset_env_produces_the_default_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.delenv(policy.PYTEST_WORKER_CAP_ENV, raising=False)
 
     bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
