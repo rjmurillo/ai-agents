@@ -32,9 +32,10 @@ Run these in order. A failure at an earlier gate stops the later ones.
 
 - For each reusable idea, scan local skills, agents, and commands, and route the
   idea to the existing owner. Prefer reuse, augmentation, or composition.
-- Create a new skill only when no local owner exists, and add at most one new
-  generic skill per external source. A second near-duplicate owner splits
-  trigger ownership and is a defect, not a feature.
+- Create a new skill only when no local owner exists, and only for a verified
+  capability gap. A second near-duplicate owner splits trigger ownership and is
+  a defect, not a feature. The bound is the absence of a local owner, not a
+  fixed count of creations per source.
 - When two local candidates are close, compare them directly (pairwise) rather
   than guessing by name.
 
