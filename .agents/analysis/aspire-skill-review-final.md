@@ -51,13 +51,20 @@ catalog and the single validated local augmentation. Closes REQ-020.
 
 ## Behavioral eval (TASK-022)
 
-- `eval-prompt-change.py --provider copilot --runs 3 --model claude-opus-5`,
-  comparing `origin/main` with the working copy of the SkillForge prompt.
+- `eval-prompt-change.py --provider copilot --security-critical --runs 5 --model
+  claude-opus-5`, comparing `origin/main` with the working copy of the
+  SkillForge prompt. TASK-020 classifies the guardrail's untrusted-source
+  handling as security-critical (threat T003, REQ-020 untrusted-data
+  criterion), so the ADR-057 security-critical tier applies.
 - Gate: PASS. Before 100 percent, After 100 percent, no regression, no high
-  flakiness. Five scenarios: positive reuse, positive create-when-no-owner,
-  duplicate-creation negative, missing-source-identity negative, and
-  product-specific rejection edge.
-- Sanitized reports: `.agents/analysis/aspire-skill-review-eval-20260811-2320.json`
+  flakiness, and every after run passes (security-critical 100 percent). Seven
+  scenarios: positive reuse, positive create-when-no-owner, duplicate-creation
+  negative, missing-source-identity negative, product-specific rejection edge,
+  source-text instruction-injection negative (S6), and unpinned-paraphrase
+  source-integrity negative (S7).
+- The base ref already passes every scenario, so the eval proves non-regression;
+  the guardrail codifies behavior the base model already exhibits.
+- Sanitized reports: `.agents/analysis/aspire-skill-review-eval-20260812-0207.json`
   and `.md`. Raw per-run output was kept only under gitignored `.agents/scratch/`.
 
 ## Validation (TASK-023)
@@ -75,6 +82,7 @@ catalog and the single validated local augmentation. Closes REQ-020.
 
 Every REQ-020 acceptance criterion is met and evidenced above: pinned source,
 one cited row per skill, SkillForge routing, reuse preferred, at most one new
-skill (zero created), product-specific rejection, no DeepWiki-only edits,
-untrusted-data handling, regenerated mirror, copilot eval with three runs and a
-PASS gate, recorded delta and improvement, redaction, and passing gates.
+skill for this review (zero created), product-specific rejection, no
+DeepWiki-only edits, untrusted-data handling, regenerated mirror, copilot eval
+under the security-critical tier (five runs, 100% after-pass) with a PASS gate,
+recorded delta and improvement, redaction, and passing gates.
