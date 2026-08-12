@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14695,
+    "date": "2026-08-12",
+    "branch": "fix/2840-adr-080-amendment",
+    "startingCommit": "d938b9c132",
+    "objective": "Amend ADR-080 with measured Copilot model resolution and commit the probe evidence (issue 2840)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2840-adr-080-amendment"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2840-adr-080-amendment"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d938b9c132"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran a SCOPED adr-review on the draft Amendment 2026-08-12 to ADR-080: two independent reviewers, one round, given the artifact only and not the reasoning behind it. Critic lens covered contradiction with the Decision, citation accuracy, overstatement, and completeness. Contrarian lens steelmanned the opposite of every claim and argued supersede over amend. This is a deliberate deviation from the skill's 6-agent 10-round protocol, justified because the change corrects rationale and edits none of the six Decision rules, and it is recorded as a deviation rather than claimed as a full run. Debate log: .agents/critique/ADR-080-amendment-2026-08-12-debate-log.md",
+      "result": "Both returned NEEDS_REVISION with ten findings, four of them factual errors in the draft. Accepted eight, rejected the supersede recommendation with reasoning, deferred the stale implemented:false flag. Amendment cut from 117 lines to a focused correction."
+    },
+    {
+      "action": "Re-probed Copilot CLI 1.0.79 after the critic showed the retirement probe used claude-opus-9-9-retired, a string that never existed rather than a retired id.",
+      "result": "claude-opus-4.5 (the id the ADR Context names) also warns and falls back, so the behaviour holds, but the claim is now stated as narrowed on this surface rather than falsified everywhere. The same run also killed a draft claim: 'Claude Opus 4.6 (copilot)' is accepted, and only the '(anthropic)' spelling falls back."
+    },
+    {
+      "action": "Verified the contrarian's ground-truth claim that the de-versioning migration has already run.",
+      "result": "Confirmed: the source tree holds zero versioned pins (20 sonnet, 18 opus, 8 haiku, all bare aliases) against 75 versioned at ADR acceptance. The draft's 'removal is mandated' section was arguing about an empty set and was deleted."
+    },
+    {
+      "action": "Committed the probe evidence so the amendment's claims are reproducible, which rule 4 of this same ADR requires of a weaker claim.",
+      "result": "Method, full result table, delegation transcript with negative control, and an explicit not-measured section written to .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
