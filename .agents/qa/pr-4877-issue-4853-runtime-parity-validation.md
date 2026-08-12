@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 1794672d6898dc458e765f7679c4b61fa90ba0a4
+qaCommit: aa1d1635c096d11a42bd844fdc42e5a11baaca7b
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,8 +22,9 @@ machine.
 ## Deterministic evidence
 
 - `uv run ruff check` on both modules and the test file: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 27 passed.
-- `uv run pytest tests/eval -q`: 1960 passed, 4 skipped.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 38 passed.
+- `uv run pytest tests/eval -q`: 1971 passed, 4 skipped.
+- Live CLI probe of the shipped `build_argv`: Copilot exits 0 in 10.8s and answers in prose with `--no-ask-user`, with the flag removed, and with `--available-tools=ask_user --allow-tool=ask_user`. No question tool call in any run. Claude reaches the auth check instead of failing agent resolution, which is the evidence the agent rename works.
 - `uv run ruff check scripts/eval tests/eval`: All checks passed.
 - Coverage: 89 percent across `_runtime_parity.py` and
   `eval_runtime_parity.py`.

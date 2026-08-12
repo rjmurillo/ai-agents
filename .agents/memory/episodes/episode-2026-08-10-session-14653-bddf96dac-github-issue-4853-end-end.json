@@ -136,6 +136,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-12T07:13:30+00:00",
+      "type": "commit",
+      "content": "Commit: aa1d1635c096d11a42bd844fdc42e5a11baaca7b",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
     }
@@ -145,7 +158,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 10
   },
   "lessons": []
