@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/4894-existing-pr-guard-validation.md"
+        "Evidence": ".agents/qa/pr-4919-issue-4894-validation.md"
       },
       "changesCommitted": {
         "level": "MUST",
