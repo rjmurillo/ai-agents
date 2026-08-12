@@ -59,9 +59,11 @@ in one parallel group.
 
 On 2026-08-12, three normal pushes on a 48-thread host produced 9, then 33
 subprocess timeout failures. The same nodes passed immediately when isolated.
-The local hook now sets `AI_AGENTS_PYTEST_WORKERS=4`. CI and direct calls keep
-the `auto` default. `run_pytest` consumes the control variable before starting
-child pytest processes, so policy tests observe an ordinary environment.
+The local hook now sets `AI_AGENTS_PYTEST_WORKER_CAP=4`. The effective count is
+the smaller of that cap and the visible CPU count. CI and direct calls keep the
+`auto` default, and an explicit `AI_AGENTS_PYTEST_WORKERS` override still wins.
+`run_pytest` consumes both control variables before starting child pytest
+processes, so policy tests observe an ordinary environment.
 
 This is not a reduction in coverage. Every partition still runs. The cap
 reduces local scheduler contention while preserving the suite-wide timeout
