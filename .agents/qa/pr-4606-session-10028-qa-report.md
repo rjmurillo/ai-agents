@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-10028-active-suppressed-findings.json
-qaCommit: a94d7cd2a797249dd3e68326b8f14d9d2a79bd74
+qaCommit: 37f636d5adc8de525dbb6d1dc7071d1964b46ed1
 ---
 
 # QA Report: PR 4606 session 10028
 
 - PR: #4606
 - Session log: `.agents/sessions/2026-08-05-session-10028-active-suppressed-findings.json`
-- QA commit: `a94d7cd2a797249dd3e68326b8f14d9d2a79bd74`
+- QA commit: `37f636d5adc8de525dbb6d1dc7071d1964b46ed1`
 
 ## Evidence
 
