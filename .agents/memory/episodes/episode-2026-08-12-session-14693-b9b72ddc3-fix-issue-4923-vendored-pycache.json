@@ -14,7 +14,7 @@
       "content": "Reproduced the pre-push vendored copy failure.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
@@ -25,7 +25,7 @@
       "content": "Traced both live-tree copy callers.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
@@ -36,7 +36,7 @@
       "content": "Added one shared cache-free vendored copy helper.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
@@ -47,7 +47,7 @@
       "content": "Added a synthetic positive and negative regression check.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
@@ -58,7 +58,7 @@
       "content": "Ran targeted, stress, lint, and adversarial review gates.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
@@ -66,26 +66,19 @@
       "id": "e006",
       "timestamp": "2026-08-12T00:00:00+00:00",
       "type": "milestone",
-      "content": "Opened PR #4935.",
+      "content": "Added consumer-level regression checks for both fixture builders.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-12T13:03:22+00:00",
-      "type": "commit",
-      "content": "Commit: d82552f886",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006"
-      ],
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR #4935.",
+      "caused_by": [],
       "leads_to": [
         "e008"
       ],
@@ -93,10 +86,16 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-12T13:21:00+00:00",
+      "timestamp": "2026-08-12T13:42:19+00:00",
       "type": "commit",
-      "content": "Commit: 92c7a8bf4",
+      "content": "Commit: 658f6e040",
       "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
         "e007"
       ],
       "leads_to": [],
@@ -108,8 +107,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 7
+    "commits": 1,
+    "files_changed": 8
   },
   "lessons": []
 }

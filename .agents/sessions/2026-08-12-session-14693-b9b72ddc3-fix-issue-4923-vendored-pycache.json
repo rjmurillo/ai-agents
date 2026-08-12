@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and final review committed through 92c7a8bf4."
+        "Evidence": "Implementation and consumer-level regression tests committed through 658f6e040."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,14 +142,18 @@
     },
     {
       "action": "Ran targeted, stress, lint, and adversarial review gates.",
-      "outcome": "18 tests passed, 1 real-CLI test skipped, 30 stress runs passed, and final Sol review was clean."
+      "outcome": "19 tests passed, 1 real-CLI test skipped, 30 stress runs passed, and the first final Sol review found one test-wiring gap."
+    },
+    {
+      "action": "Added consumer-level regression checks for both fixture builders.",
+      "outcome": "Reverting either integration or E2E fixture to raw copytree now fails a deterministic test."
     },
     {
       "action": "Opened PR #4935.",
       "outcome": "The focused PR closes issue #4923 and carries the reviewed cache-free fixture fix."
     }
   ],
-  "endingCommit": "d82552f886",
+  "endingCommit": "658f6e040",
   "nextSteps": [
     "Clear PR #4935 checks and review threads, merge it, then retry the blocked #4871 branch push."
   ]
