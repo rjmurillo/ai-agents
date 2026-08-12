@@ -178,6 +178,19 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-12T00:51:03+00:00",
+      "type": "commit",
+      "content": "Commit: 37f636d5adc8de525dbb6d1dc7071d1964b46ed1",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
     }
@@ -187,7 +200,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 2
   },
   "lessons": []
