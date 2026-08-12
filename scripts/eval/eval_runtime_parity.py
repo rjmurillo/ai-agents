@@ -145,8 +145,15 @@ def _claude_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | N
 
 
 def _copilot_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | None]:
+    """Return the final answer and the model that produced every part of it.
+
+    The model is attributed per content-bearing message, not per event. An
+    empty or tool-only event that names a model says nothing about who wrote
+    the answer, so a sequence with an unattributed or mixed content-bearing
+    message reports no model and the fail-closed model gate rejects it.
+    """
     chunks: list[str] = []
-    models: list[str] = []
+    models: list[str | None] = []
     for event in events:
         if event.get("type") != "assistant.message":
             continue
@@ -157,9 +164,13 @@ def _copilot_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | 
         model = data.get("model")
         if isinstance(content, str) and content.strip():
             chunks.append(content.strip())
-        if isinstance(model, str) and model not in models:
-            models.append(model)
-    return (chunks[-1] if chunks else ""), models[0] if len(models) == 1 else None
+            models.append(model if isinstance(model, str) else None)
+    if not chunks:
+        return "", None
+    attributed = set(models)
+    if len(attributed) == 1 and None not in attributed:
+        return chunks[-1], models[-1]
+    return chunks[-1], None
 
 
 def _traces(events: Sequence[Mapping[str, object]]) -> tuple[list[object], list[object]]:
@@ -433,7 +444,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (FileNotFoundError, OSError, RuntimeError) as exc:
+    except (FileNotFoundError, OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     print(json.dumps(report, indent=2))

@@ -170,7 +170,7 @@ def _load_fixture(value: object, index: int) -> Fixture:
         raise ParityConfigError(f"{field}.assertions must be a non-empty array")
     controls = _mapping(raw.get("controls"), f"{field}.controls")
     return Fixture(
-        fixture_id=_string(raw.get("id"), f"{field}.id"),
+        fixture_id=_relative_path(raw.get("id"), f"{field}.id"),
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
         copilot_agent=_repo_file(
             agents.get("copilot"), f"{field}.agents.copilot"
@@ -303,19 +303,40 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
     )
 
 
+def _profile_roots(profile: Path) -> dict[str, str]:
+    """Point every home and cache root at the workspace profile.
+
+    Copilot's bootstrap reads LOCALAPPDATA, XDG_CACHE_HOME, and
+    COPILOT_CACHE_HOME before COPILOT_HOME, so leaving the operator's values in
+    place lets a run read or write cached packages and profile state outside
+    the workspace. Both harnesses get the same treatment.
+    """
+    home = profile / "home"
+    roots = {
+        "HOME": home,
+        "USERPROFILE": home,
+        "APPDATA": home / "AppData" / "Roaming",
+        "LOCALAPPDATA": home / "AppData" / "Local",
+        "XDG_CACHE_HOME": profile / "cache",
+        "XDG_CONFIG_HOME": home / ".config",
+        "XDG_DATA_HOME": home / ".local" / "share",
+        "XDG_STATE_HOME": home / ".local" / "state",
+        "COPILOT_CACHE_HOME": profile / "cache",
+    }
+    for path in roots.values():
+        path.mkdir(parents=True, exist_ok=True)
+    return {key: str(path) for key, path in roots.items()}
+
+
 def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     """Build an allowlisted environment rooted at an isolated CLI profile."""
     allow = {
-        "APPDATA",
         "COMSPEC",
-        "HOME",
         "LANG",
         "LC_ALL",
-        "LOCALAPPDATA",
         "PATH",
         "PATHEXT",
         "SYSTEMROOT",
-        "USERPROFILE",
         "WINDIR",
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
@@ -331,6 +352,7 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     env.update({"PYTHONUTF8": "1", "TEMP": str(runtime), "TMP": str(runtime)})
     profile = workspace / ".parity-profile" / harness
     profile.mkdir(parents=True, exist_ok=True)
+    env.update(_profile_roots(profile))
     if harness == "claude":
         env["CLAUDE_CONFIG_DIR"] = str(profile)
     else:
