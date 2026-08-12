@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache",
+  "session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix issue 4923 vendored pycache copy race",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

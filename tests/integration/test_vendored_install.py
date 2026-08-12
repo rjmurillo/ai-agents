@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.lib.vendored_copy import copy_vendored_entry
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_DIR = REPO_ROOT / ".claude"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
@@ -64,10 +66,7 @@ def vendored_root(tmp_path: Path) -> Path:
             missing.append(entry)
             continue
         dst = target_claude / entry
-        if src.is_dir():
-            shutil.copytree(src, dst)
-        else:
-            shutil.copy2(src, dst)
+        copy_vendored_entry(src, dst)
     # PR #1965 coderabbit Y12: do not silently skip missing required
     # subtrees. AC5 is a strict packaging contract; if any of the listed
     # entries is absent in the source tree, the vendored install would
@@ -78,6 +77,29 @@ def vendored_root(tmp_path: Path) -> Path:
     if CLAUDE_MD.exists():
         shutil.copy2(CLAUDE_MD, target / "CLAUDE.md")
     return target
+
+
+def test_vendored_directory_copy_excludes_runtime_caches(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (source / "standalone.pyc").write_bytes(b"cache")
+    (source / "standalone.pyo").write_bytes(b"cache")
+    (source / "__pycache__").mkdir()
+    (source / "__pycache__" / "module.pyc").write_bytes(b"cache")
+    for cache_dir in (".pytest_cache", ".ruff_cache", ".mypy_cache"):
+        (source / cache_dir).mkdir()
+        (source / cache_dir / "state").write_text("cache", encoding="utf-8")
+    target = tmp_path / "target"
+
+    copy_vendored_entry(source, target)
+
+    assert (target / "module.py").is_file()
+    assert not (target / "standalone.pyc").exists()
+    assert not (target / "standalone.pyo").exists()
+    assert not (target / "__pycache__").exists()
+    for cache_dir in (".pytest_cache", ".ruff_cache", ".mypy_cache"):
+        assert not (target / cache_dir).exists()
 
 
 def test_vendored_lib_directory_present(vendored_root: Path) -> None:

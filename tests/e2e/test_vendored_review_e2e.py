@@ -62,6 +62,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.lib.vendored_copy import copy_vendored_entry
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_DIR = REPO_ROOT / ".claude"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
@@ -135,10 +137,7 @@ def build_vendored_plugin(target: Path) -> Path:
             missing.append(entry)
             continue
         dst = target_claude / entry
-        if src.is_dir():
-            shutil.copytree(src, dst)
-        else:
-            shutil.copy2(src, dst)
+        copy_vendored_entry(src, dst)
     assert not missing, (
         f"vendored fixture: required source entries missing under "
         f"{CLAUDE_DIR}: {missing}"
