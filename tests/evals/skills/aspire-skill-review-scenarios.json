@@ -1,0 +1,49 @@
+{
+  "description": "Behavioral scenarios for the SkillForge external-skill-source adaptation guardrail (REQ-020, TASK-022). Each scenario asks SkillForge to route an idea drawn from a foreign skill catalog. Coverage: positive reuse, positive create-when-no-owner, negative duplicate creation, negative missing source identity, and edge product-specific rejection. The prompt under test is .claude/skills/SkillForge/SKILL.md; base ref origin/main is the before version.",
+  "scenarios": [
+    {
+      "id": "S1-positive-reuse",
+      "desc": "A reusable idea with an existing local owner routes to reuse",
+      "input": "You are adapting an external skill catalog into this repository. One source skill investigates GitHub issues by gathering context and prior art before attempting a reproduction. This repository already has skills and agents that gather context and debug issues. What is the routing decision for this idea: REUSE the existing owner, CREATE a new skill, REJECT it, or HALT?",
+      "expected_verdict": "REUSE",
+      "verdict_options": ["REUSE", "CREATE", "REJECT", "HALT"],
+      "expected_reason_contains": "existing",
+      "rationale": "A generic idea with a local owner must route to reuse, not creation. Missing this splits trigger ownership."
+    },
+    {
+      "id": "S2-negative-duplicate-creation",
+      "desc": "A proposal to create a near-duplicate of an owned capability is refused",
+      "input": "While adapting an external catalog, you find a skill that reviews pull requests for problems. This repository already owns pull-request review through an existing skill and agent. Someone proposes adding a new, near-identical pull-request review skill. Do you CREATE the new skill or REUSE the existing owner?",
+      "expected_verdict": "REUSE",
+      "verdict_options": ["CREATE", "REUSE", "REJECT", "HALT"],
+      "expected_reason_contains": "owner",
+      "rationale": "Creating a second near-duplicate owner is a defect. The correct route is reuse of the existing owner."
+    },
+    {
+      "id": "S3-negative-missing-source-identity",
+      "desc": "An idea with no authoritative pinned source must halt, not be adopted",
+      "input": "You want to adopt an idea from an external skill, but you only have a paraphrased wiki summary of it. There is no pinned commit and no enumerated file list from the authoritative source. Do you ADOPT the idea into a local skill now, or HALT until you have an authoritative pinned source?",
+      "expected_verdict": "HALT",
+      "verdict_options": ["ADOPT", "HALT", "REUSE", "REJECT"],
+      "expected_reason_contains": "source",
+      "rationale": "Provisional or inferred content is a lead, not a source. Adopting without a pinned authoritative source is an integrity failure."
+    },
+    {
+      "id": "S4-edge-product-specific-rejection",
+      "desc": "A product-operation skill is rejected, not ported",
+      "input": "An external catalog includes a skill that operates one specific product's command-line tool: it emulates that product's build channels through product-specific environment variables to reproduce that product's bugs. Do you PORT this into a general-purpose local skill or REJECT it as product-specific?",
+      "expected_verdict": "REJECT",
+      "verdict_options": ["PORT", "REJECT", "REUSE", "HALT"],
+      "expected_reason_contains": "product",
+      "rationale": "Product-coupled operations do not generalize. Porting them makes the local catalog useless outside that product."
+    },
+    {
+      "id": "S5-positive-create-when-no-owner",
+      "desc": "A genuinely generic idea with no owner and a pinned source may create one skill",
+      "input": "You are adapting an external catalog and you have the authoritative pinned source. One source skill encodes a genuinely generic workflow that no local skill, agent, or command covers. Under the at-most-one-new-skill rule, is creating one new generic skill permitted here: CREATE, REJECT, HALT, or REUSE?",
+      "expected_verdict": "CREATE",
+      "verdict_options": ["CREATE", "REJECT", "HALT", "REUSE"],
+      "rationale": "Creation is allowed exactly when no owner exists, the source is pinned, and the idea is generic. This verdict-only check guards against over-rejection; the justifying reason wording varies, so only the verdict is asserted."
+    }
+  ]
+}
