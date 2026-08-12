@@ -1,0 +1,115 @@
+{
+  "id": "episode-2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest",
+  "session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4710 local pytest worker contention",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4823 and #4854 decisions before changing xdist policy.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured repeated local pre-push failures.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Capped local python-tests at up to four process-visible CPUs.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consumed the worker override before child pytest execution.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full, targeted, security, and adversarial gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected final QA and episode wording after review.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T11:11:21+00:00",
+      "type": "commit",
+      "content": "Commit: e35bb589a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T12:28:46+00:00",
+      "type": "commit",
+      "content": "Commit: 0044d3410e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 9
+  },
+  "lessons": []
+}

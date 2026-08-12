@@ -59,6 +59,12 @@ pre-commit:
             run: uv run --frozen python scripts/validation/git_hook_policy.py handoff {staged_files}
             glob: ".agents/HANDOFF.md"
 
+          - name: root-hygiene-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py root-hygiene {staged_files}
+            skip:
+              - merge
+
           - name: session-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py session {staged_files}
@@ -84,6 +90,14 @@ pre-commit:
             glob:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
+
+          # Issue #4600: .gitignore names root litter one filename at a time,
+          # so agent-authored scratch matches no entry.
+          - name: root-scratch-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py root-scratch {staged_files}
+            skip:
+              - merge
 
           # Issue #3671: nothing stopped a conflict marker reaching a commit.
           - name: conflict-marker-policy
@@ -398,6 +412,11 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
+          - name: session-json-validation
+            timeout: 10m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
+            use_stdin: true
+
     - name: push-ref-staleness
       timeout: 1m
       run: uv run --frozen python scripts/validation/push_ref_staleness.py
@@ -423,6 +442,8 @@ pre-push:
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+            env:
+              AI_AGENTS_PYTEST_WORKER_CAP: "4"
 
           - name: python-lint-advisory
             timeout: 10m
@@ -464,7 +485,7 @@ pre-push:
             glob: [".serena/memories/**/*.md"]
           - name: python-unreachable-statements
             timeout: 2m
-            run: uv run --frozen python scripts/validation/check_unreachable_after_terminator.py .
+            run: uv run --frozen python scripts/validation/check_unreachable_code.py .
             glob: "**/*.py"
           - name: merge-tree-ratchet
             timeout: 5m
@@ -575,11 +596,6 @@ pre-push:
           - name: review-axis-drift
             timeout: 5m
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
-
-          - name: session-json-validation
-            timeout: 10m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions {push_files}
-            glob: ".agents/sessions/**/*.json"
 
           - name: observation-sync-advisory
             timeout: 5m

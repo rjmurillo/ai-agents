@@ -107,9 +107,7 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
         has_skills = (ancestor / ".claude" / "skills").is_dir()
         if not has_skills:
             continue
-        has_repo_marker = (ancestor / ".git").exists() or (
-            ancestor / "pyproject.toml"
-        ).is_file()
+        has_repo_marker = (ancestor / ".git").exists() or (ancestor / "pyproject.toml").is_file()
         if has_repo_marker or not require_repo_marker:
             return ancestor
     return base

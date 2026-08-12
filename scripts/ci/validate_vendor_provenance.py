@@ -47,8 +47,53 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py",
-        "ea76024dc85d2847b1d6e7f286cc44ab1f2f04c7c7e586460f2b16459cd0da26",
+        "0c8d6bfa22017724d5cb62c27c0bd51c9a39dfdac656ad1e898b61a15cff9de5",
         "Push PR script identity guard",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_commands.py",
+        "46f925781cdd1e457ed014958854c6ee5add0c89d569272f499856c7e4b148ea",
+        "Push PR guard module: push pr guard commands",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_evaluators.py",
+        "115b1f81659f3be5444a9d801ee62aa1b6ef4579be49b175b051b40835f456f1",
+        "Push PR guard module: push pr guard evaluators",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_expansion.py",
+        "40596f004d3574fdf0bba7c873f13ef51901581603d727e0b55f56c7099ce1ad",
+        "Push PR guard module: push pr guard expansion",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_git.py",
+        "b6868f509bb5deb0291f1080bdf5e87e6c177e2da1323251adf084e3da077351",
+        "Push PR guard module: push pr guard git",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_git_tables.py",
+        "e477634738dff882dffe89538ef7253ff9b7909ea7817d59ce8e8ba8780a8315",
+        "Push PR guard module: push pr guard git tables",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_identity.py",
+        "5ccfbb7e642e3a251fb35407163f41416dbbb6a28cb780f66b14705dccdda88a",
+        "Push PR guard module: push pr guard identity",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_lex.py",
+        "e9883faf41923afac71cd2be833ebea3172ab2c84ce3115448833116d547aefd",
+        "Push PR guard module: push pr guard lex",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_scope.py",
+        "a37ca8af1a722c8b7c90612177549794e15031145872ab89f6afba1174ee6c60",
+        "Push PR guard module: push pr guard scope",
+    ),
+    (
+        ".claude/hooks/PreToolUse/_push_pr_guard_tables.py",
+        "5bd3c988ec672d9de57950832bf1d0d44955294f408522a54ad1e1e042e431f5",
+        "Push PR guard module: push pr guard tables",
     ),
     # --- Generated counterparts (copilot-cli mirrors) ---
     (
@@ -63,13 +108,63 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/invoke_push_pr_script_identity_guard__Bash_f620ca.py",
-        "69e9be60e6e2eed2a730e5d11dcf24e288f7250ebc9dea7c537a51c051c8c54f",
+        "5160d7f158810339034c80d7a73f6d3fee784514f8051e4b2e0a1eb8e95cd109",
         "Generated push PR script identity guard mirror",
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
         "2016218b8e3be302820c0b0c97cd7f95370381d6b171cb244919e9a2e3215e92",
         "Generated markdownlint guard mirror",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_commands.py",
+        "46f925781cdd1e457ed014958854c6ee5add0c89d569272f499856c7e4b148ea",
+        "Generated push PR guard module: push pr guard commands",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_evaluators.py",
+        "115b1f81659f3be5444a9d801ee62aa1b6ef4579be49b175b051b40835f456f1",
+        "Generated push PR guard module: push pr guard evaluators",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_expansion.py",
+        "40596f004d3574fdf0bba7c873f13ef51901581603d727e0b55f56c7099ce1ad",
+        "Generated push PR guard module: push pr guard expansion",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_git.py",
+        "b6868f509bb5deb0291f1080bdf5e87e6c177e2da1323251adf084e3da077351",
+        "Generated push PR guard module: push pr guard git",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_git_tables.py",
+        "e477634738dff882dffe89538ef7253ff9b7909ea7817d59ce8e8ba8780a8315",
+        "Generated push PR guard module: push pr guard git tables",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_identity.py",
+        "5ccfbb7e642e3a251fb35407163f41416dbbb6a28cb780f66b14705dccdda88a",
+        "Generated push PR guard module: push pr guard identity",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_lex.py",
+        "e9883faf41923afac71cd2be833ebea3172ab2c84ce3115448833116d547aefd",
+        "Generated push PR guard module: push pr guard lex",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_scope.py",
+        "a37ca8af1a722c8b7c90612177549794e15031145872ab89f6afba1174ee6c60",
+        "Generated push PR guard module: push pr guard scope",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_tables.py",
+        "5bd3c988ec672d9de57950832bf1d0d44955294f408522a54ad1e1e042e431f5",
+        "Generated push PR guard module: push pr guard tables",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml",
+        "db5924f182f68fd637e65550ab615e7c62d2a2be422e6cd685dbd55710c0c50d",
+        "Generated markdownlint safe config",
     ),
     # --- Copilot-CLI dispatch ---
     (
@@ -80,7 +175,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Generator surface (full local import closure) ---
     (
         "build/scripts/generate_hooks_events.py",
-        "2d3b7c11ee600e57483b950f67f40c1da52ff80ce0f14db584fdc93ea3cbe8eb",
+        "79f0a6622aedb37760de7ceef0a1d69f2ae18a5acee5738900981820ca0e60e8",
         "Hook event generator",
     ),
     (
@@ -110,7 +205,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_hooks_transaction.py",
-        "bbc9dba827bea77222a91a23013c3b064cdfde6a41a56efc7c7f4ddf76e59a7c",
+        "203122bf4de1766cfe2067b17768e4a431f4bd7f69fee88df6d3f7bfb31fc683",
         "Build script (hooks generator import)",
     ),
     (
@@ -223,12 +318,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/detect_agent_drift.py",
-        "d7665b0d05bad8b293dc149990abb65773cef42cfb45b4e5d7744d875d689803",
+        "5d7f2c0ac3a2d938a2ae7a35b4e9186ddf3877fbd27fea3e91a118be46545f3c",
         "Build script",
     ),
     (
         "build/scripts/generate_commands.py",
-        "79e70b84cab1bdbfc023efe3c47710df009cf98b6436910af27251f09ca38479",
+        "dd9e305d40e2994cc2d8bcc054802470a24836a17e1932c974b15822f9eddaa0",
         "Build script",
     ),
     (
@@ -288,7 +383,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/validate_templates_schema.py",
-        "f7855bd0f22d2ede12aadade0891e8d2318d2157d8f12a7aacf0d8907b0cfbee",
+        "d06178ca99457014ed6e79f90a985cf1222e4e86024e72db34a7e6ef339b9d45",
         "Build script",
     ),
     # --- Hook wiring / config inputs ---
@@ -304,7 +399,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".github/copilot/settings.json",
-        "c948f4c7e093f62a46c4cb9bcc2e6247ad722a9aa6baedc4bc123d6bddc89eef",
+        "eddf8243b570daaa3892fbea0114a82dcfcd5794d01f9746557b268452b8b099",
         "GitHub Copilot settings (hook surface)",
     ),
     (
@@ -395,7 +490,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/api.py",
-        "d2a6232fd76f9bdafab255134137db1929d76a7e7ff9c486d854e53389d4208b",
+        "c31ab8f5719295313a8ab1d71405769d72f8b417737817f97cc3163df47312b6",
         "Lib: .claude/lib/github_core/api.py",
     ),
     (
@@ -405,7 +500,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/checks_rollup.py",
-        "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
+        "dede2391ab079ee5be7c7e9964ab3de3308368ecaf137ec632ffb7af4c0759a1",
         "Lib: .claude/lib/github_core/checks_rollup.py",
     ),
     (
@@ -590,7 +685,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/api.py",
-        "d2a6232fd76f9bdafab255134137db1929d76a7e7ff9c486d854e53389d4208b",
+        "c31ab8f5719295313a8ab1d71405769d72f8b417737817f97cc3163df47312b6",
         "Lib: src/copilot-cli/lib/github_core/api.py",
     ),
     (
@@ -600,7 +695,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/checks_rollup.py",
-        "b734e7f33978d6d2048825810d9f71f8eb9845be2c2936c85cb1f9b171084575",
+        "dede2391ab079ee5be7c7e9964ab3de3308368ecaf137ec632ffb7af4c0759a1",
         "Lib: src/copilot-cli/lib/github_core/checks_rollup.py",
     ),
     (
@@ -724,9 +819,8 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Lib: src/copilot-cli/lib/shim_loader.py",
     ),
     # --- Vendor artifacts (added by vendor/runtime PR) ---
-    # Placeholder hashes: presence of these files without a matching pin
-    # hash will fail authentication (fail closed). Update pins when vendor PR
-    # is created. Absence is permitted via _VENDOR_ONLY_PREFIXES.
+    # Zero hashes mark artifacts that have not landed. Existing vendor files
+    # carry immutable pins. Only _VENDOR_ONLY_PREFIXES may be absent.
     (
         ".claude/hooks/PreToolUse/_markdownlint_verifier.py",
         "0000000000000000000000000000000000000000000000000000000000000000",
@@ -734,8 +828,8 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml",
-        "0000000000000000000000000000000000000000000000000000000000000000",
-        "Config (pin placeholder - update on vendor PR)",
+        "db5924f182f68fd637e65550ab615e7c62d2a2be422e6cd685dbd55710c0c50d",
+        "Markdownlint safe config",
     ),
     (
         ".claude/hooks/PreToolUse/markdownlint-cli2.yaml",
@@ -753,7 +847,6 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
 # All other pinned paths MUST exist as regular non-symlink files.
 _VENDOR_ONLY_PREFIXES = (
     ".claude/hooks/PreToolUse/_markdownlint_verifier.py",
-    ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml",
     ".claude/hooks/PreToolUse/markdownlint-cli2.yaml",
     ".claude/hooks/PreToolUse/_vendor/",
 )

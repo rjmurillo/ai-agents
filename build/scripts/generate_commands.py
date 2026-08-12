@@ -75,6 +75,48 @@ def _resolve_paths(
     return repo_root / source_dir, repo_root / output_dir
 
 
+def _resolve_optional_output_dir(
+    repo_root: Path, field: str, value: object, *, present: bool
+) -> Path | None:
+    """Resolve an optional output directory from the platform config."""
+    if not present:
+        return None
+    errs = validate_relative_path(field, value)
+    if errs:
+        raise GenerateCommandsError("; ".join(errs))
+    assert isinstance(value, str)
+    return repo_root / value
+
+
+def _resolve_resource_suffixes(stanza: dict[str, object]) -> set[str]:
+    """Validate and normalize optional command resource suffixes."""
+    has_resource_output = "resourceOutputDir" in stanza
+    has_resource_suffixes = "resourceSuffixes" in stanza
+    if has_resource_output != has_resource_suffixes:
+        raise GenerateCommandsError(
+            "`artifacts.commands`: `resourceOutputDir` and "
+            "`resourceSuffixes` must be set together"
+        )
+    if not has_resource_suffixes:
+        return set()
+    suffixes = stanza.get("resourceSuffixes")
+    if (
+        not isinstance(suffixes, list)
+        or not suffixes
+        or not all(
+            isinstance(item, str)
+            and item.startswith(".")
+            and len(item) > 1
+            for item in suffixes
+        )
+    ):
+        raise GenerateCommandsError(
+            "`artifacts.commands.resourceSuffixes`: must be a "
+            "non-empty list of dotted suffix strings"
+        )
+    return set(suffixes)
+
+
 def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     """Return top-level ``*.md`` files (no recursion into subdirs).
 
@@ -96,6 +138,23 @@ def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
             continue
         sources.append(child)
     return sources
+
+
+def _iter_resource_sources(
+    source_dir: Path, suffixes: set[str], excludes: set[str]
+) -> list[Path]:
+    """Return top-level command resource files matching configured suffixes."""
+    if not suffixes:
+        return []
+    resources: list[Path] = []
+    for child in sorted(source_dir.iterdir()):
+        if not child.is_file():
+            continue
+        if child.name in excludes:
+            continue
+        if child.suffix in suffixes:
+            resources.append(child)
+    return resources
 
 
 def _first_nonblank_line(body: str) -> str:
@@ -206,6 +265,20 @@ def _write_skill(
     return True
 
 
+def _copy_resource(src: Path, target: Path, *, what_if: bool) -> bool:
+    """Copy one command resource. Returns True on write, False on skip."""
+    reason = regen_detect_reason(target)
+    if reason is not None:
+        print(f"  NOTICE: skipped {target} (NO-REGEN: {reason})")
+        return False
+    if what_if:
+        print(f"  Would copy: {target}")
+        return True
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(src.read_bytes())
+    return True
+
+
 def generate_commands(
     config_path: Path,
     repo_root: Path,
@@ -250,7 +323,16 @@ def generate_commands(
     is_copilot = str(cfg.get("provider", "")) == "copilot-cli"
     source_dir_str = str(stanza.get("sourceDir", ""))
     output_dir_str = str(stanza.get("outputDir", ""))
-    excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
+    resource_output_dir_raw = stanza.get("resourceOutputDir")
+    resource_output_dir_present = "resourceOutputDir" in stanza
+    try:
+        resource_suffixes = _resolve_resource_suffixes(stanza)
+    except GenerateCommandsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    excludes = set(_DEFAULT_EXCLUDES)
+    if "excludeFilenames" in stanza:
+        excludes |= set(stanza["excludeFilenames"])
     append = stanza.get("appendFrontmatter") or {}
     if not isinstance(append, dict):
         print(
@@ -262,6 +344,12 @@ def generate_commands(
     try:
         source_dir, output_dir = _resolve_paths(
             repo_root, source_dir_str, output_dir_str
+        )
+        resource_output_dir = _resolve_optional_output_dir(
+            repo_root,
+            "artifacts.commands.resourceOutputDir",
+            resource_output_dir_raw,
+            present=resource_output_dir_present,
         )
     except GenerateCommandsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -281,6 +369,8 @@ def generate_commands(
     print(f"Found {len(sources)} command(s)")
     written = 0
     skipped = 0
+    resources_written = 0
+    resources_skipped = 0
     collisions: list[str] = []
 
     for src in sources:
@@ -307,6 +397,14 @@ def generate_commands(
         else:
             skipped += 1
 
+    if resource_output_dir is not None:
+        for src in _iter_resource_sources(source_dir, resource_suffixes, excludes):
+            target = resource_output_dir / src.name
+            if _copy_resource(src, target, what_if=what_if):
+                resources_written += 1
+            else:
+                resources_skipped += 1
+
     duration = time.monotonic() - start
 
     if collisions:
@@ -324,8 +422,12 @@ def generate_commands(
         return 0
     print(f"Commands processed: {len(sources)}")
     print(f"Skills written: {written}")
+    if resource_output_dir is not None:
+        print(f"Resources copied: {resources_written}")
     if skipped:
         print(f"Skills skipped (NO-REGEN): {skipped}")
+    if resources_skipped:
+        print(f"Resources skipped (NO-REGEN): {resources_skipped}")
     return 0
 
 

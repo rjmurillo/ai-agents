@@ -452,13 +452,13 @@ class TestVendorDeletion:
         root = _make_valid_candidate(tmp_path)
         base = _make_valid_candidate(tmp_path / "b")
         # Config absent from both → no error
-        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        cfg_rel = ".claude/hooks/PreToolUse/_markdownlint_verifier.py"
         for r in (root, base):
             p = r / cfg_rel
             if p.exists():
                 p.unlink()
         errs = _authenticate_pinned(root, base)
-        config_errs = [e for e in errs if "markdownlint-safe-config" in e]
+        config_errs = [e for e in errs if "_markdownlint_verifier.py" in e]
         assert not config_errs
 
     def test_post_bootstrap_deletion_fails(self, tmp_path: Path) -> None:
@@ -467,7 +467,7 @@ class TestVendorDeletion:
 
         root = _make_valid_candidate(tmp_path)
         base = _make_valid_candidate(tmp_path / "b")
-        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        cfg_rel = ".claude/hooks/PreToolUse/_markdownlint_verifier.py"
         # Make sure base HAS the file (even with wrong hash, we're testing deletion)
         base_cfg = base / cfg_rel
         base_cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -485,12 +485,12 @@ class TestVendorDeletion:
         from scripts.ci.validate_vendor_provenance import _authenticate_pinned
 
         root = _make_valid_candidate(tmp_path)
-        cfg_rel = ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml"
+        cfg_rel = ".claude/hooks/PreToolUse/_markdownlint_verifier.py"
         cand_cfg = root / cfg_rel
         if cand_cfg.exists():
             cand_cfg.unlink()
         errs = _authenticate_pinned(root, None)
-        deletion_errs = [e for e in errs if "markdownlint-safe-config" in e]
+        deletion_errs = [e for e in errs if "_markdownlint_verifier.py" in e]
         assert not deletion_errs
 
 

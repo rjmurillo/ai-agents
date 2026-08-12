@@ -1,0 +1,191 @@
+{
+  "id": "episode-2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review",
+  "session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Create and merge Aspire skill review specification PR",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pre-PR validation",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T14:03:54+00:00",
+      "type": "commit",
+      "content": "Commit: 80f0e5e8c8",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e005",
+        "e006",
+        "e009",
+        "e010",
+        "e014"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the first QA refresh set",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the independent diff review",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T14:42:47+00:00",
+      "type": "commit",
+      "content": "Commit: a4863b3071",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T14:43:20+00:00",
+      "type": "commit",
+      "content": "Commit: 3c77d5b54e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound final QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed Copilot review threads",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T15:01:31+00:00",
+      "type": "commit",
+      "content": "Commit: 7e03e6b541",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T15:02:33+00:00",
+      "type": "commit",
+      "content": "Commit: 5b5827b3bd",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T15:03:31+00:00",
+      "type": "commit",
+      "content": "Commit: 3e97effb17",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed final bot-review QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14683-b252cc7ff-create-merge-aspire-skill-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 21
+  },
+  "lessons": []
+}

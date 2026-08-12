@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,14 @@ _GUARD_START = "# late-live-state-guard:start"
 _GUARD_END = "# late-live-state-guard:end"
 _RENEWAL_START = "# lease-renewal:start"
 _RENEWAL_END = "# lease-renewal:end"
+
+
+def _process_is_live(pid: int) -> bool:
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").split()[2]
+    except FileNotFoundError:
+        return False
+    return state != "Z"
 
 
 def _extract_guard(text: str) -> str:
@@ -137,7 +146,7 @@ from pathlib import Path
 
 child_log = os.environ.get("MUTATION_CHILD_LOG")
 if child_log:
-    subprocess.Popen(
+    child = subprocess.Popen(
         [
             sys.executable,
             "-c",
@@ -149,11 +158,75 @@ if child_log:
             child_log,
         ]
     )
+    child_pid_log = os.environ.get("MUTATION_CHILD_PID_LOG")
+    if child_pid_log:
+        Path(child_pid_log).write_text(str(child.pid), encoding="utf-8")
+    started_log = os.environ.get("MUTATION_STARTED_LOG")
+    if started_log:
+        Path(started_log).write_text("started\\n", encoding="utf-8")
 time.sleep(float(os.environ.get("MUTATION_SLEEP_SECONDS", "0")))
 Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 """,
         encoding="utf-8",
     )
+    (scripts_dir / "final_poll_mutation.py").write_text(
+        """\
+import os
+import time
+from pathlib import Path
+
+Path(os.environ["MUTATION_PID_FILE"]).write_text(str(os.getpid()), encoding="utf-8")
+while True:
+    time.sleep(1)
+""",
+        encoding="utf-8",
+    )
+    fake_sleep = scripts_dir / "sleep"
+    fake_sleep.write_text(
+        """#!/usr/bin/env python3
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+duration = sys.argv[1]
+if duration == "0.01" and os.environ.get("FINAL_POLL_EXIT"):
+    count_file = Path(os.environ["FINAL_POLL_SLEEP_COUNT"])
+    count = int(count_file.read_text(encoding="utf-8")) if count_file.exists() else 0
+    count += 1
+    count_file.write_text(str(count), encoding="utf-8")
+    if count == 10:
+        pid = int(Path(os.environ["MUTATION_PID_FILE"]).read_text(encoding="utf-8"))
+        os.kill(pid, signal.SIGTERM)
+        while True:
+            try:
+                state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").split()[2]
+                if state == "Z":
+                    break
+            except (FileNotFoundError, ProcessLookupError):
+                break
+            time.sleep(0.001)
+time.sleep(float(duration))
+""",
+        encoding="utf-8",
+    )
+    fake_sleep.chmod(0o755)
+    fake_ps = scripts_dir / "ps"
+    fake_ps.write_text(
+        """#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+
+if os.environ.get("FINAL_POLL_EXIT") and "pgid=" in sys.argv:
+    print("1")
+    raise SystemExit(0)
+raise SystemExit(subprocess.run(["/usr/bin/ps", *sys.argv[1:]]).returncode)
+""",
+        encoding="utf-8",
+    )
+    fake_ps.chmod(0o755)
 
 
 def _run_race(
@@ -161,6 +234,10 @@ def _run_race(
     late_state: str,
     guarded_doc: str,
     renewal_failure: bool = False,
+    immediate_lease_failure: bool = False,
+    mutation_command: str | None = None,
+    spawn_delayed_child: bool = False,
+    exit_on_final_setup_poll: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -171,15 +248,36 @@ def _run_race(
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
     mutation_child_log = tmp_path / "mutation-child"
+    mutation_child_pid_log = tmp_path / "mutation-child-pid"
+    mutation_started_log = tmp_path / "mutation-started"
+    mutation_pid_file = tmp_path / "mutation-pid"
+    final_poll_sleep_count = tmp_path / "final-poll-sleep-count"
     renew_count = tmp_path / "renew-count"
     guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
     mutation_sleep = "0.5" if renewal_failure else "0"
+    if immediate_lease_failure and spawn_delayed_child:
+        lease_failure_override = 'lease_renewal_failed() {\n    [ -e "$MUTATION_STARTED_LOG" ]\n}\n'
+    elif immediate_lease_failure:
+        lease_failure_override = (
+            "lease_failure_checks=0\n"
+            "lease_renewal_failed() {\n"
+            "    lease_failure_checks=$((lease_failure_checks + 1))\n"
+            '    [ "$lease_failure_checks" -ge 2 ]\n'
+            "}\n"
+        )
+    else:
+        lease_failure_override = ""
+    if exit_on_final_setup_poll:
+        mutation_invocation = 'python3 "$SCRIPTS_DIR/final_poll_mutation.py"'
+    else:
+        mutation_invocation = mutation_command or 'python3 "$SCRIPTS_DIR/mutation.py"'
 
     harness = f"""\
 set -u
+set -m
 PR=4349
 BASE=main
 SESSION_ID=test-session
@@ -195,10 +293,11 @@ EXPECTED_BASE_SHA=$(printf '%s' "$INITIAL" | jq -r '.Data.base_sha')
 
 printf '%s' {late_state} > "$PR_STATE_FILE"
 {guard}
+{lease_failure_override}
 
 LEASE_RENEWAL_INTERVAL_SECONDS={renewal_sleep}
 
-if run_pr_mutation_if_live python3 "$SCRIPTS_DIR/mutation.py"; then
+if run_pr_mutation_if_live {mutation_invocation}; then
     printf '%s\n' mutation-ran
 else
     printf 'mutation-skipped:%s\n' "$?"
@@ -211,6 +310,7 @@ fi
 """
     env = {
         **os.environ,
+        "PATH": f"{scripts_dir}{os.pathsep}{os.environ['PATH']}",
         "PR_STATE_FILE": str(state_file),
         "CHECK_LOG": str(check_log),
         "LEASE_LOG": str(lease_log),
@@ -218,7 +318,14 @@ fi
         "LEASE_RENEW_COUNT_FILE": str(renew_count),
         "LEASE_RENEW_FAIL_AFTER": renewal_fail_after,
         "MUTATION_SLEEP_SECONDS": mutation_sleep,
-        "MUTATION_CHILD_LOG": str(mutation_child_log) if renewal_failure else "",
+        "MUTATION_CHILD_LOG": str(mutation_child_log)
+        if renewal_failure or spawn_delayed_child
+        else "",
+        "MUTATION_CHILD_PID_LOG": str(mutation_child_pid_log),
+        "MUTATION_STARTED_LOG": str(mutation_started_log) if spawn_delayed_child else "",
+        "MUTATION_PID_FILE": str(mutation_pid_file),
+        "FINAL_POLL_SLEEP_COUNT": str(final_poll_sleep_count),
+        "FINAL_POLL_EXIT": "1" if exit_on_final_setup_poll else "",
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -308,7 +415,7 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     assert "lease_renewal_failed" in guard
     assert "cleanup_pr_autofix" in text
     assert "release_pr_lease()" in text
-    assert "if [ \"$MUTATION_RC\" -ne 75 ]; then" in text
+    assert 'if [ "$MUTATION_RC" -ne 75 ]; then' in text
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
@@ -429,6 +536,72 @@ def test_ownership_loss_during_mutation_stops_command(
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
     assert not mutation_log.exists()
-    assert not (tmp_path / "mutation-child").exists()
+    child_pid_log = tmp_path / "mutation-child-pid"
+    if child_pid_log.exists():
+        child_pid = int(child_pid_log.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 1
+        while _process_is_live(child_pid) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not _process_is_live(child_pid)
     assert "Stopping mutation for #4349: lease ownership lost" in result.stdout
     assert "mutation-skipped:75" in result.stdout
+
+
+def test_fast_exit_reports_lease_loss_after_wait(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        mutation_command="true",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert not mutation_log.exists()
+    assert "Mutation completed as lease ownership was lost for #4349" in result.stdout
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout
+
+
+def test_fast_exit_stops_delayed_child_after_lease_loss(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, _mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        spawn_delayed_child=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert (tmp_path / "mutation-started").read_text(encoding="utf-8") == "started\n"
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout
+    assert not (tmp_path / "mutation-child").exists()
+
+
+def test_final_setup_poll_exit_reports_lease_loss(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        immediate_lease_failure=True,
+        exit_on_final_setup_poll=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert not mutation_log.exists()
+    assert "Mutation completed as lease ownership was lost for #4349" in result.stdout
+    assert "mutation-skipped:75" in result.stdout
+    assert "mutation-ran" not in result.stdout

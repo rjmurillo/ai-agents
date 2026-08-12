@@ -489,15 +489,26 @@ def _test_uncommitted_changes(
         if len(record) < 4:
             return True
         status = record[:2]
-        paths = [record[3:]]
+        paths = [record[3:].rstrip("\n")]
         if "R" in status or "C" in status:
             if index >= len(records) or not records[index]:
                 return True
-            paths.append(records[index])
+            paths.append(records[index].rstrip("\n"))
             index += 1
         if any(Path(path).as_posix() not in excluded for path in paths):
             return True
     return False
+
+
+def _repo_relative_owned_path(path: str | Path, repo_root: str) -> str | None:
+    """Return a repo-relative path unless the value escapes the repo."""
+    try:
+        relative_path = os.path.relpath(path, repo_root)
+    except ValueError:
+        return None
+    if relative_path == os.pardir or relative_path.startswith((os.pardir + os.sep, "../", "..\\")):
+        return None
+    return relative_path
 
 
 def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
@@ -594,16 +605,13 @@ def _owned_evidence_paths(
     qa_owned_path: str | None,
 ) -> list[str]:
     """Return session artifacts allowed in the final evidence commit."""
-    try:
-        session_rel = os.path.relpath(session_path, repo_root)
-    except ValueError:
-        session_rel = None
+    session_rel = _repo_relative_owned_path(session_path, repo_root)
     episode_path = (
         artifact_dir("memory", base=Path(repo_root))
         / "episodes"
         / f"episode-{Path(session_path).stem}.json"
     )
-    episode_rel = os.path.relpath(episode_path, repo_root)
+    episode_rel = _repo_relative_owned_path(episode_path, repo_root)
     return [path for path in (session_rel, qa_owned_path, episode_rel) if path]
 
 

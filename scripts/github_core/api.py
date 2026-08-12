@@ -97,11 +97,16 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 # Repository
 # ---------------------------------------------------------------------------
 
-_GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/.]+)")
+_GITHUB_REMOTE_PATTERN = re.compile(
+    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:[^/@]+@)?"
+    r"github\.com[:/]([^/]+)/([^/]+)$"
+)
 
 
 def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
+
+    Preserves dots in repository names and removes only a trailing ``.git``.
 
     Returns:
         RepoInfo with owner and repo, or None if not in a git repo.

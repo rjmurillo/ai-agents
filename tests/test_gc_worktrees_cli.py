@@ -9,6 +9,7 @@ The safety decisions themselves are tested in ``test_gc_worktrees.py``.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -152,13 +153,13 @@ class TestCli:
 
         assert code == 2
 
-    def test_main_returns_2_on_git_error(self, capsys):
+    def test_main_returns_3_on_git_error(self, capsys):
         with patch(
             "scripts.maintenance.gc_worktrees.build_report",
             side_effect=RuntimeError("git worktree list failed"),
         ):
             code = main([])
-        assert code == 2
+        assert code == 3
         assert "error:" in capsys.readouterr().err
 
     def test_main_json_output(self, capsys):
@@ -174,4 +175,5 @@ class TestCli:
             code = main(["--json"])
         assert code == 0
         out = capsys.readouterr().out
-        assert '"base_ref": "origin/main"' in out
+        payload = json.loads(out)
+        assert payload["base_ref"] == "origin/main"

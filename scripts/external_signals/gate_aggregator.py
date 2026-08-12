@@ -34,13 +34,19 @@ from dataclasses import dataclass
 _BLOCKING = {"CRITICAL_FAIL", "REJECTED", "FAIL"}
 _WARNING = {"WARN", "NEEDS_REVIEW"}
 _PASSING = {"PASS"}
+# DID_NOT_RUN is produced by check_ai_review_infra_gate.py (#2818/#2821) and is
+# accepted by every other consumer in the pipeline (verdict.py _KNOWN_VERDICT_TOKENS,
+# check_critical_failures.py BLOCKING_VERDICTS, parse_ai_review_output.py).
+# Treat it the same as UNKNOWN: blocking in the aggregate (it means a reviewer
+# agent skipped due to an infrastructure failure) but parseable, not fatal.
+_DID_NOT_RUN = {"DID_NOT_RUN"}
 # Public: the adapter in scripts/quality_gate/external_signal_gate.py reads
 # this to decide which repo verdict tokens still need aliasing before they
 # reach parse_signal. Adding a token here without teaching that adapter is
 # safe; adding one to the repo vocabulary without teaching either is not.
 KNOWN_VERDICTS = frozenset(_BLOCKING | _WARNING | _PASSING | {"UNKNOWN"})
 
-_KNOWN = KNOWN_VERDICTS
+_KNOWN = KNOWN_VERDICTS | _DID_NOT_RUN
 
 _VALID_KINDS = {"external", "llm"}
 
@@ -87,9 +93,11 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
        passing/warning**. If every signal is an ``llm`` judgment, the result
        is forced to ``NEEDS_REVIEW`` with reason ``closed-loop``. This is the
        core rule from issue #1855.
-    3. Any UNKNOWN verdict from any signal is treated as NEEDS_REVIEW. An
-       UNKNOWN verdict means the tool could not determine a result; allowing it
-       to silently resolve to PASS is a correctness and security risk.
+    3. Any UNKNOWN or DID_NOT_RUN verdict from any signal is treated as
+       NEEDS_REVIEW. UNKNOWN means the tool could not determine a result;
+       DID_NOT_RUN means a reviewer agent hit an infrastructure failure and
+       skipped review (#2818/#2821). Both prevent the gate from silently
+       resolving to PASS when an evaluator did not run.
     4. Any WARN/NEEDS_REVIEW downgrades a clean PASS to WARN.
     5. Otherwise PASS.
     """
@@ -116,13 +124,14 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
     if not external_known:
         return "NEEDS_REVIEW", "closed-loop:external-signal-inconclusive"
 
-    # Any UNKNOWN verdict (from any signal kind) is treated as NEEDS_REVIEW.
-    # An UNKNOWN means the tool could not produce a definitive result; silently
-    # ignoring it would allow a gate to PASS when a validator failed to run.
-    unknown_sigs = [s for s in sigs if s.verdict == "UNKNOWN"]
-    if unknown_sigs:
-        who = ",".join(f"{s.kind}:{s.name}" for s in unknown_sigs)
-        return "NEEDS_REVIEW", f"unknown-verdict-from:{who}"
+    # Any UNKNOWN or DID_NOT_RUN verdict (from any signal kind) is treated as
+    # NEEDS_REVIEW. UNKNOWN means the tool could not determine a result;
+    # DID_NOT_RUN means a reviewer agent skipped due to an infrastructure
+    # failure (#2818/#2821). Both prevent a gate from silently resolving to PASS.
+    inconclusive_sigs = [s for s in sigs if s.verdict in {"UNKNOWN", "DID_NOT_RUN"}]
+    if inconclusive_sigs:
+        who = ",".join(f"{s.kind}:{s.name}" for s in inconclusive_sigs)
+        return "NEEDS_REVIEW", f"needs-review-from:{who}"
 
     if any(s.verdict in _WARNING for s in sigs):
         return "WARN", "warnings-present"
