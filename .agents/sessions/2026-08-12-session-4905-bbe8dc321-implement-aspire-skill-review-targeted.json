@@ -73,48 +73,48 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "TASK-019 through TASK-023 artifacts produced: pinned inventory, cited decision matrix, SkillForge augmentation, copilot eval PASS, and final report."
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged; per-issue handoff written under .agents/sessions/handoffs/."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena memory aspire-skill-review-4905 written with the decision matrix outcome and eval evidence."
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "pre_pr.py markdown lint clean; matrix.md rendered dashes replaced with hyphens."
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/000-issue-4905-aspire-skill-review-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "SkillForge guardrail, generated mirror, and eval scenarios in commit e1ee3738b; analysis, eval, spec, and report committed in this session; endingCommit set to the tip."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py returned RESULT: All validations passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "REQ-020 co-change checklist and DESIGN-019 open questions resolved for TASK-020, TASK-022, TASK-023."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Pre-mortem risks R1-R7 addressed inline; learnings captured in Serena memory."
       }
     }
   },
@@ -132,6 +132,14 @@
       "result": "eval-prompt-change.py --provider copilot --model claude-opus-5 gate PASS after seeding COPILOT_HOME with auth symlinks and fresh session-state (default ~/.copilot/session-state had 9035 entries, over the 4096 scan cap). TASK-022 is feasible."
     }
   ],
-  "endingCommit": "",
-  "nextSteps": []
+  "endingCommit": "96223625ae92a337cb8d6677301827cafca2fccc",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 12,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "57715aa9f3b65f407b7afa13c9ee4e8f0769d538",
+      "head": "96223625ae92a337cb8d6677301827cafca2fccc"
+    }
+  }
 }
