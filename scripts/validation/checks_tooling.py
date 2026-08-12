@@ -39,6 +39,10 @@ from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 from scripts.validation.session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
+MARKDOWNLINT_TARGET_BATCH_LIMIT = 100
+# Keep target arguments below Windows cmd.exe's 8,191-character limit; npx
+# resolves through npx.cmd there. The remaining space covers command overhead.
+MARKDOWNLINT_COMMAND_LENGTH_LIMIT = 7_500
 # "Linting: N files" prints before any read; Summary's count is files *with
 # issues*, so a clean file and an unselected file both read as 0-of-0.
 _LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
@@ -187,32 +191,58 @@ def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None =
         "markdown files" if targets is None else f"{len(target_args)} {scope_name} markdown file(s)"
     )
     print(f"{action} {scope}...")
-    command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
-    if autofix:
-        command.append("--fix")
-    command.append("--")
-    command.extend(target_args)
+    target_batches = (
+        [target_args] if targets is None else _markdown_lint_target_batches(target_args)
+    )
+    failed = False
+    for batch in target_batches:
+        command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
+        if autofix:
+            command.append("--fix")
+        command.extend(["--", *batch])
 
-    exit_code, stdout, stderr = _run_subprocess(command, cwd=repo_root)
-    if exit_code == 0:
-        _report_selection(target_args, stdout)
-        return True
+        exit_code, stdout, stderr = _run_subprocess(command, cwd=repo_root)
+        if exit_code != 0:
+            _report_markdown_lint_failure(exit_code, stdout, stderr)
+            failed = True
+        else:
+            _report_selection(batch, stdout)
+    return not failed
 
-    print("[FAIL] Markdown linting failed")
-    print()
-    # Prefer stderr (violations); stdout's "Finding:" line restates all 44
-    # exclusion globs on one long line, burying the file/line/rule. stdout is
-    # the fallback when a failure never reaches the violation reporter (e.g.
-    # an unparsable config).
+
+def _markdown_lint_target_batches(target_args: list[str]) -> list[list[str]]:
+    """Bound both argument count and Windows command-line length."""
+    batches: list[list[str]] = []
+    batch: list[str] = []
+    batch_length = 0
+    for target in target_args:
+        target_length = len(target.encode("utf-16-le")) // 2 + 1
+        if batch and (
+            len(batch) >= MARKDOWNLINT_TARGET_BATCH_LIMIT
+            or batch_length + target_length > MARKDOWNLINT_COMMAND_LENGTH_LIMIT
+        ):
+            batches.append(batch)
+            batch = []
+            batch_length = 0
+        batch.append(target)
+        batch_length += target_length
+    if batch:
+        batches.append(batch)
+    return batches
+
+
+def _report_markdown_lint_failure(exit_code: int, stdout: str, stderr: str) -> None:
+    """Report the tool's real failure signal without guessing a lint rule."""
+    print(f"[FAIL] Markdown linting failed (exit code {exit_code})")
     detail = stderr if stderr.strip() else stdout
+    if not detail.strip():
+        print("  markdownlint-cli2 produced no stdout or stderr.")
+        return
+    stream = "stderr" if stderr.strip() else "stdout"
+    print(f"{stream}:")
     for line in detail.splitlines():
         if line.strip():
             print(f"  {line}")
-    print()
-    print("Common issues:")
-    print("  - MD040: Add language identifier to code blocks")
-    print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
-    return False
 
 
 def _linted_file_count(stdout: str) -> int | None:
