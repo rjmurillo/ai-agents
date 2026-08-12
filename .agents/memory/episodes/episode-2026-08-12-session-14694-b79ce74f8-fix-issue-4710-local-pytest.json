@@ -72,7 +72,8 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e008"
       ],
       "leads_to": [
         "e007"
@@ -88,6 +89,17 @@
         "e006"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Capped local python-tests at up to four process-visible CPUs.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     }
   ],

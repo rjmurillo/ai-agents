@@ -133,7 +133,7 @@
       "outcome": "A 48-thread host produced 9 then 33 subprocess timeouts while isolated nodes passed."
     },
     {
-      "action": "Pinned the local python-tests job to four workers.",
+      "action": "Capped local python-tests at up to four process-visible CPUs.",
       "outcome": "The local cap uses up to four process-visible CPUs; direct and CI calls retain auto."
     },
     {
