@@ -153,7 +153,7 @@
       "evidence": "49 schema and command tests passed; pre_pr.py passed 46 validations, 0 failed, 4 skipped."
     }
   ],
-  "endingCommit": "084bc0cef05ea0391d156b028a220946709d32fb",
+  "endingCommit": "a94d7cd2a797249dd3e68326b8f14d9d2a79bd74",
   "nextSteps": [],
   "tasks": [
     {
@@ -172,7 +172,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
-      "head": "084bc0cef05ea0391d156b028a220946709d32fb"
+      "head": "a94d7cd2a797249dd3e68326b8f14d9d2a79bd74"
     }
   }
 }
