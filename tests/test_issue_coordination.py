@@ -62,10 +62,12 @@ class TestReferencesIssue:
             is False
         )
 
-    def test_closes_resolves_refs(self):
+    def test_closes_and_resolves_keywords(self):
         assert _check.references_issue("Closes #5", 5) is True
         assert _check.references_issue("Resolves #5", 5) is True
-        assert _check.references_issue("Refs #5", 5) is True
+
+    def test_refs_keyword_not_matched(self):
+        assert _check.references_issue("Refs #5", 5) is False
 
     def test_case_insensitive(self):
         assert _check.references_issue("FIXES #5", 5) is True
@@ -103,6 +105,26 @@ class TestFindOpenPrsForIssue:
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
+
+    def test_diagnostic_reference_does_not_claim_implementation(self):
+        prs = [
+            {
+                "number": 4866,
+                "title": "fix(workflows): rerun required checks after reopen",
+                "body": "Fixes #4827\n\nRefs #4859 as a diagnostic blocker.",
+                "html_url": "https://github.com/rjmurillo/ai-agents/pull/4866",
+                "head": {"ref": "fix/issue-4827-reopened-pr-workflows"},
+                "user": {"login": "rjmurillo"},
+            }
+        ]
+        with patch.object(
+            _check.subprocess,
+            "run",
+            return_value=_proc(0, json.dumps([prs])),
+        ):
+            out = _check.find_open_prs_for_issue("rjmurillo", "ai-agents", 4859)
+
+        assert out == []
 
     def test_no_match(self):
         prs = [

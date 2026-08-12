@@ -54,16 +54,16 @@ from github_core.output import (
     write_skill_output,
 )
 
-# GitHub closing keywords plus the non-closing "Refs"/"Ref". Matched against an
-# issue number, case-insensitively, requiring the "#" form so a bare number in
-# prose does not produce a false positive.
-_KEYWORDS = "close[sd]?|fix(e[sd])?|resolve[sd]?|ref[s]?"
+# GitHub closing keywords identify PRs that claim implementation ownership. Issue
+# #2477 originally included "Refs", but issue #4894 proved that diagnostic
+# references can name unrelated blockers without implementing them.
+_KEYWORDS = "close[sd]?|fix(e[sd])?|resolve[sd]?"
 _GH_TIMEOUT_SECONDS = 30
 _GIT_TIMEOUT_SECONDS = 10
 
 
 def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
-    """Return True if ``text`` links to ``issue`` via a closing/refs keyword."""
+    """Return True when ``text`` claims ``issue`` via a closing keyword."""
 
     if not text:
         return False
