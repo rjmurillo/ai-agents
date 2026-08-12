@@ -141,7 +141,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
     },
     {
@@ -154,6 +156,17 @@
         "e005"
       ],
       "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-12T11:11:33+00:00",
+      "type": "commit",
+      "content": "Commit: 3a5bc61be3b3785807456f8800609bcfb030d002",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
     }
   ],
   "metrics": {
@@ -161,7 +174,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 12
   },
   "lessons": []
