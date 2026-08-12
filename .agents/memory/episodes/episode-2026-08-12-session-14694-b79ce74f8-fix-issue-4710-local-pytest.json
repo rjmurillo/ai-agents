@@ -3,17 +3,88 @@
   "session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 4710 local pytest worker contention",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4823 and #4854 decisions before changing xdist policy.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured repeated local pre-push failures.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned the local python-tests job to four workers.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consumed the worker override before child pytest execution.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full, targeted, security, and adversarial gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T08:10:08+00:00",
+      "type": "commit",
+      "content": "Commit: f70d63cf34",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 6
+    "commits": 1,
+    "files_changed": 7
   },
   "lessons": []
 }
