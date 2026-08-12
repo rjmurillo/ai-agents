@@ -38,4 +38,3 @@ User patch means agent understanding is incomplete.
 - [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
 - [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
 - [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
-- [autonomous-execution-guardrails](autonomous-execution-guardrails.md)

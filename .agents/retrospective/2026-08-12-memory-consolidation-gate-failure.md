@@ -49,6 +49,7 @@
 - **Mad**: The workflow crossed two explicit stop gates.
 - **Sad**: Time was spent editing and restoring files.
 - **Glad**: Manifest-scoped restoration worked without data loss.
+- **Failure mode**: FM-3, Ambiguous Instruction Inversion.
 
 ## Phase 1: Insights Generated
 ### Five Whys

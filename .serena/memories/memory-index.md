@@ -26,6 +26,7 @@
 |close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
 |pr autofix late merge live state base refresh: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
+|pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (597), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object: [skills-jq-index](skills-jq-index.md) (356)
@@ -107,7 +108,7 @@
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
-|doc-only repair prose shell snippet agent carrier no: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
+|doc-only repair executable guard prose shell snippet: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
 |python-lint-ratchet not a ratchet changed files zero tolerance: [python/python-lint-ratchet-is-not-a-ratchet](python/python-lint-ratchet-is-not-a-ratchet.md) (970)
 |milestone tracking semver v-prefix silent no-op set_item_milestone missing-milestone-ok: [ci/milestone-tracking-v-prefix-fix](ci/milestone-tracking-v-prefix-fix.md) (408)
 

@@ -120,22 +120,27 @@
   },
   "workLog": [
     {
+      "timestamp": "2026-08-12T05:51:21Z",
       "action": "Inventoried Serena memory and enforced size gates.",
       "detail": "Serena returned 1,022 names. Git metadata reported 1,025 tracked files, 3,024,218 bytes total, and a largest file of 29,538 bytes."
     },
     {
+      "timestamp": "2026-08-12T06:00:30Z",
       "action": "Created a feature branch and committed the five incoming memory files.",
-      "detail": "The branch-context hook required a current session log. Unicode dash punctuation and one non-kebab memory name were normalized before the five-file baseline commit passed."
+      "detail": "The branch-context hook required a current session log. Unicode dash punctuation and one non-kebab memory name were normalized before baseline commit 532de59949 passed."
     },
     {
+      "timestamp": "2026-08-12T06:15:00Z",
       "action": "Reviewed duplicate, stale, thin, and index candidates.",
       "detail": "Eleven deletion candidates and one semantic correction were reviewed. The user later authorized continuation. memory-maintenance.md was retained after adversarial review found no concrete survivor."
     },
     {
+      "timestamp": "2026-08-12T06:50:00Z",
       "action": "Restored two incomplete attempts after adversarial review.",
       "detail": "The first attempt lacked path confirmation. The second added one target after mutation. Both were fully restored through memory_git_targets.py."
     },
     {
+      "timestamp": "2026-08-12T07:10:00Z",
       "action": "Completed the third consolidation pass from a clean baseline.",
       "detail": "A complete manifest was validated before mutation. Ten memories were deleted, 48 paths matched the declared set, all diff hunks matched the authorized transform, and memory index, size, token, reference, and retrieval checks passed."
     }
