@@ -3,7 +3,7 @@
   "session": {
     "number": 10005,
     "date": "2026-08-05",
-    "branch": "fix/gc-worktrees-stale-entries",
+    "branch": "fix/gc-worktrees-admin-anchors",
     "startingCommit": "b574071db",
     "objective": "Make the worktree GC dry-run plan predict what --apply actually does, and stop it removing any worktree whose HEAD no ref contains"
   },
@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current returned fix/gc-worktrees-stale-entries"
+        "Evidence": "git branch --show-current returned fix/gc-worktrees-stale-entries at session start. The branch was later split at its pushed tip and this log moved with the upper half to fix/gc-worktrees-admin-anchors, which git branch --show-current now returns."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Branch fix/gc-worktrees-stale-entries created from b574071db on fix/worktree-walk-timeouts; not committing to main."
+        "Evidence": "Branch fix/gc-worktrees-stale-entries created from b574071db on fix/worktree-walk-timeouts; not committing to main. Its upper half is now fix/gc-worktrees-admin-anchors, also not main."
       }
     },
     "sessionEnd": {
@@ -84,12 +84,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix and tests committed; this log follows in its own commit."
+        "Evidence": "PR code validated at 49a0cc9224b49d2def524d44406aa108045c893d after subprocess decoding cleanup."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff clean on all changed files. 123 gc tests pass across 6 files, including 8 real-git tests. Revert-sensitivity proved for all six halves of the redesign, failing 3, 5, 7, 1, 1 and 1 tests. Live dry run showed 62 stale entries correctly classified as prune candidates with zero git inspection failures."
+        "Evidence": "QA rerun after subprocess decoding cleanup: pytest collected 64 and passed 64 for GC anchor and real-git stale suites; subprocess encoding count ratchet passed with 236 violations <= baseline 253."
       },
       "tasksUpdated": {
         "level": "MUST",
@@ -100,6 +100,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Merited and run. A revert experiment executed a real git worktree prune against the live repository, removing 62 stale admin entries. Blast radius verified zero: every affected HEAD was ref-contained beforehand and all 50 named branches survive. Root cause and prevention recorded in .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-05-session-10005-gc-worktrees-admin-anchors.md"
       }
     }
   },
@@ -187,9 +192,141 @@
     {
       "step": "lesson",
       "evidence": "validate_session_json.py scans evidence on completed MUST items for tokens implying the item was skipped, and TODO is one of them on a word boundary, so 'Todo list updated' flags against correct evidence. The escapes are uneven: deferred and pending are suppressed after an affirmative word plus a clause boundary, skipped is suppressed after a bare number for pytest summaries, and TODO, TBD, N/A, will run, will validate and not available have none. Measured against _has_contradiction. Recorded as .serena/memories/session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md."
+    },
+    {
+      "step": "review",
+      "evidence": "Round 5 adversarial review on GPT 5.6 Sol raised seven findings. Each was tested against real git before being accepted. Sol #2 held: git checkout-index -a exits 0 and writes zero files for an index holding only unmerged stages, and exports a 160000 gitlink as an empty directory, losing the recorded commit. Both silent. Probed in ~/src/scratch/ckidx."
+    },
+    {
+      "step": "fix",
+      "evidence": "The printed recovery command now copies the index file itself, because the index is the only artifact holding the conflicted stages and the gitlink SHAs. Three real-git tests cover it: unmerged stages preserved, gitlink preserved, and the existing skip-worktree test extended to assert the index copy landed. Commit e529dac7b."
+    },
+    {
+      "step": "fix",
+      "evidence": "Sol #5 held: the rescue chain joined with ; so a shell reports the status of the last command and a failed first rescue read as a completed rescue. Joined with && instead. The test pre-creates the first rescue branch to block it, then asserts non-zero exit and that the second branch was never created. Under ; the chain exits 0 and the test fails."
+    },
+    {
+      "step": "review",
+      "evidence": "Sol #7 was tested by applying the exact proposed revert, bypassing removable() on the branch path, and all 410 tests still passed. The merged-to-base and fully-pushed path, which nearly every worktree takes, could skip the reflog-only-work check with zero failures. A real-git test now covers it and the revert fails. Commit 4235b3e5e."
+    },
+    {
+      "step": "review",
+      "evidence": "Sol #6 was rejected after building both reachable constructions and running the real tool against them. A newline in a worktree path splits git worktree list --porcelain, verified on git 2.43.0. With a worktree occupying the truncated path, removal targets that worktree and a commit stranded in the newline worktree survived in the odb. With nothing occupying it, build_report returned remove=False with 'could not locate its admin entry'. Neither construction loses a commit, so -z was not adopted. Commit 45db3efb7."
+    },
+    {
+      "step": "refactor",
+      "evidence": "The taste count ratchet regressed to 584 against baseline 583 because tests/test_gc_worktrees_real_git_stale.py reached 529 lines over the 500 limit. Four real-git suites each carried a private copy of the same sandbox builder, roughly ninety lines repeated four times. Extracted to tests/gc_real_git.py with the fixture in tests/conftest.py, 252 lines removed, ratchet back to 583. Commits c791aaef7 and df5d7e8ff."
+    },
+    {
+      "step": "lesson",
+      "evidence": "Importing a pytest fixture by name into a suite that also names it as a test parameter reads to ruff as a redefinition, F811. Conftest discovery has no such problem. Ruff isort also splits an aliased import block into one statement per alias, so dropping the aliases entirely produced one clean import line. Recorded as .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md context."
+    },
+    {
+      "step": "fix",
+      "evidence": "The memory index count ratchet failed at 427 against baseline 425 because the three memories this branch wrote were referenced by no domain index, which makes them unreachable through the retrieval path AGENTS.md points at. Added entries to skills-git-index.md, skills-session-init-index.md and skills-validation-index.md; ratchet back to 424. Commit efc27ee9b."
+    },
+    {
+      "step": "verify",
+      "evidence": "Full suite: 23809 passed, 33 skipped, 2 warnings in 657.65s. taste count ratchet: OK, count == baseline 583. memory index count ratchet: OK, 424 violations <= baseline 425."
+    },
+    {
+      "step": "review",
+      "evidence": "Round 6 adversarial review, Gemini 3.1 Pro via rubber-duck, 49 tool calls. Three findings: one Critical, one High, one Medium. Each was reproduced independently against real git before any code changed; none was accepted on the reviewer's framing."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "Critical confirmed end to end in ~/src/scratch/r6/repo. git merge --no-commit --no-ff against a commit-tree parent whose tree matches HEAD leaves git status --porcelain empty and HEAD unmoved, and commit-tree writes no reflog entry. build_report answered remove=True reason 'merged to base', apply_removals removed with zero errors, git fsck --unreachable then listed dcacc6148bc69eaa8ae1c56775ff58f3c47142d0. The commit was orphaned."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "High confirmed in ~/src/scratch/r6b. With an index holding only unmerged stages, git checkout-index -a --prefix=OUT/ exits 0, writes no files, and does not create OUT. The full printed chain then died at cp with 'No such file or directory' and recovered 0 entries, in exactly the case the cp existed to serve."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "The test that should have caught the High substituted pytest's tmp_path for the RECOVERY_DIR placeholder. tmp_path is created by the fixture, so the fixture supplied the precondition the command was required to establish and the test passed against a command that could not work."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 66e16a2c1. Recovery chain is now 'mkdir -p RECOVERY_DIR && GIT_INDEX_FILE=<q> git -C <q repo> checkout-index ... && cp <q> RECOVERY_DIR/index'. command_of in tests/gc_real_git.py replaces five copies of the same slice-and-substitute block and asserts the substituted path does not exist. Tests now run the chain from outside any repository."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert-proof on 66e16a2c1: dropping the mkdir fails 3 tests, dropping git -C fails 3 tests, restored 8 pass."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 274b2c472. _gc_stale.in_progress_operation reads MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG, rebase-merge, rebase-apply, sequencer from the admin directory named by the checkout's own .git marker. Two file reads, no subprocess, because the decision path's time budget already carries three git calls."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert-proof on 274b2c472: making the probe answer None fails 9 tests, dropping only the decision-path wiring fails the merge reproduction, restored 14 pass. tests/test_gc_worktrees_real_git_operations.py also pins admin_dir_from_marker against git rev-parse --absolute-git-dir, so the marker tests cannot pass against a directory git never reads."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "Medium confirmed in ~/src/scratch/r6c. git worktree remove deletes a worktree carrying index.lock, exits 0, prints nothing."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit a8c9f1f95. index.lock rides in the same marker tuple at no extra cost. The commit message states plainly that this narrows rather than closes the race. The test asserts git's current behaviour so a future git that honours the lock reports the guard as redundant."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit fbc60b24a. .claude/rules/testing.md MUST 12 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "Own finding, not the reviewer's: revalidate re-runs decide so an operation started before the recheck drops the candidate, but one started between the recheck and a candidate's own removal is seen by neither per-candidate check. A --no-commit merge moves no HEAD and writes no reflog entry."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit e6b526f74. The probe runs per candidate in _gc_apply's removal loop. The test starts the merge from inside the existing apply-window hook, which fires after revalidate returns. Revert-proof: dropping the probe fails that test; a negative control asserts an untouched candidate is still removed."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 36fca84c6. The probe moved into removable(), the single site constructing a remove=True Decision, so no reordering of the checks above can bypass it. It also runs less often, since removable is reached only by candidates. Revert-proof: 2 failures."
+    },
+    {
+      "step": "verify",
+      "evidence": "Relative gitdir markers checked against the probe in ~/src/scratch/r7me. git 2.43.0 writes absolute paths even with worktree.useRelativePaths true, that config landed in 2.48, so the relative form was written by hand and git rev-parse --absolute-git-dir confirmed it resolves. The probe still reported the suspended merge."
+    },
+    {
+      "step": "verify",
+      "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at fbc60b24a. All 119 gc tests pass at 36fca84c6. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
+    },
+    {
+      "step": "verify",
+      "evidence": "Adversarial review of the reflog reader fixes on gemini-3.1-pro-preview and grok-4.5, each in its own detached worktree. Both returned no findings. Gemini killed six hypotheses on real controls, including CR in a commit message (git sanitizes to a space) and sha256 object ids (the _OID pattern already covers 64-hex). Grok killed eight, including a falsy-test sweep of the None-means-unknown chain through _gc_stale, _gc_reasons, decide and apply_removals: every stage uses 'is None'. Full suite 23857 passed, 33 skipped in 654.06s at 7e3590b9e. pre_pr.py: all validations passed."
+    },
+    {
+      "step": "verify",
+      "evidence": "Branch split at the pushed tip 9ca28c073, which was verified green (240 gc tests) before any PR opened on it. Defects 1 to 6 stayed on fix/gc-worktrees-stale-entries and opened as PR #4718 based on fix/gc-worktrees-one-decision. Defects 7 to 9 moved to fix/gc-worktrees-admin-anchors, which this log now names. The split was forced by push-ref-policy: 51 commits from origin/main against a ceiling of 20, and the stack-aware escape valve still counted 31 because they are genuinely this branch's own."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "PR #4708 squash-merged under this branch, severing ancestry. git merge-base --is-ancestor efc27ee9b origin/fix/worktree-walk-timeouts returns 1 while git log --oneline shows the squash at the tip, so the readable signal and the authoritative check disagree. Merge base collapsed and git reported add/add on 17 files both branches carry."
+    },
+    {
+      "step": "verify",
+      "evidence": "Squash is content-faithful: git diff --name-only origin/fix/gc-worktrees-one-decision 0d386e7a5 returns exactly 1 path, tests/ci/test_walkers_skip_worktrees.py, and that path changed on the base side only. Confirms -s ours plus a named restore is sound rather than a guess."
+    },
+    {
+      "step": "implement",
+      "evidence": "Repair merge cbed7c48f in a dedicated worktree: git merge -s ours --no-commit, then git checkout origin/fix/worktree-walk-timeouts -- tests/ci/test_walkers_skip_worktrees.py. Staged set was exactly that one path, 9 insertions 4 deletions."
+    },
+    {
+      "step": "verify",
+      "evidence": "Proved the merge before committing with git write-tree, which writes a tree without moving any ref. diff of the result tree against the base gives 31 paths; diff of the pre-squash parent against this branch gives the same 31. Both comm -23 and comm -13 are empty, so nothing of the base was lost and no branch edit vanished."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "Push refused at 43 commits against a limit of 20. Measured via _unpushed_commit_count semantics: stack-aware 21, branch's own 20, genuinely new 3. Root cause is that GitHub deleted the squashed parent branch on merge, so its ~20 inherited commits stopped being excluded by any other remote ref and began counting here. Over by exactly one, and the one is the repair merge. Applied the sanctioned commit-limit-bypass label with the measurement table on PR #4718."
+    },
+    {
+      "step": "document",
+      "evidence": "Wrote .agents/retrospective/2026-08-06-squash-severed-stack-and-silent-reflog-defaults.md covering three failures classified against FAILURE-MODES.md: a delegated agent that reset and cleaned a shared worktree holding committed work (mode 7), two High silent-default defects in the reflog reader that 262 mock-based tests missed (mode 10), and reading git log as ancestry proof (mode 9). Zero em or en dashes, taste-lints clean."
     }
   ],
-  "endingCommit": "0d386e7a5",
+  "endingCommit": "49a0cc9224b49d2def524d44406aa108045c893d",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",

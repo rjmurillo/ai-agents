@@ -19,17 +19,12 @@ _IMPLEMENTER_FILES = (
 )
 
 _CONSUMER_OWNED_NOTICE = (
-    "[INFO] Vendor install: consumer-owned .agents/ without toolkit scaffold; "
+    "[INFO] Consumer install: consumer-owned .agents/ without ai-agents session scaffold; "
     "proceeding without session-protocol gates"
 )
-_TOOLKIT_SIGNAL = (
-    "If `.agents/` has HANDOFF.md or AGENT-INSTRUCTIONS.md, "
-    "it is the toolkit session scaffold"
-)
+_TOOLKIT_SIGNAL = "If `.agents/SESSION-PROTOCOL.md` exists, it is the ai-agents session scaffold"
 _UNKNOWN_OWNERSHIP_BLOCK = "[BLOCKED] Cannot determine .agents scaffold ownership"
-_STALE_EXISTS_ONLY_RULE = (
-    "The `.agents/` stop conditions below apply only when `.agents/` exists."
-)
+_STALE_EXISTS_ONLY_RULE = "The `.agents/` stop conditions below apply only when `.agents/` exists."
 
 
 def _implementer_scenarios() -> dict[str, dict]:
@@ -71,18 +66,9 @@ def test_implementer_prompts_keep_partial_toolkit_scaffold_blocking(
     """A partial toolkit scaffold still stops instead of failing open."""
     text = _read(relative_path)
 
-    assert (
-        "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "
-        "HANDOFF.md missing`"
-    ) in text
-    assert (
-        "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "
-        "AGENT-INSTRUCTIONS.md missing`"
-    ) in text
-    assert (
-        "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "
-        "root AGENTS.md missing`"
-    ) in text
+    assert "stop and report `[BLOCKED] No prior session context available`" in text
+    assert "stop and report `[BLOCKED] Project configuration incomplete`" in text
+    assert "stop and report `[BLOCKED] Missing root agent instructions`" in text
 
 
 @pytest.mark.parametrize("relative_path", _IMPLEMENTER_FILES)

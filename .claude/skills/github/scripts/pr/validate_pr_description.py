@@ -130,95 +130,101 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-
-    # Resolve body content
+def _resolve_body(args: argparse.Namespace) -> tuple[str, int | None]:
+    """Resolve body text from an argument, file, or stdin."""
     body = args.body
-    if args.body_file and not body:
-        path = Path(args.body_file)
-        if not path.exists():
-            print(f"Body file not found: {args.body_file}", file=sys.stderr)
-            return 2
-        body = path.read_text(encoding="utf-8")
+    if not args.body_file or body:
+        return body, None
+    if args.body_file == "-":
+        return sys.stdin.read(), None
 
-    validate_no_escaped_newlines(body)
+    path = Path(args.body_file)
+    if not path.exists():
+        print(f"Body file not found: {args.body_file}", file=sys.stderr)
+        return body, 2
+    return path.read_text(encoding="utf-8"), None
 
-    full_text = f"{args.title}\n{body}"
 
-    # Run validations
-    conv = validate_conventional_commit(args.title)
-    keywords = validate_issue_keywords(full_text)
-    template = validate_template_compliance(body)
 
-    # Collect warnings/errors
+def _collect_messages(
+    conventional_commit: dict[str, Any],
+    issue_keywords: dict[str, Any],
+    template_compliance: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Collect validation warnings and errors in display order."""
     warnings: list[str] = []
     errors: list[str] = []
 
-    if conv["Status"] == "FAIL":
-        errors.append(conv["Message"])
-    if keywords["Status"] == "WARN":
-        warnings.append(keywords["Message"])
-    if template["Status"] == "WARN":
-        warn_sections = [k for k, v in template["Sections"].items() if v == "WARN"]
-        if warn_sections:
-            warnings.append(f"Incomplete template sections: {', '.join(warn_sections)}")
+    if conventional_commit["Status"] == "FAIL":
+        errors.append(conventional_commit["Message"])
+    if issue_keywords["Status"] == "WARN":
+        warnings.append(issue_keywords["Message"])
+    if template_compliance["Status"] == "WARN":
+        warning_sections = [
+            name
+            for name, status in template_compliance["Sections"].items()
+            if status == "WARN"
+        ]
+        if warning_sections:
+            warnings.append(
+                f"Incomplete template sections: {', '.join(warning_sections)}"
+            )
+    return warnings, errors
+
+
+def _build_result(
+    title: str,
+    body: str,
+    *,
+    fail_on_violation: bool,
+) -> dict[str, Any]:
+    """Run validations and build the JSON result payload."""
+    conventional_commit = validate_conventional_commit(title)
+    issue_keywords = validate_issue_keywords(f"{title}\n{body}")
+    template_compliance = validate_template_compliance(body)
+    warnings, errors = _collect_messages(
+        conventional_commit,
+        issue_keywords,
+        template_compliance,
+    )
 
     success = len(errors) == 0
-    # Under --fail-on-violation, warnings are treated as fatal: a run with
-    # warnings will exit nonzero even when no errors were detected. The output
-    # must reflect this so humans and automation see a coherent pass/fail signal
-    # (fix for #2369).
-    warnings_are_fatal = bool(args.fail_on_violation) and len(warnings) > 0
+    warnings_are_fatal = bool(fail_on_violation) and len(warnings) > 0
     effective_success = success and not warnings_are_fatal
 
-    result = {
+    return {
         "Success": success,
         "EffectiveSuccess": effective_success,
-        "FailOnViolation": bool(args.fail_on_violation),
+        "FailOnViolation": bool(fail_on_violation),
         "WarningsAreFatal": warnings_are_fatal,
         "WarningCount": len(warnings),
         "ErrorCount": len(errors),
         "Validations": {
-            "ConventionalCommit": conv,
-            "IssueKeywords": keywords,
-            "TemplateCompliance": template,
+            "ConventionalCommit": conventional_commit,
+            "IssueKeywords": issue_keywords,
+            "TemplateCompliance": template_compliance,
         },
         "Warnings": warnings,
         "Errors": errors,
     }
 
-    # JSON output to stdout
-    print(json.dumps(result, indent=2))
 
-    # Human-readable summary to stderr
-    print("\nPR Description Validation Results", file=sys.stderr)
-    print("=================================", file=sys.stderr)
-    print(f"Conventional Commit: {conv['Status']} - {conv['Message']}", file=sys.stderr)
-    print(f"Issue Keywords:      {keywords['Status']} - {keywords['Message']}", file=sys.stderr)
-    print(f"Template Compliance: {template['Status']} - {template['Message']}", file=sys.stderr)
-    fatality_policy = (
-        "warnings are fatal (--fail-on-violation)"
-        if args.fail_on_violation
-        else "warnings are advisory (default mode)"
-    )
-    print(f"Policy:              {fatality_policy}", file=sys.stderr)
+def _print_messages(heading: str, marker: str, messages: list[str]) -> None:
+    """Print one human-readable warning or error section."""
+    if not messages:
+        return
+    print(f"\n{heading}:", file=sys.stderr)
+    for message in messages:
+        print(f"  {marker} {message}", file=sys.stderr)
 
-    if warnings:
-        print("\nWarnings:", file=sys.stderr)
-        for w in warnings:
-            print(f"  ⚠ {w}", file=sys.stderr)
 
-    if errors:
-        print("\nErrors:", file=sys.stderr)
-        for e in errors:
-            print(f"  ✗ {e}", file=sys.stderr)
-
-    if effective_success:
+def _print_outcome(result: dict[str, Any]) -> None:
+    """Print the final status line corresponding to the exit policy."""
+    warnings = result["Warnings"]
+    errors = result["Errors"]
+    if result["EffectiveSuccess"]:
         print("\n✓ Validation passed", file=sys.stderr)
-    elif warnings_are_fatal and success:
-        # No hard errors, but warnings are fatal under --fail-on-violation.
-        # Do NOT print "Validation passed" because exit will be nonzero (#2369).
+    elif result["WarningsAreFatal"] and result["Success"]:
         print(
             f"\n✗ Validation failed: {len(warnings)} warning(s) treated as "
             "violations (--fail-on-violation)",
@@ -230,10 +236,48 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
 
-    if args.fail_on_violation and not effective_success:
-        return 1
 
+def _print_human_summary(result: dict[str, Any]) -> None:
+    """Print the human-readable validation report to stderr."""
+    validations = result["Validations"]
+    conventional_commit = validations["ConventionalCommit"]
+    issue_keywords = validations["IssueKeywords"]
+    template_compliance = validations["TemplateCompliance"]
+
+    print("\nPR Description Validation Results", file=sys.stderr)
+    print("=================================", file=sys.stderr)
+    print(
+        f"Conventional Commit: {conventional_commit['Status']} - "
+        f"{conventional_commit['Message']}",
+        file=sys.stderr,
+    )
+    print(
+        f"Issue Keywords:      {issue_keywords['Status']} - "
+        f"{issue_keywords['Message']}",
+        file=sys.stderr,
+    )
+    print(
+        f"Template Compliance: {template_compliance['Status']} - "
+        f"{template_compliance['Message']}",
+        file=sys.stderr,
+    )
+    fatality_policy = (
+        "warnings are fatal (--fail-on-violation)"
+        if result["FailOnViolation"]
+        else "warnings are advisory (default mode)"
+    )
+    print(f"Policy:              {fatality_policy}", file=sys.stderr)
+    _print_messages("Warnings", "⚠", result["Warnings"])
+    _print_messages("Errors", "✗", result["Errors"])
+    _print_outcome(result)
+
+
+def _exit_code(result: dict[str, Any]) -> int:
+    """Return the process exit code for a completed validation."""
+    if result["FailOnViolation"] and not result["EffectiveSuccess"]:
+        return 1
     return 0
+
 
 
 def validate_no_escaped_newlines(body_content: str) -> None:
@@ -291,6 +335,24 @@ def validate_no_escaped_newlines(body_content: str) -> None:
         file=sys.stderr,
     )
     raise SystemExit(1)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    body, body_error = _resolve_body(args)
+    if body_error is not None:
+        return body_error
+
+    validate_no_escaped_newlines(body)
+
+    result = _build_result(
+        args.title,
+        body,
+        fail_on_violation=args.fail_on_violation,
+    )
+    print(json.dumps(result, indent=2))
+    _print_human_summary(result)
+    return _exit_code(result)
 
 
 if __name__ == "__main__":

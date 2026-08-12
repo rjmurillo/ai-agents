@@ -1,0 +1,178 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10028,
+    "date": "2026-08-05",
+    "branch": "fix/revthreads-completion-gate",
+    "startingCommit": "d698686057d1",
+    "objective": "Address suppressed Copilot findings on PR 4606 by separating total findings from active findings and keeping the completion gate actionable."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this Copilot MCP surface."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called earlier in session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read earlier in session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill scripts listed earlier in session."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory read earlier in session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project constraints and path-scoped Python, CI, generated artifact, and plugin rules read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index and missing-state context loaded earlier in session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/revthreads-completion-gate."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work performed in ai-agents-revthreads worktree."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before session log creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit d698686057d1 recorded."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable convention beyond existing missing-state memory."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown lint covered changed command files during commit; pre_pr markdown lint passed after schema update."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All code changes committed before session log update (HEAD: d926ae53c7)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed 46 validations, 0 failed, 4 skipped after schema update."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Operational todos updated in session database."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No retrospective requested."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4606-session-10028-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "gate-self-check",
+      "evidence": "PR 4606 suppressed report exposed 4 Copilot suppressed findings after review threads were resolved."
+    },
+    {
+      "step": "implementation",
+      "evidence": "Added Copilot reviewer filtering, structured gh error handling, head SHA retrieval, active/stale/unknown suppressed counts, and changed the gate to block active or unknown suppressed findings."
+    },
+    {
+      "step": "verification",
+      "evidence": "uv run --frozen pytest tests/test_check_suppressed_review_findings.py tests/test_check_review_thread_resolution_shas.py -q passed 24 tests; ruff check passed."
+    },
+    {
+      "step": "mutation",
+      "evidence": "Updated mutation proof killed M1 through M9 and let cosmetic M10 survive, with pycache purged before every run."
+    },
+    {
+      "step": "copilot-config-packaging",
+      "evidence": "Resolved PR 4606 review finding by copying pr-review-config.yaml into src/copilot-cli/commands and documenting installed-plugin resolution."
+    },
+    {
+      "step": "schema-contract-update",
+      "evidence": "Updated REQ-003 and validate_templates_schema.py so command resourceOutputDir and resourceSuffixes are part of the locked platform contract."
+    },
+    {
+      "step": "schema-validation",
+      "evidence": "49 schema and command tests passed; pre_pr.py passed 46 validations, 0 failed, 4 skipped."
+    }
+  ],
+  "endingCommit": "a9289765e5388b8802c36e345722badb7d58eb20",
+  "nextSteps": [],
+  "tasks": [
+    {
+      "issue": "4526",
+      "disposition": "fixed",
+      "evidence": "Suppressed finding report keeps total suppressed_count for audit while completion gate reads active_suppressed_count and unknown_suppressed_count."
+    },
+    {
+      "issue": "4527",
+      "disposition": "fixed",
+      "evidence": "No new change in this follow-up; earlier commits gate unreachable, invalid, and ambiguous thread SHA references."
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "cd09a543c54e98d085d086f93675ab3e1f2c939f",
+      "head": "a9289765e5388b8802c36e345722badb7d58eb20"
+    }
+  }
+}

@@ -157,14 +157,18 @@ class TestLoadDocuments:
 
 
 class TestCli:
-    def test_an_empty_directory_exits_zero_with_a_message(
+    def test_an_empty_directory_exits_nonzero_with_a_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        assert ccs.main(["--sarif-dir", str(tmp_path)]) == 0
+        assert ccs.main(["--sarif-dir", str(tmp_path)]) == 1
         assert "No SARIF files found" in capsys.readouterr().out
 
-    def test_a_missing_directory_exits_zero(self, tmp_path: Path) -> None:
-        assert ccs.main(["--sarif-dir", str(tmp_path / "nope")]) == 0
+    def test_a_missing_directory_exits_nonzero(self, tmp_path: Path) -> None:
+        assert ccs.main(["--sarif-dir", str(tmp_path / "nope")]) == 1
+
+    def test_an_unparseable_sarif_file_exits_nonzero(self, tmp_path: Path) -> None:
+        (tmp_path / "bad.sarif").write_text("{not json", encoding="utf-8")
+        assert ccs.main(["--sarif-dir", str(tmp_path)]) == 1
 
     def test_a_critical_finding_fails_the_job(self, tmp_path: Path) -> None:
         doc = _sarif(rules=[_rule("r1", "10.0")], results=[_error("r1")])

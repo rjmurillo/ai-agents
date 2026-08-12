@@ -22,7 +22,7 @@ import time
 import unicodedata
 import warnings
 from collections import Counter
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
@@ -31,9 +31,12 @@ from pathlib import Path, PurePosixPath
 from typing import NamedTuple, TextIO, cast
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+_VALIDATION_DIR = _PROJECT_ROOT / "scripts" / "validation"
+_VALIDATION_PACKAGE_SENTINEL = _VALIDATION_DIR / "models.py"
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+if str(_VALIDATION_DIR) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION_DIR))
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
@@ -44,15 +47,90 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import session_change_scope
+from scripts.validation.session_scope import (
+    added_session_paths_in_index,
+    session_change_scope,
+)
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
+# Repo-root filenames that remain valid when HEAD cannot be read (issue #4600).
+# When HEAD is readable, existing root files pass by identity and root dotfiles
+# pass by prefix. This fallback list matters only for unborn or unreadable HEAD,
+# or for the rare newly introduced root filename.
+ROOT_SCRATCH_ALLOWLIST = frozenset(
+    {
+        "AGENTS.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "RELEASING.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "conftest.py",
+        "lefthook.yml",
+        "pyproject.toml",
+        "renovate.json",
+        "uv.lock",
+    }
+)
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 SESSION_PROTOCOL_PATH_RE = re.compile(r"(?:^|[\\/])SESSION-PROTOCOL\.md$", re.IGNORECASE)
+ALLOWED_REPO_ROOT_ENTRIES = frozenset(
+    {
+        ".PSScriptAnalyzerSettings.psd1",
+        ".actrc",
+        ".agents",
+        ".baseline",
+        ".claude-mem",
+        ".claude-plugin",
+        ".claude",
+        ".codeql",
+        ".coderabbit.yaml",
+        ".config",
+        ".diffray",
+        ".env.example",
+        ".factory",
+        ".forgetful",
+        ".gemini",
+        ".gitattributes",
+        ".github",
+        ".gitignore",
+        ".markdownlint-cli2.yaml",
+        ".mcp.json",
+        ".python-version",
+        ".qualityrc.json",
+        ".serena",
+        ".vscode",
+        ".worktreeinclude",
+        ".yamllint.yml",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "RELEASING.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "build",
+        "conftest.py",
+        "docs",
+        "evals",
+        "lefthook.yml",
+        "memory_enhancement",
+        "packages",
+        "pr_body.md",
+        "pyproject.toml",
+        "renovate.json",
+        "scripts",
+        "src",
+        "templates",
+        "tests",
+        "uv.lock",
+    }
+)
 # Composed rather than written out again: the two halves disagreed about
 # anchoring for as long as they were separate strings, and a path merely ending
 # in the protocol's filename read as the protocol itself.
@@ -1672,6 +1750,42 @@ def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
     return 1
 
 
+def _repo_root_entry(path: str) -> str:
+    return PurePosixPath(path).parts[0]
+
+
+def check_root_hygiene(paths: Sequence[str], repo_root: Path) -> int:
+    if _merge_in_progress(repo_root):
+        return 0
+    violations: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged path: {raw_path}", file=sys.stderr)
+            return 2
+        if _repo_root_entry(path) in ALLOWED_REPO_ROOT_ENTRIES:
+            continue
+        if _read_index_blob(repo_root, path) is None:
+            continue
+        violations.append(path)
+    if not violations:
+        return 0
+    print("ERROR: staged files contain disallowed repository-root entries:", file=sys.stderr)
+    for path in violations:
+        print(f"  {path}", file=sys.stderr)
+    print(
+        "Allow legitimate entries in "
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES.",
+        file=sys.stderr,
+    )
+    print(
+        "Move scratch output under .agents/scratch/, an ignored subdirectory, "
+        "or a workspace outside the repository.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _merge_in_progress(repo_root: Path) -> bool:
     result = _run_git(repo_root, ["rev-parse", "--git-path", "MERGE_HEAD"])
     if result.returncode != 0:
@@ -1785,13 +1899,22 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
+    new_logs = added_session_paths_in_index(sessions, repo_root)
+    if new_logs is None:
+        print(
+            "ERROR: unable to determine which staged session logs are new; "
+            "refusing to guess creation-mode",
+            file=sys.stderr,
+        )
+        return 1
     for session in sessions:
+        mode = "--creation-mode" if session in new_logs else "--pre-commit"
         result = _run_command(
             [
                 sys.executable,
                 "scripts/validate_session_json.py",
                 session,
-                "--pre-commit",
+                mode,
             ],
             repo_root,
         )
@@ -1824,6 +1947,87 @@ def check_commit_message(message_path: Path) -> int:
         return 0
     print(
         "ERROR: commit message contains em-dash (U+2014) or en-dash (U+2013)",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _is_repo_root_path(path: str) -> bool:
+    """True when ``path`` names a file directly at the repository root."""
+    return bool(path) and "/" not in path
+
+
+def _root_scratch_violations(paths: Sequence[str], head_root_entries: Iterable[str]) -> list[str]:
+    """Staged repo-root paths that are neither known nor allowlisted.
+
+    ``head_root_entries`` is what HEAD already carries at the root. Membership
+    there is the primary allowance: editing a root file the repo already has is
+    not new litter, and it covers every current root file without listing any of
+    them. Dotfiles pass by prefix. ROOT_SCRATCH_ALLOWLIST only has to name root
+    files that do not exist yet, which is why it stays small.
+    """
+    known = set(head_root_entries)
+    return sorted(
+        {
+            path
+            for path in paths
+            if _is_repo_root_path(path)
+            and path not in known
+            and path not in ROOT_SCRATCH_ALLOWLIST
+            and not path.startswith(".")
+        }
+    )
+
+
+def _head_root_entries(repo_root: Path) -> list[str]:
+    """Root-level names in HEAD, or [] when HEAD cannot be read.
+
+    An empty list is the conservative direction: with no known-root set every
+    non-dotfile, non-allowlisted root path is refused, so an unborn HEAD makes
+    the gate stricter rather than silently open.
+    """
+    result = _run_git(repo_root, ["ls-tree", "--name-only", "HEAD"])
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def check_root_scratch(paths: Sequence[str], repo_root: Path) -> int:
+    """Block a new scratch file staged at the repository root (issue #4600).
+
+    ``.gitignore`` handles this one filename at a time (``/metrics.json``,
+    ``/pr-validation-report.md``, and seven more), so it stops the producers
+    someone already found and nothing else. Investigation dumps an agent writes
+    ad hoc (``pr4147_threads.json``, ``report.*.json``) match no entry.
+
+    Untracked files never reach a pre-commit gate, so the catch point is the
+    ``git add`` that makes one committable. That is the exact sequence issue
+    #3756 reported: ``git add -A`` during a conflict resolution swept an
+    unignored root report into the commit.
+
+    Rule source: ``AGENTS.md`` Never list, "Scratch in tree".
+    """
+    safe_paths: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged path: {raw_path}", file=sys.stderr)
+            return 2
+        safe_paths.append(path)
+    violations = _root_scratch_violations(safe_paths, _head_root_entries(repo_root))
+    if not violations:
+        return 0
+    print(
+        "ERROR: new repository-root files look like scratch "
+        "(AGENTS.md Never list: no scratch in tree):",
+        file=sys.stderr,
+    )
+    for path in violations:
+        print(f"  {path}", file=sys.stderr)
+    print(
+        "Write scratch outside the repository, or under a gitignored path. "
+        "If the file genuinely belongs at the root, add its name to "
+        "ROOT_SCRATCH_ALLOWLIST in scripts/validation/git_hook_policy.py.",
         file=sys.stderr,
     )
     return 1
@@ -3828,6 +4032,7 @@ def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
         )
     return version
 
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -5015,8 +5220,8 @@ def _suppression_renames(
     return _parse_suppression_renames(result.stdout, context=context)
 
 
-
 PATH_SEPARATOR_RE = re.compile(r"[\\/]")
+
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -6226,18 +6431,19 @@ def _pytest_parallel_flags() -> list[str]:
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
-    """Return the pre-push pytest invocations, bulk partition first.
+    """Return pre-push pytest invocations in CI partition order.
 
-    Only the first command runs in parallel. The safe-push and pr-autofix
-    modules each run in a fresh serial pytest process. The latter can leave a
-    grandchild holding a subprocess pipe under heavy worker load, so sharing a
-    process with another test module also makes it flaky.
+    Bulk and mutation tests each use every visible CPU over whole files.
+    Process-sensitive push, signal, and pr-autofix modules run serially in
+    fresh processes.
 
     Raises:
         ValueError: the worker override names something other than ``auto`` or
             a positive integer.
     """
+    mutation_tests = repo_root / "tests" / "mutation"
     safe_push_tests = repo_root / "tests" / "test_safe_push_pr_branch.py"
+    mutation_signal_tests = repo_root / "tests" / "test_mutation_workspace_signals.py"
     pr_autofix_tests = repo_root / "tests" / "test_pr_autofix_late_live_state_gate.py"
     return [
         [
@@ -6249,7 +6455,11 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             *_pytest_parallel_flags(),
             str(repo_root / "tests"),
             "--ignore",
+            str(mutation_tests),
+            "--ignore",
             str(safe_push_tests),
+            "--ignore",
+            str(mutation_signal_tests),
             "--ignore",
             str(pr_autofix_tests),
         ],
@@ -6258,8 +6468,18 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
             "-m",
             "pytest",
             "-m",
+            "not integration",
+            *_pytest_parallel_flags(),
+            str(mutation_tests),
+        ],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-m",
             "not integration and not safe_push_transport",
             str(safe_push_tests),
+            str(mutation_signal_tests),
         ],
         [
             sys.executable,
@@ -6396,15 +6616,18 @@ def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
             "(imported or unchanged workflows excluded)",
         )
         return 0
+    command = [
+        sys.executable,
+        "scripts/validation/run_workflow_local_test.py",
+        "--files",
+        *selected,
+        "--repo-root",
+        str(repo_root),
+    ]
+    if selected == [".github/workflows/pytest.yml"]:
+        command.append("--no-full")
     result = _run_command(
-        [
-            sys.executable,
-            "scripts/validation/run_workflow_local_test.py",
-            "--files",
-            *selected,
-            "--repo-root",
-            str(repo_root),
-        ],
+        command,
         repo_root,
         timeout_seconds=WORKFLOW_LOCAL_TIMEOUT_SECONDS,
     )
@@ -6509,11 +6732,17 @@ def run_cli_e2e(
         )
         return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
-        print("CLI E2E skipped (SKIP_CLI_E2E=true)")
-        return 0
+        print(
+            "ERROR: SKIP_CLI_E2E=true cannot bypass a required CLI E2E gate",
+            file=sys.stderr,
+        )
+        return 2
     if shutil.which("copilot") is None and shutil.which("claude") is None:
-        print("CLI E2E skipped (no supported CLI installed)")
-        return 0
+        print(
+            "ERROR: CLI E2E requires either copilot or claude on PATH",
+            file=sys.stderr,
+        )
+        return 2
     env = _clean_git_env()
     for key in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
         env.pop(key, None)
@@ -6530,14 +6759,20 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
+    if not session_paths:
+        return 0
     new_logs, has_session_deletion = session_change_scope(
-        paths,
+        session_paths,
         repo_root,
         compare_ref="HEAD",
     )
-    for path in paths:
-        normalized = _safe_relative_path(path)
-        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+    for path in session_paths:
+        if _is_session_on_upstream_default(repo_root, path):
             continue
         command = [sys.executable, "scripts/validate_session_json.py", path]
         exists_at_head = _path_exists_at_head(path, repo_root)
@@ -6688,6 +6923,10 @@ def _handle_handoff(args: argparse.Namespace) -> int:
     return check_handoff(args.paths, _repo_root(args))
 
 
+def _handle_root_hygiene(args: argparse.Namespace) -> int:
+    return check_root_hygiene(args.paths, _repo_root(args))
+
+
 def _handle_session(args: argparse.Namespace) -> int:
     return check_sessions(args.paths, _repo_root(args))
 
@@ -6702,6 +6941,10 @@ def _handle_staged_dashes(args: argparse.Namespace) -> int:
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
+
+
+def _handle_root_scratch(args: argparse.Namespace) -> int:
+    return check_root_scratch(args.paths, _repo_root(args))
 
 
 def _handle_staged_conflict_markers(args: argparse.Namespace) -> int:
@@ -6997,9 +7240,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(required=True)
     path_commands = (
         ("handoff", _handle_handoff),
+        ("root-hygiene", _handle_root_hygiene),
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
         ("staged-action-pins", _handle_staged_action_pins),
+        ("root-scratch", _handle_root_scratch),
         ("staged-conflict-markers", _handle_staged_conflict_markers),
         ("github-bash", _handle_github_bash),
         ("security-suppressions", _handle_security_suppressions),

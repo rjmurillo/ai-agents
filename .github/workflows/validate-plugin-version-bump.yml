@@ -26,6 +26,8 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -36,14 +38,14 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should-run-version-bump: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+      should-run-version-bump: ${{ steps.determine.outputs.should-run-version-bump }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Check for relevant file changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           filters: |
             paths:
@@ -56,6 +58,16 @@ jobs:
               - 'scripts/validation/run_plugin_version_bump_ci.py'
               - 'scripts/validation/ci_runner_base.py'
               - '.github/workflows/validate-plugin-version-bump.yml'
+
+      - name: Determine if validation should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: paths
+          FORCE_RUN_EVENTS: merge_group
+          OUTPUT_NAME: should-run-version-bump
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
 
   validate:
     name: Validate Plugin Version Bump

@@ -1,275 +1,44 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, this file sat at 499 of 500 lines, so the
-# smallest correct form of the rate-limit classification fix (3 lines) still
-# lands at 502. Splitting a CI-critical context builder is a separate refactor,
-# not cleanup owed by a bug fix. Tracked for extraction in issue #4597.
 """Build the ai-review composite action context outside workflow YAML."""
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
-import re
 import subprocess
 import sys
 import time
-from contextvars import ContextVar
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
+
+SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+
+_outputs = cast(Any, importlib.import_module("ai_review_outputs"))
+OutputConfigError = _outputs.OutputConfigError
+append_multiline_output = _outputs.append_multiline_output
+write_outputs = _outputs.write_outputs
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
-GH_TIMEOUT_SECONDS = 60
-GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
-# Review jobs have a 600-second deadline and model invocation may use 300
-# seconds. This leaves 30 seconds before invocation and 60 seconds afterward
-# for setup, classification, and artifact upload.
-GH_CONTEXT_RETRY_BUDGET_SECONDS = 210.0
-DOWNSTREAM_REVIEW_RESERVE_SECONDS = 360.0
-AI_REVIEW_ACTION_DEADLINE_ENV = "AI_REVIEW_ACTION_DEADLINE_EPOCH"
-_GH_RETRY_DEADLINE: ContextVar[float | None] = ContextVar(
-    "gh_retry_deadline",
-    default=None,
+from gh_retry_helpers import (  # isort: skip  # noqa: E402, F401
+    AI_REVIEW_ACTION_DEADLINE_ENV, CommandResult, ConfigError, DIFF_TOO_LARGE,
+    ExternalGhError, FILES_PER_PAGE, GH_CONTEXT_RETRY_BUDGET_SECONDS,
+    GH_REFUSAL_BACKOFF_SECONDS, GH_TIMEOUT_SECONDS, GhLaunchError,
+    MAX_FILE_PAGES, PERMANENT_AUTH_FAILURE, PrMetadata, ReviewContext,
+    SECRET_ENVIRONMENT_VARIABLES, _GH_RETRY_DEADLINE, _failure_text,
+    _new_context_retry_deadline, _redact_secrets, _retry_delay, run_gh,
 )
-MAX_FILE_PAGES = 5
-FILES_PER_PAGE = 100
-DIFF_TOO_LARGE = re.compile(
-    r"(HTTP 406|too_large|exceeded the maximum number of files)",
-    re.IGNORECASE,
-)
-RETRYABLE_GH_FAILURE = re.compile(
-    r"rate limit|secondary rate|abuse detection|timed out|"
-    r"\bHTTP\s+(429|500|502|503|504)\b",
-    re.IGNORECASE,
-)
-PERMANENT_AUTH_FAILURE = re.compile(
-    r"\bHTTP\s+401\b|bad credentials|requires authentication|"
-    r"authentication token .* could not be validated|"
-    r"resource not accessible by integration|"
-    r"must have admin rights|could not resolve to a pullrequest",
-    re.IGNORECASE,
-)
-RETRY_AFTER_HEADER = re.compile(
-    r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
-    re.IGNORECASE,
-)
-RATE_LIMIT_RESET_HEADER = re.compile(
-    r"\bX-RateLimit-Reset:\s*(\d+(?:\.\d+)?)",
-    re.IGNORECASE,
-)
-RATE_LIMIT_REMAINING_HEADER = re.compile(
-    r"\bX-RateLimit-Remaining:\s*(\d+(?:\.\d+)?)",
-    re.IGNORECASE,
-)
-SECRET_ENVIRONMENT_VARIABLES = (
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "COPILOT_GITHUB_TOKEN",
-    "BOT_PAT",
-)
-
-
-@dataclass(frozen=True, slots=True)
-class CommandResult:
-    stdout: str
-    stderr: str
-    returncode: int
-
-
-@dataclass(frozen=True, slots=True)
-class ReviewContext:
-    text: str
-    mode: str
-    infrastructure_failure: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class PrMetadata:
-    """Number, title, and body from one PR fetch.
-
-    ``error`` is empty on success and otherwise carries the observed failure so
-    the caller can report it instead of guessing a cause (issue #4333).
-    """
-
-    number: str
-    title: str
-    body: str
-    error: str = ""
-
-
-class ConfigError(RuntimeError):
-    """Configuration prevents context output generation."""
-
-
-class GhLaunchError(RuntimeError):
-    """The gh process could not be launched."""
-
-
-class ExternalGhError(RuntimeError):
-    """GitHub or gh failed while building review context."""
-
-
-def _redact_secrets(value: str | None) -> str:
-    """Redact installed values, wrappers, and recognized credential shapes."""
-    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
-    return redact_ci_sink(value or "", secret_values=secret_values).text
-
-
-def _failure_text(result: CommandResult) -> str:
-    return f"{result.stderr}\n{result.stdout}".strip()
-
-
-def _retry_delay(refusal: str, fallback: float) -> tuple[float, str]:
-    retry_after = RETRY_AFTER_HEADER.search(refusal)
-    if retry_after:
-        return max(0.0, float(retry_after.group(1))), "Retry-After"
-
-    reset = RATE_LIMIT_RESET_HEADER.search(refusal)
-    remaining = RATE_LIMIT_REMAINING_HEADER.search(refusal)
-    if reset and (remaining is None or float(remaining.group(1)) == 0):
-        wait = max(0.0, float(reset.group(1)) - time.time() + 1.0)
-        return wait, "X-RateLimit-Reset"
-
-    return fallback, "exponential backoff"
-
-
-def _with_retry_exhausted(result: CommandResult, reason: str) -> CommandResult:
-    detail = _failure_text(result)
-    diagnostic = f"{detail}\n{reason}".strip()
-    return CommandResult(result.stdout, diagnostic, result.returncode)
-
-
-def _new_context_retry_deadline() -> float:
-    """Cap context retries against the deadline established before action setup."""
-    now = time.monotonic()
-    budget = GH_CONTEXT_RETRY_BUDGET_SECONDS
-    raw_action_deadline = os.environ.get(AI_REVIEW_ACTION_DEADLINE_ENV, "")
-    if raw_action_deadline:
-        try:
-            remaining = float(raw_action_deadline) - time.time() - DOWNSTREAM_REVIEW_RESERVE_SECONDS
-        except ValueError:
-            remaining = 0.0
-        budget = min(budget, remaining)
-    return now + max(0.0, budget)
-
-
-def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
-    command_arguments = arguments
-    if arguments[:2] == ["pr", "diff"] and "--repo" in arguments:
-        repository_index = arguments.index("--repo") + 1
-        if repository_index < len(arguments) and "--name-only" not in arguments:
-            command_arguments = [
-                "api",
-                f"repos/{arguments[repository_index]}/pulls/{arguments[2]}",
-                "--method",
-                "GET",
-                "--header",
-                "Accept: application/vnd.github.v3.diff",
-            ]
-    include_response_headers = command_arguments[:1] == ["api"] and not any(
-        argument in {"--include", "-i"} for argument in command_arguments
-    )
-    command_arguments = [
-        *command_arguments,
-        *(["--include"] if include_response_headers else []),
-    ]
-    try:
-        completed = subprocess.run(
-            ["gh", *command_arguments],
-            capture_output=True,
-            check=False,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-        return CommandResult(
-            _redact_secrets(stdout),
-            _redact_secrets(f"{stderr}\ngh command timed out after {exc.timeout} seconds").strip(),
-            124,
-        )
-    except OSError as exc:
-        raise GhLaunchError(f"Failed to run gh: {exc}") from exc
-
-    # Successful stdout may be serialized JSON. Keep it parseable in memory;
-    # write_outputs and the invocation sink redact extracted context later.
-    # Failed stdout can enter diagnostics, so redact it before returning.
-    stdout = completed.stdout
-    response_headers = ""
-    if include_response_headers:
-        header_block, separator, response_body = stdout.partition("\n\n")
-        if separator and re.match(r"HTTP/\S+\s+\d{3}\b", header_block):
-            response_headers = header_block
-            stdout = response_body
-    if completed.returncode != 0:
-        stdout = _redact_secrets(stdout)
-    stderr = completed.stderr
-    if completed.returncode != 0 and response_headers:
-        stderr = f"{response_headers}\n{stderr}".strip()
-    return CommandResult(
-        stdout,
-        _redact_secrets(stderr),
-        completed.returncode,
-    )
-
-
-def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
-    attempts = len(GH_REFUSAL_BACKOFF_SECONDS) + 1
-    for attempt in range(attempts):
-        deadline = _GH_RETRY_DEADLINE.get()
-        remaining = deadline - time.monotonic() if deadline is not None else None
-        if remaining is not None and remaining <= 0:
-            return CommandResult("", "GitHub API retry budget exhausted", 124)
-
-        command_timeout = min(timeout, remaining) if remaining is not None else timeout
-        result = _invoke_gh_once(arguments, command_timeout)
-
-        if result.returncode == 0:
-            return result
-
-        refusal = _failure_text(result)
-        if PERMANENT_AUTH_FAILURE.search(refusal):
-            return result
-        if not RETRYABLE_GH_FAILURE.search(refusal):
-            return result
-        if attempt >= len(GH_REFUSAL_BACKOFF_SECONDS):
-            return _with_retry_exhausted(
-                result,
-                f"GitHub API retry attempts exhausted after {attempts} attempts",
-            )
-
-        delay, source = _retry_delay(
-            refusal,
-            GH_REFUSAL_BACKOFF_SECONDS[attempt],
-        )
-        if deadline is not None:
-            remaining = deadline - time.monotonic()
-            if delay + 1.0 >= remaining:
-                return _with_retry_exhausted(
-                    result,
-                    "GitHub API retry budget exhausted before the next allowed attempt",
-                )
-        print(f"::warning::GitHub API transient refusal. Retrying in {delay:.0f}s using {source}.")
-        time.sleep(delay)
-
-    raise RuntimeError("unreachable gh retry loop")
 
 
 def sanitize_title(title: str) -> str:
     cleaned = title.translate(str.maketrans("", "", '$`"\\')).strip()
     return cleaned or "Unknown PR"
-
-
-def sanitize_file_identifier(value: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
-    return cleaned or "local"
 
 
 def count_lines(text: str) -> int:
@@ -351,7 +120,7 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
     """
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
     if result.returncode == 0 and result.stdout.strip():
-        return result.stdout.strip()
+        return str(result.stdout).strip()
     if PERMANENT_AUTH_FAILURE.search(_failure_text(result)):
         return ""
     file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
@@ -449,43 +218,18 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
     )
 
 
-FORK_PERMISSION_SIGNAL = re.compile(
-    r"HTTP 40[34]|not accessible|must have admin rights|Could not resolve to a PullRequest",
-    re.IGNORECASE,
-)
-
-# A REST rate-limit refusal arrives as `HTTP 403: API rate limit exceeded ...`,
-# which FORK_PERMISSION_SIGNAL matches on the status alone. Suppressing the hint
-# on this signature keeps the #4333 misdiagnosis from returning through the REST
-# transport after it was fixed for GraphQL.
-RATE_LIMIT_SIGNAL = re.compile(
-    r"rate limit|secondary rate|abuse detection",
-    re.IGNORECASE,
-)
-
-
 def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     """Fail closed, naming the observed error rather than a guessed cause.
 
-    REQ-008-05 (issue #2818) keeps the DID_NOT_RUN behavior. Issue #4333 is why
-    the fork-permission hint is now conditional: an exhausted GraphQL quota was
-    reported as a token permission problem, and chasing that cost real time on
-    PR #4273. The GraphQL form carries no HTTP status, so dropping the
-    unconditional hint was enough for it. The REST form does carry one, so the
-    hint needs the rate-limit signature to lose as well.
+    Delegates classification to :func:`failure_classification.classify_pr_fetch_failure`;
+    this wrapper handles secret redaction and ``ReviewContext`` construction.
     """
-    detail = _redact_secrets(detail.strip()) or "GitHub API returned no diagnostic output"
-    hint = (
-        " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-        if FORK_PERMISSION_SIGNAL.search(detail) and not RATE_LIMIT_SIGNAL.search(detail)
-        else ""
-    )
-    print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
-    return ReviewContext(
-        f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {detail}{hint}",
-        "error",
-        True,
-    )
+    from scripts.ci.failure_classification import classify_pr_fetch_failure
+
+    detail = _redact_secrets(detail.strip())
+    result = classify_pr_fetch_failure(pr_number, detail)
+    print(result.warning)
+    return ReviewContext(result.context_text, "error", True)
 
 
 def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
@@ -729,57 +473,6 @@ def _build_context_from_environment() -> ReviewContext:
     raise ConfigError(f"Unknown CONTEXT_TYPE: {context_type}")
 
 
-def append_output(output_path: Path, key: str, value: str) -> None:
-    with output_path.open("a", encoding="utf-8") as output:
-        output.write(f"{key}={value}\n")
-
-
-def choose_multiline_delimiter(key: str, value: str) -> str:
-    payload_lines = set(value.splitlines())
-    base = f"EOF_{key.upper()}"
-    delimiter = base
-    suffix = 0
-    while delimiter in payload_lines:
-        suffix += 1
-        delimiter = f"{base}_{suffix}"
-    return delimiter
-
-
-def append_multiline_output(output_path: Path, key: str, value: str) -> None:
-    delimiter = choose_multiline_delimiter(key, value)
-    with output_path.open("a", encoding="utf-8") as output:
-        output.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
-
-
-def write_outputs(review_context: ReviewContext) -> None:
-    github_output = os.environ.get("GITHUB_OUTPUT")
-    if not github_output:
-        raise ConfigError("GITHUB_OUTPUT is required")
-
-    output_path = Path(github_output)
-    run_id = os.environ.get("GITHUB_RUN_ID", "local")
-    context_identifier = sanitize_file_identifier(os.environ.get("PR_NUMBER") or run_id)
-    runner_temp = os.environ.get("RUNNER_TEMP")
-    if not runner_temp:
-        raise ConfigError("RUNNER_TEMP is required")
-    workspace = Path(runner_temp).resolve()
-    workspace.mkdir(parents=True, exist_ok=True)
-    context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
-    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
-    safe_context = redact_ci_sink(
-        review_context.text,
-        secret_values=secret_values,
-        redact_assignments=False,
-    ).text
-    context_file.write_text(safe_context, encoding="utf-8")
-
-    append_output(output_path, "context_mode", review_context.mode)
-    append_output(output_path, "context_file", str(context_file))
-    if review_context.infrastructure_failure:
-        append_output(output_path, "context_infra_failure", "true")
-    append_multiline_output(output_path, "context_built", safe_context)
-
-
 def main() -> int:
     try:
         review_context = build_context_from_environment()
@@ -790,7 +483,7 @@ def main() -> int:
     except (GhLaunchError, ExternalGhError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 3
-    except ConfigError as exc:
+    except (ConfigError, OutputConfigError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 2
     except OSError as exc:
