@@ -3,16 +3,87 @@
   "session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 4923 vendored pycache copy race",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the pre-push vendored copy failure.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced both live-tree copy callers.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added one shared cache-free vendored copy helper.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a synthetic positive and negative regression check.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted, stress, lint, and adversarial review gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T07:02:06+00:00",
+      "type": "commit",
+      "content": "Commit: e63839d96a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []
