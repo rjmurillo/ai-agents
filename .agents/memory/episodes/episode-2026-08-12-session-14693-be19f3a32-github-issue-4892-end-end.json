@@ -3,7 +3,7 @@
   "session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Own GitHub issue 4892 end to end",
   "decisions": [],
   "events": [
@@ -74,6 +74,19 @@
         "e004",
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T06:32:37+00:00",
+      "type": "commit",
+      "content": "Commit: 69341f2cfc",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
     }
@@ -83,8 +96,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 2,
+    "files_changed": 10
   },
   "lessons": []
 }

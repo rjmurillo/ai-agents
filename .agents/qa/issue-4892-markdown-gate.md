@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end.json
-qaCommit: ab8cd906f5c387af0a526c25415b4bb5fef3b19d
+qaCommit: 69341f2cfcbdbc402e9078946c676177c67a5a54
 ---
 
 # Issue 4892 Markdown Gate QA
