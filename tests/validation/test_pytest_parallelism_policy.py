@@ -304,6 +304,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
     seen_commands: list[list[str]] = []
     seen_envs: list[dict[str, str]] = []
@@ -325,7 +326,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
 
     assert policy.run_pytest(tmp_path) == 0
 
-    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "4"
+    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
 

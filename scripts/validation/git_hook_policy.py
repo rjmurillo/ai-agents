@@ -475,12 +475,9 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
-# Issue #4823: the bulk pre-push pytest partition runs on pytest-xdist, and the
-# worker count is xdist's own `auto`, which is one worker per logical CPU. This
-# is deliberately not a number. No subtraction, no cap, and no fixed default, so
-# a 48-thread host spends 48 threads and a 4-thread laptop spends 4, without
-# anyone editing tracked code. The alternative, a hard-coded count, is wrong on
-# every machine that is not the machine it was measured on.
+# Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
+# logical CPU. Local pre-push is different because it shares the machine with
+# sibling hook jobs, so issue #4710 adds a process-visible cap there only.
 PYTEST_WORKERS_AUTO = "auto"
 PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
 # Explicit developer override. Direct calls and CI otherwise keep `auto`.
@@ -6391,9 +6388,9 @@ def run_memory_sync(repo_root: Path) -> int:
 def parse_pytest_workers(raw: str | None) -> str:
     """Return the ``-n`` value named by ``raw``, or the default.
 
-    ``None`` and an empty or whitespace-only string both mean "unset", which is
-    the normal case: every CI run and every local push with nothing exported
-    takes ``PYTEST_WORKERS_DEFAULT``, so the worker count follows the machine.
+    ``None`` and an empty or whitespace-only string both mean no explicit
+    override and return ``PYTEST_WORKERS_DEFAULT``. A local cap, when present,
+    is applied later by ``_pytest_parallel_flags``.
 
     Anything else must be ``auto`` (any capitalization) or a positive decimal
     integer. Both are values pytest-xdist accepts for ``-n``; this function does
