@@ -371,3 +371,64 @@ def test_committed_command_mirrors_match_the_generator() -> None:
         )
     finally:
         shutil.rmtree(staged, ignore_errors=True)
+
+
+# excludeFilenames / _DEFAULT_EXCLUDES union behaviour -----------------------
+
+
+def _write_config_with_excludes(tmp_path: Path, exclude_filenames: list[str] | None) -> Path:
+    """Write a minimal platform config, optionally setting ``excludeFilenames``."""
+    exclude_block = ""
+    if exclude_filenames is not None:
+        items = ", ".join(f'"{f}"' for f in exclude_filenames)
+        exclude_block = f"    excludeFilenames: [{items}]\n"
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        f"""\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    transform: "command-to-skill"
+{exclude_block}"""
+    )
+    return cfg
+
+
+def test_exclude_filenames_unions_with_defaults(tmp_path: Path) -> None:
+    """When ``excludeFilenames`` omits a default-excluded file, it is still excluded."""
+    cmds = tmp_path / "cmds"
+    # Create a file whose name matches a _DEFAULT_EXCLUDES entry ("CLAUDE.md")
+    _write_command(cmds, "CLAUDE", body="Should be excluded.\n")
+    # Create a normal command that should be generated
+    _write_command(cmds, "hello", body="Hello world.\n")
+
+    # Config excludes only "AGENTS.md" — deliberately omits "CLAUDE.md"
+    cfg = _write_config_with_excludes(tmp_path, ["AGENTS.md"])
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+    assert rc == 0
+
+    out_dir = tmp_path / "out_skills"
+    generated = sorted(p.parent.name for p in out_dir.glob("*/SKILL.md"))
+    assert "CLAUDE" not in generated, "CLAUDE.md must be excluded via _DEFAULT_EXCLUDES union"
+    assert "hello" in generated
+
+
+def test_exclude_filenames_absent_uses_defaults(tmp_path: Path) -> None:
+    """When ``excludeFilenames`` is absent, only ``_DEFAULT_EXCLUDES`` applies."""
+    cmds = tmp_path / "cmds"
+    _write_command(cmds, "CLAUDE", body="Should be excluded.\n")
+    _write_command(cmds, "hello", body="Hello world.\n")
+
+    cfg = _write_config_with_excludes(tmp_path, None)
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+    assert rc == 0
+
+    out_dir = tmp_path / "out_skills"
+    generated = sorted(p.parent.name for p in out_dir.glob("*/SKILL.md"))
+    assert "CLAUDE" not in generated, "CLAUDE.md must be excluded by _DEFAULT_EXCLUDES"
+    assert "hello" in generated
