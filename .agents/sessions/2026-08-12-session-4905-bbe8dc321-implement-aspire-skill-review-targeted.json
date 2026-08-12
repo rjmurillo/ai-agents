@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4905,
+    "date": "2026-08-12",
+    "branch": "feat/4905-aspire-skill-review",
+    "startingCommit": "57715aa9f",
+    "objective": "Implement Aspire skill review and targeted augmentations for issue 4905"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; initial_instructions read this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions manual read"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only reference, 2025-12-22); no open #4905 issue handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills, scripts/eval, scripts/validation, build/scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md gates, rules (canonical-source-mirror, generated-artifacts, plugin-*, voice, testing, ci-scripts, session-logs, secret-redaction)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read REQ-020, DESIGN-019, TASK-019..023, TM-aspire-skill-review, SLO, pre-mortem"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory search returned no Aspire memory (per task context); Serena active"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/4905-aspire-skill-review"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/4905-aspire-skill-review"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean except session log; branch feat/4905-aspire-skill-review at 57715aa9f"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "57715aa9f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Pinned Aspire source and inventoried .agents/skills (TASK-019)",
+      "result": "Anonymous GitHub git/trees+git/blobs API succeeded at commit d1c7add665f7e6582cdaa1b328c44172f0f96339; authenticated token is SAML-blocked. Wrote aspire-skill-source-inventory.md and aspire-skill-source-files.json: 23 skill roots, 68 files, reconciled."
+    },
+    {
+      "action": "Built cited decision matrix (TASK-020)",
+      "result": "23 rows equal to inventory ID set. 18 reject (Aspire product operations), 5 reuse (existing local owners), 0 create. One cross-cutting augment: SkillForge external-skill-source adaptation guardrail. Updated REQ-020 co-change checklist to exact SkillForge paths."
+    },
+    {
+      "action": "Proved Copilot eval provider works end to end",
+      "result": "eval-prompt-change.py --provider copilot --model claude-opus-5 gate PASS after seeding COPILOT_HOME with auth symlinks and fresh session-state (default ~/.copilot/session-state had 9035 entries, over the 4096 scan cap). TASK-022 is feasible."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
