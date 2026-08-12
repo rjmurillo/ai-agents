@@ -296,6 +296,50 @@ def render_artifact(
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
+
+## Phase 5: Persist and Close
+
+### Memory Persistence
+
+| Learning | Atomicity | Existing Match | Result |
+|----------|-----------|----------------|--------|
+| [Learning] | [%] | [Memory name or none] | [Added | Updated | Deduplicated | Skipped | Failed] |
+
+### +/Delta
+
+#### + Keep
+- [What worked well in this retrospective]
+
+#### Delta Change
+- [What should be different next time]
+
+#### Backlog Candidates
+| Delta Item | Priority | Action |
+|------------|----------|--------|
+| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
+
+### ROTI Assessment
+
+**Score**: [0-4]
+
+**Benefits Received**:
+- [Benefit 1]
+- [Benefit 2]
+
+**Time Invested**: [Duration]
+
+**Verdict**: [Continue | Modify | Stop]
+
+### Helped, Hindered, Hypothesis
+
+#### Helped
+- [What made this retrospective effective]
+
+#### Hindered
+- [What got in the way]
+
+#### Hypothesis
+- [Experiment to try next retrospective]
 """
     return artifact, any_below
 
