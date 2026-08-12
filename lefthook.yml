@@ -442,6 +442,8 @@ pre-push:
           - name: python-tests
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+            env:
+              AI_AGENTS_PYTEST_WORKERS: "4"
 
           - name: python-lint-advisory
             timeout: 10m

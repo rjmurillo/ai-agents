@@ -18,12 +18,12 @@ would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``pytest tests/foo.py`` a developer runs. ``test_global_addopts_carries_no_``
 ``parallel_flags`` is the guard on that.
 
-The worker count is ``auto``, xdist's own name for one worker per logical CPU.
-It is not a number and not derived from one: no subtraction, no cap, and no
-fixed default, so the suite uses whatever the machine has.
+Direct calls and CI use ``auto``, xdist's own name for one worker per logical
+CPU. The local pre-push job pins four workers because it runs beside other
+CPU-heavy jobs in one parallel Lefthook group.
 ``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
-everything else, so a developer can pin a count without the gate ever guessing
-what a malformed value meant.
+everything else. The parent consumes this control before starting pytest so
+policy tests inside the child process still observe the default environment.
 """
 
 from __future__ import annotations
@@ -239,6 +239,35 @@ def test_env_override_reaches_the_bulk_command(
         "the override must not make the safe-push partition parallel"
     )
     assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
+
+
+def test_run_pytest_consumes_worker_override_before_child_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "4")
+    seen_commands: list[list[str]] = []
+    seen_envs: list[dict[str, str]] = []
+
+    def capture_run(
+        command: list[str],
+        repo_root: Path,
+        *,
+        process_env: dict[str, str],
+        timeout_seconds: float,
+    ) -> subprocess.CompletedProcess[str]:
+        del repo_root, timeout_seconds
+        seen_commands.append(command)
+        seen_envs.append(process_env)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(policy, "_run_command", capture_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda result: None)
+
+    assert policy.run_pytest(tmp_path) == 0
+
+    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "4"
+    assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
 
 
 def test_unset_env_produces_the_default_command(

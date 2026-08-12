@@ -483,11 +483,11 @@ CLI_E2E_TIMEOUT_SECONDS = 1_140
 # every machine that is not the machine it was measured on.
 PYTEST_WORKERS_AUTO = "auto"
 PYTEST_WORKERS_DEFAULT = PYTEST_WORKERS_AUTO
-# Escape hatch, not a tuning knob. Unset is the contract everywhere that
-# matters: CI passes the flags literally in `.github/workflows/pytest.yml`, and
-# no workflow or hook exports this variable. It exists so a developer can pin a
-# specific worker count to reproduce a suspected concurrency bug, or to leave
-# cores free on a shared box.
+# Direct calls and CI keep the host-relative `auto` default. The local pre-push
+# job pins four workers through this variable because it runs beside other
+# CPU-heavy jobs in one parallel Lefthook group. Issue #4710 measured 48 workers
+# starving subprocess tests until their 15-second caps fired. Developers can
+# still override the local count to reproduce concurrency behavior.
 PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # `loadfile` sends every test in one file to one worker. That is the weakest
 # distribution mode xdist offers and the point: module-scoped fixtures, module
@@ -6511,6 +6511,9 @@ def run_pytest(repo_root: Path) -> int:
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
+    # The parent consumes this control before pytest starts. Leaving it in the
+    # child environment changes tests that verify the default worker policy.
+    env.pop(PYTEST_WORKERS_ENV, None)
     # TEST_SUITE_TIMEOUT_SECONDS is a budget for the whole suite, not per
     # command. Splitting the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
