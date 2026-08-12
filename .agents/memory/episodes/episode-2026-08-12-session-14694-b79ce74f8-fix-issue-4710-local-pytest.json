@@ -14,7 +14,7 @@
       "content": "Read issue #4823 and #4854 decisions before changing xdist policy.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     },
@@ -25,7 +25,7 @@
       "content": "Measured repeated local pre-push failures.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     },
@@ -33,10 +33,10 @@
       "id": "e003",
       "timestamp": "2026-08-12T00:00:00+00:00",
       "type": "milestone",
-      "content": "Pinned the local python-tests job to four workers.",
+      "content": "Capped local python-tests at up to four process-visible CPUs.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     },
@@ -47,7 +47,7 @@
       "content": "Consumed the worker override before child pytest execution.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     },
@@ -58,23 +58,16 @@
       "content": "Ran full, targeted, security, and adversarial gates.",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-12T08:10:08+00:00",
-      "type": "commit",
-      "content": "Commit: f70d63cf34",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e008"
-      ],
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected final QA and episode wording after review.",
+      "caused_by": [],
       "leads_to": [
         "e007"
       ],
@@ -86,20 +79,14 @@
       "type": "commit",
       "content": "Commit: 6fbb412326",
       "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
         "e006"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-08-12T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Capped local python-tests at up to four process-visible CPUs.",
-      "caused_by": [],
-      "leads_to": [
-        "e006"
-      ],
       "_source_session": "2026-08-12-session-14694-b79ce74f8-fix-issue-4710-local-pytest"
     }
   ],
@@ -108,7 +95,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 1,
     "files_changed": 8
   },
   "lessons": []

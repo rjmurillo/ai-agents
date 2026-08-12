@@ -143,6 +143,10 @@
     {
       "action": "Ran full, targeted, security, and adversarial gates.",
       "outcome": "Full hook suite and all review gates passed."
+    },
+    {
+      "action": "Corrected final QA and episode wording after review.",
+      "outcome": "Aggregate counts and CPU-aware cap wording now match the implementation."
     }
   ],
   "endingCommit": "6fbb412326",
