@@ -62,8 +62,11 @@ LIB_KEYS = {"sourceDir", "outputDir"}
 COMMANDS_KEYS = {
     "sourceDir",
     "outputDir",
+    "resourceOutputDir",
+    "resourceSuffixes",
     "transform",
     "appendFrontmatter",
+    "excludeFilenames",
 }
 RULES_KEYS = {
     "sourceDir",
@@ -98,7 +101,7 @@ ARTIFACT_DISPATCH = {
 PATH_FIELDS_BY_ARTIFACT = {
     "agents": ("sourceDir", "outputDir"),
     "skills": ("sourceDir", "outputDir"),
-    "commands": ("sourceDir", "outputDir"),
+    "commands": ("sourceDir", "outputDir", "resourceOutputDir"),
     "rules": ("sourceDir", "outputDir"),
     "lib": ("sourceDir", "outputDir"),
     "hooks": ("settingsSource", "scriptSource", "outputConfig", "outputScripts"),
@@ -140,6 +143,121 @@ def _check_list_object_keys(value: object, *, path: str = "$") -> list[str]:
 # --- Schema validation ----------------------------------------------------
 
 
+def _validate_artifact_keys(name: str, stanza: dict[str, object]) -> list[str]:
+    unknown = set(stanza.keys()) - ARTIFACT_DISPATCH[name]
+    errors: list[str] = []
+    if unknown:
+        errors.append(
+            f"`artifacts.{name}`: unknown keys {sorted(unknown)}. "
+            f"Allowed: {sorted(ARTIFACT_DISPATCH[name])}"
+        )
+    return errors
+
+
+def _validate_artifact_paths(name: str, stanza: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    for path_field in PATH_FIELDS_BY_ARTIFACT.get(name, ()):
+        if path_field in stanza:
+            errors.extend(
+                _validate_path_value(f"artifacts.{name}.{path_field}", stanza[path_field])
+            )
+    return errors
+
+
+def _validate_rules_output_dirs(name: str, stanza: dict[str, object]) -> list[str]:
+    if "outputDirs" not in stanza:
+        return []
+    errors: list[str] = []
+    dirs = stanza.get("outputDirs")
+    if not isinstance(dirs, list) or not dirs:
+        errors.append(
+            f"`artifacts.{name}.outputDirs`: must be a non-empty list of paths"
+        )
+    else:
+        for idx, item in enumerate(dirs):
+            errors.extend(
+                _validate_path_value(f"artifacts.{name}.outputDirs[{idx}]", item)
+            )
+    if "outputDir" in stanza:
+        errors.append(
+            f"`artifacts.{name}`: `outputDir` and `outputDirs` are "
+            f"mutually exclusive"
+        )
+    return errors
+
+
+def _declared_rule_output_dirs(stanza: dict[str, object]) -> set[str]:
+    declared = set()
+    raw_dirs = stanza.get("outputDirs")
+    if isinstance(raw_dirs, list):
+        declared = {d for d in raw_dirs if isinstance(d, str)}
+    single = stanza.get("outputDir")
+    if isinstance(single, str):
+        declared.add(single)
+    return {PurePosixPath(d).as_posix() for d in declared}
+
+
+def _validate_rules_keep_internal_globs(
+    name: str, stanza: dict[str, object]
+) -> list[str]:
+    keep = stanza.get("keepInternalGlobsFor")
+    if keep is None:
+        return []
+    if not isinstance(keep, list):
+        return [f"`artifacts.{name}.keepInternalGlobsFor`: must be a list of paths"]
+    errors: list[str] = []
+    declared_norm = _declared_rule_output_dirs(stanza)
+    for idx, item in enumerate(keep):
+        errors.extend(
+            _validate_path_value(f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item)
+        )
+        if isinstance(item, str) and PurePosixPath(item).as_posix() not in declared_norm:
+            errors.append(
+                f"`artifacts.{name}.keepInternalGlobsFor[{idx}]`: "
+                f"{item!r} is not one of the declared output dirs"
+            )
+    return errors
+
+
+def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    has_resource_output = "resourceOutputDir" in stanza
+    has_resource_suffixes = "resourceSuffixes" in stanza
+    if has_resource_output != has_resource_suffixes:
+        errors.append(
+            f"`artifacts.{name}`: `resourceOutputDir` and "
+            "`resourceSuffixes` must be set together"
+        )
+    if has_resource_suffixes:
+        suffixes = stanza.get("resourceSuffixes")
+        if (
+            not isinstance(suffixes, list)
+            or not suffixes
+            or not all(
+                isinstance(item, str)
+                and item.startswith(".")
+                and len(item) > 1
+                for item in suffixes
+            )
+        ):
+            errors.append(
+                f"`artifacts.{name}.resourceSuffixes`: must be a "
+                "non-empty list of dotted suffix strings"
+            )
+    return errors
+
+
+def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
+    if "excludeFilenames" not in stanza:
+        return []
+    value = stanza["excludeFilenames"]
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return [
+            f"`artifacts.{name}.excludeFilenames`: must be a list of strings"
+        ]
+    return []
+
+
 def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if not isinstance(stanza, dict):
         return [f"`artifacts.{name}`: must be a mapping (got {type(stanza).__name__})"]
@@ -148,76 +266,15 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
             f"`artifacts.{name}`: unknown artifact type. "
             f"Valid: {sorted(ARTIFACT_DISPATCH)}"
         ]
-    allowed = ARTIFACT_DISPATCH[name]
-    unknown = set(stanza.keys()) - allowed
-    errors: list[str] = []
-    if unknown:
-        errors.append(
-            f"`artifacts.{name}`: unknown keys {sorted(unknown)}. "
-            f"Allowed: {sorted(allowed)}"
-        )
-    for path_field in PATH_FIELDS_BY_ARTIFACT.get(name, ()):
-        if path_field in stanza:
-            errors.extend(
-                _validate_path_value(f"artifacts.{name}.{path_field}", stanza[path_field])
-            )
-    # outputDirs (list of relative paths) is the multi-target form for the
-    # rules generator. Validate each entry as a relative path.
-    if name == "rules" and "outputDirs" in stanza:
-        dirs = stanza.get("outputDirs")
-        if not isinstance(dirs, list) or not dirs:
-            errors.append(
-                f"`artifacts.{name}.outputDirs`: must be a non-empty list of paths"
-            )
-        else:
-            for idx, item in enumerate(dirs):
-                errors.extend(
-                    _validate_path_value(
-                        f"artifacts.{name}.outputDirs[{idx}]", item
-                    )
-                )
-        if "outputDir" in stanza:
-            errors.append(
-                f"`artifacts.{name}`: `outputDir` and `outputDirs` are "
-                f"mutually exclusive"
-            )
-    # keepInternalGlobsFor (issue #2892): output dirs that coexist with the
-    # internal dirs and keep `.claude/**`-style scope. Each entry must be a
-    # relative path AND must appear in outputDirs, else it silently matches
-    # nothing and the intended in-repo scope is never preserved.
-    if name == "rules" and "keepInternalGlobsFor" in stanza:
-        keep = stanza.get("keepInternalGlobsFor")
-        if not isinstance(keep, list):
-            errors.append(
-                f"`artifacts.{name}.keepInternalGlobsFor`: must be a list of paths"
-            )
-        else:
-            declared = set()
-            raw_dirs = stanza.get("outputDirs")
-            if isinstance(raw_dirs, list):
-                declared = {d for d in raw_dirs if isinstance(d, str)}
-            single = stanza.get("outputDir")
-            if isinstance(single, str):
-                declared.add(single)
-            # Compare on a canonical form so a trailing slash or `.` segment
-            # difference between outputDirs and keepInternalGlobsFor does not
-            # false-reject a config that the generator would treat as a match
-            # (issue #2892).
-            declared_norm = {PurePosixPath(d).as_posix() for d in declared}
-            for idx, item in enumerate(keep):
-                errors.extend(
-                    _validate_path_value(
-                        f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item
-                    )
-                )
-                if (
-                    isinstance(item, str)
-                    and PurePosixPath(item).as_posix() not in declared_norm
-                ):
-                    errors.append(
-                        f"`artifacts.{name}.keepInternalGlobsFor[{idx}]`: "
-                        f"{item!r} is not one of the declared output dirs"
-                    )
+    errors = _validate_artifact_keys(name, stanza)
+    errors.extend(_validate_artifact_paths(name, stanza))
+    if "excludeFilenames" in ARTIFACT_DISPATCH[name]:
+        errors.extend(_validate_exclude_filenames(name, stanza))
+    if name == "rules":
+        errors.extend(_validate_rules_output_dirs(name, stanza))
+        errors.extend(_validate_rules_keep_internal_globs(name, stanza))
+    if name == "commands":
+        errors.extend(_validate_command_resources(name, stanza))
     return errors
 
 
