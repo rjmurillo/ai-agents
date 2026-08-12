@@ -283,7 +283,7 @@ def test_visible_cpu_count_uses_sched_affinity_on_python_310(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delattr(os, "process_cpu_count", raising=False)
-    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1})
+    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1}, raising=False)
     monkeypatch.setattr(os, "cpu_count", lambda: 64)
 
     assert policy._visible_cpu_count() == 2
