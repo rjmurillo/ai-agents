@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 9977a21378d4e278d751431bb705ebbcd52995ad)"
+        "Evidence": "All changes committed (HEAD: f87893a48e13274e508416b17409b6ae6d890417)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,6 +145,6 @@
       "result": "100 targeted tests passed. A defect-restoration control failed on missing Phase 5 as intended. Ruff, mirror comparisons, whitespace checks, scoped Markdown validation, security detection, and pre-PR validation passed. GPT-5.6 Sol review returned CLEAN. QA returned PASS."
     }
   ],
-  "endingCommit": "9977a21378d4e278d751431bb705ebbcd52995ad",
+  "endingCommit": "f87893a48e13274e508416b17409b6ae6d890417",
   "nextSteps": []
 }
