@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-b9b72ddc3-fix-issue-4923-vendored-pycache.json
-qaCommit: e63839d96aeba231d4ca1236da70b94923aba4ad
+qaCommit: 4e8d2b5d13ff5132e380344683429c2b582078e1
 ---
 
 # Issue 4923 vendored copy validation
