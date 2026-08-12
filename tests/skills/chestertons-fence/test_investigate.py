@@ -20,6 +20,70 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import investigate
 
+# ADR encoding --------------------------------------------------------------
+
+
+def test_find_related_adrs_reads_utf8_explicitly(tmp_path: Path, monkeypatch) -> None:
+    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    adr_file = adr_dir / "ADR-999-utf8.md"
+    adr_file.write_text(
+        '# ADR-999: UTF-8 ”quote”\n\nReferences target_component.py.\n',
+        encoding="utf-8",
+    )
+    original_read_text = Path.read_text
+
+    def read_text_with_cp1252_default(path: Path, encoding=None, **kwargs):
+        return original_read_text(path, encoding=encoding or "cp1252", **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text_with_cp1252_default)
+    monkeypatch.chdir(tmp_path)
+
+    related_adrs = investigate.find_related_adrs("target_component.py")
+
+    assert related_adrs == ["ADR-999-utf8.md: ADR-999: UTF-8 ”quote”"]
+
+
+def test_main_reports_invalid_utf8_adr_path(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir.mkdir(parents=True)
+    adr_file = adr_dir / "ADR-999-invalid.md"
+    adr_file.write_bytes(b"# Invalid UTF-8\n\nReferences target.py.\n\xff")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "investigate.py",
+            "--target",
+            "target.py",
+            "--change",
+            "test invalid ADR",
+            "--format",
+            "json",
+        ],
+    )
+
+    exit_code = investigate.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert str(adr_file.relative_to(tmp_path)) in captured.err
+    assert "UTF-8" in captured.err
+    assert "invalid start byte" in captured.err
+
+
+def test_find_related_adrs_returns_empty_without_adr_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert investigate.find_related_adrs("target.py") == []
+
+
 # Allowlist enforcement -----------------------------------------------------
 
 
