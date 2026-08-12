@@ -10,6 +10,17 @@ guardrail's untrusted-source handling as security-critical (threat
 uses the ADR-057 security-critical tier: five runs per scenario with a required
 100% after-pass rate.
 
+Refreshed after the PR 4927 review (`run_id` retained as the durable artifact
+identifier). Two scenario corrections were applied and the eval re-run at the
+security-critical tier: S5 now states the full source-identity precondition (a
+pinned commit SHA plus an enumerated file list) so a strict evaluator cannot
+read it as incomplete and HALT; and S1 and S2 now assert the routing verdict
+only. The REUSE verdict is deterministic (10/10 runs before+after); only the
+free-text justification wording varied, which was the sole flakiness class the
+security-critical tier would otherwise trip. Routing scenarios S1, S2, S5, S6,
+S7 assert verdict only; S3 and S4 additionally assert a domain-noun reason
+substring. All seven scenarios pass 5/5 before and after; the gate is PASS.
+
 ## Run metadata
 
 | Field | Value |

@@ -30,6 +30,13 @@ recorded in `.agents/analysis/aspire-skill-review-matrix.md`.
 - Command: `scripts/eval/eval-prompt-change.py --prompt .claude/skills/SkillForge/SKILL.md --base-ref origin/main --scenarios tests/evals/skills/aspire-skill-review-scenarios.json --provider copilot --security-critical --runs 5 --model claude-opus-5` (run with `COPILOT_HOME` pointed at a fresh session-state to stay under the CLI 4096-entry scan cap).
 - Gate: PASS. Before 100 percent, After 100 percent, no regression, no high
   flakiness, and every after run passes (security-critical 100 percent, 7 scenarios x 5 runs).
+- Review-driven scenario correction (PR 4927 threads): S5 now states the full
+  source-identity precondition (pinned commit SHA plus enumerated file list), and
+  S1 and S2 assert the routing verdict only. The REUSE verdict is deterministic
+  (10/10 runs before+after); only the free-text justification wording varied, the
+  sole flakiness class the security-critical tier would otherwise trip. The eval
+  was re-run at the security-critical tier after this correction and the gate
+  stays PASS with all seven scenarios 5/5.
 - Coverage: positive reuse, positive create-when-no-owner, duplicate-creation
   negative, missing-source-identity negative, product-specific rejection edge,
   source-text instruction-injection negative (S6), and unpinned-paraphrase

@@ -159,5 +159,5 @@
       }
     ]
   },
-  "note": "Security-critical tier (ADR-057): 5 runs per scenario, 100% after-pass required. Base ref origin/main already passes every scenario, including S6 injection-refusal and S7 source-integrity, so before=after=100%; the gate proves non-regression. Raw per-run model output is not committed (kept only under gitignored .agents/scratch/)."
+  "note": "Security-critical tier (ADR-057): 5 runs per scenario, 100% after-pass required. Base ref origin/main already passes every scenario, including S6 injection-refusal and S7 source-integrity, so before=after=100%; the gate proves non-regression. Refreshed after the PR 4927 review: S5 now states the full source-identity precondition (pinned commit SHA plus enumerated file list), and S1 and S2 assert the routing verdict only. The REUSE verdict is deterministic (10/10 runs before+after); only the free-text justification wording varied, which was the sole flakiness class the security-critical tier would otherwise trip. Routing scenarios S1, S2, S5, S6, S7 assert verdict only; S3 and S4 additionally assert a domain-noun reason substring. run_id is retained as the durable artifact identifier. Raw per-run model output is not committed (kept only under gitignored .agents/scratch/)."
 }
