@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: .markdownlint-cli2.yaml excludes .agents/**, including the changed QA report"
       },
       "qaValidation": {
         "level": "MUST",

@@ -66,7 +66,8 @@ class TestReferencesIssue:
         assert _check.references_issue("Closes #5", 5) is True
         assert _check.references_issue("Resolves #5", 5) is True
 
-    def test_refs_keyword_not_matched(self):
+    def test_ref_keywords_not_matched(self):
+        assert _check.references_issue("Ref #5", 5) is False
         assert _check.references_issue("Refs #5", 5) is False
 
     def test_case_insensitive(self):

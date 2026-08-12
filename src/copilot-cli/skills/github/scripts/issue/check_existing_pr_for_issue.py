@@ -7,12 +7,12 @@ already claims that issue via a closing keyword. Two workers acting on the same
 issue otherwise open duplicate PRs (the #2477 failure mode).
 
 Detection is deterministic: list open PRs and match each body/title against the
-GitHub closing-keyword forms for the issue number (Fixes/Closes/Resolves and the
-non-closing Refs), rather than a fragile free-text search.
+GitHub closing-keyword forms for the issue number (Fixes/Closes/Resolves),
+rather than a fragile free-text search.
 
 Exit codes follow ADR-035:
-    0 - No open PR references the issue (safe to proceed)
-    1 - One or more open PRs already reference the issue (do not open a duplicate)
+    0 - No open PR claims implementation ownership (safe to proceed)
+    1 - One or more open PRs claim implementation ownership (do not open a duplicate)
     2 - Config error (plugin lib path missing)
     3 - External error (gh/API failure)
     4 - Auth error (not authenticated)
