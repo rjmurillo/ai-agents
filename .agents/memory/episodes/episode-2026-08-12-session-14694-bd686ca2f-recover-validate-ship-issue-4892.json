@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892",
+  "session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Recover validate and ship issue 4892",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recover prior issue 4892 work",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the current claim",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate the recovered fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run independent review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
