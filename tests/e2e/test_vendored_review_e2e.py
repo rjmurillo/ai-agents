@@ -368,6 +368,33 @@ def test_build_vendored_plugin_produces_loadable_tree(tmp_path: Path) -> None:
     ).is_dir()
 
 
+def test_build_vendored_plugin_excludes_runtime_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    for entry in VENDORED_SUBTREE:
+        path = source / entry
+        if entry == "settings.json":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True)
+    skills = source / "skills"
+    (skills / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (skills / "standalone.pyc").write_bytes(b"cache")
+    (skills / "__pycache__").mkdir()
+    (skills / "__pycache__" / "module.pyc").write_bytes(b"cache")
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_DIR", source)
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_MD", tmp_path / "missing.md")
+
+    root = build_vendored_plugin(tmp_path / "p")
+
+    copied_skills = root / ".claude" / "skills"
+    assert (copied_skills / "module.py").is_file()
+    assert not (copied_skills / "standalone.pyc").exists()
+    assert not (copied_skills / "__pycache__").exists()
+
+
 def test_discovered_axis_count_matches_canonical_plus_chained(
     tmp_path: Path,
 ) -> None:

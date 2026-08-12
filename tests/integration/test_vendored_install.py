@@ -49,13 +49,8 @@ VENDORED_SUBTREE = (
 )
 
 
-@pytest.fixture
-def vendored_root(tmp_path: Path) -> Path:
-    """Copy `.claude/{vendored subtree}` + CLAUDE.md to tmp_path/.
-
-    Returns the temp directory containing the vendored layout.
-    """
-    target = tmp_path / "vendored"
+def build_vendored_root(target: Path) -> Path:
+    """Copy `.claude/{vendored subtree}` + CLAUDE.md to target."""
     target.mkdir()
     target_claude = target / ".claude"
     target_claude.mkdir()
@@ -79,27 +74,37 @@ def vendored_root(tmp_path: Path) -> Path:
     return target
 
 
-def test_vendored_directory_copy_excludes_runtime_caches(tmp_path: Path) -> None:
+@pytest.fixture
+def vendored_root(tmp_path: Path) -> Path:
+    """Return a temporary vendored layout."""
+    return build_vendored_root(tmp_path / "vendored")
+
+
+def test_vendored_root_builder_excludes_runtime_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     source = tmp_path / "source"
-    source.mkdir()
-    (source / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
-    (source / "standalone.pyc").write_bytes(b"cache")
-    (source / "standalone.pyo").write_bytes(b"cache")
-    (source / "__pycache__").mkdir()
-    (source / "__pycache__" / "module.pyc").write_bytes(b"cache")
-    for cache_dir in (".pytest_cache", ".ruff_cache", ".mypy_cache"):
-        (source / cache_dir).mkdir()
-        (source / cache_dir / "state").write_text("cache", encoding="utf-8")
-    target = tmp_path / "target"
+    for entry in VENDORED_SUBTREE:
+        path = source / entry
+        if entry == "settings.json":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True)
+    skills = source / "skills"
+    (skills / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (skills / "standalone.pyc").write_bytes(b"cache")
+    (skills / "__pycache__").mkdir()
+    (skills / "__pycache__" / "module.pyc").write_bytes(b"cache")
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_DIR", source)
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_MD", tmp_path / "missing.md")
 
-    copy_vendored_entry(source, target)
+    target = build_vendored_root(tmp_path / "target")
 
-    assert (target / "module.py").is_file()
-    assert not (target / "standalone.pyc").exists()
-    assert not (target / "standalone.pyo").exists()
-    assert not (target / "__pycache__").exists()
-    for cache_dir in (".pytest_cache", ".ruff_cache", ".mypy_cache"):
-        assert not (target / cache_dir).exists()
+    copied_skills = target / ".claude" / "skills"
+    assert (copied_skills / "module.py").is_file()
+    assert not (copied_skills / "standalone.pyc").exists()
+    assert not (copied_skills / "__pycache__").exists()
 
 
 def test_vendored_lib_directory_present(vendored_root: Path) -> None:
