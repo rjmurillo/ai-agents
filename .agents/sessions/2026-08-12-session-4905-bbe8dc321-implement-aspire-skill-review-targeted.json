@@ -136,7 +136,7 @@
       "result": "All gates green (pre_pr PASS, copilot eval PASS, pre-push suite PASS). The repository PR script was blocked by a stale cached session hook (proven false positive); used the gh CLI as a documented fallback and restored the dogfood install."
     }
   ],
-  "endingCommit": "1c450014fc6b414c4af00180101cc73869de91c3",
+  "endingCommit": "9f7ff6f8eff6fc1d0a82d0f9785e0cddc2932c94",
   "nextSteps": [
     "PR 4927 (https://github.com/rjmurillo/ai-agents/pull/4927) opened with Fixes for issue 4905; monitor checks.",
     "PR created via the gh CLI because the live session cached a stale push-pr identity guard that wedged the repository PR script; the refreshed guard and the worktree PR script both match the trusted pin 913a55ee."
@@ -146,7 +146,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "57715aa9f3b65f407b7afa13c9ee4e8f0769d538",
-      "head": "1c450014fc6b414c4af00180101cc73869de91c3"
+      "head": "9f7ff6f8eff6fc1d0a82d0f9785e0cddc2932c94"
     }
   }
 }
