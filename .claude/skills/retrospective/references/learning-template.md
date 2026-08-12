@@ -3,7 +3,7 @@
 The byte-exact retrospective artifact structure. Phases 0 through 4 were lifted verbatim
 from the canonical source agent body at `.claude/agents/retrospective.md` (Phase 4,
 "Learning Extraction Template", original lines 696-789). Phase 5 records the persistence
-and closing outputs required by `.claude/skills/retrospective/SKILL.md`, using the memory
+and closing outputs required by [SKILL.md](../SKILL.md), using the memory
 protocol in `diagnosis-and-actions.md` and the closing activities in `frameworks.md`. The
 output artifact MUST match this template, modulo filled placeholders. Do not reword the
 headings or table columns; downstream readers and the auto-retro skeleton-fill path depend
@@ -117,10 +117,31 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 #### Delta Change
 - [What should be different next time]
 
-#### Backlog Candidates
-| Delta Item | Priority | Action |
-|------------|----------|--------|
-| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+
+#### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+
+#### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+
+#### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
 
 ### ROTI Assessment
 

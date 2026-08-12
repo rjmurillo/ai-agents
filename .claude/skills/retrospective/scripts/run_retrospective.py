@@ -313,10 +313,31 @@ def render_artifact(
 #### Delta Change
 - [What should be different next time]
 
-#### Backlog Candidates
-| Delta Item | Priority | Action |
-|------------|----------|--------|
-| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+
+#### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+
+#### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+
+#### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
 
 ### ROTI Assessment
 

@@ -13,12 +13,35 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / ".claude" / "skills" / "retrospective" / "SKILL.md"
 TEMPLATE = ROOT / ".claude" / "skills" / "retrospective" / "references" / "learning-template.md"
 SCRIPT = ROOT / ".claude" / "skills" / "retrospective" / "scripts" / "run_retrospective.py"
+COPILOT_TEMPLATE = (
+    ROOT
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "retrospective"
+    / "references"
+    / "learning-template.md"
+)
+COPILOT_SCRIPT = (
+    ROOT / "src" / "copilot-cli" / "skills" / "retrospective" / "scripts" / "run_retrospective.py"
+)
 MODULE_NAME = f"retrospective_phase_contract_{sha1(str(SCRIPT).encode()).hexdigest()[:12]}"
 PHASE_5_SECTIONS = (
     "### Memory Persistence",
     "### +/Delta",
+    "### Delta Triage",
     "### ROTI Assessment",
     "### Helped, Hindered, Hypothesis",
+)
+DELTA_TRIAGE_CONTRACT = (
+    "#### Actionable Items Identified",
+    "| Delta Item | Category | Priority | Destination | Reference |",
+    "#### Issues Created",
+    "| Issue | Title | Priority | Labels |",
+    "#### Backlog Items Stored",
+    "| Item | Priority | Memory File |",
+    "#### Skipped Items",
+    "| Item | Reason |",
 )
 
 SPEC = importlib.util.spec_from_file_location(MODULE_NAME, SCRIPT)
@@ -65,6 +88,14 @@ def test_template_and_renderer_cover_every_process_phase() -> None:
     for section in PHASE_5_SECTIONS:
         assert section in template_text
         assert section in artifact
+    for contract_line in DELTA_TRIAGE_CONTRACT:
+        assert contract_line in template_text
+        assert contract_line in artifact
+
+
+def test_copilot_cli_mirrors_match_canonical_sources() -> None:
+    assert COPILOT_TEMPLATE.read_bytes() == TEMPLATE.read_bytes()
+    assert COPILOT_SCRIPT.read_bytes() == SCRIPT.read_bytes()
 
 
 def test_phase_contract_reports_a_missing_template_phase() -> None:
