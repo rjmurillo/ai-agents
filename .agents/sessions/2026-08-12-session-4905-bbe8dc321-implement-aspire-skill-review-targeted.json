@@ -132,14 +132,14 @@
       "result": "eval-prompt-change.py --provider copilot --model claude-opus-5 gate PASS after seeding COPILOT_HOME with auth symlinks and fresh session-state (default ~/.copilot/session-state had 9035 entries, over the 4096 scan cap). TASK-022 is feasible."
     }
   ],
-  "endingCommit": "96223625ae92a337cb8d6677301827cafca2fccc",
+  "endingCommit": "a55b7f0d3cc2e60b02dc5a648d8b3cca99a21f47",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 12,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "57715aa9f3b65f407b7afa13c9ee4e8f0769d538",
-      "head": "96223625ae92a337cb8d6677301827cafca2fccc"
+      "head": "a55b7f0d3cc2e60b02dc5a648d8b3cca99a21f47"
     }
   }
 }
