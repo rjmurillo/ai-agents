@@ -146,8 +146,10 @@ none (no domain entities)
 ## Co-change checklist
 
 - [ ] .agents/analysis/aspire-skill-review-matrix.md:"Decision matrix" -- record every source decision
-- [ ] .claude/skills/*/SKILL.md:"Selected canonical skills" -- [PENDING TASK-020] replace wildcard with approved matrix paths
-- [ ] src/copilot-cli/skills/*/SKILL.md:"Generated mirrors" -- [PENDING TASK-020] replace wildcard with generated matrix paths
+- [ ] .claude/skills/SkillForge/SKILL.md:"Adapting an external skill source" -- add generic external-source adaptation guardrail (single augmentation per TASK-020)
+- [ ] .claude/skills/SkillForge/references/external-skill-source-adaptation.md:"External skill source adaptation" -- detailed cited discipline
+- [ ] src/copilot-cli/skills/SkillForge/SKILL.md:"Generated mirror" -- regenerated from canonical via build_all.py (no hand edits)
+- [ ] src/copilot-cli/skills/SkillForge/references/external-skill-source-adaptation.md:"Generated mirror" -- regenerated from canonical via build_all.py (no hand edits)
 - [ ] tests/evals/skills/aspire-skill-review-scenarios.json:"Scenarios" -- add Copilot eval cases
 - [ ] .agents/specs/design/DESIGN-019-aspire-skill-review.md:"Testing Strategy" -- record final eval ownership
 
