@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Five incoming Serena memories committed in 532de59949. Unconfirmed consolidation edits were restored."
+        "Evidence": "Five incoming memories committed in 532de59949. Ten duplicate or obsolete memories were consolidated in c4bf3bfaba."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-owned memory baseline committed in 532de59949. Final session and retrospective artifacts staged together."
+        "Evidence": "Memory baseline committed in 532de59949. Consolidation committed in c4bf3bfaba."
       },
       "validationPassed": {
         "level": "MUST",
@@ -129,16 +129,17 @@
     },
     {
       "action": "Reviewed duplicate, stale, thin, and index candidates.",
-      "detail": "Eleven deletion candidates and one semantic correction required path-specific confirmation. The user was unavailable, so none were retained as consolidation edits."
+      "detail": "Eleven deletion candidates and one semantic correction were reviewed. The user later authorized continuation. memory-maintenance.md was retained after adversarial review found no concrete survivor."
     },
     {
-      "action": "Restored all unconfirmed consolidation edits after adversarial review.",
-      "detail": "memory_git_targets.py restored memory-index.md and pr-review/use-get-pr-checks-not-raw-rollup.md to commit 532de59949, then removed the manifest. The memory tree is clean."
+      "action": "Restored two incomplete attempts after adversarial review.",
+      "detail": "The first attempt lacked path confirmation. The second added one target after mutation. Both were fully restored through memory_git_targets.py."
+    },
+    {
+      "action": "Completed the third consolidation pass from a clean baseline.",
+      "detail": "A complete manifest was validated before mutation. Ten memories were deleted, 48 paths matched the declared set, all diff hunks matched the authorized transform, and memory index, size, token, reference, and retrieval checks passed."
     }
   ],
-  "endingCommit": "532de59949",
-  "nextSteps": [
-    "Obtain exact path confirmation before deleting or semantically rewriting the eleven identified memory candidates.",
-    "After confirmation, rerun memory-consolidate from a clean tracked memory tree. memory-index.md remains 181 lines and 28,675 bytes."
-  ]
+  "endingCommit": "c4bf3bfaba",
+  "nextSteps": []
 }

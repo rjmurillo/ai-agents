@@ -60,7 +60,44 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored two incomplete attempts after adversarial review.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the third consolidation pass from a clean baseline.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T07:12:39+00:00",
+      "type": "commit",
+      "content": "Commit: c4bf3bfaba",
+      "caused_by": [
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
@@ -71,8 +108,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 7
+    "commits": 2,
+    "files_changed": 56
   },
   "lessons": []
 }
