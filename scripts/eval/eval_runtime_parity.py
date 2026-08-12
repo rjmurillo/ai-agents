@@ -23,6 +23,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from _runtime_output import RuntimeOutputError, parse_events
 from _runtime_parity import (
     SENTINEL,
     Fixture,
@@ -59,10 +60,10 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 def _tool_args(tools: Sequence[str], harness: str) -> list[str]:
     if harness == "claude":
-        names = {"write": "Edit"}
+        names = {"question": "AskUserQuestion", "write": "Edit"}
         selected = [names[name] for name in tools]
         return ["--tools", ",".join(selected)] if selected else ["--tools", ""]
-    names = {"write": "edit"}
+    names = {"question": "ask_user", "write": "edit"}
     selected = [names[name] for name in tools]
     args = [f"--available-tools={','.join(selected)}"]
     args.extend(f"--allow-tool={tool}" for tool in selected)
@@ -103,7 +104,7 @@ def build_argv(
         "--agent",
         "parity",
         "--no-custom-instructions",
-        "--no-ask-user",
+        *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
         "--no-remote",
         "--no-remote-export",
@@ -116,20 +117,6 @@ def build_argv(
         fixture.prompt,
         *_tool_args(fixture.tools, harness),
     ]
-
-
-def _events(stdout: str) -> list[dict[str, object]]:
-    events: list[dict[str, object]] = []
-    for line in stdout.splitlines():
-        if not line.strip():
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict):
-            events.append(event)
-    return events
 
 
 def _claude_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | None]:
@@ -292,7 +279,23 @@ def _run_fixture(
         )
     except subprocess.TimeoutExpired:
         return {"error": "runtime timed out", "exit_code": None}, EXIT_EXTERNAL
-    events = _events(run.stdout)
+    try:
+        events = parse_events(run.stdout)
+    except RuntimeOutputError as exc:
+        return (
+            {
+                "provenance": (
+                    "Claude runtime"
+                    if harness == "claude"
+                    else "Copilot runtime"
+                ),
+                "command": _redacted_argv(argv, harness),
+                "exit_code": run.returncode,
+                "error": str(exc),
+                "passed": False,
+            },
+            EXIT_EXTERNAL,
+        )
     response, resolved_model = (
         _claude_result(events)
         if harness == "claude"

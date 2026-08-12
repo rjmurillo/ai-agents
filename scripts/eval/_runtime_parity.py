@@ -13,7 +13,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
-SUPPORTED_TOOLS = frozenset({"write"})
+SUPPORTED_TOOLS = frozenset({"question", "write"})
 SENTINEL = "PARITY_PROFILE_SENTINEL_4853"
 
 
@@ -367,12 +367,12 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
         "WINDIR",
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
-        "ANTHROPIC_API_KEY",
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "COPILOT_GITHUB_TOKEN",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
     }
+    authentication = {
+        "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
+        "copilot": {"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"},
+    }
+    allow.update(authentication[harness])
     env = {key: value for key, value in os.environ.items() if key in allow}
     runtime = workspace / ".runtime"
     runtime.mkdir(exist_ok=True)

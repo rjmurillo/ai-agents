@@ -28,6 +28,7 @@ finally:
     if path_added:
         sys.path.remove(str(EVAL_DIR))
 
+
 @pytest.mark.parametrize("bad_id", ["/abs/fixture", "../escape", "a/../../b"])
 def test_fixture_id_that_leaves_the_workspace_is_a_config_error(
     tmp_path: Path, bad_id: str
@@ -98,6 +99,38 @@ def test_the_claude_harness_is_profile_isolated_too(
     assert env["CLAUDE_CONFIG_DIR"].startswith(str(workspace))
 
 
+def test_each_harness_receives_only_its_own_credentials(
+    tmp_path: Path, monkeypatch
+) -> None:
+    credentials = {
+        "ANTHROPIC_API_KEY": "anthropic",
+        "CLAUDE_CODE_OAUTH_TOKEN": "claude-oauth",
+        "COPILOT_GITHUB_TOKEN": "copilot",
+        "GH_TOKEN": "gh",
+        "GITHUB_TOKEN": "github",
+    }
+    for key, value in credentials.items():
+        monkeypatch.setenv(key, value)
+    claude_workspace = tmp_path / "claude"
+    copilot_workspace = tmp_path / "copilot"
+    claude_workspace.mkdir()
+    copilot_workspace.mkdir()
+
+    claude_env = parity.runtime_env(claude_workspace, "claude")
+    copilot_env = parity.runtime_env(copilot_workspace, "copilot")
+
+    assert claude_env["ANTHROPIC_API_KEY"] == "anthropic"
+    assert claude_env["CLAUDE_CODE_OAUTH_TOKEN"] == "claude-oauth"
+    assert "COPILOT_GITHUB_TOKEN" not in claude_env
+    assert "GH_TOKEN" not in claude_env
+    assert "GITHUB_TOKEN" not in claude_env
+    assert copilot_env["COPILOT_GITHUB_TOKEN"] == "copilot"
+    assert copilot_env["GH_TOKEN"] == "gh"
+    assert copilot_env["GITHUB_TOKEN"] == "github"
+    assert "ANTHROPIC_API_KEY" not in copilot_env
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in copilot_env
+
+
 def test_an_unattributed_final_message_reports_no_model() -> None:
     events = [
         {"type": "assistant.message", "data": {"content": "", "model": "m1"}},
@@ -140,6 +173,97 @@ def test_a_version_probe_timeout_returns_the_external_exit_code(capsys) -> None:
     assert code == parity.EXIT_EXTERNAL
     assert "Error:" in capsys.readouterr().err
 
+
+@pytest.mark.parametrize(
+    ("bad_line", "expected_error"),
+    [
+        ("not-json", "is not valid JSON"),
+        ("[]", "must be a JSON object"),
+    ],
+)
+def test_malformed_jsonl_is_an_external_runtime_failure(
+    tmp_path: Path,
+    capsys,
+    bad_line: str,
+    expected_error: str,
+) -> None:
+    output = tmp_path / "report.json"
+
+    def malformed_runner(argv, **kwargs):
+        args = [str(value) for value in argv]
+        executable = Path(args[0]).name.lower()
+        if "--version" in args:
+            return subprocess.CompletedProcess(
+                args, 0, f"{executable} test-version\n", ""
+            )
+        response = "CONTINUE_PHASE_3"
+        if executable.startswith("claude"):
+            events = [
+                json.dumps(
+                    {
+                        "type": "system",
+                        "subtype": "init",
+                        "model": parity.DEFAULT_MODEL,
+                    }
+                ),
+                bad_line,
+                json.dumps(
+                    {"type": "result", "subtype": "success", "result": response}
+                ),
+            ]
+        else:
+            events = [
+                json.dumps(
+                    {
+                        "type": "assistant.message",
+                        "data": {
+                            "content": response,
+                            "model": parity.DEFAULT_MODEL,
+                        },
+                    }
+                )
+            ]
+        return subprocess.CompletedProcess(
+            args, 0, "\n".join(events) + "\n", ""
+        )
+
+    code = parity.main(
+        [
+            "--fixtures",
+            str(FIXTURES),
+            "--output",
+            str(output),
+            "--timeout",
+            "30",
+        ],
+        runner=malformed_runner,
+    )
+
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert code == parity.EXIT_EXTERNAL
+    assert report["verdict"] == "ERROR"
+    assert expected_error in report["fixtures"][0]["claude"]["error"]
+    capsys.readouterr()
+
+
+def test_consequential_choice_exposes_each_question_capability() -> None:
+    fixture = next(
+        fixture
+        for fixture in parity.load_fixtures(FIXTURES)
+        if fixture.fixture_id == "consequential-choice"
+    )
+
+    claude = parity.build_argv(
+        "claude", "claude", parity.DEFAULT_MODEL, fixture
+    )
+    copilot = parity.build_argv(
+        "copilot", "copilot", parity.DEFAULT_MODEL, fixture
+    )
+
+    assert claude[claude.index("--tools") + 1] == "AskUserQuestion"
+    assert "--available-tools=ask_user" in copilot
+    assert "--allow-tool=ask_user" in copilot
+    assert "--no-ask-user" not in copilot
 
 
 class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:

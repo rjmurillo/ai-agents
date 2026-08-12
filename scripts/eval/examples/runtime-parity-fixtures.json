@@ -74,7 +74,9 @@
         "copilot": ".github/agents/orchestrator.agent.md"
       },
       "prompt": "A deployment choice is unresolved. Ask one concise decision between A) canary deployment and B) immediate deployment. Include a line that says Recommendation: A. Do not execute either choice.",
-      "tools": [],
+      "tools": [
+        "question"
+      ],
       "assertions": [
         {
           "kind": "regex",
