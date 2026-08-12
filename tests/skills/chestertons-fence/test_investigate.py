@@ -44,6 +44,34 @@ def test_find_related_adrs_reads_utf8_explicitly(tmp_path: Path, monkeypatch) ->
     assert related_adrs == ["ADR-999-utf8.md: ADR-999: UTF-8 ”quote”"]
 
 
+def test_generate_report_reads_template_utf8_explicitly(
+    tmp_path: Path, monkeypatch
+) -> None:
+    skill_dir = tmp_path / "chestertons-fence"
+    template_dir = skill_dir / "templates"
+    template_dir.mkdir(parents=True)
+    template_path = template_dir / "chestertons-fence-investigation.md"
+    template_path.write_text(
+        "# Report for [Component/System Name]: café “quote”\n",
+        encoding="utf-8",
+    )
+    script_path = skill_dir / "scripts" / "investigate.py"
+    script_path.parent.mkdir()
+    monkeypatch.setattr(investigate, "__file__", str(script_path))
+    original_read_text = Path.read_text
+
+    def read_text_with_cp1252_default(path: Path, encoding=None, **kwargs):
+        return original_read_text(path, encoding=encoding or "cp1252", **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text_with_cp1252_default)
+
+    report = investigate.generate_report(
+        investigate.InvestigationResult("target.py", "test template encoding")
+    )
+
+    assert "# Report for target.py: café “quote”" in report
+
+
 def test_main_reports_invalid_utf8_adr_path(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
