@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end.json
-qaCommit: 65c55830b836f57388a3221781a8ff163a17e51c
+qaCommit: 1459305de3c68ded46ed0fff8088e73dbb6095ac
 ---
 
 # Issue 4896 QA Report
@@ -14,7 +14,7 @@ Validated the Chesterton investigation ADR scan on the work commit above.
 
 | Check | Result |
 |---|---|
-| Regression tests | 27 passed |
+| Regression tests | 28 passed |
 | Skill generator tests | 36 passed |
 | Ruff | 3 changed Python files passed |
 | Mirror parity | Canonical and Copilot scripts matched byte for byte |

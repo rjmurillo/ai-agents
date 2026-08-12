@@ -87,6 +87,32 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T06:28:10+00:00",
+      "type": "commit",
+      "content": "Commit: 65c55830b8",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-12T15:24:42+00:00",
+      "type": "commit",
+      "content": "Commit: 1459305de3c68ded46ed0fff8088e73dbb6095ac",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
     }
@@ -96,8 +122,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 7
+    "commits": 4,
+    "files_changed": 8
   },
   "lessons": []
 }
