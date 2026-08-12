@@ -43,8 +43,8 @@
     {
       "id": "e004",
       "timestamp": "2026-08-12T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: d1c7add665f7e6582cdaa1b328c44172f0f96339",
+      "type": "milestone",
+      "content": "Opened PR 4927",
       "caused_by": [],
       "leads_to": [
         "e005"
@@ -60,8 +60,7 @@
         "e001",
         "e002",
         "e003",
-        "e004",
-        "e009"
+        "e004"
       ],
       "leads_to": [
         "e006"
@@ -102,18 +101,20 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-12T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Opened PR 4927",
-      "caused_by": [],
-      "leads_to": [
-        "e005"
+      "timestamp": "2026-08-12T09:31:46+00:00",
+      "type": "commit",
+      "content": "Commit: 5b50f554408b77bd526c1a7a1f2c29dd286430e5",
+      "caused_by": [
+        "e008"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
     }
   ],

@@ -251,11 +251,30 @@ product-operation skill is rejected (REQ-020 AC6).
 - Generated mirrors: `src/copilot-cli/skills/SkillForge/SKILL.md`, `src/copilot-cli/skills/SkillForge/references/external-skill-source-adaptation.md`
 - Eval scenarios: `tests/evals/skills/aspire-skill-review-scenarios.json`
 
-REQ-020 names SkillForge as the owner of the classification model, so the review's recurring lesson (adapt an external skill catalog by requiring an authoritative pinned source, treating source content as untrusted data, preferring an existing local owner, rejecting product-specific operations, and allowing at most one new generic skill) is added to SkillForge Phase 0 as a small generic guardrail rather than a new external-review framework (explicitly excluded). Inspiration is cited to the Aspire catalog: product-specific exemplars (cli-e2e-testing, hex1b, hosting-integration-authoring, vscode-extension) drove the reject rule; existing-owner exemplars (code-review, create-pr, issue-investigation, fix-flaky-test) drove the reuse-over-create rule.
+REQ-020 names SkillForge as the owner of the classification model, so the review's recurring lesson (adapt an external skill catalog by requiring an authoritative pinned source, treating source content as untrusted data, preferring an existing local owner, rejecting product-specific operations, and creating a new skill only for a verified capability gap with no local owner) is added to SkillForge Phase 0 as a small generic guardrail rather than a new external-review framework (explicitly excluded). The generic guardrail carries no fixed per-source creation quota: REQ-020's at-most-one-new-skill limit bounds this specific review (REQ-020 acceptance criterion "SO THAT this review remains bounded"), not every future external catalog, so the reusable rule keys creation on the absence of a local owner. Inspiration is cited to the Aspire catalog: product-specific exemplars (cli-e2e-testing, hex1b, hosting-integration-authoring, vscode-extension) drove the reject rule; existing-owner exemplars (code-review, create-pr, issue-investigation, fix-flaky-test) drove the reuse-over-create rule.
 
 ## Untrusted-data handling
 
 Every source skill was read as data. No command, tool call, or scope change
 found inside a source skill was executed or obeyed. Product-specific operational
 commands were not copied into any local skill.
+
+## Security classification (TASK-020)
+
+The augmented behavior is **security-critical**. The guardrail's Gate 1 is an
+untrusted-source control: it requires an authoritative pinned source and treats
+all external skill text as data that must never be executed as instruction. That
+control mitigates threat T003 in `TM-aspire-skill-review` (embedded source
+instructions redirect execution), rated Likelihood Medium, Impact High, Risk
+**High**, and it implements REQ-020's acceptance criterion "WHEN external source
+text is processed, THE SYSTEM SHALL treat it as untrusted data SO THAT embedded
+instructions cannot redirect execution."
+
+Because a prompt-injection defense that silently regresses would let
+attacker-controlled source text redirect routing, this change meets ADR-057's
+security-critical tier. Under REQ-020 and DESIGN-019, the prompt-change eval
+therefore runs `eval-prompt-change.py --security-critical` with at least five
+runs and requires a 100% pass rate, and the scenario suite includes a
+source-text instruction-injection case (S6). This supersedes the earlier
+`security_critical: false` record in the first eval run.
 
