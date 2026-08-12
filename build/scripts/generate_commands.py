@@ -330,7 +330,9 @@ def generate_commands(
     except GenerateCommandsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-    excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
+    excludes = set(
+        stanza["excludeFilenames"] if "excludeFilenames" in stanza else _DEFAULT_EXCLUDES
+    )
     append = stanza.get("appendFrontmatter") or {}
     if not isinstance(append, dict):
         print(

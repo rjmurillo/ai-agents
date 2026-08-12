@@ -205,6 +205,20 @@ def test_commands_exclude_filenames_is_allowed(tmp_path: Path) -> None:
     assert errors == []
 
 
+def test_commands_exclude_filenames_bare_string_rejected(tmp_path: Path) -> None:
+    body = (
+        MINIMAL_VALID
+        + 'artifacts:\n'
+        + '  commands:\n'
+        + '    sourceDir: ".claude/commands"\n'
+        + '    outputDir: "src/copilot-cli/skills"\n'
+        + '    excludeFilenames: "AGENTS.md"\n'
+    )
+    target = _write(tmp_path, body)
+    errors, _ = vts.validate_file(target)
+    assert any("excludeFilenames" in e for e in errors)
+
+
 def test_dot_only_command_resource_suffix_rejected(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID

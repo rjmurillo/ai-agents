@@ -247,6 +247,17 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
     return errors
 
 
+def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
+    value = stanza.get("excludeFilenames")
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return [
+            f"`artifacts.{name}.excludeFilenames`: must be a list of strings"
+        ]
+    return []
+
+
 def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if not isinstance(stanza, dict):
         return [f"`artifacts.{name}`: must be a mapping (got {type(stanza).__name__})"]
@@ -257,6 +268,8 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
         ]
     errors = _validate_artifact_keys(name, stanza)
     errors.extend(_validate_artifact_paths(name, stanza))
+    if "excludeFilenames" in ARTIFACT_DISPATCH[name]:
+        errors.extend(_validate_exclude_filenames(name, stanza))
     if name == "rules":
         errors.extend(_validate_rules_output_dirs(name, stanza))
         errors.extend(_validate_rules_keep_internal_globs(name, stanza))
