@@ -140,3 +140,102 @@ def test_a_version_probe_timeout_returns_the_external_exit_code(capsys) -> None:
     assert code == parity.EXIT_EXTERNAL
     assert "Error:" in capsys.readouterr().err
 
+
+
+class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:
+    """Both CLIs resolve --agent against the frontmatter name, not the filename."""
+
+    def _fixture(self):
+        return next(
+            f
+            for f in parity.load_fixtures(FIXTURES)
+            if f.fixture_id == "consequential-choice"
+        )
+
+    def test_the_claude_agent_frontmatter_name_becomes_parity(self, tmp_path: Path):
+        fixture = self._fixture()
+        source_name = fixture.claude_agent.read_text(encoding="utf-8").splitlines()[1]
+        workspace = tmp_path / "claude"
+
+        parity.prepare_workspace(fixture, "claude", workspace)
+
+        installed = workspace / ".claude" / "agents" / "parity.md"
+        assert installed.read_text(encoding="utf-8").splitlines()[1] == "name: parity"
+        assert source_name != "name: parity", "fixture no longer exercises the rename"
+
+    def test_the_copilot_agent_frontmatter_name_becomes_parity(self, tmp_path: Path):
+        fixture = self._fixture()
+        workspace = tmp_path / "copilot"
+
+        parity.prepare_workspace(fixture, "copilot", workspace)
+
+        installed = workspace / ".github" / "agents" / "parity.agent.md"
+        assert installed.read_text(encoding="utf-8").splitlines()[1] == "name: parity"
+
+    def test_the_body_below_the_frontmatter_is_preserved(self, tmp_path: Path):
+        fixture = self._fixture()
+        workspace = tmp_path / "claude"
+
+        parity.prepare_workspace(fixture, "claude", workspace)
+
+        source = fixture.claude_agent.read_text(encoding="utf-8")
+        installed = (workspace / ".claude" / "agents" / "parity.md").read_text(
+            encoding="utf-8"
+        )
+        assert installed.endswith(source.split("---", 2)[2])
+
+    def _fixture_with_agent(self, agent: Path):
+        template = self._fixture()
+        return parity.Fixture(
+            fixture_id=template.fixture_id,
+            claude_agent=agent,
+            copilot_agent=agent,
+            prompt=template.prompt,
+            setup_files={},
+            tools=(),
+            assertions=template.assertions,
+            positive=template.positive,
+            negative=template.negative,
+        )
+
+    @pytest.mark.parametrize(
+        ("name", "content"),
+        [
+            ("bare.md", "# no frontmatter\n"),
+            ("nameless.md", "---\ndescription: x\n---\nbody\n"),
+        ],
+    )
+    def test_an_agent_the_cli_cannot_be_pointed_at_is_a_config_error(
+        self, tmp_path: Path, name: str, content: str
+    ):
+        source = tmp_path / name
+        source.write_text(content, encoding="utf-8")
+
+        with pytest.raises(parity.ParityConfigError):
+            parity.prepare_workspace(
+                self._fixture_with_agent(source), "claude", tmp_path / "ws"
+            )
+
+
+class TestQuestionMechanismClassifier:
+    """The report names which branch the harness took to pose its question."""
+
+    def test_a_claude_question_tool_call_reports_a_structured_event(self):
+        tools = [{"type": "tool_use", "name": "AskUserQuestion"}]
+
+        assert parity.question_mechanism(tools, "anything") == "structured_event"
+
+    def test_a_copilot_question_event_reports_a_structured_event(self):
+        tools = [{"type": "tool.execution_start", "data": {"toolName": "ask_user"}}]
+
+        assert parity.question_mechanism(tools, "anything") == "structured_event"
+
+    def test_prose_with_no_question_tool_reports_the_text_fallback(self):
+        tools = [{"type": "tool_use", "name": "Edit"}]
+
+        assert (
+            parity.question_mechanism(tools, "Should we do A or B?") == "text_fallback"
+        )
+
+    def test_no_tools_and_no_response_reports_no_answer(self):
+        assert parity.question_mechanism([], "   ") == "no_answer"

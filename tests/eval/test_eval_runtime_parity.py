@@ -426,3 +426,53 @@ def test_main_returns_config_exit_for_bad_fixture(
 
     assert code == parity.EXIT_CONFIG
     assert "schema_version" in capsys.readouterr().err
+
+
+def test_a_question_mechanism_mismatch_fails_the_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    output = tmp_path / "run" / "report.json"
+    real = parity._run_fixture
+
+    def fake_run_fixture(fixture, harness, *args, **kwargs):
+        record, code = real(fixture, harness, *args, **kwargs)
+        if harness == "copilot":
+            record["question_mechanism"] = "structured_event"
+        return record, code
+
+    monkeypatch.setattr(parity, "_run_fixture", fake_run_fixture)
+
+    report, code = parity.run_evaluation(
+        fixtures_path=_minimal_corpus(tmp_path),
+        model=parity.DEFAULT_MODEL,
+        output=output,
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30.0,
+        dry_run=False,
+        runner=FakeRunner(),
+    )
+
+    assert report["verdict"] == "FAIL_QUESTION_MECHANISM_MISMATCH"
+    assert code == parity.EXIT_LOGIC
+
+
+def test_matching_question_mechanisms_are_recorded_and_pass(tmp_path: Path) -> None:
+    output = tmp_path / "run" / "report.json"
+
+    report, code = parity.run_evaluation(
+        fixtures_path=_minimal_corpus(tmp_path),
+        model=parity.DEFAULT_MODEL,
+        output=output,
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30.0,
+        dry_run=False,
+        runner=FakeRunner(),
+    )
+
+    fixture = report["fixtures"][0]
+    assert fixture["claude"]["question_mechanism"] == "text_fallback"
+    assert fixture["copilot"]["question_mechanism"] == "text_fallback"
+    assert report["verdict"] != "FAIL_QUESTION_MECHANISM_MISMATCH"
+    assert code == parity.EXIT_OK

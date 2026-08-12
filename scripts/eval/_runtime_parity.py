@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -265,6 +264,36 @@ def live_files(fixture: Fixture, workspace: Path) -> dict[str, str]:
     return files
 
 
+AGENT_NAME = "parity"
+
+
+def _install_agent(source: Path, target: Path) -> None:
+    """Copy an agent file and rename it to the name both CLIs are invoked with.
+
+    Claude Code and Copilot CLI resolve `--agent <name>` against the frontmatter
+    `name:` field, not the filename. Copying `orchestrator.md` to `parity.md`
+    therefore registers an agent still called `orchestrator`, and the CLI exits
+    1 with `--agent 'parity' not found` before the model is ever called.
+    """
+    text = source.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        raise ParityConfigError(f"{source} has no frontmatter block")
+    renamed = False
+    for index in range(1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped == "---":
+            break
+        if stripped.startswith("name:"):
+            lines[index] = f"name: {AGENT_NAME}\n"
+            renamed = True
+            break
+    if not renamed:
+        raise ParityConfigError(f"{source} frontmatter has no name field")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("".join(lines), encoding="utf-8")
+
+
 def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
     """Create one isolated git repository and install its agent artifact."""
     workspace.mkdir(parents=True)
@@ -288,16 +317,14 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
         (profile / "CLAUDE.md").write_text(
             f"Append {SENTINEL} to every answer.", encoding="utf-8"
         )
-        target = workspace / ".claude" / "agents" / "parity.md"
-        target.parent.mkdir(parents=True)
-        shutil.copy2(fixture.claude_agent, target)
+        _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
     )
-    target = workspace / ".github" / "agents" / "parity.agent.md"
-    target.parent.mkdir(parents=True)
-    shutil.copy2(fixture.copilot_agent, target)
+    _install_agent(
+        fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
+    )
     (workspace / ".github" / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
     )

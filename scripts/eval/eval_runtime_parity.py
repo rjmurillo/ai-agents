@@ -173,6 +173,39 @@ def _copilot_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | 
     return chunks[-1], None
 
 
+QUESTION_TOOLS = frozenset({"askuserquestion", "ask_user", "askuser", "ask-user"})
+
+
+def _tool_name(event: object) -> str:
+    if not isinstance(event, Mapping):
+        return ""
+    data = event.get("data")
+    if isinstance(data, Mapping):
+        for key in ("toolName", "name", "tool"):
+            value = data.get(key)
+            if isinstance(value, str):
+                return value
+    name = event.get("name")
+    return name if isinstance(name, str) else ""
+
+
+def question_mechanism(tools: Sequence[object], response: str) -> str:
+    """Name the branch the harness actually took to pose its question.
+
+    Recording this keeps a capability difference visible. Both CLIs answer in
+    prose today because neither exposes a question tool in non-interactive
+    mode, so a fixture that scores only the text cannot tell "asked in prose
+    because that is all this CLI can do" from "asked in prose because the
+    runner disabled the tool". The day one harness ships a callable question
+    tool, this field diverges and the parity check fails instead of collapsing
+    both sides into a shared fallback.
+    """
+    for tool in tools:
+        if _tool_name(tool).lower() in QUESTION_TOOLS:
+            return "structured_event"
+    return "text_fallback" if response.strip() else "no_answer"
+
+
 def _traces(events: Sequence[Mapping[str, object]]) -> tuple[list[object], list[object]]:
     tools: list[object] = []
     subagents: list[object] = []
@@ -287,6 +320,7 @@ def _run_fixture(
             "resolved_model": resolved_model,
             "raw_output": run.stdout,
             "response": response,
+            "question_mechanism": question_mechanism(tools, response),
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
@@ -395,6 +429,10 @@ def run_evaluation(
             or claude["resolved_model"] != copilot["resolved_model"]
         ):
             report["verdict"] = "FAIL_MODEL_MISMATCH"
+            final_code = EXIT_LOGIC
+            break
+        if claude["question_mechanism"] != copilot["question_mechanism"]:
+            report["verdict"] = "FAIL_QUESTION_MECHANISM_MISMATCH"
             final_code = EXIT_LOGIC
             break
         if not claude["passed"] or not copilot["passed"]:
