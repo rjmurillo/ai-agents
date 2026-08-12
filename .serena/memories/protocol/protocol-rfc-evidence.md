@@ -4,7 +4,11 @@
 
 **Context**: Any phase transition in protocol
 
+**Trigger**: A protocol document uses RFC 2119 keywords such as MUST, SHOULD, or MAY
+
 **Evidence**: PR #147 - Agent claimed compliance without verification evidence
+
+**Source**: PR #147 retrospective analysis, 2025-12-20
 
 **Atomicity**: 96%
 
