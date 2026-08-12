@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/000-issue-4905-aspire-skill-review-qa.md"
+        "Evidence": ".agents/qa/pr-4927-issue-4905-aspire-skill-review-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
