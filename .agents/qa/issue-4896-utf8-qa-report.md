@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end.json
-qaCommit: 17ab5a950b559ccb60c313481b0b7c03ee27ba06
+qaCommit: 65c55830b836f57388a3221781a8ff163a17e51c
 ---
 
 # Issue 4896 QA Report

@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "Pre-PR Markdown Linting passed on the changed QA report after merging origin/main"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and mypy package-marker fixes committed through 17ab5a950b"
+        "Evidence": "Implementation, mypy package-marker fix, session artifacts, and origin/main merge committed through 65c55830b8"
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,6 +145,6 @@
       "detail": "Separate GPT-5.6 Sol code-review agents received only the worktree diff before and after the mypy-gate repair. Both returned CLEAN. Independent evidence includes 63 passing targeted tests, Ruff and changed-files mypy clean, 51 of 51 pre-PR checks passed, canonical and generated scripts byte-identical, and text plus JSON runtime checks under an ASCII locale."
     }
   ],
-  "endingCommit": "17ab5a950b559ccb60c313481b0b7c03ee27ba06",
+  "endingCommit": "65c55830b836f57388a3221781a8ff163a17e51c",
   "nextSteps": []
 }

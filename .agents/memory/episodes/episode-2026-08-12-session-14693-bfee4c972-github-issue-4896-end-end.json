@@ -74,6 +74,19 @@
         "e004",
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T06:28:10+00:00",
+      "type": "commit",
+      "content": "Commit: 65c55830b836f57388a3221781a8ff163a17e51c",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
     }
@@ -83,8 +96,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 7
   },
   "lessons": []
 }
