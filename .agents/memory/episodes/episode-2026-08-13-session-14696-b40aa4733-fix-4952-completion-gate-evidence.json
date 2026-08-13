@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-13-session-14696-b40aa4733-fix-4952-completion-gate-evidence",
+  "session": "2026-08-13-session-14696-b40aa4733-fix-4952-completion-gate-evidence",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix PR 4952 completion gate evidence",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T13:34:00+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR branch lease after the prior holder expired.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-14696-b40aa4733-fix-4952-completion-gate-evidence"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T13:35:00+00:00",
+      "type": "milestone",
+      "content": "Verified both completion-gate failures against live evidence.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14696-b40aa4733-fix-4952-completion-gate-evidence"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T13:36:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the source event to describe the actual review activity.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14696-b40aa4733-fix-4952-completion-gate-evidence"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 2,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

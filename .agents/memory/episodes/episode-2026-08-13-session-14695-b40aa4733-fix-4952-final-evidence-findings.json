@@ -59,9 +59,9 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-13T12:45:00+00:00",
+      "timestamp": "2026-08-13T12:45:26+00:00",
       "type": "milestone",
-      "content": "Committed the final finding corrections.",
+      "content": "Received the late follow-up QA scope finding.",
       "caused_by": [
         "e004"
       ],
