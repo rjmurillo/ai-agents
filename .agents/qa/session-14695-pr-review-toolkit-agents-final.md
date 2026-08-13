@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-b1cdc6d2e-implement-technology-agnostic-review-agents-based.json
-qaCommit: b6129d816d7315eb8fcd3c4f64d0dbc7cf2fd81e
+qaCommit: cf82bb1d7663bca52b0e777b7e015700f92c91c7
 ---
 
 # Test Report: Technology-Agnostic PR Review Agents
@@ -50,4 +50,4 @@ claim a measured before-and-after behavioral score.
 The branch merged current `origin/main`, restored the existing code-reviewer
 prompt-injection contract, repaired the merged memory index, and passed 332
 targeted tests. The reviewed content tip is
-`b6129d816d7315eb8fcd3c4f64d0dbc7cf2fd81e`.
+`cf82bb1d7663bca52b0e777b7e015700f92c91c7`.
