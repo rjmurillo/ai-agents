@@ -448,7 +448,11 @@ def verify_worktree_identity() -> None:
         ) from exc
     if run.returncode != 0:
         raise ParityConfigError("current directory is not inside a git worktree")
-    if Path(run.stdout.strip()).resolve() != REPO_ROOT:
+    current_directory = Path.cwd().resolve()
+    top_level = Path(run.stdout.strip()).resolve()
+    if not current_directory.is_relative_to(top_level):
+        raise ParityConfigError("current directory is outside reported worktree")
+    if top_level != REPO_ROOT:
         raise ParityConfigError(
             "current worktree does not contain this evaluator"
         )

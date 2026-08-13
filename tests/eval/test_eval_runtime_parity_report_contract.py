@@ -348,3 +348,22 @@ def test_main_rejects_a_different_current_worktree(
 
     assert code == parity.EXIT_CONFIG
     assert "current directory is not inside a git worktree" in capsys.readouterr().err
+
+
+def test_worktree_identity_rejects_a_top_level_outside_cwd(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        runtime_parity.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, f"{runtime_parity.REPO_ROOT}\n", ""
+        ),
+    )
+
+    with pytest.raises(
+        runtime_parity.ParityConfigError,
+        match="current directory is outside reported worktree",
+    ):
+        runtime_parity.verify_worktree_identity()
