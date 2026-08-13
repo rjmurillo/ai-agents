@@ -189,7 +189,7 @@
       "result": "Copilot scoring now joins all answer messages, and behavioral failures continue through every fixture. Runtime errors and model mismatches still stop immediately. Fifty-eight targeted tests passed."
     }
   ],
-  "endingCommit": "a4c2a4bd3b01ecef768d98b8cfab956945ecacf6",
+  "endingCommit": "4d5b1e8c8f40f834f43fa6fc53a12874037de19a",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
