@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from scripts.cli_exec import resolve_executable
+
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
     """Raised by a validation when a referenced script is absent on disk.
@@ -45,8 +47,9 @@ def _run_subprocess(
     ``os.environ`` themselves before passing it in.
     """
     try:
+        command = [resolve_executable(args[0], env=env), *args[1:]]
         result = subprocess.run(
-            args,
+            command,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
