@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696.json
-qaCommit: 7bb65589d6fdd9b3cfc23c55706b01a52f320d5d
+qaCommit: b6129d816d7315eb8fcd3c4f64d0dbc7cf2fd81e
 ---
 
 # QA Report: PR 4976 Review Agent Toolkit

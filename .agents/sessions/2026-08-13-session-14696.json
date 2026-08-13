@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review feedback fixes, generated catalog, and PR-specific QA evidence committed through 7bb65589d."
+        "Evidence": "Review feedback fixes, generated catalog, and PR-specific QA evidence committed through b6129d816."
       },
       "validationPassed": {
         "level": "MUST",
@@ -153,6 +153,6 @@
       "outcome": "validate_agent_catalog.py passed with the updated code-reviewer line count."
     }
   ],
-  "endingCommit": "7bb65589d",
+  "endingCommit": "b6129d816",
   "nextSteps": []
 }
