@@ -43,6 +43,7 @@ DELTA_TRIAGE_CONTRACT = (
     "#### Skipped Items",
     "| Item | Reason |",
 )
+MEMORY_RESULT_OPTIONS = "[Added / Updated / Deduplicated / Skipped / Failed]"
 
 SPEC = importlib.util.spec_from_file_location(MODULE_NAME, SCRIPT)
 if SPEC is None or SPEC.loader is None:
@@ -89,6 +90,8 @@ def test_template_and_renderer_cover_every_process_phase() -> None:
     for section in PHASE_5_SECTIONS:
         assert section in template_text
         assert section in artifact
+    assert MEMORY_RESULT_OPTIONS in template_text
+    assert MEMORY_RESULT_OPTIONS in artifact
     for contract_line in DELTA_TRIAGE_CONTRACT:
         assert contract_line in template_text
         assert contract_line in artifact

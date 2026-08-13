@@ -107,7 +107,7 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 
 | Learning | Atomicity | Existing Match | Result |
 |----------|-----------|----------------|--------|
-| [Learning] | [%] | [Memory name or none] | [Added | Updated | Deduplicated | Skipped | Failed] |
+| [Learning] | [%] | [Memory name or none] | [Added / Updated / Deduplicated / Skipped / Failed] |
 
 ### +/Delta
 
