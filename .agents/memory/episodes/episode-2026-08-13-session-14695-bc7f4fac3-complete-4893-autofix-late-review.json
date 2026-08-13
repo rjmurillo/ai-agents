@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review",
+  "session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Complete PR 4893 autofix after late review feedback",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T12:03:40+00:00",
+      "type": "milestone",
+      "content": "Invoked adr-review for the ADR-068 runtime-evidence correction",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

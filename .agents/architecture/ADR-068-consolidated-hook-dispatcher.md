@@ -383,15 +383,16 @@ The current reasons to keep the dispatcher are:
   (#4672 spend-gate policy). That guarantee holds end to end on the direct
   `.github/hooks` path and on the Claude plugin path, where the host matcher
   filters and the script runs directly (measured: malformed stdin exits 0).
-  On the Copilot plugin path the generated matcher shim fails closed on
-  pre-dispatch input errors (malformed stdin, missing tool name) by the
-  generator's crash policy, and that dispatcher fails closed on shim errors
-  and timed-shim timeouts.
+  On the Copilot plugin path the generated matcher shim preserves that
+  fail-open source policy for pre-dispatch input errors (malformed stdin,
+  missing tool name). The dispatcher still fails closed on nonzero shim
+  results and timed-shim timeouts.
 - The generated Copilot host matcher union now includes Agent and Task, so
   that dispatcher entry spawns on every sub-agent call, not only on Bash
-  calls. Every Copilot Bash call also pays a child start for the sub-agent
-  shim, which self-filters only inside its child (three starts became four),
-  and a sub-agent spawn that ran no hook before #4874 now costs four starts.
+calls. The repository-local lowercase `task` registration stays direct,
+outside the plugin dispatcher. Every Copilot Bash call remains bounded to
+the prior three child starts, while Agent and Task calls add the sub-agent
+gate as the fourth.
   The Claude side registers the gate as its own host entry, so Bash calls gain
   no spawn there.
 - The current PreToolUse manifest sums to 110 seconds. The generated host entry
