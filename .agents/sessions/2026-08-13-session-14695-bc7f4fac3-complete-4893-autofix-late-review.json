@@ -128,6 +128,11 @@
       "time": "2026-08-13T05:12:00-07:00",
       "action": "Ran final local QA for late review fixes",
       "result": "397 passed, 3 skipped; build and plugin version checks passed; existing session evidence refreshed to the final implementation commit"
+    },
+    {
+      "time": "2026-08-13T06:20:00-07:00",
+      "action": "Applied suppressed-review corrections to ADR-071 and the model gate",
+      "result": "Preserved plugin namespaces, corrected fail-open runtime evidence, and reused the existing six-round ADR-068/071/085 debate log"
     }
   ],
   "endingCommit": "eea9d2900fa92b1f14267ed640ffd9930a87191c",

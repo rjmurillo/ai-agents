@@ -109,6 +109,27 @@ class TestDefinitionSearch:
         payload = _claude_payload(project, subagent_type="pack:reviewer")
         assert _run(monkeypatch, payload) == 0
 
+    def test_copilot_plugin_scoped_agent_allows(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        agent = (
+            _isolated_environment
+            / ".copilot"
+            / "installed-plugins"
+            / "market"
+            / "pack"
+            / "agents"
+            / "reviewer.agent.md"
+        )
+        agent.parent.mkdir(parents=True)
+        agent.write_text("---\nmodel: claude-sonnet-4.6\n---\nbody\n", encoding="utf-8")
+        payload = {
+            "toolName": "task",
+            "cwd": str(project),
+            "toolArgs": {"agent_type": "pack:reviewer"},
+        }
+        assert _run(monkeypatch, payload) == 0
+
     def test_copilot_user_agent_allows(self, monkeypatch, project, _isolated_environment):
         agent = _isolated_environment / ".copilot" / "agents" / "me.agent.md"
         agent.parent.mkdir(parents=True)
@@ -155,6 +176,65 @@ class TestDenyPaths:
         agent.parent.mkdir(parents=True)
         agent.write_text("---\nmodel: claude-sonnet-4.6\n---\n", encoding="utf-8")
         payload = _claude_payload(project, subagent_type="copilot-only")
+        assert _run(monkeypatch, payload) == 2
+
+    def test_other_plugin_definition_does_not_allow(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        agent = (
+            _isolated_environment
+            / ".claude"
+            / "plugins"
+            / "cache"
+            / "market"
+            / "pack-b"
+            / "1.0"
+            / "agents"
+            / "reviewer.md"
+        )
+        agent.parent.mkdir(parents=True)
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        payload = _claude_payload(project, subagent_type="pack-a:reviewer")
+        assert _run(monkeypatch, payload) == 2
+
+    def test_plugin_definition_does_not_allow_bare_agent(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        agent = (
+            _isolated_environment
+            / ".claude"
+            / "plugins"
+            / "cache"
+            / "market"
+            / "pack"
+            / "1.0"
+            / "agents"
+            / "reviewer.md"
+        )
+        agent.parent.mkdir(parents=True)
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        payload = _claude_payload(project, subagent_type="reviewer")
+        assert _run(monkeypatch, payload) == 2
+
+    def test_other_copilot_plugin_definition_does_not_allow(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        agent = (
+            _isolated_environment
+            / ".copilot"
+            / "installed-plugins"
+            / "market"
+            / "pack-b"
+            / "agents"
+            / "reviewer.agent.md"
+        )
+        agent.parent.mkdir(parents=True)
+        agent.write_text("---\nmodel: claude-sonnet-4.6\n---\n", encoding="utf-8")
+        payload = {
+            "toolName": "task",
+            "cwd": str(project),
+            "toolArgs": {"agent_type": "pack-a:reviewer"},
+        }
         assert _run(monkeypatch, payload) == 2
 
     def test_claude_builtin_without_model_denies(self, monkeypatch, project, capsys):

@@ -417,9 +417,34 @@ def _original_main(stdin_bytes):
 
 
     def _definition_search_space(
-        name: str, home: Path, project: Path, *, copilot: bool
+        name: str,
+        plugin: str | None,
+        home: Path,
+        project: Path,
+        *,
+        copilot: bool,
     ) -> tuple[tuple[Path, tuple[str, ...]], ...]:
         """Glob patterns for model-pinned definitions loaded by one harness."""
+        if plugin:
+            if copilot:
+                return (
+                    (
+                        home / ".copilot",
+                        (
+                            f"installed-plugins/*/{plugin}/agents/{name}.agent.md",
+                            f"installed-plugins/*/{plugin}/agents/{name}.md",
+                        ),
+                    ),
+                )
+            return (
+                (
+                    home / ".claude",
+                    (
+                        f"plugins/**/{plugin}/agents/{name}.md",
+                        f"plugins/**/{plugin}/*/agents/{name}.md",
+                    ),
+                ),
+            )
         if copilot:
             return (
                 (
@@ -427,14 +452,12 @@ def _original_main(stdin_bytes):
                     (
                         f"agents/{name}.agent.md",
                         f"agents/{name}.md",
-                        f"installed-plugins/**/agents/{name}.agent.md",
-                        f"installed-plugins/**/agents/{name}.md",
                     ),
                 ),
                 (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
             )
         return (
-            (home / ".claude", (f"agents/{name}.md", f"plugins/**/agents/{name}.md")),
+            (home / ".claude", (f"agents/{name}.md",)),
             (project / ".claude", (f"agents/{name}.md",)),
         )
 
@@ -461,8 +484,21 @@ def _original_main(stdin_bytes):
         return None
 
 
-    def _has_pinned_definition(name: str, home: Path, project: Path, *, copilot: bool) -> bool:
-        for root, patterns in _definition_search_space(name, home, project, copilot=copilot):
+    def _has_pinned_definition(
+        name: str,
+        plugin: str | None,
+        home: Path,
+        project: Path,
+        *,
+        copilot: bool,
+    ) -> bool:
+        for root, patterns in _definition_search_space(
+            name,
+            plugin,
+            home,
+            project,
+            copilot=copilot,
+        ):
             if not root.is_dir():
                 continue
             for pattern in patterns:
@@ -508,8 +544,12 @@ def _original_main(stdin_bytes):
         agent = args.get("subagent_type") or args.get("agent_type") or ""
         if not isinstance(agent, str) or not agent:
             return 0
-        name = agent.rsplit(":", 1)[-1]  # plugin-scoped type: my-plugin:reviewer
-        searchable = not any(ch in name for ch in "*?[]/\\")  # glob or path chars spoof the search
+        plugin, separator, name = agent.rpartition(":")
+        plugin = plugin if separator else None
+        searchable_parts = (name, plugin) if plugin else (name,)
+        searchable = all(
+            part and not any(ch in part for ch in "*?[]/\\") for part in searchable_parts
+        )
         project = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
         copilot = (
             tool == "task"
@@ -517,7 +557,13 @@ def _original_main(stdin_bytes):
             or "toolArgs" in payload
             or bool(os.environ.get("COPILOT_PLUGIN_ROOT"))
         )
-        if searchable and _has_pinned_definition(name, Path.home(), project, copilot=copilot):
+        if searchable and _has_pinned_definition(
+            name,
+            plugin,
+            Path.home(),
+            project,
+            copilot=copilot,
+        ):
             return 0
         print(
             f"Sub-agent '{agent}' has no model-pinned definition file and this call "

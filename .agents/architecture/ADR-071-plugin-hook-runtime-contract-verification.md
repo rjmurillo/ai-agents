@@ -199,12 +199,11 @@ generated host entry requests 115 seconds, including five seconds of
 dispatcher headroom. The require-subagent-model script fails open on its own
 internal errors (issue #4672 rationale, recorded in the script header), and
 that guarantee holds end to end on the repository-local `.github/hooks` path
-and on the Claude plugin path. On the Copilot plugin path the generated
-matcher shim fails closed on
-pre-dispatch input errors (malformed stdin, missing tool name) by the
-generator's crash policy, and a timed-shim overrun denies (#4706), so the
-recorded Copilot plugin contract is deny on timeout and on malformed input,
-allow on the script's own internal failures. The Claude plugin path has no
+and on the Claude plugin path. On the Copilot plugin path the generated matcher shim inherits the source
+hook's fail-open policy for malformed stdin and missing tool names. A timed
+shim overrun still denies (#4706). The recorded Copilot plugin contract is
+therefore deny on timeout, allow on malformed input, and allow on the script's
+own internal failures. The Claude plugin path has no
 generated shim and no per-shim timeout: the host matcher filters, the script
 runs directly, and its fail-open covers malformed input there too (measured:
 malformed stdin exits 0; the group's 60-second host entry is the bound). The generated host matcher union
