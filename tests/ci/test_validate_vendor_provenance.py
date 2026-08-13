@@ -1556,6 +1556,17 @@ class TestRootMarkdownlintConfigInjection:
         errs = _reject_markdownlint_config_injection(tmp_path)
         assert any(".markdownlint.json" in e for e in errs)
 
+    def test_dangling_markdownlint_symlink_rejected(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _reject_markdownlint_config_injection,
+        )
+
+        (tmp_path / ".markdownlint.cjs").symlink_to(tmp_path / "runner-only.cjs")
+
+        errors = _reject_markdownlint_config_injection(tmp_path)
+
+        assert any("Markdownlint config is a symlink" in error for error in errors)
+
     def test_relevance_for_root_markdownlint_cjs(self) -> None:
         """A change to root .markdownlint.cjs triggers relevance (via root prefix)."""
 

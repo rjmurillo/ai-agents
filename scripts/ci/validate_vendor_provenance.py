@@ -1228,11 +1228,14 @@ def _reject_markdownlint_config_injection(candidate: Path) -> list[str]:
     pinned_rels = {rel for rel, _, _ in _PINNED_ARTIFACTS}
     # Walk entire candidate tree for markdownlint config names
     for f in sorted(candidate.rglob("*")):
-        if not f.is_file():
-            continue
         if f.name not in _MARKDOWNLINT_CONFIG_GLOBS:
             continue
         rel = str(__import__("pathlib").PurePosixPath(f.relative_to(candidate)))
+        if f.is_symlink():
+            errors.append(f"Markdownlint config is a symlink: {rel}")
+            continue
+        if not f.is_file():
+            continue
         if rel not in pinned_rels:
             errors.append(f"Unpinned markdownlint config: {rel} (auto-discovery attack surface)")
     # Also check for package.json markdownlint-cli2 config field in vendor
