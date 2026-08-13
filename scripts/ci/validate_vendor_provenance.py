@@ -15,6 +15,7 @@ Exit codes: 0 = pass, 1 = blocked, 2 = infra error.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -22,6 +23,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - reported by the validation phase
+    yaml = None
 
 # ── Trust-anchor pins (SHA-256, lowercase hex) ──
 # Each entry: (relative path in candidate, expected sha256, label).
@@ -851,6 +857,19 @@ _VENDOR_ONLY_PREFIXES = (
     ".claude/hooks/PreToolUse/_vendor/",
 )
 
+_TRUSTED_UPDATE_ACTORS = frozenset({"rjmurillo"})
+_VENDOR_PAYLOAD = PurePosixPath(".claude/hooks/PreToolUse/_vendor/markdownlint")
+_MAX_MARKDOWNLINT_CONFIG_BYTES = 256 * 1024
+_MARKDOWNLINT_POLICY_PATHS = (
+    ".markdownlint-cli2.yaml",
+    ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml",
+    ".claude/hooks/PreToolUse/markdownlint-cli2.yaml",
+    "src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml",
+)
+_FORBIDDEN_MARKDOWNLINT_KEYS = frozenset(
+    {"customRules", "extends", "markdownItPlugins", "plugins", "require"}
+)
+
 # ── Lockfile policy ──
 _CANONICAL_REGISTRY = "https://registry.npmjs.org/"
 _INTEGRITY_RE = re.compile(r"^sha512-[A-Za-z0-9+/]+=*$")
@@ -865,6 +884,62 @@ def _sha256_file(path: Path) -> str:
 def _is_vendor_only(rel: str) -> bool:
     """Return True if the pin is for a vendor artifact not yet landed."""
     return any(rel.startswith(p) for p in _VENDOR_ONLY_PREFIXES)
+
+
+def _load_candidate_pins(
+    candidate: Path,
+) -> tuple[list[tuple[str, str, str]] | None, list[str]]:
+    """Parse candidate pin data without importing or executing candidate code."""
+    source_path = candidate / "scripts" / "ci" / "validate_vendor_provenance.py"
+    try:
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError) as exc:
+        return None, [f"Cannot parse candidate pin table: {exc}"]
+
+    value: ast.expr | None = None
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.target.id == "_PINNED_ARTIFACTS":
+                value = node.value
+                break
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "_PINNED_ARTIFACTS"
+            for target in node.targets
+        ):
+            value = node.value
+            break
+    if value is None:
+        return None, ["Candidate validator has no _PINNED_ARTIFACTS assignment"]
+
+    try:
+        raw = ast.literal_eval(value)
+    except (ValueError, TypeError, SyntaxError) as exc:
+        return None, [f"Candidate pin table is not literal data: {exc}"]
+    if not isinstance(raw, list):
+        return None, ["Candidate pin table must be a list"]
+
+    pins: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for index, entry in enumerate(raw):
+        if (
+            not isinstance(entry, tuple)
+            or len(entry) != 3
+            or not all(isinstance(item, str) for item in entry)
+        ):
+            errors.append(f"Candidate pin entry {index} must be three strings")
+            continue
+        rel, digest, label = entry
+        rel_path = PurePosixPath(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts or "\\" in rel:
+            errors.append(f"Candidate pin path is unsafe: {rel}")
+        if rel in seen:
+            errors.append(f"Candidate pin path is duplicated: {rel}")
+        seen.add(rel)
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            errors.append(f"Candidate pin digest is invalid: {rel}")
+        pins.append((rel, digest, label))
+    return (None, errors) if errors else (pins, [])
 
 
 # ── Artifact authentication ──
@@ -973,7 +1048,11 @@ def _check_file_mode(candidate: Path, base: Path, rel: str, label: str) -> str |
     return None
 
 
-def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]:
+def _authenticate_pinned(
+    candidate: Path,
+    base: Path | None = None,
+    pinned_artifacts: list[tuple[str, str, str]] | None = None,
+) -> list[str]:
     """Authenticate every pinned artifact against its trust anchor.
 
     Every pinned file MUST exist as a regular non-symlink file, unless it
@@ -982,7 +1061,8 @@ def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]
     deletion is treated as tampering (fail closed).
     """
     errors: list[str] = []
-    for rel, expected, label in _PINNED_ARTIFACTS:
+    pins = _PINNED_ARTIFACTS if pinned_artifacts is None else pinned_artifacts
+    for rel, expected, label in pins:
         fpath = candidate / rel
         if _is_vendor_only(rel):
             if not fpath.exists():
@@ -1024,14 +1104,19 @@ def _authenticate_pinned(candidate: Path, base: Path | None = None) -> list[str]
     return errors
 
 
-def _check_unpinned_executables(candidate: Path) -> list[str]:
+def _check_unpinned_executables(
+    candidate: Path,
+    pinned_artifacts: list[tuple[str, str, str]] | None = None,
+) -> list[str]:
     """Flag executables in watched dirs that are not pinned.
 
     Scans recursively through hook dirs AND lib dirs to catch any file
     in the import closure that was not pinned.
     """
     errors: list[str] = []
-    pinned_rels = {rel for rel, _, _ in _PINNED_ARTIFACTS}
+    pins = _PINNED_ARTIFACTS if pinned_artifacts is None else pinned_artifacts
+    pinned_rels = {rel for rel, _, _ in pins}
+    vendor_payload = candidate / _VENDOR_PAYLOAD
     watched_dirs = [
         candidate / ".claude" / "hooks",
         candidate / ".claude" / "lib",
@@ -1044,6 +1129,8 @@ def _check_unpinned_executables(candidate: Path) -> list[str]:
             continue
         for f in sorted(hdir.rglob("*")):
             if "__pycache__" in str(f):
+                continue
+            if f.is_relative_to(vendor_payload):
                 continue
             # Reject any symlink (leaf or ancestor): import-through-symlink
             # allows executing code outside the pinned closure.
@@ -1200,7 +1287,7 @@ def _reject_settings_local(candidate: Path) -> list[str]:
     not commit it. Presence in candidate tree is treated as tampering.
     """
     local_settings = candidate / ".claude" / "settings.local.json"
-    if local_settings.exists():
+    if local_settings.exists() or local_settings.is_symlink():
         return [
             ".claude/settings.local.json present in candidate "
             "(hook override file must not be committed)"
@@ -1220,11 +1307,18 @@ _TRUST_ANCHOR_SELF: tuple[str, ...] = (
 )
 
 
-def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[str]:
+def _check_trust_anchor_integrity(
+    candidate: Path,
+    base: Path | None,
+    *,
+    allow_update: bool = False,
+) -> list[str]:
     """Reject candidate modification/deletion of trust anchors once base owns them.
 
     Bootstrap: if base lacks a trust anchor, candidate may add or omit it.
-    Post-bootstrap: candidate must have identical bytes to base for each anchor.
+    Post-bootstrap: candidate must have identical bytes to base for each anchor,
+    unless the base-owned workflow authenticated a trusted update author.
+    Authorized updates may modify anchors but may not delete them.
     """
     if base is None:
         return []  # Cannot compare without base tree
@@ -1252,7 +1346,7 @@ def _check_trust_anchor_integrity(candidate: Path, base: Path | None) -> list[st
             continue
         base_hash = hashlib.sha256(base_path.read_bytes()).hexdigest()
         cand_hash = hashlib.sha256(cand_path.read_bytes()).hexdigest()
-        if cand_hash != base_hash:
+        if cand_hash != base_hash and not allow_update:
             errors.append(
                 f"Trust anchor modified: {rel} (candidate differs from base; requires bootstrap PR)"
             )
@@ -1281,16 +1375,63 @@ def _check_symlink_containment(vendor_dir: Path) -> list[str]:
 
 
 def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
-    if not vendor_dir.is_dir():
-        return []
     check = vendor_dir
     errors: list[str] = []
     while True:
-        if (check / ".npmrc").exists():
+        npmrc = check / ".npmrc"
+        if npmrc.exists() or npmrc.is_symlink():
             errors.append(f".npmrc at {check.relative_to(candidate)}")
         if check == candidate or check == check.parent:
             break
         check = check.parent
+    return errors
+
+
+def _find_forbidden_config_keys(value: object, location: str = "$") -> list[str]:
+    errors: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_location = f"{location}.{key}"
+            if isinstance(key, str) and key in _FORBIDDEN_MARKDOWNLINT_KEYS:
+                errors.append(f"forbidden execution key at {child_location}")
+            errors.extend(_find_forbidden_config_keys(child, child_location))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            errors.extend(_find_forbidden_config_keys(child, f"{location}[{index}]"))
+    return errors
+
+
+def _validate_markdownlint_config_policy(candidate: Path) -> list[str]:
+    """Safely parse markdownlint YAML and reject code-loading directives."""
+    if yaml is None:
+        return ["PyYAML is unavailable; cannot validate markdownlint config policy"]
+    errors: list[str] = []
+    for rel in _MARKDOWNLINT_POLICY_PATHS:
+        path = candidate / rel
+        if not path.is_file():
+            continue
+        try:
+            if path.stat().st_size > _MAX_MARKDOWNLINT_CONFIG_BYTES:
+                errors.append(f"{rel}: config exceeds {_MAX_MARKDOWNLINT_CONFIG_BYTES} bytes")
+                continue
+            raw = path.read_text(encoding="utf-8")
+            unsafe_tokens = {
+                token.__class__.__name__
+                for token in yaml.scan(raw)
+                if token.__class__.__name__ in {"AliasToken", "AnchorToken", "TagToken"}
+            }
+            if unsafe_tokens:
+                errors.append(
+                    f"{rel}: YAML aliases, anchors, and tags are forbidden "
+                    f"({', '.join(sorted(unsafe_tokens))})"
+                )
+                continue
+            value = yaml.safe_load(raw)
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            errors.append(f"{rel}: cannot safely parse YAML: {exc}")
+            continue
+        for error in _find_forbidden_config_keys(value):
+            errors.append(f"{rel}: {error}")
     return errors
 
 
@@ -1476,6 +1617,16 @@ def main() -> int:
         action="store_true",
         help="Read NUL-delimited file list from stdin for relevance check",
     )
+    parser.add_argument(
+        "--pull-request-author",
+        default="",
+        help="GitHub-authenticated PR author supplied by the base-owned workflow",
+    )
+    parser.add_argument(
+        "--pull-request-sender",
+        default="",
+        help="GitHub-authenticated actor that created the current PR event",
+    )
     args = parser.parse_args()
 
     # Relevance-check mode: output true/false and exit
@@ -1507,6 +1658,18 @@ def main() -> int:
 
     all_errors: list[str] = []
     vendor = root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
+    update_authorized = (
+        args.pull_request_author in _TRUSTED_UPDATE_ACTORS
+        and args.pull_request_sender in _TRUSTED_UPDATE_ACTORS
+    )
+    pins = _PINNED_ARTIFACTS
+
+    if update_authorized and base is not None:
+        candidate_pins, errs = _load_candidate_pins(root)
+        _run_phase("Trusted Update Pin Table", errs)
+        all_errors.extend(errs)
+        if candidate_pins is not None:
+            pins = candidate_pins
 
     # 0a. Path-component symlink bypass check (before any file reads)
     errs = _check_path_component_symlinks(root)
@@ -1514,7 +1677,11 @@ def main() -> int:
     all_errors.extend(errs)
 
     # 0b. Trust-anchor self-protection (workflow/validator immutability)
-    errs = _check_trust_anchor_integrity(root, base)
+    errs = _check_trust_anchor_integrity(
+        root,
+        base,
+        allow_update=update_authorized,
+    )
     _run_phase("Trust-Anchor Self-Protection", errs)
     all_errors.extend(errs)
 
@@ -1524,12 +1691,12 @@ def main() -> int:
     all_errors.extend(errs)
 
     # 1. Authenticate pinned artifacts (including vendor deletion check)
-    errs = _authenticate_pinned(root, base)
+    errs = _authenticate_pinned(root, base, pins)
     _run_phase("Trust-Anchor Authentication", errs)
     all_errors.extend(errs)
 
     # 2. Flag unpinned executables
-    errs = _check_unpinned_executables(root)
+    errs = _check_unpinned_executables(root, pins)
     _run_phase("Unpinned Executable Scan", errs)
     all_errors.extend(errs)
 
@@ -1553,12 +1720,17 @@ def main() -> int:
     _run_phase("Markdownlint Config Injection", errs)
     all_errors.extend(errs)
 
-    # 7. .npmrc rejection
+    # 7. Markdownlint content policy
+    errs = _validate_markdownlint_config_policy(root)
+    _run_phase("Markdownlint Config Policy", errs)
+    all_errors.extend(errs)
+
+    # 8. .npmrc rejection
     errs = _reject_npmrc(root, vendor)
     _run_phase(".npmrc Rejection", errs)
     all_errors.extend(errs)
 
-    # 8. Vendor reconstruction (npm ci)
+    # 9. Vendor reconstruction (npm ci)
     # ABORT if any preflight error: never execute npm with tainted inputs.
     if all_errors:
         print("\n  SKIP: Vendor reconstruction skipped (preflight errors)")

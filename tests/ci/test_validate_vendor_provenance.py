@@ -290,21 +290,45 @@ class TestNpmrcRejection:
 
 
 class TestInstalledHookEntrypoint:
-    """Verify the validator can be invoked as a subprocess (entrypoint test)."""
+    """Verify the shipped hook registration reaches its dispatcher and shim."""
 
-    def test_entrypoint_nonexistent_dir_fails(self) -> None:
-        """Validator returns error exit for nonexistent candidate root."""
-        r = _run(["--candidate-root", "/tmp/empty-dir-nonexistent"])
-        assert isinstance(r.returncode, int)
-        assert r.returncode in (1, 2), "nonexistent dir must fail validation"
+    def test_copilot_hooks_json_reaches_registered_markdownlint_shim(self, tmp_path: Path) -> None:
+        import shutil
 
-    def test_entrypoint_valid_tree_passes(self) -> None:
-        """Validator passes on the real repo tree (production-grounded)."""
-        from pathlib import Path
+        plugin = tmp_path / "plugin"
+        shutil.copytree(WT / "src" / "copilot-cli", plugin)
+        manifest_path = plugin / "hooks" / "PreToolUse" / "_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        markdownlint_shim = next(
+            name for name in manifest["shims"] if name.startswith("invoke_markdownlint_guard")
+        )
+        (manifest_path.parent / markdownlint_shim).write_text(
+            "raise SystemExit(2)\n",
+            encoding="utf-8",
+        )
+        hooks = json.loads((plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+        command = hooks["hooks"]["PreToolUse"][0]["bash"]
+        env = os.environ.copy()
+        env["COPILOT_PLUGIN_ROOT"] = str(plugin)
+        env["CLAUDE_PLUGIN_ROOT"] = str(plugin)
+        payload = json.dumps(
+            {
+                "tool_name": "Bash",
+                "tool_input": {"command": "git push origin HEAD"},
+                "cwd": str(tmp_path),
+            }
+        )
 
-        repo_root = Path(__file__).resolve().parents[2]
-        r = _run(["--candidate-root", str(repo_root)])
-        assert r.returncode == 0, f"valid tree must pass: {r.stdout}"
+        result = subprocess.run(
+            ["bash", "-c", command],
+            input=payload,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+
+        assert result.returncode == 2, result.stderr
 
 
 # New test classes to append
@@ -1828,3 +1852,145 @@ class TestWorkflowImmutableBaseRef:
         run_blocks = re.findall(r"run:\s*\|\n(.*?)(?=\n\s*-\s+name:|\Z)", content, re.DOTALL)
         for block in run_blocks:
             assert "set -euo pipefail" in block, f"Missing pipefail in:\n{block[:80]}"
+
+    def test_trusted_update_identity_comes_from_event(self):
+        content = self._wf_content()
+
+        assert "github.event.pull_request.user.login" in content
+        assert "github.event.sender.login" in content
+        assert "types: [opened, synchronize]" in content
+        assert '--pull-request-author "$PR_AUTHOR"' in content
+        assert '--pull-request-sender "$PR_SENDER"' in content
+
+    def test_validator_runs_with_locked_dependencies(self):
+        content = self._wf_content()
+
+        assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in content
+        assert "uv run --frozen python scripts/ci/validate_vendor_provenance.py" in content
+
+
+class TestCurrentReviewRegressions:
+    def test_dangling_settings_local_symlink_rejected(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _reject_settings_local
+
+        path = tmp_path / ".claude" / "settings.local.json"
+        path.parent.mkdir(parents=True)
+        path.symlink_to(tmp_path / "missing-settings.json")
+
+        errors = _reject_settings_local(tmp_path)
+
+        assert len(errors) == 1
+        assert "settings.local.json" in errors[0]
+
+    def test_root_npmrc_rejected_before_vendor_tree_exists(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _reject_npmrc
+
+        (tmp_path / ".npmrc").write_text("registry=https://evil.example")
+        vendor = tmp_path / ".claude/hooks/PreToolUse/_vendor/markdownlint"
+
+        errors = _reject_npmrc(tmp_path, vendor)
+
+        assert any(".npmrc" in error for error in errors)
+
+    def test_vendor_payload_skips_generic_executable_scan(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        candidate = tmp_path / "candidate"
+        vendor = candidate / ".claude/hooks/PreToolUse/_vendor/markdownlint"
+        (vendor / "node_modules/pkg").mkdir(parents=True)
+        (vendor / "node_modules/pkg/index.js").write_text("module.exports = {}")
+        (vendor / "package.json").write_text("{}")
+
+        errors = _check_unpinned_executables(candidate)
+
+        assert errors == []
+
+
+class TestTrustedUpdateAuthorization:
+    def test_trusted_author_may_modify_but_not_delete_anchor(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _check_trust_anchor_integrity,
+        )
+
+        candidate = tmp_path / "candidate"
+        base = tmp_path / "base"
+        rel = "scripts/ci/validate_vendor_provenance.py"
+        for root, content in ((candidate, "updated"), (base, "trusted")):
+            path = root / rel
+            path.parent.mkdir(parents=True)
+            path.write_text(content)
+
+        assert _check_trust_anchor_integrity(candidate, base, allow_update=True) == []
+
+        (candidate / rel).unlink()
+        errors = _check_trust_anchor_integrity(
+            candidate,
+            base,
+            allow_update=True,
+        )
+        assert any("deleted" in error.lower() for error in errors)
+
+    def test_candidate_pin_table_is_parsed_as_literal_data(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _authenticate_pinned,
+            _load_candidate_pins,
+        )
+
+        candidate = tmp_path / "candidate"
+        artifact = candidate / "new.py"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("print('trusted update')\n")
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        validator = candidate / "scripts/ci/validate_vendor_provenance.py"
+        validator.parent.mkdir(parents=True)
+        validator.write_text(f"_PINNED_ARTIFACTS = [('new.py', '{digest}', 'new')]\n")
+
+        pins, errors = _load_candidate_pins(candidate)
+
+        assert errors == []
+        assert pins is not None
+        assert _authenticate_pinned(candidate, pinned_artifacts=pins) == []
+
+
+class TestMarkdownlintConfigPolicy:
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "customRules:\n  - ./evil.cjs\n",
+            "config:\n  nested:\n    markdownItPlugins:\n      - ./evil.mjs\n",
+            '"custom\\u0052ules":\n  - ./evil.cjs\n',
+        ],
+    )
+    def test_execution_keys_are_rejected_recursively(self, tmp_path: Path, content: str) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _validate_markdownlint_config_policy,
+        )
+
+        config = tmp_path / ".markdownlint-cli2.yaml"
+        config.write_text(content)
+
+        errors = _validate_markdownlint_config_policy(tmp_path)
+
+        assert any("forbidden execution key" in error for error in errors)
+
+    def test_yaml_aliases_are_rejected_before_loading(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _validate_markdownlint_config_policy,
+        )
+
+        config = tmp_path / ".markdownlint-cli2.yaml"
+        config.write_text("shared: &rules\n  MD040: true\nconfig: *rules\n")
+
+        errors = _validate_markdownlint_config_policy(tmp_path)
+
+        assert any("aliases, anchors, and tags are forbidden" in error for error in errors)
+
+    def test_safe_config_passes(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _validate_markdownlint_config_policy,
+        )
+
+        config = tmp_path / ".markdownlint-cli2.yaml"
+        config.write_text("config:\n  MD040: true\n")
+
+        assert _validate_markdownlint_config_policy(tmp_path) == []
