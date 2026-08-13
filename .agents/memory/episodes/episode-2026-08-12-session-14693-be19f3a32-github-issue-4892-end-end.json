@@ -1,0 +1,181 @@
+{
+  "id": "episode-2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end",
+  "session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own GitHub issue 4892 end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage issue 4892 and its linked discourse",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce scratch target leakage and masked failure output",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement the root-cause fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add regression coverage and validate",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T06:20:36+00:00",
+      "type": "commit",
+      "content": "Commit: ab8cd906f5c387af0a526c25415b4bb5fef3b19d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T06:32:37+00:00",
+      "type": "commit",
+      "content": "Commit: 69341f2cfc",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T15:19:49+00:00",
+      "type": "commit",
+      "content": "Commit: e3be5c7ae6",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T11:04:20+00:00",
+      "type": "commit",
+      "content": "Commit: 47094bd76f4e100d56c87971eb39df373225fb14",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:40:15+00:00",
+      "type": "commit",
+      "content": "Commit: 39ed2ace539b477707cf597be553b5d785737467",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T12:42:16+00:00",
+      "type": "commit",
+      "content": "Commit: b1096020a1e62ee4944697749e25005450a8cfb5",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T13:12:18+00:00",
+      "type": "commit",
+      "content": "Commit: 701f8dd6cb25722136c84ced6d801910a1ebb690",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T13:34:51+00:00",
+      "type": "commit",
+      "content": "Commit: dd8dc0a65df6b0c10c11de83adb4787362a4f20e",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 17
+  },
+  "lessons": []
+}
