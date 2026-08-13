@@ -175,10 +175,14 @@
     {
       "action": "Closed the third fresh-head review",
       "result": "Existing runs fail before probes, only top-level agent names are rewritten, empty versions fail closed, and writes require the evaluator worktree. Fifty-five targeted tests passed."
+    },
+    {
+      "action": "Closed the fourth fresh-head review",
+      "result": "Writes now require cwd inside Git's reported worktree. The validation handoff names Claude authentication and a model both CLIs resolve identically. Fifty-six targeted tests passed."
     }
   ],
-  "endingCommit": "2a75e36db65dc3ac249228185688f6ebf1701758",
+  "endingCommit": "3734f8625643c1ec0308ce4ba2b6a1155c04dba9",
   "nextSteps": [
-    "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
+    "Authenticate Claude Code, align both CLIs on claude-opus-4.6, then run all four live fixtures before closing issue 4853."
   ]
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 2a75e36db65dc3ac249228185688f6ebf1701758
+qaCommit: 3734f8625643c1ec0308ce4ba2b6a1155c04dba9
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,7 @@ machine.
 ## Deterministic evidence
 
 - Scoped Ruff checks on the seven changed Python files: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 55 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 56 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
@@ -55,6 +55,7 @@ machine.
 - Agent installation renames only a top-level frontmatter name.
 - Empty version responses fail closed.
 - Runtime writes require cwd to match the evaluator's worktree.
+- Runtime writes also require cwd to be inside Git's reported worktree root.
 - Authored Python file-size errors were cleared by extracting output parsing
   and splitting report contract tests. Advisory warnings remain.
 
@@ -83,10 +84,11 @@ report and exited 4, the repository authentication exit code.
 
 ## Remaining gate
 
-Run the four-fixture live command after Claude authentication exists:
+Authenticate Claude Code, then select a model both CLIs resolve identically.
+Copilot currently resolves `claude-opus-4.6`, so run:
 
 ```text
-uv run python scripts/eval/eval_runtime_parity.py
+uv run python scripts/eval/eval_runtime_parity.py --model claude-opus-4.6
 ```
 
 Do not label the issue complete until both CLIs execute every fixture with the
