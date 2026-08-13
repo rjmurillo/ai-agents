@@ -62,7 +62,7 @@
       "leaseAcquired": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "pr_autofix_lease.py acquire returned action=ACT with lease-store-unavailable fail-open status for session d33a241f-pr-4937."
+        "Evidence": "pr_autofix_lease.py acquire returned action=ACT for session d33a241f-fleet-pr-4937 and renewal remained active through mutations."
       },
       "worktreeCreated": {
         "level": "SHOULD",
@@ -128,9 +128,17 @@
     {
       "action": "Triaged the Validate PR failure.",
       "result": "The added Python test activated the QA evidence gate. Added this session log and a QA report bound to the verified test-fix commit."
+    },
+    {
+      "action": "Refreshed the branch from current main.",
+      "result": "Merged origin/main at 90be321b3bfad576e3c1d440402d4333a87326c9 after the memory index baseline fell from 387 to 378. The merge did not change the setup-uv dependency intent."
+    },
+    {
+      "action": "Rebound the QA report after the base refresh.",
+      "result": "Updated qaCommit to merge commit e1996a77cb79f07721541477f1ae4851144d3487 so the QA evidence covers every current branch change."
     }
   ],
-  "endingCommit": "0d2d19bd99bdf77b0017aa2ea7fd4d368cf82979",
+  "endingCommit": "e1996a77cb79f07721541477f1ae4851144d3487",
   "nextSteps": [
     "Push the QA evidence commit through a fresh live-state gate.",
     "Wait for required checks and re-run the four-condition Ready-to-Merge gate.",

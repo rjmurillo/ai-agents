@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-4937-d33a241f-pr-autofix.json
-qaCommit: 0d2d19bd99bdf77b0017aa2ea7fd4d368cf82979
+qaCommit: e1996a77cb79f07721541477f1ae4851144d3487
 ---
 
 # PR 4937 setup-uv contract test
@@ -31,6 +31,9 @@ dependency file.
 - The AI quality gate rerun passed after GitHub's API rate-limit reset. The
   earlier failure was infrastructure-only: Copilot token validation received
   HTTP 403 after the GitHub API bucket was exhausted.
+- The branch merged `origin/main` at
+  `90be321b3bfad576e3c1d440402d4333a87326c9`. The refresh lowered the memory
+  index baseline to 378 and did not change the setup-uv dependency update.
 
 ## Scope
 

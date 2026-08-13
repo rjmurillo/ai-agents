@@ -72,7 +72,44 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed the branch from current main.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound the QA report after the base refresh.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:39:32+00:00",
+      "type": "commit",
+      "content": "Commit: e1996a77cb79f07721541477f1ae4851144d3487",
+      "caused_by": [
+        "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
@@ -83,8 +120,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 1
+    "commits": 2,
+    "files_changed": 4
   },
   "lessons": []
 }
