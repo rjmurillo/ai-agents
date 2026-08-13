@@ -150,8 +150,12 @@
     {
       "action": "reverify",
       "detail": "After main integration, targeted pytest passed 29 tests, Ruff passed three Python files, and canonical-to-mirror parity passed."
+    },
+    {
+      "action": "review-fix",
+      "detail": "Captured the runtime UnicodeDecodeError detail in the ADR regression and removed abbreviated commit text that duplicated generated episode events."
     }
   ],
-  "endingCommit": "d5b14e839cc4f7966dc58f308a1e989e48276137",
+  "endingCommit": "e321ed6501d357d9548a61fe741617111a00aa21",
   "nextSteps": []
 }

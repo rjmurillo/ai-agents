@@ -64,67 +64,15 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-12T06:11:55+00:00",
+      "timestamp": "2026-08-13T11:26:46+00:00",
       "type": "commit",
-      "content": "Commit: 17ab5a950b559ccb60c313481b0b7c03ee27ba06",
+      "content": "Commit: e321ed6501d357d9548a61fe741617111a00aa21",
       "caused_by": [
         "e001",
         "e002",
         "e003",
         "e004",
         "e005"
-      ],
-      "leads_to": [
-        "e007"
-      ],
-      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-08-12T06:28:10+00:00",
-      "type": "commit",
-      "content": "Commit: 65c55830b836f57388a3221781a8ff163a17e51c",
-      "caused_by": [
-        "e006"
-      ],
-      "leads_to": [
-        "e008"
-      ],
-      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-08-12T06:28:10+00:00",
-      "type": "commit",
-      "content": "Commit: 65c55830b8",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": [
-        "e009"
-      ],
-      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-08-12T15:24:42+00:00",
-      "type": "commit",
-      "content": "Commit: 1459305de3c68ded46ed0fff8088e73dbb6095ac",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e010"
-      ],
-      "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-13T10:44:13+00:00",
-      "type": "commit",
-      "content": "Commit: d5b14e839cc4f7966dc58f308a1e989e48276137",
-      "caused_by": [
-        "e009"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14693-bfee4c972-github-issue-4896-end-end"
@@ -135,7 +83,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 1,
     "files_changed": 12
   },
   "lessons": []
