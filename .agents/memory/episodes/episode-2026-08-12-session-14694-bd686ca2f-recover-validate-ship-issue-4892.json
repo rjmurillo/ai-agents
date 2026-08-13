@@ -63,7 +63,9 @@
         "e004",
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     },
     {
@@ -76,6 +78,17 @@
         "e005"
       ],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:04:20+00:00",
+      "type": "commit",
+      "content": "Commit: 47094bd76f4e100d56c87971eb39df373225fb14",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     }
   ],
   "metrics": {
@@ -83,8 +96,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 2,
+    "files_changed": 12
   },
   "lessons": []
 }

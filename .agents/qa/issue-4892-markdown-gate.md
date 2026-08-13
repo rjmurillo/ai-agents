@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end.json
-qaCommit: e3be5c7ae623f6d109ca23403673b39e6bd893fa
+qaCommit: 47094bd76f4e100d56c87971eb39df373225fb14
 ---
 
 # Issue 4892 Markdown Gate QA
@@ -37,3 +37,13 @@ Windows command length and later batches skipped after one failure. Both were
 fixed and retested. A repeated empty-full-scan finding was invalid because the
 full scan always carries `**/*.md`; that branch was made explicit. The final
 review returned `CLEAN`.
+
+## Post-review Refresh
+
+Commit `ac2599c71d56bd9a0d3b2ed5b00608e24a6716b5` addressed all three
+review threads.
+
+- 61 targeted markdown validation tests passed.
+- Ruff passed on the four changed Python files.
+- The real markdownlint smoke test passed.
+- Independent code review returned `CLEAN`.
