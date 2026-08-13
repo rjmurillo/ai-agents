@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of 5f6872e64e42984a30696d53356c8ad66fd08284."
+        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of 6e5e30fda2e25826d4e6f53b307b36c177db8eb0."
       },
       "validationPassed": {
         "level": "MUST",
@@ -167,9 +167,13 @@
     {
       "action": "Closed the fresh-head suppressed findings",
       "result": "Reports now hash installed agent bytes, retain stderr diagnostics, and score structured question payloads without fallback prose. Forty-eight targeted tests and the pre-push Python suite passed after merging current main."
+    },
+    {
+      "action": "Closed the second fresh-head review",
+      "result": "Question model attribution now comes from the question event. Version probes are isolated, Copilot auto-update is disabled, fail-closed errors are explicit, and git initialization maps to exit 3. Fifty-two targeted tests passed."
     }
   ],
-  "endingCommit": "5f6872e64e42984a30696d53356c8ad66fd08284",
+  "endingCommit": "6e5e30fda2e25826d4e6f53b307b36c177db8eb0",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]

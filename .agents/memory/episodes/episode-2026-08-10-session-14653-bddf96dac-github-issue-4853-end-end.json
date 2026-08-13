@@ -111,7 +111,8 @@
         "e008",
         "e013",
         "e015",
-        "e017"
+        "e017",
+        "e021"
       ],
       "leads_to": [
         "e010"
@@ -250,6 +251,30 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the second fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-13T13:02:56+00:00",
+      "type": "commit",
+      "content": "Commit: 6e5e30fda2e25826d4e6f53b307b36c177db8eb0",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
     }
@@ -259,7 +284,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 13
   },
   "lessons": []

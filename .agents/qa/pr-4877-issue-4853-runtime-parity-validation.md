@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 5f6872e64e42984a30696d53356c8ad66fd08284
+qaCommit: 6e5e30fda2e25826d4e6f53b307b36c177db8eb0
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,7 @@ machine.
 ## Deterministic evidence
 
 - Scoped Ruff checks on the seven changed Python files: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 48 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 52 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
@@ -46,6 +46,11 @@ machine.
 - Runtime stderr is retained. Nonzero exits include the diagnostic in `error`.
 - Structured question assertions score the tool payload without requiring
   fallback prose.
+- Structured question model attribution now comes from the question event.
+- Version probes use the same isolated profiles as fixture runs.
+- Copilot auto-update is disabled for every bounded run.
+- Empty answers and missing model attribution now carry explicit errors.
+- Git initialization failures return the documented external exit code.
 - Authored Python file-size errors were cleared by extracting output parsing
   and splitting report contract tests. Advisory warnings remain.
 
