@@ -26,6 +26,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 SETTINGS = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+ALL_REGISTERED_COMMANDS = tuple(
+    hook.get("command", "")
+    for groups in SETTINGS["hooks"].values()
+    for group in groups
+    for hook in group.get("hooks", [])
+)
 
 # (event, invoker path relative to .claude/hooks/)
 REGISTERED_HOOKS = (
@@ -56,6 +62,24 @@ def _command_argv(command: str) -> list[str]:
 
 def _registered_argv(event: str, invoker: str) -> list[str]:
     return _command_argv(_registered_command(event, invoker))
+
+
+def _launcher_probe(command: str) -> str:
+    """Validate one launcher's executable and script without running the hook."""
+    anchor, program = command.split("&&", maxsplit=1)
+    argv = shlex.split(program)
+    executable = argv[0]
+    checks = []
+    if "/" in executable:
+        checks.append(f"test -x {shlex.quote(executable)}")
+    else:
+        checks.append(f"command -v {shlex.quote(executable)} >/dev/null")
+    checks.extend(
+        f"test -f {shlex.quote(argument)}"
+        for argument in argv[1:]
+        if argument.startswith(".claude/hooks/")
+    )
+    return f"{anchor.strip()} && {' && '.join(checks)}"
 
 
 def _fake_repo(tmp_path: Path) -> Path:
@@ -186,6 +210,22 @@ class TestRegistration:
         ]
 
         assert missing == []
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("command", ALL_REGISTERED_COMMANDS)
+    def test_every_hook_launcher_resolves_from_foreign_cwd(self, command, tmp_path):
+        result = subprocess.run(
+            _launcher_probe(command),
+            capture_output=True,
+            encoding="utf-8",
+            cwd=str(tmp_path),
+            env=_harness_env(),
+            timeout=60,
+            check=False,
+            shell=True,
+        )
+
+        assert result.returncode == 0, result.stderr
 
 
 class TestInvokerExitCodes:

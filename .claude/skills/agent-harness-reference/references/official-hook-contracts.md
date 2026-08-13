@@ -375,6 +375,25 @@ must not infer failure from words inside successful PostToolUse output.
 
 Source: Claude Code hooks reference, PostToolUseFailure input.
 
+### PostToolUseFailure output
+
+Claude Code accepts an event-specific `additionalContext` string inside
+`hookSpecificOutput`:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUseFailure",
+    "additionalContext": "Additional information about the failure for Claude"
+  }
+}
+```
+
+Repository consequence: a failure observer emits this structured output and
+returns exit 0. It does not use exit 2 or stderr for advisory context.
+
+Source: Claude Code hooks reference, PostToolUseFailure decision control.
+
 ### PreToolUse deny
 
 Claude Code documents:

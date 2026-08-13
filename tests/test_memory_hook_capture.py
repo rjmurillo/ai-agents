@@ -238,6 +238,7 @@ class TestPostToolUseFailurePayload:
 
         assert main() == 0
         output = json.loads(capsys.readouterr().out)
+        assert output["hookSpecificOutput"]["hookEventName"] == "PostToolUseFailure"
         context = output["hookSpecificOutput"]["additionalContext"]
         assert "<memory-suggestion>" in context
 
@@ -269,7 +270,9 @@ class TestPostToolUseFailurePayload:
         assert main() == 0
 
     @pytest.mark.unit
-    def test_successful_result_with_failure_text_returns_zero(self, monkeypatch):
+    def test_successful_result_with_failure_text_returns_zero(
+        self, monkeypatch, capsys
+    ):
         self._stdin(
             monkeypatch,
             {
@@ -280,6 +283,27 @@ class TestPostToolUseFailurePayload:
         )
 
         assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_interrupted_failure_returns_zero_without_output(
+        self, monkeypatch, capsys
+    ):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+                "error": "Command was interrupted",
+                "is_interrupt": True,
+            },
+        )
+
+        assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
 
     @pytest.mark.unit
     def test_missing_event_name_returns_zero(self, monkeypatch):
