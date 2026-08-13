@@ -179,10 +179,14 @@
     {
       "action": "Closed the fourth fresh-head review",
       "result": "Writes now require cwd inside Git's reported worktree. The validation handoff names Claude authentication and a model both CLIs resolve identically. Fifty-six targeted tests passed."
+    },
+    {
+      "action": "Closed the fifth fresh-head review",
+      "result": "The default now matches the selected Copilot agents, version probes disable Copilot auto-update, and runtime orchestration functions stay within 60 lines. A real four-fixture dry run passed."
     }
   ],
-  "endingCommit": "b4353d410cc1c284fe79a9ff8b2501fe6fd4944b",
+  "endingCommit": "e762525110ba0e82be1e2e06fd4d65ae5ae4bc2c",
   "nextSteps": [
-    "Authenticate Claude Code, align both CLIs on claude-opus-4.6, then run all four live fixtures before closing issue 4853."
+    "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
 }

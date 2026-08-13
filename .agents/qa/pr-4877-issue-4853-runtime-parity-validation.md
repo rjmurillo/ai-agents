@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: b4353d410cc1c284fe79a9ff8b2501fe6fd4944b
+qaCommit: e762525110ba0e82be1e2e06fd4d65ae5ae4bc2c
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -48,6 +48,7 @@ machine.
   fallback prose.
 - Structured question model attribution now comes from the question event.
 - Version probes use the same isolated profiles as fixture runs.
+- Copilot version probes disable auto-update before reading the version.
 - Copilot auto-update is disabled for every bounded run.
 - Empty answers and missing model attribution now carry explicit errors.
 - Git initialization failures return the documented external exit code.
@@ -56,6 +57,11 @@ machine.
 - Empty version responses fail closed.
 - Runtime writes require cwd to match the evaluator's worktree.
 - Runtime writes also require cwd to be inside Git's reported worktree root.
+- The default model is `claude-opus-4.6`, matching all selected Copilot agents.
+- Runtime invocation, scoring, and fixture orchestration functions stay within
+  the 60-line ceiling.
+- A real dry run loaded four fixtures with Claude Code 2.1.231 and Copilot CLI
+  1.0.79 through isolated version probes.
 - Authored Python file-size errors were cleared by extracting output parsing
   and splitting report contract tests. Advisory warnings remain.
 
@@ -84,11 +90,11 @@ report and exited 4, the repository authentication exit code.
 
 ## Remaining gate
 
-Authenticate Claude Code, then select a model both CLIs resolve identically.
-Copilot currently resolves `claude-opus-4.6`, so run:
+Authenticate Claude Code, then run the four-fixture live command. The default
+model is `claude-opus-4.6`, which matches the selected Copilot agents.
 
 ```text
-uv run python scripts/eval/eval_runtime_parity.py --model claude-opus-4.6
+uv run python scripts/eval/eval_runtime_parity.py
 ```
 
 Do not label the issue complete until both CLIs execute every fixture with the
