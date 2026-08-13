@@ -178,7 +178,7 @@ class TestInvokeCodeqlScanSkill:
         mod = self._import()
         codeql_dir = tmp_path / ".codeql" / "scripts"
         codeql_dir.mkdir(parents=True)
-        config_script = codeql_dir / "Test-CodeQLConfig.ps1"
+        config_script = codeql_dir / "test_codeql_config.py"
         config_script.write_text("# config script")
 
         with (
@@ -188,11 +188,16 @@ class TestInvokeCodeqlScanSkill:
             code = mod.run_scan(operation="validate")
         assert code == 0
 
-    def test_run_scan_validate_pwsh_not_found(self, tmp_path):
+    def test_run_scan_validate_interpreter_not_found(self, tmp_path):
+        """A launch failure is exit 3, not a false success (Issue #4921).
+
+        The delegate exists, so the run reaches subprocess. Named for pwsh
+        until #4921; the wrapper now launches sys.executable.
+        """
         mod = self._import()
         codeql_dir = tmp_path / ".codeql" / "scripts"
         codeql_dir.mkdir(parents=True)
-        config_script = codeql_dir / "Test-CodeQLConfig.ps1"
+        config_script = codeql_dir / "test_codeql_config.py"
         config_script.write_text("")
 
         with (
@@ -210,7 +215,7 @@ class TestInvokeCodeqlScanSkill:
         codeql_cli.write_text("")
         script_dir = tmp_path / ".codeql" / "scripts"
         script_dir.mkdir(parents=True)
-        scan_script = script_dir / "Invoke-CodeQLScan.ps1"
+        scan_script = script_dir / "invoke_codeql_scan.py"
         scan_script.write_text("")
 
         with (

@@ -132,7 +132,7 @@ class TestStepVerifyClaudeSkill:
         scripts_dir = skill_dir / "scripts"
         scripts_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("# Skill")
-        (scripts_dir / "Invoke-CodeQLScanSkill.ps1").write_text("Write-Host test")
+        (scripts_dir / "invoke_codeql_scan.py").write_text("# skill wrapper")
 
         with patch("platform.system", return_value="Linux"):
             with patch("os.chmod", side_effect=OSError("Operation not permitted")):
@@ -148,7 +148,7 @@ class TestStepVerifyClaudeSkill:
         scripts_dir = skill_dir / "scripts"
         scripts_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("# Skill")
-        (scripts_dir / "Invoke-CodeQLScanSkill.ps1").write_text("Write-Host test")
+        (scripts_dir / "invoke_codeql_scan.py").write_text("# skill wrapper")
 
         result = step_verify_claude_skill(str(tmp_path))
         assert "[PASS]" in result

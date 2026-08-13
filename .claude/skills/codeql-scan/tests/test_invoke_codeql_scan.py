@@ -119,7 +119,7 @@ class TestMain:
     def test_validate_success(
         self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        config_script = tmp_path / ".codeql" / "scripts" / "Test-CodeQLConfig.ps1"
+        config_script = tmp_path / ".codeql" / "scripts" / "test_codeql_config.py"
         config_script.parent.mkdir(parents=True)
         config_script.write_text("# config")
 
@@ -155,7 +155,7 @@ class TestMain:
         cli_path = tmp_path / ".codeql" / "cli" / "codeql"
         cli_path.parent.mkdir(parents=True)
         cli_path.write_text("# cli")
-        scan_script = tmp_path / ".codeql" / "scripts" / "Invoke-CodeQLScan.ps1"
+        scan_script = tmp_path / ".codeql" / "scripts" / "invoke_codeql_scan.py"
         scan_script.parent.mkdir(parents=True)
         scan_script.write_text("# scan")
 
