@@ -4,11 +4,18 @@
 Replaces the PowerShell 'Save review results' block in
 .github/actions/agent-review/action.yml (ADR-006).
 
+The artifact this writes is what ``AI Quality Gate Results`` downloads, so it
+must be written even when the review never ran. Issue #4778: an infrastructure
+skip that writes nothing makes ``validate_artifact_download.py`` exit 1 on a
+missing verdict file, and the gate fails before it can say why. The verdict
+fallback ladder lives in ``scripts/ci/agent_review_outcome.py``.
+
 ENV:
   AGENT                  - agent name (validated against allowlist)
   VERDICT                - review verdict
   FINDINGS               - review findings text
   INFRASTRUCTURE_FAILURE - whether review failed due to infra issues
+  INFRA_READY            - "true" when the preflight cleared the model call
   RETRY_COUNT            - number of retries attempted
   CACHE_HIT              - "true" if cached results were used
 
@@ -22,6 +29,14 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# The composite action executes this file directly, so bootstrap must precede
+# the package import when the repository is not installed.
+from scripts.ci.agent_review_outcome import resolve_outcome  # noqa: E402
 
 _ALLOWED_AGENTS = frozenset(
     {
@@ -47,20 +62,20 @@ def run(_argv: list[str] | None = None) -> int:
         print(f"::error::Invalid agent name: {agent}. Must be one of: {allowed}")
         return 1
 
-    verdict = os.environ.get("VERDICT", "").strip()
-    findings = os.environ.get("FINDINGS", "")
-    infra_failure = os.environ.get("INFRASTRUCTURE_FAILURE", "")
     retry_count = os.environ.get("RETRY_COUNT", "0")
     cache_hit = os.environ.get("CACHE_HIT", "")
 
-    if not verdict:
-        verdict = "NEEDS_REVIEW"
-        print("::warning::Verdict was empty, defaulting to NEEDS_REVIEW")
-        if not findings:
-            infra_failure = "true"
-            print(
-                "::warning::Both verdict and findings are empty, marking as infrastructure failure"
-            )
+    outcome = resolve_outcome(
+        verdict=os.environ.get("VERDICT", ""),
+        findings=os.environ.get("FINDINGS", ""),
+        infrastructure_failure=os.environ.get("INFRASTRUCTURE_FAILURE", ""),
+        infra_ready_value=os.environ.get("INFRA_READY"),
+    )
+    for annotation in outcome.annotations:
+        print(annotation)
+    verdict = outcome.verdict
+    findings = outcome.findings
+    infra_failure = outcome.infrastructure_failure
     os.environ["INFRASTRUCTURE_FAILURE"] = infra_failure
 
     if cache_hit == "true":

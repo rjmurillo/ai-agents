@@ -28,8 +28,17 @@ inputs:
     description: 'Path to agent prompt file'
     required: true
   should-run:
-    description: 'Whether to execute review (from check-changes output)'
+    description: 'Whether this PR has changes worth reviewing (from check-changes output)'
     required: true
+  infra-ready:
+    description: >-
+      Whether the infrastructure preflight cleared the model call (from
+      check-agent-infrastructure reviews-enabled). Only the exact string 'true'
+      clears it. Defaults to 'false' so a caller that omits the input records
+      DID_NOT_RUN and blocks the merge rather than invoking a model against an
+      unverified credential (issue #4778).
+    required: false
+    default: 'false'
   pr-number:
     description: 'Pull request number'
     required: true
@@ -115,7 +124,7 @@ runs:
       run: python3 scripts/ci/agent_review_load_cache.py
 
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
-      if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true'
+      if: inputs.should-run == 'true' && inputs.infra-ready == 'true' && steps.cache.outputs.cache-hit != 'true'
       id: review
       # An internal ai-review infra failure (Copilot CLI unavailable) exits non-zero.
       # continue-on-error lets the always() "Check verdict and fail if needed" step be
@@ -161,6 +170,7 @@ runs:
         VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
         INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+        INFRA_READY: ${{ steps.cache.outputs.cache-hit == 'true' && 'true' || inputs.infra-ready }}
         RETRY_COUNT: ${{ steps.cache.outputs.cache-hit == 'true' && '0' || steps.review.outputs.retry-count }}
         CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
       run: python3 scripts/ci/agent_review_save_results.py
@@ -181,11 +191,13 @@ runs:
         EMOJI: ${{ inputs.emoji }}
         VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
         RUN_ID: ${{ github.run_id }}
         SERVER_URL: ${{ github.server_url }}
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
         CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        INFRA_READY: ${{ steps.cache.outputs.cache-hit == 'true' && 'true' || inputs.infra-ready }}
       run: python3 scripts/ci/agent_review_generate_summary.py
 
     - name: Check verdict and fail if needed
@@ -197,6 +209,7 @@ runs:
         VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
         INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+        INFRA_READY: ${{ steps.cache.outputs.cache-hit == 'true' && 'true' || inputs.infra-ready }}
       run: python3 scripts/ci/agent_review_check_verdict.py
 
     - name: Skip ${{ inputs.agent }} review (no relevant changes)

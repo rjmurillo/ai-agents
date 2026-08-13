@@ -110,6 +110,7 @@ class TestRun:
             "VERDICT": "",
             "FINDINGS": "some findings",
             "INFRASTRUCTURE_FAILURE": "false",
+            "INFRA_READY": "true",
         }
         with patch.dict(os.environ, env):
             assert run() == 1
@@ -202,3 +203,55 @@ class TestMain:
 
         assert completed.returncode == 1
         assert "::error::[security] FOOBAR: details" in completed.stdout
+
+
+class TestInfrastructureSkipVerdict:
+    """The per-agent job stays green on an infra skip; the aggregate blocks.
+
+    ``.github/actions/agent-review/action.yml`` documents the split verbatim:
+    "continue-on-error lets the always() 'Check verdict and fail if needed' step
+    be the single authority on job pass/fail: infra failures exit 0 there
+    (green, non-blocking)". Issue #4778 keeps that split when the skip is
+    decided by the preflight instead of inside a running review.
+    """
+
+    def _skip_env(self) -> dict[str, str]:
+        return {
+            "AGENT": "security",
+            "EMOJI": "",
+            "VERDICT": "",
+            "FINDINGS": "",
+            "INFRASTRUCTURE_FAILURE": "",
+            "INFRA_READY": "false",
+        }
+
+    def test_a_preflight_skip_does_not_fail_the_job(self) -> None:
+        with patch.dict(os.environ, self._skip_env()):
+            assert run() == 0
+
+    def test_a_preflight_skip_defers_to_the_aggregate(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.dict(os.environ, self._skip_env()):
+            run()
+        out = capsys.readouterr().out
+        assert "DID_NOT_RUN" in out
+        assert "AI Quality Gate Results" in out
+
+    def test_a_missing_preflight_output_also_defers(self) -> None:
+        env = self._skip_env()
+        del env["INFRA_READY"]
+        with patch.dict(os.environ, env):
+            assert run() == 0
+
+    def test_a_real_failure_still_fails_the_job_when_infra_is_ready(self) -> None:
+        env = {
+            "AGENT": "security",
+            "EMOJI": "",
+            "VERDICT": "CRITICAL_FAIL",
+            "FINDINGS": "real defect",
+            "INFRASTRUCTURE_FAILURE": "false",
+            "INFRA_READY": "true",
+        }
+        with patch.dict(os.environ, env):
+            assert run() == 1

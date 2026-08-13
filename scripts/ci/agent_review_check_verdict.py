@@ -14,6 +14,7 @@ ENV:
   VERDICT                - review verdict
   FINDINGS               - review findings text
   INFRASTRUCTURE_FAILURE - "true" if review failed due to infra issues
+  INFRA_READY            - "true" when the preflight cleared the model call
 
 EXIT CODES (ADR-035):
   0 - verdict is not blocking, or an infra failure is deferred to the aggregate
@@ -33,6 +34,7 @@ if str(_REPO_ROOT) not in sys.path:
 # The composite action executes this file directly, so bootstrap must precede
 # the package import when the repository is not installed.
 from scripts.ai_review_common import FAIL_VERDICTS, merge_verdicts  # noqa: E402
+from scripts.ci.agent_review_outcome import resolve_outcome  # noqa: E402
 
 _BLOCKING_VERDICTS = frozenset(FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"})
 _MAX_ANNOTATION_LENGTH = 180
@@ -42,18 +44,18 @@ def run(_argv: list[str] | None = None) -> int:
     """Check verdict and exit with appropriate code."""
     agent = os.environ.get("AGENT", "")
     emoji = os.environ.get("EMOJI", "")
-    verdict = os.environ.get("VERDICT", "").strip()
-    findings = os.environ.get("FINDINGS", "")
-    infra_failure = os.environ.get("INFRASTRUCTURE_FAILURE", "")
 
-    if not verdict:
-        verdict = "NEEDS_REVIEW"
-        print("::warning::Verdict was empty, defaulting to NEEDS_REVIEW")
-        if not findings:
-            infra_failure = "true"
-            print(
-                "::warning::Both verdict and findings are empty, treating as infrastructure failure"
-            )
+    outcome = resolve_outcome(
+        verdict=os.environ.get("VERDICT", ""),
+        findings=os.environ.get("FINDINGS", ""),
+        infrastructure_failure=os.environ.get("INFRASTRUCTURE_FAILURE", ""),
+        infra_ready_value=os.environ.get("INFRA_READY"),
+    )
+    for annotation in outcome.annotations:
+        print(annotation)
+    verdict = outcome.verdict
+    findings = outcome.findings
+    infra_failure = outcome.infrastructure_failure
 
     # The aggregate owns the final gate decision for infrastructure failures.
     if infra_failure == "true":
