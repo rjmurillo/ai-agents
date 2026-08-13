@@ -411,8 +411,11 @@ def probe_version(
 ) -> str:
     """Read one CLI version through the same isolated profile as its fixtures."""
     workspace.mkdir(parents=True, exist_ok=True)
+    argv = [executable, "--version"]
+    if harness == "copilot":
+        argv.append("--no-auto-update")
     run = runner(
-        [executable, "--version"],
+        argv,
         env=runtime_env(workspace, harness),
         capture_output=True,
         text=True,

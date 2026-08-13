@@ -108,7 +108,7 @@ mechanism, then runs the same fixture request through both binaries.
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures scripts/eval/examples/runtime-parity-fixtures.json \
-  --model claude-opus-5 \
+  --model claude-opus-4.6 \
   --output artifacts/runtime-parity/report.json
 ```
 

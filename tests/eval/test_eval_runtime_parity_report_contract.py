@@ -262,7 +262,7 @@ def test_version_probes_use_isolated_harness_profiles(
     calls = []
 
     def recording_runner(argv, **kwargs):
-        calls.append(kwargs)
+        calls.append((argv, kwargs))
         return _version_runner(argv)
 
     parity.run_evaluation(
@@ -276,8 +276,12 @@ def test_version_probes_use_isolated_harness_profiles(
         runner=recording_runner,
     )
 
-    claude_env = calls[0]["env"]
-    copilot_env = calls[1]["env"]
+    claude_argv, claude_kwargs = calls[0]
+    copilot_argv, copilot_kwargs = calls[1]
+    claude_env = claude_kwargs["env"]
+    copilot_env = copilot_kwargs["env"]
+    assert claude_argv == ["claude", "--version"]
+    assert copilot_argv == ["copilot", "--version", "--no-auto-update"]
     assert claude_env["HOME"].startswith(str(tmp_path))
     assert copilot_env["HOME"].startswith(str(tmp_path))
     assert claude_env["CLAUDE_CONFIG_DIR"].startswith(str(tmp_path))
