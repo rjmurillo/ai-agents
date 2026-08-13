@@ -163,3 +163,21 @@ After migration, validate:
 - `curating-memories.md` - Memory maintenance strategies
 - `memory-observations.md` - Memory system patterns
 - `skills-pattern-integration.md` - Skill enhancement with HIGH confidence patterns
+
+## Legacy Full-Backup Import Compatibility
+
+Issue #4949 established a compatibility requirement for backups produced by
+the historical PowerShell exporter. At
+`a333cb70c^:scripts/forgetful/Export-ForgetfulMemories.ps1`, every table used:
+
+```powershell
+$ParsedData = $TableData | ConvertFrom-Json
+$ExportData.data[$Table] = $ParsedData
+```
+
+The committed `2026-01-19-full-backup.json` therefore contains a singleton
+`users` object and a null empty association table. Importers must normalize a
+table object to one row and null to no rows for every table, while rejecting
+other scalar table values and non-object array rows before writes to that
+table. The regression test must also prove that later correction files still
+run after an earlier malformed file.
