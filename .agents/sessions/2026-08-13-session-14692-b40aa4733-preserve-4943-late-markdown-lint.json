@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 ran for the QA report. Repository configuration excludes .agents paths, so 0 files were selected."
+        "Evidence": "NOT LINTED: markdownlint-cli2 ran for the QA report, but .markdownlint-cli2.yaml excludes .agents/** and .serena/**, so it selected 0 files."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Late correction committed in a8255a148cfd9f1e6ddd5adf012b000a611c3264. Session and QA artifacts are staged together in the follow-up commit."
+        "Evidence": "Late evidence correction committed in a8255a148cfd9f1e6ddd5adf012b000a611c3264. Follow-up session, QA, and episode artifacts committed in 2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2."
       },
       "validationPassed": {
         "level": "MUST",

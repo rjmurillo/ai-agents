@@ -25,7 +25,7 @@ Verify the late correction to session 14691 after PR #4943 merged.
 | `validate_session_json.py --scope-from-git` | PASS |
 | `extract_session_episode.py --validate` | 1 episode, 0 violations |
 | `repair_episode_causal_links.py --check` | No invalid episodes |
-| Episode events `e005` through `e008` | Consolidation leads to `c4bf3bfaba`, then review and baseline commits |
+| Episode commit events | `a8255a148cfd9f1e6ddd5adf012b000a611c3264` records the evidence correction; `2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2` records the follow-up validation artifacts |
 | `memory_index.py --ci --orphan-policy ratchet` | 43 domains passed |
 | `memory_index_token_ratchet.py` | Token counts current |
 | `memory_index_count_ratchet.py --base-ref origin/main` | Count equals baseline 378 |
