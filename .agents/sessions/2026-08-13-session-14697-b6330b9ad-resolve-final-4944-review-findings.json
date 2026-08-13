@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-end selection found 0 eligible Markdown files because .agents/** is ignored, so that automatic run is NOT LINTED. Explicit markdownlint-cli2@0.23.1 ran outside repository ignore discovery with --configPointer /config on the plan, retrospective, and sessions 14696/14697 QA Markdown; output was 'Linting: 4 files' and 'Summary: 0 issues in 0 files', exit 0."
+        "Evidence": "NOT LINTED by session-end: pre_pr.py --markdown-lint-only selected 0 of 4 agent-artifact files because .agents/** is ignored. Explicit markdownlint-cli2@0.23.1 ran outside repository ignore discovery with --configPointer /config on those four plan, retrospective, and QA files; output was 'Linting: 4 files' and 'Summary: 0 issues in 0 files', exit 0."
       },
       "qaValidation": {
         "level": "MUST",
@@ -139,6 +139,10 @@
     {
       "action": "Measured automatic and explicit Markdown lint scopes separately.",
       "outcome": "The repository wrapper selected 0 of 4 ignored agent-artifact targets. An explicit no-ignore run linted 4 files with 0 issues and exit 0."
+    },
+    {
+      "action": "Ran session-end after the evidence binding commit.",
+      "outcome": "Automatic discovery found no uncommitted Markdown. An explicit four-file session-end run selected 0 ignored files and marked lint incomplete, so the final record keeps that NOT LINTED result separate from the explicit four-file PASS."
     }
   ],
   "endingCommit": "9093705a61a8c030d039cb29ee56605c133abcd3",

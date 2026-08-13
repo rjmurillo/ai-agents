@@ -65,7 +65,8 @@
         "e011",
         "e012",
         "e015",
-        "e016"
+        "e016",
+        "e018"
       ],
       "leads_to": [
         "e006"
@@ -214,6 +215,17 @@
         "e014"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran session-end after the evidence binding commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     }
   ],
