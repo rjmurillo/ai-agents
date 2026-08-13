@@ -144,7 +144,8 @@
         "e008",
         "e009",
         "e010",
-        "e011"
+        "e011",
+        "e015"
       ],
       "leads_to": [
         "e013"
@@ -172,6 +173,43 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the pull request CodeQL clear-text logging alert",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T11:16:30+00:00",
+      "type": "commit",
+      "content": "Commit: 3ddc2952e",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-13T11:43:54+00:00",
+      "type": "commit",
+      "content": "Commit: a1ddfa0ef7906df9d6d807e1a40349ba67a6d582",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     }
@@ -181,8 +219,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 8
   },
   "lessons": []
 }
