@@ -1,0 +1,107 @@
+{
+  "id": "episode-2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint",
+  "session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Preserve PR 4943 late markdown lint evidence correction",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T10:12:00+00:00",
+      "type": "milestone",
+      "content": "Fetched origin and preserved the local late commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T10:15:00+00:00",
+      "type": "milestone",
+      "content": "Read PR #4943 and linked issue context.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T10:18:00+00:00",
+      "type": "milestone",
+      "content": "Created a new branch from origin/main and applied the correction.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T10:25:00+00:00",
+      "type": "milestone",
+      "content": "Validated the corrected session and related memory artifacts.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T10:39:00+00:00",
+      "type": "milestone",
+      "content": "Pushed the branch and opened follow-up PR #4952.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T10:19:50+00:00",
+      "type": "commit",
+      "content": "Commit: a8255a148cfd9f1e6ddd5adf012b000a611c3264",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:25:29+00:00",
+      "type": "commit",
+      "content": "Commit: 2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 27,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}
