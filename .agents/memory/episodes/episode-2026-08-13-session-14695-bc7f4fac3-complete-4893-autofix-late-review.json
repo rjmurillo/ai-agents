@@ -3,7 +3,7 @@
   "session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review",
   "timestamp": "2026-08-13T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Complete PR 4893 autofix after late review feedback",
   "decisions": [],
   "events": [
@@ -13,16 +13,54 @@
       "type": "milestone",
       "content": "Invoked adr-review for the ADR-068 runtime-evidence correction",
       "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T12:12:00+00:00",
+      "type": "milestone",
+      "content": "Ran final local QA for late review fixes",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T12:12:00+00:00",
+      "type": "test",
+      "content": "Ran final local QA for late review fixes      397 passed, 3 skipped; build and plugin version checks passed; existing session evidence refreshed to the final implementation commit",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T12:07:28+00:00",
+      "type": "commit",
+      "content": "Commit: f69206d11f16adf4b0933e0c8f371e8a05214a92",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
       "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 8,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
