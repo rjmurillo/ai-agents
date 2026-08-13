@@ -160,7 +160,18 @@ class TestDenyPaths:
         assert _run(monkeypatch, payload) == 2
 
     @pytest.mark.parametrize(
-        "definition", ["body\n", "---\nmodel:\n---\n", "---\nmodel: null\n---\n"]
+        "definition",
+        [
+            "body\n",
+            "---\nmodel:\n---\n",
+            "---\nmodel: null\n---\n",
+            "---\nmodel: sonnet\n",
+            "---\nmodel: []\n---\n",
+            "---\nmodel: [sonnet]\n---\n",
+            "---\nmodel: {name: sonnet}\n---\n",
+            "---\nmodel: true\n---\n",
+            "---\nmodel: 42\n---\n",
+        ],
     )
     def test_definition_without_nonempty_model_denies(
         self, monkeypatch, project, _isolated_environment, definition

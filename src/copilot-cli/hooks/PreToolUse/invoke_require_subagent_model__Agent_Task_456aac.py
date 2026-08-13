@@ -407,6 +407,7 @@ def _original_main(stdin_bytes):
 
     import json
     import os
+    import re
     import sys
     from pathlib import Path
 
@@ -414,6 +415,10 @@ def _original_main(stdin_bytes):
     _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
     _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
     _EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
+    _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"})
+    _NUMBER_MODEL_RE = re.compile(
+        r"[-+]?(?:0|[1-9][0-9_]*)(?:\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?"
+    )
 
 
     def _definition_search_space(
@@ -468,17 +473,26 @@ def _original_main(stdin_bytes):
             with path.open(encoding="utf-8") as stream:
                 if stream.readline().strip() != "---":
                     return None
+                model: str | None = None
                 for line in stream:
                     if line.strip() == "---":
-                        return None
+                        return model
                     if line[:1].isspace():
                         continue
                     key, separator, value = line.partition(":")
                     if separator and key == "model":
-                        model = value.split("#", 1)[0].strip()
-                        if model.lower() in _EMPTY_MODEL_VALUES:
+                        if model is not None:
                             return None
-                        return model
+                        candidate = value.split("#", 1)[0].strip()
+                        normalized = candidate.lower()
+                        if (
+                            normalized in _EMPTY_MODEL_VALUES
+                            or normalized in _NON_STRING_MODEL_VALUES
+                            or candidate.startswith(("[", "{", "!", "&", "*", "|", ">"))
+                            or _NUMBER_MODEL_RE.fullmatch(candidate)
+                        ):
+                            return None
+                        model = candidate
         except (OSError, UnicodeError):
             return None
         return None
