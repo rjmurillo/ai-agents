@@ -119,7 +119,8 @@
       ],
       "leads_to": [
         "e006",
-        "e007"
+        "e007",
+        "e014"
       ],
       "_source_session": "2026-08-13-session-4564"
     },
@@ -130,7 +131,8 @@
       "content": "Commit: 2c96004043df67998269545698661f01a8c122f6",
       "caused_by": [
         "e006",
-        "e007"
+        "e007",
+        "e014"
       ],
       "leads_to": [
         "e011"
@@ -171,6 +173,32 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      247 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T12:12:43+00:00",
+      "type": "commit",
+      "content": "Commit: 3112bc8e477d312014c4fa833f92a657bc18c091",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-4564"
     }
@@ -180,8 +208,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 10
+    "commits": 7,
+    "files_changed": 13
   },
   "lessons": []
 }
