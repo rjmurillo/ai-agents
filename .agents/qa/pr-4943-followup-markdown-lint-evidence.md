@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14692-b40aa4733-preserve-4943-late-markdown-lint.json
-qaCommit: a8255a148cfd9f1e6ddd5adf012b000a611c3264
+qaCommit: 2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2
 ---
 
 # PR 4943 Follow-Up QA
