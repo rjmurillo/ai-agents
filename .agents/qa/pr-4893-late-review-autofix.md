@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review.json
-qaCommit: 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f
+qaCommit: abf4b8651e8a297876ede306aaac54f1cab739b8
 ---
 
 # QA: PR 4893 late review autofix
@@ -24,6 +24,7 @@ facts.
 - Post-refresh pre-push tests: 27,886 passed, 37 skipped.
 - Merge-tree ratchet, mypy, build generation, and hook gates passed.
 - Post-refresh pre-PR validation passed every check.
+- Complete-frontmatter regression suites passed 54 and 89 tests.
 - Session logs 14681 and 14682: passed validation after QA evidence refresh.
 - `uv run python scripts/validation/pre_pr.py`: 51 passed, 0 failed.
 - Scoped markdown validation selected zero files because `.agents/**` is

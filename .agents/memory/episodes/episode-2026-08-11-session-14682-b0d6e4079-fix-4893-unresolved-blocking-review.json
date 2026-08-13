@@ -160,6 +160,19 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T14:55:58+00:00",
+      "type": "commit",
+      "content": "Commit: abf4b8651e8a297876ede306aaac54f1cab739b8",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review"
     }
@@ -169,7 +182,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 36
   },
   "lessons": []

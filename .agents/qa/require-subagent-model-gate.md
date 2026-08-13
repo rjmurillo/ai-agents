@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate.json
-qaCommit: 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f
+qaCommit: abf4b8651e8a297876ede306aaac54f1cab739b8
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -43,6 +43,7 @@ definition file, plus the ADR metric refresh it forced.
 - Post-refresh pre-push tests: 27,886 passed, 37 skipped.
 - Merge-tree ratchet, mypy, build generation, and hook gates passed.
 - Post-refresh pre-PR validation passed every check.
+- Complete-frontmatter regression suites passed 54 and 89 tests.
 - adr-review converged round 6: 2 Accept, 4 Disagree-and-Commit, 0 Block;
   all dissent conditions applied in-tree.
 

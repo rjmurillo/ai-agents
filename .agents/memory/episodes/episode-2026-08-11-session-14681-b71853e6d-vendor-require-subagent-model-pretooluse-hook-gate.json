@@ -158,6 +158,19 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T14:55:58+00:00",
+      "type": "commit",
+      "content": "Commit: abf4b8651e8a297876ede306aaac54f1cab739b8",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
     }
@@ -167,7 +180,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 53
   },
   "lessons": []
