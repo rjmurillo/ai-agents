@@ -73,48 +73,53 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items contain measured evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/agents-two-pipeline-mirror-recipe.md and refreshed its memory-index token count."
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Scoped markdownlint ran on 21 changed agent and catalog Markdown files with 0 issues; .agents and .serena artifacts are excluded by repository configuration."
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/session-14695-pr-review-toolkit-agents-final.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Implementation, QA evidence, and memory update committed through fddfc0e00; only closing session artifacts remain."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed on the completed log."
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Fleet todo database updated through final-agent-verification."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -164,6 +169,6 @@
       "outcome": "Final code commit validated by QA: e477568baf2f4d808f624068f30e00d32b34ee6c."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "fddfc0e00",
   "nextSteps": []
 }
