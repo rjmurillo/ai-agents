@@ -82,20 +82,22 @@ def vendored_root(tmp_path: Path) -> Path:
 
 def test_copy_vendored_entry_excludes_every_runtime_cache(tmp_path: Path) -> None:
     source = tmp_path / "source"
-    source.mkdir()
-    (source / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    package = source / "lib" / "github_core"
+    package.mkdir(parents=True)
+    (package / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
     for name in ("standalone.pyc", "standalone.pyo"):
-        (source / name).write_bytes(b"cache")
+        (package / name).write_bytes(b"cache")
     for name in ("__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"):
-        cache = source / name
+        cache = package / name
         cache.mkdir()
         (cache / "entry").write_bytes(b"cache")
 
     target = tmp_path / "target"
     copy_vendored_entry(source, target)
 
-    assert (target / "module.py").is_file()
-    assert {path.name for path in target.iterdir()} == {"module.py"}
+    copied_package = target / "lib" / "github_core"
+    assert (copied_package / "module.py").is_file()
+    assert {path.name for path in copied_package.iterdir()} == {"module.py"}
 
 
 def test_vendored_root_builder_excludes_runtime_caches(
