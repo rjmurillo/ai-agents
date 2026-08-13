@@ -24,6 +24,13 @@ The session protocol treats QA evidence as session-scoped. Repointing session
 The branch base was stale before the expensive push. Its missing generated
 dispatcher module exposed a reachability failure outside the broader scan.
 
+## Failure mode classification
+
+Primary class: **4. False completion markers** from
+`.agents/governance/FAILURE-MODES.md`. Session 14696 marked QA and session-end
+evidence complete while reusing session 14695's QA report. The pre-push gate
+rejected that unsupported completion claim before the branch changed remotely.
+
 ## Recovery
 
 Restore the session 14695 QA binding. Give session 14696 its own QA report.
@@ -32,10 +39,12 @@ accept the hook-generated episode file unchanged.
 
 ## Prevention rules
 
-- Use one QA report path for each session.
-- Refresh from `origin/main` before an expensive push.
-- Never bypass pre-push hooks.
-- Accept hook-generated episode evidence. Do not edit it manually.
+| Action | Owner | Evidence |
+|--------|-------|----------|
+| Use one QA report path for each session. | Session log author | Sessions 14695 and 14696 now reference separate reports in PR #4944. |
+| Refresh from `origin/main` before an expensive push. | PR autofix operator | Merge commit `18bb32f63` restored generated files and current ratchets. |
+| Never bypass pre-push hooks. | PR operator | Hook-enabled retries caught both failures before remote mutation. |
+| Accept generated episode evidence unchanged. | Session-end hook owner | The episode artifacts remain generated and unedited in PR #4944. |
 
 ## Evidence
 

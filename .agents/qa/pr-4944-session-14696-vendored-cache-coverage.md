@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage.json
-qaCommit: caf50d855ae024f7633bbe4d1b5eee31d7728048
+qaCommit: 374a580ea94d087d911045b97f9ef70d7e4bc8ee
 ---
 
 # PR 4944 session 14696 vendored cache coverage
@@ -18,7 +18,7 @@ PASS. Focused validation passed on the post-merge HEAD.
 
 ## Evidence
 
-- Integration: 12 passed in 2.36 seconds.
+- Integration: 12 passed in 2.68 seconds.
 - E2E: 8 passed and the expected real-CLI test skipped in 0.78 seconds.
 - Ruff: all checks passed for `tests/integration/test_vendored_install.py`.
 - Diff check: `git diff --check` passed with no output.
@@ -26,6 +26,7 @@ PASS. Focused validation passed on the post-merge HEAD.
 ## Completeness
 
 Promised: Post-merge focused validation and a unique session 14696 QA binding.
-Delivered: Four required checks passed; this report binds session 14696 to the full HEAD commit.
+Delivered: Four required checks passed; nested cache paths match the reported
+issue and this report binds session 14696 to the full test commit.
 Gap: None.
 Result: PASS
