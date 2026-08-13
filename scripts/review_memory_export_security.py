@@ -34,7 +34,6 @@ _CANONICAL_UUID = re.compile(
 
 class _Issue(TypedDict):
     category: str
-    pattern: str
     count: int
     lines: str
 
@@ -115,7 +114,6 @@ def _scan_pattern(
         return (
             {
                 "category": f"{category} (SCAN FAILED)",
-                "pattern": pattern,
                 "count": 1,
                 "lines": f"Error: {exc}",
             },
@@ -131,7 +129,6 @@ def _scan_pattern(
     return (
         {
             "category": category,
-            "pattern": pattern,
             "count": len(match_lines),
             "lines": ", ".join(str(number) for number in match_lines[:3]),
         },
@@ -173,14 +170,13 @@ def scan_file(export_file: Path, quiet: bool = False) -> int:
         print()
         print(f"Found {total_matches} potential sensitive data matches:")
         print()
-        print(f"{'Category':<30} {'Pattern':<40} {'Matches':<10} {'Sample Lines'}")
-        print("-" * 100)
+        print(f"{'Category':<30} {'Matches':<10} {'Sample Lines'}")
+        print("-" * 60)
         for issue in found_issues:
             cat = issue['category']
-            pat = issue['pattern']
             cnt = issue['count']
             sample = issue['lines']
-            print(f"{cat:<30} {pat:<40} {cnt:<10} {sample}")
+            print(f"{cat:<30} {cnt:<10} {sample}")
         print()
         print("ACTION REQUIRED:")
         print(f"1. Review the export file manually at: {export_file}")

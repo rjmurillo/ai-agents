@@ -79,11 +79,19 @@ class TestScanFile:
             assert scan_file(clean_file) == 1
         assert "Found 0 potential sensitive data matches" in capsys.readouterr().out
 
-    def test_generic_34_character_token_returns_1(self, tmp_path: Path) -> None:
+    def test_generic_34_character_token_returns_1_without_logging_secret(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         export_file = tmp_path / "generic-token.json"
-        export_file.write_text(f'{{"data": "{"t" * 34}"}}', encoding="utf-8")
+        secret = "t" * 34
+        export_file.write_text(f'{{"data": "{secret}"}}', encoding="utf-8")
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file) == 1
+        output = capsys.readouterr().out
+        assert secret not in output
+        assert "{34,}" not in output
 
     def test_generic_33_character_value_returns_0(self, tmp_path: Path) -> None:
         export_file = tmp_path / "short-value.json"
