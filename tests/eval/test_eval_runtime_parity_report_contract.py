@@ -192,3 +192,115 @@ def test_structured_question_without_prose_is_scored(
     assert record["copilot"]["question_mechanism"] == "structured_event"
     assert all(item["passed"] for item in record["claude"]["assertions"])
     assert all(item["passed"] for item in record["copilot"]["assertions"])
+
+
+def test_question_model_requires_attribution_on_the_question_event() -> None:
+    events = [
+        {
+            "type": "assistant.message",
+            "data": {"content": "", "model": parity.DEFAULT_MODEL},
+        },
+        {
+            "type": "tool.execution_start",
+            "data": {
+                "toolName": "ask_user",
+                "arguments": {"question": "Choose A or B"},
+            },
+        },
+    ]
+
+    assert parity.structured_tool_model(events) is None
+
+
+def test_empty_success_explains_the_fail_closed_result(tmp_path: Path) -> None:
+    fixtures_path = _single_fixture_corpus(tmp_path, "resume-phase-3")
+
+    def empty_runner(argv, **kwargs):
+        args = [str(value) for value in argv]
+        if "--version" in args:
+            return _version_runner(args)
+        events = [
+            {
+                "type": "system",
+                "subtype": "init",
+                "model": parity.DEFAULT_MODEL,
+            },
+            {"type": "result", "result": ""},
+        ]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            "\n".join(json.dumps(event) for event in events) + "\n",
+            "",
+        )
+
+    report, code = parity.run_evaluation(
+        fixtures_path=fixtures_path,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=empty_runner,
+    )
+
+    failure = report["fixtures"][0]["claude"]
+    assert code == parity.EXIT_EXTERNAL
+    assert failure["error"] == "runtime returned no answer"
+
+
+def test_version_probes_use_isolated_harness_profiles(
+    tmp_path: Path, monkeypatch
+) -> None:
+    fixtures_path = _single_fixture_corpus(tmp_path, "resume-phase-3")
+    monkeypatch.setenv("HOME", "/operator/home")
+    calls = []
+
+    def recording_runner(argv, **kwargs):
+        calls.append(kwargs)
+        return _version_runner(argv)
+
+    parity.run_evaluation(
+        fixtures_path=fixtures_path,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=True,
+        runner=recording_runner,
+    )
+
+    claude_env = calls[0]["env"]
+    copilot_env = calls[1]["env"]
+    assert claude_env["HOME"].startswith(str(tmp_path))
+    assert copilot_env["HOME"].startswith(str(tmp_path))
+    assert claude_env["CLAUDE_CONFIG_DIR"].startswith(str(tmp_path))
+    assert copilot_env["COPILOT_HOME"].startswith(str(tmp_path))
+    assert "/operator/home" not in claude_env.values()
+    assert "/operator/home" not in copilot_env.values()
+
+
+def test_git_init_failure_returns_external_exit(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    fixtures_path = _single_fixture_corpus(tmp_path, "resume-phase-3")
+
+    def fail_git_init(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, ["git", "init"])
+
+    monkeypatch.setattr(parity, "prepare_workspace", fail_git_init)
+
+    code = parity.main(
+        [
+            "--fixtures",
+            str(fixtures_path),
+            "--output",
+            str(tmp_path / "run" / "report.json"),
+        ],
+        runner=_version_runner,
+    )
+
+    assert code == parity.EXIT_EXTERNAL
+    assert "Error:" in capsys.readouterr().err

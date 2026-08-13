@@ -78,6 +78,8 @@ def structured_tool_model(
     """Return one model id attached to a structured tool turn."""
     models: set[str] = set()
     for event in events:
+        if _tool_name(event).lower() not in QUESTION_TOOLS:
+            continue
         data = event.get("data")
         if not isinstance(data, Mapping):
             continue

@@ -189,6 +189,7 @@ def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
     assert "--strict-mcp-config" in claude
     assert "--no-custom-instructions" in copilot
     assert "--disable-builtin-mcps" in copilot
+    assert "--no-auto-update" in copilot
     assert "--allow-all-tools" in copilot
     assert "--allow-all-paths" not in copilot
     assert claude[claude.index("--tools") + 1] == "Edit"

@@ -42,6 +42,7 @@ from _runtime_parity import (
     live_files,
     load_fixtures,
     prepare_workspace,
+    probe_version,
     runtime_env,
     score_assertions,
 )
@@ -118,6 +119,7 @@ def build_argv(
         "--disable-builtin-mcps",
         "--no-remote",
         "--no-remote-export",
+        "--no-auto-update",
         "--allow-all-tools",
         "--output-format",
         "json",
@@ -194,21 +196,6 @@ def _control_report(fixture: Fixture) -> dict[str, object]:
     }
 
 
-def _version(executable: str, runner: Runner, timeout: float) -> str:
-    run = runner(
-        [executable, "--version"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
-    if run.returncode != 0:
-        raise RuntimeError(f"{executable} --version failed")
-    return (run.stdout or run.stderr).strip()
-
-
 def _run_fixture(
     fixture: Fixture,
     harness: str,
@@ -281,6 +268,13 @@ def _run_fixture(
             "passed": SENTINEL not in run.stdout and SENTINEL not in response,
         }
     )
+    error = None
+    if run.returncode != 0:
+        error = run.stderr.strip() or f"runtime exited with code {run.returncode}"
+    elif mechanism == "no_answer":
+        error = "runtime returned no answer"
+    elif not resolved_model:
+        error = "runtime answer has no attributable model"
     return (
         {
             "provenance": "Claude runtime" if harness == "claude" else "Copilot runtime",
@@ -294,11 +288,7 @@ def _run_fixture(
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
-            "error": (
-                None
-                if run.returncode == 0
-                else run.stderr.strip() or f"runtime exited with code {run.returncode}"
-            ),
+            "error": error,
             "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
         },
         code,
@@ -324,9 +314,22 @@ def run_evaluation(
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch."""
     fixtures = load_fixtures(fixtures_path)
+    version_workspaces = output.parent / "version-probes"
     versions = {
-        "claude": _version(claude_bin, runner, timeout),
-        "copilot": _version(copilot_bin, runner, timeout),
+        "claude": probe_version(
+            claude_bin,
+            "claude",
+            version_workspaces / "claude",
+            runner,
+            timeout,
+        ),
+        "copilot": probe_version(
+            copilot_bin,
+            "copilot",
+            version_workspaces / "copilot",
+            runner,
+            timeout,
+        ),
     }
     report: dict[str, object] = {
         "schema_version": 1,
@@ -465,7 +468,12 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (FileNotFoundError, OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+    except (
+        FileNotFoundError,
+        OSError,
+        RuntimeError,
+        subprocess.SubprocessError,
+    ) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     print(json.dumps(report, indent=2))

@@ -7,7 +7,7 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -400,3 +400,27 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
         env["COPILOT_HOME"] = str(profile)
         env["COPILOT_SESSION_STATE_DIR"] = str(session_state)
     return env
+
+
+def probe_version(
+    executable: str,
+    harness: str,
+    workspace: Path,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+    timeout: float,
+) -> str:
+    """Read one CLI version through the same isolated profile as its fixtures."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    run = runner(
+        [executable, "--version"],
+        env=runtime_env(workspace, harness),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
+    if run.returncode != 0:
+        raise RuntimeError(f"{executable} --version failed")
+    return (run.stdout or run.stderr).strip()
