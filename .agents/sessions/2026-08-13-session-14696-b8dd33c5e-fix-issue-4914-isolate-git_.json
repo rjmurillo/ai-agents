@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4914-count-ratchet-git-env-qa.md"
+        "Evidence": ".agents/qa/pr-4970-issue-4914-count-ratchet-git-env-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -162,7 +162,7 @@
   ],
   "endingCommit": "e009b85af365b3c479765fd914cadd7088cb007c",
   "nextSteps": [
-    "Monitor CI on the PR for issue #4914",
+    "Monitor CI on PR #4970",
     "Consider a follow-up to delete the dead duplicate ruff_count_ratchet.baseline_at_ref, which only its own test calls; out of scope here"
   ]
 }

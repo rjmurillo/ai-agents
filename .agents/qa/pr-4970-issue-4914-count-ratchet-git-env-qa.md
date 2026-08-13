@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-13-session-14696-b8dd33c5e-fix-issue-4914
 qaCommit: e009b85af365b3c479765fd914cadd7088cb007c
 ---
 
-# Issue 4914 QA Report
+# PR 4970 QA Report (issue #4914)
 
 ## Verdict
 
