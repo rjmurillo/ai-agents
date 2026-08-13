@@ -9,7 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval._runtime_parity_test_support import FIXTURES, parity
+from tests.eval._runtime_parity_test_support import (
+    FIXTURES,
+    parity,
+    runtime_parity,
+)
 
 
 def _single_fixture_corpus(tmp_path: Path, fixture_id: str) -> Path:
@@ -304,3 +308,43 @@ def test_git_init_failure_returns_external_exit(
 
     assert code == parity.EXIT_EXTERNAL
     assert "Error:" in capsys.readouterr().err
+
+
+def test_nested_frontmatter_name_is_not_rewritten(tmp_path: Path) -> None:
+    source = tmp_path / "source.md"
+    source.write_text(
+        "---\nmetadata:\n  name: nested\nname: original\n---\nbody\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "target.md"
+
+    runtime_parity._install_agent(source, target)
+
+    installed = target.read_text(encoding="utf-8")
+    assert "  name: nested" in installed
+    assert "\nname: parity\n" in installed
+
+
+def test_empty_version_probe_fails_closed(tmp_path: Path) -> None:
+    def empty_version_runner(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    with pytest.raises(RuntimeError, match="returned no version"):
+        parity.probe_version(
+            "copilot",
+            "copilot",
+            tmp_path / "probe",
+            empty_version_runner,
+            30,
+        )
+
+
+def test_main_rejects_a_different_current_worktree(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    code = parity.main(["--dry-run"], runner=_version_runner)
+
+    assert code == parity.EXIT_CONFIG
+    assert "current directory is not inside a git worktree" in capsys.readouterr().err

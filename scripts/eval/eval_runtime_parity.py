@@ -45,6 +45,7 @@ from _runtime_parity import (
     probe_version,
     runtime_env,
     score_assertions,
+    verify_worktree_identity,
 )
 
 EXIT_OK = 0
@@ -314,6 +315,11 @@ def run_evaluation(
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch."""
     fixtures = load_fixtures(fixtures_path)
+    workspaces = output.parent / "workspaces"
+    if not dry_run and (output.exists() or workspaces.exists()):
+        raise ParityConfigError(
+            "output path already contains a runtime parity run"
+        )
     version_workspaces = output.parent / "version-probes"
     versions = {
         "claude": probe_version(
@@ -357,12 +363,7 @@ def run_evaluation(
             for fixture in fixtures
         ]
         return report, EXIT_OK
-    if output.exists() or (output.parent / "workspaces").exists():
-        raise ParityConfigError(
-            "output path already contains a runtime parity run"
-        )
     output.parent.mkdir(parents=True, exist_ok=True)
-    workspaces = output.parent / "workspaces"
     final_code = EXIT_OK
     records: list[dict[str, object]] = []
     for fixture in fixtures:
@@ -455,6 +456,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
         return EXIT_CONFIG
     output = (args.output or _default_output()).resolve()
     try:
+        verify_worktree_identity()
         report, code = run_evaluation(
             fixtures_path=args.fixtures.resolve(),
             model=args.model,

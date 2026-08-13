@@ -374,6 +374,7 @@ def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
 def test_existing_output_is_a_config_error(tmp_path: Path) -> None:
     output = tmp_path / "report.json"
     output.write_text("{}\n", encoding="utf-8")
+    runner = FakeRunner()
 
     with pytest.raises(parity.ParityConfigError, match="already contains"):
         parity.run_evaluation(
@@ -384,8 +385,11 @@ def test_existing_output_is_a_config_error(tmp_path: Path) -> None:
             copilot_bin="copilot",
             timeout=30,
             dry_run=False,
-            runner=FakeRunner(),
+            runner=runner,
         )
+
+    assert runner.calls == []
+    assert not (tmp_path / "version-probes").exists()
 
 
 def test_main_returns_config_exit_for_invalid_model(capsys) -> None:

@@ -285,7 +285,7 @@ def _installed_agent_bytes(source: Path) -> bytes:
         stripped = lines[index].strip()
         if stripped == "---":
             break
-        if stripped.startswith("name:"):
+        if lines[index].startswith("name:"):
             line_ending = lines[index][len(lines[index].rstrip("\r\n")) :]
             lines[index] = f"name: {AGENT_NAME}{line_ending}"
             renamed = True
@@ -423,4 +423,32 @@ def probe_version(
     )
     if run.returncode != 0:
         raise RuntimeError(f"{executable} --version failed")
-    return (run.stdout or run.stderr).strip()
+    version = (run.stdout or run.stderr).strip()
+    if not version:
+        raise RuntimeError(f"{executable} --version returned no version")
+    return version
+
+
+def verify_worktree_identity() -> None:
+    """Require cwd and this evaluator to belong to the same worktree."""
+    try:
+        run = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ParityConfigError(
+            f"could not resolve current worktree: {exc}"
+        ) from exc
+    if run.returncode != 0:
+        raise ParityConfigError("current directory is not inside a git worktree")
+    if Path(run.stdout.strip()).resolve() != REPO_ROOT:
+        raise ParityConfigError(
+            "current worktree does not contain this evaluator"
+        )
