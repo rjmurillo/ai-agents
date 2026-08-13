@@ -84,7 +84,70 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "integrate",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reverify",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T10:08:07+00:00",
+      "type": "commit",
+      "content": "Commit: 1b5cdfb03",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T10:43:19+00:00",
+      "type": "commit",
+      "content": "Commit: 0b8b43e24",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T10:44:13+00:00",
+      "type": "commit",
+      "content": "Commit: d5b14e839cc4f7966dc58f308a1e989e48276137",
+      "caused_by": [
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
@@ -95,8 +158,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 4,
+    "files_changed": 8
   },
   "lessons": []
 }
