@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage.json
-qaCommit: 18bb32f6330635631d004489ed8624a6cb7c6b32
+qaCommit: caf50d855ae024f7633bbe4d1b5eee31d7728048
 ---
 
 # PR 4944 session 14696 vendored cache coverage

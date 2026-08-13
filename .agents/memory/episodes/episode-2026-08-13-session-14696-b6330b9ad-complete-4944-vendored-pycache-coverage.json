@@ -130,7 +130,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
     },
     {
@@ -145,6 +147,17 @@
         "e008"
       ],
       "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T10:36:44+00:00",
+      "type": "commit",
+      "content": "Commit: caf50d855a",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
     }
   ],
   "metrics": {
@@ -152,8 +165,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }

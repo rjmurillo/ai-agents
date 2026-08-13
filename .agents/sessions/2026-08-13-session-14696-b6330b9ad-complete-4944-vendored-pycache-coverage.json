@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Re-read decision-warm-pycache-before-push-never-purge; it already records the cache boundary, and this follow-up introduced no new durable decision."
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recovery baseline committed at HEAD: 18bb32f633"
+        "Evidence": "All changes committed (HEAD: caf50d855a)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,7 +170,7 @@
       "outcome": "The retrospective documents the failure, recovery, and prevention rules without bypassing hooks."
     }
   ],
-  "endingCommit": "18bb32f633",
+  "endingCommit": "caf50d855a",
   "nextSteps": [
     "Push test/4923-cache-exclusion-coverage.",
     "Re-check PR #4944 reviews and required checks.",
