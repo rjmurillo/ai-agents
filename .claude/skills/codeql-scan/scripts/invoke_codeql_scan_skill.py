@@ -135,8 +135,8 @@ def _run_delegate(command: list[str], repo_root: str, timeout: int) -> int | Non
     Returns the delegate's exit code, or None when the interpreter could not be
     launched or the delegate timed out, which the caller reports as exit 3.
     """
-    sys.stdout.flush()
     try:
+        sys.stdout.flush()
         result = subprocess.run(command, cwd=repo_root, timeout=timeout, check=False)
     except OSError as exc:
         write_colored(f"Could not run {command[0]}: {exc}", "error")

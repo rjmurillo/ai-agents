@@ -172,8 +172,8 @@ def _run_delegate(command: list[str], repo_root: Path) -> int | None:
     Returns the delegate's exit code, or None when the interpreter could not be
     launched, which the caller reports as exit 3.
     """
-    sys.stdout.flush()
     try:
+        sys.stdout.flush()
         result = subprocess.run(command, cwd=str(repo_root), check=False)
     except OSError as exc:
         _color_print(f"Could not run {command[0]}: {exc}", "error")
