@@ -43,6 +43,15 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "agent_review_outcome.py": (
+        "Library holding the single verdict fallback ladder shared by "
+        "agent_review_save_results.py, agent_review_check_verdict.py, and "
+        "agent_review_generate_summary.py, all three of which "
+        ".github/actions/agent-review/action.yml invokes. It has no main() and "
+        "no shebang; tests/ci/test_agent_review_outcome.py drives it directly "
+        "and tests/ci/test_infra_skip_gate_chain.py covers the workflow-invoked "
+        "integration (issue #4778)."
+    ),
     "build_triage_summary_comment.py": (
         "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
         "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
