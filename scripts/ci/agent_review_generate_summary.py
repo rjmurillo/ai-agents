@@ -17,6 +17,7 @@ ENV:
   REPOSITORY           - owner/repo
   PR_NUMBER            - pull request number
   CACHE_HIT            - "true" if cached results were used
+  INFRA_READY          - "true" when the preflight cleared the model call
   GITHUB_WORKSPACE     - workspace root (for sys.path)
   GITHUB_STEP_SUMMARY  - path to the step summary file
 
@@ -42,17 +43,21 @@ def run(_argv: list[str] | None = None) -> int:
             get_verdict_alert_type,
             get_verdict_emoji,
         )
+        from scripts.ci.agent_review_outcome import resolve_outcome
 
-        verdict = os.environ.get("VERDICT", "").strip() or "NEEDS_REVIEW"
-        if not os.environ.get("VERDICT", "").strip():
-            print(
-                "::warning::VERDICT environment variable is missing or empty,"
-                " defaulting to NEEDS_REVIEW"
-            )
+        outcome = resolve_outcome(
+            verdict=os.environ.get("VERDICT", ""),
+            findings=os.environ.get("FINDINGS", ""),
+            infrastructure_failure=os.environ.get("INFRASTRUCTURE_FAILURE", ""),
+            infra_ready_value=os.environ.get("INFRA_READY"),
+        )
+        for annotation in outcome.annotations:
+            print(annotation)
+        verdict = outcome.verdict
 
         agent = os.environ.get("AGENT", "")
         emoji = os.environ.get("EMOJI", "")
-        findings = os.environ.get("FINDINGS", "")
+        findings = outcome.findings
         run_id = os.environ.get("RUN_ID", "")
         server_url = os.environ.get("SERVER_URL", "")
         repository = os.environ.get("REPOSITORY", "")
