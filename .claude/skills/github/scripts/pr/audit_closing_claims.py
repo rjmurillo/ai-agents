@@ -76,9 +76,22 @@ query($owner: String!, $repo: String!, $cursor: String) {
                 title
                 baseRefName
                 body
-                closingIssuesReferences(first: 10) {
+                closingIssuesReferences(first: 100) {
+                    pageInfo { hasNextPage endCursor }
                     nodes { number state }
                 }
+            }
+        }
+    }
+}"""
+
+_CLOSING_REFS_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            closingIssuesReferences(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes { number state }
             }
         }
     }
@@ -269,7 +282,10 @@ def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
             raise RuntimeError(f"GraphQL query failed: {exc}") from exc
 
         prs_data = (data.get("repository") or {}).get("pullRequests") or {}
-        nodes.extend(prs_data.get("nodes") or [])
+        page_nodes = prs_data.get("nodes") or []
+        for node in page_nodes:
+            _complete_closing_references(owner, repo, node)
+        nodes.extend(page_nodes)
         page_info = prs_data.get("pageInfo") or {}
         if not page_info.get("hasNextPage"):
             break
@@ -278,6 +294,34 @@ def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
             break
 
     return nodes
+
+
+def _complete_closing_references(
+    owner: str,
+    repo: str,
+    pr_node: dict[str, Any],
+) -> None:
+    """Fetch every closing issue reference for one PR node."""
+    connection = pr_node.get("closingIssuesReferences") or {}
+    page_info = connection.get("pageInfo") or {}
+
+    while page_info.get("hasNextPage"):
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            raise RuntimeError(
+                f"PR #{pr_node.get('number', 0)} closing references omitted a cursor"
+            )
+        variables = {
+            "owner": owner,
+            "repo": repo,
+            "number": int(pr_node.get("number") or 0),
+            "cursor": cursor,
+        }
+        data = gh_graphql(_CLOSING_REFS_QUERY, variables)
+        pull_request = (data.get("repository") or {}).get("pullRequest") or {}
+        next_connection = pull_request.get("closingIssuesReferences") or {}
+        connection.setdefault("nodes", []).extend(next_connection.get("nodes") or [])
+        page_info = next_connection.get("pageInfo") or {}
 
 
 def build_parser() -> argparse.ArgumentParser:

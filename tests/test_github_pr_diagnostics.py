@@ -376,6 +376,70 @@ class TestAuditResume:
         assert [claim["pr_number"] for claim in audit["Claims"]] == [99]
 
 
+class TestClosingReferencePagination:
+    def test_fetch_open_prs_collects_all_closing_references(self):
+        initial_references = [
+            {"number": number, "state": "OPEN"} for number in range(1, 101)
+        ]
+        first_page = {
+            "repository": {
+                "pullRequests": {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": [{
+                        "number": 42,
+                        "closingIssuesReferences": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": "refs-1"},
+                            "nodes": initial_references,
+                        },
+                    }],
+                },
+            },
+        }
+        second_page = {
+            "repository": {
+                "pullRequest": {
+                    "closingIssuesReferences": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "nodes": [
+                            {"number": 101, "state": "CLOSED"},
+                            {"number": 102, "state": "OPEN"},
+                        ],
+                    },
+                },
+            },
+        }
+
+        with patch(
+            f"{_audit_mod.__name__}.gh_graphql",
+            side_effect=[first_page, second_page],
+        ) as graphql:
+            nodes = _audit_mod.fetch_open_prs("owner", "repo")
+
+        references = nodes[0]["closingIssuesReferences"]["nodes"]
+        assert len(references) == 102
+        assert references[-2:] == second_page["repository"]["pullRequest"][
+            "closingIssuesReferences"
+        ]["nodes"]
+        assert graphql.call_args_list[1].args[1] == {
+            "owner": "owner",
+            "repo": "repo",
+            "number": 42,
+            "cursor": "refs-1",
+        }
+
+    def test_missing_closing_reference_cursor_fails_closed(self):
+        node = {
+            "number": 42,
+            "closingIssuesReferences": {
+                "pageInfo": {"hasNextPage": True, "endCursor": None},
+                "nodes": [],
+            },
+        }
+
+        with pytest.raises(RuntimeError, match="omitted a cursor"):
+            _audit_mod._complete_closing_references("owner", "repo", node)
+
+
 class TestBodyHashAndValidate:
     """Tests for edit_pr_body.py helpers."""
 
