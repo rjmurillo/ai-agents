@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-13-session-14705.json
 qaCommit: 3bd39453140a49b4104c505c46460f2f6b777f8d
 ---
 
-# Issue 4841 Ship First-PR Ordering QA
+# PR 4972 Ship First-PR Ordering QA
 
 ## Scope
 

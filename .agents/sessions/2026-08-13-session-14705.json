@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4841-ship-first-pr-ordering.md"
+        "Evidence": ".agents/qa/pr-4972-issue-4841-ship-first-pr-ordering.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -138,11 +138,15 @@
     {
       "action": "Added tests/commands/test_ship_first_pr_ordering.py, parsing sections and bullets of both ship documents.",
       "outcome": "24 tests pass on the fix; the same file run against the origin/main ship documents failed 16 of 24, and the 8 that passed are the ADO, contributor-mode, and inline pre-fix control checks."
+    },
+    {
+      "action": "Renamed the QA report to carry the PR number after opening PR 4972.",
+      "outcome": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the issue-numbered name found no report."
     }
   ],
   "endingCommit": "3bd39453140a49b4104c505c46460f2f6b777f8d",
   "nextSteps": [
-    "Open the PR with Fixes #4841 and assign the issue once the GitHub API recovers.",
-    "Watch CI for the slash-command quality and build-all drift gates."
+    "Watch PR 4972 checks; Validate PR failed once on the QA report name and is fixed by the rename.",
+    "tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_stops_delayed_child_after_lease_loss is load-sensitive and fails intermittently on this machine; unrelated to this change and worth its own issue."
   ]
 }

@@ -72,9 +72,21 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e007"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the QA report to carry the PR number after opening PR 4972.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-13-session-14705"
     }
   ],
