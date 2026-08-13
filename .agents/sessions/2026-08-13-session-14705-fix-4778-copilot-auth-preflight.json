@@ -4,7 +4,7 @@
     "number": 14705,
     "date": "2026-08-13",
     "branch": "fix/4778-copilot-auth-preflight",
-    "startingCommit": "ab9c636de5",
+    "startingCommit": "784ad3d21a",
     "objective": "Fix issue 4778: preflight probed the wrong credential and reviews ran anyway"
   },
   "protocolCompliance": {
@@ -42,7 +42,7 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "New external worktree ../ai-agents-4778 on fix/4778-copilot-auth-preflight from origin/main"
+        "Evidence": "New external worktree ../ai-agents-4778 on fix/4778-copilot-auth-preflight, rebased onto origin/main 784ad3d21a"
       },
       "notOnMain": {
         "level": "MUST",
@@ -52,7 +52,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "ab9c636de5"
+        "Evidence": "784ad3d21a"
       },
       "serenaInstructions": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Six atomic commits, d1506e1039 through fc03c9160e"
+        "Evidence": "Eight atomic commits rebased onto origin/main, f2a4c2cddf through 8abf899ca2"
       },
       "validationPassed": {
         "level": "MUST",
@@ -157,7 +157,7 @@
       "outcome": "126 targeted tests pass, including an end-to-end chain proving the skip path fails closed at check_critical_failures instead of crashing at validate_artifact_download."
     }
   ],
-  "endingCommit": "fc03c9160e",
+  "endingCommit": "8abf899ca2",
   "nextSteps": [
     "Open the PR with Fixes #4778 and let the quality gate exercise the new preflight on real credentials.",
     "Watch the first run's Infrastructure Check summary to confirm the Copilot auth line reports valid rather than the former FAILED.",

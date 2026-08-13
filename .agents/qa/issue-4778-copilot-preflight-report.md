@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14705-fix-4778-copilot-auth-preflight.json
-qaCommit: fc03c9160ec5e28bae4b11196f94fac89f5fa0a4
+qaCommit: 8abf899ca2b8e5e462ec68a859c3e72ef58ccf24
 ---
 
 # QA Report: Issue 4778 Copilot preflight
@@ -10,7 +10,7 @@ qaCommit: fc03c9160ec5e28bae4b11196f94fac89f5fa0a4
 
 Validated the infrastructure preflight rewrite, the review gating change, and
 the infrastructure-skip artifact path on branch `fix/4778-copilot-auth-preflight`
-at commit `fc03c9160ec5e28bae4b11196f94fac89f5fa0a4`.
+at commit `8abf899ca2b8e5e462ec68a859c3e72ef58ccf24`.
 
 ## Acceptance criteria
 
@@ -45,7 +45,7 @@ at commit `fc03c9160ec5e28bae4b11196f94fac89f5fa0a4`.
   `origin/main` for all five registered ratchets (ruff 27, taste 580,
   type-ignore 44, memory-index 377, cli exit contract 27).
 - `uv run python scripts/validation/pre_pr.py`: the only failure was the
-  type-ignore ratchet at +1, fixed in `fc03c9160e` and re-verified above.
+  type-ignore ratchet at +1, fixed in `d28979c7d3` and re-verified above.
 
 ## Old-contract tests flipped
 
