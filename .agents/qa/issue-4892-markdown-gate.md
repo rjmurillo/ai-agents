@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14693-be19f3a32-github-issue-4892-end-end.json
-qaCommit: 47094bd76f4e100d56c87971eb39df373225fb14
+qaCommit: 39ed2ace539b477707cf597be553b5d785737467
 ---
 
 # Issue 4892 Markdown Gate QA
@@ -47,3 +47,7 @@ review threads.
 - Ruff passed on the four changed Python files.
 - The real markdownlint smoke test passed.
 - Independent code review returned `CLEAN`.
+- The completion gate found one suppressed non-BMP path issue. Commit
+  `9b6a419b30dddbeeba9d175b5f9c071e5465092f` fixed it.
+- 62 targeted tests passed after measuring Windows command length in UTF-16
+  code units.
