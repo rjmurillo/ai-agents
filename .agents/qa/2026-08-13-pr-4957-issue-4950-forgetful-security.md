@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-13-session-14695-becfc98b8-fix-issue-4950
 qaCommit: 3ddc2952ecf0a7ddd90c19db7e6eb1efa9560225
 ---
 
-# QA Validation: Issue 4950 Forgetful Export Security
+# QA Validation: PR 4957, Issue 4950 Forgetful Export Security
 
 ## Scope
 
