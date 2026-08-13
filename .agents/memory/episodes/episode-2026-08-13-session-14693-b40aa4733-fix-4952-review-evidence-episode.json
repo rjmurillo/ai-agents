@@ -1,0 +1,133 @@
+{
+  "id": "episode-2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode",
+  "session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix all PR 4952 review, evidence, episode, QA, and description blockers",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T11:10:00+00:00",
+      "type": "milestone",
+      "content": "Inspected the full PR discussion and classified four Copilot findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T11:15:00+00:00",
+      "type": "milestone",
+      "content": "Corrected source session and QA evidence.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T11:16:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the session 14692 episode from corrected source evidence.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T11:20:00+00:00",
+      "type": "milestone",
+      "content": "Committed validated evidence repairs.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T11:21:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the PR Testing commands as fenced shell content.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:35:00+00:00",
+      "type": "milestone",
+      "content": "Pushed normally and resolved all review threads with evidence.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:49:00+00:00",
+      "type": "milestone",
+      "content": "Closed the sibling duplicate-identity finding in the historical episode.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T11:20:13+00:00",
+      "type": "commit",
+      "content": "Commit: 537cf5e7b8d68cb1796e4e434bafc8e525d41991",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T11:50:42+00:00",
+      "type": "commit",
+      "content": "Commit: 4690a3aa00291441f98973c39cb059dd5f5919dc",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 39,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 9
+  },
+  "lessons": []
+}

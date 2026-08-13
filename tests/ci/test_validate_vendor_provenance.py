@@ -994,7 +994,7 @@ class TestWorkflowContract:
     def test_workflow_sets_up_uv(self) -> None:
         """vendor-provenance.yml must install uv before validation."""
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-        assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in wf
+        assert "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d" in wf
 
     def test_required_check_context_matches_job_name(self) -> None:
         """The documented required-check context must be the emitted context.

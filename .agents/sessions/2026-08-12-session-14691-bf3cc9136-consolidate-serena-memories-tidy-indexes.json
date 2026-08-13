@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14691,
+    "date": "2026-08-12",
+    "branch": "chore/memory-consolidation-20260811",
+    "startingCommit": "57715aa9f3",
+    "objective": "Consolidate Serena memories and tidy indexes"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions confirmed ai-agents at /home/richard/src/GitHub/rjmurillo/ai-agents6."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions returned the tool manual before memory inventory."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-consolidate skill listed memory_git_targets.py; helper source was read before use."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read in full."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena list_memories returned 1,022 names; relevant candidate memories and indexes were read through Serena."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/memory-consolidation-20260811"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/memory-consolidation-20260811"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Initial memory status showed five untracked memories. They were committed as a tracked baseline on the feature branch."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "57715aa9f3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionEnd MUST items completed with evidence below."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: markdownlint-cli2 ran for changed Markdown, but .markdownlint-cli2.yaml excludes .agents/** and .serena/**, so it selected 0 files; dedicated memory and session validators passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4943-memory-consolidation-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Consolidation committed in c4bf3bfaba14755a5913c6f5467c4e7ddddbe13a, review fixes in 5fee98e8c92c035a418358939b3fc6df22239919, and the count baseline in 3ff8d7fdfc6d8d5301382e11f95a7644eab450b2. Final QA and session artifacts staged together."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed after QA evidence was bound."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session and PR merge todos updated to current completion state."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-12-memory-consolidation-gate-failure.md records the gate failure and restoration."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-12T05:51:21Z",
+      "action": "Inventoried Serena memory and enforced size gates.",
+      "detail": "Serena returned 1,022 names. Git metadata reported 1,025 tracked files, 3,024,218 bytes total, and a largest file of 29,538 bytes."
+    },
+    {
+      "timestamp": "2026-08-12T06:00:30Z",
+      "action": "Created a feature branch and committed the five incoming memory files.",
+      "detail": "The branch-context hook required a current session log. Unicode dash punctuation and one non-kebab memory name were normalized before baseline commit 532de59949 passed."
+    },
+    {
+      "timestamp": "2026-08-12T06:15:00Z",
+      "action": "Reviewed duplicate, stale, thin, and index candidates.",
+      "detail": "Eleven deletion candidates and one semantic correction were reviewed. The user later authorized continuation. memory-maintenance.md was retained after adversarial review found no concrete survivor."
+    },
+    {
+      "timestamp": "2026-08-12T06:50:00Z",
+      "action": "Restored two incomplete attempts after adversarial review.",
+      "detail": "The first attempt lacked path confirmation. The second added one target after mutation. Both were fully restored through memory_git_targets.py."
+    },
+    {
+      "timestamp": "2026-08-12T07:10:00Z",
+      "action": "Completed the third consolidation pass from a clean baseline.",
+      "detail": "A complete manifest was validated before mutation. Ten memories were deleted, 48 paths matched the declared set, all diff hunks matched the authorized transform, and memory index, size, token, reference, and retrieval checks passed."
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 54,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "d832110007e28b90608db6e4229aca5937574778",
+      "head": "90be321b3bfad576e3c1d440402d4333a87326c9"
+    }
+  },
+  "endingCommit": "90be321b3bfad576e3c1d440402d4333a87326c9",
+  "nextSteps": []
+}

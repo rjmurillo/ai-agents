@@ -1,0 +1,133 @@
+{
+  "id": "episode-2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes",
+  "session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Consolidate Serena memories and tidy indexes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T05:51:21+00:00",
+      "type": "milestone",
+      "content": "Inventoried Serena memory and enforced size gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T06:00:30+00:00",
+      "type": "milestone",
+      "content": "Created a feature branch and committed the five incoming memory files.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T06:15:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed duplicate, stale, thin, and index candidates.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T06:50:00+00:00",
+      "type": "milestone",
+      "content": "Restored two incomplete attempts after adversarial review.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T07:10:00+00:00",
+      "type": "milestone",
+      "content": "Completed the third consolidation pass from a clean baseline.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T07:12:39+00:00",
+      "type": "commit",
+      "content": "Commit: c4bf3bfaba14755a5913c6f5467c4e7ddddbe13a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T15:16:09+00:00",
+      "type": "commit",
+      "content": "Commit: 5fee98e8c92c035a418358939b3fc6df22239919",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T15:21:11+00:00",
+      "type": "commit",
+      "content": "Commit: 3ff8d7fdfc6d8d5301382e11f95a7644eab450b2",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:09:15+00:00",
+      "type": "commit",
+      "content": "Commit: 90be321b3bfad576e3c1d440402d4333a87326c9",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 78,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 54
+  },
+  "lessons": []
+}
