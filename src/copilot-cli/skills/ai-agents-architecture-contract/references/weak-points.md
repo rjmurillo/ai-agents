@@ -6,7 +6,7 @@ The full evidence for the honestly-weak parts of the repository structure. SKILL
 
 State these plainly when working near them; do not design as if they were sound.
 
-| Weak point | Evidence (as of 2026-07-30) | Consequence |
+| Weak point | Evidence (as of 2026-08-11) | Consequence |
 |---|---|---|
 | Hook sources serve different consumers | `.claude/settings.json` has 5 events and 7 groups; `.claude/hooks/hooks.json` has 2 events and 4 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
 | `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
