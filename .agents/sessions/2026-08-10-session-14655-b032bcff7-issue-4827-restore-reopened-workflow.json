@@ -145,6 +145,6 @@
       "result": "354 workflow tests passed, Ruff passed, security review approved, and security scan found no CWE-78 findings. act stayed blocked by Docker startup. pre_pr hit a false Windows merge-tree Ruff count filed as issue 4859."
     }
   ],
-  "endingCommit": "543e77fae8d79be3c2b952e35f318c6eb378e782",
+  "endingCommit": "d4bfe9584e",
   "nextSteps": []
 }
