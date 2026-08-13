@@ -152,7 +152,7 @@
       "entry": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped."
     }
   ],
-  "endingCommit": "fffec5b416b3801e5a35a89bdaebab6e00b35698",
+  "endingCommit": "2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d",
   "nextSteps": [
     "Push with lock and open PR Fixes #4874."
   ]
