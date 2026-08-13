@@ -95,15 +95,7 @@ def test_copy_vendored_entry_excludes_every_runtime_cache(tmp_path: Path) -> Non
     copy_vendored_entry(source, target)
 
     assert (target / "module.py").is_file()
-    for name in (
-        "standalone.pyc",
-        "standalone.pyo",
-        "__pycache__",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".mypy_cache",
-    ):
-        assert not (target / name).exists()
+    assert {path.name for path in target.iterdir()} == {"module.py"}
 
 
 def test_vendored_root_builder_excludes_runtime_caches(
