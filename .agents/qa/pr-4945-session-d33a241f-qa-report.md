@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads.json
-qaCommit: 47094bd76f4e100d56c87971eb39df373225fb14
+qaCommit: 9b6a419b30dddbeeba9d175b5f9c071e5465092f
 ---
 
 # PR 4945 Autofix QA
 
 ## Scope
 
-Validated the markdownlint Windows command batching fix in commit
-`ac2599c71d56bd9a0d3b2ed5b00608e24a6716b5`.
+Validated the markdownlint Windows command batching fixes through commit
+`9b6a419b30dddbeeba9d175b5f9c071e5465092f`.
 
 ## Reproduction
 
@@ -19,14 +19,17 @@ failed.
 
 After the fix, batching measures the complete Windows command line, including
 fixed arguments and quoting. A single target over the limit fails before
-subprocess launch.
+subprocess launch. The final measurement uses UTF-16 code units, so non-BMP
+characters cannot bypass the Windows limit.
 
 ## Automated Evidence
 
 - `uv run pytest -q tests/validation_pre_pr/test_markdown_checks.py tests/test_validation_pre_pr_markdown.py tests/validation/test_markdownlint_config.py`
-  passed 61 tests.
+  passed 62 tests.
 - `uv run ruff check scripts/validation/checks_dash.py scripts/validation/checks_tooling.py tests/validation_pre_pr/test_markdown_checks.py tests/validation/test_markdownlint_config.py`
   passed.
 - `SKIP_AUTOFIX=1 uv run python scripts/validation/pre_pr.py --markdown-lint-only -- README.md`
   passed against the real markdownlint process.
-- Independent code review returned `CLEAN`.
+- `uv run python scripts/validation/pre_pr.py` passed.
+- A discriminating probe measured the same non-BMP command as 4,046 Python
+  code points and 8,046 UTF-16 code units against the 7,500-unit limit.
