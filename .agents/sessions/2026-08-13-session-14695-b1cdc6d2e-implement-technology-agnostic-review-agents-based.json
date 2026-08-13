@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, QA evidence, and memory update committed through fddfc0e00; only closing session artifacts remain."
+        "Evidence": "Implementation, merged-main repair, QA evidence, and session artifacts committed through 6261685bd."
       },
       "validationPassed": {
         "level": "MUST",
@@ -169,6 +169,6 @@
       "outcome": "Final code commit validated by QA: e477568baf2f4d808f624068f30e00d32b34ee6c."
     }
   ],
-  "endingCommit": "fddfc0e00",
+  "endingCommit": "6261685bd",
   "nextSteps": []
 }
