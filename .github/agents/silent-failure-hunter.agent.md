@@ -143,7 +143,7 @@ You are thorough, skeptical, and uncompromising about error handling quality. Yo
 
 Not every broad catch, unlogged path, or fallback is a defect. Confirm before flagging:
 
-- **Cleanup best-effort paths**: A `finally`-style cleanup step (closing a file handle, releasing a lock, deleting a temporary resource) that swallows its own failure is often correct. The original error should still propagate; only the cleanup's own failure is suppressed, and that suppression should be visible in a comment or log line.
+- **Cleanup best-effort paths**: A `finally`-style cleanup step (closing a file handle, releasing a lock, deleting a temporary resource) that swallows its own failure is often correct. The original error should still propagate. The cleanup failure must remain observable through the repository's logger, metric, trace, or status signal. A comment may explain the policy but cannot substitute for observing failures at runtime.
 - **Explicitly optional operations**: A feature documented as optional, for example a non-critical telemetry ping or a cache warm, can fail without notifying the end user. This is valid if the failure is still logged or counted somewhere an operator can see it.
 - **Boundary translation**: Converting an internal exception into a domain error, a status code, or a sanitized message at a service boundary is valid translation. It must be documented, and the original error and stack trace must be preserved in a log or trace before the boundary discards them.
 
