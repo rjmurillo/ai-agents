@@ -590,6 +590,11 @@ class TestWorkflowContractRegression:
 class TestRelevance:
     """Exercises check_relevance production function directly."""
 
+    def test_workflow_sets_up_uv(self) -> None:
+        """vendor-provenance.yml must install uv before validation."""
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+        assert "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d" in wf
+
     def test_watched_file_triggers(self) -> None:
         from scripts.ci.validate_vendor_provenance import check_relevance
 
@@ -1860,7 +1865,7 @@ class TestWorkflowImmutableBaseRef:
     def test_validator_runs_with_locked_dependencies(self):
         content = self._wf_content()
 
-        assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in content
+        assert "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d" in content
         assert "uv run --frozen python scripts/ci/validate_vendor_provenance.py" in content
 
 
