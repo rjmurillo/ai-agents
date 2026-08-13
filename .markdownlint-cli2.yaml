@@ -127,6 +127,11 @@ ignores:
   - ".wt/**"
   - ".worktrees/**"
   - ".work-*/**"
+  - "worktrees/**"
+  # Session scratch trees are agent-local working directories, not authored
+  # Markdown. They remain untracked, so exclude them before any full scan.
+  - ".agent-scratch/**"
+  - ".scratch/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
   - ".serena/**"
