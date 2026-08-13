@@ -53,3 +53,15 @@ single-process mutation harness that rewrites one source file repeatedly. There
 a purge is mandatory, because a line-swap mutation leaves file size unchanged
 and a same-second restore defeats CPython's (mtime, size) invalidation. See
 `ci/ci-line-swap-mutations-reuse-stale-bytecode.md`.
+
+## Vendored fixture boundary
+
+Vendored fixture builders must not copy runtime caches from the live tree.
+Under pytest-xdist, another worker can remove a cache entry after `copytree`
+enumerates it and before the copy opens it. The result is `shutil.Error` with
+`Errno 2`, even though product files are stable.
+
+Issue #4923 fixed both vendored review fixtures by routing copies through
+`tests/lib/vendored_copy.py`, which excludes Python bytecode and test-tool
+caches. This preserves warm-cache push behavior while removing caches from the
+fixture input contract.
