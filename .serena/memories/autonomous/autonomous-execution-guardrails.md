@@ -100,5 +100,4 @@ Per Issue #230:
 - [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
 - [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
 - [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
-- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
 - [autonomous-patch-signal](autonomous-patch-signal.md)
