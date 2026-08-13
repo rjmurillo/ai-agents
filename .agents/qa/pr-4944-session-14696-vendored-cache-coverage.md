@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage.json
-qaCommit: 374a580ea94d087d911045b97f9ef70d7e4bc8ee
+qaCommit: c8336cc377a0579bb85e2024f7d6ab2bb4d37c07
 ---
 
 # PR 4944 session 14696 vendored cache coverage
@@ -27,6 +27,7 @@ PASS. Focused validation passed on the post-merge HEAD.
 
 Promised: Post-merge focused validation and a unique session 14696 QA binding.
 Delivered: Four required checks passed; nested cache paths match the reported
-issue and this report binds session 14696 to the full test commit.
+issue, session evidence passed validation, and this report binds session 14696
+to the completed review-fix commit.
 Gap: None.
 Result: PASS

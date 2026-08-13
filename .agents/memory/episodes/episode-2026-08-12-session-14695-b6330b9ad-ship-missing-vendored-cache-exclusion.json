@@ -91,6 +91,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T11:20:18+00:00",
+      "type": "commit",
+      "content": "Commit: c8336cc37",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
     }
@@ -100,7 +113,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 9
   },
   "lessons": []

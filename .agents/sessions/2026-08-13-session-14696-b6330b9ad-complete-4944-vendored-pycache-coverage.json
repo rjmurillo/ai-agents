@@ -175,7 +175,7 @@
       "outcome": "The test now covers nested package caches, session evidence states why no memory was needed, and the retrospective classifies the failure with owned remediation."
     }
   ],
-  "endingCommit": "374a580ea",
+  "endingCommit": "c8336cc37",
   "nextSteps": [
     "Push test/4923-cache-exclusion-coverage.",
     "Re-check PR #4944 reviews and required checks.",
