@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings.json
-qaCommit: 9093705a61a8c030d039cb29ee56605c133abcd3
+qaCommit: 028fabd8ee0d04b3e4d8b87a042b304c427109b2
 ---
 
 # PR 4944 Session 14697 Final Review QA
@@ -50,3 +50,21 @@ Result: PASS
 
 PASS. Focused validation passed on commit
 `9093705a61a8c030d039cb29ee56605c133abcd3`.
+
+## Re-verification after merging origin/main
+
+`origin/main` was merged at `028fabd8e` to clear a `merge-tree-ratchet` external
+error (`ruff count ratchet: EXTERNAL ERROR - counter returned None`, the stale-base
+signature). That merge made this report stale against files it never covered, so
+the binding moved to the merge commit and every evidence row was re-run there.
+
+Each row reproduced with the same numbers:
+
+- Focused integration and E2E: 20 passed, 1 expected skip, 2.62 seconds.
+- Ruff on `tests/integration/test_vendored_install.py`: all checks passed.
+- Helper boundary: `git diff origin/main...HEAD -- tests/lib/vendored_copy.py`
+  returned zero lines.
+
+The branch-owned files that changed between the two bindings are the session
+14697 log and its episode, both from the work-log timestamp fix, and this report.
+None of the three is an input to the rows above.

@@ -230,17 +230,55 @@
         "e015",
         "e016"
       ],
+      "leads_to": [
+        "e019",
+        "e021"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "milestone",
+      "content": "Refreshed the base and rebound the QA evidence.",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "test",
+      "content": "merge-tree-ratchet failed with 'ruff count ratchet: EXTERNAL ERROR - counter returned None', the stale-base signature. Merging origin/main at 028fabd8e cleared it. The merge made the session 14697 QA report stale, so every evidence row was re-run at the merge commit: 20 passed with 1 expected skip, Ruff clean, and an empty vendored_copy.py diff.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "commit",
+      "content": "Commit: 028fabd8ee",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     }
   ],
   "metrics": {
-    "duration_minutes": 1,
+    "duration_minutes": 168,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
-    "files_changed": 4
+    "commits": 9,
+    "files_changed": 7
   },
   "lessons": []
 }

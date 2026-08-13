@@ -146,8 +146,13 @@
       "timestamp": "2026-08-13T12:26:43Z",
       "action": "Ran session-end after the evidence binding commit.",
       "outcome": "Automatic discovery found no uncommitted Markdown. An explicit four-file session-end run selected 0 ignored files and marked lint incomplete, so the final record keeps that NOT LINTED result separate from the explicit four-file PASS."
+    },
+    {
+      "timestamp": "2026-08-13T08:13:09-07:00",
+      "action": "Refreshed the base and rebound the QA evidence.",
+      "outcome": "merge-tree-ratchet failed with 'ruff count ratchet: EXTERNAL ERROR - counter returned None', the stale-base signature. Merging origin/main at 028fabd8e cleared it. The merge made the session 14697 QA report stale, so every evidence row was re-run at the merge commit: 20 passed with 1 expected skip, Ruff clean, and an empty vendored_copy.py diff."
     }
   ],
-  "endingCommit": "9093705a61a8c030d039cb29ee56605c133abcd3",
+  "endingCommit": "028fabd8ee",
   "nextSteps": []
 }
