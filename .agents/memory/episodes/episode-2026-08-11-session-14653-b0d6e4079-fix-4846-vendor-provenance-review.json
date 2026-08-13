@@ -218,6 +218,19 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T14:21:34+00:00",
+      "type": "commit",
+      "content": "Commit: cbdcb306fe",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -227,7 +240,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 7
   },
   "lessons": []

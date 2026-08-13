@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: b8c6d66866)"
+        "Evidence": "All changes committed (HEAD: cbdcb306fe)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -119,7 +119,7 @@
       "reworkWarning": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "rework-warning: tests/ci/test_validate_vendor_provenance.py edited 24 times\nrework-warning: scripts/ci/validate_vendor_provenance.py edited 23 times\nrework-warning: .github/workflows/vendor-provenance.yml edited 15 times\nrework-warning: .agents/qa/pr-4846-session-d33a241f-qa-report.md edited 12 times"
+        "Evidence": "rework-warning: tests/ci/test_validate_vendor_provenance.py edited 25 times\nrework-warning: scripts/ci/validate_vendor_provenance.py edited 24 times\nrework-warning: .github/workflows/vendor-provenance.yml edited 15 times\nrework-warning: .agents/qa/pr-4846-session-d33a241f-qa-report.md edited 13 times"
       }
     }
   },
@@ -141,7 +141,7 @@
       "result": "284 tests passed and Ruff reported zero findings."
     }
   ],
-  "endingCommit": "b8c6d66866",
+  "endingCommit": "cbdcb306fe",
   "nextSteps": [
     "Push guarded commits, clear review threads, run completion gate, and merge only if all conditions pass."
   ]
