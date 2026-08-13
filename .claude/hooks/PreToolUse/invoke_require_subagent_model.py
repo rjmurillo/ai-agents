@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Require an explicit model on sub-agent spawns (issue #4874).
 
-A sub-agent whose type has no definition file to pin ``model:`` silently
+A sub-agent whose type has no definition file with a nonempty ``model:``
+pin silently
 inherits the session model. On a Fable or Opus session that prices every
 general-purpose spawn at session-model cost with nobody deciding it. This
 gate denies the spawn unless the call names a model, the agent type has a
-definition file somewhere the harness loads agents from, or the operator
-set ``CLAUDE_CODE_SUBAGENT_MODEL`` to allow inherit-by-default.
+model-pinned definition file in the active harness, or the operator set
+``CLAUDE_CODE_SUBAGENT_MODEL`` to allow inherit-by-default.
 
 Customer value: no silent session-model inheritance for sub-agents on
 either harness.
@@ -43,39 +44,62 @@ from pathlib import Path
 _MAX_STDIN_BYTES = 128 * 1024
 _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
 _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
+_EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
 
 
 def _definition_search_space(
-    name: str, home: Path, project: Path
+    name: str, home: Path, project: Path, *, copilot: bool
 ) -> tuple[tuple[Path, tuple[str, ...]], ...]:
-    """Glob patterns per root that can hold an agent definition.
-
-    Covers both harnesses regardless of which one invoked the hook: user
-    and project agent dirs, plus each harness's installed-plugin trees.
-    """
+    """Glob patterns for model-pinned definitions loaded by one harness."""
+    if copilot:
+        return (
+            (
+                home / ".copilot",
+                (
+                    f"agents/{name}.agent.md",
+                    f"agents/{name}.md",
+                    f"installed-plugins/**/agents/{name}.agent.md",
+                    f"installed-plugins/**/agents/{name}.md",
+                ),
+            ),
+            (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
+        )
     return (
         (home / ".claude", (f"agents/{name}.md", f"plugins/**/agents/{name}.md")),
         (project / ".claude", (f"agents/{name}.md",)),
-        (
-            home / ".copilot",
-            (
-                f"agents/{name}.agent.md",
-                f"agents/{name}.md",
-                f"installed-plugins/**/agents/{name}.agent.md",
-                f"installed-plugins/**/agents/{name}.md",
-            ),
-        ),
-        (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
     )
 
 
-def _has_definition(name: str, home: Path, project: Path) -> bool:
-    for root, patterns in _definition_search_space(name, home, project):
+def _pinned_model(path: Path) -> str | None:
+    """Return a nonempty top-level model from YAML frontmatter."""
+    try:
+        with path.open(encoding="utf-8") as stream:
+            if stream.readline().strip() != "---":
+                return None
+            for line in stream:
+                if line.strip() == "---":
+                    return None
+                if line[:1].isspace():
+                    continue
+                key, separator, value = line.partition(":")
+                if separator and key == "model":
+                    model = value.split("#", 1)[0].strip()
+                    if model.lower() in _EMPTY_MODEL_VALUES:
+                        return None
+                    return model
+    except (OSError, UnicodeError):
+        return None
+    return None
+
+
+def _has_pinned_definition(name: str, home: Path, project: Path, *, copilot: bool) -> bool:
+    for root, patterns in _definition_search_space(name, home, project, copilot=copilot):
         if not root.is_dir():
             continue
         for pattern in patterns:
-            if any(root.glob(pattern)):
-                return True
+            for path in root.glob(pattern):
+                if path.is_file() and _pinned_model(path) is not None:
+                    return True
     return False
 
 
@@ -86,7 +110,9 @@ def _spawn_arguments(payload: dict[str, object]) -> dict[str, object] | None:
     object. Native camelCase Copilot registrations send ``toolArgs``,
     sometimes as a JSON string.
     """
-    args = payload.get("tool_input", payload.get("toolArgs"))
+    args = payload.get("tool_input")
+    if args is None:
+        args = payload.get("toolArgs")
     if isinstance(args, str):
         args = json.loads(args)
     return args if isinstance(args, dict) else None
@@ -110,12 +136,18 @@ def main() -> int:
     name = agent.rsplit(":", 1)[-1]  # plugin-scoped type: my-plugin:reviewer
     searchable = not any(ch in name for ch in "*?[]/\\")  # glob or path chars spoof the search
     project = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
-    if searchable and _has_definition(name, Path.home(), project):
+    copilot = (
+        tool == "task"
+        or "toolName" in payload
+        or "toolArgs" in payload
+        or bool(os.environ.get("COPILOT_PLUGIN_ROOT"))
+    )
+    if searchable and _has_pinned_definition(name, Path.home(), project, copilot=copilot):
         return 0
     print(
-        f"Sub-agent '{agent}' has no definition file and this call names no "
-        "model, so it would silently inherit the session model. Pass model: "
-        "in the call, add an agent definition that pins model:, or set "
+        f"Sub-agent '{agent}' has no model-pinned definition file and this call "
+        "names no model, so it would silently inherit the session model. Pass "
+        "model: in the call, add an agent definition with a nonempty model:, or set "
         f"{_ESCAPE_HATCH_ENV} to allow inherit-by-default.",
         file=sys.stderr,
     )
@@ -132,5 +164,8 @@ if __name__ == "__main__":
         # Copilot CLI converts any PreToolUse crash into a denial of the
         # tool call (#4672), so an unexpected payload shape or filesystem
         # error must degrade to allow-with-warning, never deny.
-        print(f"require-subagent-model: fail-open on {exc!r}", file=sys.stderr)
+        print(
+            f"[hook-error] require-subagent-model: fail-open on {exc!r}",
+            file=sys.stderr,
+        )
         raise SystemExit(0) from exc

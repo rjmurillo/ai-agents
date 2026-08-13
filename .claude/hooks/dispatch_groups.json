@@ -46,6 +46,7 @@
       "shims": [
         {
           "file": "PreToolUse/invoke_require_subagent_model.py",
+          "copilotMatcher": "^(Agent|Task|task)$",
           "timeout": 10,
           "statusMessage": "Requiring explicit sub-agent model (BLOCKING)"
         }
