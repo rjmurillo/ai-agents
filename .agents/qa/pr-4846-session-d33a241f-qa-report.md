@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: b2bacadb889430255b4d083d314cf4e05398ee1a
+qaCommit: 5a7faf7f9776296cbb62f413dd361233c047b954
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
@@ -32,7 +32,7 @@ The workflow uses immutable event SHAs and base-owned validation code. A malicio
 
 Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: trusted dual-identity and head-event authorization, main-only PR and merge-queue production, immutable merge-group identities, queue-safe trust updates, stdlib-only relevance checks, tracked Python bytecode authentication, pinned Python runtime inputs, required non-placeholder vendor pins, manifest symlink and executable-mode verification, `.claude/.npmrc` relevance, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `ab9c636d`, the setup-uv v10 pin, 342 passing tests, clean Actionlint, and clean security re-review.
+Delivered: trusted dual-identity and head-event authorization, main-only PR and merge-queue production, immutable merge-group identities, queue-safe trust updates, stdlib-only relevance checks, tracked Python bytecode authentication, pinned Python runtime inputs, required non-placeholder vendor pins, manifest symlink and executable-mode verification, `.claude/.npmrc` relevance, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `784ad3d2`, the setup-uv v10 pin, 342 passing tests, clean Actionlint, and clean security re-review.
 
 Gap: None found in tested scope.
 
