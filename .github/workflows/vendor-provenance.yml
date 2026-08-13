@@ -34,6 +34,7 @@ jobs:
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_AUTHOR: ${{ github.event.pull_request.user.login }}
       PR_SENDER: ${{ github.event.sender.login }}
+      PR_ACTION: ${{ github.event.action }}
 
     steps:
       - name: Materialize trusted base (immutable SHA)
@@ -101,7 +102,8 @@ jobs:
             --candidate-root /tmp/candidate \
             --base-root /tmp/base \
             --pull-request-author "$PR_AUTHOR" \
-            --pull-request-sender "$PR_SENDER"
+            --pull-request-sender "$PR_SENDER" \
+            --pull-request-action "$PR_ACTION"
 
       - name: No-op for unrelated PRs
         if: steps.relevance.outputs.dominated != 'true'

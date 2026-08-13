@@ -858,6 +858,7 @@ _VENDOR_ONLY_PREFIXES = (
 )
 
 _TRUSTED_UPDATE_ACTORS = frozenset({"rjmurillo"})
+_TRUSTED_UPDATE_ACTIONS = frozenset({"opened", "synchronize"})
 _VENDOR_PAYLOAD = PurePosixPath(".claude/hooks/PreToolUse/_vendor/markdownlint")
 _MAX_MARKDOWNLINT_CONFIG_BYTES = 256 * 1024
 _MARKDOWNLINT_POLICY_PATHS = (
@@ -1283,6 +1284,14 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
     return errors
 
 
+def _is_update_authorized(author: str, sender: str, action: str) -> bool:
+    return (
+        author in _TRUSTED_UPDATE_ACTORS
+        and sender in _TRUSTED_UPDATE_ACTORS
+        and action in _TRUSTED_UPDATE_ACTIONS
+    )
+
+
 def _reject_settings_local(candidate: Path) -> list[str]:
     """Reject .claude/settings.local.json if present in candidate.
 
@@ -1630,6 +1639,11 @@ def main() -> int:
         default="",
         help="GitHub-authenticated actor that created the current PR event",
     )
+    parser.add_argument(
+        "--pull-request-action",
+        default="",
+        help="GitHub pull_request_target action that triggered validation",
+    )
     args = parser.parse_args()
 
     # Relevance-check mode: output true/false and exit
@@ -1661,9 +1675,10 @@ def main() -> int:
 
     all_errors: list[str] = []
     vendor = root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
-    update_authorized = (
-        args.pull_request_author in _TRUSTED_UPDATE_ACTORS
-        and args.pull_request_sender in _TRUSTED_UPDATE_ACTORS
+    update_authorized = _is_update_authorized(
+        args.pull_request_author,
+        args.pull_request_sender,
+        args.pull_request_action,
     )
     pins = _PINNED_ARTIFACTS
 

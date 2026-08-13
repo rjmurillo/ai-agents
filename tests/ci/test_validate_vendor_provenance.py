@@ -1868,9 +1868,11 @@ class TestWorkflowImmutableBaseRef:
 
         assert "github.event.pull_request.user.login" in content
         assert "github.event.sender.login" in content
+        assert "github.event.action" in content
         assert "types: [opened, reopened, synchronize, edited]" in content
         assert '--pull-request-author "$PR_AUTHOR"' in content
         assert '--pull-request-sender "$PR_SENDER"' in content
+        assert '--pull-request-action "$PR_ACTION"' in content
 
     def test_validator_runs_with_locked_dependencies(self):
         content = self._wf_content()
@@ -1917,6 +1919,28 @@ class TestCurrentReviewRegressions:
 
 
 class TestTrustedUpdateAuthorization:
+    @pytest.mark.parametrize(
+        ("author", "sender", "action", "expected"),
+        [
+            ("rjmurillo", "rjmurillo", "opened", True),
+            ("rjmurillo", "rjmurillo", "synchronize", True),
+            ("rjmurillo", "rjmurillo", "edited", False),
+            ("rjmurillo", "rjmurillo", "reopened", False),
+            ("rjmurillo", "untrusted-contributor", "synchronize", False),
+            ("untrusted-contributor", "rjmurillo", "synchronize", False),
+        ],
+    )
+    def test_only_trusted_head_transition_events_authorize_updates(
+        self,
+        author: str,
+        sender: str,
+        action: str,
+        expected: bool,
+    ) -> None:
+        from scripts.ci.validate_vendor_provenance import _is_update_authorized
+
+        assert _is_update_authorized(author, sender, action) is expected
+
     def test_trusted_author_may_modify_but_not_delete_anchor(self, tmp_path: Path) -> None:
         from scripts.ci.validate_vendor_provenance import (
             _check_trust_anchor_integrity,
