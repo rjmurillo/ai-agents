@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-13-issue-4949-forgetful-import.md"
+        "Evidence": ".agents/qa/2026-08-13-pr-4958-issue-4949-forgetful-import.md"
       },
       "changesCommitted": {
         "level": "MUST",
