@@ -19,6 +19,8 @@ Validate the final evidence-only correction at
 - [x] The session 14693 QA report binds to implementation commit
   `4690a3aa00291441f98973c39cb059dd5f5919dc`.
 - [x] Sessions 14691, 14692, and 14693 and their episodes validate.
+- [x] The follow-up QA report scopes its one-file claim to correction commit
+  `a8255a148cfd9f1e6ddd5adf012b000a611c3264`, not its three-file QA commit.
 
 ## Evidence
 
@@ -31,6 +33,7 @@ Validate the final evidence-only correction at
 | QA binding at implementation commit | PASS, 0 post-QA non-evidence paths |
 | Targeted tests | 709 passed |
 | Markdown lint | `NOT LINTED`, 0 of 1 selected because `.agents/**` is excluded |
+| Follow-up QA scope | Correction commit changed 1 file; QA commit added 3 artifacts |
 | Evidence commit pre-commit hooks | PASS |
 
 ## Verdict

@@ -143,6 +143,11 @@
       "timestamp": "2026-08-13T12:45:00Z",
       "action": "Committed the final finding corrections.",
       "detail": "Commit 0c15325cbdcceb425f29e95b129e00a58346786a contains the source evidence, force-regenerated episodes, QA rebinding, and this session record. Pre-commit passed and generated the session 14695 episode."
+    },
+    {
+      "timestamp": "2026-08-13T12:46:00Z",
+      "action": "Closed the late follow-up QA scope finding.",
+      "detail": "The final Copilot scan found one active finding. Git show confirmed correction commit a8255a148cfd9f1e6ddd5adf012b000a611c3264 changed one file and QA commit 2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2 added three artifacts. The QA criteria now bind each claim to its measured commit."
     }
   ],
   "endingCommit": "0c15325cbdcceb425f29e95b129e00a58346786a",

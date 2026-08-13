@@ -12,11 +12,11 @@ Verify the late correction to session 14691 after PR #4943 merged.
 
 ## Acceptance Criteria
 
-- [x] Only the inaccurate markdown lint evidence changed.
+- [x] Correction commit `a8255a148cfd9f1e6ddd5adf012b000a611c3264` changes only the inaccurate markdown lint evidence.
+- [x] Follow-up commit `2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2` adds the session, QA, and episode artifacts required by repository gates.
 - [x] The committed session JSON passes existing-log validation.
 - [x] Episode event order and causal links remain valid.
 - [x] Memory index, token, and count ratchets pass.
-- [x] The branch diff contains one intended evidence replacement.
 
 ## Evidence
 
