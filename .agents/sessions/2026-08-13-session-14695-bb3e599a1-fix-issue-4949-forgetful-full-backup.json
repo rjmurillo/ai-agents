@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 6243f3aa24)"
+        "Evidence": "All changes committed (HEAD: dbf1449b54)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed; pre_pr.py passed 51 of 51 validations"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -141,7 +141,7 @@
       "result": "Focused suites passed 41 tests and the final full suite passed 27941 tests with 37 skipped. The committed backup inserted 2359 rows into a temporary database copy. Ruff, taste lints, CWE-78 scan, security review, fresh QA, and GPT-5.6 Sol review passed."
     }
   ],
-  "endingCommit": "6243f3aa24",
+  "endingCommit": "dbf1449b54",
   "nextSteps": [
     "Complete repository validation, open one PR with Fixes #4949, resolve all checks and review threads, and merge.",
     "After merge verification on origin/main, mark SQL todo fix-4949-forgetful-import done."

@@ -75,6 +75,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T12:34:48+00:00",
+      "type": "commit",
+      "content": "Commit: dbf1449b54",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
     }
@@ -84,8 +97,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 7
+    "commits": 3,
+    "files_changed": 9
   },
   "lessons": []
 }

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup.json
-qaCommit: 6243f3aa24a548819ef690345bb0fa723054bc9f
+qaCommit: dbf1449b54c87bb96828563ae621a83741a2a4ad
 ---
 
 # QA Report: Issue 4949 Forgetful Import
@@ -39,9 +39,8 @@ run.
 - CWE-78 scan: two Python files scanned, zero findings.
 - Security agent: approved with no medium-or-higher finding.
 - GPT-5.6 Sol final adversarial review: approved.
-- Fresh QA review of commit `6243f3aa24a548819ef690345bb0fa723054bc9f`
-  after merging current `origin/main` and recording durable memory: PASS, no
-  blocking defects.
+- Fresh QA review of commit `dbf1449b54c87bb96828563ae621a83741a2a4ad`
+  after indexing the durable memory: PASS, no blocking defects.
 
 ## QA Verdict
 
