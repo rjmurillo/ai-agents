@@ -56,7 +56,6 @@
     "skills/github/scripts/pr/test_pr_merge_ready.py": 1,
     "skills/github/scripts/pr/test_pr_merged.py": 1,
     "skills/github/scripts/pr/unresolve_pr_review_thread.py": 1,
-    "skills/github/scripts/pr/why_pr_blocked.py": 1,
     "skills/github/scripts/reactions/add_comment_reaction.py": 1,
     "skills/golden-principles/scripts/scan_principles_core.py": 2,
     "skills/memory-reflexion/tests/test_memory_reflexion_structure.py": 1,
