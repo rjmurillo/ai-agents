@@ -14,7 +14,7 @@
       "content": "triage",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -25,7 +25,7 @@
       "content": "classify",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -36,7 +36,7 @@
       "content": "gate",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -47,7 +47,7 @@
       "content": "implement",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -58,7 +58,7 @@
       "content": "verify",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -69,7 +69,7 @@
       "content": "retrospective",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -80,7 +80,7 @@
       "content": "integrate",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -91,7 +91,7 @@
       "content": "reverify",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
@@ -102,15 +102,26 @@
       "content": "review-fix",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-13T11:26:46+00:00",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "refresh-main",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T11:52:55+00:00",
       "type": "commit",
-      "content": "Commit: e321ed6501d357d9548a61fe741617111a00aa21",
+      "content": "Commit: 5720a966060b62b85dab9aef5fee80fcfa6039aa",
       "caused_by": [
         "e001",
         "e002",
@@ -120,7 +131,8 @@
         "e006",
         "e007",
         "e008",
-        "e009"
+        "e009",
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete"

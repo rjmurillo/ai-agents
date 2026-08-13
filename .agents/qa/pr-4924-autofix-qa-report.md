@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14694-b79b5e8bf-autofix-4924-review-findings-complete.json
-qaCommit: e321ed6501d357d9548a61fe741617111a00aa21
+qaCommit: 5720a966060b62b85dab9aef5fee80fcfa6039aa
 ---
 
 # PR 4924 Autofix QA Report
