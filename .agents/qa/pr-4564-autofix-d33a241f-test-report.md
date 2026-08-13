@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-4564.json
-qaCommit: 9dfb21b53878e3766b1dd8fe2debf4a3ab058d59
+qaCommit: 9c191c9965add267b791afc1c91705bdfc4938ab
 ---
 
 # PR 4564 Autofix QA Report
@@ -16,7 +16,7 @@ implementations and their dedicated tests.
 
 ## Results
 
-- Targeted tests: PASS, 247 tests.
+- Targeted tests: PASS, 251 tests.
 
   ```text
   uv run pytest tests/test_github_pr_diagnostics.py \
