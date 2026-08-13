@@ -1,0 +1,144 @@
+{
+  "id": "episode-2026-08-13-session-14705-fix-4778-copilot-auth-preflight",
+  "session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4778: preflight probed the wrong credential and reviews ran anyway",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the reported root cause through the preflight, the composite actions, and the aggregate.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established the canonical Copilot auth contract before designing the probe.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the identity probe with a COPILOT_GITHUB_TOKEN probe using gh api user, overriding GH_TOKEN and GITHUB_TOKEN in the subprocess.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split binary availability from credential validity and added a single reviews-enabled gate output.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Separated the two conditions the agent-review should-run input was carrying.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Centralized the verdict fallback ladder that three action steps had each restated.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the Report infrastructure status step whose skip announcement fired while the reviews ran.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flipped the two tests that asserted the old contract and added positive, negative, unavailable, invalid-token, and installation-token coverage.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T15:25:36+00:00",
+      "type": "commit",
+      "content": "Commit: d1506e1039",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T15:51:31+00:00",
+      "type": "commit",
+      "content": "Commit: fc03c9160e",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14705-fix-4778-copilot-auth-preflight"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 14
+  },
+  "lessons": [
+    "Probe the credential the consumer presents, not a proxy for it. Mirror the consumer's own auth call; gh api user is what the Copilot CLI itself does",
+    "Classify auth failures by the operator action they require. Refusal blocks; rate limit and transport faults degrade, so a GitHub blip is not an outage",
+    "Avoid: Gating a job on an upstream output with !=. Compare == 'true' so absence blocks",
+    "Avoid: Adding fail-closed gating without producing the artifacts the gate consumes. Land the gate and the DID_NOT_RUN artifact in the same change"
+  ]
+}

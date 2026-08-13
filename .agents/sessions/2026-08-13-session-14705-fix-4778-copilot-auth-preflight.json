@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14705,
+    "date": "2026-08-13",
+    "branch": "fix/4778-copilot-auth-preflight",
+    "startingCommit": "ab9c636de5",
+    "objective": "Fix issue 4778: preflight probed the wrong credential and reviews ran anyway"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; ci/ci-ai-review-read-calls-use-runner-token memory read"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved read-only"
+      },
+      "instructionsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, .agents/CLAUDE.md, ADR-006, ADR-035 read before coding"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "issueRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue 4778 body plus comments read; no existing PR or remote branch found"
+      },
+      "issueClaimed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "gh issue edit 4778 --add-assignee @me"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "New external worktree ../ai-agents-4778 on fix/4778-copilot-auth-preflight from origin/main"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4778-copilot-auth-preflight"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ab9c636de5"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/ci and scripts/quality_gate inventoried; github skill used for issue and PR operations"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ci/ci-ai-review-read-calls-use-runner-token memory loaded; it fixed the GH_TOKEN contract this change preserves"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session checklist items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ci/copilot-preflight-probes-the-copilot-credential memory written"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Six atomic commits, d1506e1039 through fc03c9160e"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "3207 passed / 11 skipped across tests/ci, tests/workflows, tests/quality_gate; ruff clean on changed files; actionlint clean; merge-tree ratchets OK"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this branch"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4778-copilot-preflight-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Traced the reported root cause through the preflight, the composite actions, and the aggregate.",
+      "outcome": "Confirmed two independent defects: the auth probe tested the runner installation token against /user, and the ten review jobs gated on binary presence while ignoring auth entirely."
+    },
+    {
+      "action": "Established the canonical Copilot auth contract before designing the probe.",
+      "outcome": "tests/e2e/copilot_hook_probe.py anchors rejection on 'github returned: bad credentials' and treats rate limit and transport faults as status-unknown; the new probe mirrors that split instead of inventing one."
+    },
+    {
+      "action": "Replaced the identity probe with a COPILOT_GITHUB_TOKEN probe using gh api user, overriding GH_TOKEN and GITHUB_TOKEN in the subprocess.",
+      "outcome": "The credential the model presents is the credential tested; an ambient runner token can no longer answer for it."
+    },
+    {
+      "action": "Split binary availability from credential validity and added a single reviews-enabled gate output.",
+      "outcome": "Empty compares false, so a failed or skipped preflight job blocks reviews rather than launching them."
+    },
+    {
+      "action": "Separated the two conditions the agent-review should-run input was carrying.",
+      "outcome": "should-run keeps gating save and upload; a new infra-ready input gates only the model call, so an infrastructure skip still uploads a complete artifact set."
+    },
+    {
+      "action": "Centralized the verdict fallback ladder that three action steps had each restated.",
+      "outcome": "A not-ready preflight records DID_NOT_RUN with an infrastructure flag; a produced or cached verdict always wins; the ready-but-empty NEEDS_REVIEW fallback is preserved."
+    },
+    {
+      "action": "Removed the Report infrastructure status step whose skip announcement fired while the reviews ran.",
+      "outcome": "The probe now emits an announcement that matches the gate it computed."
+    },
+    {
+      "action": "Flipped the two tests that asserted the old contract and added positive, negative, unavailable, invalid-token, and installation-token coverage.",
+      "outcome": "126 targeted tests pass, including an end-to-end chain proving the skip path fails closed at check_critical_failures instead of crashing at validate_artifact_download."
+    }
+  ],
+  "endingCommit": "fc03c9160e",
+  "nextSteps": [
+    "Open the PR with Fixes #4778 and let the quality gate exercise the new preflight on real credentials.",
+    "Watch the first run's Infrastructure Check summary to confirm the Copilot auth line reports valid rather than the former FAILED.",
+    "If the credential is genuinely dead, expect ten DID_NOT_RUN artifacts and a blocking report rather than ten failed model calls."
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": "scripts/ci/check_agent_infrastructure.py",
+        "description": "Probes COPILOT_GITHUB_TOKEN, grades it four ways, exposes presence, auth, and gate as separate outputs"
+      },
+      {
+        "type": "code",
+        "path": "scripts/ci/agent_review_outcome.py",
+        "description": "Single verdict fallback ladder shared by the three agent-review steps"
+      },
+      {
+        "type": "code",
+        "path": ".github/actions/agent-review/action.yml",
+        "description": "New infra-ready input gates only the model call, so an infrastructure skip still uploads artifacts"
+      },
+      {
+        "type": "code",
+        "path": ".github/workflows/ai-pr-quality-gate.yml",
+        "description": "Ten review jobs follow reviews-enabled; the misleading skip announcement is removed"
+      },
+      {
+        "type": "test",
+        "path": "tests/ci/test_infra_skip_gate_chain.py",
+        "description": "End-to-end proof the skip path fails closed at check_critical_failures instead of crashing at validate_artifact_download"
+      }
+    ],
+    "summary": "The preflight tests the credential the reviewers use, not the runner token identity. Binary availability, credential status, and the review gate are three separate outputs. An infrastructure skip produces ten DID_NOT_RUN artifacts, so Aggregate Results posts a report and blocks the merge. A rate-limited or unreachable probe degrades instead of blocking, so a GitHub blip is not a review outage."
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Probe the credential the consumer presents, not a proxy for it",
+        "context": "The preflight tested the runner installation token against /user, which that token type can never resolve",
+        "application": "Mirror the consumer's own auth call; gh api user is what the Copilot CLI itself does"
+      },
+      {
+        "pattern": "Classify auth failures by the operator action they require",
+        "context": "One FAILED line covered absent, rejected, and unverifiable credentials",
+        "application": "Refusal blocks; rate limit and transport faults degrade, so a GitHub blip is not an outage"
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Gating a job on an upstream output with !=",
+        "consequence": "A skipped or failed upstream job publishes an empty output, which compares not-equal and fails open",
+        "correction": "Compare == 'true' so absence blocks"
+      },
+      {
+        "antipattern": "Adding fail-closed gating without producing the artifacts the gate consumes",
+        "consequence": "Aggregation crashes on a missing verdict file before it can post a readable report",
+        "correction": "Land the gate and the DID_NOT_RUN artifact in the same change"
+      }
+    ]
+  }
+}
