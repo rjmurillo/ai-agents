@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Local autofix scope and main refresh completed through a48b28f4594d145580a8f38bbd9acf3189dcfdfc"
+        "Evidence": "Local autofix scope, main refresh, and matcher fallback regression completed through d8dbf0489cf6a6a7199b745f7af830f235ccbff1"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -127,10 +127,10 @@
     {
       "time": "2026-08-13T03:03:00-07:00",
       "action": "Validated and committed CI and review fixes",
-      "result": "489 passed, 3 skipped; five atomic fix commits plus main refresh through a48b28f4594d145580a8f38bbd9acf3189dcfdfc"
+      "result": "489 passed, 3 skipped; matcher-union regression suite 19 passed through d8dbf0489cf6a6a7199b745f7af830f235ccbff1"
     }
   ],
-  "endingCommit": "a48b28f4594d145580a8f38bbd9acf3189dcfdfc",
+  "endingCommit": "d8dbf0489cf6a6a7199b745f7af830f235ccbff1",
   "nextSteps": [
     "Push under lease and late live-state guard.",
     "Wait for required CI, then reply to and resolve all 15 review threads.",

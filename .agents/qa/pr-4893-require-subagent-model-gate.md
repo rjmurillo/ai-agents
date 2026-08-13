@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review.json
-qaCommit: a48b28f4594d145580a8f38bbd9acf3189dcfdfc
+qaCommit: d8dbf0489cf6a6a7199b745f7af830f235ccbff1
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -16,6 +16,7 @@ definition file, plus the ADR metric refresh it forced.
 - PR review fix suite: 489 passed, 3 skipped across the model gate,
   markdown target filtering, hook generation, dispatcher, shipped artifact,
   and CLI hook end-to-end tests.
+- Matcher-union regression suite: 19 passed after the main refresh.
 - Generated artifacts rebuilt from canonical sources with
   `uv run python build/scripts/build_all.py`.
 - Unit and contract suites: 1852 passed across tests/hooks,
