@@ -32,21 +32,32 @@ actually offered to the merge endpoint, **24 merged on the first attempt** and
 all 4 refusals were merge conflicts, not check failures. The classification was
 inverted for 24 of 28 cases.
 
-## The repo already had the right tool
+## The repo had the right pagination tool, not an authoritative reducer
 
-`.claude/skills/github/scripts/pr/get_pr_checks.py` does this correctly and has
-for some time:
+`.claude/skills/github/scripts/pr/get_pr_checks.py` paginates the full rollup.
+Its same-name reduction is not authoritative when independent state disagrees.
 
-- `contexts(first: 100)` with `totalCount` and `pageInfo { hasNextPage endCursor }`
-  (lines 74 to 79)
-- a second cursor query with `after: $cursor` (line 112)
-- a real fetch loop that extends the node list and advances the cursor until
-  `hasNextPage` is false (lines 321 to 325, entered at 385 to 393)
-- a latest-per-name dedup that picks a winner per context (lines 274 to 282)
+PR #4721 proved the boundary on 2026-08-11. At head
+`cff4f397931579491f95a891472f2160be48e852`, the helper reported all passing,
+zero failed required checks, and merge ready. GitHub reported
+`mergeStateStatus: BLOCKED`. The required `Run Python Tests` context had two
+runs on the same SHA: an earlier pull request run succeeded, then a later push
+run failed. The helper grouped by display name and allowed the success to hide
+the later failure.
 
-So the correct behavior, pagination plus latest-per-name reduction, was already
-written, tested, and one command away. The failure was not a missing capability.
-It was reaching past an existing tool for a raw `gh` call.
+First rule out conflicts, unresolved reviews, deployments, and other non-check
+protection rules. If the remaining blocker is required-check-related:
+
+1. Use `get_pr_checks.py` for pagination and the normal case.
+2. Treat helper-green plus GitHub `BLOCKED` as a contradiction, not success.
+3. Page the full rollup for the current head SHA.
+4. Group by context identity and choose the latest timestamp.
+5. Compare that result with the current ruleset's required context list.
+
+Eureka: an existing wrapper can be safer than raw API access and still be the
+wrong authority when its reduction policy discards event identity. Reuse the
+wrapper first, then challenge its result when authoritative state contradicts
+it.
 
 `AGENTS.md` states the rule this violates directly: **"Raw gh if skill exists"**
 is in the Never list, and "Skill-First" is a section heading. That rule is
@@ -128,29 +139,25 @@ Each one fixed the previous defect and introduced a new one.
 | `gh api --paginate --jq` | truncation | `--jq` runs once per page, so the reduction saw a partial list |
 | `--paginate --slurp` plus my own reducer | truncation and per-page reduction | counted `cancelled` as a hard failure; reported two clean PRs as FAILURE |
 
-`get_pr_checks.py` already had all three properties before I started.
+`get_pr_checks.py` already handled pagination, severity mapping, and required
+status. Its remaining gap was the same-name rule: any sibling success could
+supersede a later failure from another trigger event. PR #4721 showed that this
+can flip a required check from failing to passing.
 
-- It paginates.
-- It groups rows by name and lets a passing re-run supersede a prior failure,
-  the "OK if any SUCCESS exists" rule from the PR #1887 retrospective.
-- Its severity map puts CANCELLED in the failing set so a CANCELLED-only group
-  still surfaces, while a CANCELLED row with a sibling SUCCESS does not.
-
-It also returns `IsRequired` per check plus `FailedRequiredChecks` and
-`PendingRequiredChecks`. None of my three readers reported required status at
-all, so none of them could answer the only question that decides a merge.
+The helper remains the first reader because it is better than an ad hoc rollup.
+It is not the final reader when a required-check blocker contradicts its
+verdict. Resolve that contradiction with latest-run-per-context evidence and
+the current required-context list.
 
 The order of danger is the reverse of the order of visibility. Truncation is
 the defect you notice, because the row count looks wrong. Severity mapping and
 re-run supersession are the ones that hand you a confident, complete-looking
 answer with the sign flipped.
 
-A `cancelled` row with a sibling `success` on the same check name means superseded
-by a re-run, not broken. The group passes because the `success` supersedes the
-`cancelled`. A `cancelled`-only group, with no sibling success, still surfaces as a
-failure: the script puts it in the failing set intentionally so it stays visible.
-Treating every `cancelled` as a hard failure (no sibling check) costs a re-run of
-a green suite at best, and a false defect report against working CI at worst.
+A cancelled row can be superseded by a later success only after both rows are
+proved to represent the same logical context. A shared display name is not that
+proof. Different workflows and trigger events reuse names in this repository.
+A cancelled-only context still surfaces as a failure so it remains visible.
 
 ## Related
 

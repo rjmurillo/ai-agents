@@ -1,7 +1,6 @@
 | Keywords | File |
 |----------|------|
 | parallel execution time savings concurrent dispatch wall-clock | [orchestration/orchestration-parallel-execution](orchestration/orchestration-parallel-execution.md) |
-| handoff aggregation staging conflict HANDOFF.md bundle commit | [orchestration/orchestration-handoff-coordination](orchestration/orchestration-handoff-coordination.md) |
 | validation gate accept reject session-end checklist protocol | [orchestration/orchestration-validation-gate](orchestration/orchestration-validation-gate.md) |
 | pr comment chain retrospective responder workflow learning | [orchestration/orchestration-pr-chain](orchestration/orchestration-pr-chain.md) |
 | recursive learning extraction meta-pattern termination systematic | [orchestration/orchestration-recursive-learning-extraction](orchestration/orchestration-recursive-learning-extraction.md) |
