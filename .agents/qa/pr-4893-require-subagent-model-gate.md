@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review.json
-qaCommit: eea9d2900fa92b1f14267ed640ffd9930a87191c
+qaCommit: fffec5b416b3801e5a35a89bdaebab6e00b35698
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -33,8 +33,8 @@ definition file, plus the ADR metric refresh it forced.
   over *, **, ?, [a], ../me, backslash form).
 - Process boundary, executed directly: canonical script exits 0 on malformed
   stdin and 2 on the deny path with remediation text; generated Copilot shim
-  exits 2 on deny for tool_name Agent, 0 on non-matching tools, and 2 on
-  malformed stdin per the generator crash policy.
+  exits 2 on deny for tool_name Agent, 0 on non-matching tools, and 0 on
+  malformed stdin per the source hook's fail-open policy.
 - Registration surfaces: dispatch-group parity suite green (settings twin
   correctly absent per the duplicate-entry contract); .github/hooks JSON
   validated against the documented version-1 command-hook shape; host matcher
