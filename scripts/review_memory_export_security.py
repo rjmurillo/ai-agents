@@ -19,6 +19,17 @@ import re
 import sys
 from pathlib import Path
 
+_GENERIC_SECRET_PATTERN = (
+    r"(?<![a-zA-Z0-9~_.-])[a-zA-Z0-9~_.-]{34,}(?![a-zA-Z0-9~_.-])"
+)
+_FORGETFUL_ID_UUID = re.compile(
+    r'(?<!\\)"(?:id|user_id)"\s*:\s*'
+    r'"(?P<uuid>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})"'
+)
+_CANONICAL_UUID = re.compile(
+    r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"
+)
+
 SENSITIVE_PATTERNS: dict[str, list[str]] = {
     "API Keys/Tokens": [
         r"api[_-]?key",
@@ -35,7 +46,7 @@ SENSITIVE_PATTERNS: dict[str, list[str]] = {
         r"secret\s*[:=]",
         r"credential",
         r"auth[_-]?key",
-        r"[a-zA-Z0-9~_.-]{34}",
+        _GENERIC_SECRET_PATTERN,
         r"[A-Za-z0-9+/=]{40,}",
     ],
     "Private Keys": [
@@ -64,6 +75,26 @@ SENSITIVE_PATTERNS: dict[str, list[str]] = {
 }
 
 
+def _is_forgetful_id_uuid(line: str, match: re.Match[str]) -> bool:
+    if _CANONICAL_UUID.fullmatch(match.group()) is None:
+        return False
+    return any(
+        id_match.span("uuid") == match.span()
+        for id_match in _FORGETFUL_ID_UUID.finditer(line)
+    )
+
+
+def _line_has_sensitive_match(
+    line: str,
+    pattern: str,
+    compiled: re.Pattern[str],
+) -> bool:
+    matches = compiled.finditer(line)
+    if pattern != _GENERIC_SECRET_PATTERN:
+        return next(matches, None) is not None
+    return any(not _is_forgetful_id_uuid(line, match) for match in matches)
+
+
 def scan_file(export_file: Path, quiet: bool = False) -> int:
     if not quiet:
         print(f"Scanning export file for sensitive data: {export_file}")
@@ -80,7 +111,7 @@ def scan_file(export_file: Path, quiet: bool = False) -> int:
                 compiled = re.compile(pattern, re.IGNORECASE)
                 match_lines: list[int] = []
                 for i, line in enumerate(lines, 1):
-                    if compiled.search(line):
+                    if _line_has_sensitive_match(line, pattern, compiled):
                         match_lines.append(i)
                 if match_lines:
                     total_matches += len(match_lines)

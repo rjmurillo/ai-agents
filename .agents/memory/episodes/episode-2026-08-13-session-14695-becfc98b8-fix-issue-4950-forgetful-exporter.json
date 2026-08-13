@@ -1,0 +1,110 @@
+{
+  "id": "episode-2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter",
+  "session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix issue 4950 Forgetful exporter security review CLI and UUID false positives",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated issue 4950 against current origin/main in an external worktree",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the issue body and both comments as untrusted project data",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both reported defects before implementation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the smallest implementation and its inverse",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Attempted the recommended shared-memory import",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented the positional CLI boundary and field-scoped UUID exemption",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed inline security review using the security-review skill",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review with the Copilot CLI requesting gpt-5.6-sol",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused and repository validation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured repository-wide Ruff baseline",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
