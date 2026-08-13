@@ -174,12 +174,12 @@ The fix needs both layers:
    root prefixes before `checks_tooling._markdown_lint_targets` builds argv.
 2. `.markdownlint-cli2.yaml` ignores the same roots during config-driven scans.
 3. `checks_tooling.validate_markdown_lint` batches at 100 targets and 7,500
-   UTF-16 command characters, then reports the real exit code and output stream.
+   UTF-16 code units, then reports the real exit code and output stream.
 
 Verification on the issue branch selected all three probe paths before the fix
 and zero after it. Targeted tests cover root prefixes, nested lookalikes,
-count-based batching, Windows command length, continued autofix after one
-failed batch, and empty-output failure reporting.
+count-based batching, non-BMP Windows command length, continued autofix after
+one failed batch, and empty-output failure reporting.
 
 ## Related
 
