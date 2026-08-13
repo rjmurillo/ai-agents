@@ -104,29 +104,39 @@ def _line_has_sensitive_match(
     return any(not _is_forgetful_id_uuid(line, match) for match in matches)
 
 
-def _scan_pattern(category: str, pattern: str, lines: list[str]) -> _Issue | None:
+def _scan_pattern(
+    category: str,
+    pattern: str,
+    lines: list[str],
+) -> tuple[_Issue | None, int]:
     try:
         compiled = re.compile(pattern, re.IGNORECASE)
     except re.error as exc:
-        return {
-            "category": f"{category} (SCAN FAILED)",
-            "pattern": pattern,
-            "count": 1,
-            "lines": f"Error: {exc}",
-        }
+        return (
+            {
+                "category": f"{category} (SCAN FAILED)",
+                "pattern": pattern,
+                "count": 1,
+                "lines": f"Error: {exc}",
+            },
+            0,
+        )
     match_lines = [
         number
         for number, line in enumerate(lines, 1)
         if _line_has_sensitive_match(line, pattern, compiled)
     ]
     if not match_lines:
-        return None
-    return {
-        "category": category,
-        "pattern": pattern,
-        "count": len(match_lines),
-        "lines": ", ".join(str(number) for number in match_lines[:3]),
-    }
+        return None, 0
+    return (
+        {
+            "category": category,
+            "pattern": pattern,
+            "count": len(match_lines),
+            "lines": ", ".join(str(number) for number in match_lines[:3]),
+        },
+        len(match_lines),
+    )
 
 
 def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
@@ -134,11 +144,11 @@ def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
     total_matches = 0
     for category, patterns in SENSITIVE_PATTERNS.items():
         for pattern in patterns:
-            issue = _scan_pattern(category, pattern, lines)
+            issue, match_count = _scan_pattern(category, pattern, lines)
             if issue is None:
                 continue
             found_issues.append(issue)
-            total_matches += issue["count"]
+            total_matches += match_count
     return found_issues, total_matches
 
 

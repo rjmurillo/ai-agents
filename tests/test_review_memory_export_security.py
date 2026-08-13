@@ -67,12 +67,17 @@ class TestScanFile:
         assert scan_file(file_with_api_key) == 1
         assert "WARNING - Sensitive data patterns detected!" in capsys.readouterr().out
 
-    def test_invalid_pattern_fails_closed(self, clean_file: Path) -> None:
+    def test_invalid_pattern_fails_closed(
+        self,
+        clean_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         with patch(
             "scripts.review_memory_export_security.SENSITIVE_PATTERNS",
             {"Invalid": ["["]},
         ):
-            assert scan_file(clean_file, quiet=True) == 1
+            assert scan_file(clean_file) == 1
+        assert "Found 0 potential sensitive data matches" in capsys.readouterr().out
 
     def test_generic_34_character_token_returns_1(self, tmp_path: Path) -> None:
         export_file = tmp_path / "generic-token.json"
