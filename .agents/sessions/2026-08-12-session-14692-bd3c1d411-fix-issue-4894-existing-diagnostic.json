@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 9b6d18d7c1)"
+        "Evidence": "All code and test changes committed (HEAD: a3125a47497fa615e893ddf2e44f5ddb0fdbedcc)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -141,7 +141,7 @@
       "result": "No duplicate issue found. Filed #4917 and restored the parent checkout before continuing."
     }
   ],
-  "endingCommit": "9b6d18d7c1",
+  "endingCommit": "a3125a47497fa615e893ddf2e44f5ddb0fdbedcc",
   "nextSteps": [
     "Merge the focused PR to close #4894."
   ]
