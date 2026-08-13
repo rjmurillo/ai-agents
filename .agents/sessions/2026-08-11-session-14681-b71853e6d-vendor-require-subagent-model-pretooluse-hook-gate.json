@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Original work plus PR review fixes through c77b7e9cbaa20ac794436c1224b45219cd53e829"
+        "Evidence": "Original work, PR review fixes, and main refresh through a48b28f4594d145580a8f38bbd9acf3189dcfdfc"
       },
       "validationPassed": {
         "level": "MUST",
@@ -152,7 +152,7 @@
       "entry": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped."
     }
   ],
-  "endingCommit": "c77b7e9cbaa20ac794436c1224b45219cd53e829",
+  "endingCommit": "a48b28f4594d145580a8f38bbd9acf3189dcfdfc",
   "nextSteps": [
     "Push with lock and open PR Fixes #4874."
   ]

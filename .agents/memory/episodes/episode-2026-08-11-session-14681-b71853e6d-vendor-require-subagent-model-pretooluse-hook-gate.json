@@ -143,17 +143,58 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012",
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T10:03:00+00:00",
+      "type": "milestone",
+      "content": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T10:03:00+00:00",
+      "type": "test",
+      "content": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T10:55:36+00:00",
+      "type": "commit",
+      "content": "Commit: a48b28f4594d145580a8f38bbd9acf3189dcfdfc",
+      "caused_by": [
+        "e012",
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
     }
   ],
   "metrics": {
-    "duration_minutes": 120,
+    "duration_minutes": 3198,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 39
+    "commits": 5,
+    "files_changed": 43
   },
   "lessons": []
 }
