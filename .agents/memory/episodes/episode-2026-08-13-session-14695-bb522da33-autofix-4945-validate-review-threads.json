@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads",
+  "session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 4945 Validate PR and review threads",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired PR 4945 lease for d33a241f-fleet-pr-4945 and started renewal supervision.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound live PR identity and classified readiness.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main into the isolated worktree.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read failing Validate PR logs.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed all three review findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted verification.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:25:58+00:00",
+      "type": "commit",
+      "content": "Commit: ac2599c71d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
