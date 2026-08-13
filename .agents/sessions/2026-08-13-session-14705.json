@@ -73,48 +73,48 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Session Start and Session End tables complete in this log"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unmodified (read-only per ADR-014)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/codeql/codeql-scan-wrapper-python-delegates.md written"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on changed markdown: 0 issues"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/000-issue-4921-codeql-scan-wrapper-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "6 commits on fix/4921-codeql-skill-python-wrappers"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "pre_pr.py exit 0; 2363 pytest passed; build_all.py --check exit 0"
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Issue #4921 claimed via claim_issue.py"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Findings captured in Serena memory and QA report"
       }
     }
   },
@@ -152,7 +152,7 @@
       "result": "2363 pytest passed; ruff clean; markdownlint 0 issues; pre_pr.py exit 0"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "5c73e4c318b9b63dfe804f66adb482228208da6b",
   "nextSteps": [
     "Open PR with Fixes #4921",
     "Follow-up: invoke_codeql_scan_skill.py duplicates invoke_codeql_scan.py and is undocumented in SKILL.md (skillforge warning); consider consolidating to one wrapper",
