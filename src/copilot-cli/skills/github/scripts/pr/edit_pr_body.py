@@ -10,9 +10,9 @@ between that read and the update request.
 Safety behavior:
   - Rejects a body whose hash no longer matches the caller's expected hash.
   - No-ops when the new body is identical to the current body.
-  - Warns when the new body introduces em/en dashes.
-  - Warns when one line contains multiple closing targets. GitHub closes only
-    the first.
+  - Warns when the new body contains em/en dashes.
+  - Warns when one closing keyword has multiple bare issue references. GitHub
+    requires the full keyword syntax for each target.
 
 Exit codes follow ADR-035:
     0 - Success (or no-op)
@@ -64,16 +64,9 @@ _SCRIPT_NAME = "edit_pr_body.py"
 # Prohibited characters: em dash (U+2014) and en dash (U+2013).
 _DASH_RE = re.compile(r"[\u2013\u2014]")
 
-# Multiple Fixes/Closes/Resolves on one line.
-_MULTI_CLOSE_RE = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+[^\n]*"
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+",
-    re.IGNORECASE,
-)
-
 _CLOSING_MULTI_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
-    r"(?:#\d+)(?:\s+(?:#\d+))+",
+    r"#\d+(?:(?:[ \t]+|[ \t]*,[ \t]*)#\d+)+",
     re.IGNORECASE,
 )
 
@@ -95,13 +88,11 @@ def validate_body(new_body: str) -> list[str]:
             "bot reviewers flag each occurrence"
         )
 
-    for pattern in (_CLOSING_MULTI_RE, _MULTI_CLOSE_RE):
-        for m in pattern.finditer(new_body):
-            warnings.append(
-                f"Multiple issue references on one closing-keyword line: "
-                f"'{m.group(0)}' - GitHub closes only the first target; "
-                "use one 'Fixes #N' per line"
-            )
+    for m in _CLOSING_MULTI_RE.finditer(new_body):
+        warnings.append(
+            f"Multiple bare issue references after one closing keyword: "
+            f"'{m.group(0)}' - repeat the keyword for each target"
+        )
 
     return warnings
 

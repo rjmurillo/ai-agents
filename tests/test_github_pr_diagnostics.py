@@ -257,6 +257,11 @@ class TestClassifyClaim:
 
         assert self._classify(text, "Fixes #42") == "active"
 
+    def test_claim_between_separate_code_spans_is_active(self):
+        text = "`code` Fixes #42 `more code`"
+
+        assert self._classify(text, "Fixes #42") == "active"
+
     def test_fenced_code_block(self):
         text = "```\nFixes #99\n```"
         _, fenced = _audit_mod._strip_fenced_code(text)
@@ -311,6 +316,32 @@ class TestExtractClaims:
         assert len(claims) == 1
         assert claims[0]["target_number"] == 123
         assert claims[0]["context_class"] == "active"
+        assert claims[0]["github_will_close"] is True
+
+    def test_non_default_branch_claim_does_not_close(self):
+        claims = _audit_mod.extract_claims(
+            10,
+            "Fixes #123",
+            "release",
+            {},
+            "owner",
+            "repo",
+            default_branch="main",
+        )
+
+        assert claims[0]["github_will_close"] is False
+
+    def test_cross_repository_claim_on_default_branch_closes(self):
+        claims = _audit_mod.extract_claims(
+            10,
+            "Fixes other/project#123",
+            "main",
+            {},
+            "owner",
+            "repo",
+            default_branch="main",
+        )
+
         assert claims[0]["github_will_close"] is True
 
     def test_no_claims_on_empty_body(self):
@@ -383,6 +414,7 @@ class TestClosingReferencePagination:
         ]
         first_page = {
             "repository": {
+                "defaultBranchRef": {"name": "main"},
                 "pullRequests": {
                     "pageInfo": {"hasNextPage": False, "endCursor": None},
                     "nodes": [{
@@ -417,6 +449,7 @@ class TestClosingReferencePagination:
 
         references = nodes[0]["closingIssuesReferences"]["nodes"]
         assert len(references) == 102
+        assert nodes[0]["defaultBranchName"] == "main"
         assert references[-2:] == second_page["repository"]["pullRequest"][
             "closingIssuesReferences"
         ]["nodes"]
@@ -438,6 +471,23 @@ class TestClosingReferencePagination:
 
         with pytest.raises(RuntimeError, match="omitted a cursor"):
             _audit_mod._complete_closing_references("owner", "repo", node)
+
+    def test_missing_default_branch_fails_closed(self):
+        response = {
+            "repository": {
+                "defaultBranchRef": None,
+                "pullRequests": {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": [],
+                },
+            },
+        }
+
+        with (
+            patch(f"{_audit_mod.__name__}.gh_graphql", return_value=response),
+            pytest.raises(RuntimeError, match="default branch"),
+        ):
+            _audit_mod.fetch_open_prs("owner", "repo")
 
 
 class TestBodyHashAndValidate:
@@ -462,13 +512,13 @@ class TestBodyHashAndValidate:
         assert any("em" in w.lower() or "dash" in w.lower() for w in warnings)
 
     def test_validate_body_multiple_issues_on_one_line_flagged(self):
-        warnings = _edit_mod.validate_body("Fixes #1 #2 #3")
+        warnings = _edit_mod.validate_body("Fixes #1, #2 #3")
         assert any("one" in w.lower() or "line" in w.lower() or "first" in w.lower()
                    for w in warnings)
 
-    def test_validate_body_multiple_keywords_on_one_line_flagged(self):
+    def test_validate_body_multiple_keywords_on_one_line_is_clean(self):
         warnings = _edit_mod.validate_body("Fixes #1, closes #2")
-        assert any("closing-keyword line" in w for w in warnings)
+        assert warnings == []
 
     def test_validate_body_single_issue_per_line_clean(self):
         body = "Fixes #1\nFixes #2\nFixes #3"

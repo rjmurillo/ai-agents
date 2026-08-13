@@ -6,7 +6,7 @@ etc.) from the PR body. Classifies each claim by Markdown context and resolves
 the target issue state when GitHub exposes it.
 
 Markdown context classification:
-  active         - plain prose, closes the referenced issue on merge
+  active         - plain prose, closes when the PR targets the default branch
   code_span      - inside backtick(s), does not close
   fenced_code    - inside triple-backtick or triple-tilde block
   html_comment   - inside <!-- ... -->
@@ -68,6 +68,7 @@ _CLOSING_KEYWORDS_RE = re.compile(
 _PRS_QUERY = """\
 query($owner: String!, $repo: String!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
+        defaultBranchRef { name }
         pullRequests(states: [OPEN], first: 50, after: $cursor,
                      orderBy: {field: CREATED_AT, direction: DESC}) {
             pageInfo { hasNextPage endCursor }
@@ -194,20 +195,14 @@ def classify_claim(
 
 def _inside_code_span(text: str, position: int) -> bool:
     """Return whether position is inside a paired backtick code span."""
-    runs = list(re.finditer(r"`+", text))
-    for index, opener in enumerate(runs):
-        if opener.start() >= position:
-            break
-        delimiter_length = len(opener.group(0))
-        closer = next(
-            (
-                run
-                for run in runs[index + 1:]
-                if len(run.group(0)) == delimiter_length
-            ),
-            None,
-        )
-        if closer is not None and opener.end() <= position < closer.start():
+    openers: dict[int, re.Match[str]] = {}
+    for run in re.finditer(r"`+", text):
+        delimiter_length = len(run.group(0))
+        opener = openers.pop(delimiter_length, None)
+        if opener is None:
+            openers[delimiter_length] = run
+            continue
+        if opener.end() <= position < run.start():
             return True
     return False
 
@@ -232,6 +227,7 @@ def extract_claims(
     closing_refs: dict[int, str],
     owner: str,
     repo: str,
+    default_branch: str = "main",
 ) -> list[dict[str, Any]]:
     """Parse closing claims from one PR body."""
     if not body:
@@ -260,8 +256,7 @@ def extract_claims(
             "context_class": context_cls,
             "github_will_close": (
                 context_cls == "active"
-                and target_owner == owner
-                and target_repo_name == repo
+                and base_branch == default_branch
             ),
         })
     return claims
@@ -281,9 +276,14 @@ def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
         except RuntimeError as exc:
             raise RuntimeError(f"GraphQL query failed: {exc}") from exc
 
-        prs_data = (data.get("repository") or {}).get("pullRequests") or {}
+        repository = data.get("repository") or {}
+        default_branch = (repository.get("defaultBranchRef") or {}).get("name")
+        if not default_branch:
+            raise RuntimeError("GraphQL response omitted repository default branch")
+        prs_data = repository.get("pullRequests") or {}
         page_nodes = prs_data.get("nodes") or []
         for node in page_nodes:
+            node["defaultBranchName"] = default_branch
             _complete_closing_references(owner, repo, node)
         nodes.extend(page_nodes)
         page_info = prs_data.get("pageInfo") or {}
@@ -372,10 +372,19 @@ def main(argv: list[str] | None = None) -> int:
 
         body = node.get("body") or ""
         base_branch = node.get("baseRefName") or ""
+        default_branch = node.get("defaultBranchName") or ""
         closing_nodes = (node.get("closingIssuesReferences") or {}).get("nodes") or []
         closing_refs = _resolve_closing_refs(closing_nodes)
 
-        claims = extract_claims(pr_num, body, base_branch, closing_refs, owner, repo)
+        claims = extract_claims(
+            pr_num,
+            body,
+            base_branch,
+            closing_refs,
+            owner,
+            repo,
+            default_branch,
+        )
         all_claims.extend(claims)
         audited_prs += 1
 
