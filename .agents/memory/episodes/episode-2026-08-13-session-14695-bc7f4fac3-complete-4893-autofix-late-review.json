@@ -80,6 +80,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T14:55:58+00:00",
+      "type": "commit",
+      "content": "Commit: abf4b8651e8a297876ede306aaac54f1cab739b8",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
     }
@@ -89,7 +102,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 16
   },
   "lessons": []
