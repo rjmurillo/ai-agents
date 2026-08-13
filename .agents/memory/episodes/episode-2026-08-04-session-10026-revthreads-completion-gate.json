@@ -1,0 +1,220 @@
+{
+  "id": "episode-2026-08-04-session-10026-revthreads-completion-gate",
+  "session": "2026-08-04-session-10026-revthreads-completion-gate",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues 4526 and 4527 by adding completion-gate checks for suppressed Copilot review findings and unreachable commit references in resolved review-thread replies.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ownership",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implementation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verification",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "mutation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T04:58:31+00:00",
+      "type": "commit",
+      "content": "Commit: 0d0a785655",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T04:58:51+00:00",
+      "type": "commit",
+      "content": "Commit: ed5350a919",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T17:44:26+00:00",
+      "type": "commit",
+      "content": "Commit: 332257ae8324d82a309c05b53a9bfd2e782044c3",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T19:35:08+00:00",
+      "type": "commit",
+      "content": "Commit: 1d40f26128f7ca8830f639b3902441507a5e83c5",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T20:17:46+00:00",
+      "type": "commit",
+      "content": "Commit: da00292d8ce4a1a45d826577719e57d00e7e417b",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T20:36:25+00:00",
+      "type": "commit",
+      "content": "Commit: d366919b4c5fdef1b9a9fde9956502bce6977956",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T20:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 573c81888894aea4f17c26a3254e3756c9ec6205",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T22:50:31+00:00",
+      "type": "commit",
+      "content": "Commit: 084bc0cef05ea0391d156b028a220946709d32fb",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-12T00:00:21+00:00",
+      "type": "commit",
+      "content": "Commit: a94d7cd2a797249dd3e68326b8f14d9d2a79bd74",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-12T00:51:03+00:00",
+      "type": "commit",
+      "content": "Commit: 37f636d5adc8de525dbb6d1dc7071d1964b46ed1",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-12T01:32:00+00:00",
+      "type": "commit",
+      "content": "Commit: a9289765e5388b8802c36e345722badb7d58eb20",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-10026-revthreads-completion-gate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 11,
+    "files_changed": 2
+  },
+  "lessons": []
+}

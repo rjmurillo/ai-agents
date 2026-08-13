@@ -12,6 +12,9 @@ on:
     types: [opened, synchronize, reopened]
     # NO paths filter - use dorny/paths-filter internally to satisfy required checks
 
+  merge_group:
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       pr_number:
@@ -49,7 +52,7 @@ permissions:
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
-  group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -83,6 +86,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: debounce
     if: |-
+      github.event_name != 'merge_group' &&
       always() &&
       (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
 
@@ -614,7 +618,7 @@ jobs:
     # blocks merge until a no-op commit refreshes the head SHA. Skipping the
     # aggregate when the workflow is cancelled prevents the stale failure;
     # the next non-cancelled run produces the authoritative status.
-    if: always() && !cancelled()
+    if: github.event_name != 'merge_group' && always() && !cancelled()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
@@ -636,7 +640,7 @@ jobs:
 
       - name: Set up uv
         if: steps.should-run-review.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
 
       - name: Check for failed agents
         if: steps.should-run-review.outputs.skip != 'true'

@@ -40,5 +40,4 @@ These optimize for speed over correctness and damage user trust.
 - [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
 - [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
 - [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
-- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
 - [autonomous-execution-guardrails](autonomous-execution-guardrails.md)

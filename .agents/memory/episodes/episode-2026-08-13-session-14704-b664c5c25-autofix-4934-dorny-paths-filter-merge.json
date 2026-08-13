@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge",
+  "session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 4934 dorny paths-filter CI and merge gates",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired and renewed the pr-autofix lease for PR 4934.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the required Run Python Tests failure.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated only the test model pin.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted tests and Ruff, then pushed through guarded lease checks.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disabled unsafe auto-merge after it was rearmed.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added QA PASS evidence required by Validate PR.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:50:29+00:00",
+      "type": "commit",
+      "content": "Commit: e498f66eb1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

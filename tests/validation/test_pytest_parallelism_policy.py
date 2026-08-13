@@ -1,11 +1,10 @@
 """Where bounded pytest-xdist parallelism may be applied, and where it must not.
 
-Issue #4823. The pre-push gate runs the suite in three partitions
-(``scripts/validation/git_hook_policy.py::_pytest_commands``). Exactly one of
-them, the bulk ``not integration`` partition, runs on workers. Everything else
-in the repository stays serial:
+Issue #4823. The pre-push gate runs the suite in four partitions
+(``scripts/validation/git_hook_policy.py::_pytest_commands``). Bulk and
+mutation run on workers. Process-sensitive modules stay serial:
 
-* the safe-push partition;
+* the safe-push and mutation-signal partition;
 * the pr-autofix process-group partition;
 * the two branch-coverage pin steps and the Windows path-contract step in
   ``.github/workflows/pytest.yml`` (asserted in
@@ -19,17 +18,18 @@ would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``pytest tests/foo.py`` a developer runs. ``test_global_addopts_carries_no_``
 ``parallel_flags`` is the guard on that.
 
-The worker count is ``auto``, xdist's own name for one worker per logical CPU.
-It is not a number and not derived from one: no subtraction, no cap, and no
-fixed default, so the suite uses whatever the machine has.
+Direct calls and CI use ``auto``, xdist's own name for one worker per logical
+CPU. The local pre-push job caps workers at four because it runs beside other
+CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
 ``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
-everything else, so a developer can pin a count without the gate ever guessing
-what a malformed value meant.
+everything else. The parent consumes this control before starting pytest so
+policy tests inside the child process still observe the default environment.
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,17 +64,48 @@ def _flag_value(command: list[str], names: tuple[str, ...]) -> str | None:
 
 def _pytest_commands_by_partition(
     repo_root: Path,
-) -> tuple[list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], list[str]]:
     commands = policy._pytest_commands(repo_root)
-    assert len(commands) == 3, f"expected three pre-push pytest commands, got {commands}"
-    return commands[0], commands[1], commands[2]
+    assert len(commands) == 4, f"expected four pre-push pytest commands, got {commands}"
+    return commands[0], commands[1], commands[2], commands[3]
+
+
+@pytest.mark.parametrize(
+    ("workflow", "expects_no_full"),
+    [
+        (".github/workflows/pytest.yml", True),
+        (".github/workflows/other.yml", False),
+    ],
+)
+def test_workflow_local_avoids_duplicate_pytest_runtime(
+    workflow: str,
+    expects_no_full: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(
+        policy,
+        "_select_pushed_workflows",
+        lambda paths, root: [workflow],
+    )
+
+    def fake_run(command, repo_root, **kwargs):
+        seen.extend(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda result: None)
+
+    assert policy.run_workflow_local([workflow], tmp_path) == 0
+    assert ("--no-full" in seen) is expects_no_full
 
 
 # --- The bulk partition is the only parallel one -------------------------------
 
 
 def test_bulk_partition_runs_every_cpu_over_whole_files(tmp_path: Path) -> None:
-    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
     assert _flag_value(bulk, _DIST_FLAGS) == policy.PYTEST_DIST_MODE == "loadfile"
@@ -89,7 +120,7 @@ def test_bulk_partition_does_not_hard_code_a_worker_count(tmp_path: Path) -> Non
     ``auto`` for any number still passes "there is a ``-n``" but silently caps a
     48-thread host at whatever the author's laptop had.
     """
-    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     workers = _flag_value(bulk, _WORKER_FLAGS)
 
@@ -100,22 +131,26 @@ def test_bulk_partition_does_not_hard_code_a_worker_count(tmp_path: Path) -> Non
 
 
 def test_process_sensitive_partitions_stay_serial(tmp_path: Path) -> None:
-    _bulk, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
+    _bulk, mutation, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
 
+    assert _flag_value(mutation, _WORKER_FLAGS) == "auto"
+    assert _flag_value(mutation, _DIST_FLAGS) == "loadfile"
+    assert str(tmp_path / "tests" / "mutation") in mutation
     assert _flag_value(safe_push, _WORKER_FLAGS) is None
     assert _flag_value(safe_push, _DIST_FLAGS) is None
     assert str(tmp_path / "tests" / "test_safe_push_pr_branch.py") in safe_push
+    assert str(tmp_path / "tests" / "test_mutation_workspace_signals.py") in safe_push
     assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
     assert _flag_value(pr_autofix, _DIST_FLAGS) is None
     assert str(tmp_path / "tests" / "test_pr_autofix_late_live_state_gate.py") in pr_autofix
 
 
-def test_exactly_one_pre_push_command_is_parallel(tmp_path: Path) -> None:
+def test_bulk_and_mutation_pre_push_commands_are_parallel(tmp_path: Path) -> None:
     commands = policy._pytest_commands(tmp_path)
 
     parallel = [c for c in commands if _flag_value(c, _WORKER_FLAGS) is not None]
 
-    assert len(parallel) == 1, f"exactly one partition may be parallel, got {commands}"
+    assert parallel == commands[:2]
 
 
 # --- Worker count: default, override, and rejection ----------------------------
@@ -186,7 +221,7 @@ def test_default_does_no_arithmetic_on_the_host_cpu_count(
 
     assert policy.parse_pytest_workers(None) == "auto"
 
-    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 
@@ -196,21 +231,134 @@ def test_env_override_reaches_the_bulk_command(
 ) -> None:
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "8")
 
-    bulk, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
+    bulk, mutation, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "8"
+    assert _flag_value(mutation, _WORKER_FLAGS) == "8"
     assert _flag_value(safe_push, _WORKER_FLAGS) is None, (
         "the override must not make the safe-push partition parallel"
     )
     assert _flag_value(pr_autofix, _WORKER_FLAGS) is None
 
 
+@pytest.mark.parametrize(("visible_cpus", "expected"), [(1, "1"), (2, "2"), (4, "4"), (64, "4")])
+def test_local_worker_cap_never_exceeds_visible_cpus(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    visible_cpus: int,
+    expected: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: visible_cpus)
+
+    bulk, mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == expected
+    assert _flag_value(mutation, _WORKER_FLAGS) == expected
+
+
+@pytest.mark.parametrize(("visible_cpus", "expected"), [(2, 2)])
+def test_visible_cpu_count_uses_process_affinity(
+    monkeypatch: pytest.MonkeyPatch,
+    visible_cpus: int | None,
+    expected: int,
+) -> None:
+    monkeypatch.setattr(os, "process_cpu_count", lambda: visible_cpus)
+
+    assert policy._visible_cpu_count() == expected
+
+
+def test_visible_cpu_count_falls_back_to_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(os, "process_cpu_count", lambda: None)
+    monkeypatch.delattr(os, "sched_getaffinity", raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: None)
+
+    assert policy._visible_cpu_count() == 1
+
+
+def test_visible_cpu_count_uses_sched_affinity_on_python_310(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "version_info", (3, 10))
+    monkeypatch.delattr(os, "process_cpu_count", raising=False)
+    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: {0, 1}, raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 64)
+
+    assert policy._visible_cpu_count() == 2
+
+
+def test_explicit_worker_override_wins_over_local_cap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "8")
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+
+    bulk, mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == "8"
+    assert _flag_value(mutation, _WORKER_FLAGS) == "8"
+
+
+@pytest.mark.parametrize("raw", ["", "auto", "0", "-1", "four"])
+def test_invalid_local_worker_cap_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raw: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, raw)
+
+    if not raw.strip():
+        bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+        assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
+        return
+
+    with pytest.raises(ValueError, match=policy.PYTEST_WORKER_CAP_ENV):
+        _pytest_commands_by_partition(tmp_path)
+
+
+def test_run_pytest_consumes_worker_override_before_child_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    seen_commands: list[list[str]] = []
+    seen_envs: list[dict[str, str]] = []
+
+    def capture_run(
+        command: list[str],
+        repo_root: Path,
+        *,
+        process_env: dict[str, str],
+        timeout_seconds: float,
+    ) -> subprocess.CompletedProcess[str]:
+        del repo_root, timeout_seconds
+        seen_commands.append(command)
+        seen_envs.append(process_env.copy())
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(policy, "_run_command", capture_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda result: None)
+
+    assert policy.run_pytest(tmp_path) == 0
+
+    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
+    assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
+    assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
+
+
 def test_unset_env_produces_the_default_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.delenv(policy.PYTEST_WORKER_CAP_ENV, raising=False)
 
-    bulk, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
 

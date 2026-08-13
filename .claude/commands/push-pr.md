@@ -1,11 +1,10 @@
 ---
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .agents/scratch)
-# Security note: no bare Write grant. This command reads untrusted repository
-# diffs and already holds git add, commit and push, so a pre-approved
-# unrestricted Write would let a prompt-injected diff redirect the body write
-# to a source or hook file and publish it. The host prompts for the single
-# scratch body write instead. Issue #4825.
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .agents/scratch), Edit(.agents/scratch/pr-body-*.md)
+# Security note: python3 -I is the identity-hardened form (issue #4825).
+# Edit is scoped to .agents/scratch/pr-body-*.md, the secure allocator output.
+# The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
+# Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
 ---
 
 # Push PR Command
@@ -24,8 +23,16 @@ Based on the above changes:
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
 3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Create `.agents/scratch`, then write a new file there adapting the template
-   to describe THIS branch's changes (e.g. `.agents/scratch/PR-123-BODY.md`):
+4. Run the secure path allocator:
+
+   ```bash
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --prepare-body-file
+   ```
+
+   - Copy the returned path exactly. Do not store it in a shell variable because
+     each tool call runs in a fresh shell.
+   - Use the Edit tool to replace `<!-- replace with PR body -->` in that exact
+     file with the adapted template.
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes
@@ -44,14 +51,17 @@ Based on the above changes:
    Issue #4764. -->
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file .agents/scratch/PR-123-BODY.md
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".agents/scratch/pr-body-<returned-uuid>.md"
    ```
 
-   - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
-   - Body SHOULD include GitHub issue linking keywords to auto-close issues:
-     - `Closes #123`: auto-closes issue when PR merges
-     - `Fixes #456`: auto-fixes issue when PR merges
-     - `Resolves #789`: auto-resolves issue when PR merges
-   - Ensure PR template sections are completed
+- Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
+- Body SHOULD include GitHub issue linking keywords to auto-close issues:
+  - `Closes #123`: auto-closes issue when PR merges
+  - `Fixes #456`: auto-fixes issue when PR merges
+  - `Resolves #789`: auto-resolves issue when PR merges
+- Ensure PR template sections are completed
 
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
+
+<!-- vendor-portability: .agents/scratch is created in the consumer workspace
+for one-run PR body files. It is not an upstream repository dependency. -->

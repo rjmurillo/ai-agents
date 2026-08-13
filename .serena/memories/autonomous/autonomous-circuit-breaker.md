@@ -40,6 +40,5 @@ Continuing past this point damages user trust and wastes compute/time.
 
 - [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
 - [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
-- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
 - [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
 - [autonomous-patch-signal](autonomous-patch-signal.md)

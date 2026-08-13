@@ -1,0 +1,105 @@
+{
+  "id": "episode-2026-08-11-session-14687",
+  "session": "2026-08-11-session-14687",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR 4543 merge conflicts and refresh QA evidence",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inspected the failed push validation output after the QA evidence refresh commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read HANDOFF, usage-mandatory, and project constraints references and completed the PR #4543 QA refresh session log.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prepared the branch for a guarded push retry.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T19:41:45+00:00",
+      "type": "commit",
+      "content": "Commit: 227a7465bd4501b2ffe759c87c4b91628b28f3aa",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T20:14:36+00:00",
+      "type": "commit",
+      "content": "Commit: 5da8885b17ecf37c7f8a3e05a23581b1a31265d3",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T20:33:35+00:00",
+      "type": "commit",
+      "content": "Commit: f290faf92e3b68b774724a7fc08612a24492779a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14687"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T21:02:18+00:00",
+      "type": "commit",
+      "content": "Commit: d400dcff0739836270db64103666c9fdee6fbd69",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14687"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 13
+  },
+  "lessons": []
+}

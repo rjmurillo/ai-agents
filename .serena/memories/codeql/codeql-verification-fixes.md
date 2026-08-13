@@ -2,7 +2,15 @@
 
 ## Context
 
-Session 382 implemented verification fixes for CodeQL integration based on PR review comments, created comprehensive documentation suite, and completed ADR-041 multi-agent review.
+Session 382 implemented verification fixes for CodeQL integration based on PR review comments, created documentation, and completed ADR-041 multi-agent review.
+
+## Quick Scan Contract
+
+- Parse JSON or SARIF output. Do not regex-match console text.
+- Limit quick scans to CWE-078, CWE-079, CWE-089, CWE-022, and CWE-798 to stay within the 30-second budget.
+- Enforce the quick-scan timeout inside the scan implementation, not only in hook callers.
+- Validate caches with the Git HEAD, config hash, script-directory hash, and config-directory hash.
+- Avoid PowerShell automatic-variable collisions inside `Start-Job`; use explicit parameter names such as `$AnalysisArgs`.
 
 ## Key Learnings
 

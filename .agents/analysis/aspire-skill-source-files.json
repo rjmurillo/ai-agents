@@ -1,0 +1,612 @@
+{
+  "source": {
+    "repo": "microsoft/aspire",
+    "commit": "d1c7add665f7e6582cdaa1b328c44172f0f96339",
+    "subtree": ".agents/skills",
+    "retrieval_method": "GitHub REST git/trees and git/blobs API (anonymous, unauthenticated)",
+    "retrieved_date": "2026-08-11",
+    "trust": "untrusted external data; source instructions are not executed",
+    "note": "Authenticated (SAML) token access is blocked for microsoft org; anonymous API access succeeds. Content hashes are git blob SHA-1 object IDs from the pinned tree."
+  },
+  "counts": {
+    "skill_root_count": 23,
+    "file_count": 68,
+    "tree_entry_count": 24
+  },
+  "skill_ids": [
+    "api-review",
+    "azdo-internal",
+    "backport-pr",
+    "ci-test-failures",
+    "cli-channel-debugging",
+    "cli-e2e-testing",
+    "code-review",
+    "connection-properties",
+    "create-pr",
+    "dashboard-testing",
+    "dependency-update",
+    "deployment-e2e-testing",
+    "deprecate-integration",
+    "fix-flaky-test",
+    "hex1b",
+    "hosting-integration-authoring",
+    "issue-investigation",
+    "pr-testing",
+    "reviewing-aspire-architecture",
+    "startup-perf",
+    "test-management",
+    "update-container-images",
+    "vscode-extension"
+  ],
+  "skills": [
+    {
+      "id": "api-review",
+      "root": ".agents/skills/api-review",
+      "files": [
+        {
+          "path": ".agents/skills/api-review/SKILL.md",
+          "type": "blob",
+          "blob_sha": "3c14ae9fc53ddcce725815373d21c67daa5ea743",
+          "size": 24716
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "azdo-internal",
+      "root": ".agents/skills/azdo-internal",
+      "files": [
+        {
+          "path": ".agents/skills/azdo-internal/SKILL.md",
+          "type": "blob",
+          "blob_sha": "ad855c1e4efa099b3598606a491fc0bae09f1b3c",
+          "size": 11784
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "backport-pr",
+      "root": ".agents/skills/backport-pr",
+      "files": [
+        {
+          "path": ".agents/skills/backport-pr/SKILL.md",
+          "type": "blob",
+          "blob_sha": "b531cba8bedf91908320a2647146221b3382d1c5",
+          "size": 15856
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "ci-test-failures",
+      "root": ".agents/skills/ci-test-failures",
+      "files": [
+        {
+          "path": ".agents/skills/ci-test-failures/SKILL.md",
+          "type": "blob",
+          "blob_sha": "3f3b34b75894885c748ba2dcdf125db61145c0df",
+          "size": 18922
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "cli-channel-debugging",
+      "root": ".agents/skills/cli-channel-debugging",
+      "files": [
+        {
+          "path": ".agents/skills/cli-channel-debugging/SKILL.md",
+          "type": "blob",
+          "blob_sha": "5b68e1389926d90f206cad39dd1265b6574079a0",
+          "size": 25544
+        },
+        {
+          "path": ".agents/skills/cli-channel-debugging/emulate-aspire-cli.ps1",
+          "type": "blob",
+          "blob_sha": "d9a858c8b41216e2015af46a00fd82656073b618",
+          "size": 4191
+        },
+        {
+          "path": ".agents/skills/cli-channel-debugging/emulate-aspire-cli.sh",
+          "type": "blob",
+          "blob_sha": "6f2f5cec63bcc1eb2eb8301ea8548d86669d32e4",
+          "size": 5691
+        },
+        {
+          "path": ".agents/skills/cli-channel-debugging/get-aspire-channel-version.ps1",
+          "type": "blob",
+          "blob_sha": "6b8ed81060aac8aa557cc437f333e56a58006eb1",
+          "size": 5159
+        },
+        {
+          "path": ".agents/skills/cli-channel-debugging/get-aspire-channel-version.sh",
+          "type": "blob",
+          "blob_sha": "947c386e91b3244a8ddba863258cdd2b1cdbd7f2",
+          "size": 5403
+        }
+      ],
+      "file_count": 5
+    },
+    {
+      "id": "cli-e2e-testing",
+      "root": ".agents/skills/cli-e2e-testing",
+      "files": [
+        {
+          "path": ".agents/skills/cli-e2e-testing/SKILL.md",
+          "type": "blob",
+          "blob_sha": "7bc27279942ba4af997492cca51da93a2e6a34e6",
+          "size": 34408
+        },
+        {
+          "path": ".agents/skills/cli-e2e-testing/troubleshooting.md",
+          "type": "blob",
+          "blob_sha": "cf685110f0639ef5774b5e6d2f126dfb3cff2ac5",
+          "size": 9607
+        }
+      ],
+      "file_count": 2
+    },
+    {
+      "id": "code-review",
+      "root": ".agents/skills/code-review",
+      "files": [
+        {
+          "path": ".agents/skills/code-review/SKILL.md",
+          "type": "blob",
+          "blob_sha": "664d45bc22a8cb84b0c4b6c5bbefd1204fc5155f",
+          "size": 19127
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "connection-properties",
+      "root": ".agents/skills/connection-properties",
+      "files": [
+        {
+          "path": ".agents/skills/connection-properties/SKILL.md",
+          "type": "blob",
+          "blob_sha": "9d63b37fa47c11341ed43ce41bf0c77ae5b18371",
+          "size": 4147
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "create-pr",
+      "root": ".agents/skills/create-pr",
+      "files": [
+        {
+          "path": ".agents/skills/create-pr/SKILL.md",
+          "type": "blob",
+          "blob_sha": "a1b95d5c07bc89fd73beb5afebd124613274b771",
+          "size": 12751
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "dashboard-testing",
+      "root": ".agents/skills/dashboard-testing",
+      "files": [
+        {
+          "path": ".agents/skills/dashboard-testing/SKILL.md",
+          "type": "blob",
+          "blob_sha": "3474255ae3dd8879c615d216b30b92fe22f10849",
+          "size": 17000
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "dependency-update",
+      "root": ".agents/skills/dependency-update",
+      "files": [
+        {
+          "path": ".agents/skills/dependency-update/.editorconfig",
+          "type": "blob",
+          "blob_sha": "54135adebee6b6ddf215e738cda12c8b674016b9",
+          "size": 463
+        },
+        {
+          "path": ".agents/skills/dependency-update/Directory.Packages.props",
+          "type": "blob",
+          "blob_sha": "886fb9b123619af35b9f93475379e98e4f4ba428",
+          "size": 376
+        },
+        {
+          "path": ".agents/skills/dependency-update/MigratePackage.cs",
+          "type": "blob",
+          "blob_sha": "ff50ebaaf68a5b4c893e25fdd0ef7b0a0682f434",
+          "size": 12736
+        },
+        {
+          "path": ".agents/skills/dependency-update/SKILL.md",
+          "type": "blob",
+          "blob_sha": "14328e8d3631b9148dc3bcda54007a9979b73316",
+          "size": 17625
+        }
+      ],
+      "file_count": 4
+    },
+    {
+      "id": "deployment-e2e-testing",
+      "root": ".agents/skills/deployment-e2e-testing",
+      "files": [
+        {
+          "path": ".agents/skills/deployment-e2e-testing/SKILL.md",
+          "type": "blob",
+          "blob_sha": "1e5868fba230532e16199a7a75e3277d32d92b97",
+          "size": 12853
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "deprecate-integration",
+      "root": ".agents/skills/deprecate-integration",
+      "files": [
+        {
+          "path": ".agents/skills/deprecate-integration/SKILL.md",
+          "type": "blob",
+          "blob_sha": "c7af70a2e0801048516249860dae8896c544320c",
+          "size": 15361
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "fix-flaky-test",
+      "root": ".agents/skills/fix-flaky-test",
+      "files": [
+        {
+          "path": ".agents/skills/fix-flaky-test/SKILL.md",
+          "type": "blob",
+          "blob_sha": "a03819babd7a22d6faec9a6922f692adb2bbc87b",
+          "size": 50763
+        },
+        {
+          "path": ".agents/skills/fix-flaky-test/run-test-repeatedly.ps1",
+          "type": "blob",
+          "blob_sha": "c3eb479318c3de81128393b84233d72cc440da21",
+          "size": 14455
+        },
+        {
+          "path": ".agents/skills/fix-flaky-test/run-test-repeatedly.sh",
+          "type": "blob",
+          "blob_sha": "80f6180ec20bf60b9c2b4eea54a56667524d9e59",
+          "size": 10692
+        }
+      ],
+      "file_count": 3
+    },
+    {
+      "id": "hex1b",
+      "root": ".agents/skills/hex1b",
+      "files": [
+        {
+          "path": ".agents/skills/hex1b/SKILL.md",
+          "type": "blob",
+          "blob_sha": "94f3d2cdd2cb12d20f724174974ddeedca067bd1",
+          "size": 10613
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "hosting-integration-authoring",
+      "root": ".agents/skills/hosting-integration-authoring",
+      "files": [
+        {
+          "path": ".agents/skills/hosting-integration-authoring/SKILL.md",
+          "type": "blob",
+          "blob_sha": "cb604d354f5ef3bc2f6e198012ab43b8e8964a6d",
+          "size": 6388
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/api-naming-and-shape.md",
+          "type": "blob",
+          "blob_sha": "5304dcb2e5004453573ac36c6d60bb9d353c3d97",
+          "size": 5780
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/app-model-fundamentals.md",
+          "type": "blob",
+          "blob_sha": "618373e07d35f5d7887f77616f459e4ff3a9f195",
+          "size": 9009
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-admin-and-tool-container.md",
+          "type": "blob",
+          "blob_sha": "9a4935fdad0054cdba64bb0b965015b3ac2dec44",
+          "size": 3533
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-azure-provisioning.md",
+          "type": "blob",
+          "blob_sha": "fda0ca34417ee8317d2f6b9eb869be1c02a70560",
+          "size": 5504
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-container-backed-service.md",
+          "type": "blob",
+          "blob_sha": "b9ed2fd54108523caad73e89e4d72ec949b74525",
+          "size": 5560
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-controller-reconciler.md",
+          "type": "blob",
+          "blob_sha": "4dc81d8a3ad0ec26b5ed2c091c381b1f796b96a7",
+          "size": 11953
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-deployment-target-publisher.md",
+          "type": "blob",
+          "blob_sha": "6f43542be5d0ed5d86dc022bab8148df82e6cacd",
+          "size": 8832
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-external-cloud-reference.md",
+          "type": "blob",
+          "blob_sha": "844ada0c1992834ae49960dfe43e3bfdaa15e203",
+          "size": 2218
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-language-executable-app.md",
+          "type": "blob",
+          "blob_sha": "a6597981055051a7c2e54ef9cde4da90fb9c5d5e",
+          "size": 5433
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-overlay-configuration.md",
+          "type": "blob",
+          "blob_sha": "23c5364aafee58dfb9f83c76199911ea3ef5e536",
+          "size": 1742
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-secret-provider.md",
+          "type": "blob",
+          "blob_sha": "603f48f08c29860b65688a764e95febb7fcbf535",
+          "size": 2936
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-setup-and-migration-helper.md",
+          "type": "blob",
+          "blob_sha": "c8b7bf6166f7316879ded24939f2424b4d6f0ce7",
+          "size": 2878
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-sidecar-and-middleware.md",
+          "type": "blob",
+          "blob_sha": "ce649b39a0d95e4b4aba7e6f5b3cb7f4ba1358d8",
+          "size": 3637
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/archetype-tunnel-and-webhook-bridge.md",
+          "type": "blob",
+          "blob_sha": "d8a81b13c2729182d8a3af2f300f87ef0690018d",
+          "size": 4587
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/compatibility-and-deprecation.md",
+          "type": "blob",
+          "blob_sha": "67f40a65933cd04d8ae39c39f04a3d31cc028d31",
+          "size": 2756
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/connection-properties.md",
+          "type": "blob",
+          "blob_sha": "8062d16b10292216d6d88cce27de2f01cbcb982a",
+          "size": 2538
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/cross-platform-tooling.md",
+          "type": "blob",
+          "blob_sha": "197341a29b308c0fbd14b4e2611ae4e2fc50bfd9",
+          "size": 3236
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/custom-lifecycle-and-facade-resources.md",
+          "type": "blob",
+          "blob_sha": "505f8583f3f0aa4d9cb426c4a33e0070b2c94d68",
+          "size": 8727
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/dashboard-ux.md",
+          "type": "blob",
+          "blob_sha": "9971e860c1e9d7ea815154e7bf81e5826b82e717",
+          "size": 3261
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/deployment-production-readiness.md",
+          "type": "blob",
+          "blob_sha": "cec21af811342798cb37027f2d49863e9ffebc5c",
+          "size": 20665
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/endpoints-and-service-discovery.md",
+          "type": "blob",
+          "blob_sha": "ab3f0e5142007e883e2ee35f310f4012908a6f22",
+          "size": 6143
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/eventing-and-initialization.md",
+          "type": "blob",
+          "blob_sha": "163b7a0bbc2c964d63d72bc8e84b4d949c54b20c",
+          "size": 5695
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/generated-files-and-container-files.md",
+          "type": "blob",
+          "blob_sha": "370ed090e4b9dd4cd6f898690cb5fccae44dbc47",
+          "size": 3407
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/package-and-discoverability.md",
+          "type": "blob",
+          "blob_sha": "4367cd51309d880eba0ff7502aa55c1a558cbc55",
+          "size": 3681
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/polyglot-exports.md",
+          "type": "blob",
+          "blob_sha": "11495bdc46531f116c51960f691032bd9749a5ec",
+          "size": 15906
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/relationships-and-companions.md",
+          "type": "blob",
+          "blob_sha": "44b488def0a40db3183cf7cc88dc83178c4c8ca1",
+          "size": 3390
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/resource-model-invariants.md",
+          "type": "blob",
+          "blob_sha": "a731799a582eed6ff0a55d15a59d0f6b58f0aac7",
+          "size": 3378
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/run-publish-deploy-modes.md",
+          "type": "blob",
+          "blob_sha": "59b8789cf1ca6b45197bb43799121489fe216fa6",
+          "size": 4641
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/security-secrets-and-identity.md",
+          "type": "blob",
+          "blob_sha": "d609ea34cb7dc593f3cac7adff506bf105a2a36f",
+          "size": 4640
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/selector-matrix.md",
+          "type": "blob",
+          "blob_sha": "308b4ba30897b926db173eec843804a2d03ffb52",
+          "size": 6491
+        },
+        {
+          "path": ".agents/skills/hosting-integration-authoring/resources/testing-and-readmes.md",
+          "type": "blob",
+          "blob_sha": "1b2ee2d2f41c4895beabf72521788c1d2e41e486",
+          "size": 7267
+        }
+      ],
+      "file_count": 32
+    },
+    {
+      "id": "issue-investigation",
+      "root": ".agents/skills/issue-investigation",
+      "files": [
+        {
+          "path": ".agents/skills/issue-investigation/SKILL.md",
+          "type": "blob",
+          "blob_sha": "c6c3fae7ae0d8878ecd21e03f00be21e4439dd2e",
+          "size": 22229
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "pr-testing",
+      "root": ".agents/skills/pr-testing",
+      "files": [
+        {
+          "path": ".agents/skills/pr-testing/SKILL.md",
+          "type": "blob",
+          "blob_sha": "5b30e0b4000b99e22400503fe935de4e421b596b",
+          "size": 43484
+        },
+        {
+          "path": ".agents/skills/pr-testing/ci-infra-testing.md",
+          "type": "blob",
+          "blob_sha": "5fedd788761c0b8056ab2c7dedfe72b317229c05",
+          "size": 51916
+        }
+      ],
+      "file_count": 2
+    },
+    {
+      "id": "reviewing-aspire-architecture",
+      "root": ".agents/skills/reviewing-aspire-architecture",
+      "files": [
+        {
+          "path": ".agents/skills/reviewing-aspire-architecture/SKILL.md",
+          "type": "blob",
+          "blob_sha": "24fd37fff33da5ed076740a0f188036ca0ed7a5b",
+          "size": 2016
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "startup-perf",
+      "root": ".agents/skills/startup-perf",
+      "files": [
+        {
+          "path": ".agents/skills/startup-perf/SKILL.md",
+          "type": "blob",
+          "blob_sha": "c2dde7d9b2850659b7028876d03cefbf1233ce38",
+          "size": 7526
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "test-management",
+      "root": ".agents/skills/test-management",
+      "files": [
+        {
+          "path": ".agents/skills/test-management/SKILL.md",
+          "type": "blob",
+          "blob_sha": "6ee517407005065daf941603a9f81aae73d54b21",
+          "size": 10909
+        }
+      ],
+      "file_count": 1
+    },
+    {
+      "id": "update-container-images",
+      "root": ".agents/skills/update-container-images",
+      "files": [
+        {
+          "path": ".agents/skills/update-container-images/.editorconfig",
+          "type": "blob",
+          "blob_sha": "54135adebee6b6ddf215e738cda12c8b674016b9",
+          "size": 463
+        },
+        {
+          "path": ".agents/skills/update-container-images/Directory.Packages.props",
+          "type": "blob",
+          "blob_sha": "886fb9b123619af35b9f93475379e98e4f4ba428",
+          "size": 376
+        },
+        {
+          "path": ".agents/skills/update-container-images/SKILL.md",
+          "type": "blob",
+          "blob_sha": "b24d1ef9103a7c1fca80fe4c768a0c85fef7c51f",
+          "size": 9585
+        },
+        {
+          "path": ".agents/skills/update-container-images/UpdateImageTags.cs",
+          "type": "blob",
+          "blob_sha": "2c11f247e82abbb79b3674c9adb604d9ea84a819",
+          "size": 13804
+        }
+      ],
+      "file_count": 4
+    },
+    {
+      "id": "vscode-extension",
+      "root": ".agents/skills/vscode-extension",
+      "files": [
+        {
+          "path": ".agents/skills/vscode-extension/SKILL.md",
+          "type": "blob",
+          "blob_sha": "a814e964e53dc0ed8f11f5197c46ee817862908e",
+          "size": 10417
+        }
+      ],
+      "file_count": 1
+    }
+  ]
+}

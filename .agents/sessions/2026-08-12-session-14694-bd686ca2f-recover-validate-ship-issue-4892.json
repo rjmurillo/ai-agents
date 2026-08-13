@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14694,
+    "date": "2026-08-12",
+    "branch": "fix/issue-4892-markdown-gate",
+    "startingCommit": "a47e4ef30",
+    "objective": "Recover validate and ship issue 4892"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server was pre-bound to the repository; activate_project was not exposed"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual loaded before code inspection"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only; no issue 4892 handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub and session workflow skill catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory loaded through Serena"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and path-scoped script, Python, and test rules read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded linting exclusions, linting config, usage-mandatory, and prior issue 4892 session evidence"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4892-markdown-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4892-markdown-gate"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Existing external worktree, local branch, remote branch, and status inspected before merge"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a47e4ef30"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only: 1 of 1 files linted"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4892-recovery.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: e3be5c7ae6)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Recover prior issue 4892 work",
+      "outcome": "Inspected SQL, issue discourse, existing PR 4893, all matching branches, and 251 registered worktrees before resuming the existing external worktree"
+    },
+    {
+      "task": "Reproduce the current claim",
+      "outcome": "Current origin/main selected all three scratch roots; 4,168 long targets exited 249 with empty output, and the validator printed unrelated rule guesses"
+    },
+    {
+      "task": "Validate the recovered fix",
+      "outcome": "Merged current origin/main, verified zero scratch targets and direct exit reporting, then passed 60 targeted tests and Ruff"
+    },
+    {
+      "task": "Run independent review",
+      "outcome": "A separate GPT-5.6 Sol artifact-only review returned CLEAN"
+    },
+    {
+      "task": "Refresh inherited QA evidence",
+      "outcome": "Pinned the prior issue QA report to the post-merge commit so session validation excludes later documentation-only commits"
+    }
+  ],
+  "endingCommit": "dd8dc0a65df6b0c10c11de83adb4787362a4f20e",
+  "nextSteps": []
+}

@@ -220,7 +220,9 @@ _REQUIRED_WORKTREE_IGNORES = [
     "worktree-*/**",
     "worktree--/**",
     "wt_*/**",
+    "worktrees/**",
 ]
+_REQUIRED_SESSION_SCRATCH_IGNORES = [".agent-scratch/**", ".scratch/**"]
 _REQUIRED_GITIGNORE_WORKTREE = "wt_*/"
 
 
@@ -247,3 +249,10 @@ def test_wt_star_is_in_gitignore() -> None:
     assert gitignore.is_file(), ".gitignore not found"
     content = gitignore.read_text(encoding="utf-8")
     assert "wt_*/" in content, ".gitignore is missing the 'wt_*/' entry (issue #4248)"
+
+
+def test_session_scratch_roots_are_ignored(config: dict[str, object]) -> None:
+    """Agent session scratch trees must never enter a Markdown full scan."""
+    ignores: list[str] = cast("list[str]", config.get("ignores", []))
+    missing = [p for p in _REQUIRED_SESSION_SCRATCH_IGNORES if p not in ignores]
+    assert not missing, f"Missing session scratch ignores: {missing}"

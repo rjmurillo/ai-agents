@@ -8,13 +8,15 @@ on:
       - reopened
       - edited
       - synchronize
+  merge_group:
+    branches: [main]
 
 permissions:
   contents: read
   pull-requests: read
 
 concurrency:
-  group: "semantic-pr-check-${{ github.event.pull_request.number }}"
+  group: "semantic-pr-check-${{ github.event.pull_request.number || github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -23,19 +25,23 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     steps:
+      - name: Confirm pull request title gate passed before queue entry
+        if: github.event_name == 'merge_group'
+        run: echo "The PR title gate already passed before this merge group was created."
+
       - name: Skip for bot actors
-        if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]' || github.actor == 'renovate[bot]'
+        if: github.event_name != 'merge_group' && (github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]' || github.actor == 'renovate[bot]')
         env:
           GH_ACTOR: ${{ github.actor }}
         run: echo "Skipped - bot actor ($GH_ACTOR)"
 
       - name: Check out classifier
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: semantic
         uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
         continue-on-error: true
         with:
           types: |
@@ -53,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Classify outcome (ignore Unicorn HTML flake, block real failures)
-        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
+        if: github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
         env:
           OUTCOME: ${{ steps.semantic.outcome }}
           ERROR_MESSAGE: ${{ steps.semantic.outputs.error_message }}

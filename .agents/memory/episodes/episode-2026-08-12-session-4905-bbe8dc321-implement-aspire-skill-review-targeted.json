@@ -1,0 +1,181 @@
+{
+  "id": "episode-2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted",
+  "session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Implement Aspire skill review and targeted augmentations for issue 4905",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned Aspire source and inventoried .agents/skills (TASK-019)",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built cited decision matrix (TASK-020)",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved Copilot eval provider works end to end",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR 4927",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T06:47:18+00:00",
+      "type": "commit",
+      "content": "Commit: e1ee3738b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e012"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T07:01:51+00:00",
+      "type": "commit",
+      "content": "Commit: 96223625ae92a337cb8d6677301827cafca2fccc",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T07:02:35+00:00",
+      "type": "commit",
+      "content": "Commit: a55b7f0d3cc2e60b02dc5a648d8b3cca99a21f47",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T07:02:57+00:00",
+      "type": "commit",
+      "content": "Commit: 872b5badb2caff5c80baaa741ea0b03e113f4cc8",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-12T09:31:46+00:00",
+      "type": "commit",
+      "content": "Commit: 5b50f554408b77bd526c1a7a1f2c29dd286430e5",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-12T09:44:12+00:00",
+      "type": "commit",
+      "content": "Commit: 1c450014fc6b414c4af00180101cc73869de91c3",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-12T09:45:13+00:00",
+      "type": "commit",
+      "content": "Commit: 9f7ff6f8eff6fc1d0a82d0f9785e0cddc2932c94",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR 4927 review threads on the CREATE gate and S5 source identity (review response)",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-12T11:11:33+00:00",
+      "type": "commit",
+      "content": "Commit: 3a5bc61be3b3785807456f8800609bcfb030d002",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-4905-bbe8dc321-implement-aspire-skill-review-targeted"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 12
+  },
+  "lessons": []
+}

@@ -416,6 +416,31 @@ class TestAStatusOutranksATextHint:
 
 
 class TestSubprocessAuthFailureIsPermanent:
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True])
+    def test_call_model_rejects_invalid_max_retries(
+        self, max_retries: int | bool, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        calls: list[tuple[str, str, str]] = []
+
+        def _transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append((prompt, model_id, system))
+            return "should not run"
+
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(transport=_transport)
+
+        with pytest.raises(ValueError, match="max_retries must be an integer >= 1"):
+            adapter.call_model(
+                "prompt",
+                "model",
+                "fixture",
+                "variant",
+                0,
+                max_retries=max_retries,
+            )
+
+        assert calls == []
+        assert capsys.readouterr().err == ""
+
     def test_call_model_does_not_retry_a_subprocess_auth_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

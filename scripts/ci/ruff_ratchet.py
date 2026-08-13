@@ -21,6 +21,9 @@ _FALLBACK_BASE_REF = "origin/main"
 
 
 def default_base_ref() -> str:
+    if os.environ.get("GITHUB_EVENT_NAME") == "push":
+        return _FALLBACK_BASE_REF
+
     raw_base_ref = os.environ.get("RUFF_RATCHET_BASE_REF", "").strip()
     if raw_base_ref and _ZERO_SHA.fullmatch(raw_base_ref) is None:
         return raw_base_ref
