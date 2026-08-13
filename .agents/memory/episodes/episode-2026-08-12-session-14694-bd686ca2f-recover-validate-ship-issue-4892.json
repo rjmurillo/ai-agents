@@ -113,6 +113,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T13:12:18+00:00",
+      "type": "commit",
+      "content": "Commit: 701f8dd6cb25722136c84ced6d801910a1ebb690",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14694-bd686ca2f-recover-validate-ship-issue-4892"
     }
@@ -122,8 +135,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 12
+    "commits": 5,
+    "files_changed": 14
   },
   "lessons": []
 }

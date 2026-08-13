@@ -145,7 +145,7 @@
       "outcome": "GPT-5.6 Sol found two valid batching issues; both were fixed, retested, and the final pass returned CLEAN"
     }
   ],
-  "endingCommit": "b1096020a1e62ee4944697749e25005450a8cfb5",
+  "endingCommit": "701f8dd6cb25722136c84ced6d801910a1ebb690",
   "nextSteps": [
     "Push the branch and open a focused PR that closes only issue 4892",
     "Do not alter active PR 4893; remove its issue 4892 claim before opening the focused PR"
