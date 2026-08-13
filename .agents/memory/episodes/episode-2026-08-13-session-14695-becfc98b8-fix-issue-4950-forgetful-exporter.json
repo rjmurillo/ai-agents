@@ -3,7 +3,7 @@
   "session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter",
   "timestamp": "2026-08-13T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 4950 Forgetful exporter security review CLI and UUID false positives",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Validated issue 4950 against current origin/main in an external worktree",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Read the issue body and both comments as untrusted project data",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Reproduced both reported defects before implementation",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Validated the smallest implementation and its inverse",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Attempted the recommended shared-memory import",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -58,7 +68,9 @@
       "type": "milestone",
       "content": "Implemented the positional CLI boundary and field-scoped UUID exemption",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -67,7 +79,9 @@
       "type": "milestone",
       "content": "Completed inline security review using the security-review skill",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -76,7 +90,9 @@
       "type": "milestone",
       "content": "Ran adversarial review with the Copilot CLI requesting gpt-5.6-sol",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -85,7 +101,9 @@
       "type": "milestone",
       "content": "Ran focused and repository validation",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     },
     {
@@ -94,6 +112,66 @@
       "type": "milestone",
       "content": "Measured repository-wide Ruff baseline",
       "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed QA validation at the final implementation commit",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T11:12:58+00:00",
+      "type": "commit",
+      "content": "Commit: 62b03a1a1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T11:14:09+00:00",
+      "type": "commit",
+      "content": "Commit: 9a3dec8d7",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T11:16:30+00:00",
+      "type": "commit",
+      "content": "Commit: 3ddc2952ecf0a7ddd90c19db7e6eb1efa9560225",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     }
@@ -103,7 +181,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

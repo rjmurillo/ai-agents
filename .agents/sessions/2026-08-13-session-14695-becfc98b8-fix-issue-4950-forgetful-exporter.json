@@ -73,43 +73,43 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All MUST items complete"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "No durable memory added; issue-specific behavior is pinned by focused tests and the QA report"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Lint selected 0 files: NOT LINTED because the changed .agents Markdown path is excluded"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-13-issue-4950-forgetful-security.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Implementation commits: 62b03a1a1, 9a3dec8d7, 3ddc2952e"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit 0"
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "No local project plan task exists; GitHub issue 4950 is authoritative"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -158,9 +158,13 @@
     {
       "action": "Measured repository-wide Ruff baseline",
       "outcome": "Repository-wide Ruff reported 27 pre-existing findings outside the four changed Python files; no unrelated files were modified"
+    },
+    {
+      "action": "Completed QA validation at the final implementation commit",
+      "outcome": "PASS report records 42 focused tests, 98% scanner branch coverage with only the subprocess-executed dispatch line uncollected, scoped Ruff, taste lints, and security scan evidence"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "3ddc2952ecf0a7ddd90c19db7e6eb1efa9560225",
   "nextSteps": [
     "Commit the implementation, record QA evidence, run pre-PR validation, and open the issue 4950 pull request"
   ]
