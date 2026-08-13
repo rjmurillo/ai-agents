@@ -78,7 +78,10 @@ def test_main_reports_invalid_utf8_adr_path(
     adr_dir = tmp_path / ".agents" / "architecture"
     adr_dir.mkdir(parents=True)
     adr_file = adr_dir / "ADR-999-invalid.md"
-    adr_file.write_bytes(b"# Invalid UTF-8\n\nReferences target.py.\n\xff")
+    invalid_content = b"# Invalid UTF-8\n\nReferences target.py.\n\xff"
+    adr_file.write_bytes(invalid_content)
+    with pytest.raises(UnicodeDecodeError) as expected_error:
+        invalid_content.decode("utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         sys,
@@ -101,6 +104,7 @@ def test_main_reports_invalid_utf8_adr_path(
     assert captured.out == ""
     assert str(adr_file.relative_to(tmp_path)) in captured.err
     assert "UTF-8" in captured.err
+    assert str(expected_error.value) in captured.err
 
 
 def test_main_reports_invalid_utf8_template_path(

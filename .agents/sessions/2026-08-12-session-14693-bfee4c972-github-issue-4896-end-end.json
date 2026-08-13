@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, mypy package-marker fix, session artifacts, and origin/main merge committed through 65c55830b8"
+        "Evidence": "Implementation, mypy package-marker fix, session artifacts, and origin/main merge were committed"
       },
       "validationPassed": {
         "level": "MUST",

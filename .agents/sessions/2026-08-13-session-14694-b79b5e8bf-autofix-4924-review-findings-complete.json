@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed at 1b5cdfb03, session evidence at 0b8b43e24, and current main merged at d5b14e839"
+        "Evidence": "Implementation, session evidence, and the current main merge were committed"
       },
       "validationPassed": {
         "level": "MUST",
@@ -133,7 +133,7 @@
     },
     {
       "action": "implement",
-      "detail": "Handled invalid UTF-8 report templates as exit 1 with the template path, removed a Python-version-specific decoder assertion, regenerated the Copilot mirror, and committed 1b5cdfb03."
+      "detail": "Handled invalid UTF-8 report templates as exit 1 with the template path, removed a Python-version-specific decoder assertion, and regenerated the Copilot mirror."
     },
     {
       "action": "verify",
@@ -145,7 +145,7 @@
     },
     {
       "action": "integrate",
-      "detail": "Merged authoritative remote main 90be321b3 into the PR branch at d5b14e839 after count-ratchet validation identified the branch as stale."
+      "detail": "Merged authoritative remote main into the PR branch after count-ratchet validation identified the branch as stale."
     },
     {
       "action": "reverify",
