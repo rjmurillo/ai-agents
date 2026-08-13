@@ -75,6 +75,12 @@ def _missing_process_phases(skill_text: str, artifact_text: str) -> set[int]:
     return _process_phase_numbers(skill_text) - _template_phase_numbers(artifact_text)
 
 
+def _phase_5_block(text: str) -> str:
+    marker = "## Phase 5: Persist and Close"
+    remainder = text.split(marker, maxsplit=1)[1].split("\n````", maxsplit=1)[0]
+    return f"{marker}{remainder}".strip()
+
+
 def test_template_and_renderer_cover_every_process_phase() -> None:
     skill_text = SKILL.read_text(encoding="utf-8")
     template_text = TEMPLATE.read_text(encoding="utf-8")
@@ -84,17 +90,15 @@ def test_template_and_renderer_cover_every_process_phase() -> None:
         Evidence(),
         [],
     )
-
     assert _missing_process_phases(skill_text, template_text) == set()
     assert _missing_process_phases(skill_text, artifact) == set()
+    template_phase_5 = _phase_5_block(template_text)
+    assert _phase_5_block(artifact) == template_phase_5
     for section in PHASE_5_SECTIONS:
-        assert section in template_text
-        assert section in artifact
-    assert MEMORY_RESULT_OPTIONS in template_text
-    assert MEMORY_RESULT_OPTIONS in artifact
+        assert section in template_phase_5
+    assert MEMORY_RESULT_OPTIONS in template_phase_5
     for contract_line in DELTA_TRIAGE_CONTRACT:
-        assert contract_line in template_text
-        assert contract_line in artifact
+        assert contract_line in template_phase_5
 
 
 def test_copilot_cli_files_match_canonical_sources() -> None:
