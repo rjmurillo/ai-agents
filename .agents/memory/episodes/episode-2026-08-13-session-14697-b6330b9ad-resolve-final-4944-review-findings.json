@@ -63,10 +63,7 @@
         "e004",
         "e008",
         "e011",
-        "e012",
-        "e015",
-        "e016",
-        "e018"
+        "e012"
       ],
       "leads_to": [
         "e006"
@@ -186,23 +183,27 @@
     },
     {
       "id": "e015",
-      "timestamp": "2026-08-13T00:00:00+00:00",
+      "timestamp": "2026-08-13T12:24:51+00:00",
       "type": "milestone",
       "content": "Reran focused validation at the initial evidence commit.",
-      "caused_by": [],
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [
-        "e005"
+        "e018"
       ],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     },
     {
       "id": "e016",
-      "timestamp": "2026-08-13T00:00:00+00:00",
+      "timestamp": "2026-08-13T12:24:51+00:00",
       "type": "milestone",
       "content": "Measured automatic and explicit Markdown lint scopes separately.",
-      "caused_by": [],
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [
-        "e005"
+        "e018"
       ],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     },
@@ -214,23 +215,27 @@
       "caused_by": [
         "e014"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e015",
+        "e016"
+      ],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     },
     {
       "id": "e018",
-      "timestamp": "2026-08-13T00:00:00+00:00",
+      "timestamp": "2026-08-13T12:26:43+00:00",
       "type": "milestone",
       "content": "Ran session-end after the evidence binding commit.",
-      "caused_by": [],
-      "leads_to": [
-        "e005"
+      "caused_by": [
+        "e015",
+        "e016"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 1,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

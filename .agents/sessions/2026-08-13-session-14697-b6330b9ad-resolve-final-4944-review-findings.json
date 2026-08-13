@@ -133,14 +133,17 @@
       "outcome": "The plan, session 14697, QA 14697, and its matching episode came from 91796736cc2f355de354bf473fd8a600b69e1729; session 14696 received the lint correction plus validator-required ending and QA bindings."
     },
     {
+      "timestamp": "2026-08-13T12:24:51Z",
       "action": "Reran focused validation at the initial evidence commit.",
       "outcome": "At 9093705a61a8c030d039cb29ee56605c133abcd3, focused pytest passed 20 tests with 1 expected skip in 1.52 seconds; Ruff, diff check, empty runtime-helper diff, session creation validation, and branch session policy passed."
     },
     {
+      "timestamp": "2026-08-13T12:24:51Z",
       "action": "Measured automatic and explicit Markdown lint scopes separately.",
       "outcome": "The repository wrapper selected 0 of 4 ignored agent-artifact targets. An explicit no-ignore run linted 4 files with 0 issues and exit 0."
     },
     {
+      "timestamp": "2026-08-13T12:26:43Z",
       "action": "Ran session-end after the evidence binding commit.",
       "outcome": "Automatic discovery found no uncommitted Markdown. An explicit four-file session-end run selected 0 ignored files and marked lint incomplete, so the final record keeps that NOT LINTED result separate from the explicit four-file PASS."
     }
