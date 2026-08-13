@@ -181,7 +181,7 @@
       "result": "Writes now require cwd inside Git's reported worktree. The validation handoff names Claude authentication and a model both CLIs resolve identically. Fifty-six targeted tests passed."
     }
   ],
-  "endingCommit": "3734f8625643c1ec0308ce4ba2b6a1155c04dba9",
+  "endingCommit": "b4353d410cc1c284fe79a9ff8b2501fe6fd4944b",
   "nextSteps": [
     "Authenticate Claude Code, align both CLIs on claude-opus-4.6, then run all four live fixtures before closing issue 4853."
   ]
