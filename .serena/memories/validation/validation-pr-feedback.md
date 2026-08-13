@@ -4,7 +4,11 @@
 
 **Context**: Any PR with automated review comments
 
+**Trigger**: Before merging a PR or claiming implementation success
+
 **Atomicity**: 92%
+
+**Impact**: 9/10
 
 ## Comment Triage Requirements
 
@@ -29,6 +33,7 @@
 - PR #60: 30 comments ignored when claiming "zero bugs"
 - Pattern: Copilot flagged command injection risks (eval with user input)
 - Pattern: GitHub Security flagged code injection vulnerabilities
+- Four high-severity path injection alerts required remediation
 
 ## Related
 
