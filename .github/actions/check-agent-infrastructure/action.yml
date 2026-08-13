@@ -23,11 +23,17 @@ outputs:
     description: 'Whether GitHub CLI is installed and functional'
     value: ${{ steps.check.outputs.github-cli-available }}
   copilot-available:
-    description: 'Whether Copilot CLI binary is available'
+    description: 'Whether the Copilot CLI binary is present (binary only, says nothing about auth)'
     value: ${{ steps.check.outputs.copilot-available }}
+  copilot-auth-status:
+    description: 'Copilot credential state: valid, absent, rejected, unverified'
+    value: ${{ steps.check.outputs.copilot-auth-status }}
   auth-valid:
-    description: 'Whether GitHub API authentication succeeds'
+    description: 'Whether GitHub accepted COPILOT_GITHUB_TOKEN (issue #4778: not the runner token)'
     value: ${{ steps.check.outputs.auth-valid }}
+  reviews-enabled:
+    description: 'Single gate: true when agent review jobs should invoke the model'
+    value: ${{ steps.check.outputs.reviews-enabled }}
   overall-status:
     description: 'Overall infrastructure status: ready, degraded, unavailable'
     value: ${{ steps.check.outputs.overall-status }}

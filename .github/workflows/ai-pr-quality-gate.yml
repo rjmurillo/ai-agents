@@ -129,7 +129,12 @@ jobs:
 #
 # Lightweight, zero-cost validation of agent prerequisites.
 # Distinguishes environment errors from code quality issues.
-# When Copilot CLI is unavailable, agents are skipped (not failed).
+#
+# Issue #4778: binary presence and credential validity are separate outputs, and
+# `reviews-enabled` is the single gate the review jobs follow. When it is not
+# 'true' each review job still records DID_NOT_RUN and uploads its artifact, so
+# Aggregate Results can post a report and block the merge instead of crashing on
+# a missing verdict file.
 
   infra-check:
     name: Infrastructure Check
@@ -142,6 +147,8 @@ jobs:
 
     outputs:
       copilot-available: ${{ steps.infra.outputs.copilot-available }}
+      copilot-auth-status: ${{ steps.infra.outputs.copilot-auth-status }}
+      reviews-enabled: ${{ steps.infra.outputs.reviews-enabled }}
       overall-status: ${{ steps.infra.outputs.overall-status }}
 
     steps:
@@ -154,17 +161,6 @@ jobs:
         with:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-
-      - name: Report infrastructure status
-        if: steps.infra.outputs.overall-status != 'ready'
-        shell: bash
-        env:
-          INFRA_STATUS: ${{ steps.infra.outputs.overall-status }}
-          COPILOT_STATUS: ${{ steps.infra.outputs.copilot-available }}
-        run: |
-          echo "::warning::Agent infrastructure is $INFRA_STATUS."
-          echo "::warning::Copilot available: $COPILOT_STATUS"
-          echo "::warning::Agent reviews requiring Copilot CLI will be skipped."
 
 # ==============================================================================
 # Review-axes drift check (REQ-008-03 backstop)
@@ -315,7 +311,8 @@ jobs:
           agent: security
           emoji: 🔒
           prompt-file: .github/prompts/pr-quality-gate-security.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -345,7 +342,8 @@ jobs:
           agent: qa
           emoji: 🧪
           prompt-file: .github/prompts/pr-quality-gate-qa.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -376,7 +374,8 @@ jobs:
           agent: analyst
           emoji: 📊
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -406,7 +405,8 @@ jobs:
           agent: architect
           emoji: 📐
           prompt-file: .github/prompts/pr-quality-gate-architect.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -436,7 +436,8 @@ jobs:
           agent: devops
           emoji: ⚙️
           prompt-file: .github/prompts/pr-quality-gate-devops.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -466,7 +467,8 @@ jobs:
           agent: roadmap
           emoji: 🗺️
           prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -497,7 +499,8 @@ jobs:
           review-agent: analyst
           emoji: 🛡️
           prompt-file: .github/prompts/pr-quality-gate-reliability.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -528,7 +531,8 @@ jobs:
           review-agent: analyst
           emoji: 🔭
           prompt-file: .github/prompts/pr-quality-gate-observability.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -559,7 +563,8 @@ jobs:
           review-agent: analyst
           emoji: 🤖
           prompt-file: .github/prompts/pr-quality-gate-agent-safety.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -590,7 +595,8 @@ jobs:
           review-agent: analyst
           emoji: ⚖️
           prompt-file: .github/prompts/pr-quality-gate-decision-rigor.md
-          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' }}
+          infra-ready: ${{ needs.infra-check.outputs.reviews-enabled == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
