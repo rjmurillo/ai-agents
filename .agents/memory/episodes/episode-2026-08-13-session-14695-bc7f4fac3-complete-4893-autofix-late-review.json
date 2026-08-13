@@ -28,7 +28,7 @@
         "e001"
       ],
       "leads_to": [
-        "e005"
+        "e004"
       ],
       "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
     },
@@ -41,7 +41,7 @@
         "e001"
       ],
       "leads_to": [
-        "e005"
+        "e004"
       ],
       "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
     },
@@ -51,23 +51,23 @@
       "type": "milestone",
       "content": "Applied suppressed-review corrections to ADR-071 and the model gate",
       "caused_by": [
-        "e005"
-      ],
-      "leads_to": [],
-      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-08-13T13:18:52+00:00",
-      "type": "commit",
-      "content": "Commit: fffec5b416b3801e5a35a89bdaebab6e00b35698",
-      "caused_by": [
         "e002",
         "e003"
       ],
       "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T13:25:45+00:00",
+      "type": "commit",
+      "content": "Commit: 2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d",
+      "caused_by": [
         "e004"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
     }
   ],
