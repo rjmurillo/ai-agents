@@ -214,8 +214,24 @@ class TestIntegrityManifest:
     def _vendor(self, root: Path) -> Path:
         return root / ".claude/hooks/PreToolUse/_vendor/markdownlint"
 
-    def _write_manifest(self, vendor: Path, files: dict[str, str]) -> None:
-        _write(vendor / "INTEGRITY.json", json.dumps({"files": files}))
+    def _write_manifest(
+        self,
+        vendor: Path,
+        files: dict[str, str],
+        *,
+        symlinks: dict[str, str] | None = None,
+        executables: list[str] | None = None,
+    ) -> None:
+        _write(
+            vendor / "INTEGRITY.json",
+            json.dumps(
+                {
+                    "files": files,
+                    "symlinks": symlinks or {},
+                    "executables": executables or [],
+                }
+            ),
+        )
 
     def test_matching_manifest_covers_committed_tree(self, tmp_path: Path) -> None:
         from scripts.ci.validate_vendor_provenance import (
@@ -287,6 +303,67 @@ class TestIntegrityManifest:
         errors = _validate_integrity_manifest(vendor)
 
         assert any("hash mismatch" in error for error in errors)
+
+    def test_manifest_authenticates_symlinks_and_executable_modes(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_ENTRYPOINT,
+            _sha256_file,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        entrypoint = vendor / _MARKDOWNLINT_ENTRYPOINT
+        executable = vendor / "node_modules/pkg/bin/tool.mjs"
+        link = vendor / "node_modules/.bin/tool"
+        _write(entrypoint, "export {};\n")
+        _write(executable, "#!/usr/bin/env node\n")
+        executable.chmod(0o755)
+        link.parent.mkdir(parents=True)
+        link.symlink_to("../pkg/bin/tool.mjs")
+        self._write_manifest(
+            vendor,
+            {
+                _MARKDOWNLINT_ENTRYPOINT: _sha256_file(entrypoint),
+                "node_modules/pkg/bin/tool.mjs": _sha256_file(executable),
+            },
+            symlinks={"node_modules/.bin/tool": "../pkg/bin/tool.mjs"},
+            executables=["node_modules/pkg/bin/tool.mjs"],
+        )
+
+        assert _validate_integrity_manifest(vendor) == []
+
+    def test_manifest_rejects_symlink_target_and_mode_drift(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_ENTRYPOINT,
+            _sha256_file,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        entrypoint = vendor / _MARKDOWNLINT_ENTRYPOINT
+        executable = vendor / "node_modules/pkg/bin/tool.mjs"
+        link = vendor / "node_modules/.bin/tool"
+        _write(entrypoint, "export {};\n")
+        _write(executable, "#!/usr/bin/env node\n")
+        executable.chmod(0o755)
+        link.parent.mkdir(parents=True)
+        link.symlink_to("../pkg/bin/tool.mjs")
+        self._write_manifest(
+            vendor,
+            {
+                _MARKDOWNLINT_ENTRYPOINT: _sha256_file(entrypoint),
+                "node_modules/pkg/bin/tool.mjs": _sha256_file(executable),
+            },
+            symlinks={"node_modules/.bin/tool": "../other/bin/tool.mjs"},
+        )
+
+        errors = _validate_integrity_manifest(vendor)
+
+        assert any("symlink set or target mismatch" in error for error in errors)
+        assert any("executable set mismatch" in error for error in errors)
 
 
 # ── Config authentication and content policy ──
@@ -603,6 +680,23 @@ class TestVendorDeletion:
         errs = _authenticate_pinned(root, None)
         deletion_errs = [e for e in errs if "_markdownlint_verifier.py" in e]
         assert not deletion_errs
+
+    def test_real_vendor_pin_requires_artifact_without_base(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _authenticate_pinned
+
+        candidate = tmp_path / "candidate"
+        candidate.mkdir()
+        pins = [
+            (
+                ".claude/hooks/PreToolUse/_markdownlint_verifier.py",
+                "a" * 64,
+                "Verifier",
+            )
+        ]
+
+        errors = _authenticate_pinned(candidate, pinned_artifacts=pins)
+
+        assert any("missing for non-placeholder digest" in error for error in errors)
 
 
 class TestPreflightAbortsNpm:
@@ -1674,6 +1768,11 @@ class TestNpmrcRelevance:
 
         assert check_relevance([".npmrc"]) is True
         assert check_relevance(["package.json"]) is False
+
+    def test_claude_npmrc_triggers_relevance(self):
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([".claude/.npmrc"]) is True
 
 
 # ── Trust anchor authentication regression ──

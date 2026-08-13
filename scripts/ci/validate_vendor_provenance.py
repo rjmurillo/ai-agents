@@ -1086,6 +1086,11 @@ def _authenticate_pinned(
         fpath = candidate / rel
         if _is_vendor_only(rel):
             if not fpath.exists():
+                if expected != "0" * 64:
+                    errors.append(
+                        f"{label} ({rel}): pinned file missing for non-placeholder digest"
+                    )
+                    continue
                 # Permit absence only if base also lacks the file
                 if base and (base / rel).is_file():
                     errors.append(
@@ -1439,6 +1444,10 @@ def _validate_integrity_manifest(vendor_dir: Path) -> list[str]:
         return [f"Cannot parse INTEGRITY.json: {exc}"]
     if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), dict):
         return ["INTEGRITY.json files must be a mapping"]
+    if not isinstance(manifest.get("symlinks", {}), dict):
+        return ["INTEGRITY.json symlinks must be a mapping"]
+    if not isinstance(manifest.get("executables", []), list):
+        return ["INTEGRITY.json executables must be a list"]
 
     declared: dict[str, str] = {}
     errors: list[str] = []
@@ -1455,15 +1464,64 @@ def _validate_integrity_manifest(vendor_dir: Path) -> list[str]:
             continue
         declared[str(declared_path)] = raw_digest
 
+    declared_symlinks: dict[str, str] = {}
+    for raw_rel, raw_target in manifest.get("symlinks", {}).items():
+        if not isinstance(raw_rel, str) or not isinstance(raw_target, str):
+            errors.append("INTEGRITY.json symlinks must map paths to targets")
+            continue
+        declared_path = PurePosixPath(raw_rel)
+        target_path = PurePosixPath(raw_target)
+        if declared_path.is_absolute() or ".." in declared_path.parts or "\\" in raw_rel:
+            errors.append(f"Invalid INTEGRITY.json symlink path: {raw_rel!r}")
+            continue
+        if target_path.is_absolute() or "\\" in raw_target:
+            errors.append(f"Invalid INTEGRITY.json symlink target: {raw_target!r}")
+            continue
+        resolved_target = PurePosixPath(declared_path.parent, target_path)
+        normalized_parts: list[str] = []
+        escapes_root = False
+        for part in resolved_target.parts:
+            if part == "..":
+                if not normalized_parts:
+                    escapes_root = True
+                    break
+                normalized_parts.pop()
+            elif part != ".":
+                normalized_parts.append(part)
+        if escapes_root:
+            errors.append(f"INTEGRITY.json symlink escapes vendor tree: {raw_rel}")
+            continue
+        declared_symlinks[str(declared_path)] = raw_target
+
+    declared_executables: set[str] = set()
+    for raw_rel in manifest.get("executables", []):
+        if not isinstance(raw_rel, str):
+            errors.append("INTEGRITY.json executables must contain paths")
+            continue
+        declared_path = PurePosixPath(raw_rel)
+        if declared_path.is_absolute() or ".." in declared_path.parts or "\\" in raw_rel:
+            errors.append(f"Invalid INTEGRITY.json executable path: {raw_rel!r}")
+            continue
+        declared_executables.add(str(declared_path))
+
     actual: dict[str, str] = {}
+    actual_symlinks: dict[str, str] = {}
+    actual_executables: set[str] = set()
     for path in sorted(vendor_dir.rglob("*")):
-        if path == manifest_path or path.is_dir():
+        if path == manifest_path:
             continue
         rel = str(PurePosixPath(path.relative_to(vendor_dir)))
-        if path.is_symlink() or not path.is_file():
-            errors.append(f"Manifest path is not a regular file: {rel}")
+        if path.is_symlink():
+            actual_symlinks[rel] = os.readlink(path)
+            continue
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            errors.append(f"Manifest path is not a file or symlink: {rel}")
             continue
         actual[rel] = _sha256_file(path)
+        if path.stat().st_mode & 0o111:
+            actual_executables.add(rel)
 
     missing = sorted(actual.keys() - declared.keys())
     extra = sorted(declared.keys() - actual.keys())
@@ -1473,6 +1531,15 @@ def _validate_integrity_manifest(vendor_dir: Path) -> list[str]:
         errors.append(f"INTEGRITY.json lists absent files: {extra[:5]}")
     if _MARKDOWNLINT_ENTRYPOINT not in declared:
         errors.append(f"Entrypoint {_MARKDOWNLINT_ENTRYPOINT} not in INTEGRITY.json")
+    if actual_symlinks != declared_symlinks:
+        errors.append("INTEGRITY.json symlink set or target mismatch")
+    if actual_executables != declared_executables:
+        errors.append("INTEGRITY.json executable set mismatch")
+    unknown_executables = sorted(declared_executables - declared.keys())
+    if unknown_executables:
+        errors.append(
+            f"INTEGRITY.json executables list absent files: {unknown_executables[:5]}"
+        )
     for rel in sorted(actual.keys() & declared.keys()):
         if actual[rel] != declared[rel]:
             errors.append(f"INTEGRITY.json hash mismatch: {rel}")
@@ -1647,6 +1714,7 @@ _EXTRA_WATCHED: tuple[str, ...] = (
     ".gitattributes",
     ".claude/settings.local.json",
     ".github/copilot/settings.json",
+    ".claude/.npmrc",
     ".npmrc",
 )
 
