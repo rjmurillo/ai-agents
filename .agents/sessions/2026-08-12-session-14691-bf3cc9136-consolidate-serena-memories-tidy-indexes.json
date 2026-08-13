@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: markdownlint-cli2 ran for changed Markdown, but .markdownlint-cli2.yaml excludes .agents/** and .serena/**, so it selected 0 files; dedicated memory and session validators passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -150,6 +150,14 @@
       "detail": "A complete manifest was validated before mutation. Ten memories were deleted, 48 paths matched the declared set, all diff hunks matched the authorized transform, and memory index, size, token, reference, and retrieval checks passed."
     }
   ],
-  "endingCommit": "3ff8d7fdfc",
+  "episodeMetrics": {
+    "filesChanged": 54,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "d832110007e28b90608db6e4229aca5937574778",
+      "head": "90be321b3bfad576e3c1d440402d4333a87326c9"
+    }
+  },
+  "endingCommit": "90be321b3bfad576e3c1d440402d4333a87326c9",
   "nextSteps": []
 }
