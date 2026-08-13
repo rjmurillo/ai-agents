@@ -722,7 +722,7 @@ class TestRelevance:
     def test_unrelated_file_no_trigger(self) -> None:
         from scripts.ci.validate_vendor_provenance import check_relevance
 
-        assert check_relevance(["docs/README.md", "pyproject.toml"]) is False
+        assert check_relevance(["docs/README.md", "docs/CHANGELOG.md"]) is False
 
     def test_empty_list_no_trigger(self) -> None:
         from scripts.ci.validate_vendor_provenance import check_relevance
@@ -831,6 +831,15 @@ class TestRelevance:
             if not check_relevance([rel]):
                 missed.append(rel)
         assert missed == [], f"Pinned but not relevant: {missed}"
+
+    @pytest.mark.parametrize(
+        "path",
+        ["pyproject.toml", "uv.lock", ".python-version"],
+    )
+    def test_python_runtime_trust_anchor_triggers(self, path: str) -> None:
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance([path]) is True
 
     def test_src_copilot_hooks_top_level_triggers(self) -> None:
         """src/copilot-cli/hooks/ top-level file triggers relevance."""

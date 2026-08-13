@@ -30,6 +30,22 @@ from pathlib import Path, PurePosixPath
 # plus generated counterparts and configs. Future vendor/runtime PRs
 # add new pins here via a bootstrap update PR.
 _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
+    # --- Python runtime and dependency resolution ---
+    (
+        "pyproject.toml",
+        "dff809d81ba7e3936d54d3bd23f561b304f37ea01f6ed970a17b8ad0cd861461",
+        "Python project configuration",
+    ),
+    (
+        "uv.lock",
+        "967089ec12a94d57b601cda326e09d2026a3e5198b72548c584b4f531f8276d6",
+        "Python dependency lock",
+    ),
+    (
+        ".python-version",
+        "3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab",
+        "Python interpreter selection",
+    ),
     # --- Hook executables (pre-verification) ---
     (
         ".claude/hooks/PreToolUse/_bootstrap.py",
