@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696.json
-qaCommit: 7412d18aa8d0040622a85709db934d0a689055cf
+qaCommit: 637db864212d534e7ff66753ee38abb01ff93650
 ---
 
 # Test Report: Committed-State Ship Tests, feat/pr-review-toolkit-agents
