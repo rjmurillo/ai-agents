@@ -67,6 +67,7 @@
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
+|model pin migration ADR-080 alias rationale sweep retirement: [tasks/issue-2840-model-pin-migration](tasks/issue-2840-model-pin-migration.md) (870)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
 |sentinel zero None unknown unmeasured tri-state exit code: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (811)
 |quality gate unknown verdict infra downgrade fail closed: [quality/unknown-verdict-infra-downgrade-stays-blocking](quality/unknown-verdict-infra-downgrade-stays-blocking.md) (226)
@@ -149,10 +150,9 @@
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1005), [eval-multiprovider-transport](eval-multiprovider-transport.md) (712), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 |skill sidecar observations learnings eval-harness fixtures build-model parity: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1133), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (632), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1005), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (632), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
