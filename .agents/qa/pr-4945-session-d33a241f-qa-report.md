@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads.json
-qaCommit: 701f8dd6cb25722136c84ced6d801910a1ebb690
+qaCommit: dd8dc0a65df6b0c10c11de83adb4787362a4f20e
 ---
 
 # PR 4945 Autofix QA
