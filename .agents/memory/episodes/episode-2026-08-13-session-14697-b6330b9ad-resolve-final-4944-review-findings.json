@@ -3,7 +3,7 @@
   "session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings",
   "timestamp": "2026-08-13T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Repair PR 4944 post-merge closure evidence",
   "decisions": [],
   "events": [
@@ -63,7 +63,9 @@
         "e004",
         "e008",
         "e011",
-        "e012"
+        "e012",
+        "e015",
+        "e016"
       ],
       "leads_to": [
         "e006"
@@ -176,6 +178,41 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reran focused validation at the initial evidence commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured automatic and explicit Markdown lint scopes separately.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-13T12:22:20+00:00",
+      "type": "commit",
+      "content": "Commit: 9093705a61a8c030d039cb29ee56605c133abcd3",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
     }
@@ -185,8 +222,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 0
+    "commits": 8,
+    "files_changed": 4
   },
   "lessons": []
 }
