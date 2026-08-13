@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14697,
+    "date": "2026-08-13",
+    "branch": "docs/4944-closure-evidence",
+    "startingCommit": "e52604fd07c02c71475a5d8e282ba2bd3163516e",
+    "objective": "Repair PR 4944 post-merge closure evidence"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active; initial instructions and task-relevant memory reads succeeded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded before closure edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed GitHub skill scripts and read the session-init and session-end skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the usage-mandatory Serena memory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, usage-mandatory, skills-session-init-index, skills-validation-index, skills-linting-index, and root-cause-scope-creep-tools. No memory was written because this repair adds no reusable decision."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/4944-closure-evidence"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/4944-closure-evidence"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The preserved test branch was clean. This branch was created from exact origin/main and only the four named source artifacts were restored."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e52604fd07c02c71475a5d8e282ba2bd3163516e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All nine plan acceptance criteria are marked verified."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created a clean evidence branch from exact origin/main.",
+      "outcome": "docs/4944-closure-evidence started at e52604fd07c02c71475a5d8e282ba2bd3163516e; merge commit 5acc676414b423d8a9e10bfe3041ab3ffd284874 is its ancestor."
+    },
+    {
+      "action": "Restored only the four approved source artifacts and corrected the two post-merge evidence findings.",
+      "outcome": "The plan, session 14697, QA 14697, and its matching episode came from 91796736cc2f355de354bf473fd8a600b69e1729; session 14696 changed only its lint-evidence field."
+    }
+  ],
+  "endingCommit": "e52604fd07c02c71475a5d8e282ba2bd3163516e",
+  "nextSteps": []
+}
