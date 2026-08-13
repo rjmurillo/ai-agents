@@ -3,7 +3,7 @@
   "session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model",
   "timestamp": "2026-08-12T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Amend ADR-080 with measured Copilot model resolution and commit the probe evidence (issue 2840)",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Ran a SCOPED adr-review on the draft Amendment 2026-08-12 to ADR-080: two independent reviewers, one round, given the artifact only and not the reasoning behind it. Critic lens covered contradiction with the Decision, citation accuracy, overstatement, and completeness. Contrarian lens steelmanned the opposite of every claim and argued supersede over amend. This is a deliberate deviation from the skill's 6-agent 10-round protocol, justified because the change corrects rationale and edits none of the six Decision rules, and it is recorded as a deviation rather than claimed as a full run. Debate log: .agents/critique/ADR-080-amendment-2026-08-12-debate-log.md",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Re-probed Copilot CLI 1.0.79 after the critic showed the retirement probe used claude-opus-9-9-retired, a string that never existed rather than a retired id.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Verified the contrarian's ground-truth claim that the de-versioning migration has already run.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     },
     {
@@ -40,6 +46,22 @@
       "type": "milestone",
       "content": "Committed the probe evidence so the amendment's claims are reproducible, which rule 4 of this same ADR requires of a weaker claim.",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T10:22:29+00:00",
+      "type": "commit",
+      "content": "Commit: c803be2e80a189bb4fbed1da334ec1b167b14ba9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     }
@@ -49,8 +71,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 5
+    "commits": 1,
+    "files_changed": 63
   },
   "lessons": []
 }

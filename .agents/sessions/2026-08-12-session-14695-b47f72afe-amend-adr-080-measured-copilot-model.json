@@ -11,18 +11,18 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena toolset acknowledged; MCP session initialized"
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Instructions read from .agents/SESSION-PROTOCOL.md"
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read"
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,23 +31,23 @@
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".claude/skills/ enumerated"
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "usage-mandatory loaded"
       },
       "branchVerified": {
         "level": "MUST",
@@ -73,38 +73,38 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All MUST items verified via repair session"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Episode companion generated"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Docs-only session; lint clean"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/000-session-14695-adr-080-amendment-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "ADR-080 amendment committed at c803be2e80"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed after repair"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -136,6 +136,6 @@
       "result": "Method, full result table, delegation transcript with negative control, and an explicit not-measured section written to .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c803be2e80a189bb4fbed1da334ec1b167b14ba9",
   "nextSteps": []
 }
