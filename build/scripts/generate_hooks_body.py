@@ -35,7 +35,7 @@ _MAIN_EPILOGUE_RE = _re.compile(
 _MAIN_EPILOGUE_TRY_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
     r"\s+try:\s*\n"
-    r"\s+(?:sys\.exit\(\s*)?main\(\s*\)\s*\)?",
+    r"\s+(?:(?:sys\.exit|raise\s+SystemExit)\(\s*)?main\(\s*\)\s*\)?",
     _re.MULTILINE,
 )
 
@@ -82,7 +82,27 @@ def _is_sys_exit_call(call: _ast.Call, exit_code: int | None = None) -> bool:
     )
 
 
+def _is_system_exit_call(call: _ast.Call, exit_code: int) -> bool:
+    return (
+        isinstance(call.func, _ast.Name)
+        and call.func.id == "SystemExit"
+        and len(call.args) == 1
+        and isinstance(call.args[0], _ast.Constant)
+        and call.args[0].value == exit_code
+    )
+
+
 def _statement_invokes_main(statement: _ast.stmt) -> bool:
+    if (
+        isinstance(statement, _ast.Raise)
+        and isinstance(statement.exc, _ast.Call)
+        and isinstance(statement.exc.func, _ast.Name)
+        and statement.exc.func.id == "SystemExit"
+        and len(statement.exc.args) == 1
+        and isinstance(statement.exc.args[0], _ast.Call)
+        and _is_main_call(statement.exc.args[0])
+    ):
+        return True
     if not isinstance(statement, _ast.Expr) or not isinstance(statement.value, _ast.Call):
         return False
     call = statement.value
@@ -98,7 +118,10 @@ def _statement_invokes_main(statement: _ast.stmt) -> bool:
 
 def _handler_exits_with(handler: _ast.ExceptHandler, exit_code: int) -> bool:
     return any(
-        isinstance(node, _ast.Call) and _is_sys_exit_call(node, exit_code)
+        (
+            isinstance(node, _ast.Call)
+            and (_is_sys_exit_call(node, exit_code) or _is_system_exit_call(node, exit_code))
+        )
         for statement in handler.body
         for node in _ast.walk(statement)
     )
@@ -312,7 +335,7 @@ def inject_shim(original: str, matcher: str) -> str:
     """
     stripped = strip_shim(original) if is_shimmed(original) else original
     future_block, body = _split_future_imports(stripped)
-    shim: str = _build_shim(matcher)
+    shim: str = _build_shim(matcher, fail_open=_has_fail_open_handler(body))
     wrapped = _wrap_body_in_function(body)
     prefix = future_block + "\n" if future_block else ""
     return prefix + shim + "\n" + wrapped + "\n_shim_dispatch()\n"
