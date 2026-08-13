@@ -210,9 +210,12 @@ class TestCopilotAuthProbe:
     ) -> None:
         monkeypatch.setenv(cai.COPILOT_TOKEN_ENV, "ghp_valid")
         called: list[list[str]] = []
-        monkeypatch.setattr(
-            cai, "_run", lambda argv, env=None: called.append(argv) or _ok()  # type: ignore[func-returns-value]
-        )
+
+        def _record(argv: list[str], env: dict[str, str] | None = None) -> cai.CommandOutcome:
+            called.append(argv)
+            return _ok()
+
+        monkeypatch.setattr(cai, "_run", _record)
         probe = cai.Probe(github_cli=False)
         cai._probe_copilot_auth(probe)
         assert probe.copilot_auth is Auth.UNVERIFIED
