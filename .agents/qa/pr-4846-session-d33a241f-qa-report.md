@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 8c039219152d0f13d72388aa475e448d077f87de
+qaCommit: b8c6d66866d47da6a423cd7879229f5b12a2fa0c
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
@@ -14,7 +14,7 @@ Validated the final branch against current `main`. The gate requires a trusted p
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 310 passed |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 316 passed |
 | `uv run mypy scripts/ci/validate_vendor_provenance.py` | Passed |
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
@@ -32,7 +32,7 @@ The workflow uses immutable event SHAs and base-owned validation code. A malicio
 
 Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: trusted dual-identity and head-event authorization, stdlib-only relevance checks, tracked Python bytecode authentication, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `ca29a3ee`, the setup-uv v10 pin, 310 passing tests, and real validator evidence.
+Delivered: trusted dual-identity and head-event authorization, stdlib-only relevance checks, tracked Python bytecode authentication, complete vendor manifest verification, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `ca29a3ee`, the setup-uv v10 pin, 316 passing tests, and real validator evidence.
 
 Gap: None found in tested scope.
 
