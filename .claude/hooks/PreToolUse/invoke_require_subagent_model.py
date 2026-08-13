@@ -118,6 +118,12 @@ def _spawn_arguments(payload: dict[str, object]) -> dict[str, object] | None:
     return args if isinstance(args, dict) else None
 
 
+def _has_explicit_model(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() not in _EMPTY_MODEL_VALUES
+
+
 def main() -> int:
     payload = json.loads(sys.stdin.read(_MAX_STDIN_BYTES))
     if not isinstance(payload, dict):
@@ -128,7 +134,7 @@ def main() -> int:
     args = _spawn_arguments(payload)
     if args is None:
         return 0
-    if args.get("model") or os.environ.get(_ESCAPE_HATCH_ENV):
+    if _has_explicit_model(args.get("model")) or os.environ.get(_ESCAPE_HATCH_ENV):
         return 0
     agent = args.get("subagent_type") or args.get("agent_type") or ""
     if not isinstance(agent, str) or not agent:

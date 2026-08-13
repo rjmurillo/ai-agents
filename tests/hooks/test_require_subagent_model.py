@@ -133,6 +133,11 @@ class TestDefinitionSearch:
 
 
 class TestDenyPaths:
+    @pytest.mark.parametrize("model", [None, "", "   ", "null", "none", "~", '""', "''"])
+    def test_empty_model_argument_denies(self, monkeypatch, project, model):
+        payload = _claude_payload(project, subagent_type="general-purpose", model=model)
+        assert _run(monkeypatch, payload) == 2
+
     @pytest.mark.parametrize(
         "definition", ["body\n", "---\nmodel:\n---\n", "---\nmodel: null\n---\n"]
     )
@@ -278,7 +283,7 @@ class TestRegistrations:
         assert group["matcher"] == "^(Agent|Task)$"
         assert group["surface"] == "plugin"
         assert group["shims"][0]["file"] == "PreToolUse/invoke_require_subagent_model.py"
-        assert group["shims"][0]["copilotMatcher"] == "^(Agent|Task|task)$"
+        assert group["shims"][0]["copilotMatcher"] == "^(Agent|Task)$"
 
     def test_repo_settings_carry_no_duplicate_registration(self):
         # Gate groups skip the plugin dispatcher's self-host bail, so a
@@ -344,7 +349,7 @@ class TestRegistrations:
                     "toolName": "task",
                     "toolArgs": {"agent_type": "general-purpose"},
                 },
-                2,
+                0,
             ),
             ({"toolName": "Read", "toolArgs": {"filePath": "README.md"}}, 0),
         ],
@@ -373,5 +378,36 @@ class TestRegistrations:
             check=False,
             cwd=tmp_path,
             env=env,
+            timeout=30,
         )
         assert result.returncode == expected, result.stderr
+
+    def test_generated_copilot_shim_malformed_input_fails_open(self, tmp_path):
+        shims = list(
+            (REPO_ROOT / "src/copilot-cli/hooks/PreToolUse").glob(
+                "invoke_require_subagent_model__*.py"
+            )
+        )
+        assert len(shims) == 1
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(tmp_path),
+                "USERPROFILE": str(tmp_path),
+                "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
+            }
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(shims[0])],
+            input="not json",
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp_path,
+            env=env,
+            timeout=30,
+        )
+
+        assert result.returncode == 0
+        assert "malformed JSON" in result.stderr

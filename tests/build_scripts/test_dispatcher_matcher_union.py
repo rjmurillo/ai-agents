@@ -72,15 +72,21 @@ def test_dispatcher_entry_carries_matcher_when_given():
     assert "matcher" not in dispatcher_entry("PreToolUse", 60, None)
 
 
-def test_committed_entries_fail_open_when_any_matcher_is_not_reducible():
+def test_committed_matcher_capable_entries_have_matchers():
     hooks = json.loads(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
             encoding="utf-8"
         )
     )["hooks"]
-    assert set(hooks) == {"PreToolUse", "PostToolUse"}
-    assert "matcher" not in hooks["PreToolUse"][0]
-    assert set(hooks["PostToolUse"][0]["matcher"].split("|")) == {"Write", "Edit"}
+    expected = {
+        "PreToolUse": {"Bash", "Agent", "Task"},
+        "PostToolUse": {"Write", "Edit"},
+    }
+
+    assert set(hooks) == set(expected)
+    for event, tokens in expected.items():
+        entry = hooks[event][0]
+        assert set(entry["matcher"].split("|")) == tokens
 
 
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():
