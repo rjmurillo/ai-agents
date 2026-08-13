@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated merge commit 99f73437606a6318ff7f20299708fe59ef91ee5e."
+        "Evidence": "Validated code commit b04756e2ee7cce83a3b8cbcaa897cac52312a985."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "253 tests, Ruff, install parity, conflict scan, and pre_pr 51 of 51 passed."
+        "Evidence": "255 tests, Ruff, install parity, conflict scan, and pre_pr 51 of 51 passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,10 +147,10 @@
     {
       "timestamp": "2026-08-13T11:00:00Z",
       "action": "Completed local validation",
-      "result": "253 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed."
+      "result": "255 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed."
     }
   ],
-  "endingCommit": "99f73437606a6318ff7f20299708fe59ef91ee5e",
+  "endingCommit": "b04756e2ee7cce83a3b8cbcaa897cac52312a985",
   "nextSteps": [
     "Guard push against the live PR head.",
     "Wait for required checks and rerun readiness from this worktree.",
