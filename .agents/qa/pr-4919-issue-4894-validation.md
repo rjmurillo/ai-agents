@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14692-bd3c1d411-fix-issue-4894-existing-diagnostic.json
-qaCommit: a3125a47497fa615e893ddf2e44f5ddb0fdbedcc
+qaCommit: d5a43ccbaa9131431691ff43285c4de1285ce6bf
 ---
 
 # Issue 4894 QA
