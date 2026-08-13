@@ -185,7 +185,7 @@
       "result": "The default now matches the selected Copilot agents, version probes disable Copilot auto-update, and runtime orchestration functions stay within 60 lines. A real four-fixture dry run passed."
     }
   ],
-  "endingCommit": "e762525110ba0e82be1e2e06fd4d65ae5ae4bc2c",
+  "endingCommit": "5f0c41c76cc8903adba4f251542f3e14e837b466",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
