@@ -168,8 +168,13 @@
       "time": "11:35",
       "action": "Fixed and verified the suppressed non-BMP path finding.",
       "result": "62 targeted tests passed, Ruff passed, real markdownlint passed, and full pre-PR validation exited 0."
+    },
+    {
+      "time": "12:29",
+      "action": "Corrected the final suppressed review finding.",
+      "result": "Overflow errors now report UTF-16 code units. The 25 focused tests and Ruff passed."
     }
   ],
-  "endingCommit": "39ed2ace539b477707cf597be553b5d785737467",
+  "endingCommit": "987228d9f352a6fcbd777b698c505c781f8916ca",
   "nextSteps": []
 }

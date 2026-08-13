@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads.json
-qaCommit: 39ed2ace539b477707cf597be553b5d785737467
+qaCommit: 987228d9f352a6fcbd777b698c505c781f8916ca
 ---
 
 # PR 4945 Autofix QA
@@ -33,3 +33,4 @@ characters cannot bypass the Windows limit.
 - `uv run python scripts/validation/pre_pr.py` passed.
 - A discriminating probe measured the same non-BMP command as 4,046 Python
   code points and 8,046 UTF-16 code units against the 7,500-unit limit.
+- The overflow error reports its measurement as UTF-16 code units.
