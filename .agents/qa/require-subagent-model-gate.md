@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate.json
-qaCommit: d8dbf0489cf6a6a7199b745f7af830f235ccbff1
+qaCommit: f69206d11f16adf4b0933e0c8f371e8a05214a92
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -17,6 +17,9 @@ definition file, plus the ADR metric refresh it forced.
   markdown target filtering, hook generation, dispatcher, shipped artifact,
   and CLI hook end-to-end tests.
 - Matcher-union regression suite: 19 passed after the main refresh.
+- Final thread-fix suite: 397 passed, 3 skipped. It covers explicit-model
+  validation, host matcher filtering, generated fail-open behavior, dispatcher
+  generation, committed artifacts, and CLI hook execution.
 - Unit and contract suites: 1852 passed across tests/hooks,
   tests/test_hook_dispatch.py, and tests/build_scripts/test_hook_contract_knowledge.py
   (final run after the round-6 dissent fixes; full-suite run earlier in the

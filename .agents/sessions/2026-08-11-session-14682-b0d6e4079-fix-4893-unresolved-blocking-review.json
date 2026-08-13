@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Local autofix scope, main refresh, and matcher fallback regression completed through d8dbf0489cf6a6a7199b745f7af830f235ccbff1"
+        "Evidence": "Local autofix scope, main refresh, final hook-thread fixes, and catalog evidence completed through 164227594de83d26b495927414a0b05147e2901b"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -114,7 +114,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Not invoked; this run applied existing documented pr-autofix patterns"
+        "Evidence": "adr-review evidence reused from .agents/critique/ADR-068-071-085-metric-refresh-debate-log.md; this edit resolves the documented Copilot shim residual without changing the accepted decision"
       }
     }
   },
@@ -127,10 +127,15 @@
     {
       "time": "2026-08-13T03:03:00-07:00",
       "action": "Validated and committed CI and review fixes",
-      "result": "489 passed, 3 skipped; matcher-union regression suite 19 passed through d8dbf0489cf6a6a7199b745f7af830f235ccbff1"
+      "result": "489 passed, 3 skipped; matcher-union regression suite 19 passed"
+    },
+    {
+      "time": "2026-08-13T05:03:40-07:00",
+      "action": "Resolved new review findings and reconciled ADR-068 runtime facts",
+      "result": "397 passed, 3 skipped; catalog evidence committed through 164227594de83d26b495927414a0b05147e2901b; existing six-round adr-review evidence remains authoritative"
     }
   ],
-  "endingCommit": "d8dbf0489cf6a6a7199b745f7af830f235ccbff1",
+  "endingCommit": "f69206d11f16adf4b0933e0c8f371e8a05214a92",
   "nextSteps": [
     "Push under lease and late live-state guard.",
     "Wait for required CI, then reply to and resolve all 15 review threads.",
