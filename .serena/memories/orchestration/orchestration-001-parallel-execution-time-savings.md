@@ -37,8 +37,6 @@
 
 ## Related
 
-- [orchestration-002-parallel-handoff-coordination](orchestration-002-parallel-handoff-coordination.md)
 - [orchestration-003-handoff-validation-gate](orchestration-003-handoff-validation-gate.md)
 - [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
 - [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
-- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)

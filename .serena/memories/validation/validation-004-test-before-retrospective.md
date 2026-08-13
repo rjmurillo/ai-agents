@@ -42,5 +42,5 @@
 - [validation-001-validation-script-false-positives](validation-001-validation-script-false-positives.md)
 - [validation-002-pedagogical-error-messages](validation-002-pedagogical-error-messages.md)
 - [validation-003-preexisting-issue-triage](validation-003-preexisting-issue-triage.md)
-- [validation-005-pr-feedback-gate](validation-005-pr-feedback-gate.md)
+- [validation-pr-feedback](validation-pr-feedback.md)
 - [validation-006-self-report-verification](validation-006-self-report-verification.md)
