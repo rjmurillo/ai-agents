@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 6e5e30fda2e25826d4e6f53b307b36c177db8eb0
+qaCommit: 2a75e36db65dc3ac249228185688f6ebf1701758
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,7 @@ machine.
 ## Deterministic evidence
 
 - Scoped Ruff checks on the seven changed Python files: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 52 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 55 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
@@ -51,6 +51,10 @@ machine.
 - Copilot auto-update is disabled for every bounded run.
 - Empty answers and missing model attribution now carry explicit errors.
 - Git initialization failures return the documented external exit code.
+- Existing-run checks execute before external probes or profile writes.
+- Agent installation renames only a top-level frontmatter name.
+- Empty version responses fail closed.
+- Runtime writes require cwd to match the evaluator's worktree.
 - Authored Python file-size errors were cleared by extracting output parsing
   and splitting report contract tests. Advisory warnings remain.
 
