@@ -892,6 +892,18 @@ class TestExtensionAndConfigGaps:
         errs = _check_unpinned_executables(tmp_path)
         assert any("exploit.ts" in e for e in errs)
 
+    def test_tracked_pyc_detected(self, tmp_path: Path) -> None:
+        """A committed .pyc under __pycache__ is flagged."""
+        from scripts.ci.validate_vendor_provenance import _check_unpinned_executables
+
+        d = tmp_path / ".claude" / "lib" / "__pycache__"
+        d.mkdir(parents=True)
+        (d / "backdoor.cpython-314.pyc").write_bytes(b"attacker bytecode")
+
+        errs = _check_unpinned_executables(tmp_path)
+
+        assert any("backdoor.cpython-314.pyc" in e for e in errs)
+
     def test_extensionless_detected(self, tmp_path: Path) -> None:
         """An extensionless file in watched dir is flagged."""
         from scripts.ci.validate_vendor_provenance import _check_unpinned_executables

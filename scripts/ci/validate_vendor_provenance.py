@@ -1124,8 +1124,6 @@ def _check_unpinned_executables(
         if not hdir.is_dir():
             continue
         for f in sorted(hdir.rglob("*")):
-            if "__pycache__" in str(f):
-                continue
             if f.is_relative_to(vendor_payload):
                 continue
             # Reject any symlink (leaf or ancestor): import-through-symlink
@@ -1136,12 +1134,30 @@ def _check_unpinned_executables(
                 continue
             if not f.is_file():
                 continue
+            rel = f.relative_to(candidate)
+            if "__pycache__" in f.parts and (candidate / ".git").exists():
+                tracked = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(candidate),
+                        "ls-files",
+                        "--error-unmatch",
+                        "--",
+                        str(rel),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                if tracked.returncode != 0:
+                    continue
             # Skip known non-executable data files
             if f.name == "CLAUDE.md":
                 continue
             if f.suffix in (".md", ".txt", ".rst", ".cfg", ".ini", ".toml", ".lock", ".typed"):
                 continue
-            rel = str(PurePosixPath(f.relative_to(candidate)))
+            rel = str(PurePosixPath(rel))
             if rel not in pinned_rels:
                 errors.append(f"Unpinned executable: {rel} (sha256: {_sha256_file(f)[:16]}...)")
     return errors
