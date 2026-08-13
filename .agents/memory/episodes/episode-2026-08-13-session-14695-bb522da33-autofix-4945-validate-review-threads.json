@@ -99,6 +99,19 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T11:04:20+00:00",
+      "type": "commit",
+      "content": "Commit: 47094bd76f4e100d56c87971eb39df373225fb14",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-bb522da33-autofix-4945-validate-review-threads"
     }
@@ -108,8 +121,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }
