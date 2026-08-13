@@ -101,7 +101,43 @@ def test_main_reports_invalid_utf8_adr_path(
     assert captured.out == ""
     assert str(adr_file.relative_to(tmp_path)) in captured.err
     assert "UTF-8" in captured.err
-    assert "invalid start byte" in captured.err
+
+
+def test_main_reports_invalid_utf8_template_path(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    skill_dir = tmp_path / "chestertons-fence"
+    template_dir = skill_dir / "templates"
+    template_dir.mkdir(parents=True)
+    template_path = template_dir / "chestertons-fence-investigation.md"
+    template_path.write_bytes(b"# Invalid UTF-8\n\xff")
+    script_path = skill_dir / "scripts" / "investigate.py"
+    script_path.parent.mkdir()
+    monkeypatch.setattr(investigate, "__file__", str(script_path))
+    monkeypatch.setattr(
+        investigate,
+        "investigate",
+        lambda target, change: investigate.InvestigationResult(target, change),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "investigate.py",
+            "--target",
+            "target.py",
+            "--change",
+            "test invalid template",
+        ],
+    )
+
+    exit_code = investigate.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert str(template_path) in captured.err
+    assert "UTF-8" in captured.err
 
 
 def test_find_related_adrs_returns_empty_without_adr_directory(

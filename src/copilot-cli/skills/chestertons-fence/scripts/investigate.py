@@ -215,7 +215,12 @@ def generate_report(result: InvestigationResult) -> str:
     if not template_path.exists():
         return _generate_inline_report(result)
 
-    report = template_path.read_text(encoding="utf-8")
+    try:
+        report = template_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise UnicodeError(
+            f"Cannot decode report template '{template_path}' as UTF-8: {error}"
+        ) from error
     report = report.replace("[Component/System Name]", result.target)
 
     return report + _generate_findings_appendix(result)
@@ -373,7 +378,11 @@ Examples:
         }
         print(json.dumps(output, indent=2))
     else:
-        report = generate_report(result)
+        try:
+            report = generate_report(result)
+        except UnicodeError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
         print(report)
 
     return 0
