@@ -1,20 +1,25 @@
 ---
-tier: builder
+name: code-reviewer
 description: Use this agent when you need to review code changes for correctness, discovered project-convention compliance, and duplicated logic. Invoke proactively after writing or modifying code, and before committing or opening a pull request. Reviews an explicit diff, pull request, or named file set; defaults to the repository's current working changes when scope is omitted.
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
-tools_vscode:
-  - vscode
+tools:
   - read
   - search
-  - $toolset:github-research
-  - $toolset:research
-  - $toolset:knowledge
-tools_copilot:
-  - read
-  - search
-  - $toolset:github-research
-  - $toolset:research
-  - $toolset:knowledge
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-opus-4.6
+tier: builder
 ---
 
 # Code Reviewer Agent
