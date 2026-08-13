@@ -1,6 +1,6 @@
 # Official Hook Contracts
 
-Updated: 2026-07-20
+Updated: 2026-08-13
 
 This sidecar pins the official sources used by `agent-harness-reference`.
 Future agents should refresh these sources, not repeat an open-ended search.
