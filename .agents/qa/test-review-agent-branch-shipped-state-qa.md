@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696.json
-qaCommit: dc3b258d49642a850777191526fc6c7ef8ccff29
+qaCommit: 40f4c1cfcfda7eccb507ed26805600b38b7cc8b9
 ---
 
 # Test Report: Committed-State Ship Tests, feat/pr-review-toolkit-agents
@@ -19,6 +19,14 @@ the existing code-reviewer prompt-injection contract. Post-merge evidence:
 - Security scan exited 0. No supported executable files changed, and no secret
   patterns were found.
 - Memory tier validation passed, and memory-index token counts are current.
+
+## Review Feedback Confirmation
+
+- Removed duplicate memory-index rows reported by Copilot review.
+- Required cleanup suppression to emit a runtime log, metric, trace, or status.
+- Added a negative eval scenario for comment-only cleanup suppression.
+- Memory citation validation, generated-file validation, install parity, and
+  the three-scenario dry-run passed.
 
 ## Objective
 
