@@ -151,7 +151,7 @@ class TestValidateMarkdownLint:
         mock_run.assert_not_called()
         output = capsys.readouterr().out
         assert "cannot fit under the Windows command-line limit" in output
-        measured = re.search(r"renders to ([\d,]+) characters", output)
+        measured = re.search(r"renders to ([\d,]+) UTF-16 code units", output)
         assert measured is not None
         assert int(measured.group(1).replace(",", "")) > 7_500
 

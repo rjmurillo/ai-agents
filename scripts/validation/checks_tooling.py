@@ -260,7 +260,7 @@ def _markdown_lint_target_batches(
         if command_length > MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
             preview = target if len(target) <= 80 else f"{target[:77]}..."
             raise ValueError(
-                f"target {preview!r} renders to {command_length:,} characters "
+                f"target {preview!r} renders to {command_length:,} UTF-16 code units "
                 "and cannot fit under the Windows command-line limit of "
                 f"{MARKDOWNLINT_COMMAND_LENGTH_LIMIT:,}"
             )
