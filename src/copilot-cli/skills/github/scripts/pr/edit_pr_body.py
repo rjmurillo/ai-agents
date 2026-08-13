@@ -7,12 +7,12 @@ detects edits made before the final read and avoids no-op API calls. GitHub
 rejects conditional headers on this PATCH endpoint, so it cannot prevent an
 edit made between that read and the update request.
 
-Safety invariants enforced:
+Safety behavior:
   - Rejects a body that changed between hash capture and the final read.
   - No-ops when the new body is identical to the current body.
-  - Validates that the new body does not introduce em/en dashes.
-  - Each `Fixes #N` / `Closes #N` on its own line (warns when multiple
-    targets are on one line; GitHub closes only the first).
+  - Warns when the new body introduces em/en dashes.
+  - Warns when one line contains multiple closing targets. GitHub closes only
+    the first.
 
 Exit codes follow ADR-035:
     0 - Success (or no-op)

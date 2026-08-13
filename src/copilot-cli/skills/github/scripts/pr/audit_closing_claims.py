@@ -96,18 +96,21 @@ def _strip_fenced_code(text: str) -> tuple[str, set[int]]:
     result = list(text)
     in_fence = False
     fence_char = ""
+    opening_fence_length = 0
     i = 0
     while i < len(text):
         if not in_fence:
-            m = re.match(r"^(`{3,}|~{3,})", text[i:])
+            is_line_start = i == 0 or text[i - 1] == "\n"
+            m = re.match(r" {0,3}(`{3,}|~{3,})", text[i:]) if is_line_start else None
             if m:
-                fence_char = m.group(1)[0]
-                fence_len = len(m.group(1))
+                fence = m.group(1)
+                fence_char = fence[0]
+                opening_fence_length = len(fence)
                 in_fence = True
                 # Mark the fence opener
-                for j in range(i, min(i + fence_len, len(text))):
+                for j in range(i, min(i + len(m.group(0)), len(text))):
                     fenced_positions.add(j)
-                i += fence_len
+                i += len(m.group(0))
                 # Skip rest of the opening line
                 while i < len(text) and text[i] != "\n":
                     fenced_positions.add(i)
@@ -116,12 +119,19 @@ def _strip_fenced_code(text: str) -> tuple[str, set[int]]:
                 i += 1
         else:
             # Look for closing fence
-            m = re.match(rf"^{re.escape(fence_char)}{{3,}}", text[i:])
+            is_line_start = i == 0 or text[i - 1] == "\n"
+            m = (
+                re.match(
+                    rf" {{0,3}}{re.escape(fence_char)}{{{opening_fence_length},}}",
+                    text[i:],
+                )
+                if is_line_start
+                else None
+            )
             if m:
-                fence_len = len(m.group(0))
-                for j in range(i, min(i + fence_len, len(text))):
+                for j in range(i, min(i + len(m.group(0)), len(text))):
                     fenced_positions.add(j)
-                i += fence_len
+                i += len(m.group(0))
                 in_fence = False
             else:
                 fenced_positions.add(i)
@@ -163,13 +173,30 @@ def classify_claim(
     if hash_pos > 0 and text[hash_pos - 1] == "\\":
         return "escaped_hash"
 
-    # Check for inline code span (single backtick).
-    before = text[:start]
-    backtick_count = before.count("`") - before.count("``")
-    if backtick_count % 2 == 1:
+    if _inside_code_span(text, start):
         return "code_span"
 
     return "active"
+
+
+def _inside_code_span(text: str, position: int) -> bool:
+    """Return whether position is inside a paired backtick code span."""
+    runs = list(re.finditer(r"`+", text))
+    for index, opener in enumerate(runs):
+        if opener.start() >= position:
+            break
+        delimiter_length = len(opener.group(0))
+        closer = next(
+            (
+                run
+                for run in runs[index + 1:]
+                if len(run.group(0)) == delimiter_length
+            ),
+            None,
+        )
+        if closer is not None and opener.end() <= position < closer.start():
+            return True
+    return False
 
 
 def _resolve_closing_refs(
@@ -262,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--artifact", default="",
                    help="Optional path to write JSON evidence artifact")
     p.add_argument("--resume-from", type=int, default=0,
-                   help="Skip PRs with number <= this value (for resuming)")
+                   help="Skip PRs with number >= this value (for resuming)")
     add_output_format_arg(p)
     return p
 
@@ -296,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for node in pr_nodes:
         pr_num = node.get("number") or 0
-        if args.resume_from and pr_num <= args.resume_from:
+        if args.resume_from and pr_num >= args.resume_from:
             continue
 
         body = node.get("body") or ""

@@ -246,6 +246,17 @@ class TestClassifyClaim:
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "code_span"
 
+    @pytest.mark.parametrize("delimiter", ["``", "````"])
+    def test_code_span_multiple_backticks(self, delimiter):
+        text = f"Use {delimiter}Fixes #42{delimiter} in your commit"
+
+        assert self._classify(text, "Fixes #42") == "code_span"
+
+    def test_unpaired_backticks_are_plain_prose(self):
+        text = "Use `` before Fixes #42 without a closing delimiter"
+
+        assert self._classify(text, "Fixes #42") == "active"
+
     def test_fenced_code_block(self):
         text = "```\nFixes #99\n```"
         _, fenced = _audit_mod._strip_fenced_code(text)
@@ -338,6 +349,31 @@ class TestExtractClaims:
         claims = _audit_mod.extract_claims(10, r"Fixes \#123", "main", {}, "o", "r")
         assert claims[0]["context_class"] == "escaped_hash"
         assert claims[0]["github_will_close"] is False
+
+
+class TestAuditResume:
+    def test_resume_skips_marker_and_newer_prs(self):
+        nodes = [
+            {"number": 105, "body": "Fixes #1", "baseRefName": "main"},
+            {"number": 100, "body": "Fixes #2", "baseRefName": "main"},
+            {"number": 99, "body": "Fixes #3", "baseRefName": "main"},
+        ]
+
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(
+                f"{_audit_mod.__name__}.resolve_repo_params",
+                return_value=_MOCK_REPO,
+            ),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
+            patch(f"{_audit_mod.__name__}.write_skill_output") as output,
+        ):
+            result = _audit_mod.main(["--resume-from", "100"])
+
+        audit = output.call_args.args[0]
+        assert result == 0
+        assert audit["AuditedPRs"] == 1
+        assert [claim["pr_number"] for claim in audit["Claims"]] == [99]
 
 
 class TestBodyHashAndValidate:
