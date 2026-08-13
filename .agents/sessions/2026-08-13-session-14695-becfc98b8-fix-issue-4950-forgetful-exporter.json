@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commits: 62b03a1a1, 9a3dec8d7, 3ddc2952e, a1ddfa0ef"
+        "Evidence": "Implementation commits: 62b03a1a1, 9a3dec8d7, 3ddc2952e, a1ddfa0ef, bf3bcd60c, fa6b62a07"
       },
       "validationPassed": {
         "level": "MUST",
@@ -161,14 +161,18 @@
     },
     {
       "action": "Completed QA validation at the final implementation commit",
-      "outcome": "PASS report records 42 focused tests, 27947 repository tests, 98% scanner branch coverage with only the subprocess-executed dispatch line uncollected, scoped Ruff, taste lints, and security scan evidence"
+      "outcome": "PASS report records 57 focused tests, 27952 repository tests, 98% scanner branch coverage with only the subprocess-executed dispatch line uncollected, scoped Ruff, taste lints, and security scan evidence"
     },
     {
       "action": "Resolved the pull request CodeQL clear-text logging alert",
       "outcome": "Scanner reports retain categories, counts, and line numbers without printing matched values or detection expressions; the focused inverse test passed"
+    },
+    {
+      "action": "Resolved both Copilot review findings",
+      "outcome": "Forgetful UUID exemptions now require explicit exporter mode, default scans retain UUID detection, and all three shipped Claude-Mem callers use the positional scanner contract with real boundary coverage"
     }
   ],
-  "endingCommit": "a1ddfa0ef7906df9d6d807e1a40349ba67a6d582",
+  "endingCommit": "fa6b62a07bd0fa50af40dc90f904a1a8bb879792",
   "nextSteps": [
     "Push the CI fixes, wait for all PR 4957 checks and comments, merge when clean, and verify origin/main"
   ]

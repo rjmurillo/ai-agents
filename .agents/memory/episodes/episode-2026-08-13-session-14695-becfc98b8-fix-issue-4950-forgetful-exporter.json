@@ -145,7 +145,8 @@
         "e009",
         "e010",
         "e011",
-        "e015"
+        "e015",
+        "e018"
       ],
       "leads_to": [
         "e013"
@@ -210,6 +211,56 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved both Copilot review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-13T11:43:54+00:00",
+      "type": "commit",
+      "content": "Commit: a1ddfa0ef",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-13T12:22:24+00:00",
+      "type": "commit",
+      "content": "Commit: bf3bcd60c",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-13T12:22:47+00:00",
+      "type": "commit",
+      "content": "Commit: fa6b62a07bd0fa50af40dc90f904a1a8bb879792",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-becfc98b8-fix-issue-4950-forgetful-exporter"
     }
@@ -219,8 +270,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 8
+    "commits": 8,
+    "files_changed": 12
   },
   "lessons": []
 }
