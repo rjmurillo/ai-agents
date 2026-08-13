@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import stat
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,7 +11,11 @@ import pytest
 
 from scripts.ci import merge_tree_materialization as _mat
 from scripts.ci import merge_tree_ratchet_check as _m
-from tests.ci.test_merge_tree_ratchet_check import _commit_all, _make_repo_with_baselines
+from tests.ci.test_merge_tree_ratchet_check import (
+    _commit_all,
+    _git,
+    _make_repo_with_baselines,
+)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -37,6 +42,29 @@ def test_export_ignored_scored_file_is_still_materialized(tmp_path: Path) -> Non
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_materialization_preserves_symlinks_when_git_config_disables_them(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    target = repo / "target.py"
+    target.write_text("value = 1\n", encoding="utf-8")
+    link = repo / "package_link"
+    try:
+        link.symlink_to(target.name)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    _commit_all(repo, "add symlink")
+    _git(repo, "config", "core.symlinks", "false")
+
+    destination = tmp_path / "materialized"
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    assert _mat.materialize_tree(repo, head, destination)
+    assert (destination / "package_link").is_symlink()
+    assert (destination / "package_link").read_text(encoding="utf-8") == "value = 1\n"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 @pytest.mark.parametrize("failed_step", ["_materialize_tree", "_init_scratch_repo"])
 def test_materialization_or_scratch_init_failure_is_external(
     tmp_path: Path, failed_step: str
@@ -48,9 +76,7 @@ def test_materialization_or_scratch_init_failure_is_external(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_missing_git_launch_is_external(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_missing_git_launch_is_external(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
     with patch.object(_mat, "resolve_executable", side_effect=FileNotFoundError("git")):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
@@ -94,3 +120,14 @@ def test_remove_tree_reports_permission_error(tmp_path: Path) -> None:
     with patch.object(_mat.shutil, "rmtree", side_effect=PermissionError("denied")):
         error = _mat.remove_tree(target, "scratch")
     assert error == "scratch cleanup failed: PermissionError: denied"
+
+
+def test_remove_tree_clears_readonly_files(tmp_path: Path) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    readonly = target / "pack.idx"
+    readonly.write_text("index\n", encoding="utf-8")
+    readonly.chmod(stat.S_IREAD)
+
+    assert _mat.remove_tree(target, "scratch") is None
+    assert not target.exists()
