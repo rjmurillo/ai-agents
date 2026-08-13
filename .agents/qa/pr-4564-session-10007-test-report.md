@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10007-4564-reassess-linked-issues-resolve.json
-qaCommit: dc4eee3c560677c7b757a3eaccdb850084501cda
+qaCommit: 964e774b667ef79bace5c19211b640735743a904
 ---
 
 # PR 4564 Session 10007 QA Report

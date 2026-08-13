@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-04-session-9034-github-pr-diagnostics.json
-qaCommit: dc4eee3c560677c7b757a3eaccdb850084501cda
+qaCommit: 964e774b667ef79bace5c19211b640735743a904
 ---
 
 # PR 4564 Session 9034 QA Report
