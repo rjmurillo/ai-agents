@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest main merge 690dbd5bac442c54e621e077965c15c012590384."
+        "Evidence": "Compacted merge dc4eee3c560677c7b757a3eaccdb850084501cda."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,7 +150,7 @@
       "result": "243 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed."
     }
   ],
-  "endingCommit": "690dbd5bac442c54e621e077965c15c012590384",
+  "endingCommit": "dc4eee3c560677c7b757a3eaccdb850084501cda",
   "nextSteps": [
     "Guard push against the live PR head.",
     "Wait for required checks and rerun readiness from this worktree.",
