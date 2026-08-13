@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 7e348666f3a347089a7612a1878e90cf5544ad64
+qaCommit: b2bacadb889430255b4d083d314cf4e05398ee1a
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
@@ -14,7 +14,7 @@ Validated the final branch against current `main`. The gate requires a trusted p
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 323 passed |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/ci/test_merge_group_readiness.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 342 passed |
 | `uv run mypy scripts/ci/validate_vendor_provenance.py` | Passed |
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
@@ -32,7 +32,7 @@ The workflow uses immutable event SHAs and base-owned validation code. A malicio
 
 Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: trusted dual-identity and head-event authorization, stdlib-only relevance checks, tracked Python bytecode authentication, pinned Python runtime inputs, required non-placeholder vendor pins, manifest symlink and executable-mode verification, `.claude/.npmrc` relevance, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `ab9c636d`, the setup-uv v10 pin, 323 passing tests, and real validator evidence.
+Delivered: trusted dual-identity and head-event authorization, main-only PR and merge-queue production, immutable merge-group identities, queue-safe trust updates, stdlib-only relevance checks, tracked Python bytecode authentication, pinned Python runtime inputs, required non-placeholder vendor pins, manifest symlink and executable-mode verification, `.claude/.npmrc` relevance, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `ab9c636d`, the setup-uv v10 pin, 342 passing tests, clean Actionlint, and clean security re-review.
 
 Gap: None found in tested scope.
 
