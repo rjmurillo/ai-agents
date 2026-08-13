@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Material fixes committed and pushed as 537cf5e7b8d68cb1796e4e434bafc8e525d41991. This session log and its QA report are final evidence artifacts; unrelated pre-existing untracked paths and SQLite sidecars from the read-only task lookup remain uncommitted."
+        "Evidence": "Material first-round fixes committed and pushed as 537cf5e7b8d68cb1796e4e434bafc8e525d41991. The newly reviewed historical episode deduplication and this session update are staged together in the follow-up commit; unrelated pre-existing untracked paths and SQLite sidecars from the read-only task lookup remain uncommitted."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed with validation head 537cf5e7b8d68cb1796e4e434bafc8e525d41991."
+        "Evidence": "Session validation passed with validation head 537cf5e7b8d68cb1796e4e434bafc8e525d41991. Both corrected source episodes report zero causal-order violations."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -153,6 +153,11 @@
       "timestamp": "2026-08-13T11:35:00Z",
       "action": "Pushed normally and resolved all review threads with evidence.",
       "detail": "Pre-push hooks exited 0 and remote head matched 537cf5e7b8d68cb1796e4e434bafc8e525d41991. Four substantive replies cite the fix commit and measured validator results; all four Copilot threads report resolved."
+    },
+    {
+      "timestamp": "2026-08-13T11:49:00Z",
+      "action": "Closed the sibling duplicate-identity finding in the historical episode.",
+      "detail": "A new Copilot scan found the same abbreviated/full SHA duplication in the hook-preserved session 14691 episode. Regenerated that episode with --force; it now has four distinct commit events, metrics.commits equal to 4, and zero causal-order violations."
     }
   ],
   "endingCommit": "537cf5e7b8d68cb1796e4e434bafc8e525d41991",

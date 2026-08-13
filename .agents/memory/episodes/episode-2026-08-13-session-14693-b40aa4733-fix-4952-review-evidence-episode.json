@@ -78,7 +78,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
     },
     {
@@ -93,10 +95,21 @@
         "e005"
       ],
       "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T11:49:00+00:00",
+      "type": "milestone",
+      "content": "Closed the sibling duplicate-identity finding in the historical episode.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14693-b40aa4733-fix-4952-review-evidence-episode"
     }
   ],
   "metrics": {
-    "duration_minutes": 25,
+    "duration_minutes": 39,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
