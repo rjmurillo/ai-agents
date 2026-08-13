@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, merged-main repair, review feedback fixes, QA evidence, and session artifacts committed through 40f4c1cfc."
+        "Evidence": "Implementation, merged-main repair, review feedback fixes, QA evidence, and session artifacts committed through 7412d18aa."
       },
       "validationPassed": {
         "level": "MUST",
@@ -169,6 +169,6 @@
       "outcome": "Final code commit validated by QA: e477568baf2f4d808f624068f30e00d32b34ee6c."
     }
   ],
-  "endingCommit": "40f4c1cfc",
+  "endingCommit": "7412d18aa",
   "nextSteps": []
 }

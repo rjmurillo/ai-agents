@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696.json
-qaCommit: 40f4c1cfcfda7eccb507ed26805600b38b7cc8b9
+qaCommit: 7412d18aa8d0040622a85709db934d0a689055cf
 ---
 
 # Test Report: Committed-State Ship Tests, feat/pr-review-toolkit-agents
@@ -279,3 +279,11 @@ verified fixed at current HEAD, not merely re-asserted. Two new, non-blocking
 findings (no scenario-specific registration tests; ADR-057 live eval never
 run) should be surfaced to the PR reviewer but do not block merge under the
 current advisory enforcement model.
+
+## ADR-057 Evaluation Exception
+
+The repository owner explicitly directed this ship run not to spend time or
+model tokens on the advisory live evaluation. This is the human exception for
+the non-blocking agent-prompt eval obligation. Merge clearance relies on the
+deterministic gates, CI, and review evidence recorded in this report, not on a
+claimed behavioral score.

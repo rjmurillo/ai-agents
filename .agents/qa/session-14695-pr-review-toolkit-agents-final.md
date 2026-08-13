@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-b1cdc6d2e-implement-technology-agnostic-review-agents-based.json
-qaCommit: 40f4c1cfcfda7eccb507ed26805600b38b7cc8b9
+qaCommit: 7412d18aa8d0040622a85709db934d0a689055cf
 ---
 
 # Test Report: Technology-Agnostic PR Review Agents
@@ -30,9 +30,17 @@ requirements and needed no changes.
 PASS. No diff-caused defect remains in the committed agent artifacts.
 API-backed prompt scoring was not part of this deterministic validation.
 
+## ADR-057 Evaluation Exception
+
+The repository owner explicitly directed this ship run not to spend time or
+model tokens on the advisory live evaluation. This is the human exception for
+the non-blocking agent-prompt eval obligation. The PASS verdict covers
+deterministic artifact, parity, regression, and CI evidence only. It does not
+claim a measured before-and-after behavioral score.
+
 ## Post-Merge Confirmation
 
 The branch merged current `origin/main`, restored the existing code-reviewer
 prompt-injection contract, repaired the merged memory index, and passed 332
 targeted tests. The reviewed content tip is
-`40f4c1cfcfda7eccb507ed26805600b38b7cc8b9`.
+`7412d18aa8d0040622a85709db934d0a689055cf`.

@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review feedback fixes and refreshed QA evidence committed through 40f4c1cfc."
+        "Evidence": "Review feedback fixes and refreshed QA evidence committed through 7412d18aa."
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,8 +143,12 @@
     {
       "action": "Addressed two actionable Copilot review threads.",
       "outcome": "Removed duplicate memory retrieval rows and required runtime observability for best-effort cleanup suppression."
+    },
+    {
+      "action": "Addressed the second review round.",
+      "outcome": "Completed the code-reviewer runtime contract, added the policy-valid haiku model pin, removed self-host path dependencies, made duplicate severity impact-based, and kept test discovery dynamic."
     }
   ],
-  "endingCommit": "40f4c1cfc",
+  "endingCommit": "7412d18aa",
   "nextSteps": []
 }
