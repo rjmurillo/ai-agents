@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745
+qaCommit: d19a366659fdd9fbdad81a5244b8f605a652824a
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -24,7 +24,7 @@ machine.
 - Scoped Ruff checks on the seven changed Python files: pass.
 - `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 48 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
-- Full Python suite after the latest base merge: 28011 tests collected, exit 0.
+- Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
   Scoped Ruff on every changed Python file passes.
 - Malformed JSONL text and non-object JSON now exit 3 and record an external
