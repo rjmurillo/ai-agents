@@ -1,33 +1,36 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 7e4bc01bddd21e7776fcf6b9684c5ebc12a0cdaa
+qaCommit: 4d2b7a80b421c503da3828e61bf53daf2a346780
 ---
 
-# QA Report: PR #4846 vendor provenance merge refresh
+# QA Report: PR #4846 vendor provenance autofix
 
 ## Summary
 
-Validated the conflict resolution against current `main`. The branch keeps the immutable event SHA workflow, refreshes trust pins for current hook code, and adds all new push guard modules to the authenticated execution closure.
+Validated the final branch against current `main`. The gate now requires a trusted pull request author and event sender. Candidate pin data uses literal parsing. Markdownlint configuration rejects aliases, anchors, tags, unsafe extension keys, and files over 256 KiB.
 
 ## Test Results
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/test_lefthook_integration.py::test_the_commit_limit_lets_a_stacked_first_push_through -q` | 143 passed |
-| `uv run pytest tests/workflows/test_workflow_jobs_check_out_repo.py -q` | 141 passed |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` | 294 passed |
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
-| `verify_no_conflict_markers.py --cwd . --json` | Passed, zero unmerged files or markers |
+| `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
+| `actionlint .github/workflows/vendor-provenance.yml` | Passed |
+| `uv run python scripts/validation/validate_python_syntax.py .` | Passed |
+| Trusted author and sender validator run against current `main` | Passed |
+| Untrusted sender negative control | Rejected with exit 1 |
 
 ## Correctness Assessment
 
-The merge preserves the branch security design. Candidate code never executes. Base and head identities use immutable event SHAs. NUL-delimited changed paths avoid shell argument injection. Current push guard modules and generated mirrors are pinned by SHA-256. The required check name and Node 24 setup match current `main`.
+The workflow uses immutable event SHAs and base-owned validation code. A malicious contributor cannot authorize an update by pushing to a trusted author's branch. YAML expansion and extension loading are rejected before parsing. Vendor executables remain pinned without treating package runtime files as standalone tools.
 
 ## Verdict
 
-Promised: merge the trusted vendor provenance gate, clear conflicts, and restore CI.
+Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: clean merge resolution, refreshed pins, current workflow contract, 284 passing targeted tests, and clean Ruff output.
+Delivered: trusted dual-identity authorization, literal candidate pin parsing, bounded YAML loading, current `main`, 294 passing tests, and real validator evidence.
 
 Gap: None found in tested scope.
 
