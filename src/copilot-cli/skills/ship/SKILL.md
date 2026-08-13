@@ -52,14 +52,17 @@ Set the mode:
 - If an open PR exists AND you are not its author (you are pushing onto a colleague's branch), `mode=contributor`.
 - Otherwise `mode=owner`.
 
+Set `pr` from fact (b): `pr=#<number>` when an open PR exists for this branch, `pr=none` otherwise. `pr` selects the pipeline-validation ordering in pre-flight check 1 and MUST appear in the ship report. `mode=contributor` implies `pr=#<number>`; only `mode=owner` can reach `pr=none`.
+
 `mode=contributor` means you may run readiness checks and the `/review` axes, but you MUST NOT write a marker commit onto the shared branch, create a PR, or merge. Writing a SHA-bound review marker commit onto a branch you do not own pollutes the owner's PR with a foreign workflow artifact and is prohibited in this mode.
 
 ## Pre-flight Checks
 
-`agent_type: "project-toolkit:devops"`: You are a release engineer. Run all 4 pre-flight checks below, branching by the `host` and `mode` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
+`agent_type: "project-toolkit:devops"`: You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
 
 1. **Pipeline health**
-   - `host=github`: Invoke `skill: "pipeline-validator"`. All CI checks green? No suppressed failures?
+   - `host=github`, `pr=#<number>` (open PR exists): Invoke `skill: "pipeline-validator"`. All CI checks green? No suppressed failures?
+   - `host=github`, `pr=none` (no open PR; `mode=owner` only): pipeline validation is DEFERRED, not skipped. `.claude/skills/pipeline-validator/SKILL.md` Step 1 states its contract verbatim: "**No PR found:** Report to user. A PR must exist before pipeline validation. The calling skill should have created one." Invoking it here stops the run before Process step 3, which is the step that creates the first PR, so the branch can never leave this state (Issue #4841). Do NOT invoke it now. Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4, which are the local readiness checks. Process step 4 discharges the deferral against the PR that `/push-pr` creates; a failure there fails the ship.
    - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies for the branch behind a Bash step instead. List the active branch policies and the latest policy or build status, then confirm every required policy is satisfied:
 
      ```bash
@@ -112,13 +115,14 @@ Set the mode:
 
 ## Process
 
-1. Run all 4 pre-flight checks, branching by `host` and `mode`.
-2. If any blocking check fails: report what failed, why, and how to fix. Stop. (In `mode=contributor`, check 3 is advisory and never blocks.)
+1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
+2. If any blocking check fails: report what failed, why, and how to fix. Stop. (In `mode=contributor`, check 3 is advisory and never blocks. A `Pipeline: DEFERRED` result from check 1 is not a failure and does not stop the run.)
 3. If all pass:
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
    - `mode=owner`, `host=ado`: run /validate-pr-description, then create the PR with `az repos pr create` (the gh-based /push-pr does not apply to ADO).
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
-4. Report: host, mode, what was validated or shipped, PR link, any warnings.
+4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`host=github`, `mode=owner`, `pr=none`), invoke `skill: "pipeline-validator"` now, against the PR /push-pr just created. The precondition the validator requires is satisfied at this point: the PR exists. All CI checks green and no suppressed failures makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
+5. Report: host, mode, `pr` at pre-flight time, what was validated or shipped, PR link, any warnings.
 
 ## Principles
 
@@ -134,9 +138,10 @@ Ship report:
 ```text
 HOST: github|ado
 MODE: owner|contributor
+PR-AT-PREFLIGHT: none|#<number>
 
 PRE-FLIGHT:
-  Pipeline:  PASS|FAIL (evidence)
+  Pipeline:  PASS|FAIL|DEFERRED->PASS|DEFERRED->FAIL (evidence; DEFERRED-> forms mean pr=none at check 1 and validated after /push-pr)
   Security:  PASS|FAIL (evidence)
   Reviewed:  PASS|FAIL|ADVISORY (owner: SHA-bound /review marker on HEAD; contributor: /review attestation, no marker commit)
   Tests:     PASS|FAIL (evidence)
@@ -148,3 +153,5 @@ NEXT: [monitoring, follow-up items]
 ```
 
 `RESULT: VALIDATED` is the contributor-mode terminal state: readiness checks and `/review` axes ran, no marker commit was written, no PR was created, and nothing was merged.
+
+A bare `Pipeline: DEFERRED` in a finished report is a defect: the deferral is discharged by Process step 4, so a completed run reports `DEFERRED->PASS` or `DEFERRED->FAIL`.
