@@ -56,13 +56,6 @@ def test_valid_candidate_exits_zero(tmp_path: Path) -> None:
     from scripts.ci.validate_vendor_provenance import _PINNED_ARTIFACTS
 
     root = tmp_path / "candidate"
-    for rel, _sha, _label in _PINNED_ARTIFACTS:
-        # Write a file whose SHA-256 matches the pin
-        fpath = root / rel
-        fpath.parent.mkdir(parents=True, exist_ok=True)
-        # We can't reverse SHA-256, so patch the pin table.
-        # Instead: write known content and validate directly.
-    # Simpler: write the real files from main
     import shutil
 
     repo = Path(__file__).resolve().parents[2]
@@ -142,6 +135,23 @@ class TestMirrorParity:
 class TestLockfilePolicy:
     def _vendor(self, root: Path) -> Path:
         return root / ".claude/hooks/PreToolUse/_vendor/markdownlint"
+
+    def test_absent_vendor_tree_without_lockfile_allowed(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_lockfile
+
+        lockfile = self._vendor(tmp_path) / "package-lock.json"
+
+        assert _validate_lockfile(lockfile) == []
+
+    def test_partial_vendor_tree_without_lockfile_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "c"
+        vendor = self._vendor(root)
+        _write(vendor / "payload.js", "console.log('unverified')\n")
+
+        result = _run(["--candidate-root", str(root)])
+
+        assert result.returncode == 1
+        assert "vendor directory exists without package-lock.json" in result.stdout
 
     def test_lockfile_v1_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"

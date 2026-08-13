@@ -1259,7 +1259,10 @@ def _validate_package_entry(name: str, meta: dict[str, object]) -> list[str]:
 
 def _validate_lockfile(lockfile: Path) -> list[str]:
     if not lockfile.is_file():
-        return []  # No vendor tree yet: not an error
+        vendor_dir = lockfile.parent
+        if vendor_dir.exists() or vendor_dir.is_symlink():
+            return ["vendor directory exists without package-lock.json"]
+        return []
     try:
         data = json.loads(lockfile.read_bytes())
     except (json.JSONDecodeError, OSError) as exc:
