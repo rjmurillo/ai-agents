@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: ffeb3955ced4708ec67069128dab223e8f1ea4d9
+qaCommit: d44d648d6432d6fed49f4a5fa89ddda179ed9cdf
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
 
 ## Summary
 
-Validated the final branch against current `main`. The gate now requires a trusted pull request author and event sender. Candidate pin data uses literal parsing. Markdownlint configuration rejects aliases, anchors, tags, unsafe extension keys, and files over 256 KiB.
+Validated the final branch against current `main`. The gate requires a trusted pull request author and event sender. It reruns for opened, reopened, synchronized, and edited events. Candidate pin data uses literal parsing. Markdownlint configuration rejects aliases, anchors, tags, unsafe extension keys, and files over 256 KiB.
 
 ## Test Results
 
