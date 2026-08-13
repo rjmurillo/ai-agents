@@ -18,6 +18,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 _GENERIC_SECRET_PATTERN = (
     r"(?<![a-zA-Z0-9~_.-])[a-zA-Z0-9~_.-]{34,}(?![a-zA-Z0-9~_.-])"
@@ -29,6 +30,14 @@ _FORGETFUL_ID_UUID = re.compile(
 _CANONICAL_UUID = re.compile(
     r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"
 )
+
+
+class _Issue(TypedDict):
+    category: str
+    pattern: str
+    count: int
+    lines: str
+
 
 SENSITIVE_PATTERNS: dict[str, list[str]] = {
     "API Keys/Tokens": [
@@ -95,6 +104,44 @@ def _line_has_sensitive_match(
     return any(not _is_forgetful_id_uuid(line, match) for match in matches)
 
 
+def _scan_pattern(category: str, pattern: str, lines: list[str]) -> _Issue | None:
+    try:
+        compiled = re.compile(pattern, re.IGNORECASE)
+    except re.error as exc:
+        return {
+            "category": f"{category} (SCAN FAILED)",
+            "pattern": pattern,
+            "count": 1,
+            "lines": f"Error: {exc}",
+        }
+    match_lines = [
+        number
+        for number, line in enumerate(lines, 1)
+        if _line_has_sensitive_match(line, pattern, compiled)
+    ]
+    if not match_lines:
+        return None
+    return {
+        "category": category,
+        "pattern": pattern,
+        "count": len(match_lines),
+        "lines": ", ".join(str(number) for number in match_lines[:3]),
+    }
+
+
+def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
+    found_issues: list[_Issue] = []
+    total_matches = 0
+    for category, patterns in SENSITIVE_PATTERNS.items():
+        for pattern in patterns:
+            issue = _scan_pattern(category, pattern, lines)
+            if issue is None:
+                continue
+            found_issues.append(issue)
+            total_matches += issue["count"]
+    return found_issues, total_matches
+
+
 def scan_file(export_file: Path, quiet: bool = False) -> int:
     if not quiet:
         print(f"Scanning export file for sensitive data: {export_file}")
@@ -102,32 +149,7 @@ def scan_file(export_file: Path, quiet: bool = False) -> int:
 
     content = export_file.read_text(encoding="utf-8")
     lines = content.splitlines()
-    found_issues: list[dict[str, str | int]] = []
-    total_matches = 0
-
-    for category, patterns in SENSITIVE_PATTERNS.items():
-        for pattern in patterns:
-            try:
-                compiled = re.compile(pattern, re.IGNORECASE)
-                match_lines: list[int] = []
-                for i, line in enumerate(lines, 1):
-                    if _line_has_sensitive_match(line, pattern, compiled):
-                        match_lines.append(i)
-                if match_lines:
-                    total_matches += len(match_lines)
-                    found_issues.append({
-                        "category": category,
-                        "pattern": pattern,
-                        "count": len(match_lines),
-                        "lines": ", ".join(str(n) for n in match_lines[:3]),
-                    })
-            except re.error as e:
-                found_issues.append({
-                    "category": f"{category} (SCAN FAILED)",
-                    "pattern": pattern,
-                    "count": 1,
-                    "lines": f"Error: {e}",
-                })
+    found_issues, total_matches = _collect_issues(lines)
 
     if not found_issues:
         if not quiet:
