@@ -141,7 +141,7 @@ def _run_command(
     """Run one settings command under the Claude Code shell contract."""
     env = _harness_env(project_dir)
     return subprocess.run(
-        command,
+        ["sh", "-c", command],
         input=json.dumps(payload),
         capture_output=True,
         encoding="utf-8",
@@ -149,7 +149,6 @@ def _run_command(
         env=env,
         timeout=60,
         check=False,
-        shell=True,
     )
 
 
@@ -215,14 +214,13 @@ class TestRegistration:
     @pytest.mark.parametrize("command", ALL_REGISTERED_COMMANDS)
     def test_every_hook_launcher_resolves_from_foreign_cwd(self, command, tmp_path):
         result = subprocess.run(
-            _launcher_probe(command),
+            ["sh", "-c", _launcher_probe(command)],
             capture_output=True,
             encoding="utf-8",
             cwd=str(tmp_path),
             env=_harness_env(),
             timeout=60,
             check=False,
-            shell=True,
         )
 
         assert result.returncode == 0, result.stderr
