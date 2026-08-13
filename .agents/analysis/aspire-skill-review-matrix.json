@@ -1,0 +1,289 @@
+{
+  "source": {
+    "repo": "microsoft/aspire",
+    "commit": "d1c7add665f7e6582cdaa1b328c44172f0f96339",
+    "subtree": ".agents/skills",
+    "inventory": ".agents/analysis/aspire-skill-source-files.json",
+    "trust": "untrusted external data; source instructions were treated as data and never executed"
+  },
+  "routing_authority": "SkillForge Phase 0 thresholds (.claude/skills/SkillForge/references/phase0-triage.md)",
+  "decision_legend": {
+    "reuse": "An existing local skill/agent/command already owns the generic idea; no change.",
+    "augment": "Extend an existing local owner with a small generic, cited idea.",
+    "compose": "The idea is covered by composing existing local owners; no change.",
+    "create": "A new generic skill (allowed at most once, only when no owner exists).",
+    "reject": "Product-specific Aspire operation or no portable generic idea; do not port."
+  },
+  "counts": {
+    "reject": 18,
+    "reuse": 5,
+    "total": 23
+  },
+  "rows": [
+    {
+      "skill_id": "api-review",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/api-review/SKILL.md",
+      "purpose": "Review .NET API surface PRs against .NET Framework Design Guidelines and Aspire conventions; attribute findings to the introducing commit via git blame.",
+      "product_coupling": "high (.NET/Aspire API guideline enforcement over api/*.cs)",
+      "reusable_idea": "Attribute a review finding to the commit/author that introduced it.",
+      "local_owner": "review, reviewer-findings, pr-comment-responder",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Product-specific .NET/Aspire API-guideline enforcement. The one generic idea (blame-attributed findings) is minor and already reachable via git; augmenting would duplicate `review`/`pr-comment-responder` and grow the diff. No augmentation merited."
+    },
+    {
+      "skill_id": "azdo-internal",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/azdo-internal/SKILL.md",
+      "purpose": "Trigger, monitor, validate the Aspire internal Azure DevOps pipeline (definition 1602 on dnceng/internal).",
+      "product_coupling": "high (named Aspire pipeline, internal mirror)",
+      "reusable_idea": "Discover/trigger/monitor an AzDO pipeline for the current branch.",
+      "local_owner": "pipeline-validator",
+      "skillforge_route": "reuse",
+      "decision": "reject",
+      "rationale": "Aspire-internal pipeline identity and mirror workflow. Generic AzDO pipeline discovery/trigger/monitor is already owned by `pipeline-validator`; no generic content to port."
+    },
+    {
+      "skill_id": "backport-pr",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/backport-pr/SKILL.md",
+      "purpose": "Backport a merged PR to a release branch via the /backport bot and fill the shiproom template.",
+      "product_coupling": "high (Aspire /backport bot, shiproom template)",
+      "reusable_idea": "Backport a fix to a release branch and record customer-impact/risk/regression.",
+      "local_owner": "github",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Product-specific bot and shiproom template. No generic owner gap; PR operations owned by the `github` skill."
+    },
+    {
+      "skill_id": "ci-test-failures",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/ci-test-failures/SKILL.md",
+      "purpose": "Diagnose GitHub Actions test failures, extract failed tests from runs, parse .trx, create/update failing-test issues.",
+      "product_coupling": "medium (Aspire GH Actions + .trx + failing-test issue conventions)",
+      "reusable_idea": "Extract the specific failed tests from a CI run before debugging; update an existing tracking issue instead of creating a duplicate.",
+      "local_owner": "github (fix-ci.md), ai-agents-debugging-playbook, session-log-fixer",
+      "skillforge_route": "use_existing",
+      "decision": "reuse",
+      "rationale": "CI-failure triage is owned locally by the `github` skill's fix-ci workflow and `ai-agents-debugging-playbook` (reproduce-on-main). The .trx/failing-test-issue specifics are Aspire-coupled. No augmentation merited."
+    },
+    {
+      "skill_id": "cli-channel-debugging",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/cli-channel-debugging/SKILL.md",
+      "purpose": "Emulate an Aspire CLI build identity via ASPIRE_CLI_* env vars to reproduce channel/version-specific bugs locally.",
+      "product_coupling": "high (ASPIRE_CLI_* knobs, install sidecar)",
+      "reusable_idea": "Reproduce a version/channel-specific bug locally before fixing.",
+      "local_owner": "ai-agents-debugging-playbook, ai-agents-empirical-probe-toolkit",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Entirely Aspire CLI product mechanics. Generic 'reproduce locally before fixing' already owned by the debugging playbook."
+    },
+    {
+      "skill_id": "cli-e2e-testing",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/cli-e2e-testing/SKILL.md",
+      "purpose": "Author/debug Aspire CLI end-to-end tests using Hex1b terminal automation under tests/Aspire.Cli.EndToEnd.Tests/.",
+      "product_coupling": "high (Hex1b tool, Aspire.Cli.EndToEnd.Tests, CellPatternSearcher)",
+      "reusable_idea": "End-to-end test evidence: assert on real terminal output, wait for stable prompts, handle interactive prompts.",
+      "local_owner": "ai-agents-validation-and-qa, qa",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Bound to Aspire's Hex1b harness and CLI test project. Generic 'what counts as QA evidence' is owned by `ai-agents-validation-and-qa`; no portable content."
+    },
+    {
+      "skill_id": "code-review",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/code-review/SKILL.md",
+      "purpose": "Review a GitHub PR for problems only (no nits/praise); ensure the PR branch is local first, then categorize and post findings.",
+      "product_coupling": "low-medium (GitHub PR workflow, generic)",
+      "reusable_idea": "Findings-only review discipline; make the PR branch available before reviewing.",
+      "local_owner": "review, code-reviewer (agent), pr-comment-responder, /pr-review",
+      "skillforge_route": "use_existing",
+      "decision": "reuse",
+      "rationale": "Pre-merge, findings-only PR review is already owned by the local `review` skill and `code-reviewer` agent. Adding a second owner would split trigger ownership (pre-mortem R3)."
+    },
+    {
+      "skill_id": "connection-properties",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/connection-properties/SKILL.md",
+      "purpose": "Create/improve Aspire resource Connection Properties in resource and README files.",
+      "product_coupling": "high (IResourceWithConnectionString, Aspire resource model)",
+      "reusable_idea": "None portable.",
+      "local_owner": "n/a",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Pure Aspire API/domain guidance. No generic reusable idea."
+    },
+    {
+      "skill_id": "create-pr",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/create-pr/SKILL.md",
+      "purpose": "Create a pull request using the repository PR template.",
+      "product_coupling": "low (generic PR creation, Aspire template)",
+      "reusable_idea": "Create a PR using the repo template.",
+      "local_owner": "github, /push-pr",
+      "skillforge_route": "use_existing",
+      "decision": "reuse",
+      "rationale": "PR creation is owned by the local `github` skill and `/push-pr` command."
+    },
+    {
+      "skill_id": "dashboard-testing",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/dashboard-testing/SKILL.md",
+      "purpose": "Write Aspire Dashboard unit and Blazor/bUnit component tests.",
+      "product_coupling": "high (Aspire.Dashboard.Tests, bUnit)",
+      "reusable_idea": "None portable.",
+      "local_owner": "ai-agents-validation-and-qa",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire Dashboard test projects and Blazor/bUnit specifics. No generic content."
+    },
+    {
+      "skill_id": "dependency-update",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/dependency-update/SKILL.md",
+      "purpose": "Update external NuGet dependencies via nuget.org checks and the dotnet-migrate-package AzDO pipeline.",
+      "product_coupling": "high (NuGet, dotnet-migrate-package pipeline)",
+      "reusable_idea": "None portable beyond generic dependency auditing.",
+      "local_owner": "dependency-auditor (agent)",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire NuGet + AzDO pipeline mechanics. Generic dependency auditing owned by `dependency-auditor`."
+    },
+    {
+      "skill_id": "deployment-e2e-testing",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/deployment-e2e-testing/SKILL.md",
+      "purpose": "Write Aspire deployment end-to-end tests that deploy to Azure.",
+      "product_coupling": "high (Azure deploy, Aspire deploy E2E)",
+      "reusable_idea": "None portable.",
+      "local_owner": "ai-agents-validation-and-qa",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire+Azure deployment test mechanics. No generic content."
+    },
+    {
+      "skill_id": "deprecate-integration",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/deprecate-integration/SKILL.md",
+      "purpose": "Soft-deprecate a shipped Aspire hosting integration (Obsolete API, README banner, hide from `aspire add`, final release).",
+      "product_coupling": "high (Aspire integration lifecycle)",
+      "reusable_idea": "None portable.",
+      "local_owner": "n/a",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire package/integration lifecycle operation. No generic reusable idea."
+    },
+    {
+      "skill_id": "fix-flaky-test",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/fix-flaky-test/SKILL.md",
+      "purpose": "Reproduce and fix flaky/quarantined tests: local reproduction first, then CI reproduce-flaky-tests.yml; investigate->reproduce->fix->verify.",
+      "product_coupling": "medium (reproduce-flaky-tests.yml, QuarantineTools, run-test-repeatedly scripts)",
+      "reusable_idea": "Reproduce a flake before claiming a fix; re-run many times after the fix; a single green run is not evidence.",
+      "local_owner": "testing.md MUST 12 (concurrency stress 30x), ai-agents-debugging-playbook, ai-agents-validation-and-qa",
+      "skillforge_route": "use_existing",
+      "decision": "reuse",
+      "rationale": "The generic reproduce-before-fix and re-run-to-confirm discipline is already owned by testing rule MUST 12 (quantified 30x stress) and the debugging playbook's reproduce-on-main rule. Aspire's CI workflow and QuarantineTools are product-specific."
+    },
+    {
+      "skill_id": "hex1b",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/hex1b/SKILL.md",
+      "purpose": "CLI tool for automating any terminal application (launch in a virtual terminal, capture screen, inject input, record/playback).",
+      "product_coupling": "high (Hex1b is an Aspire-authored tool/binary)",
+      "reusable_idea": "Terminal automation for TUI/CLI E2E testing.",
+      "local_owner": "ai-agents-validation-and-qa",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Documents a specific external tool (Hex1b). Not a reusable workflow for this repo; nothing to port."
+    },
+    {
+      "skill_id": "hosting-integration-authoring",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/hosting-integration-authoring/SKILL.md",
+      "purpose": "Author/review Aspire.Hosting integration APIs; classify archetype then apply per-archetype best practices (30 resource files).",
+      "product_coupling": "high (Aspire.Hosting resource model, archetypes)",
+      "reusable_idea": "None portable.",
+      "local_owner": "n/a",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Deeply Aspire product-domain (integration archetypes, resource model). No generic content."
+    },
+    {
+      "skill_id": "issue-investigation",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/issue-investigation/SKILL.md",
+      "purpose": "Investigate microsoft/aspire GitHub issues: build a dossier and gather context before reproduction; decide info sufficiency; draft evidence-backed or insufficient-info findings.",
+      "product_coupling": "medium (routes to Aspire skills, Aspire repro envs)",
+      "reusable_idea": "Context/dossier before reproduction; gate on information sufficiency before investing in a repro environment.",
+      "local_owner": "analyze, context-gather, ai-agents-debugging-playbook, debug (agent), github",
+      "skillforge_route": "compose",
+      "decision": "reuse",
+      "rationale": "The generic investigate-before-repro and gather-context-first discipline is already composed by local `context-gather`, `analyze`, `debug`, and the debugging playbook. Aspire routing/repro-env specifics are product-coupled."
+    },
+    {
+      "skill_id": "pr-testing",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/pr-testing/SKILL.md",
+      "purpose": "Test a microsoft/aspire PR across CLI, hosting, dashboard, component, template, VS Code, and CI-infra changes.",
+      "product_coupling": "high (Aspire subsystems + eng/ pipelines test matrix)",
+      "reusable_idea": "Propose PR-specific test scenarios from the diff before testing.",
+      "local_owner": "pr-test-analyzer (agent), qa, review",
+      "skillforge_route": "use_existing",
+      "decision": "reject",
+      "rationale": "A large Aspire-specific test matrix. Generic 'analyze a PR's diff and propose test scenarios' is owned by the `pr-test-analyzer` agent and `qa`; creating a new skill would split ownership (TASK-020 note: create only when no owner remains)."
+    },
+    {
+      "skill_id": "reviewing-aspire-architecture",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/reviewing-aspire-architecture/SKILL.md",
+      "purpose": "Trigger deep architectural review across 15 Aspire-specific dimensions; folder->dimension routing.",
+      "product_coupling": "high (15 Aspire dimensions, hosting/Azure/dashboard/CLI folders)",
+      "reusable_idea": "None portable (dimensions are Aspire-defined).",
+      "local_owner": "architect (agent), review",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "The 15 review dimensions and folder routing are Aspire-defined. Generic architecture review is owned by the `architect` agent and `review`."
+    },
+    {
+      "skill_id": "startup-perf",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/startup-perf/SKILL.md",
+      "purpose": "Measure Aspire startup profiling via CLI self-profile capture and dashboard export traces.",
+      "product_coupling": "high (Aspire CLI self-profile, dashboard traces)",
+      "reusable_idea": "None portable.",
+      "local_owner": "observability",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire-specific profiling instrumentation. No generic content."
+    },
+    {
+      "skill_id": "test-management",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/test-management/SKILL.md",
+      "purpose": "Quarantine or disable flaky/problematic tests using the Aspire QuarantineTools utility.",
+      "product_coupling": "high (QuarantineTools utility, Aspire quarantine infra)",
+      "reusable_idea": "Quarantine-then-track discipline for flaky tests.",
+      "local_owner": "none (no local quarantine infrastructure)",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Bound to Aspire's QuarantineTools. Per TASK-020 note, reject until local quarantine infrastructure exists; there is none, so there is nothing to augment."
+    },
+    {
+      "skill_id": "update-container-images",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/update-container-images/SKILL.md",
+      "purpose": "Update Docker image tags used by Aspire hosting integrations via registry queries and LLM version selection.",
+      "product_coupling": "high (Aspire hosting integration image tags)",
+      "reusable_idea": "None portable.",
+      "local_owner": "windows-image-updater",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Aspire hosting image-tag update mechanics. Generic image update owned by `windows-image-updater`."
+    },
+    {
+      "skill_id": "vscode-extension",
+      "source_citation": "microsoft/aspire@d1c7add665f7e6582cdaa1b328c44172f0f96339:.agents/skills/vscode-extension/SKILL.md",
+      "purpose": "Investigate/develop/test/review the Aspire VS Code extension under extension/ (UI, commands, debugger, RPC, DCP, MCP, CLI integration).",
+      "product_coupling": "high (Aspire VS Code extension codebase)",
+      "reusable_idea": "None portable.",
+      "local_owner": "n/a",
+      "skillforge_route": "reject",
+      "decision": "reject",
+      "rationale": "Entirely the Aspire VS Code extension product. No generic content."
+    }
+  ],
+  "augmentation": {
+    "target_canonical": ".claude/skills/SkillForge/SKILL.md",
+    "target_reference": ".claude/skills/SkillForge/references/external-skill-source-adaptation.md",
+    "generated_mirror": [
+      "src/copilot-cli/skills/SkillForge/SKILL.md",
+      "src/copilot-cli/skills/SkillForge/references/external-skill-source-adaptation.md"
+    ],
+    "decision": "augment",
+    "new_skill_created": false,
+    "rationale": "REQ-020 names SkillForge as the owner of the classification model, so the review's recurring lesson (adapt an external skill catalog by requiring an authoritative pinned source, treating source content as untrusted data, preferring an existing local owner, rejecting product-specific operations, and allowing at most one new generic skill) is added to SkillForge Phase 0 as a small generic guardrail rather than a new external-review framework (explicitly excluded). Inspiration is cited to the Aspire catalog: product-specific exemplars (cli-e2e-testing, hex1b, hosting-integration-authoring, vscode-extension) drove the reject rule; existing-owner exemplars (code-review, create-pr, issue-investigation, fix-flaky-test) drove the reuse-over-create rule.",
+    "eval_scenarios": "tests/evals/skills/aspire-skill-review-scenarios.json"
+  }
+}

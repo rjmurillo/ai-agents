@@ -60,6 +60,13 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "failure_classification.py": (
+        "Library holding PR-fetch failure classification for "
+        "build_ai_review_context.py, which ai-review.yml invokes. It has no "
+        "main() and no shebang; tests/ci/test_failure_classification.py covers "
+        "its policy while tests/test_build_ai_review_context.py covers the "
+        "workflow-invoked integration (issue #4597)."
+    ),
     "merge_tree_materialization.py": (
         "Library holding the exact-tree materialization and isolated Git helpers "
         "for merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "

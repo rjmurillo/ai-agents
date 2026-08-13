@@ -34,7 +34,17 @@ nothing they could collide with.
 ## Recipe
 
 Key the lock on the branch, so it still blocks the collision that actually
-happens and blocks nothing else.
+happens and blocks nothing else. Use `$HOME/src/scratch/locks/` rather than
+`/tmp` because `/tmp` was wiped mid-session on 2026-08-02; the wipe creates a
+new inode at the same path and flock stops excluding the two holders (split-lock
+failure under a single filename). Issue #4366 confirmed the wipe condition fired,
+so the path moves to a durable location now.
+
+All agents must use this exact form. flock excludes only processes that open
+the same path. A second scheme (even one with correct per-branch keying) is
+invisible to holders of the first, so a mixed fleet provides no mutual exclusion.
+Three schemes were observed live 2026-08-02: per-branch `/tmp`, 4-slot hash
+under `/tmp`, and `$HOME` variant. All three ran concurrently with zero exclusion.
 
 ```bash
 BR=$(git rev-parse --abbrev-ref HEAD)

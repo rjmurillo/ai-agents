@@ -143,6 +143,44 @@ def test_subdirectories_skipped(tmp_path: Path) -> None:
     assert not (tmp_path / "out_skills" / "nested" / "SKILL.md").exists()
 
 
+def test_command_resources_copy_to_configured_output_dir(tmp_path: Path) -> None:
+    """A command resource needed at runtime should ship with the plugin."""
+    _write_command(tmp_path / "cmds", "pr-review", body="Review PRs.\n")
+    resource = tmp_path / "cmds" / "pr-review-config.yaml"
+    resource.write_text("completion_criteria: []\n", encoding="utf-8")
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    resourceSuffixes: [".yaml"]
+    transform: "command-to-skill"
+    appendFrontmatter:
+      user-invocable: true
+""",
+        encoding="utf-8",
+    )
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+
+    assert rc == 0
+    copied = tmp_path / "out_commands" / "pr-review-config.yaml"
+    assert copied.read_text(encoding="utf-8") == "completion_criteria: []\n"
+
+
+def test_committed_pr_review_config_mirror_matches_claude_config() -> None:
+    source = REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+    mirror = REPO_ROOT / "src" / "copilot-cli" / "commands" / "pr-review-config.yaml"
+
+    assert mirror.is_file()
+    assert mirror.read_bytes() == source.read_bytes()
+
+
 # Collision detection --------------------------------------------------------
 
 
@@ -206,6 +244,45 @@ artifacts:
 """
     )
     assert generate_commands.generate_commands(cfg, tmp_path) == 2
+
+
+def test_resource_output_dir_requires_resource_suffixes(tmp_path: Path) -> None:
+    _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "x"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    transform: "command-to-skill"
+"""
+    )
+    assert generate_commands.generate_commands(cfg, tmp_path) == 2
+
+
+def test_resource_suffixes_must_be_non_empty_dotted_list(tmp_path: Path) -> None:
+    _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
+    cases = ("[]", '["yaml"]', '["."]')
+    for index, suffixes in enumerate(cases, start=1):
+        cfg = tmp_path / f"p-{index}.yaml"
+        cfg.write_text(
+            f"""\
+schemaVersion: "1.0"
+provider: "x"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    resourceSuffixes: {suffixes}
+    transform: "command-to-skill"
+"""
+        )
+        assert generate_commands.generate_commands(cfg, tmp_path) == 2
 
 
 # NO-REGEN sentinel ----------------------------------------------------------
@@ -294,3 +371,64 @@ def test_committed_command_mirrors_match_the_generator() -> None:
         )
     finally:
         shutil.rmtree(staged, ignore_errors=True)
+
+
+# excludeFilenames / _DEFAULT_EXCLUDES union behaviour -----------------------
+
+
+def _write_config_with_excludes(tmp_path: Path, exclude_filenames: list[str] | None) -> Path:
+    """Write a minimal platform config, optionally setting ``excludeFilenames``."""
+    exclude_block = ""
+    if exclude_filenames is not None:
+        items = ", ".join(f'"{f}"' for f in exclude_filenames)
+        exclude_block = f"    excludeFilenames: [{items}]\n"
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        f"""\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    transform: "command-to-skill"
+{exclude_block}"""
+    )
+    return cfg
+
+
+def test_exclude_filenames_unions_with_defaults(tmp_path: Path) -> None:
+    """When ``excludeFilenames`` omits a default-excluded file, it is still excluded."""
+    cmds = tmp_path / "cmds"
+    # Create a file whose name matches a _DEFAULT_EXCLUDES entry ("CLAUDE.md")
+    _write_command(cmds, "CLAUDE", body="Should be excluded.\n")
+    # Create a normal command that should be generated
+    _write_command(cmds, "hello", body="Hello world.\n")
+
+    # Config excludes only "AGENTS.md" — deliberately omits "CLAUDE.md"
+    cfg = _write_config_with_excludes(tmp_path, ["AGENTS.md"])
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+    assert rc == 0
+
+    out_dir = tmp_path / "out_skills"
+    generated = sorted(p.parent.name for p in out_dir.glob("*/SKILL.md"))
+    assert "CLAUDE" not in generated, "CLAUDE.md must be excluded via _DEFAULT_EXCLUDES union"
+    assert "hello" in generated
+
+
+def test_exclude_filenames_absent_uses_defaults(tmp_path: Path) -> None:
+    """When ``excludeFilenames`` is absent, only ``_DEFAULT_EXCLUDES`` applies."""
+    cmds = tmp_path / "cmds"
+    _write_command(cmds, "CLAUDE", body="Should be excluded.\n")
+    _write_command(cmds, "hello", body="Hello world.\n")
+
+    cfg = _write_config_with_excludes(tmp_path, None)
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+    assert rc == 0
+
+    out_dir = tmp_path / "out_skills"
+    generated = sorted(p.parent.name for p in out_dir.glob("*/SKILL.md"))
+    assert "CLAUDE" not in generated, "CLAUDE.md must be excluded by _DEFAULT_EXCLUDES"
+    assert "hello" in generated

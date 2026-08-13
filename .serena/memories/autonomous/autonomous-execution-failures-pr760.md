@@ -88,6 +88,5 @@ When user provides code patch unsolicited:
 
 - [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
 - [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
-- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
 - [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
 - [autonomous-patch-signal](autonomous-patch-signal.md)

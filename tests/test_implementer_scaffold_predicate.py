@@ -1,0 +1,53 @@
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROMPT_PATHS = (
+    PROJECT_ROOT / "templates/agents/implementer.shared.md",
+    PROJECT_ROOT / "src/claude/implementer.md",
+    PROJECT_ROOT / ".claude/agents/implementer.md",
+    PROJECT_ROOT / ".github/agents/implementer.agent.md",
+    PROJECT_ROOT / "src/copilot-cli/agents/implementer.agent.md",
+    PROJECT_ROOT / "src/vs-code-agents/implementer.agent.md",
+)
+
+
+def _prompt_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def test_consumer_owned_agents_directory_skips_scaffold_gates() -> None:
+    for path in PROMPT_PATHS:
+        text = _prompt_text(path)
+
+        assert (
+            "If `.agents/` is missing, or `.agents/` exists but "
+            "`.agents/SESSION-PROTOCOL.md` is missing"
+        ) in text, path
+        assert "consumer-owned `.agents/` directory without that file" in text, path
+
+
+def test_ai_agents_scaffold_still_blocks_incomplete_required_docs() -> None:
+    for path in PROMPT_PATHS:
+        text = _prompt_text(path)
+
+        assert (
+            "If `.agents/SESSION-PROTOCOL.md` exists but `.agents/HANDOFF.md` "
+            "is missing: stop and report `[BLOCKED] No prior session context available`"
+        ) in text, path
+        assert (
+            "If `.agents/SESSION-PROTOCOL.md` exists but "
+            "`.agents/AGENT-INSTRUCTIONS.md` is missing: stop and report "
+            "`[BLOCKED] Project configuration incomplete`"
+        ) in text, path
+
+
+def test_implementer_prompt_no_longer_keys_on_directory_presence() -> None:
+    forbidden = (
+        "If `.agents/` exists but `.agents/HANDOFF.md` is missing",
+        "If `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing",
+    )
+    for path in PROMPT_PATHS:
+        text = _prompt_text(path)
+
+        for phrase in forbidden:
+            assert phrase not in text, path

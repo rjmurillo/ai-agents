@@ -54,7 +54,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
     },
     {
@@ -67,6 +69,43 @@
         "e001"
       ],
       "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T10:42:35+00:00",
+      "type": "commit",
+      "content": "Commit: 200648b0167c2bec029f63b50a61bf6bd26d3a6c",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:15:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2c96004043df67998269545698661f01a8c122f6",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T11:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 690dbd5bac442c54e621e077965c15c012590384",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
     }
   ],
   "metrics": {
@@ -74,8 +113,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 11
+    "commits": 4,
+    "files_changed": 21
   },
   "lessons": []
 }

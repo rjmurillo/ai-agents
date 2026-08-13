@@ -98,6 +98,45 @@
         "e006",
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:42:35+00:00",
+      "type": "commit",
+      "content": "Commit: 200648b0167c2bec029f63b50a61bf6bd26d3a6c",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:15:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2c96004043df67998269545698661f01a8c122f6",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T11:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 690dbd5bac442c54e621e077965c15c012590384",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
     }
@@ -107,8 +146,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 10
+    "commits": 4,
+    "files_changed": 23
   },
   "lessons": []
 }

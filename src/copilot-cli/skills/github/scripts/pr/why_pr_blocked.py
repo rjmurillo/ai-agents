@@ -1,38 +1,34 @@
 #!/usr/bin/env python3
-"""Diagnose why a PR reports mergeStateStatus BLOCKED.
+# mypy: disable-error-code="no-any-return,type-arg", follow-imports=skip
+# taste-lint: ignore file-size, standalone plugin script keeps one portable entry point.
+# taste-lint: ignore complexity, main maps independent gate states to exit classes.
+"""Diagnose why a PR is blocked from merging.
 
-Cross-references the base branch ruleset required checks against the PR's
-statusCheckRollup and unresolved review threads to produce a discriminated
-cause list:
+Cross-references the base branch ruleset against the PR's actual status check
+rollup and unresolved review threads to produce a discriminated cause list:
+MISSING checks, FAILING checks, and unresolved threads.
 
-  MISSING  - required by the ruleset, never ran (produced no row in the rollup)
-  FAILING  - required by the ruleset or isRequired=true, conclusion is failing
-  REVIEWS  - an approval is required or changes were requested
-  THREADS  - unresolved review threads requiring resolution
+When nothing is missing, nothing is failing, and no thread is unresolved, the
+script says so explicitly, because that is the signal that the PR is actually
+mergeable regardless of mergeStateStatus. (GitHub reports BLOCKED even for PRs
+that merge cleanly on the first call -- refs issue #4393.)
 
-When all gates are satisfied, reports "likely mergeable" because BLOCKED is not
-authoritative: PRs with all gates satisfied have been observed to merge on the
-first attempt.
-
-Exit codes:
-    0 - No identified gate blocks the merge
-    1 - A required gate blocks the merge
-    2 - Required checks are still pending, or the PR was not found
+Exit codes (ADR-035):
+    0 - No blocking cause found (PR may be mergeable)
+    1 - Blocking cause found (missing, failing, or unresolved threads)
+    2 - PR not found or config error
     3 - API error
-    4 - Auth error
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -40,64 +36,69 @@ else:
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)
+
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
-
-import argparse
-import subprocess
-from typing import Any
 
 from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
     resolve_repo_params,
 )
-from github_core.checks_rollup import extract_workflow_run_number, partition_rows_by_run
+from github_core.checks_rollup import (
+    extract_workflow_run_number,
+    fetch_ruleset_required_contexts,
+    find_missing_required,
+    partition_rows_by_run,
+)
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_error,
     write_skill_output,
 )
-from github_core.review_threads import count_unresolved_threads
 
-_SCRIPT_NAME = "why_pr_blocked.py"
-
-# Passing conclusions: SKIPPED satisfies a required context per field data.
-_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
-_FAILING_CONCLUSIONS = {
-    "FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED",
-    "STALE", "STARTUP_FAILURE",
-}
-_PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
-_BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
-_BLOCKING_MERGE_STATE_STATUSES = {"BEHIND", "DIRTY", "UNKNOWN"}
+# ---------------------------------------------------------------------------
+# GraphQL query: PR status + unresolved threads
+# ---------------------------------------------------------------------------
 
 _PR_QUERY = """\
 query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
-            state
             baseRefName
-            mergeable
             mergeStateStatus
-            reviewDecision
             commits(last: 1) {
                 nodes {
                     commit {
                         oid
                         statusCheckRollup {
+                            state
                             contexts(first: 100) {
-                                pageInfo { hasNextPage endCursor }
+                                pageInfo {
+                                    hasNextPage
+                                    endCursor
+                                }
                                 nodes {
                                     ... on CheckRun {
-                                        __typename name status conclusion detailsUrl
-                                        checkSuite { app { databaseId } }
+                                        __typename
+                                        name
+                                        status
+                                        conclusion
+                                        detailsUrl
+                                        checkSuite {
+                                            workflowRun {
+                                                databaseId
+                                                runAttempt
+                                            }
+                                        }
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
-                                        __typename context state targetUrl
+                                        __typename
+                                        context
+                                        state
                                         isRequired(pullRequestNumber: $number)
                                     }
                                 }
@@ -107,29 +108,55 @@ query($owner: String!, $repo: String!, $number: Int!) {
                 }
             }
             reviewThreads(first: 100) {
-                pageInfo { hasNextPage endCursor }
-                nodes { isResolved }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    isResolved
+                    isOutdated
+                }
             }
         }
     }
 }"""
 
 _CONTEXTS_PAGE_QUERY = """\
-query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $cursor: String!) {
+query(
+    $owner: String!,
+    $repo: String!,
+    $oid: GitObjectID!,
+    $number: Int!,
+    $cursor: String!
+) {
     repository(owner: $owner, name: $repo) {
         object(oid: $oid) {
             ... on Commit {
                 statusCheckRollup {
                     contexts(first: 100, after: $cursor) {
-                        pageInfo { hasNextPage endCursor }
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                         nodes {
                             ... on CheckRun {
-                                __typename name status conclusion detailsUrl
-                                checkSuite { app { databaseId } }
+                                __typename
+                                name
+                                status
+                                conclusion
+                                detailsUrl
+                                checkSuite {
+                                    workflowRun {
+                                        databaseId
+                                        runAttempt
+                                    }
+                                }
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
-                                __typename context state targetUrl
+                                __typename
+                                context
+                                state
                                 isRequired(pullRequestNumber: $number)
                             }
                         }
@@ -140,482 +167,509 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
     }
 }"""
 
-_REVIEW_THREADS_PAGE_QUERY = """\
+_THREADS_PAGE_QUERY = """\
 query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             reviewThreads(first: 100, after: $cursor) {
-                pageInfo { hasNextPage endCursor }
-                nodes { isResolved }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    isResolved
+                    isOutdated
+                }
             }
         }
     }
 }"""
 
+_MAX_PAGES = 100
 
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Diagnose why a PR is blocked.")
-    p.add_argument("--owner", default="")
-    p.add_argument("--repo", default="")
-    p.add_argument("--pull-request", type=int, required=True)
-    add_output_format_arg(p)
-    return p
+# Passing conclusions per get_pr_checks.py semantics.
+_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
+_PASSING_STATES = {"SUCCESS"}
 
 
-def _fetch_ruleset_contexts(
-    owner: str,
-    repo: str,
-    base_branch: str,
-) -> list[dict[str, Any]]:
-    """Return required context and integration identities."""
-    import json as _json
-
-    endpoint = (
-        f"repos/{owner}/{repo}/rules/branches/{base_branch}?per_page=100"
-    )
-    result = subprocess.run(
-        ["gh", "api", "--paginate", "--slurp", endpoint],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"gh api exited {result.returncode}"
-        raise RuntimeError(f"Required-check ruleset lookup failed: {detail}")
-    try:
-        raw = result.stdout.strip()
-        if not raw:
-            raise ValueError("empty response")
-        pages = _json.loads(raw)
-        if not isinstance(pages, list):
-            raise TypeError("expected a list")
-        rules = (
-            [rule for page in pages for rule in page]
-            if pages and all(isinstance(page, list) for page in pages)
-            else pages
-        )
-        items = [
-            check
-            for rule in rules
-            if isinstance(rule, dict)
-            and rule.get("type") == "required_status_checks"
-            for check in (rule.get("parameters") or {}).get(
-                "required_status_checks", []
-            )
-            if isinstance(check, dict)
-        ]
-        return [
-            {
-                "Context": str(item["context"]),
-                "IntegrationId": item.get("integration_id"),
-            }
-            for item in items
-            if isinstance(item, dict) and item.get("context")
-        ]
-    except (TypeError, ValueError, _json.JSONDecodeError) as exc:
-        raise RuntimeError(
-            f"Required-check ruleset response was invalid: {exc}"
-        ) from exc
+def _is_passing_check(node: dict) -> bool:
+    typename = node.get("__typename")
+    if typename == "CheckRun":
+        return node.get("conclusion", "") in _PASSING_CONCLUSIONS
+    if typename == "StatusContext":
+        return node.get("state", "") in _PASSING_STATES
+    return False
 
 
-def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
-    """Convert a GraphQL context node to a normalized dict."""
+def _is_failing_check(node: dict) -> bool:
     typename = node.get("__typename")
     if typename == "CheckRun":
         status = node.get("status", "")
-        conclusion = node.get("conclusion") or ""
-        is_pending = status in _PENDING_STATUSES
-        is_passing = conclusion in _PASSING_CONCLUSIONS
-        is_failing = conclusion in _FAILING_CONCLUSIONS
-        return {
-            "Name": node.get("name", ""),
-            "Type": "CheckRun",
-            "State": status,
-            "Conclusion": conclusion,
-            "DetailsUrl": node.get("detailsUrl", ""),
-            "IntegrationId": (
-                ((node.get("checkSuite") or {}).get("app") or {}).get("databaseId")
-            ),
-            "IsRequired": bool(node.get("isRequired", False)),
-            "IsPending": is_pending,
-            "IsPassing": is_passing,
-            "IsFailing": is_failing,
+        conclusion = node.get("conclusion", "")
+        if status in {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}:
+            return False
+        return conclusion not in _PASSING_CONCLUSIONS and bool(conclusion)
+    if typename == "StatusContext":
+        return node.get("state", "") in {"FAILURE", "ERROR"}
+    return False
+
+
+def _is_pending_check(node: dict) -> bool:
+    typename = node.get("__typename")
+    if typename == "CheckRun":
+        return node.get("status", "") in {
+            "QUEUED",
+            "IN_PROGRESS",
+            "WAITING",
+            "PENDING",
+            "REQUESTED",
         }
     if typename == "StatusContext":
-        state = node.get("state", "")
-        return {
-            "Name": node.get("context", ""),
-            "Type": "StatusContext",
-            "State": state,
-            "Conclusion": state,
-            "DetailsUrl": node.get("targetUrl", ""),
-            "IntegrationId": None,
-            "IsRequired": bool(node.get("isRequired", False)),
-            "IsPending": state in ("PENDING", "EXPECTED"),
-            "IsPassing": state == "SUCCESS",
-            "IsFailing": state in ("FAILURE", "ERROR"),
-        }
-    return None
+        return node.get("state", "") in {"PENDING", "EXPECTED"}
+    return False
 
 
-def _check_rank(check: dict[str, Any]) -> int:
-    if check.get("IsPassing"):
-        return 0
-    if check.get("IsFailing"):
-        return 1
-    if check.get("IsPending"):
-        return 2
-    return 3
+def _check_name(node: dict) -> str:
+    if node.get("__typename") == "CheckRun":
+        return node.get("name", "")
+    return node.get("context", "")
 
 
-_TYPE_RANK = {"CheckRun": 0, "StatusContext": 1}
-
-
-def _dedupe_rank(check: dict[str, Any]) -> tuple[int, int]:
-    """Rank by source type first, then verdict precedence."""
-    check_type = str(check.get("Type") or "")
-    return (_TYPE_RANK.get(check_type, 2), _check_rank(check))
-
-
-def _check_workflow_run_number(check: dict[str, Any]) -> int | None:
-    """Return the workflow run id exposed by a CheckRun details URL."""
-    if check.get("Type") != "CheckRun":
+def _workflow_key(node: dict) -> tuple[int, int] | None:
+    if node.get("__typename") != "CheckRun":
         return None
-    details_url = check.get("DetailsUrl")
-    run_number = extract_workflow_run_number(
-        details_url if isinstance(details_url, str) else None
-    )
-    return run_number if isinstance(run_number, int) else None
+    workflow_run = ((node.get("checkSuite") or {}).get("workflowRun") or {})
+    run_number = workflow_run.get("databaseId")
+    if run_number is None:
+        run_number = extract_workflow_run_number(node.get("detailsUrl"))
+    if run_number is None:
+        return None
+    attempt = workflow_run.get("runAttempt")
+    return int(run_number), int(attempt) if attempt is not None else 1
 
 
-def _collapse_same_run_siblings(
-    rows: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Keep a failing same-name sibling when both ran in one workflow run."""
-    representatives: list[dict[str, Any]] = []
-    for group in partition_rows_by_run(rows, "DetailsUrl"):
-        if len(group) == 1:
-            representatives.append(group[0])
-            continue
-        failing = [row for row in group if row.get("IsFailing")]
-        pool = failing if failing else group
-        representative = {
-            **sorted(pool, key=_dedupe_rank)[0],
-            "IsPending": any(row.get("IsPending") for row in group),
-        }
-        representatives.append(representative)
-    return representatives
+def _classify_rows(nodes: list[dict]) -> str:
+    if any(_is_failing_check(node) for node in nodes):
+        return "failing"
+    if any(_is_pending_check(node) for node in nodes):
+        return "pending"
+    if nodes and all(_is_passing_check(node) for node in nodes):
+        return "passing"
+    return "unknown"
 
 
-def _select_cross_run_winner(
-    candidates: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Select the latest workflow run when every CheckRun exposes its id."""
-    check_run_pairs = [
-        (check, _check_workflow_run_number(check))
-        for check in candidates
-        if check.get("Type") == "CheckRun"
+def _most_blocking_state(states: list[str]) -> str:
+    for state in ("failing", "pending", "unknown", "passing"):
+        if state in states:
+            return state
+    return "unknown"
+
+
+def _classify_same_name_rows(nodes: list[dict]) -> str:
+    """Return the current state for one required-check name."""
+    check_runs = [node for node in nodes if node.get("__typename") == "CheckRun"]
+    if not check_runs:
+        return _classify_rows(nodes)
+
+    prepared = []
+    for node in check_runs:
+        run_key = _workflow_key(node)
+        prepared.append(
+            {
+                **node,
+                "_workflow_run_id": run_key[0] if run_key else None,
+                "_workflow_run_attempt": run_key[1] if run_key else None,
+            }
+        )
+
+    candidates = [
+        (
+            _workflow_key(group[0]),
+            _classify_rows(group),
+            any(node.get("isRequired") for node in group),
+        )
+        for group in partition_rows_by_run(
+            prepared,
+            "detailsUrl",
+            "_workflow_run_id",
+            "_workflow_run_attempt",
+        )
     ]
-    if check_run_pairs and all(
-        run_number is not None for _, run_number in check_run_pairs
-    ):
-        known_run_numbers = [
-            run_number
-            for _, run_number in check_run_pairs
-            if run_number is not None
+    if any(is_required for _, _, is_required in candidates):
+        candidates = [
+            candidate for candidate in candidates
+            if candidate[2]
         ]
-        latest_run = max(known_run_numbers)
-        latest_candidates = [
-            check
-            for check, run_number in check_run_pairs
-            if run_number == latest_run
-        ]
-        return sorted(latest_candidates, key=_dedupe_rank)[0]
-    return sorted(candidates, key=_dedupe_rank)[0]
+    known = [
+        (key, state)
+        for key, state, _ in candidates
+        if key is not None
+    ]
+    unknown_states = [
+        state for key, state, _ in candidates
+        if key is None
+    ]
+    if known:
+        latest_key = max(key for key, _ in known)
+        current_states = [state for key, state in known if key == latest_key]
+        return _most_blocking_state(current_states + unknown_states)
+    return _most_blocking_state(unknown_states)
 
 
-def _dedupe_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Collapse duplicate check rows before grouping by name."""
-    integration_ids_by_name: dict[str, set[int]] = {}
-    for check in checks:
-        integration_id = check.get("IntegrationId")
-        if integration_id is not None:
-            name = str(check.get("Name") or "")
-            integration_ids_by_name.setdefault(name, set()).add(integration_id)
-
-    rows_by_identity: dict[tuple[str, int | None], list[dict[str, Any]]] = {}
-    required_by_identity: dict[tuple[str, int | None], bool] = {}
-    order: list[tuple[str, int | None]] = []
-
-    for check in checks:
-        name_value = check.get("Name")
-        name = "" if name_value is None else str(name_value)
-        integration_id = check.get("IntegrationId")
-        known_ids = integration_ids_by_name.get(name, set())
-        if check.get("Type") == "StatusContext" and len(known_ids) == 1:
-            integration_id = next(iter(known_ids))
-        identity = (name, integration_id)
-        required_by_identity[identity] = required_by_identity.get(
-            identity, False
-        ) or bool(
-            check.get("IsRequired")
-        )
-        if identity not in rows_by_identity:
-            rows_by_identity[identity] = []
-            order.append(identity)
-        rows_by_identity[identity].append(check)
-
-    deduped = []
-    for identity in order:
-        candidates = _collapse_same_run_siblings(rows_by_identity[identity])
-        winner = _select_cross_run_winner(candidates)
-        deduped.append(
-            {**winner, "IsRequired": required_by_identity[identity]}
-        )
-    return deduped
-
-
-def _fetch_context_page(
-    owner: str, repo: str, pr_number: int, oid: str, cursor: str
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    data = gh_graphql(
-        _CONTEXTS_PAGE_QUERY,
-        {"owner": owner, "repo": repo, "oid": oid, "number": pr_number, "cursor": cursor},
-    )
-    commit_obj = (data.get("repository") or {}).get("object") or {}
-    rollup = commit_obj.get("statusCheckRollup") or {}
-    contexts_obj = rollup.get("contexts") or {}
-    return list(contexts_obj.get("nodes") or []), contexts_obj.get("pageInfo") or {}
-
-
-def _fetch_review_thread_page(
-    owner: str, repo: str, pr_number: int, cursor: str
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    data = gh_graphql(
-        _REVIEW_THREADS_PAGE_QUERY,
-        {"owner": owner, "repo": repo, "number": pr_number, "cursor": cursor},
-    )
-    pr = (data.get("repository") or {}).get("pullRequest") or {}
-    review_threads = pr.get("reviewThreads") or {}
-    return list(review_threads.get("nodes") or []), review_threads.get("pageInfo") or {}
-
-
-def diagnose(
+def _fetch_remaining_contexts(
     owner: str,
     repo: str,
     pr_number: int,
-) -> dict[str, Any]:
-    """Run the full blocked diagnostic for one PR. Returns the result dict."""
+    oid: str,
+    page_info: dict,
+) -> tuple[list[dict], bool]:
+    nodes: list[dict] = []
+    seen_cursors: set[str] = set()
+    for _ in range(_MAX_PAGES):
+        if not page_info.get("hasNextPage"):
+            return nodes, True
+        cursor = page_info.get("endCursor")
+        if not cursor or cursor in seen_cursors or not oid:
+            return nodes, False
+        seen_cursors.add(cursor)
+        data = gh_graphql(
+            _CONTEXTS_PAGE_QUERY,
+            {
+                "owner": owner,
+                "repo": repo,
+                "oid": oid,
+                "number": pr_number,
+                "cursor": cursor,
+            },
+        )
+        repository = data.get("repository")
+        commit_obj = repository.get("object") if isinstance(repository, dict) else None
+        rollup = (
+            commit_obj.get("statusCheckRollup")
+            if isinstance(commit_obj, dict)
+            else None
+        )
+        contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
+        if not isinstance(contexts, dict) or "pageInfo" not in contexts:
+            return nodes, False
+        nodes.extend(contexts.get("nodes") or [])
+        page_info = contexts.get("pageInfo") or {}
+    return nodes, not page_info.get("hasNextPage")
+
+
+def _fetch_remaining_threads(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    page_info: dict,
+) -> tuple[list[dict], bool]:
+    nodes: list[dict] = []
+    seen_cursors: set[str] = set()
+    for _ in range(_MAX_PAGES):
+        if not page_info.get("hasNextPage"):
+            return nodes, True
+        cursor = page_info.get("endCursor")
+        if not cursor or cursor in seen_cursors:
+            return nodes, False
+        seen_cursors.add(cursor)
+        data = gh_graphql(
+            _THREADS_PAGE_QUERY,
+            {
+                "owner": owner,
+                "repo": repo,
+                "number": pr_number,
+                "cursor": cursor,
+            },
+        )
+        repository = data.get("repository")
+        pr = (
+            repository.get("pullRequest")
+            if isinstance(repository, dict)
+            else None
+        )
+        threads = pr.get("reviewThreads") if isinstance(pr, dict) else None
+        if not isinstance(threads, dict) or "pageInfo" not in threads:
+            return nodes, False
+        nodes.extend(threads.get("nodes") or [])
+        page_info = threads.get("pageInfo") or {}
+    return nodes, not page_info.get("hasNextPage")
+
+
+def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
+    """Fetch PR status checks and review threads via GraphQL."""
     try:
-        data = gh_graphql(_PR_QUERY, {"owner": owner, "repo": repo, "number": pr_number})
+        data = gh_graphql(
+            _PR_QUERY,
+            {"owner": owner, "repo": repo, "number": pr_number},
+        )
     except RuntimeError as exc:
         msg = str(exc)
         if "Could not resolve" in msg or "not found" in msg:
             return {"Error": "NotFound", "Message": f"PR #{pr_number} not found"}
-        return {"Error": "ApiError", "Message": f"GraphQL query failed: {msg}"}
+        return {"Error": "ApiError", "Message": f"GraphQL failed: {msg}"}
 
     pr = (data.get("repository") or {}).get("pullRequest")
     if pr is None:
-        return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in response"}
+        return {"Error": "NotFound", "Message": "PR not found in response"}
 
-    base_branch = pr.get("baseRefName", "")
-    mergeable = pr.get("mergeable") or "UNKNOWN"
-    merge_state_status = pr.get("mergeStateStatus", "")
-    review_decision = pr.get("reviewDecision") or ""
-
-    # Collect raw check nodes from rollup.
     commits = (pr.get("commits") or {}).get("nodes") or []
-    raw_nodes: list[dict[str, Any]] = []
+    rollup_nodes: list[dict] = []
+    overall_state = "UNKNOWN"
     if commits:
         commit_obj = (commits[0].get("commit") or {})
-        rollup = commit_obj.get("statusCheckRollup")
-        if rollup:
-            contexts_obj = rollup.get("contexts") or {}
-            raw_nodes = list(contexts_obj.get("nodes") or [])
-            page_info = contexts_obj.get("pageInfo") or {}
-            cursor = page_info.get("endCursor")
-            oid = commit_obj.get("oid") or ""
-            while page_info.get("hasNextPage") and cursor and oid:
-                page_nodes, page_info = _fetch_context_page(
-                    owner, repo, pr_number, oid, cursor
-                )
-                raw_nodes.extend(page_nodes)
-                cursor = page_info.get("endCursor")
+        rollup = commit_obj.get("statusCheckRollup") or {}
+        overall_state = rollup.get("state", "UNKNOWN")
+        contexts = rollup.get("contexts") or {}
+        rollup_nodes = list(contexts.get("nodes") or [])
+        try:
+            extra_nodes, complete = _fetch_remaining_contexts(
+                owner,
+                repo,
+                pr_number,
+                commit_obj.get("oid", ""),
+                contexts.get("pageInfo") or {},
+            )
+        except RuntimeError as exc:
+            return {"Error": "ApiError", "Message": f"GraphQL failed: {exc}"}
+        if not complete:
+            return {
+                "Error": "ApiError",
+                "Message": "Status-check pagination did not complete",
+            }
+        rollup_nodes.extend(extra_nodes)
 
-    checks = _dedupe_checks([
-        n for node in raw_nodes if (n := _normalize_check(node)) is not None
-    ])
-
-    # Ruleset required contexts (ground truth independent of what reported).
+    threads = pr.get("reviewThreads") or {}
+    thread_nodes = list(threads.get("nodes") or [])
     try:
-        ruleset_required = (
-            _fetch_ruleset_contexts(owner, repo, base_branch)
-            if base_branch
-            else []
+        extra_threads, complete = _fetch_remaining_threads(
+            owner,
+            repo,
+            pr_number,
+            threads.get("pageInfo") or {},
         )
     except RuntimeError as exc:
+        return {"Error": "ApiError", "Message": f"GraphQL failed: {exc}"}
+    if not complete:
         return {
             "Error": "ApiError",
-            "Message": f"Required-check inventory failed: {exc}",
+            "Message": "Review-thread pagination did not complete",
         }
-
-    def matches_requirement(
-        check: dict[str, Any],
-        requirement: dict[str, Any],
-    ) -> bool:
-        if check.get("Name") != requirement.get("Context"):
-            return False
-        integration_id = requirement.get("IntegrationId")
-        return (
-            integration_id is None
-            or check.get("IntegrationId") == integration_id
-        )
-
-    missing: list[str] = sorted({
-        str(requirement["Context"])
-        for requirement in ruleset_required
-        if not any(
-            matches_requirement(check, requirement)
-            for check in checks
-        )
-    })
-
-    required_checks = [
-        check for check in checks
-        if check.get("IsRequired")
-        or any(
-            matches_requirement(check, requirement)
-            for requirement in ruleset_required
-        )
-    ]
-    failing: list[str] = sorted({
-        str(check.get("Name", ""))
-        for check in required_checks
-        if check.get("IsFailing")
-    })
-    pending_required: list[str] = sorted({
-        str(check.get("Name", ""))
-        for check in required_checks
-        if check.get("IsPending")
-    })
-
-    # Unresolved review threads.
-    review_threads = pr.get("reviewThreads") or {}
-    thread_nodes = list(review_threads.get("nodes") or [])
-    page_info = review_threads.get("pageInfo") or {}
-    cursor = page_info.get("endCursor")
-    while page_info.get("hasNextPage") and cursor:
-        page_nodes, page_info = _fetch_review_thread_page(owner, repo, pr_number, cursor)
-        thread_nodes.extend(page_nodes)
-        cursor = page_info.get("endCursor")
-    unresolved_threads = count_unresolved_threads(thread_nodes)
-
-    causes: list[str] = []
-    if mergeable == "CONFLICTING" or merge_state_status == "DIRTY":
-        causes.append("MERGE (conflicts)")
-    elif merge_state_status == "BEHIND":
-        causes.append("MERGE (base branch update required)")
-    elif (
-        mergeable in _BLOCKING_MERGE_STATES
-        or merge_state_status in _BLOCKING_MERGE_STATE_STATUSES
-    ):
-        causes.append("MERGE (state unknown)")
-    if missing:
-        causes.append(f"MISSING ({len(missing)} required check(s) never reported)")
-    if failing:
-        causes.append(f"FAILING ({len(failing)} required check(s))")
-    if pending_required:
-        causes.append(f"PENDING ({len(pending_required)} required check(s))")
-    if review_decision == "CHANGES_REQUESTED":
-        causes.append("REVIEWS (changes requested)")
-    elif review_decision == "REVIEW_REQUIRED":
-        causes.append("REVIEWS (approval required)")
-    if unresolved_threads:
-        causes.append(f"THREADS ({unresolved_threads} unresolved review thread(s))")
-
-    likely_mergeable = not causes
+    thread_nodes.extend(extra_threads)
 
     return {
-        "Success": True,
-        "Number": pr_number,
-        "Owner": owner,
-        "Repo": repo,
-        "BaseBranch": base_branch,
-        "Mergeable": mergeable,
-        "MergeStateStatus": merge_state_status,
-        "ReviewDecision": review_decision,
-        "LikelyMergeable": likely_mergeable,
-        "Causes": causes,
-        "MissingRequiredChecks": missing,
-        "FailingRequiredChecks": failing,
-        "PendingRequiredChecks": pending_required,
-        "UnresolvedThreads": unresolved_threads,
-        "RulesetRequiredContexts": [
-            requirement["Context"] for requirement in ruleset_required
-        ],
-        "RulesetRequiredChecks": ruleset_required,
+        "BaseBranch": pr.get("baseRefName"),
+        "MergeStateStatus": pr.get("mergeStateStatus"),
+        "OverallState": overall_state,
+        "CheckNodes": rollup_nodes,
+        "ThreadNodes": thread_nodes,
     }
+
+
+def diagnose(
+    pr_data: dict,
+    ruleset_contexts: list[str] | None,
+) -> dict:
+    """Compute (missing, failing, unresolved_thread_count) from raw PR data.
+
+    Groups check nodes by name and workflow run. Same-run failures win, and
+    the latest identified workflow run determines the current result.
+    """
+    nodes = pr_data.get("CheckNodes") or []
+
+    nodes_by_name: dict[str, list[dict]] = {}
+    required_names: set[str] = set()
+
+    for node in nodes:
+        name = _check_name(node)
+        nodes_by_name.setdefault(name, []).append(node)
+        if node.get("isRequired"):
+            required_names.add(name)
+
+    states_by_name = {
+        name: _classify_same_name_rows(name_nodes)
+        for name, name_nodes in nodes_by_name.items()
+        if name in required_names
+    }
+    failing_required = sorted(
+        name for name, state in states_by_name.items() if state == "failing"
+    )
+    pending_required = sorted(
+        name for name, state in states_by_name.items() if state == "pending"
+    )
+    indeterminate_required = sorted(
+        name for name, state in states_by_name.items() if state == "unknown"
+    )
+
+    reported_names = required_names
+    missing_required: list[str] = []
+    if ruleset_contexts is not None:
+        missing_required = find_missing_required(ruleset_contexts, reported_names)
+
+    thread_nodes = pr_data.get("ThreadNodes") or []
+    unresolved_count = sum(
+        1 for t in thread_nodes
+        if not t.get("isResolved") and not t.get("isOutdated")
+    )
+
+    return {
+        "MissingRequired": missing_required,
+        "FailingRequired": failing_required,
+        "PendingRequired": pending_required,
+        "IndeterminateRequired": indeterminate_required,
+        "UnresolvedThreads": unresolved_count,
+        "BaseBranch": pr_data.get("BaseBranch"),
+        "OverallState": pr_data.get("OverallState", "UNKNOWN"),
+        "MergeStateStatus": pr_data.get("MergeStateStatus"),
+        "RulesetContextsAvailable": ruleset_contexts is not None,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Diagnose why a PR is blocked from merging.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--pull-request", type=int, required=True,
+        help="PR number",
+    )
+    parser.add_argument(
+        "--base-branch", default=None,
+        help="Base branch to read the ruleset from (default: PR base branch). "
+             "Pass empty string to skip ruleset fetch.",
+    )
+    add_output_format_arg(parser)
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    assert_gh_authenticated()
+
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner = resolved.owner
+    repo = resolved.repo
+
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved.owner, resolved.repo
+    pr_data = fetch_pr_data(owner, repo, args.pull_request)
 
-    result = diagnose(owner, repo, args.pull_request)
-
-    if result.get("Error") == "NotFound":
+    if pr_data.get("Error") == "NotFound":
         write_skill_error(
-            result["Message"], 2, error_type="NotFound",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            pr_data["Message"],
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="why_pr_blocked.py",
+            extra={"Number": args.pull_request},
         )
         return 2
 
-    if result.get("Error") == "ApiError":
+    if pr_data.get("Error") == "ApiError":
         write_skill_error(
-            result["Message"], 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            pr_data["Message"],
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="why_pr_blocked.py",
+            extra={"Number": args.pull_request},
         )
         return 3
 
-    causes = result.get("Causes") or []
-    if result.get("LikelyMergeable"):
-        summary = f"PR #{args.pull_request}: likely mergeable (no blocking causes found)"
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(pr_data.get("BaseBranch") or "")
+    )
+    ruleset_contexts: list[str] | None = None
+    if base_branch:
+        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+
+    if base_branch and ruleset_contexts is None:
+        write_skill_error(
+            f"Failed to read required checks for base branch {base_branch!r}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="why_pr_blocked.py",
+            extra={"Number": args.pull_request},
+        )
+        return 3
+
+    result = diagnose(pr_data, ruleset_contexts)
+
+    missing = result["MissingRequired"]
+    failing = result["FailingRequired"]
+    pending = result["PendingRequired"]
+    indeterminate = result["IndeterminateRequired"]
+    unresolved = result["UnresolvedThreads"]
+
+    has_hard_blocker = bool(
+        missing
+        or failing
+        or indeterminate
+        or unresolved
+        or result["MergeStateStatus"] == "DIRTY"
+    )
+    has_blocker = has_hard_blocker or bool(pending)
+    number = args.pull_request
+
+    if not has_blocker:
+        summary = (
+            f"PR #{number}: no blocking cause found "
+            "(no missing, failing, pending, or indeterminate required checks; "
+            "no unresolved threads). "
+            "PR may be mergeable regardless of mergeStateStatus."
+        )
         status = "PASS"
     else:
-        summary = f"PR #{args.pull_request} BLOCKED: {'; '.join(causes)}"
+        parts = []
+        if missing:
+            parts.append(f"{len(missing)} missing required check(s)")
+        if failing:
+            parts.append(f"{len(failing)} failing required check(s)")
+        if pending:
+            parts.append(f"{len(pending)} pending required check(s)")
+        if indeterminate:
+            parts.append(f"{len(indeterminate)} indeterminate required check(s)")
+        if unresolved:
+            parts.append(f"{unresolved} unresolved review thread(s)")
+        if result["MergeStateStatus"] == "DIRTY":
+            parts.append("merge conflicts")
+        summary = f"PR #{number} blocked: {', '.join(parts)}"
         status = "FAIL"
 
+    output = {
+        "Number": number,
+        "Owner": owner,
+        "Repo": repo,
+        "BaseBranch": result["BaseBranch"],
+        "MergeStateStatus": result["MergeStateStatus"],
+        "OverallState": result["OverallState"],
+        "MissingRequired": missing,
+        "FailingRequired": failing,
+        "PendingRequired": pending,
+        "IndeterminateRequired": indeterminate,
+        "UnresolvedThreads": unresolved,
+        "HasBlocker": has_blocker,
+        "RulesetContextsAvailable": result["RulesetContextsAvailable"],
+    }
+
     write_skill_output(
-        result,
+        output,
         output_format=fmt,
         human_summary=summary,
         status=status,
-        script_name=_SCRIPT_NAME,
+        script_name="why_pr_blocked.py",
     )
-    hard_blocker = bool(
-        result.get("MissingRequiredChecks")
-        or result.get("FailingRequiredChecks")
-        or result.get("UnresolvedThreads")
-        or result.get("ReviewDecision") in {"CHANGES_REQUESTED", "REVIEW_REQUIRED"}
-        or result.get("Mergeable") == "CONFLICTING"
-        or result.get("MergeStateStatus") in {"BEHIND", "DIRTY"}
-    )
-    if hard_blocker:
+
+    if has_hard_blocker:
         return 1
-    if (
-        result.get("PendingRequiredChecks")
-        or result.get("Mergeable") == "UNKNOWN"
-        or result.get("MergeStateStatus") == "UNKNOWN"
-    ):
+    if pending:
         return 2
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

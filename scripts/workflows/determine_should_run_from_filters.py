@@ -42,6 +42,10 @@ def should_run(
     a breaching union. ``instruction-budget.yml`` took the filter out for that
     reason and no workflow lists ``push`` today. Leave this empty for a
     diff-scoped check, where re-running on an unrelated push buys nothing.
+
+    ``merge_group`` is different. It represents the synthetic commit that the
+    queue will merge, so checks that validate repository content must force a
+    real run against that ref when the paths action has no pull request context.
     """
     if event_name == "workflow_dispatch" or event_name in force_run_events:
         return True
@@ -62,6 +66,8 @@ def parse_filter_outputs(raw_filter_outputs: str) -> dict[str, object]:
     if not raw_filter_outputs:
         return {}
     parsed = json.loads(raw_filter_outputs)
+    if parsed is None:
+        return {}
     if not isinstance(parsed, dict):
         raise ValueError("FILTER_OUTPUTS must decode to a JSON object")
     return parsed

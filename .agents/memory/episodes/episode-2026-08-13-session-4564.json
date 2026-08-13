@@ -1,0 +1,161 @@
+{
+  "id": "episode-2026-08-13-session-4564",
+  "session": "2026-08-13-session-4564",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Execute single-PR autofix for PR 4564, resolve conflicts, fix CI, validate, and merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T09:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired PR lease and rebound live state",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T09:10:00+00:00",
+      "type": "milestone",
+      "content": "Protected existing dirty work",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T09:30:00+00:00",
+      "type": "milestone",
+      "content": "Proved and resolved real conflicts",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T10:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled obsolete duplicate tests",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T10:30:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and repaired QA evidence",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed local validation",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      243 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T10:42:35+00:00",
+      "type": "commit",
+      "content": "Commit: 200648b0167c2bec029f63b50a61bf6bd26d3a6c",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:54:04+00:00",
+      "type": "commit",
+      "content": "Commit: 219cf4e4575d8e3befd84034ace250ca27954d7a",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e006",
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:15:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2c96004043df67998269545698661f01a8c122f6",
+      "caused_by": [
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T11:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 690dbd5bac442c54e621e077965c15c012590384",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-4564"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 120,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 9
+  },
+  "lessons": []
+}

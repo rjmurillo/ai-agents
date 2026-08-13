@@ -72,13 +72,47 @@ def test_combine_writes_line_only_union_of_main_and_two_pin_files(tmp_path: Path
     _write_arc_data(pin_a, mod, [(-1, 1), (1, 4), (4, -1)])
     _write_arc_data(pin_b, other, [(-1, 1), (1, 2), (2, -1)])
 
-    cpc.combine(main_data, [pin_a, pin_b], output)
+    cpc.combine([main_data], [pin_a, pin_b], output)
 
     result = coverage.CoverageData(basename=str(output))
     result.read()
     assert not result.has_arcs(), "combined output must be line-only, not branch, data"
     assert sorted(result.lines(str(mod)) or []) == [1, 2, 3, 4]
     assert sorted(result.lines(str(other)) or []) == [1, 2]
+
+
+def test_combine_unions_multiple_statement_partitions_before_pin_data(tmp_path: Path) -> None:
+    bulk_module = tmp_path / "bulk.py"
+    mutation_module = tmp_path / "mutation.py"
+    pinned_module = tmp_path / "pinned.py"
+    bulk_data = tmp_path / ".coverage.bulk"
+    mutation_data = tmp_path / ".coverage.mutation"
+    pin_data = tmp_path / ".coverage.pin"
+    output = tmp_path / ".coverage.combined"
+
+    _write_line_data(bulk_data, bulk_module, [1, 2])
+    _write_line_data(mutation_data, mutation_module, [3, 4])
+    _write_arc_data(pin_data, pinned_module, [(-1, 5), (5, -1)])
+
+    exit_code = cpc.main(
+        [
+            "--main-data",
+            str(bulk_data),
+            "--main-data",
+            str(mutation_data),
+            "--pin-data",
+            str(pin_data),
+            "--output-data",
+            str(output),
+        ]
+    )
+
+    assert exit_code == cpc.EXIT_OK
+    result = coverage.CoverageData(basename=str(output))
+    result.read()
+    assert sorted(result.lines(str(bulk_module)) or []) == [1, 2]
+    assert sorted(result.lines(str(mutation_module)) or []) == [3, 4]
+    assert sorted(result.lines(str(pinned_module)) or []) == [5]
 
 
 def test_missing_main_file_fails_loudly_and_cli_exits_nonzero(tmp_path: Path) -> None:
@@ -90,7 +124,7 @@ def test_missing_main_file_fails_loudly_and_cli_exits_nonzero(tmp_path: Path) ->
     _write_arc_data(pin, tmp_path / "mod.py", [(-1, 1), (1, -1)])
 
     with pytest.raises(cpc.CoverageInputError, match="not found"):
-        cpc.combine(missing_main, [pin], output)
+        cpc.combine([missing_main], [pin], output)
 
     exit_code = cpc.main(
         [
@@ -118,7 +152,7 @@ def test_pin_data_without_arcs_is_rejected_branch_input_required(tmp_path: Path)
     _write_line_data(pin_missing_branch, mod, [3, 4])
 
     with pytest.raises(cpc.CoverageInputError, match="--cov-branch"):
-        cpc.combine(main_data, [pin_missing_branch], tmp_path / ".coverage.combined")
+        cpc.combine([main_data], [pin_missing_branch], tmp_path / ".coverage.combined")
 
 
 def test_main_data_with_arcs_is_rejected_statement_main_required(tmp_path: Path) -> None:
@@ -133,7 +167,7 @@ def test_main_data_with_arcs_is_rejected_statement_main_required(tmp_path: Path)
     _write_arc_data(pin, mod, [(-1, 1), (1, 3), (3, -1)])
 
     with pytest.raises(cpc.CoverageInputError, match="without --cov-branch"):
-        cpc.combine(main_with_arcs, [pin], tmp_path / ".coverage.combined")
+        cpc.combine([main_with_arcs], [pin], tmp_path / ".coverage.combined")
 
 
 def test_project_to_lines_preserves_measured_lines_from_arc_data(tmp_path: Path) -> None:
@@ -200,7 +234,7 @@ def test_combine_projects_incidental_module_lines_alongside_pinned_module(
     arc_data.add_arcs({str(incidental): [(-1, 1), (1, 2), (2, 3), (3, -1)]})
     arc_data.write()
 
-    cpc.combine(main_data, [pin_data], output)
+    cpc.combine([main_data], [pin_data], output)
 
     result = coverage.CoverageData(basename=str(output))
     result.read()
@@ -301,7 +335,7 @@ def test_empty_data_file_is_rejected(tmp_path: Path) -> None:
     _write_arc_data(pin, tmp_path / "mod.py", [(-1, 1), (1, -1)])
 
     with pytest.raises(cpc.CoverageInputError, match="empty"):
-        cpc.combine(main_data, [pin], tmp_path / ".coverage.combined")
+        cpc.combine([main_data], [pin], tmp_path / ".coverage.combined")
 
 
 def test_unreadable_data_file_is_rejected(tmp_path: Path) -> None:
@@ -314,7 +348,7 @@ def test_unreadable_data_file_is_rejected(tmp_path: Path) -> None:
     _write_arc_data(pin, tmp_path / "mod.py", [(-1, 1), (1, -1)])
 
     with pytest.raises(cpc.CoverageInputError, match="unreadable"):
-        cpc.combine(corrupt, [pin], tmp_path / ".coverage.combined")
+        cpc.combine([corrupt], [pin], tmp_path / ".coverage.combined")
 
 
 def test_main_cli_reports_success_and_writes_combined_file(tmp_path: Path) -> None:
@@ -361,7 +395,7 @@ def test_stale_output_file_is_not_reused(tmp_path: Path) -> None:
     # run's inputs never mention.
     _write_line_data(output, other, [99])
 
-    cpc.combine(main_data, [pin], output)
+    cpc.combine([main_data], [pin], output)
 
     result = coverage.CoverageData(basename=str(output))
     result.read()

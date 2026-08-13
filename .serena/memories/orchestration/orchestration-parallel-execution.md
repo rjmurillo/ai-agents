@@ -36,6 +36,5 @@ Savings: 61% reduction
 
 - [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
 - [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
-- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)
 - [orchestration-pr-chain](orchestration-pr-chain.md)
 - [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

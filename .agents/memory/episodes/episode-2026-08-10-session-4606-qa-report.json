@@ -1,0 +1,265 @@
+{
+  "id": "episode-2026-08-10-session-4606-qa-report",
+  "session": "2026-08-10-session-4606-qa-report",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add QA evidence for PR 4606 Validate PR gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T11:20:00+00:00",
+      "type": "milestone",
+      "content": "Acquired pr_autofix lease for PR 4606 and live-state gate returned ACT.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/test_check_review_thread_resolution_shas.py tests/test_check_suppressed_review_findings.py tests/build_scripts/test_generate_commands.py tests/build_scripts/test_validate_templates_schema.py -q. Result: 72 passed in 0.46s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T11:25:00+00:00",
+      "type": "test",
+      "content": "Ran targeted test command: uv run --frozen pytest tests/test_check_review_thread_resolution_shas.py tests/test_check_suppressed_review_findings.py tests/build_scripts/test_generate_commands.py tests/build_scripts/test_validate_templates_schema.py -q. Result: 72 passed in 0.46s.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T11:30:00+00:00",
+      "type": "milestone",
+      "content": "Created QA report bound to pre-report code commit 399ba580b0271cb6d25aa7ebc799fdb00aacd143.",
+      "caused_by": [
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T12:50:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main, reran targeted tests, and rebound QA report to 79d59f39f32d9046a06a4c318f5be6eee19aad31.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T11:11:11+00:00",
+      "type": "commit",
+      "content": "Commit: 399ba580b0271cb6d25aa7ebc799fdb00aacd143",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T14:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed mypy return type, reran targeted tests, and rebound QA report to 7692a151ab1795938e61838de3c8e4ef5868fbed.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T12:36:45+00:00",
+      "type": "commit",
+      "content": "Commit: 79d59f39f32d9046a06a4c318f5be6eee19aad31",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-10T14:30:00+00:00",
+      "type": "milestone",
+      "content": "Fixed fast mutation process-group race, regenerated command mirrors, reran targeted tests, and rebound QA report to 8f070f9f7ef85eb80d394f50420d3a447c1de87f.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T14:46:44+00:00",
+      "type": "commit",
+      "content": "Commit: 7692a151ab1795938e61838de3c8e4ef5868fbed",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T17:44:26+00:00",
+      "type": "commit",
+      "content": "Commit: 332257ae8324d82a309c05b53a9bfd2e782044c3",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T19:35:08+00:00",
+      "type": "commit",
+      "content": "Commit: 1d40f26128f7ca8830f639b3902441507a5e83c5",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T20:17:46+00:00",
+      "type": "commit",
+      "content": "Commit: da00292d8ce4a1a45d826577719e57d00e7e417b",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T20:36:25+00:00",
+      "type": "commit",
+      "content": "Commit: d366919b4c5fdef1b9a9fde9956502bce6977956",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T20:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 573c81888894aea4f17c26a3254e3756c9ec6205",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T22:50:31+00:00",
+      "type": "commit",
+      "content": "Commit: 084bc0cef05ea0391d156b028a220946709d32fb",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-12T00:00:21+00:00",
+      "type": "commit",
+      "content": "Commit: a94d7cd2a797249dd3e68326b8f14d9d2a79bd74",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-12T00:51:03+00:00",
+      "type": "commit",
+      "content": "Commit: 37f636d5adc8de525dbb6d1dc7071d1964b46ed1",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-12T01:32:00+00:00",
+      "type": "commit",
+      "content": "Commit: a9289765e5388b8802c36e345722badb7d58eb20",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-4606-qa-report"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 190,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 2
+  },
+  "lessons": []
+}

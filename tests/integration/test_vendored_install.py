@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.lib.vendored_copy import copy_vendored_entry
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_DIR = REPO_ROOT / ".claude"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
@@ -47,13 +49,8 @@ VENDORED_SUBTREE = (
 )
 
 
-@pytest.fixture
-def vendored_root(tmp_path: Path) -> Path:
-    """Copy `.claude/{vendored subtree}` + CLAUDE.md to tmp_path/.
-
-    Returns the temp directory containing the vendored layout.
-    """
-    target = tmp_path / "vendored"
+def build_vendored_root(target: Path) -> Path:
+    """Copy `.claude/{vendored subtree}` + CLAUDE.md to target."""
     target.mkdir()
     target_claude = target / ".claude"
     target_claude.mkdir()
@@ -64,10 +61,7 @@ def vendored_root(tmp_path: Path) -> Path:
             missing.append(entry)
             continue
         dst = target_claude / entry
-        if src.is_dir():
-            shutil.copytree(src, dst)
-        else:
-            shutil.copy2(src, dst)
+        copy_vendored_entry(src, dst)
     # PR #1965 coderabbit Y12: do not silently skip missing required
     # subtrees. AC5 is a strict packaging contract; if any of the listed
     # entries is absent in the source tree, the vendored install would
@@ -78,6 +72,39 @@ def vendored_root(tmp_path: Path) -> Path:
     if CLAUDE_MD.exists():
         shutil.copy2(CLAUDE_MD, target / "CLAUDE.md")
     return target
+
+
+@pytest.fixture
+def vendored_root(tmp_path: Path) -> Path:
+    """Return a temporary vendored layout."""
+    return build_vendored_root(tmp_path / "vendored")
+
+
+def test_vendored_root_builder_excludes_runtime_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    for entry in VENDORED_SUBTREE:
+        path = source / entry
+        if entry == "settings.json":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True)
+    skills = source / "skills"
+    (skills / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (skills / "standalone.pyc").write_bytes(b"cache")
+    (skills / "__pycache__").mkdir()
+    (skills / "__pycache__" / "module.pyc").write_bytes(b"cache")
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_DIR", source)
+    monkeypatch.setattr(sys.modules[__name__], "CLAUDE_MD", tmp_path / "missing.md")
+
+    target = build_vendored_root(tmp_path / "target")
+
+    copied_skills = target / ".claude" / "skills"
+    assert (copied_skills / "module.py").is_file()
+    assert not (copied_skills / "standalone.pyc").exists()
+    assert not (copied_skills / "__pycache__").exists()
 
 
 def test_vendored_lib_directory_present(vendored_root: Path) -> None:
@@ -260,6 +287,17 @@ def test_review_skill_names_every_canonical_axis(vendored_root: Path) -> None:
     text = review.read_text(encoding="utf-8")
     for role in CANONICAL_ROLES:
         assert role in text, f"/review dispatcher does not name canonical axis: {role}"
+
+
+def test_vendored_implementer_preserves_toolkit_scaffold_blocks(
+    vendored_root: Path,
+) -> None:
+    """Vendored implementer separates consumer-owned and toolkit scaffolds."""
+    implementer = vendored_root / ".claude" / "agents" / "implementer.md"
+    text = implementer.read_text(encoding="utf-8")
+
+    assert "[BLOCKED] No prior session context available" in text
+    assert "consumer-owned .agents/ without ai-agents session scaffold" in text
 
 
 def test_review_skill_dispatches_by_discovery_not_fixed_count(

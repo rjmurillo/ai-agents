@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4728,
+    "date": "2026-08-11",
+    "branch": "autofix/pr-4869-4728",
+    "startingCommit": "a05c8c71243737dc98cb4f053fcc21cc73667b06",
+    "objective": "Resolve PR #4869 T4: Validate PR, address every review thread, and merge only after the completion gate passes."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena activation was unavailable in this harness."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena activation was unavailable in this harness."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md and the PR #4869 handoff summary were read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the pr-autofix skill and its PR scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md was read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md was read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the merge-group and PR-autofix memory entries."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "autofix/pr-4869-4728 is an isolated worktree branch."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes were made in /home/richard/src/scratch/worktrees/pr-4869-autofix-4728."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The isolated worktree was clean before session evidence was added."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a05c8c71243737dc98cb4f053fcc21cc73667b06"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Remote CI, completion gate, and merge remain pending."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No durable new memory was identified."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx --yes markdownlint-cli passed on the retrospective and QA report."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4869-issue-4691-merge-group-readiness-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "f963718cffca4a86eefd7a88a132e7f7c916a65a, 384e615fe404bee562b7274b856ec628283a30ad, 4ca6e9e75d975f8e4aca0797a51f786d4a9d1b03, and 0c7c50f2b3d7db149047b5c83e6c95fba557ec9f"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen python scripts/validation/pre_pr.py passed all 51 validations before the final main refresh. The 55-test safe-push CI subset passed after that refresh."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Todo completion depends on remote CI, the completion gate, and merge verification."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-11-issue-4691-merge-group-readiness.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Acquired branch ownership",
+      "detail": "Acquired and renewed the PR #4869 lease for this session."
+    },
+    {
+      "action": "Bound live PR identity",
+      "detail": "PR #4869 remained open at head a05c8c71243737dc98cb4f053fcc21cc73667b06 on main."
+    },
+    {
+      "action": "Fixed CI root cause",
+      "detail": "Merged main twice. The branch now uses the 40-commit main-merge allowance."
+    },
+    {
+      "action": "Addressed review findings",
+      "detail": "Mapped Run Python Tests to pytest.yml:test-result, pinned actual validation actions in mutation controls, and required both missing-repository output and Git exit 128 for the act downgrade."
+    },
+    {
+      "action": "Validated local changes",
+      "detail": "Focused pytest suites passed 327 tests. Scoped Ruff checks and Markdown lint passed. After the QA evidence refresh, pre_pr.py passed all 51 validations."
+    },
+    {
+      "action": "Corrected PR validation",
+      "detail": "The first pushed run applied the 40-commit allowance but failed on stale PR-body file claims. Updated the PR body, then pr_description.py reported no mismatches."
+    },
+    {
+      "action": "Resolved review discussions",
+      "detail": "Replied to and resolved all five Copilot review threads. get_unresolved_review_threads.py then returned zero threads with complete pagination."
+    },
+    {
+      "action": "Refreshed main and reproduced the safe-push suite",
+      "detail": "Merged current origin/main into 0c7c50f2b3d7db149047b5c83e6c95fba557ec9f. The exact 55-test safe-push selection passed locally."
+    }
+  ],
+  "endingCommit": "0c7c50f2b3d7db149047b5c83e6c95fba557ec9f",
+  "nextSteps": [
+    "Commit updated session evidence.",
+    "Run pre_pr.py again, then guarded-push the branch.",
+    "Wait for required CI, run the completion gate, and merge only when all four conditions pass."
+  ]
+}

@@ -120,6 +120,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "All MUST items satisfied."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4564-session-9034-test-report.md"
       }
     }
   },
@@ -155,7 +160,7 @@
       "evidence": "14 unused noqa (RUF100) removed from get_pr_checks.py, why_pr_blocked.py, audit_closing_claims.py, edit_pr_body.py"
     }
   ],
-  "endingCommit": "9c563dab1d10aba66c8b6f255e0c092df8ae8aef",
+  "endingCommit": "690dbd5bac442c54e621e077965c15c012590384",
   "nextSteps": [
     "Push branch and create PR",
     "Verify closing refs for #4359, #4393, #4462, #4490"

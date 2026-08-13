@@ -16,10 +16,17 @@ would drag in PyYAML and fail.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
+import sys
 from collections.abc import Iterable
 from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
 _GIT_TIMEOUT_SECONDS = 30
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
@@ -32,10 +39,23 @@ NO_SUCH_COMMIT = "names no commit in this repository"
 NOT_AN_ANCESTOR = "names a commit that is not an ancestor of HEAD"
 
 
-def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
+def _git_env(*, preserve_index_file: bool = False) -> dict[str, str]:
+    """Return a clean git environment, optionally preserving the active index."""
+    from checks_common import _git_subprocess_env
+
+    env: dict[str, str] = dict(_git_subprocess_env())
+    if preserve_index_file and (index := os.environ.get("GIT_INDEX_FILE")):
+        env["GIT_INDEX_FILE"] = index
+    return env
+
+
+def _git(
+    args: list[str], repo_root: Path, *, preserve_index_file: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=repo_root,
+        env=_git_env(preserve_index_file=preserve_index_file),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -120,45 +140,248 @@ def _tracked(paths: list[str], repo_root: Path) -> set[str]:
         return set()
     return {entry for entry in listed.stdout.split("\0") if entry}
 
+def _added_session_paths(
+    paths: Iterable[str],
+    repo_root: Path,
+    git_args: list[str],
+    *,
+    preserve_index_file: bool = False,
+) -> set[str] | None:
+    """Return the subset of ``paths`` one git diff reports as additions.
 
-def new_session_logs(paths: Iterable[str], repo_root: Path) -> set[str]:
-    """Return the subset of ``paths`` this branch is adding rather than editing.
+    The diff carries no pathspec. With rename detection enabled, limiting the
+    diff to the caller's paths hides the deletion half and can reclassify a
+    rename as an add. Intersect in Python instead so only true adds receive
+    creation-mode.
 
-    One ``git diff`` and one ``git ls-files`` for the whole batch, not a probe
-    per path: the answer for every path comes out of the same comparison.
-
-    Rename detection is on. Correcting a historical log's filename is the
-    central use case of issue #3385, so a rename must stay an edit. Without
-    ``-M`` the new name would look like an addition and the checklist would
-    come back, defeating the fix.
-
-    The diff carries no pathspec, and the caller's paths are intersected in
-    Python instead. Git pairs a rename by seeing both sides, so limiting the
-    diff to the new path hides the deletion and reports the rename as an add.
-    Measured: the same rename reports ``A`` under ``-- <new path>`` and
-    ``R100`` unlimited. ``--name-status`` reads no blob content, so diffing
-    the whole tree costs little.
-
-    Returns every path when the answer cannot be determined. A repository with
-    no merge base (a shallow clone, a fresh init, no ``origin/main``) must not
-    silently downgrade every log to record-only validation. Failing toward the
-    stricter check keeps an unfetched CI checkout from becoming a bypass.
+    Return ``None`` on a git failure so the caller can block instead of
+    guessing. A failed probe must not silently reclassify an existing log as a
+    creation-time log and skip compliance-only checks.
     """
     wanted = list(paths)
     if not wanted:
         return set()
+    try:
+        diff = _git(git_args, repo_root, preserve_index_file=preserve_index_file)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if diff.returncode != 0:
+        if diff.stdout:
+            print(diff.stdout, end="", file=sys.stderr)
+        if diff.stderr:
+            print(diff.stderr, end="", file=sys.stderr)
+        return None
+    added: set[str] = set()
+    for line in diff.stdout.splitlines():
+        parts = line.split("	", 1)
+        if len(parts) != 2:
+            continue
+        status, name = parts
+        if status.startswith("A"):
+            added.add(name.strip())
+    return {path for path in wanted if path in added}
+
+
+def added_session_paths_in_index(paths: Iterable[str], repo_root: Path) -> set[str] | None:
+    """Return session-log paths staged as adds in the index, or ``None`` on failure."""
+    return _added_session_paths(
+        paths,
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"],
+        preserve_index_file=True,
+    )
+
+
+def _commit_object_parents(repo_root: Path, head: str) -> list[str] | None:
+    try:
+        result = _git(["cat-file", "-p", head], repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [
+        line.removeprefix("parent ")
+        for line in result.stdout.splitlines()
+        if line.startswith("parent ")
+    ]
+
+
+def _head_parents(repo_root: Path, head: str = "HEAD") -> list[str] | None:
+    """Return a commit's parent SHAs, or ``None`` when git cannot answer."""
+    try:
+        result = _git(["rev-list", "--parents", "-n", "1", head], repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        if result.stdout:
+            print(result.stdout, end="", file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        return None
+    parts = result.stdout.split()
+    if not parts:
+        return None
+    return parts[1:] or _commit_object_parents(repo_root, head)
+
+
+def _pull_request_head_sha() -> str:
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+    if not event_path:
+        return ""
+    try:
+        payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return ""
+    head_data = pull_request.get("head")
+    if not isinstance(head_data, dict):
+        return ""
+    head = head_data.get("sha", "")
+    return head if isinstance(head, str) and _COMMIT_SHA.fullmatch(head) else ""
+
+
+def _validation_head(repo_root: Path, parents: list[str]) -> tuple[str, list[str] | None]:
+    """Select the PR head behind GitHub's synthetic merge commit."""
+    pull_request_head = _pull_request_head_sha()
+    if len(parents) != 2 or pull_request_head != parents[1]:
+        return "HEAD", parents
+
+    return pull_request_head, _head_parents(repo_root, pull_request_head)
+
+
+def added_session_paths_in_head(paths: Iterable[str], repo_root: Path) -> set[str] | None:
+    """Return paths added by the validation head, or ``None`` on git failure."""
+    wanted = list(paths)
+    if not wanted:
+        return set()
+    parents = _head_parents(repo_root)
+    if parents is None:
+        return None
+    head, parents = _validation_head(repo_root, parents)
+    if parents is None:
+        return None
+    if not parents:
+        return _added_session_paths(
+            wanted,
+            repo_root,
+            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", head],
+        )
+    added_against_all: set[str] | None = None
+    for parent in parents:
+        added = _added_session_paths(
+            wanted,
+            repo_root,
+            ["diff-tree", "--name-status", "-M", "--diff-filter=A", "-r", parent, head],
+        )
+        if added is None:
+            return None
+        if added_against_all is None:
+            added_against_all = set(added)
+        else:
+            added_against_all &= added
+        if not added_against_all:
+            return set()
+    return added_against_all or set()
+
+
+def _added_paths_from_name_status(
+    output: str,
+) -> tuple[set[str], bool] | None:
+    """Return added paths and whether any session log was deleted."""
+    added: set[str] = set()
+    deleted_session = False
+    tokens = output.split("\0")
+    index = 0
+    while index < len(tokens) and tokens[index]:
+        status = tokens[index]
+        index += 1
+        if status.startswith(("R", "C")):
+            if index + 1 >= len(tokens):
+                return None
+            index += 2
+            continue
+        if index >= len(tokens):
+            return None
+        path = tokens[index]
+        index += 1
+        if status == "A":
+            added.add(path)
+        elif status == "D" and path.startswith(".agents/sessions/") and path.endswith(".json"):
+            deleted_session = True
+    return added, deleted_session
+
+
+def session_change_scope(
+    paths: Iterable[str],
+    repo_root: Path,
+    *,
+    compare_ref: str | None = None,
+) -> tuple[set[str], bool]:
+    """Return paths added by this branch and whether it deleted any session log."""
+    wanted = list(paths)
+    if not wanted:
+        return set(), False
     base = session_merge_base(repo_root)
     if not base:
-        return set(wanted)
+        return set(wanted), False
     try:
-        diff = _git(["diff", "--name-status", "-M", "--diff-filter=A", base], repo_root)
+        diff_args = ["diff", "--name-status", "-z", "-M", base]
+        if compare_ref is not None:
+            diff_args.append(compare_ref)
+        diff = _git(diff_args, repo_root)
     except (OSError, subprocess.SubprocessError):
-        return set(wanted)
+        return set(wanted), False
     if diff.returncode != 0:
-        return set(wanted)
-    added = {line.split("\t", 1)[1].strip() for line in diff.stdout.splitlines() if "\t" in line}
+        return set(wanted), False
+    parsed = _added_paths_from_name_status(diff.stdout)
+    if parsed is None:
+        return set(wanted), False
+    added, deleted_session = parsed
     tracked = _tracked(wanted, repo_root)
-    return {path for path in wanted if path in added or path not in tracked}
+    return {path for path in wanted if path in added or path not in tracked}, deleted_session
+
+
+def committed_session_validation_modes(
+    paths: Iterable[str], repo_root: Path
+) -> dict[str, str] | None:
+    """Classify committed session logs as creation, full, or existing.
+
+    ``creation`` applies only to paths that the validated branch-head commit adds.
+    ``existing`` is reserved for paths proven to predate the branch, meaning
+    they are absent from the branch-added set relative to the merge base.
+    Everything else stays on the full validation path with no mode flag.
+    """
+    wanted = list(paths)
+    if not wanted:
+        return {}
+    head_added = added_session_paths_in_head(wanted, repo_root)
+    if head_added is None:
+        return None
+    branch_new = new_session_logs(wanted, repo_root)
+    modes: dict[str, str] = {}
+    for path in wanted:
+        if path in head_added:
+            modes[path] = "creation"
+        elif path not in branch_new:
+            modes[path] = "existing"
+        else:
+            modes[path] = "full"
+    return modes
+
+
+def new_session_logs(
+    paths: Iterable[str],
+    repo_root: Path,
+    *,
+    compare_ref: str | None = None,
+) -> set[str]:
+    """Return the subset of ``paths`` this branch is adding rather than editing."""
+    added, _ = session_change_scope(paths, repo_root, compare_ref=compare_ref)
+    return added
 
 
 def session_log_is_new(path: str, repo_root: Path) -> bool:

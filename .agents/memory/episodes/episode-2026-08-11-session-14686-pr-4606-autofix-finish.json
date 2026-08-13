@@ -1,0 +1,277 @@
+{
+  "id": "episode-2026-08-11-session-14686-pr-4606-autofix-finish",
+  "session": "2026-08-11-session-14686-pr-4606-autofix-finish",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Finish PR 4606 autofix by repairing stale QA evidence, fixing invalid session logs, and re-running the merge gates.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revalidated failing CI signals",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound stale QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired invalid session protocol records",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Prepared guarded push and merge cycle",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed active suppressed findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T19:35:08+00:00",
+      "type": "commit",
+      "content": "Commit: 1d40f26128f7ca8830f639b3902441507a5e83c5",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007",
+        "e008",
+        "e009",
+        "e011",
+        "e012",
+        "e014",
+        "e015",
+        "e017"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound historical QA records",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split QA evidence into a final atomic batch",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Copilot skill portability note",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T20:17:46+00:00",
+      "type": "commit",
+      "content": "Commit: da00292d8ce4a1a45d826577719e57d00e7e417b",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed final PR 4606 QA reports",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned the canonical pr-review command note",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T20:36:25+00:00",
+      "type": "commit",
+      "content": "Commit: d366919b4c5fdef1b9a9fde9956502bce6977956",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed remaining QA reports after canonical command fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed follow-up command schema gaps",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T20:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 573c81888894aea4f17c26a3254e3756c9ec6205",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed remaining QA reports after command suffix fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-11T22:50:31+00:00",
+      "type": "commit",
+      "content": "Commit: 084bc0cef05ea0391d156b028a220946709d32fb",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-12T00:00:21+00:00",
+      "type": "commit",
+      "content": "Commit: a94d7cd2a797249dd3e68326b8f14d9d2a79bd74",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-12T00:51:03+00:00",
+      "type": "commit",
+      "content": "Commit: 37f636d5adc8de525dbb6d1dc7071d1964b46ed1",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-12T01:32:00+00:00",
+      "type": "commit",
+      "content": "Commit: a9289765e5388b8802c36e345722badb7d58eb20",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14686-pr-4606-autofix-finish"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 12
+  },
+  "lessons": []
+}

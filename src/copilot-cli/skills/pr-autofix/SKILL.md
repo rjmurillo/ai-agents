@@ -1,6 +1,7 @@
 ---
 name: pr-autofix
-description: Autonomous PR monitor and fixer. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
+description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
+argument-hint: '[pull-request|mode]'
 allowed-tools: Bash, Read, Edit, Write, Skill
 size-exception: true
 user-invocable: true
@@ -158,10 +159,28 @@ prepare_lease_for_mutation() {
     start_lease_renewal
 }
 
+stop_mutation_group() {
+    local mutation_pid=$1 stop_attempt
+    kill -TERM -- "-$mutation_pid" 2>/dev/null || true
+    for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.05
+    done
+    kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+}
+
 run_mutation_with_lease_monitor() {
-    local mutation_pid mutation_pgid mutation_rc start_attempt stop_attempt
+    local mutation_pid mutation_pgid mutation_rc mutation_state start_attempt
     python3 -c \
-        'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+        'import errno, os, sys
+try:
+    os.setsid()
+except OSError as exc:
+    if exc.errno != errno.EPERM or os.getpgrp() != os.getpid():
+        raise
+os.execvp(sys.argv[1], sys.argv[1:])' \
         "$@" &
     mutation_pid=$!
     mutation_pgid=""
@@ -170,12 +189,39 @@ run_mutation_with_lease_monitor() {
         if [ "$mutation_pgid" = "$mutation_pid" ]; then
             break
         fi
-        if ! kill -0 "$mutation_pid" 2>/dev/null; then
-            break
+        mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+        if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
+            if wait "$mutation_pid"; then
+                mutation_rc=0
+            else
+                mutation_rc=$?
+            fi
+            if lease_renewal_failed; then
+                stop_mutation_group "$mutation_pid"
+                echo "Mutation completed as lease ownership was lost for #$PR"
+                cleanup_pr_autofix
+                return 75
+            fi
+            return "$mutation_rc"
         fi
         sleep 0.01
     done
     if [ "$mutation_pgid" != "$mutation_pid" ]; then
+        mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+        if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
+            if wait "$mutation_pid"; then
+                mutation_rc=0
+            else
+                mutation_rc=$?
+            fi
+            if lease_renewal_failed; then
+                stop_mutation_group "$mutation_pid"
+                echo "Mutation completed as lease ownership was lost for #$PR"
+                cleanup_pr_autofix
+                return 75
+            fi
+            return "$mutation_rc"
+        fi
         kill "$mutation_pid" 2>/dev/null || true
         wait "$mutation_pid" 2>/dev/null || true
         echo "Stopping mutation for #$PR: process group setup failed"
@@ -184,14 +230,20 @@ run_mutation_with_lease_monitor() {
     fi
     while kill -0 "$mutation_pid" 2>/dev/null; do
         if lease_renewal_failed; then
-            kill -TERM -- "-$mutation_pid" 2>/dev/null || true
-            for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
-                if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
-                    break
+            sleep 0.02
+            mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+            if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
+                stop_mutation_group "$mutation_pid"
+                if wait "$mutation_pid"; then
+                    mutation_rc=0
+                else
+                    mutation_rc=$?
                 fi
-                sleep 0.05
-            done
-            kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+                echo "Mutation completed as lease ownership was lost for #$PR"
+                cleanup_pr_autofix
+                return 75
+            fi
+            stop_mutation_group "$mutation_pid"
             wait "$mutation_pid" 2>/dev/null || true
             echo "Stopping mutation for #$PR: lease ownership lost"
             cleanup_pr_autofix
@@ -205,6 +257,7 @@ run_mutation_with_lease_monitor() {
         mutation_rc=$?
     fi
     if lease_renewal_failed; then
+        stop_mutation_group "$mutation_pid"
         echo "Mutation completed as lease ownership was lost for #$PR"
         cleanup_pr_autofix
         return 75

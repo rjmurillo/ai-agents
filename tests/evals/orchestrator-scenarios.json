@@ -44,6 +44,24 @@
       "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
       "expected_reason_contains": "security",
       "rationale": "Security assessment requires the security agent. Orchestrator should not attempt the review itself."
+    },
+    {
+      "id": "S6",
+      "desc": "Continues the active implementer phase instead of restarting or re-asking",
+      "input": "Session state: phase 1 (analyst investigation) is complete and its findings are recorded. Phase 2 (architect review) is complete and the design decision is recorded. Phase 3 (implementer) is active and its delegation has not returned. The user says: continue.",
+      "expected_verdict": "CONTINUE",
+      "verdict_options": ["CONTINUE", "RESTART", "REASK", "ASK"],
+      "expected_reason_contains": "implementer",
+      "rationale": "Context Maintenance requires resuming the active phase. Repeating phase 1 or 2, or re-asking an answered question, wastes agents and can return output that conflicts with the returns already held."
+    },
+    {
+      "id": "S7",
+      "desc": "Trims an oversized synthesis to the output bound and keeps the strongest recommendation",
+      "input": "Produce the user-facing synthesis. You hold a 2,000-word analyst investigation, a completed architect design review, and a QA report. The weakest finding is a cosmetic log-format nit. The strongest recommendation is to add an index before the release.",
+      "expected_verdict": "TRIM",
+      "verdict_options": ["TRIM", "FULL", "DEFER", "ASK"],
+      "expected_reason_contains": "400",
+      "rationale": "Output Bounds caps synthesis at 400 words or 4 paragraphs, whichever comes first, and requires cutting the weakest finding rather than the strongest recommendation."
     }
   ]
 }

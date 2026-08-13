@@ -145,7 +145,9 @@ def test_every_repaired_workflow_still_validates_main() -> None:
         on = _triggers(WORKFLOW_DIR / name)
         assert on is not None, name
         if name == "pytest.yml":
-            assert on["push"] is None, name
+            assert on["push"] == {
+                "branches-ignore": ["gh-readonly-queue/**"]
+            }, name
         else:
             assert on["push"]["branches"] == ["main"], name
         assert on["pull_request"]["branches"] == ["main"], name
