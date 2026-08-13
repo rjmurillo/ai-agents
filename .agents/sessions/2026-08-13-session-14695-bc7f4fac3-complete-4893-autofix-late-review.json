@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, ADR, catalog, plugin namespace fixes, main refreshes, and complete frontmatter validation committed through e7202ce172f8b6474367eaae2f08d0dda1deb7bb"
+        "Evidence": "Implementation, ADR, catalog, plugin namespace, frontmatter scalar, and definition precedence fixes committed through 99dce54d4d7c4285688681f5ffec61adacdf36c0"
       },
       "validationPassed": {
         "level": "MUST",
@@ -135,7 +135,7 @@
       "result": "Preserved plugin namespaces, corrected fail-open runtime evidence, and reused the existing six-round ADR-068/071/085 debate log"
     }
   ],
-  "endingCommit": "e7202ce172f8b6474367eaae2f08d0dda1deb7bb",
+  "endingCommit": "99dce54d4d7c4285688681f5ffec61adacdf36c0",
   "nextSteps": [
     "Guarded push after lease renewal and remote-head binding",
     "Wait for required CI and complete every review thread lifecycle",
