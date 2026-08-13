@@ -110,7 +110,8 @@
         "e007",
         "e008",
         "e013",
-        "e015"
+        "e015",
+        "e017"
       ],
       "leads_to": [
         "e010"
@@ -199,6 +200,30 @@
       "caused_by": [
         "e014"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the fresh-head suppressed findings",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T11:29:56+00:00",
+      "type": "commit",
+      "content": "Commit: 9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
     }
@@ -208,8 +233,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 11
+    "commits": 7,
+    "files_changed": 13
   },
   "lessons": []
 }

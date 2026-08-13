@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, review fixes, base refresh, and QA evidence are ancestors of 3106ced1f614decbb29e2b1c9a763ede49951b85."
+        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of 9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745."
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,9 +163,13 @@
     {
       "action": "Closed the post-head review findings",
       "result": "Unified runtime failure records, renamed agent digest fields, preserved CRLF agent files, passed 44 targeted tests, and refreshed the branch from main."
+    },
+    {
+      "action": "Closed the fresh-head suppressed findings",
+      "result": "Reports now hash installed agent bytes, retain stderr diagnostics, and score structured question payloads without fallback prose. Forty-eight targeted tests and the full 28011-test suite passed after merging current main."
     }
   ],
-  "endingCommit": "3106ced1f614decbb29e2b1c9a763ede49951b85",
+  "endingCommit": "9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]

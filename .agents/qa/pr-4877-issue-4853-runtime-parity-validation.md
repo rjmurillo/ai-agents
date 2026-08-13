@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 3106ced1f614decbb29e2b1c9a763ede49951b85
+qaCommit: 9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -21,10 +21,12 @@ machine.
 
 ## Deterministic evidence
 
-- `uv run ruff check` on both modules and the test file: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 44 passed.
+- Scoped Ruff checks on the seven changed Python files: pass.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 48 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
-- Pre-push Python suite: 27805 passed, 37 skipped, 2 warnings.
+- Full Python suite after the latest base merge: 28011 tests collected, exit 0.
+- Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
+  Scoped Ruff on every changed Python file passes.
 - Malformed JSONL text and non-object JSON now exit 3 and record an external
   runtime failure.
 - Claude receives only Anthropic credentials. Copilot receives only GitHub
@@ -40,7 +42,12 @@ machine.
 - `eval_runtime_parity.py --dry-run`: four fixtures and both controls loaded.
 - Runtime failures use one report shape. Agent digests use agent names, and
   agent installation preserves source line endings.
-- Taste lints reported one file-size error and three warnings as advisory.
+- Reports hash the transformed agent bytes loaded by each CLI.
+- Runtime stderr is retained. Nonzero exits include the diagnostic in `error`.
+- Structured question assertions score the tool payload without requiring
+  fallback prose.
+- Authored Python file-size errors were cleared by extracting output parsing
+  and splitting report contract tests. Advisory warnings remain.
 
 ## Real CLI evidence
 
