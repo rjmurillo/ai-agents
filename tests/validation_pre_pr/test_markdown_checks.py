@@ -13,7 +13,6 @@ def _clean_stdout(count: int) -> str:
     """Return real cli2 stdout for a run that selected ``count`` clean files."""
     unit = "file" if count == 1 else "files"
     return (
-        "markdownlint-cli2 v0.23.2 (markdownlint v0.41.1)\n"
         f"Linting: {count} {unit}\n"
         "Summary: 0 issues in 0 files\n"
     )
@@ -92,12 +91,12 @@ class TestValidateMarkdownLint:
         assert mock_run.call_args_list[0].args[0][-100:] == targets[:100]
         assert mock_run.call_args_list[1].args[0][-1:] == targets[100:]
 
-    def test_batches_long_target_lists_before_windows_limit(
+    def test_batches_rendered_windows_command_before_limit(
         self, tmp_path: Path
     ) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
-        targets = [f"docs/{character * 4_000}.md" for character in ("a", "b")]
+        targets = [f"docs/{character} {character * 3_720}.md" for character in ("a", "b")]
         with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch("checks_tooling._markdown_lint_targets", return_value=targets):
                 with patch("checks_tooling._run_subprocess") as mock_run:
@@ -110,6 +109,27 @@ class TestValidateMarkdownLint:
         assert mock_run.call_count == 2
         assert mock_run.call_args_list[0].args[0][-1] == targets[0]
         assert mock_run.call_args_list[1].args[0][-1] == targets[1]
+
+    def test_rejects_single_target_that_exceeds_windows_limit(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        target = f"docs/long path/{'a' * 7_500}.md"
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch(
+                "checks_tooling._markdown_lint_targets",
+                return_value=[target],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    assert validate_markdown_lint(tmp_path) is False
+
+        mock_run.assert_not_called()
+        output = capsys.readouterr().out
+        assert "cannot fit under the Windows command-line limit" in output
+        assert "7,500" in output
 
     def test_empty_tool_failure_reports_exit_code_without_rule_guesses(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

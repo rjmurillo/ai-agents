@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import cast
@@ -191,16 +192,19 @@ def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None =
         "markdown files" if targets is None else f"{len(target_args)} {scope_name} markdown file(s)"
     )
     print(f"{action} {scope}...")
-    target_batches = (
-        [target_args] if targets is None else _markdown_lint_target_batches(target_args)
-    )
+    try:
+        target_batches = (
+            [target_args]
+            if targets is None
+            else _markdown_lint_target_batches(target_args, autofix=autofix)
+        )
+    except ValueError as exc:
+        print(f"[FAIL] Markdown linting failed: {exc}")
+        return False
+
     failed = False
     for batch in target_batches:
-        command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
-        if autofix:
-            command.append("--fix")
-        command.extend(["--", *batch])
-
+        command = _markdown_lint_command(batch, autofix=autofix)
         exit_code, stdout, stderr = _run_subprocess(command, cwd=repo_root)
         if exit_code != 0:
             _report_markdown_lint_failure(exit_code, stdout, stderr)
@@ -210,22 +214,56 @@ def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None =
     return not failed
 
 
-def _markdown_lint_target_batches(target_args: list[str]) -> list[list[str]]:
-    """Bound both argument count and Windows command-line length."""
+def _markdown_lint_command(
+    target_args: list[str],
+    *,
+    autofix: bool,
+) -> list[str]:
+    command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
+    if autofix:
+        command.append("--fix")
+    return [*command, "--", *target_args]
+
+
+def _markdown_lint_target_batches(
+    target_args: list[str],
+    *,
+    autofix: bool,
+) -> list[list[str]]:
+    """Bound argument count and the rendered Windows command line."""
     batches: list[list[str]] = []
     batch: list[str] = []
-    batch_length = 0
     for target in target_args:
-        target_length = len(target.encode("utf-16-le")) // 2 + 1
-        if batch and (
-            len(batch) >= MARKDOWNLINT_TARGET_BATCH_LIMIT
-            or batch_length + target_length > MARKDOWNLINT_COMMAND_LENGTH_LIMIT
-        ):
+        if len(batch) >= MARKDOWNLINT_TARGET_BATCH_LIMIT:
             batches.append(batch)
             batch = []
-            batch_length = 0
-        batch.append(target)
-        batch_length += target_length
+
+        candidate = [*batch, target]
+        command_length = len(
+            subprocess.list2cmdline(
+                _markdown_lint_command(candidate, autofix=autofix)
+            )
+        )
+        if command_length <= MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
+            batch = candidate
+            continue
+        if batch:
+            batches.append(batch)
+            batch = []
+            command_length = len(
+                subprocess.list2cmdline(
+                    _markdown_lint_command([target], autofix=autofix)
+                )
+            )
+        if command_length > MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
+            preview = target if len(target) <= 80 else f"{target[:77]}..."
+            raise ValueError(
+                f"target {preview!r} renders to {command_length:,} characters "
+                "and cannot fit under the Windows command-line limit of "
+                f"{MARKDOWNLINT_COMMAND_LENGTH_LIMIT:,}"
+            )
+        batch = [target]
+
     if batch:
         batches.append(batch)
     return batches
