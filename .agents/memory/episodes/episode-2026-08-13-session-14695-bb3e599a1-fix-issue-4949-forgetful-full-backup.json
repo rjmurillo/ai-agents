@@ -3,7 +3,7 @@
   "session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup",
   "timestamp": "2026-08-13T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 4949 forgetful full-backup import crash and ship verified merge",
   "decisions": [],
   "events": [
@@ -62,6 +62,19 @@
         "e003",
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:32:24+00:00",
+      "type": "commit",
+      "content": "Commit: 6243f3aa24",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
     }
@@ -71,8 +84,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 7
   },
   "lessons": []
 }

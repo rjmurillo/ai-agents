@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup.json
-qaCommit: 1287c5557e56b0e077ccdd39d5ff64eddd7ce063
+qaCommit: 6243f3aa24a548819ef690345bb0fa723054bc9f
 ---
 
 # QA Report: Issue 4949 Forgetful Import
@@ -29,6 +29,8 @@ run.
 ## Verification
 
 - Focused importer suites: 41 passed.
+- Full repository suite with canonical pytest parallelism: 27,941 passed and
+  37 skipped.
 - Committed backup against a temporary database copy: 2,359 inserted, exit 0.
 - Mutation check: disabling object normalization failed the committed backup
   plus later correction test, and the source hash was restored.
@@ -37,8 +39,9 @@ run.
 - CWE-78 scan: two Python files scanned, zero findings.
 - Security agent: approved with no medium-or-higher finding.
 - GPT-5.6 Sol final adversarial review: approved.
-- Fresh QA review of commit `1287c5557e56b0e077ccdd39d5ff64eddd7ce063`:
-  PASS, no blocking defects.
+- Fresh QA review of commit `6243f3aa24a548819ef690345bb0fa723054bc9f`
+  after merging current `origin/main` and recording durable memory: PASS, no
+  blocking defects.
 
 ## QA Verdict
 
