@@ -207,6 +207,88 @@ class TestLockfilePolicy:
         assert "integrity" in r.stdout.lower()
 
 
+# ── Integrity manifest ──
+
+
+class TestIntegrityManifest:
+    def _vendor(self, root: Path) -> Path:
+        return root / ".claude/hooks/PreToolUse/_vendor/markdownlint"
+
+    def _write_manifest(self, vendor: Path, files: dict[str, str]) -> None:
+        _write(vendor / "INTEGRITY.json", json.dumps({"files": files}))
+
+    def test_matching_manifest_covers_committed_tree(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_ENTRYPOINT,
+            _sha256_file,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        entrypoint = vendor / _MARKDOWNLINT_ENTRYPOINT
+        package = vendor / "package.json"
+        _write(entrypoint, "export {};\n")
+        _write(package, "{}\n")
+        self._write_manifest(
+            vendor,
+            {
+                _MARKDOWNLINT_ENTRYPOINT: _sha256_file(entrypoint),
+                "package.json": _sha256_file(package),
+            },
+        )
+
+        assert _validate_integrity_manifest(vendor) == []
+
+    def test_manifest_must_cover_every_vendor_file(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_ENTRYPOINT,
+            _sha256_file,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        entrypoint = vendor / _MARKDOWNLINT_ENTRYPOINT
+        _write(entrypoint, "export {};\n")
+        _write(vendor / "unlisted.js", "export const bypass = true;\n")
+        self._write_manifest(
+            vendor,
+            {_MARKDOWNLINT_ENTRYPOINT: _sha256_file(entrypoint)},
+        )
+
+        errors = _validate_integrity_manifest(vendor)
+
+        assert any("missing files" in error and "unlisted.js" in error for error in errors)
+
+    def test_manifest_must_cover_markdownlint_entrypoint(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _sha256_file,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        package = vendor / "package.json"
+        _write(package, "{}\n")
+        self._write_manifest(vendor, {"package.json": _sha256_file(package)})
+
+        errors = _validate_integrity_manifest(vendor)
+
+        assert any("Entrypoint" in error for error in errors)
+
+    def test_manifest_hash_must_match_committed_file(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MARKDOWNLINT_ENTRYPOINT,
+            _validate_integrity_manifest,
+        )
+
+        vendor = self._vendor(tmp_path)
+        _write(vendor / _MARKDOWNLINT_ENTRYPOINT, "export {};\n")
+        self._write_manifest(vendor, {_MARKDOWNLINT_ENTRYPOINT: "0" * 64})
+
+        errors = _validate_integrity_manifest(vendor)
+
+        assert any("hash mismatch" in error for error in errors)
+
+
 # ── Config authentication and content policy ──
 
 
@@ -2024,6 +2106,7 @@ class TestMarkdownlintConfigPolicy:
             "config:\n  nested:\n    extends: ./evil.yaml\n",
             "config:\n  nested:\n    plugins:\n      - ./evil.cjs\n",
             "config:\n  nested:\n    require: ./evil.cjs\n",
+            "config:\n  nested:\n    outputFormatters:\n      - ./evil.cjs\n",
             '"custom\\u0052ules":\n  - ./evil.cjs\n',
         ],
     )
@@ -2063,6 +2146,21 @@ class TestMarkdownlintConfigPolicy:
         errors = _validate_markdownlint_config_policy(tmp_path)
 
         assert any("config exceeds" in error for error in errors)
+
+    def test_generated_cli2_config_is_checked(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _validate_markdownlint_config_policy,
+        )
+
+        config = tmp_path / "src/copilot-cli/hooks/PreToolUse/markdownlint-cli2.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text("outputFormatters:\n  - ./evil.cjs\n")
+
+        errors = _validate_markdownlint_config_policy(tmp_path)
+
+        assert any(
+            "src/copilot-cli" in error and "forbidden execution key" in error for error in errors
+        )
 
     def test_safe_config_passes(self, tmp_path: Path) -> None:
         from scripts.ci.validate_vendor_provenance import (

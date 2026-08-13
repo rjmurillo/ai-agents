@@ -861,9 +861,17 @@ _MARKDOWNLINT_POLICY_PATHS = (
     ".claude/hooks/PreToolUse/markdownlint-safe-config.yaml",
     ".claude/hooks/PreToolUse/markdownlint-cli2.yaml",
     "src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml",
+    "src/copilot-cli/hooks/PreToolUse/markdownlint-cli2.yaml",
 )
 _FORBIDDEN_MARKDOWNLINT_KEYS = frozenset(
-    {"customRules", "extends", "markdownItPlugins", "plugins", "require"}
+    {
+        "customRules",
+        "extends",
+        "markdownItPlugins",
+        "outputFormatters",
+        "plugins",
+        "require",
+    }
 )
 
 # ── Lockfile policy ──
@@ -1396,6 +1404,68 @@ def _check_symlink_containment(vendor_dir: Path) -> list[str]:
     return errors
 
 
+# ── Integrity manifest ──
+
+_MARKDOWNLINT_ENTRYPOINT = "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _validate_integrity_manifest(vendor_dir: Path) -> list[str]:
+    """Verify the manifest covers and authenticates the committed vendor tree."""
+    if not vendor_dir.exists():
+        return []
+    manifest_path = vendor_dir / "INTEGRITY.json"
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        return ["INTEGRITY.json missing or not a regular file"]
+    try:
+        manifest = json.loads(manifest_path.read_bytes())
+    except (json.JSONDecodeError, OSError) as exc:
+        return [f"Cannot parse INTEGRITY.json: {exc}"]
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), dict):
+        return ["INTEGRITY.json files must be a mapping"]
+
+    declared: dict[str, str] = {}
+    errors: list[str] = []
+    for raw_rel, raw_digest in manifest["files"].items():
+        if not isinstance(raw_rel, str) or not isinstance(raw_digest, str):
+            errors.append("INTEGRITY.json entries must map paths to SHA-256 strings")
+            continue
+        declared_path = PurePosixPath(raw_rel)
+        if declared_path.is_absolute() or ".." in declared_path.parts or "\\" in raw_rel:
+            errors.append(f"Invalid INTEGRITY.json path: {raw_rel!r}")
+            continue
+        if not _SHA256_RE.fullmatch(raw_digest):
+            errors.append(f"Invalid SHA-256 for manifest path: {raw_rel}")
+            continue
+        declared[str(declared_path)] = raw_digest
+
+    actual: dict[str, str] = {}
+    for path in sorted(vendor_dir.rglob("*")):
+        if path == manifest_path or path.is_dir():
+            continue
+        rel = str(PurePosixPath(path.relative_to(vendor_dir)))
+        if path.is_symlink() or not path.is_file():
+            errors.append(f"Manifest path is not a regular file: {rel}")
+            continue
+        actual[rel] = _sha256_file(path)
+
+    missing = sorted(actual.keys() - declared.keys())
+    extra = sorted(declared.keys() - actual.keys())
+    if missing:
+        errors.append(f"INTEGRITY.json missing files: {missing[:5]}")
+    if extra:
+        errors.append(f"INTEGRITY.json lists absent files: {extra[:5]}")
+    if _MARKDOWNLINT_ENTRYPOINT not in declared:
+        errors.append(f"Entrypoint {_MARKDOWNLINT_ENTRYPOINT} not in INTEGRITY.json")
+    for rel in sorted(actual.keys() & declared.keys()):
+        if actual[rel] != declared[rel]:
+            errors.append(f"INTEGRITY.json hash mismatch: {rel}")
+            if len(errors) >= 10:
+                errors.append("(truncated)")
+                break
+    return errors
+
+
 # ── .npmrc rejection ──
 
 
@@ -1748,22 +1818,27 @@ def main() -> int:
     _run_phase("Symlink Containment", errs)
     all_errors.extend(errs)
 
-    # 6. Markdownlint config injection
+    # 6. Integrity manifest
+    errs = _validate_integrity_manifest(vendor)
+    _run_phase("Integrity Manifest", errs)
+    all_errors.extend(errs)
+
+    # 7. Markdownlint config injection
     errs = _reject_markdownlint_config_injection(root)
     _run_phase("Markdownlint Config Injection", errs)
     all_errors.extend(errs)
 
-    # 7. Markdownlint content policy
+    # 8. Markdownlint content policy
     errs = _validate_markdownlint_config_policy(root)
     _run_phase("Markdownlint Config Policy", errs)
     all_errors.extend(errs)
 
-    # 8. .npmrc rejection
+    # 9. .npmrc rejection
     errs = _reject_npmrc(root, vendor)
     _run_phase(".npmrc Rejection", errs)
     all_errors.extend(errs)
 
-    # 9. Vendor reconstruction (npm ci)
+    # 10. Vendor reconstruction (npm ci)
     # ABORT if any preflight error: never execute npm with tainted inputs.
     if all_errors:
         print("\n  SKIP: Vendor reconstruction skipped (preflight errors)")
