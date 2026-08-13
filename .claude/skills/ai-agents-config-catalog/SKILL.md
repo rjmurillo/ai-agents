@@ -169,7 +169,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 
 ## Provenance and Maintenance
 
-Hook registration surfaces audited 2026-08-11 against the working tree.
+Audited 2026-08-11 against the working tree for hook registration surfaces.
 Other rows remain verified as of 2026-07-03. Sources: files and line numbers
 cited per row above. Line numbers drift; the commands below are the durable
 re-verification. Run from repo root. If a command returns nothing, the flag
