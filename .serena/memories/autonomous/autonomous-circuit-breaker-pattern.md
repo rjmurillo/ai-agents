@@ -170,6 +170,5 @@ Circuit breaker should NOT trigger for:
 
 - [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
 - [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
-- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
 - [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
 - [autonomous-patch-signal](autonomous-patch-signal.md)
