@@ -426,7 +426,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".markdownlint-cli2.yaml",
-        "db5924f182f68fd637e65550ab615e7c62d2a2be422e6cd685dbd55710c0c50d",
+        "8c61fc716026d272d9f7847747cfb4d01b5dddd78e57d110136fe6ba321c8f1b",
         "Markdownlint config (pinned safe config)",
     ),
     (
