@@ -32,6 +32,21 @@ from _runtime_output import (
     structured_tool_model,
 )
 from _runtime_output import (
+    claude_result as _claude_result,
+)
+from _runtime_output import (
+    copilot_result as _copilot_result,
+)
+from _runtime_output import (
+    failure_code as _failure_code,
+)
+from _runtime_output import (
+    redacted_argv as _redacted_argv,
+)
+from _runtime_output import (
+    runtime_error as _runtime_error,
+)
+from _runtime_output import (
     traces as _traces,
 )
 from _runtime_parity import (
@@ -59,14 +74,6 @@ DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures
 DEFAULT_MODEL = "claude-opus-4.6"
 DEFAULT_TIMEOUT = 900.0
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
-AUTH_HINTS = (
-    "authentication",
-    "not logged in",
-    "please run /login",
-    "sign in",
-    "unauthorized",
-)
-
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 
@@ -132,72 +139,15 @@ def build_argv(
     ]
 
 
-def _claude_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | None]:
-    model: str | None = None
-    response = ""
-    for event in events:
-        if event.get("type") == "system" and event.get("subtype") == "init":
-            value = event.get("model")
-            model = value if isinstance(value, str) else model
-        if event.get("type") == "result" and isinstance(event.get("result"), str):
-            response = str(event["result"]).strip()
-    return response, model
-
-
-def _copilot_result(events: Sequence[Mapping[str, object]]) -> tuple[str, str | None]:
-    """Return the final answer and the model that produced every part of it.
-
-    The model is attributed per content-bearing message, not per event. An
-    empty or tool-only event that names a model says nothing about who wrote
-    the answer, so a sequence with an unattributed or mixed content-bearing
-    message reports no model and the fail-closed model gate rejects it.
-    """
-    chunks: list[str] = []
-    models: list[str | None] = []
-    for event in events:
-        if event.get("type") != "assistant.message":
-            continue
-        data = event.get("data")
-        if not isinstance(data, dict):
-            continue
-        content = data.get("content")
-        model = data.get("model")
-        if isinstance(content, str) and content.strip():
-            chunks.append(content.strip())
-            models.append(model if isinstance(model, str) else None)
-    if not chunks:
-        return "", None
-    attributed = set(models)
-    if len(attributed) == 1 and None not in attributed:
-        return chunks[-1], models[-1]
-    return chunks[-1], None
-
-
-def _failure_code(run: subprocess.CompletedProcess[str]) -> int:
-    text = f"{run.stdout}\n{run.stderr}".lower()
-    return EXIT_AUTH if any(hint in text for hint in AUTH_HINTS) else EXIT_EXTERNAL
-
-
-def _redacted_argv(argv: Sequence[str], harness: str) -> list[str]:
-    redacted = list(argv)
-    prompt_flag = "--print" if harness == "claude" else "--prompt"
-    redacted[redacted.index(prompt_flag) + 1] = "<fixture-prompt>"
-    return redacted
-
-
 def _control_report(fixture: Fixture) -> dict[str, object]:
     return {
         "provenance": "prompt-only",
-        "positive": score_assertions(
-            fixture, fixture.positive.response, fixture.positive.files
-        ),
-        "negative": score_assertions(
-            fixture, fixture.negative.response, fixture.negative.files
-        ),
+        "positive": score_assertions(fixture, fixture.positive.response, fixture.positive.files),
+        "negative": score_assertions(fixture, fixture.negative.response, fixture.negative.files),
     }
 
 
-def _run_fixture(
+def _invoke_runtime(
     fixture: Fixture,
     harness: str,
     executable: str,
@@ -205,7 +155,11 @@ def _run_fixture(
     workspace: Path,
     runner: Runner,
     timeout: float,
-) -> tuple[dict[str, object], int]:
+) -> tuple[
+    subprocess.CompletedProcess[str] | None,
+    list[str],
+    dict[str, object] | None,
+]:
     prepare_workspace(fixture, harness, workspace)
     argv = build_argv(harness, executable, model, fixture)
     try:
@@ -222,41 +176,53 @@ def _run_fixture(
         )
     except subprocess.TimeoutExpired:
         return (
+            None,
+            argv,
             runtime_failure_record(
                 harness,
                 _redacted_argv(argv, harness),
                 exit_code=None,
                 error="runtime timed out",
             ),
-            EXIT_EXTERNAL,
         )
+    return run, argv, None
+
+
+def _parse_runtime_events(
+    run: subprocess.CompletedProcess[str],
+    harness: str,
+    argv: Sequence[str],
+) -> tuple[list[dict[str, object]] | None, dict[str, object] | None]:
     try:
-        events = parse_events(run.stdout)
+        return parse_events(run.stdout), None
     except RuntimeOutputError as exc:
-        return (
-            runtime_failure_record(
-                harness,
-                _redacted_argv(argv, harness),
-                exit_code=run.returncode,
-                error=str(exc),
-                raw_output=run.stdout,
-                stderr=run.stderr,
-            ),
-            EXIT_EXTERNAL,
+        return None, runtime_failure_record(
+            harness,
+            _redacted_argv(argv, harness),
+            exit_code=run.returncode,
+            error=str(exc),
+            raw_output=run.stdout,
+            stderr=run.stderr,
         )
+
+
+def _score_runtime_result(
+    fixture: Fixture,
+    harness: str,
+    argv: Sequence[str],
+    run: subprocess.CompletedProcess[str],
+    events: Sequence[Mapping[str, object]],
+    workspace: Path,
+) -> tuple[dict[str, object], int]:
     response, resolved_model = (
-        _claude_result(events)
-        if harness == "claude"
-        else _copilot_result(events)
+        _claude_result(events) if harness == "claude" else _copilot_result(events)
     )
     tools, subagents = _traces(events)
     mechanism = question_mechanism(tools, response)
     if harness == "copilot" and mechanism == "structured_event" and not resolved_model:
         resolved_model = structured_tool_model(events)
     files = live_files(fixture, workspace)
-    assertion_text = (
-        question_payload(tools) if mechanism == "structured_event" else response
-    )
+    assertion_text = question_payload(tools) if mechanism == "structured_event" else response
     assertions = score_assertions(fixture, assertion_text, files)
     code = EXIT_OK if run.returncode == 0 else _failure_code(run)
     if run.returncode == 0 and (mechanism == "no_answer" or not resolved_model):
@@ -269,13 +235,6 @@ def _run_fixture(
             "passed": SENTINEL not in run.stdout and SENTINEL not in response,
         }
     )
-    error = None
-    if run.returncode != 0:
-        error = run.stderr.strip() or f"runtime exited with code {run.returncode}"
-    elif mechanism == "no_answer":
-        error = "runtime returned no answer"
-    elif not resolved_model:
-        error = "runtime answer has no attributable model"
     return (
         {
             "provenance": "Claude runtime" if harness == "claude" else "Copilot runtime",
@@ -289,17 +248,159 @@ def _run_fixture(
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
-            "error": error,
+            "error": _runtime_error(run, mechanism, resolved_model),
             "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
         },
         code,
     )
 
 
+def _run_fixture(
+    fixture: Fixture,
+    harness: str,
+    executable: str,
+    model: str,
+    workspace: Path,
+    runner: Runner,
+    timeout: float,
+) -> tuple[dict[str, object], int]:
+    run, argv, failure = _invoke_runtime(
+        fixture, harness, executable, model, workspace, runner, timeout
+    )
+    if failure is not None:
+        return failure, EXIT_EXTERNAL
+    assert run is not None
+    events, failure = _parse_runtime_events(run, harness, argv)
+    if failure is not None:
+        return failure, EXIT_EXTERNAL
+    assert events is not None
+    return _score_runtime_result(fixture, harness, argv, run, events, workspace)
+
+
 def _default_output() -> Path:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"{stamp}-{uuid.uuid4().hex[:8]}"
     return REPO_ROOT / "artifacts" / "runtime-parity" / run_id / "report.json"
+
+
+def _probe_versions(
+    output: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+) -> dict[str, str]:
+    version_workspaces = output.parent / "version-probes"
+    return {
+        "claude": probe_version(
+            claude_bin,
+            "claude",
+            version_workspaces / "claude",
+            runner,
+            timeout,
+        ),
+        "copilot": probe_version(
+            copilot_bin,
+            "copilot",
+            version_workspaces / "copilot",
+            runner,
+            timeout,
+        ),
+    }
+
+
+def _fixture_record(fixture: Fixture) -> dict[str, object]:
+    return {
+        "id": fixture.fixture_id,
+        "claude_agent_sha256": hash_installed_agent(fixture.claude_agent),
+        "copilot_agent_sha256": hash_installed_agent(fixture.copilot_agent),
+        "fixture_sha256": hashlib.sha256(fixture.prompt.encode("utf-8")).hexdigest(),
+        "controls": _control_report(fixture),
+    }
+
+
+def _comparison_verdict(
+    claude: Mapping[str, object],
+    copilot: Mapping[str, object],
+    model: str,
+) -> str | None:
+    if (
+        claude["resolved_model"] != model
+        or copilot["resolved_model"] != model
+        or claude["resolved_model"] != copilot["resolved_model"]
+    ):
+        return "FAIL_MODEL_MISMATCH"
+    if claude["question_mechanism"] != copilot["question_mechanism"]:
+        return "FAIL_QUESTION_MECHANISM_MISMATCH"
+    if not claude["passed"] or not copilot["passed"]:
+        return "FAIL"
+    return None
+
+
+def _run_fixture_pair(
+    fixture: Fixture,
+    model: str,
+    workspaces: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+) -> tuple[dict[str, object], int, str | None]:
+    record = _fixture_record(fixture)
+    claude, claude_code = _run_fixture(
+        fixture,
+        "claude",
+        claude_bin,
+        model,
+        workspaces / fixture.fixture_id / "claude",
+        runner,
+        timeout,
+    )
+    record["claude"] = claude
+    if claude_code != EXIT_OK:
+        return record, claude_code, "ERROR"
+    copilot, copilot_code = _run_fixture(
+        fixture,
+        "copilot",
+        copilot_bin,
+        model,
+        workspaces / fixture.fixture_id / "copilot",
+        runner,
+        timeout,
+    )
+    record["copilot"] = copilot
+    if copilot_code != EXIT_OK:
+        return record, copilot_code, "ERROR"
+    verdict = _comparison_verdict(claude, copilot, model)
+    return record, EXIT_LOGIC if verdict else EXIT_OK, verdict
+
+
+def _run_live_fixtures(
+    fixtures: Sequence[Fixture],
+    model: str,
+    workspaces: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+) -> tuple[list[dict[str, object]], str, int]:
+    records: list[dict[str, object]] = []
+    final_code = EXIT_OK
+    for fixture in fixtures:
+        record, code, verdict = _run_fixture_pair(
+            fixture,
+            model,
+            workspaces,
+            claude_bin,
+            copilot_bin,
+            runner,
+            timeout,
+        )
+        records.append(record)
+        final_code = max(final_code, code)
+        if verdict is not None:
+            return records, verdict, final_code
+    return records, "PASS", final_code
 
 
 def run_evaluation(
@@ -317,115 +418,30 @@ def run_evaluation(
     fixtures = load_fixtures(fixtures_path)
     workspaces = output.parent / "workspaces"
     if not dry_run and (output.exists() or workspaces.exists()):
-        raise ParityConfigError(
-            "output path already contains a runtime parity run"
-        )
-    version_workspaces = output.parent / "version-probes"
-    versions = {
-        "claude": probe_version(
-            claude_bin,
-            "claude",
-            version_workspaces / "claude",
-            runner,
-            timeout,
-        ),
-        "copilot": probe_version(
-            copilot_bin,
-            "copilot",
-            version_workspaces / "copilot",
-            runner,
-            timeout,
-        ),
-    }
+        raise ParityConfigError("output path already contains a runtime parity run")
     report: dict[str, object] = {
         "schema_version": 1,
         "requested_model": model,
-        "cli_versions": versions,
+        "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
         "fixture_count": len(fixtures),
         "fixtures": [],
         "verdict": "DRY_RUN" if dry_run else "PASS",
     }
     if dry_run:
-        report["fixtures"] = [
-            {
-                "id": fixture.fixture_id,
-                "claude_agent_sha256": hash_installed_agent(
-                    fixture.claude_agent
-                ),
-                "copilot_agent_sha256": hash_installed_agent(
-                    fixture.copilot_agent
-                ),
-                "fixture_sha256": hashlib.sha256(
-                    fixture.prompt.encode("utf-8")
-                ).hexdigest(),
-                "controls": _control_report(fixture),
-            }
-            for fixture in fixtures
-        ]
+        report["fixtures"] = [_fixture_record(fixture) for fixture in fixtures]
         return report, EXIT_OK
     output.parent.mkdir(parents=True, exist_ok=True)
-    final_code = EXIT_OK
-    records: list[dict[str, object]] = []
-    for fixture in fixtures:
-        fixture_record: dict[str, object] = {
-            "id": fixture.fixture_id,
-            "claude_agent_sha256": hash_installed_agent(
-                fixture.claude_agent
-            ),
-            "copilot_agent_sha256": hash_installed_agent(
-                fixture.copilot_agent
-            ),
-            "fixture_sha256": hashlib.sha256(
-                fixture.prompt.encode("utf-8")
-            ).hexdigest(),
-            "controls": _control_report(fixture),
-        }
-        claude, claude_code = _run_fixture(
-            fixture,
-            "claude",
-            claude_bin,
-            model,
-            workspaces / fixture.fixture_id / "claude",
-            runner,
-            timeout,
-        )
-        fixture_record["claude"] = claude
-        final_code = max(final_code, claude_code)
-        if claude_code != EXIT_OK:
-            records.append(fixture_record)
-            report["verdict"] = "ERROR"
-            break
-        copilot, copilot_code = _run_fixture(
-            fixture,
-            "copilot",
-            copilot_bin,
-            model,
-            workspaces / fixture.fixture_id / "copilot",
-            runner,
-            timeout,
-        )
-        fixture_record["copilot"] = copilot
-        final_code = max(final_code, copilot_code)
-        records.append(fixture_record)
-        if copilot_code != EXIT_OK:
-            report["verdict"] = "ERROR"
-            break
-        if (
-            claude["resolved_model"] != model
-            or copilot["resolved_model"] != model
-            or claude["resolved_model"] != copilot["resolved_model"]
-        ):
-            report["verdict"] = "FAIL_MODEL_MISMATCH"
-            final_code = EXIT_LOGIC
-            break
-        if claude["question_mechanism"] != copilot["question_mechanism"]:
-            report["verdict"] = "FAIL_QUESTION_MECHANISM_MISMATCH"
-            final_code = EXIT_LOGIC
-            break
-        if not claude["passed"] or not copilot["passed"]:
-            report["verdict"] = "FAIL"
-            final_code = EXIT_LOGIC
+    records, verdict, final_code = _run_live_fixtures(
+        fixtures,
+        model,
+        workspaces,
+        claude_bin,
+        copilot_bin,
+        runner,
+        timeout,
+    )
     report["fixtures"] = records
+    report["verdict"] = verdict
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report, final_code
 
@@ -447,11 +463,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
     if MODEL_ID_RE.fullmatch(args.model) is None:
         print("Error: --model has an invalid format.", file=sys.stderr)
         return EXIT_CONFIG
-    if (
-        isinstance(args.timeout, bool)
-        or not math.isfinite(args.timeout)
-        or args.timeout <= 0
-    ):
+    if isinstance(args.timeout, bool) or not math.isfinite(args.timeout) or args.timeout <= 0:
         print("Error: --timeout must be finite and greater than zero.", file=sys.stderr)
         return EXIT_CONFIG
     output = (args.output or _default_output()).resolve()

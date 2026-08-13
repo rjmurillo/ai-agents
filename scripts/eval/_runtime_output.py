@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Mapping, Sequence
 
 
@@ -11,6 +12,82 @@ class RuntimeOutputError(RuntimeError):
 
 
 QUESTION_TOOLS = frozenset({"askuserquestion", "ask_user", "askuser", "ask-user"})
+AUTH_HINTS = (
+    "authentication",
+    "not logged in",
+    "please run /login",
+    "sign in",
+    "unauthorized",
+)
+
+
+def claude_result(
+    events: Sequence[Mapping[str, object]],
+) -> tuple[str, str | None]:
+    """Return Claude's final answer and resolved model."""
+    model: str | None = None
+    response = ""
+    for event in events:
+        if event.get("type") == "system" and event.get("subtype") == "init":
+            value = event.get("model")
+            model = value if isinstance(value, str) else model
+        if event.get("type") == "result" and isinstance(event.get("result"), str):
+            response = str(event["result"]).strip()
+    return response, model
+
+
+def copilot_result(
+    events: Sequence[Mapping[str, object]],
+) -> tuple[str, str | None]:
+    """Return Copilot's final answer and its attributable model."""
+    chunks: list[str] = []
+    models: list[str | None] = []
+    for event in events:
+        if event.get("type") != "assistant.message":
+            continue
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        content = data.get("content")
+        model = data.get("model")
+        if isinstance(content, str) and content.strip():
+            chunks.append(content.strip())
+            models.append(model if isinstance(model, str) else None)
+    if not chunks:
+        return "", None
+    attributed = set(models)
+    if len(attributed) == 1 and None not in attributed:
+        return chunks[-1], models[-1]
+    return chunks[-1], None
+
+
+def failure_code(run: subprocess.CompletedProcess[str]) -> int:
+    """Map an unsuccessful runtime process to the public exit contract."""
+    text = f"{run.stdout}\n{run.stderr}".lower()
+    return 4 if any(hint in text for hint in AUTH_HINTS) else 3
+
+
+def runtime_error(
+    run: subprocess.CompletedProcess[str],
+    mechanism: str,
+    resolved_model: str | None,
+) -> str | None:
+    """Explain why a runtime record failed closed."""
+    if run.returncode != 0:
+        return run.stderr.strip() or f"runtime exited with code {run.returncode}"
+    if mechanism == "no_answer":
+        return "runtime returned no answer"
+    if not resolved_model:
+        return "runtime answer has no attributable model"
+    return None
+
+
+def redacted_argv(argv: Sequence[str], harness: str) -> list[str]:
+    """Replace the fixture prompt before recording a runtime command."""
+    redacted = list(argv)
+    prompt_flag = "--print" if harness == "claude" else "--prompt"
+    redacted[redacted.index(prompt_flag) + 1] = "<fixture-prompt>"
+    return redacted
 
 
 def _tool_name(event: object) -> str:
@@ -125,9 +202,7 @@ def runtime_failure_record(
 ) -> dict[str, object]:
     """Build the stable report shape for a failed runtime invocation."""
     return {
-        "provenance": (
-            "Claude runtime" if harness == "claude" else "Copilot runtime"
-        ),
+        "provenance": ("Claude runtime" if harness == "claude" else "Copilot runtime"),
         "command": command,
         "exit_code": exit_code,
         "resolved_model": None,
@@ -156,8 +231,6 @@ def parse_events(stdout: str) -> list[dict[str, object]]:
                 f"runtime output line {line_number} is not valid JSON"
             ) from exc
         if not isinstance(event, dict):
-            raise RuntimeOutputError(
-                f"runtime output line {line_number} must be a JSON object"
-            )
+            raise RuntimeOutputError(f"runtime output line {line_number} must be a JSON object")
         events.append(event)
     return events

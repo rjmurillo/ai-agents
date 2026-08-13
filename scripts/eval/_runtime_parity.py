@@ -413,7 +413,7 @@ def probe_version(
     workspace.mkdir(parents=True, exist_ok=True)
     argv = [executable, "--version"]
     if harness == "copilot":
-        argv.append("--no-auto-update")
+        argv.insert(1, "--no-auto-update")
     run = runner(
         argv,
         env=runtime_env(workspace, harness),

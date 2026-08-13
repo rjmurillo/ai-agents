@@ -281,7 +281,7 @@ def test_version_probes_use_isolated_harness_profiles(
     claude_env = claude_kwargs["env"]
     copilot_env = copilot_kwargs["env"]
     assert claude_argv == ["claude", "--version"]
-    assert copilot_argv == ["copilot", "--version", "--no-auto-update"]
+    assert copilot_argv == ["copilot", "--no-auto-update", "--version"]
     assert claude_env["HOME"].startswith(str(tmp_path))
     assert copilot_env["HOME"].startswith(str(tmp_path))
     assert claude_env["CLAUDE_CONFIG_DIR"].startswith(str(tmp_path))
