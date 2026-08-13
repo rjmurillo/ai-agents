@@ -1,0 +1,107 @@
+{
+  "id": "episode-2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings",
+  "session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 4952 final evidence findings and push",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T12:18:00+00:00",
+      "type": "milestone",
+      "content": "Verified the final PR findings against the current branch and canonical contracts.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T12:22:00+00:00",
+      "type": "milestone",
+      "content": "Measured the authoritative PR 4943 file count.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T12:28:00+00:00",
+      "type": "milestone",
+      "content": "Corrected source evidence and force-regenerated affected episodes.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T12:35:00+00:00",
+      "type": "milestone",
+      "content": "Validated all three sessions, episodes, and QA evidence.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T12:45:26+00:00",
+      "type": "milestone",
+      "content": "Received the late follow-up QA scope finding.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T12:46:00+00:00",
+      "type": "milestone",
+      "content": "Closed the late follow-up QA scope finding.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T12:29:20+00:00",
+      "type": "commit",
+      "content": "Commit: 0c15325cbdcceb425f29e95b129e00a58346786a",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14695-b40aa4733-fix-4952-final-evidence-findings"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 28,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 7
+  },
+  "lessons": []
+}

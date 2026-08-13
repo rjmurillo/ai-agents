@@ -79,6 +79,7 @@
 |code quality changed-only regression gate absolute debt issue: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (503)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
+|markdownlint scratch argv command length process startup batch exit code empty output issue 4892: [linting/linting-exclusions](linting/linting-exclusions.md) (2065)
 
 [Agent Orchestration]
 |orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (404), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
@@ -158,6 +159,7 @@
 |memory index validator one direction unindexed orphan check: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
 |memory index token count churn recount every row: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (1345)
 |memory size gate characters not bytes wc -c: [memory/memory-size-gate-counts-characters-not-bytes](memory/memory-size-gate-counts-characters-not-bytes.md) (537)
+|forgetful migration backup import legacy PowerShell singleton object null correction export: [memory/forgetful-migration-plan](memory/forgetful-migration-plan.md) (1698)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
