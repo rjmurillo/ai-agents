@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 818708041c6218ef133da6cb8b41f1cffaf3e487."
+        "Evidence": "Validated merge commit 9e1e416b82ef9685288f3b0fe78b289cba2c67d8."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,7 +150,7 @@
       "result": "252 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed."
     }
   ],
-  "endingCommit": "818708041c6218ef133da6cb8b41f1cffaf3e487",
+  "endingCommit": "9e1e416b82ef9685288f3b0fe78b289cba2c67d8",
   "nextSteps": [
     "Guard push against the live PR head.",
     "Wait for required checks and rerun readiness from this worktree.",
