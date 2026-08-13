@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 0532c3b395b791a94da20ddcdf7b1c0ee65e1a95
+qaCommit: b0a472a87825b97ee6a2787ebd9e38b149bd24bf
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
@@ -14,8 +14,8 @@ Validated the final branch against current `main`. The gate requires a trusted p
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` | 309 passed |
-| `uv run pytest tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 1 passed |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 310 passed |
+| `uv run mypy scripts/ci/validate_vendor_provenance.py` | Passed |
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `actionlint .github/workflows/vendor-provenance.yml` | Passed |
@@ -31,7 +31,7 @@ The workflow uses immutable event SHAs and base-owned validation code. A malicio
 
 Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: trusted dual-identity and head-event authorization, stdlib-only relevance checks, tracked Python bytecode authentication, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main`, the setup-uv v10 pin, 309 passing tests, and real validator evidence.
+Delivered: trusted dual-identity and head-event authorization, stdlib-only relevance checks, tracked Python bytecode authentication, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main`, the setup-uv v10 pin, 310 passing tests, and real validator evidence.
 
 Gap: None found in tested scope.
 
