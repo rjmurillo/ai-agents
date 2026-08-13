@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14705.json
-qaCommit: 5c73e4c318b9b63dfe804f66adb482228208da6b
+qaCommit: f7728da1150a8085d47735527c13fa56227fb991
 ---
 
 # Issue 4921 QA Report: codeql-scan wrapper delegates
@@ -30,6 +30,7 @@ this environment, which is the documented meaning of that code.
 |---------|--------|
 | `uv run pytest tests/skills/ tests/test_install_codeql_integration.py .claude/skills/codeql-scan/tests/ -q` | 2363 passed |
 | `uv run pytest tests/skills/codeql-scan/test_codeql_delegate_paths.py -q` | 29 passed |
+| `uv run pytest tests/test_stdout_flush_before_spawn.py -q` | 30 passed |
 | `uv run ruff check` (changed files) | All checks passed |
 | `npx markdownlint-cli2` (changed markdown) | 0 issues |
 | `uv run python scripts/validation/pre_pr.py` | RESULT: All validations passed |

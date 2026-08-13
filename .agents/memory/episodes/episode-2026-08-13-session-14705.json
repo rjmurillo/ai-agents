@@ -108,7 +108,9 @@
         "e005",
         "e006",
         "e007",
-        "e008"
+        "e008",
+        "e013",
+        "e014"
       ],
       "leads_to": [
         "e010"
@@ -149,6 +151,41 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed stdout flush adjacency broken by the _run_delegate extraction",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "test",
+      "content": "Fixed stdout flush adjacency broken by the _run_delegate extraction      tests/test_stdout_flush_before_spawn.py 30 passed; flush moved inside try, immediately before the spawn",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T16:23:36+00:00",
+      "type": "commit",
+      "content": "Commit: f7728da1150a8085d47735527c13fa56227fb991",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14705"
     }
@@ -158,8 +195,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 16
+    "commits": 5,
+    "files_changed": 17
   },
   "lessons": []
 }
