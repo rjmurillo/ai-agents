@@ -65,7 +65,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
     },
     {
@@ -80,6 +82,17 @@
         "e005"
       ],
       "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:36:44+00:00",
+      "type": "commit",
+      "content": "Commit: caf50d855a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
     }
   ],
   "metrics": {
@@ -87,8 +100,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 9
   },
   "lessons": []
 }

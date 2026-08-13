@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion.json
-qaCommit: 5692f717c76813bee89cbc5cab055ca601de9616
+qaCommit: caf50d855ae024f7633bbe4d1b5eee31d7728048
 ---
 
 # PR 4944 vendored cache exclusion coverage
