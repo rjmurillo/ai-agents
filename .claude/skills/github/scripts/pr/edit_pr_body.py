@@ -16,9 +16,9 @@ Safety behavior:
 
 Exit codes follow ADR-035:
     0 - Success (or no-op)
-    1 - Stale write: current body hash does not match expected
-    2 - PR not found
-    3 - API error
+    1 - Logic or validation error, including a stale write
+    2 - Usage, configuration, or not-found error
+    3 - External service or API error
     4 - Auth error
 """
 

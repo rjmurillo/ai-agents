@@ -244,7 +244,16 @@ def _fetch_pr_state(
             _emit_error(f"PR #{pr} not found in {repo_flag}", 2, "NotFound", output_format, pr)
         _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
 
-    data = json.loads(pr_result.stdout)
+    try:
+        data = json.loads(pr_result.stdout)
+    except json.JSONDecodeError:
+        _emit_error(
+            f"PR #{pr} state response was not valid JSON",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+        )
     if not isinstance(data, dict):
         _emit_error(
             f"PR #{pr} response was not a JSON object",

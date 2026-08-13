@@ -222,6 +222,30 @@ class TestMain:
         assert output["Data"]["action"] == "auto-merge-enabled"
         assert output["Data"]["state"] == "PENDING"
 
+    def test_invalid_pr_state_json_exits_3(self, capsys):
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not json", rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert envelope["Error"]["Message"] == (
+            "PR #50 state response was not valid JSON"
+        )
+
     def test_not_mergeable_exits_6(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "CONFLICTING",
