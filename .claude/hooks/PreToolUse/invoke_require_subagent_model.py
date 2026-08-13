@@ -47,9 +47,7 @@ _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
 _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
 _EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
 _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"})
-_NUMBER_MODEL_RE = re.compile(
-    r"[-+]?(?:0|[1-9][0-9_]*)(?:\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?"
-)
+_UNQUOTED_MODEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9._ /()+-]*")
 
 
 def _definition_search_space(
@@ -83,6 +81,7 @@ def _definition_search_space(
         )
     if copilot:
         return (
+            (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
             (
                 home / ".copilot",
                 (
@@ -90,12 +89,37 @@ def _definition_search_space(
                     f"agents/{name}.md",
                 ),
             ),
-            (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
         )
     return (
-        (home / ".claude", (f"agents/{name}.md",)),
         (project / ".claude", (f"agents/{name}.md",)),
+        (home / ".claude", (f"agents/{name}.md",)),
     )
+
+
+def _model_scalar(value: str) -> str | None:
+    """Return a model only when the YAML token is semantically a string."""
+    candidate = value.split("#", 1)[0].strip()
+    if not candidate:
+        return None
+    if candidate.startswith('"'):
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, str) and parsed.strip() else None
+    if candidate.startswith("'"):
+        if len(candidate) < 2 or not candidate.endswith("'"):
+            return None
+        parsed = candidate[1:-1].replace("''", "'")
+        return parsed if parsed.strip() else None
+    normalized = candidate.lower()
+    if (
+        normalized in _EMPTY_MODEL_VALUES
+        or normalized in _NON_STRING_MODEL_VALUES
+        or not _UNQUOTED_MODEL_RE.fullmatch(candidate)
+    ):
+        return None
+    return candidate
 
 
 def _pinned_model(path: Path) -> str | None:
@@ -114,16 +138,9 @@ def _pinned_model(path: Path) -> str | None:
                 if separator and key == "model":
                     if model is not None:
                         return None
-                    candidate = value.split("#", 1)[0].strip()
-                    normalized = candidate.lower()
-                    if (
-                        normalized in _EMPTY_MODEL_VALUES
-                        or normalized in _NON_STRING_MODEL_VALUES
-                        or candidate.startswith(("[", "{", "!", "&", "*", "|", ">"))
-                        or _NUMBER_MODEL_RE.fullmatch(candidate)
-                    ):
+                    model = _model_scalar(value)
+                    if model is None:
                         return None
-                    model = candidate
     except (OSError, UnicodeError):
         return None
     return None
@@ -147,9 +164,11 @@ def _has_pinned_definition(
         if not root.is_dir():
             continue
         for pattern in patterns:
-            for path in root.glob(pattern):
-                if path.is_file() and _pinned_model(path) is not None:
-                    return True
+            definitions = tuple(
+                path for path in sorted(root.glob(pattern)) if path.is_file()
+            )
+            if definitions:
+                return all(_pinned_model(path) is not None for path in definitions)
     return False
 
 

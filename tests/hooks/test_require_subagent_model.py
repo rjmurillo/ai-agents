@@ -152,6 +152,17 @@ class TestDefinitionSearch:
         }
         assert _run(monkeypatch, payload) == 0
 
+    def test_project_pinned_definition_overrides_unpinned_user(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        project_agent = project / ".claude" / "agents" / "reviewer.md"
+        user_agent = _isolated_environment / ".claude" / "agents" / "reviewer.md"
+        project_agent.parent.mkdir(parents=True)
+        user_agent.parent.mkdir(parents=True)
+        project_agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        user_agent.write_text("---\n---\n", encoding="utf-8")
+        assert _run(monkeypatch, _claude_payload(project, subagent_type="reviewer")) == 0
+
 
 class TestDenyPaths:
     @pytest.mark.parametrize("model", [None, "", "   ", "null", "none", "~", '""', "''"])
@@ -166,6 +177,9 @@ class TestDenyPaths:
             "---\nmodel: sonnet\n", "---\nmodel: []\n---\n",
             "---\nmodel: [sonnet]\n---\n", "---\nmodel: {name: sonnet}\n---\n",
             "---\nmodel: true\n---\n", "---\nmodel: 42\n---\n",
+            "---\nmodel: \"   \"\n---\n", "---\nmodel: 0x10\n---\n",
+            "---\nmodel: 0o10\n---\n", "---\nmodel: 0b10\n---\n",
+            "---\nmodel: .inf\n---\n", "---\nmodel: 2026-08-13\n---\n",
         ],
     )
     def test_definition_without_nonempty_model_denies(
@@ -176,6 +190,17 @@ class TestDenyPaths:
         agent.write_text(definition, encoding="utf-8")
         payload = _claude_payload(project, subagent_type="unpinned")
         assert _run(monkeypatch, payload) == 2
+
+    def test_unpinned_project_definition_overrides_pinned_user(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        project_agent = project / ".claude" / "agents" / "reviewer.md"
+        user_agent = _isolated_environment / ".claude" / "agents" / "reviewer.md"
+        project_agent.parent.mkdir(parents=True)
+        user_agent.parent.mkdir(parents=True)
+        project_agent.write_text("---\n---\n", encoding="utf-8")
+        user_agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        assert _run(monkeypatch, _claude_payload(project, subagent_type="reviewer")) == 2
 
     def test_definition_from_other_harness_does_not_allow(self, monkeypatch, project):
         agent = project / ".github" / "agents" / "copilot-only.agent.md"
@@ -241,6 +266,18 @@ class TestDenyPaths:
             "cwd": str(project),
             "toolArgs": {"agent_type": "pack-a:reviewer"},
         }
+        assert _run(monkeypatch, payload) == 2
+
+    def test_conflicting_plugin_versions_deny(
+        self, monkeypatch, project, _isolated_environment
+    ):
+        root = _isolated_environment / ".claude" / "plugins" / "cache" / "market" / "pack"
+        for version, model in (("1.0", "sonnet"), ("2.0", None)):
+            agent = root / version / "agents" / "reviewer.md"
+            agent.parent.mkdir(parents=True)
+            value = f"model: {model}\n" if model else ""
+            agent.write_text(f"---\n{value}---\n", encoding="utf-8")
+        payload = _claude_payload(project, subagent_type="pack:reviewer")
         assert _run(monkeypatch, payload) == 2
 
     def test_claude_builtin_without_model_denies(self, monkeypatch, project, capsys):
@@ -334,31 +371,26 @@ class TestRegistrations:
     @staticmethod
     def _github_hook_entry() -> dict[str, object]:
         config = json.loads(
-            (REPO_ROOT / ".github/hooks/require-subagent-model.json").read_text(encoding="utf-8")
+            (REPO_ROOT / ".github/hooks/require-subagent-model.json").read_text(
+                encoding="utf-8"
+            )
         )
         return config["hooks"]["preToolUse"][0]
-
     @staticmethod
     def _run_registered_command(
         entry: dict[str, object], payload: dict[str, object], home: Path
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env.update({"HOME": str(home), "USERPROFILE": str(home)})
-        if os.name == "nt":
-            command = ["pwsh", "-NoProfile", "-Command", str(entry["powershell"])]
-        else:
-            command = ["bash", "-c", str(entry["bash"])]
-        return subprocess.run(
-            command,
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=REPO_ROOT,
-            env=env,
-            timeout=30,
+        command = (
+            ["pwsh", "-NoProfile", "-Command", str(entry["powershell"])]
+            if os.name == "nt"
+            else ["bash", "-c", str(entry["bash"])]
         )
-
+        return subprocess.run(
+            command, input=json.dumps(payload), capture_output=True, text=True,
+            check=False, cwd=REPO_ROOT, env=env, timeout=30,
+        )
     def test_dispatch_group_registered(self):
         manifest = json.loads(
             (REPO_ROOT / ".claude/hooks/dispatch_groups.json").read_text(encoding="utf-8")
@@ -370,22 +402,17 @@ class TestRegistrations:
         assert group["surface"] == "plugin"
         assert group["shims"][0]["file"] == "PreToolUse/invoke_require_subagent_model.py"
         assert group["shims"][0]["copilotMatcher"] == "^(Agent|Task)$"
-
     def test_repo_settings_carry_no_duplicate_registration(self):
-        # Gate groups skip the plugin dispatcher's self-host bail, so a
-        # settings.json twin would double-fire and trips the
-        # validate_duplicate_entries contract. The prune is asserted in
-        # test_dispatch_groups_parity.py; this pins the absence.
-        settings = json.loads((REPO_ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
+        settings = json.loads(
+            (REPO_ROOT / ".claude/settings.json").read_text(encoding="utf-8")
+        )
         assert "invoke_require_subagent_model" not in json.dumps(settings)
-
     def test_plugin_hooks_json_registered(self):
         plugin_hooks = json.loads(
             (REPO_ROOT / ".claude/hooks/hooks.json").read_text(encoding="utf-8")
         )
         matching = [
-            entry
-            for entry in plugin_hooks["hooks"]["PreToolUse"]
+            entry for entry in plugin_hooks["hooks"]["PreToolUse"]
             if entry.get("matcher") == "^(Agent|Task)$"
             and any(
                 "plugin-pretooluse-10-require_subagent_model" in hook["command"]
@@ -393,81 +420,64 @@ class TestRegistrations:
             )
         ]
         assert len(matching) == 1
-
     def test_github_hooks_registered(self):
         config = json.loads(
-            (REPO_ROOT / ".github/hooks/require-subagent-model.json").read_text(encoding="utf-8")
+            (REPO_ROOT / ".github/hooks/require-subagent-model.json").read_text(
+                encoding="utf-8"
+            )
         )
         assert config["version"] == 1
         entry = self._github_hook_entry()
         assert entry["matcher"] == "task"
         assert "invoke_require_subagent_model.py" in entry["bash"]
         assert "invoke_require_subagent_model.py" in entry["powershell"]
-
     def test_github_hook_command_executes_and_broken_path_fails(self, tmp_path):
         entry = self._github_hook_entry()
         payload = {
-            "toolName": "task",
-            "cwd": str(tmp_path),
+            "toolName": "task", "cwd": str(tmp_path),
             "toolArgs": {"agent_type": "general-purpose"},
         }
         assert self._run_registered_command(entry, payload, tmp_path).returncode == 2
-
-        broken = dict(entry)
-        for key in ("bash", "powershell"):
-            broken[key] = str(broken[key]).replace(
-                "invoke_require_subagent_model.py", "missing_require_subagent_model.py"
+        broken = {
+            key: (
+                value.replace(
+                    "invoke_require_subagent_model.py",
+                    "missing_require_subagent_model.py",
+                )
+                if key in {"bash", "powershell"} else value
             )
+            for key, value in entry.items()
+        }
         assert self._run_registered_command(broken, payload, tmp_path).returncode != 0
-
     @pytest.mark.parametrize(
         ("payload", "expected"),
         [
-            (
-                {
-                    "tool_name": "Agent",
-                    "tool_input": {"subagent_type": "general-purpose"},
-                },
-                2,
-            ),
-            (
-                {
-                    "toolName": "task",
-                    "toolArgs": {"agent_type": "general-purpose"},
-                },
-                0,
-            ),
+            ({"tool_name": "Agent", "tool_input": {"subagent_type": "general-purpose"}}, 2),
+            ({"toolName": "task", "toolArgs": {"agent_type": "general-purpose"}}, 0),
             ({"toolName": "Read", "toolArgs": {"filePath": "README.md"}}, 0),
         ],
     )
-    def test_generated_copilot_shim_executes_from_foreign_cwd(self, tmp_path, payload, expected):
+    def test_generated_copilot_shim_executes_from_foreign_cwd(
+        self, tmp_path, payload, expected
+    ):
         shims = list(
             (REPO_ROOT / "src/copilot-cli/hooks/PreToolUse").glob(
                 "invoke_require_subagent_model__*.py"
             )
         )
         assert len(shims) == 1
-        shim = shims[0]
         env = os.environ.copy()
-        env.update(
-            {
-                "HOME": str(tmp_path),
-                "USERPROFILE": str(tmp_path),
-                "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
-            }
-        )
+        env.update({
+            "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
+            "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
+        })
         result = subprocess.run(
-            [sys.executable, str(shim)],
+            [sys.executable, str(shims[0])],
             input=json.dumps({**payload, "cwd": str(tmp_path)}),
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=tmp_path,
-            env=env,
-            timeout=30,
+            capture_output=True, text=True, check=False, cwd=tmp_path,
+            env=env, timeout=30,
         )
         assert result.returncode == expected, result.stderr
-
     def test_generated_copilot_shim_malformed_input_fails_open(self, tmp_path):
         shims = list(
             (REPO_ROOT / "src/copilot-cli/hooks/PreToolUse").glob(
@@ -476,24 +486,14 @@ class TestRegistrations:
         )
         assert len(shims) == 1
         env = os.environ.copy()
-        env.update(
-            {
-                "HOME": str(tmp_path),
-                "USERPROFILE": str(tmp_path),
-                "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
-            }
-        )
-
+        env.update({
+            "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
+            "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
+        })
         result = subprocess.run(
-            [sys.executable, str(shims[0])],
-            input="not json",
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=tmp_path,
-            env=env,
-            timeout=30,
+            [sys.executable, str(shims[0])], input="not json",
+            capture_output=True, text=True, check=False, cwd=tmp_path,
+            env=env, timeout=30,
         )
-
         assert result.returncode == 0
         assert "malformed JSON" in result.stderr
