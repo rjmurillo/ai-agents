@@ -32,8 +32,9 @@ def _isolated_environment(monkeypatch, tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
-    monkeypatch.delenv("CLAUDE_CODE_SUBAGENT_MODEL", raising=False)
-    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    for variable in ("CLAUDE_CODE_SUBAGENT_MODEL", "CLAUDE_PROJECT_DIR",
+                     "CLAUDE_CONFIG_DIR", "COPILOT_HOME"):
+        monkeypatch.delenv(variable, raising=False)
     return home
 
 
@@ -58,7 +59,6 @@ class TestAllowPaths:
     def test_unrelated_tool_allows(self, monkeypatch, project):
         payload = {"tool_name": "Bash", "cwd": str(project), "tool_input": {"command": "ls"}}
         assert _run(monkeypatch, payload) == 0
-
     def test_explicit_model_allows(self, monkeypatch, project):
         payload = _claude_payload(project, subagent_type="general-purpose", model="sonnet")
         assert _run(monkeypatch, payload) == 0
@@ -67,7 +67,6 @@ class TestAllowPaths:
         monkeypatch.setenv("CLAUDE_CODE_SUBAGENT_MODEL", "sonnet")
         payload = _claude_payload(project, subagent_type="general-purpose")
         assert _run(monkeypatch, payload) == 0
-
     def test_missing_agent_type_allows(self, monkeypatch, project):
         payload = _claude_payload(project, prompt="do a thing")
         assert _run(monkeypatch, payload) == 0
@@ -75,8 +74,6 @@ class TestAllowPaths:
     def test_non_dict_tool_input_allows(self, monkeypatch, project):
         payload = {"tool_name": "Agent", "cwd": str(project), "tool_input": [1, 2]}
         assert _run(monkeypatch, payload) == 0
-
-
 class TestDefinitionSearch:
     def test_project_claude_agent_allows(self, monkeypatch, project):
         agent = project / ".claude" / "agents" / "orchestrator.md"
@@ -84,14 +81,14 @@ class TestDefinitionSearch:
         agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
         payload = _claude_payload(project, subagent_type="orchestrator")
         assert _run(monkeypatch, payload) == 0
-
     def test_user_claude_agent_allows(self, monkeypatch, project, _isolated_environment):
-        agent = _isolated_environment / ".claude" / "agents" / "me.md"
+        custom_root = _isolated_environment / "custom-claude"
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(custom_root))
+        agent = custom_root / "agents" / "me.md"
         agent.parent.mkdir(parents=True)
         agent.write_text("---\nmodel: sonnet\n---\nbody\n", encoding="utf-8")
         payload = _claude_payload(project, subagent_type="me")
         assert _run(monkeypatch, payload) == 0
-
     def test_plugin_scoped_agent_allows(self, monkeypatch, project, _isolated_environment):
         agent = (
             _isolated_environment
@@ -131,7 +128,9 @@ class TestDefinitionSearch:
         assert _run(monkeypatch, payload) == 0
 
     def test_copilot_user_agent_allows(self, monkeypatch, project, _isolated_environment):
-        agent = _isolated_environment / ".copilot" / "agents" / "me.agent.md"
+        custom_root = _isolated_environment / "custom-copilot"
+        monkeypatch.setenv("COPILOT_HOME", str(custom_root))
+        agent = custom_root / "agents" / "me.agent.md"
         agent.parent.mkdir(parents=True)
         agent.write_text("---\nmodel: claude-sonnet-4.6\n---\nbody\n", encoding="utf-8")
         payload = {

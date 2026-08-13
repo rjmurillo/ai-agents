@@ -50,6 +50,13 @@ _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"}
 _UNQUOTED_MODEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9._ /()+-]*")
 
 
+def _user_root(home: Path, *, copilot: bool) -> Path:
+    variable = "COPILOT_HOME" if copilot else "CLAUDE_CONFIG_DIR"
+    default = ".copilot" if copilot else ".claude"
+    configured = os.environ.get(variable, "").strip()
+    return Path(configured).expanduser() if configured else home / default
+
+
 def _definition_search_space(
     name: str,
     plugin: str | None,
@@ -63,7 +70,7 @@ def _definition_search_space(
         if copilot:
             return (
                 (
-                    home / ".copilot",
+                    _user_root(home, copilot=True),
                     (
                         f"installed-plugins/*/{plugin}/agents/{name}.agent.md",
                         f"installed-plugins/*/{plugin}/agents/{name}.md",
@@ -72,7 +79,7 @@ def _definition_search_space(
             )
         return (
             (
-                home / ".claude",
+                _user_root(home, copilot=False),
                 (
                     f"plugins/**/{plugin}/agents/{name}.md",
                     f"plugins/**/{plugin}/*/agents/{name}.md",
@@ -83,7 +90,7 @@ def _definition_search_space(
         return (
             (project / ".github", (f"agents/{name}.agent.md", f"agents/{name}.md")),
             (
-                home / ".copilot",
+                _user_root(home, copilot=True),
                 (
                     f"agents/{name}.agent.md",
                     f"agents/{name}.md",
@@ -92,7 +99,7 @@ def _definition_search_space(
         )
     return (
         (project / ".claude", (f"agents/{name}.md",)),
-        (home / ".claude", (f"agents/{name}.md",)),
+        (_user_root(home, copilot=False), (f"agents/{name}.md",)),
     )
 
 
