@@ -145,7 +145,6 @@ def _is_rest_quota_error(exc: Exception) -> bool:
     return (
         "x-ratelimit-remaining: 0" in message
         or "api rate limit exceeded" in message
-        or "rate limit" in message
     )
 
 

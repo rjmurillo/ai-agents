@@ -36,6 +36,7 @@ _mod = _import_script("merge_pr")
 main = _mod.main
 build_parser = _mod.build_parser
 get_allowed_merge_methods = _mod.get_allowed_merge_methods
+is_rest_quota_error = _mod._is_rest_quota_error
 validate_strategy = _mod.validate_strategy
 
 
@@ -478,6 +479,33 @@ class TestGetAllowedMergeMethods:
             with pytest.raises(ValueError) as exc:
                 get_allowed_merge_methods("o/r")
             assert "Failed to decode JSON" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# Tests: _is_rest_quota_error
+# ---------------------------------------------------------------------------
+
+
+class TestIsRestQuotaError:
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "HTTP 403, X-RateLimit-Remaining: 0",
+            "API rate limit exceeded for user",
+        ],
+    )
+    def test_accepts_explicit_core_quota_exhaustion(self, message):
+        assert is_rest_quota_error(RuntimeError(message))
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "You have exceeded a secondary rate limit",
+            "The rate limit policy could not be loaded",
+        ],
+    )
+    def test_rejects_other_rate_limit_messages(self, message):
+        assert not is_rest_quota_error(RuntimeError(message))
 
 
 # ---------------------------------------------------------------------------
