@@ -118,7 +118,19 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 0
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 0
+
+    def test_forgetful_uuid_without_export_mode_returns_1(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        export_file = tmp_path / "uuid.json"
+        export_file.write_text(
+            '{"id": "550e8400-e29b-41d4-a716-446655440000"}',
+            encoding="utf-8",
+        )
+
+        assert scan_file(export_file, quiet=True) == 1
 
     @pytest.mark.parametrize(
         "field_name",
@@ -135,7 +147,7 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 1
 
     def test_pretty_export_forgetful_uuid_returns_0(self, tmp_path: Path) -> None:
         export_file = tmp_path / "pretty-export.json"
@@ -144,7 +156,7 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 0
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 0
 
     def test_forgetful_uuid_does_not_hide_other_token(self, tmp_path: Path) -> None:
         export_file = tmp_path / "uuid-with-token.json"
@@ -154,7 +166,7 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 1
 
     def test_forgetful_uuid_does_not_hide_second_uuid(self, tmp_path: Path) -> None:
         export_file = tmp_path / "two-uuids.json"
@@ -164,7 +176,7 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 1
 
     def test_escaped_id_text_does_not_exempt_uuid(self, tmp_path: Path) -> None:
         export_file = tmp_path / "escaped-id-text.json"
@@ -174,7 +186,7 @@ class TestScanFile:
             encoding="utf-8",
         )
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 1
 
     @pytest.mark.parametrize(
         "uuid_like_token",
@@ -192,7 +204,7 @@ class TestScanFile:
         export_file = tmp_path / "uuid-like-token.json"
         export_file.write_text(f'{{"id": "{uuid_like_token}"}}', encoding="utf-8")
 
-        assert scan_file(export_file, quiet=True) == 1
+        assert scan_file(export_file, quiet=True, forgetful_export=True) == 1
 
 
 class TestMain:
@@ -209,3 +221,12 @@ class TestMain:
 
     def test_quiet_flag_accepted(self, clean_file: Path) -> None:
         assert main([str(clean_file), "--quiet"]) == 0
+
+    def test_forgetful_export_flag_accepts_id_uuid(self, tmp_path: Path) -> None:
+        export_file = tmp_path / "uuid.json"
+        export_file.write_text(
+            '{"id": "550e8400-e29b-41d4-a716-446655440000"}',
+            encoding="utf-8",
+        )
+
+        assert main(["--forgetful-export", str(export_file), "--quiet"]) == 0

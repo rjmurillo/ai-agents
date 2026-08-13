@@ -96,9 +96,13 @@ def _line_has_sensitive_match(
     line: str,
     pattern: str,
     compiled: re.Pattern[str],
+    *,
+    forgetful_export: bool,
 ) -> bool:
     matches = compiled.finditer(line)
     if pattern != _GENERIC_SECRET_PATTERN:
+        return next(matches, None) is not None
+    if not forgetful_export:
         return next(matches, None) is not None
     return any(not _is_forgetful_id_uuid(line, match) for match in matches)
 
@@ -107,6 +111,8 @@ def _scan_pattern(
     category: str,
     pattern: str,
     lines: list[str],
+    *,
+    forgetful_export: bool,
 ) -> tuple[_Issue | None, int]:
     try:
         compiled = re.compile(pattern, re.IGNORECASE)
@@ -122,7 +128,12 @@ def _scan_pattern(
     match_lines = [
         number
         for number, line in enumerate(lines, 1)
-        if _line_has_sensitive_match(line, pattern, compiled)
+        if _line_has_sensitive_match(
+            line,
+            pattern,
+            compiled,
+            forgetful_export=forgetful_export,
+        )
     ]
     if not match_lines:
         return None, 0
@@ -136,12 +147,21 @@ def _scan_pattern(
     )
 
 
-def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
+def _collect_issues(
+    lines: list[str],
+    *,
+    forgetful_export: bool,
+) -> tuple[list[_Issue], int]:
     found_issues: list[_Issue] = []
     total_matches = 0
     for category, patterns in SENSITIVE_PATTERNS.items():
         for pattern in patterns:
-            issue, match_count = _scan_pattern(category, pattern, lines)
+            issue, match_count = _scan_pattern(
+                category,
+                pattern,
+                lines,
+                forgetful_export=forgetful_export,
+            )
             if issue is None:
                 continue
             found_issues.append(issue)
@@ -149,14 +169,22 @@ def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
     return found_issues, total_matches
 
 
-def scan_file(export_file: Path, quiet: bool = False) -> int:
+def scan_file(
+    export_file: Path,
+    quiet: bool = False,
+    *,
+    forgetful_export: bool = False,
+) -> int:
     if not quiet:
         print(f"Scanning export file for sensitive data: {export_file}")
         print()
 
     content = export_file.read_text(encoding="utf-8")
     lines = content.splitlines()
-    found_issues, total_matches = _collect_issues(lines)
+    found_issues, total_matches = _collect_issues(
+        lines,
+        forgetful_export=forgetful_export,
+    )
 
     if not found_issues:
         if not quiet:
@@ -191,13 +219,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Security review for memory export files")
     parser.add_argument("export_file", type=Path, help="Path to exported memory JSON file")
     parser.add_argument("--quiet", action="store_true", help="Suppress output, only set exit code")
+    parser.add_argument(
+        "--forgetful-export",
+        action="store_true",
+        help="Allow canonical UUIDs in Forgetful id and user_id fields",
+    )
     args = parser.parse_args(argv)
 
     if not args.export_file.is_file():
         print(f"ERROR: File not found: {args.export_file}", file=sys.stderr)
         return 1
 
-    return scan_file(args.export_file, args.quiet)
+    return scan_file(
+        args.export_file,
+        args.quiet,
+        forgetful_export=args.forgetful_export,
+    )
 
 
 if __name__ == "__main__":

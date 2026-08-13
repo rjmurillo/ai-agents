@@ -134,7 +134,13 @@ def _run_security_review_forgetful(output_path: Path) -> int:
     print("\nRunning mandatory security review...")
     sys.stdout.flush()
     result = subprocess.run(
-        [sys.executable, str(security_script), "--", str(output_path)]
+        [
+            sys.executable,
+            str(security_script),
+            "--forgetful-export",
+            "--",
+            str(output_path),
+        ]
     )
     if result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)
