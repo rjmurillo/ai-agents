@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -130,6 +131,29 @@ class TestValidateMarkdownLint:
         output = capsys.readouterr().out
         assert "cannot fit under the Windows command-line limit" in output
         assert "7,500" in output
+
+    def test_counts_non_bmp_targets_as_two_windows_code_units(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        target = f"docs/{'😀' * 4_000}.md"
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch(
+                "checks_tooling._markdown_lint_targets",
+                return_value=[target],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    assert validate_markdown_lint(tmp_path) is False
+
+        mock_run.assert_not_called()
+        output = capsys.readouterr().out
+        assert "cannot fit under the Windows command-line limit" in output
+        measured = re.search(r"renders to ([\d,]+) characters", output)
+        assert measured is not None
+        assert int(measured.group(1).replace(",", "")) > 7_500
 
     def test_empty_tool_failure_reports_exit_code_without_rule_guesses(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

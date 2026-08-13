@@ -225,6 +225,12 @@ def _markdown_lint_command(
     return [*command, "--", *target_args]
 
 
+def _windows_command_length(command: list[str]) -> int:
+    """Return rendered command length in UTF-16 code units."""
+    rendered = subprocess.list2cmdline(command)
+    return len(rendered.encode("utf-16-le")) // 2
+
+
 def _markdown_lint_target_batches(
     target_args: list[str],
     *,
@@ -239,10 +245,8 @@ def _markdown_lint_target_batches(
             batch = []
 
         candidate = [*batch, target]
-        command_length = len(
-            subprocess.list2cmdline(
-                _markdown_lint_command(candidate, autofix=autofix)
-            )
+        command_length = _windows_command_length(
+            _markdown_lint_command(candidate, autofix=autofix)
         )
         if command_length <= MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
             batch = candidate
@@ -250,10 +254,8 @@ def _markdown_lint_target_batches(
         if batch:
             batches.append(batch)
             batch = []
-            command_length = len(
-                subprocess.list2cmdline(
-                    _markdown_lint_command([target], autofix=autofix)
-                )
+            command_length = _windows_command_length(
+                _markdown_lint_command([target], autofix=autofix)
             )
         if command_length > MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
             preview = target if len(target) <= 80 else f"{target[:77]}..."
