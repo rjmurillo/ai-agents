@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 4d5b1e8c8f40f834f43fa6fc53a12874037de19a
+qaCommit: dba57ccf6c2e685d31c6671c191d4280d8c07341
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,7 @@ machine.
 ## Deterministic evidence
 
 - Scoped Ruff checks on the seven changed Python files: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 58 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 60 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
@@ -63,6 +63,8 @@ machine.
 - Copilot scoring joins every content-bearing assistant message.
 - Behavioral and question-mechanism failures no longer skip later fixtures.
   Runtime errors and model mismatches still stop immediately.
+- Nested `git init` removes inherited repository context variables.
+- The resume fixture requires the exact response with no surrounding prose.
 - A real dry run loaded four fixtures with Claude Code 2.1.231 and Copilot CLI
   1.0.79 through isolated version probes.
 - Authored Python file-size errors were cleared by extracting output parsing

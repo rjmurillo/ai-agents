@@ -187,9 +187,13 @@
     {
       "action": "Closed the sixth fresh-head review",
       "result": "Copilot scoring now joins all answer messages, and behavioral failures continue through every fixture. Runtime errors and model mismatches still stop immediately. Fifty-eight targeted tests passed."
+    },
+    {
+      "action": "Closed the seventh fresh-head review",
+      "result": "Nested git initialization drops inherited repository context, and the resume fixture now requires an exact reply with no surrounding prose. Sixty targeted tests passed."
     }
   ],
-  "endingCommit": "4d5b1e8c8f40f834f43fa6fc53a12874037de19a",
+  "endingCommit": "dba57ccf6c2e685d31c6671c191d4280d8c07341",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
