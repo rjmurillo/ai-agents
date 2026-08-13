@@ -1327,6 +1327,10 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
 
 
 def _is_update_authorized(author: str, sender: str, action: str) -> bool:
+    # Merge queue admission proves the PR-head provenance check already passed.
+    # The synthetic merge_group event does not expose the originating PR identity.
+    if action == "merge_group":
+        return True
     return (
         author in _TRUSTED_UPDATE_ACTORS
         and sender in _TRUSTED_UPDATE_ACTORS

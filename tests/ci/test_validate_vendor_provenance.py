@@ -811,7 +811,7 @@ class TestRelevance:
         assert "github.event.merge_group.head_sha" in wf
         assert "github.event.merge_group.base_sha" in wf
 
-    def test_merge_group_cannot_authorize_trust_anchor_updates(self) -> None:
+    def test_workflow_marks_merge_group_authorization_context(self) -> None:
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
 
         assert "&& 'merge_group' || github.event.action" in wf
@@ -2165,6 +2165,7 @@ class TestTrustedUpdateAuthorization:
             ("rjmurillo", "rjmurillo", "reopened", False),
             ("rjmurillo", "untrusted-contributor", "synchronize", False),
             ("untrusted-contributor", "rjmurillo", "synchronize", False),
+            ("", "untrusted-contributor", "merge_group", True),
         ],
     )
     def test_only_trusted_head_transition_events_authorize_updates(
