@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: 5f0c41c76cc8903adba4f251542f3e14e837b466
+qaCommit: a4c2a4bd3b01ecef768d98b8cfab956945ecacf6
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,7 +22,7 @@ machine.
 ## Deterministic evidence
 
 - Scoped Ruff checks on the seven changed Python files: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 56 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py tests/eval/test_eval_runtime_parity_report_contract.py -q`: 58 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
@@ -60,6 +60,9 @@ machine.
 - The default model is `claude-opus-4.6`, matching all selected Copilot agents.
 - Runtime invocation, scoring, and fixture orchestration functions stay within
   the 60-line ceiling.
+- Copilot scoring joins every content-bearing assistant message.
+- Behavioral and question-mechanism failures no longer skip later fixtures.
+  Runtime errors and model mismatches still stop immediately.
 - A real dry run loaded four fixtures with Claude Code 2.1.231 and Copilot CLI
   1.0.79 through isolated version probes.
 - Authored Python file-size errors were cleared by extracting output parsing

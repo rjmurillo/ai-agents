@@ -183,9 +183,13 @@
     {
       "action": "Closed the fifth fresh-head review",
       "result": "The default now matches the selected Copilot agents, version probes disable Copilot auto-update, and runtime orchestration functions stay within 60 lines. A real four-fixture dry run passed."
+    },
+    {
+      "action": "Closed the sixth fresh-head review",
+      "result": "Copilot scoring now joins all answer messages, and behavioral failures continue through every fixture. Runtime errors and model mismatches still stop immediately. Fifty-eight targeted tests passed."
     }
   ],
-  "endingCommit": "5f0c41c76cc8903adba4f251542f3e14e837b466",
+  "endingCommit": "a4c2a4bd3b01ecef768d98b8cfab956945ecacf6",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
