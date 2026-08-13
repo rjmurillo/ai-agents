@@ -127,8 +127,8 @@ Reports include:
 
 - CLI versions and the requested model;
 - resolved model ids, with exact mismatch failure before later fixtures run;
-- SHA-256 hashes for both agent artifacts and the fixture request;
-- raw JSONL output, final response, tool events, and subagent events;
+- SHA-256 hashes for both installed agent artifacts and the fixture request;
+- raw JSONL stdout, stderr, final response, tool events, and subagent events;
 - per-assertion verdicts labeled `Claude runtime` or `Copilot runtime`;
 - `prompt-only` positive and negative control results.
 
