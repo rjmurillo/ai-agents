@@ -12,7 +12,7 @@
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "(?m)^CONTINUE_PHASE_3$"
+          "pattern": "\\ACONTINUE_PHASE_3\\Z"
         },
         {
           "kind": "not_regex",

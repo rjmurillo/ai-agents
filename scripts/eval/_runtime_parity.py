@@ -15,6 +15,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
 SUPPORTED_TOOLS = frozenset({"question", "write"})
 SENTINEL = "PARITY_PROFILE_SENTINEL_4853"
+GIT_CONTEXT_VARIABLES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+)
 
 
 class ParityConfigError(ValueError):
@@ -306,12 +312,20 @@ def _install_agent(source: Path, target: Path) -> None:
     target.write_bytes(_installed_agent_bytes(source))
 
 
+def _nested_git_env() -> dict[str, str]:
+    env = os.environ.copy()
+    for name in GIT_CONTEXT_VARIABLES:
+        env.pop(name, None)
+    return env
+
+
 def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
     """Create one isolated git repository and install its agent artifact."""
     workspace.mkdir(parents=True)
     subprocess.run(
         ["git", "init", "--quiet"],
         cwd=workspace,
+        env=_nested_git_env(),
         check=True,
         capture_output=True,
         text=True,

@@ -169,7 +169,7 @@ def test_earlier_copilot_message_is_included_in_assertion_scoring() -> None:
     response, _ = parity._copilot_result(events)
     results = parity.score_assertions(fixture, response, {})
 
-    assert results[0]["passed"] is True
+    assert results[0]["passed"] is False
     assert results[1]["passed"] is False
 
 

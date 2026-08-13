@@ -371,3 +371,35 @@ def test_worktree_identity_rejects_a_top_level_outside_cwd(
         match="current directory is outside reported worktree",
     ):
         runtime_parity.verify_worktree_identity()
+
+
+def test_git_init_drops_inherited_repository_context(
+    tmp_path: Path, monkeypatch
+) -> None:
+    for name in runtime_parity.GIT_CONTEXT_VARIABLES:
+        monkeypatch.setenv(name, str(runtime_parity.REPO_ROOT))
+    calls = []
+
+    def recording_run(argv, **kwargs):
+        calls.append(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(runtime_parity.subprocess, "run", recording_run)
+    fixture = parity.load_fixtures(FIXTURES)[0]
+
+    parity.prepare_workspace(fixture, "claude", tmp_path / "workspace")
+
+    git_env = calls[0]["env"]
+    assert all(name not in git_env for name in runtime_parity.GIT_CONTEXT_VARIABLES)
+
+
+def test_resume_fixture_rejects_prose_before_exact_reply() -> None:
+    fixture = parity.load_fixtures(FIXTURES)[0]
+
+    results = parity.score_assertions(
+        fixture,
+        "Are phases 1 and 2 complete?\nCONTINUE_PHASE_3",
+        {},
+    )
+
+    assert results[0]["passed"] is False
