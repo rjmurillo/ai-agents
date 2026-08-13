@@ -544,8 +544,8 @@ def _original_main(stdin_bytes):
         agent = args.get("subagent_type") or args.get("agent_type") or ""
         if not isinstance(agent, str) or not agent:
             return 0
-        plugin, separator, name = agent.rpartition(":")
-        plugin = plugin if separator else None
+        plugin_prefix, separator, name = agent.rpartition(":")
+        plugin: str | None = plugin_prefix if separator else None
         searchable_parts = (name, plugin) if plugin else (name,)
         searchable = all(
             part and not any(ch in part for ch in "*?[]/\\") for part in searchable_parts
