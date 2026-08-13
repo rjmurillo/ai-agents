@@ -1,0 +1,198 @@
+{
+  "id": "episode-2026-08-04-session-9020-evalparse-triage",
+  "session": "2026-08-04-session-9020-evalparse-triage",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage issues #3975, #4068, #4123, #4210 in rjmurillo/ai-agents. Verify each against origin/main, fix or close with evidence.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T06:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main (4607f6ce8) into fix/eval-payload-evidence to start from current state.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T06:10:00+00:00",
+      "type": "milestone",
+      "content": "Verified #4210: backlog-triage.yml line 64 uses uv run --frozen python. Three remaining bare python3 scripts have no scripts.* imports and pass bare invocation. Closed issue with evidence. Command: /usr/bin/python3 scripts/backlog_triage_result.py --help exits 0.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T06:20:00+00:00",
+      "type": "milestone",
+      "content": "Verified #3975: no text[:200] truncation in eval-rule-activation.py on origin/main. raw_judge_response stored with no cap at lines 870-879. model_id only at top level (line 2343), not per sample. PR #4533 (OPEN) adds judge_model per sample. Closed citing PR #4533.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T06:25:00+00:00",
+      "type": "milestone",
+      "content": "Verified #4068: artifact_create_issues.py line 146 returns 0 on gh failure; spec_extract_refs.py line 108 returns empty string and line 152 returns 0 on subprocess failure. Both still broken on origin/main. cli_exit_contract_ratchet shows 33 violations vs baseline 14. PR #4533 (OPEN) fixes both scripts. Closed citing PR #4533.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T06:30:00+00:00",
+      "type": "milestone",
+      "content": "Verified #4123: normalize_fingerprint in _eval_api_adapter_constants.py returns sentinel '<malformed:TYPENAME>' for non-string non-null values on origin/main. Issue acceptance requires raise. PR #4402 (OPEN, body: Fixes #4123) raises RuntimeError. Closed citing PR #4402.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T03:55:48+00:00",
+      "type": "commit",
+      "content": "Commit: 4607f6ce8",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T09:24:12+00:00",
+      "type": "commit",
+      "content": "Commit: e7308b7f5be3a7202c7230207fbfc375ea8a2f64",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T09:39:58+00:00",
+      "type": "commit",
+      "content": "Commit: 763c0946a3f2b2cd5a74ff9f7d58cf752f5a0b8d",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T18:44:25+00:00",
+      "type": "commit",
+      "content": "Commit: 56700e6036c026a5d0f4345445b181261a558dfd",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T14:40:31+00:00",
+      "type": "milestone",
+      "content": "Refreshed QA validation evidence after later branch changes made the recorded QA report stale.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T14:39:56+00:00",
+      "type": "commit",
+      "content": "Commit: bba9dc651aff1f6d4f81bd329038b2a73f4530e2",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7f57c1f8ef0f6ee40f4c338fd0e9d79e15ba2d7b",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T15:18:09+00:00",
+      "type": "commit",
+      "content": "Commit: 7f57c1f8ef7161f4eb1e1ca7443abf8e4495990b",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T15:49:11+00:00",
+      "type": "commit",
+      "content": "Commit: 5c1e376ef124207f7c65a97f40ac189e3b81a606",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 10669,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 19
+  },
+  "lessons": []
+}

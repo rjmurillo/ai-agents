@@ -14,101 +14,99 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
-import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-_CONVENTIONAL_COMMIT_PATTERN = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
-    r"(\(.+\))?!?: .+"
-)
 
+def _load_sibling(name: str):
+    """Load a sibling script by ABSOLUTE PATH, without touching ``sys.path``.
 
-def validate_no_escaped_newlines(body_content: str) -> None:
-    """Reject a body made from literal backslash-n sequences."""
-    escaped_count = body_content.count("\\n")
-    if not escaped_count or "\n" in body_content.strip():
-        return
-    print(
-        f"ERROR: Body carries {escaped_count} literal backslash-n"
-        " sequence(s) and no line break, so GitHub would render it as one"
-        " unbroken paragraph and drop every heading, list and table.",
-        file=sys.stderr,
-    )
-    print(
-        "  Write the body to a file and pass --body-file, which cannot"
-        " express this error.",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+    ``new_pr.py`` runs under ``python3 -I`` (the push-pr identity guard
+    requires that exact form), and isolated mode removes the script's own
+    directory from ``sys.path``. Measured on CPython 3.14.6:
 
-# Em/en-dash detection regex for Validation 5. Inlined here rather than
-# imported from scripts.validation.pr_description because:
-#
-# 1. This file is one of two copies the project keeps in sync:
-#    - .claude/skills/github/scripts/pr/new_pr.py (the source the
-#      developer edits)
-#    - src/copilot-cli/skills/github/scripts/pr/new_pr.py (the
-#      generated copy produced by build/scripts/build_all.py)
-#    Both copies live at different depths from the repo root
-#    (parents[5] vs parents[6]), so any cross-package import requires
-#    path resolution that works at both depths. The complexity (walking
-#    up looking for a marker, subprocess git calls, etc.) is not worth
-#    it for a 5-line regex.
-# 2. The detection logic is small (compile, search). Drift between the
-#    two definitions (this one and scripts.validation.pr_description's
-#    _DASH_RE) is caught by the test suite (tests/test_new_pr.py and
-#    tests/test_validation_pr_description.py) which exercises both with
-#    the same fixtures.
-# 3. The two layers serve different purposes: this is the pre-creation
-#    guard, scripts.validation.pr_description is the CI fallback. Keeping
-#    them independent lets each fail open or fail closed differently per
-#    its threat model.
-#
-# Uses Unicode escape sequences so this source file does not contain
-# U+2014 or U+2013 itself per `.claude/rules/universal.md` MUST NOT
-# entry 5 (Issue #1923).
-_DASH_RE = re.compile("[\u2013\u2014]")
+        $ python3 -I main.py
+        ModuleNotFoundError: No module named 'sibling'
 
-# Extensions the skill-violation scanner (scripts/detect_skill_violation.py)
-# actually inspects. Filtering changed files to this set before building the
-# scan argv keeps the command line short on large diffs and skips the
-# subprocess entirely when no changed file is scannable. This mirrors
-# detect_skill_violation.VALID_EXTENSIONS; the two are kept in sync by
-# test_new_pr.py, which imports both and asserts equality (same drift-guard
-# strategy as _DASH_RE above). A local constant avoids the cross-package
-# import path resolution the _DASH_RE comment documents rejecting.
-_SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
+    So a plain ``import pr_validations`` cannot resolve here. Loading the file
+    directly keeps the isolation ``-I`` exists to provide. The rejected
+    alternative, ``sys.path.insert(0, os.path.dirname(__file__))``, would let
+    anyone able to write into the script directory shadow a stdlib module for
+    this process, which is strictly worse than the position before the split.
 
-
-def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
-    """Return the git ref to use for local validation diffs.
-
-    The ``--base`` value (e.g. ``main``) names a branch on GitHub. In a linked
-    worktree the local ref of that name is never advanced after the worktree is
-    created, so ``git diff main...HEAD`` diffs against a merge-base that may be
-    hundreds of commits stale and includes unrelated files (issues #4461, #4489).
-
-    Resolution priority:
-    1. ``explicit`` -- when the caller passes ``--validation-base``, trust it.
-    2. ``origin/{pr_base}`` -- when the remote-tracking ref exists, use it.
-       This ref is kept current by normal ``git fetch`` without checking out
-       ``{pr_base}`` locally, so it is always correct in a worktree.
-    3. ``pr_base`` fallback -- non-remote repos or unusual layouts where no
-       ``origin/`` remote exists.
-
-    The returned ref is used ONLY for ``git diff``; ``gh pr create --base``
-    always receives the bare ``pr_base`` name, which is what GitHub expects.
+    The identity guard pins the SHA-256 of every file in this bundle, so a
+    sibling cannot be swapped independently of new_pr.py.
     """
-    if explicit:
-        return explicit
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load required sibling module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
-    remote_ref = f"origin/{pr_base}"
+# Load validate_pr_description first: new_pr_validations imports from it,
+# and under -I mode the sibling directory is not on sys.path. Loading it
+# here puts it into sys.modules so the bare import succeeds.
+_validate_desc = _load_sibling("validate_pr_description")
+_validations = _load_sibling("new_pr_validations")
+_prepare = _load_sibling("prepare_pr_body")
+_pr_val = _load_sibling("pr_validations")
+
+# Re-exported so `new_pr.<name>` stays the import surface for callers and
+# tests. The split is an internal reorganization, not an interface change.
+run_validations = _pr_val.run_validations
+validate_no_escaped_newlines = _pr_val.validate_no_escaped_newlines
+_DASH_RE = _validations._DASH_RE
+_SKILL_SCAN_EXTENSIONS = _validations._SKILL_SCAN_EXTENSIONS
+_git_env = _validations._git_env
+_resolve_validation_base = _validations._resolve_validation_base
+
+# Main's pr_validations.py adds warning/untrusted-repo infrastructure.
+# Re-export those symbols so test harnesses can import them from new_pr.
+_report_not_run = _pr_val._report_not_run
+_WarningLog = _pr_val._WarningLog
+_UNTRUSTED_REPOSITORY_VALIDATORS = _pr_val._UNTRUSTED_REPOSITORY_VALIDATORS
+_UNTRUSTED_REPOSITORY_REASON = _pr_val._UNTRUSTED_REPOSITORY_REASON
+_extract_validatable_session_logs = _pr_val._extract_validatable_session_logs
+_SESSION_LOG_FILENAME_RE = _pr_val._SESSION_LOG_FILENAME_RE
+
+# Re-export from prepare_pr_body
+PreparePrBodyError = _prepare.PreparePrBodyError
+prepare_pr_body = _prepare.prepare_pr_body
+read_prepared_pr_body = _prepare.read_prepared_pr_body
+
+# Re-export from validate_pr_description
+_CONVENTIONAL_COMMIT_PATTERN = _validate_desc._CONVENTIONAL_COMMIT_PATTERN
+
+# Python 3.10 compatibility (issue #4764). `datetime.UTC` is an alias for
+# `datetime.timezone.utc` that CPython added in 3.11, so
+# `from datetime import UTC` raises ImportError on 3.10:
+#
+#     ImportError: cannot import name 'UTC' from 'datetime'
+#
+# Measured on CPython 3.10.20 against this file at commit 5cd72a7dad. This
+# script runs on the HOST's ambient interpreter, not the repository's 3.14
+# development interpreter, and `.claude/rules/python.md` puts the
+# hook-portability floor at 3.10. `timezone.utc` is the same object and exists
+# at every version this repository targets, so it is the portable spelling
+# rather than a compatibility shim.
+#
+# The repository development floor is unchanged: pyproject.toml still declares
+# `requires-python = ">=3.14"`. Only host-executed scripts write to 3.10.
+_UTC = timezone.utc
+_DEFAULT_BASE_CANDIDATES = ("main", "master", "dev")
+
+
+def _git_ref_exists(repo_root: str, ref: str) -> bool:
     result = subprocess.run(
-        ["git", "rev-parse", "--verify", remote_ref],
+        ["git", "show-ref", "--verify", "--quiet", ref],
+        cwd=repo_root,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -116,23 +114,37 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
         timeout=10,
         env=_git_env(),
     )
-    if result.returncode == 0:
-        return remote_ref
-    return pr_base
+    return result.returncode == 0
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _detect_default_branch(repo_root: str) -> str:
+    """Return the valid origin default branch, then known fallbacks, else main."""
+    if not (Path(repo_root) / ".git").exists():
+        return "main"
 
+    result = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    remote_prefix = "refs/remotes/origin/"
+    remote_head = result.stdout.strip()
+    if result.returncode == 0 and remote_head.startswith(remote_prefix):
+        branch = remote_head.removeprefix(remote_prefix)
+        if branch and _git_ref_exists(repo_root, f"{remote_prefix}{branch}"):
+            return branch
 
-def _git_env() -> dict[str, str]:
-    """Return environment with git hook override variables stripped."""
-    return {
-        k: v
-        for k, v in os.environ.items()
-        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
-    }
+    for prefix in ("refs/remotes/origin", "refs/heads"):
+        for branch in _DEFAULT_BASE_CANDIDATES:
+            if _git_ref_exists(repo_root, f"{prefix}/{branch}"):
+                return branch
+
+    return "main"
 
 
 def get_repo_root() -> str:
@@ -179,239 +191,6 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
-_SESSION_LOG_FILENAME_RE = re.compile(
-    # Canonical filename per session-init script:
-    # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
-    # Keywords are kebab-case (lowercase letters/digits + hyphens only).
-    r"^\.agents/sessions/"
-    r"\d{4}-\d{2}-\d{2}-session-\d+"
-    r"(?:-[a-z0-9-]+)?"
-    r"\.(md|json)$"
-)
-
-
-def _extract_validatable_session_logs(
-    changed_files: list[str],
-) -> tuple[list[str], bool]:
-    """Return (JSON session logs, legacy_md_present) from changed files.
-
-    Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
-    tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
-    validate_session_json.py only accepts JSON. Legacy .md session logs
-    require migration (handled by the CI workflow at
-    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
-    only checks JSON; warn the author so they know CI will migrate.
-
-    Returns a tuple so callers can distinguish "no session log at all"
-    (both empty) from "legacy .md staged, no JSON to validate locally"
-    (validatable empty, has_legacy_md True).
-    """
-    matched = [f for f in changed_files if _SESSION_LOG_FILENAME_RE.match(f)]
-    legacy_md = [f for f in matched if f.endswith(".md")]
-    if legacy_md:
-        print(
-            f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
-            file=sys.stderr,
-        )
-    return [f for f in matched if f.endswith(".json")], bool(legacy_md)
-
-
-# Issue #4764: /push-pr must not execute repository-controlled Python to decide
-# whether to create a pull request. All three detectors named below live under
-# scripts/, which any branch can rewrite, so this script never runs them and
-# reports them as not run. CI runs them from a trusted checkout.
-#
-# Issue #4825 review 4894113215 finding 1: this was previously a helper that
-# ignored all three of its arguments and always returned False. It printed
-# "Skipped ... because scripts/ is changed or dirty" on a clean branch, did not
-# record the skip, and still summarized the run as "All pre-creation
-# validations passed!". The boundary is a constant policy, not a runtime
-# condition, so it is spelled as one.
-_UNTRUSTED_REPOSITORY_VALIDATORS = (
-    "Session End (scripts/validate_session_json.py)",
-    "skill violation (scripts/detect_skill_violation.py)",
-    "test coverage (scripts/detect_test_coverage_gaps.py)",
-)
-_UNTRUSTED_REPOSITORY_REASON = (
-    "repository-local Python is outside the trusted push-pr boundary"
-)
-
-
-def _report_not_run(validator: str) -> None:
-    """Name a validator this script deliberately does not run."""
-    print(f"  Not run: {validator}.")
-    print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}; CI runs it from a trusted checkout.")
-
-
-def run_validations(
-    repo_root: str,
-    base: str,
-    head: str,
-    *,
-    title: str = "",
-    body: str = "",
-    body_file: str = "",
-) -> None:
-    """Run pre-creation validations. Raises SystemExit(1) on failure."""
-    try:
-        os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
-    except PermissionError as exc:
-        print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
-
-    print("Running validations...")
-    print()
-
-    # Validation 1: Session End (if .agents/ files changed)
-    print("[1/6] Checking Session End protocol...")
-    result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    diff_failed = result.returncode != 0
-    if diff_failed:
-        print(
-            f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
-            "the changed-file set is unknown. Validations that rely on it are "
-            "skipped, not treated as 'no changes'.",
-            file=sys.stderr,
-        )
-    changed_files = result.stdout.strip().splitlines() if not diff_failed else []
-    agents_changed = any(f.startswith(".agents/") for f in changed_files)
-
-    if agents_changed:
-        session_logs, has_legacy_md = _extract_validatable_session_logs(
-            changed_files
-        )
-        if session_logs:
-            _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[0])
-        elif not has_legacy_md:
-            print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
-    elif diff_failed:
-        print("  Skipped: git diff failed, changed files unknown (see warning above).")
-    else:
-        print("  No .agents/ changes, skipping")
-
-    # Validation 2: Skill violation detection (WARNING)
-    print()
-    print("[2/6] Checking for skill violations...")
-    scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
-    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[1])
-    if diff_failed:
-        print("  Scope: unknown, git diff failed (see warning above).")
-    elif not changed_files:
-        print("  Scope: no changed files.")
-    elif not scannable_files:
-        _exts = ", ".join(sorted(_SKILL_SCAN_EXTENSIONS))
-        print(f"  Scope: no changed file has a scannable extension ({_exts}).")
-    else:
-        print(f"  Scope: {len(scannable_files)} changed file(s) would have been scanned.")
-
-    # Validation 3: Test coverage detection (WARNING)
-    print()
-    print("[3/6] Checking test coverage...")
-    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[2])
-
-    # Validation 4: PR Description validation (WARNING)
-    print()
-    print("[4/6] Validating PR description...")
-    validate_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "validate_pr_description.py",
-    )
-    if os.path.exists(validate_script) and title:
-        val_args = [sys.executable, "-I", validate_script, "--title", title]
-        if body:
-            val_args.extend(["--body", body])
-        elif body_file:
-            val_args.extend(["--body-file", body_file])
-        val_result = subprocess.run(
-            val_args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-        # Print human-readable output (on stderr from validator)
-        if val_result.stderr:
-            print(val_result.stderr, end="", file=sys.stderr)
-        # Warning mode: don't fail on exit code
-    else:
-        print("  Skipped (no title available or validator not found)")
-
-    # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
-    # PR descriptions live in GitHub and never reach Git hook stdin, so the
-    # Lefthook jobs declared in lefthook.yml cannot scan them.
-    # This is the shift-left guard that prevents dashes from being submitted
-    # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
-    # in the description despite local dash checks.
-    # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
-    print()
-    print("[5/6] Em/en-dash check on title and body...")
-    body_content = body or ""
-    if not body_content and body_file and os.path.exists(body_file):
-        try:
-            with open(body_file, encoding="utf-8") as f:
-                body_content = f.read()
-        except OSError as exc:
-            print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
-    dash_violations: list[str] = []
-    if _DASH_RE.search(title):
-        dash_violations.append("title")
-    body_dash_lines = [
-        f"line {n}"
-        for n, line in enumerate(body_content.splitlines(), start=1)
-        if _DASH_RE.search(line)
-    ]
-    if body_dash_lines:
-        sample = ", ".join(body_dash_lines[:5])
-        if len(body_dash_lines) > 5:
-            sample += f", ... (+{len(body_dash_lines) - 5} more)"
-        dash_violations.append(f"body ({sample})")
-    if dash_violations:
-        print(
-            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
-            + "; ".join(dash_violations),
-            file=sys.stderr,
-        )
-        print(
-            "  Replace with comma, period, hyphen, or restructure.",
-            file=sys.stderr,
-        )
-        print(
-            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
-            file=sys.stderr,
-        )
-        print(
-            "  Override (NOT RECOMMENDED): re-run with --skip-validation"
-            " --audit-reason \"...\".",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print("  No prohibited characters in title or body.")
-
-    print()
-    print("[6/6] Escaped-newline check on body...")
-    validate_no_escaped_newlines(body_content)
-    print("  Body line breaks are real newlines.")
-
-    print()
-    print(
-        "Trusted pre-creation validations passed. "
-        f"{len(_UNTRUSTED_REPOSITORY_VALIDATORS)} repository-local check(s) did "
-        "not run: " + ", ".join(_UNTRUSTED_REPOSITORY_VALIDATORS) + "."
-    )
-    print(f"  Reason: {_UNTRUSTED_REPOSITORY_REASON}.")
-    print()
-
-
 def write_audit_log(
     repo_root: str,
     head: str,
@@ -425,8 +204,8 @@ def write_audit_log(
 
     username = os.environ.get("USERNAME") or os.environ.get("USER", "unknown")
 
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-    file_timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(_UTC).strftime("%Y-%m-%d %H:%M:%S")
+    file_timestamp = datetime.now(_UTC).strftime("%Y%m%d-%H%M%S")
 
     audit_entry = (
         f"Timestamp: {timestamp}\n"
@@ -451,10 +230,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a GitHub PR with validation guardrails.",
     )
-    parser.add_argument("--title", required=True, help="PR title in conventional commit format")
+    parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
-    parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--prepare-body-file",
+        action="store_true",
+        help="Create a private .agents/scratch/pr-body-*.md path and exit",
+    )
+    parser.add_argument(
+        "--base",
+        default="",
+        help="Target branch (default: repository default branch)",
+    )
     parser.add_argument(
         "--validation-base",
         default="",
@@ -477,12 +265,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    repo_root = get_repo_root()
+def _prepare_body_file(repo_root: str) -> int:
+    """Create a secure prepared-body path and print it."""
+    try:
+        print(prepare_pr_body(Path(repo_root)).as_posix())
+    except (OSError, PreparePrBodyError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    return 0
 
-    # Require gh CLI
-    gh_check = subprocess.run(
+
+def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
+    """Validate body arguments and securely read a prepared body file."""
+    if not args.title:
+        print("--title is required", file=sys.stderr)
+        return None
+    if args.body and args.body_file:
+        print("--body and --body-file are mutually exclusive", file=sys.stderr)
+        return None
+
+    body: str = str(args.body)
+    if args.body_file:
+        try:
+            body = str(read_prepared_pr_body(Path(repo_root), args.body_file))
+        except (OSError, UnicodeError, PreparePrBodyError) as exc:
+            print(f"Invalid body file: {exc}", file=sys.stderr)
+            return None
+    return body
+
+
+def _gh_is_available() -> bool:
+    """Return whether the GitHub CLI can be executed."""
+    result = subprocess.run(
         ["gh", "--version"],
         capture_output=True,
         text=True,
@@ -490,28 +304,39 @@ def main(argv: list[str] | None = None) -> int:
         errors="replace",
         timeout=10,
     )
-    if gh_check.returncode != 0:
+    if result.returncode != 0:
         print("gh CLI not found. Install: https://cli.github.com/", file=sys.stderr)
-        return 2
+        return False
+    return True
 
-    # Get current branch if head not specified
-    head = args.head
+
+def _resolve_head(explicit_head: str) -> str | None:
+    """Return the requested head or the current branch."""
+    if explicit_head:
+        return explicit_head
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    head = result.stdout.strip()
     if not head:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            env=_git_env(),
-        )
-        head = result.stdout.strip()
-        if not head:
-            print("Could not determine current branch", file=sys.stderr)
-            return 2
+        print("Could not determine current branch", file=sys.stderr)
+        return None
+    return head
 
-    # Validate conventional commit format
+
+def _run_pre_creation_validations(
+    args: argparse.Namespace,
+    repo_root: str,
+    head: str,
+    body: str,
+) -> int | None:
+    """Validate the request or write the audited validation skip."""
     if not validate_conventional_commit(args.title):
         return 2
 
@@ -519,7 +344,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Title: {args.title}")
     print()
 
-    # Handle validation skip with audit
     if args.skip_validation:
         if not args.audit_reason:
             print(
@@ -530,32 +354,40 @@ def main(argv: list[str] | None = None) -> int:
         print("WARNING: VALIDATION SKIPPED (audit logged)", file=sys.stderr)
         write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
-    else:
-        validation_base = _resolve_validation_base(args.base, args.validation_base)
-        if validation_base != args.base:
-            print(
-                f"  Note: validating diff against {validation_base!r} "
-                f"(local {args.base!r} may be stale in a worktree). "
-                f"GitHub PR base remains {args.base!r}.",
-                file=sys.stderr,
-            )
-        try:
-            run_validations(
-                repo_root,
-                validation_base,
-                head,
-                title=args.title,
-                body=args.body,
-                body_file=args.body_file,
-            )
-        except SystemExit:
-            raise
-        except Exception as exc:
-            print(f"Validation failed: {exc}", file=sys.stderr)
-            return 1
+        return None
 
-    # Build gh pr create command
-    gh_args = [
+    validation_base = _resolve_validation_base(args.base, args.validation_base)
+    if validation_base != args.base:
+        print(
+            f"  Note: validating diff against {validation_base!r} "
+            f"(local {args.base!r} may be stale in a worktree). "
+            f"GitHub PR base remains {args.base!r}.",
+            file=sys.stderr,
+        )
+    try:
+        run_validations(
+            repo_root,
+            validation_base,
+            head,
+            title=args.title,
+            body=body,
+            body_file="",
+        )
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"Validation failed: {exc}", file=sys.stderr)
+        return 1
+    return None
+
+
+def _build_gh_args(
+    args: argparse.Namespace,
+    head: str,
+    body: str,
+) -> list[str]:
+    """Build the ``gh pr create`` command."""
+    arguments = [
         "gh",
         "pr",
         "create",
@@ -566,23 +398,25 @@ def main(argv: list[str] | None = None) -> int:
         "--title",
         args.title,
     ]
-
-    if args.body:
-        gh_args.extend(["--body", args.body])
-    elif args.body_file:
-        if not os.path.exists(args.body_file):
-            print(f"Body file not found: {args.body_file}", file=sys.stderr)
-            return 2
-        gh_args.extend(["--body-file", args.body_file])
-
+    if body or args.body_file:
+        arguments.extend(["--body-file", "-"])
     if args.draft:
-        gh_args.append("--draft")
+        arguments.append("--draft")
+    return arguments
 
-    # Create PR
+
+def _create_pr(args: argparse.Namespace, head: str, body: str) -> int:
+    """Create the pull request and report the result."""
     print("Creating PR...")
     sys.stdout.flush()
     result = subprocess.run(
-        gh_args, text=True, encoding="utf-8", errors="replace", timeout=60, check=False
+        _build_gh_args(args, head, body),
+        input=body if body or args.body_file else None,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
     )
     exit_code = result.returncode
 
@@ -598,6 +432,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PR creation failed (exit code: {exit_code})", file=sys.stderr)
 
     return exit_code
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    repo_root = get_repo_root()
+
+    if args.prepare_body_file:
+        return _prepare_body_file(repo_root)
+
+    args.base = args.base or _detect_default_branch(repo_root)
+    body = _read_body(args, repo_root)
+    if body is None:
+        return 2
+
+    if not _gh_is_available():
+        return 2
+
+    head = _resolve_head(args.head)
+    if head is None:
+        return 2
+
+    validation_exit = _run_pre_creation_validations(args, repo_root, head, body)
+    if validation_exit is not None:
+        return validation_exit
+
+    return _create_pr(args, head, body)
 
 
 if __name__ == "__main__":

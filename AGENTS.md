@@ -48,7 +48,7 @@ Any `ADR-*.md` or `SESSION-PROTOCOL.md` edit fires adr-review.
 Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
-Tests: `uv run pytest tests/ -x`|`uv run ruff check .`|`tests/`|`.claude/skills/<name>/tests/`
+Tests: `uv run pytest tests/ -x`|`uv run ruff check .`|new skill tests in `tests/skills/<name>/`
 Tests (BLOCKING): pos+neg+edge|branches|mock I/O|CLI exits. See `.agents/governance/TESTING-RIGOR.md`
 
 ## Stack

@@ -9,6 +9,7 @@ import pytest
 from scripts.workflows.determine_should_run_from_filters import (
     main,
     parse_filter_keys,
+    parse_filter_outputs,
     parse_force_run_events,
     should_run,
     write_output,
@@ -84,6 +85,15 @@ class TestParseFilterKeys:
             "context",
             "validator",
         ]
+
+
+class TestParseFilterOutputs:
+    def test_null_from_a_skipped_paths_step_is_empty(self) -> None:
+        assert parse_filter_outputs("null") == {}
+
+    def test_non_object_json_is_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            parse_filter_outputs("[]")
 
 
 class TestWriteOutput:

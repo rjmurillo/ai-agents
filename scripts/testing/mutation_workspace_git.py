@@ -5,11 +5,16 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import IO
 
 GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_DIRECTORY_NAME = "mutation-active"
 SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
+_WORKTREE_LOCK_NAME = "mutation-worktrees.lock"
 _GIT_ENVIRONMENT_KEYS = {
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_CEILING_DIRECTORIES",
@@ -33,6 +38,35 @@ _GIT_ENVIRONMENT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "GIT_TRACE"
 
 class MutationWorkspaceError(RuntimeError):
     """Raised when mutation isolation or cleanup cannot be proven."""
+
+
+if sys.platform == "win32":
+    import msvcrt
+
+    _win_lock_positions: dict[int, int] = {}
+
+    def _lock_file(handle: IO[bytes]) -> None:
+        fd = handle.fileno()
+        _win_lock_positions[fd] = handle.tell()
+        handle.seek(0)
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        handle.seek(_win_lock_positions.get(fd, 0))
+
+    def _unlock_file(handle: IO[bytes]) -> None:
+        fd = handle.fileno()
+        position = handle.tell()
+        handle.seek(0)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        _win_lock_positions.pop(fd, None)
+        handle.seek(position)
+else:
+    import fcntl
+
+    def _lock_file(handle: IO[bytes]) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(handle: IO[bytes]) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -129,6 +163,33 @@ def marker_directory(repo_root: Path) -> Path:
     if not path.is_absolute():
         path = root / path
     return path.resolve()
+
+
+def _worktree_lock_path(repo_root: Path) -> Path:
+    root = git_root(repo_root)
+    stdout = require_git_stdout(
+        root,
+        "rev-parse",
+        "--git-path",
+        _WORKTREE_LOCK_NAME,
+        error="cannot locate mutation worktree lock",
+    )
+    path = Path(stdout)
+    if not path.is_absolute():
+        path = root / path
+    return path.resolve()
+
+
+@contextmanager
+def _serialized_worktree_state(repo_root: Path) -> Iterator[None]:
+    lock_path = _worktree_lock_path(repo_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as handle:
+        _lock_file(handle)
+        try:
+            yield
+        finally:
+            _unlock_file(handle)
 
 
 def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
@@ -232,14 +293,15 @@ def relative_target(repo_root: Path, target: Path | str) -> Path:
 
 def add_worktree(repo_root: Path, scratch_root: Path) -> None:
     scratch_root.parent.mkdir(parents=True, exist_ok=True)
-    result = run_git(
-        repo_root,
-        "worktree",
-        "add",
-        "--detach",
-        str(scratch_root),
-        "HEAD",
-    )
+    with _serialized_worktree_state(repo_root):
+        result = run_git(
+            repo_root,
+            "worktree",
+            "add",
+            "--detach",
+            str(scratch_root),
+            "HEAD",
+        )
     if result.returncode != 0:
         raise MutationWorkspaceError(
             f"git worktree add failed for {scratch_root}: {result.stderr.strip()}"
@@ -254,21 +316,29 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
             f"refusing to remove mutation worktree outside {allowed_root}: {scratch}"
         )
 
-    registered = registered_worktrees(repo_root)
-    if scratch in registered:
-        result = run_git(repo_root, "worktree", "remove", "--force", str(scratch))
-        if result.returncode != 0:
-            raise MutationWorkspaceError(
-                f"git worktree remove failed for {scratch}: {result.stderr.strip()}"
-            )
-    elif scratch.exists():
-        shutil.rmtree(scratch)
+    with _serialized_worktree_state(repo_root):
+        registered = _registered_worktrees_unlocked(repo_root)
+        if scratch in registered:
+            result = run_git(repo_root, "worktree", "remove", "--force", str(scratch))
+            if result.returncode != 0:
+                raise MutationWorkspaceError(
+                    f"git worktree remove failed for {scratch}: {result.stderr.strip()}"
+                )
+        elif scratch.exists():
+            shutil.rmtree(scratch)
 
-    if scratch.exists() or scratch in registered_worktrees(repo_root):
-        raise MutationWorkspaceError(f"mutation worktree cleanup is incomplete: {scratch}")
+        if scratch.exists() or scratch in _registered_worktrees_unlocked(repo_root):
+            raise MutationWorkspaceError(
+                f"mutation worktree cleanup is incomplete: {scratch}"
+            )
 
 
 def registered_worktrees(repo_root: Path) -> set[Path]:
+    with _serialized_worktree_state(repo_root):
+        return _registered_worktrees_unlocked(repo_root)
+
+
+def _registered_worktrees_unlocked(repo_root: Path) -> set[Path]:
     result = run_git(repo_root, "worktree", "list", "--porcelain", "-z")
     if result.returncode != 0:
         raise MutationWorkspaceError(

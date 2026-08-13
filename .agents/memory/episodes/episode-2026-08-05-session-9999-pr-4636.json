@@ -1,0 +1,208 @@
+{
+  "id": "episode-2026-08-05-session-9999-pr-4636",
+  "session": "2026-08-05-session-9999-pr-4636",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix mutation harness restore, portability Git isolation, and eval max_retries diagnostics",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issue 4497",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issue 4121",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issue 4524",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-proved fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T07:45:06+00:00",
+      "type": "commit",
+      "content": "Commit: b649182f4d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T07:46:46+00:00",
+      "type": "commit",
+      "content": "Commit: 756b0bafe4",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T07:46:50+00:00",
+      "type": "commit",
+      "content": "Commit: 1a86957691",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T08:03:48+00:00",
+      "type": "commit",
+      "content": "Commit: 27b83009be",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T08:07:44+00:00",
+      "type": "commit",
+      "content": "Commit: 110f7871f7",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T09:34:46+00:00",
+      "type": "commit",
+      "content": "Commit: 036fdfee44",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-10T09:33:06+00:00",
+      "type": "commit",
+      "content": "Commit: 0ea3a9d50c7d8f906b874e12a9fff2575b13d95f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T11:05:14+00:00",
+      "type": "commit",
+      "content": "Commit: b852b9d7a6288bc78a655d42de9d1078503c0913",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T11:20:15+00:00",
+      "type": "commit",
+      "content": "Commit: f2053fafa9e0bdcd5c46ad4e344069208da579bc",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T11:48:03+00:00",
+      "type": "commit",
+      "content": "Commit: a5967256c85f5f5d2da4ed02a553d49d24ae09cc",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T11:59:01+00:00",
+      "type": "commit",
+      "content": "Commit: f301b90b40191c17745330cef77f49557d21ec12",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999-pr-4636"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 11,
+    "files_changed": 16
+  },
+  "lessons": []
+}

@@ -27,7 +27,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _API_TARGET_REL = Path("scripts") / "github_core" / "api.py"
 _NEW_PR_TARGET_REL = (
-    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
+    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "new_pr_validations.py"
 )
 _BUILD_AI_TARGET_REL = Path("scripts") / "ci" / "build_ai_review_context.py"
 _TARGETS = (_API_TARGET_REL, _NEW_PR_TARGET_REL, _BUILD_AI_TARGET_REL)
@@ -37,7 +37,7 @@ _API_TESTS = [
     "tests/test_github_core.py",
     "tests/test_github_auth_classification.py",
 ]
-_NEW_PR_TESTS = ["tests/test_new_pr.py"]
+_NEW_PR_TESTS = ["tests/test_new_pr_repository.py"]
 
 
 def _run_tests(repo_root: Path, test_paths: list[str]) -> int:
@@ -132,7 +132,7 @@ def _run_mutants(repo_root: Path) -> None:
         _NEW_PR_TARGET_REL,
         _NEW_PR_TESTS,
         "#4324: inverted control (remove a comment, must survive)",
-        b"    # Get current branch if head not specified\n",
+        b"# Uses Unicode escapes so this source does not contain the prohibited\n",
         b"",
         must_die=False,
     )

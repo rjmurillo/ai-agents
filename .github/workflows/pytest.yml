@@ -17,9 +17,13 @@ name: Python Tests
 
 on:
   push:
+    branches-ignore:
+      - 'gh-readonly-queue/**'
   pull_request:
     branches:
       - main
+  merge_group:
+    branches: [main]
   workflow_dispatch: # Allow manual triggering
 
 concurrency:
@@ -49,17 +53,18 @@ jobs:
     name: Check Changed Paths
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
     permissions:
       contents: read
     outputs:
-      python-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
+      python-changed: ${{ (github.event_name == 'workflow_dispatch' || env.ACT == 'true') && 'true' || steps.determine.outputs.python-changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check for Python test input changes
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
         with:
           filters: |
             python:
@@ -104,6 +109,16 @@ jobs:
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
 
+      - name: Determine if tests should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: python
+          FORCE_RUN_EVENTS: merge_group
+          OUTPUT_NAME: python-changed
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
+
       - name: Report path check result
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -111,43 +126,84 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Manual trigger - running all tests"
+          elif [ "$EVENT_NAME" = "merge_group" ]; then
+            echo "Merge group - running all tests"
           else
             echo "Python test inputs changed: $PYTHON_CHANGED"
           fi
 
   test:
-    name: Run Python Tests
+    name: "pytest (${{ matrix.partition }})"
     needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 10
     permissions:
       contents: read
       checks: write
+    env:
+      NODE_OPTIONS: --use-system-ca
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - partition: bulk
+            coverage_file: artifacts/.coverage.bulk
+            junit_file: artifacts/pytest-results.xml
+            pytest_args: >-
+              -n auto --dist loadfile
+              --ignore-glob='tests/*/*'
+              --ignore=tests/test_ai_review.py
+              --ignore=tests/test_verdict.py
+              --ignore=tests/test_quality_gate.py
+              --ignore=tests/test_safe_push_pr_branch.py
+              --ignore=tests/test_mutation_workspace_signals.py
+              --ignore=tests/test_pr_autofix_late_live_state_gate.py
+              tests/
+          - partition: bulk-nested
+            coverage_file: artifacts/.coverage.bulk-nested
+            junit_file: artifacts/pytest-results-bulk-nested.xml
+            pytest_args: >-
+              -n auto --dist loadfile
+              --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
+              --ignore=tests/skills/session-end/test_rework_warning.py
+              tests/build_scripts tests/ci tests/claude tests/claude_mem
+              tests/commands tests/context-optimizer tests/e2e tests/eval
+              tests/evals tests/eval_scenarios tests/external_signals
+              tests/fixtures tests/forgetful tests/hooks tests/integration
+              tests/lib tests/llm_classification tests/maintenance tests/metrics
+              tests/quality_gate tests/skillbook tests/skills
+              tests/test_memory_sync tests/validation tests/validation_pre_pr
+              tests/workflows
+          - partition: mutation
+            coverage_file: artifacts/.coverage.mutation
+            junit_file: artifacts/pytest-results-mutation.xml
+            pytest_args: >-
+              -n auto --dist loadfile
+              tests/mutation
+          - partition: safe-push
+            coverage_file: artifacts/.coverage.safe-push
+            junit_file: artifacts/pytest-results-safe-push.xml
+            pytest_args: >-
+              tests/test_safe_push_pr_branch.py
+              tests/test_mutation_workspace_signals.py
+          - partition: pr-autofix
+            coverage_file: artifacts/.coverage.pr-autofix
+            junit_file: artifacts/pytest-results-pr-autofix.xml
+            pytest_args: >-
+              tests/test_pr_autofix_late_live_state_gate.py
 
     steps:
-      - name: Check if tests needed
-        id: should-run
-        env:
-          PYTHON_CHANGED: ${{ needs.check-paths.outputs.python-changed }}
-        run: |
-          if [ "$PYTHON_CHANGED" != "true" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No Python test inputs changed - skipping tests"
-          fi
-
       - name: Harden Runner
-        if: steps.should-run.outputs.skip != 'true'
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.should-run.outputs.skip != 'true'
         with:
           fetch-depth: 0
 
       - name: Setup code environment
-        if: steps.should-run.outputs.skip != 'true'
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
@@ -166,17 +222,17 @@ jobs:
       # from the ruff style backlog: a parse failure is a zero-false-positive
       # defect. Keep it BEFORE the ruff step and do NOT add continue-on-error.
       - name: Validate Python syntax (blocking)
-        if: steps.should-run.outputs.skip != 'true'
+        if: matrix.partition == 'bulk'
         run: python scripts/validation/validate_python_syntax.py
 
       - name: Validate AI review workflow budgets
-        if: steps.should-run.outputs.skip != 'true'
+        if: matrix.partition == 'bulk'
         run: python scripts/ci/validate_ai_review_budgets.py
 
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)
-        if: steps.should-run.outputs.skip != 'true'
+        if: matrix.partition == 'bulk'
         env:
           RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
@@ -212,7 +268,7 @@ jobs:
       # against. On a push to the default branch this compares it to itself,
       # which is a harmless no-op.
       - name: Run ruff count ratchet (whole tree, pull request)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -231,7 +287,7 @@ jobs:
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run ruff count ratchet (whole tree, non-PR)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
@@ -240,7 +296,7 @@ jobs:
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run subprocess encoding count ratchet (whole tree, pull request)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -248,7 +304,7 @@ jobs:
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run subprocess encoding count ratchet (whole tree, non-PR)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
@@ -256,7 +312,7 @@ jobs:
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (pull request, issue 4061)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -265,7 +321,7 @@ jobs:
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
-        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
@@ -273,67 +329,42 @@ jobs:
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
-      # --ignore's the two pins' five owned files (see the "Pin ..." steps
-      # below) so they run once, not twice. Each of the three pytest
-      # invocations here (main + two pins) gets its own COVERAGE_FILE;
-      # scripts/ci/combine_pin_coverage.py merges them below. This run stays
-      # statement-only (no --cov-branch) by design; see that script's module
-      # docstring for the coverage-combine design and the measured
-      # line-vs-branch cost.
-      #
-      # Issue #4823: `-n auto` is xdist's own one-worker-per-logical-CPU, so
-      # this step scales with the runner instead of a hard-coded count. The
-      # flags belong to this step alone: pytest-cov's DistMaster.finish()
-      # merges worker data into this step's COVERAGE_FILE, so the pins and the
-      # combine step below need no change, and both pins plus the Windows job
-      # stay serial (pinned by the two xdist parallelism test modules).
+      # Each matrix leg writes one statement-only coverage file. Bulk ignores
+      # the two pin suites, mutation, and the two process-sensitive files
+      # because those tests run in their own partition or pin step.
+      # `-n auto` uses every logical CPU exposed by the runner.
       - name: Run pytest
         id: run-pytest
-        if: steps.should-run.outputs.skip != 'true'
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
-          COVERAGE_FILE: artifacts/.coverage.main
+          COVERAGE_FILE: ${{ matrix.coverage_file }}
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py -n auto --dist loadfile
+          uv run --frozen python scripts/ci/run_pytest_non_tmp.py
           --cov --cov-report=
-          --junitxml=artifacts/pytest-results.xml
-          --ignore=tests/test_ai_review.py
-          --ignore=tests/test_verdict.py
-          --ignore=tests/test_quality_gate.py
-          --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
-          --ignore=tests/skills/session-end/test_rework_warning.py
+          --junitxml=${{ matrix.junit_file }}
+          ${{ matrix.pytest_args }}
 
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py
-      # (test_ai_review.py alone reports 63%). Collects BROAD coverage (bare
-      # --cov, same source list as "Run pytest"); see
-      # scripts/ci/combine_pin_coverage.py's module docstring for why. The
-      # 100% gate itself is enforced by the next step, against this step's
-      # own data file.
+      # (test_ai_review.py alone reports 63%). Collection stays broad; the
+      # next step isolates the gate with coverage report --include.
       - name: Pin ai_review_common.verdict coverage collection (REQ-008-07)
         id: pin-verdict-collect
-        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        if: matrix.partition == 'bulk' && steps.run-pytest.outcome != 'skipped' && !cancelled()
         env:
           COVERAGE_FILE: artifacts/.coverage.pin-verdict
         run: pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov --cov-branch --cov-report=
 
-      # Isolated 100% branch gate for scripts/ai_review_common/verdict.py via
-      # `coverage report --include`; see scripts/ci/combine_pin_coverage.py's
-      # module docstring for why the broad collection above cannot dilute or
-      # rescue this gate.
+      # Isolated 100% branch gate for scripts/ai_review_common/verdict.py.
       - name: Enforce ai_review_common.verdict coverage at 100% (REQ-008-07)
-        if: steps.should-run.outputs.skip != 'true' && steps.pin-verdict-collect.outcome != 'skipped' && !cancelled()
+        if: steps.pin-verdict-collect.outcome != 'skipped' && !cancelled()
         run: coverage report --data-file=artifacts/.coverage.pin-verdict --include=scripts/ai_review_common/verdict.py --fail-under=100
 
-      # Issue #2063: module-name --cov form fails for these two file-path
-      # targets ("Module never imported", PR #2078); the file-path form
-      # works fine in the separate `coverage report --include` gate step
-      # below instead. Collects BROAD coverage for the same reason as the
-      # verdict pin above; see scripts/ci/combine_pin_coverage.py's module
-      # docstring.
+      # Issue #2063: module-name --cov fails for these file-path targets.
+      # Collect broadly here, then isolate the file paths in the next step.
       - name: "Pin REQ-009 module coverage collection (PR #1989 user requirement)"
         id: pin-req009-collect
-        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        if: matrix.partition == 'bulk' && steps.run-pytest.outcome != 'skipped' && !cancelled()
         env:
           COVERAGE_FILE: artifacts/.coverage.pin-req009
         run: |
@@ -342,44 +373,119 @@ jobs:
             tests/skills/session-end/test_rework_warning.py \
             --cov --cov-branch --cov-report=
 
-      # Isolated 100% branch gate for the two REQ-009 modules (file-path
-      # form); same --include isolation as the verdict gate above.
+      # Isolated 100% branch gate for the two REQ-009 modules.
       - name: "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
-        if: steps.should-run.outputs.skip != 'true' && steps.pin-req009-collect.outcome != 'skipped' && !cancelled()
+        if: steps.pin-req009-collect.outcome != 'skipped' && !cancelled()
         run: >-
           coverage report --data-file=artifacts/.coverage.pin-req009
           --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py,.claude/skills/session-end/scripts/rework_warning.py
           --fail-under=100
 
-      # Merges the three isolated coverage data files (statement-only main +
-      # two BROAD branch-mode pin collections) into one
-      # artifacts/coverage.xml; `coverage combine` cannot do this directly.
-      # See scripts/ci/combine_pin_coverage.py's module docstring for the
-      # full design. Runs whenever "Run pytest" executed, pass or fail, but
-      # not when skipped or cancelled; does not gate anything itself.
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: pytest-results-${{ matrix.partition }}
+          path: artifacts/
+          include-hidden-files: true
+          overwrite: true
+          retention-days: 7
+
+  coverage:
+    name: Combine Python coverage
+    needs:
+      - check-paths
+      - test
+    if: needs.check-paths.outputs.python-changed == 'true' && !cancelled() && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Download partition artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: pytest-results-*
+          merge-multiple: true
+          path: artifacts
+
+      # Coverage.py cannot directly combine line rows with branch arc rows.
+      # The helper projects branch inputs to executed lines before union.
       - name: Combine coverage data
-        if: steps.should-run.outputs.skip != 'true' && steps.run-pytest.outcome != 'skipped' && !cancelled()
         run: |
           uv run --frozen python scripts/ci/combine_pin_coverage.py \
-            --main-data artifacts/.coverage.main \
+            --main-data artifacts/.coverage.bulk \
+            --main-data artifacts/.coverage.bulk-nested \
+            --main-data artifacts/.coverage.mutation \
+            --main-data artifacts/.coverage.safe-push \
+            --main-data artifacts/.coverage.pr-autofix \
             --pin-data artifacts/.coverage.pin-verdict \
             --pin-data artifacts/.coverage.pin-req009 \
             --output-data artifacts/.coverage.combined
           uv run --frozen coverage xml --data-file=artifacts/.coverage.combined -o artifacts/coverage.xml
 
-      - name: Upload test results
+      - name: Upload combined coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always() && steps.should-run.outputs.skip != 'true'
         with:
           name: pytest-results
           path: artifacts/
+          include-hidden-files: true
+          overwrite: true
           retention-days: 7
+
+  test-result:
+    name: Run Python Tests
+    needs:
+      - check-paths
+      - test
+      - coverage
+    if: >-
+      always() &&
+      (needs.check-paths.result != 'success' ||
+      needs.check-paths.outputs.python-changed == 'true')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci/require_job_results.py
+
+      - name: Require test and coverage success
+        env:
+          PATH_RESULT: ${{ needs.check-paths.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+        run: >-
+          python scripts/ci/require_job_results.py
+          --check PATH_RESULT success "path detection failed or was cancelled: {value}"
+          --check TEST_RESULT success "test job failed or was cancelled: {value}"
+          --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: read
       contents: read
@@ -387,7 +493,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -458,14 +564,15 @@ jobs:
   skip-tests:
     name: Run Python Tests
     needs: check-paths
-    if: needs.check-paths.outputs.python-changed != 'true'
+    if: needs.check-paths.result == 'success' && needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
     permissions:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -476,25 +583,22 @@ jobs:
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
 
-  # ─── Windows path-contract tests ────────────────────────────────────────────
   # Tests marked @pytest.mark.windows_path exercise behavior that differs between
   # Windows and POSIX: path separators, PowerShell script resolution, Git's
   # Windows trace behavior, atomic-write durability, and install-tree layout.
-  # The marker is the discovery mechanism: add pytestmark = pytest.mark.windows_path
-  # (or include it in a list) at module level and the file runs here automatically.
-  # Do NOT hardcode test file paths in this job; that was issue #4299.
+  # The marker is the discovery mechanism. Do not hardcode test file paths.
   test-windows-pwsh:
     name: Run Windows path-contract tests (pytest.mark.windows_path)
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -521,11 +625,13 @@ jobs:
     needs:
       - check-paths
       - test
+      - test-result
       - security
       - skip-tests
       - test-windows-pwsh
     if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
     permissions:
       contents: read
       issues: write

@@ -1,0 +1,164 @@
+{
+  "id": "episode-2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end",
+  "session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Execute pr-autofix skill end to end for PRs 4609, 4606, 4583, 4564, 4543 (todo pr-autofix-batch-d)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Session ran orchestration/delegation only (no direct code changes in the canonical checkout); switched from main to a feature branch before committing this session log, per SESSION-PROTOCOL notOnMain gate.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged 5 PRs (4609,4606,4583,4564,4543) with test_pr_merge_ready.py and get_pr_context.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "error",
+      "content": "Triaged 5 PRs (4609,4606,4583,4564,4543) with test_pr_merge_ready.py and get_pr_context.py.      4609/4606 DIRTY+StaleDirtySuspected (CI green, 0 unresolved threads); 4583 BLOCKED w/ 2 failed required checks; 4564 DIRTY+1 failed required check; 4543 DIRTY+2 failed required checks+1 unresolved thread. Lease free on 4609/4606/4583/4564; 4543 held by local:pr-autofix.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched wave 1 (4 general-purpose agents) for 4609,4606,4583,4564 per pr-autofix protocol.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Routed 4606 and 4583 to merge-resolver agents; retried 4609/4564/4543 as lease freed and re-contended repeatedly over ~3 hours.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched a finishing pass for 4606 to fix real CI failures (Validate PR + 5 stale session-log validations) surfaced after the re-resolved push.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "4564 and 4543 remained held by the external local:pr-autofix session lease continuously from first triage (~14:19Z) through session end (~21:09Z), with the expiry timestamp advancing on every recheck (proof of active renewal, not an abandoned/stale lease).",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified all delegated 'done' claims against actual GitHub/repo state before trusting them (gh pr view, git log, git worktree list) per Synthesis Protocol.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran `UPDATE todos SET status = 'blocked' WHERE id = 'pr-autofix-batch-d'` against .agents/todos.db per task instructions.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T21:34:36+00:00",
+      "type": "commit",
+      "content": "Commit: 848abf9257",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T21:34:49+00:00",
+      "type": "commit",
+      "content": "Commit: 5e9680c62f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T23:58:50+00:00",
+      "type": "commit",
+      "content": "Commit: 850adac79bff1920020176b6dddfd1a42e601b27",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14684-b0d6e4079-execute-pr-autofix-skill-end-end"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 4
+  },
+  "lessons": []
+}

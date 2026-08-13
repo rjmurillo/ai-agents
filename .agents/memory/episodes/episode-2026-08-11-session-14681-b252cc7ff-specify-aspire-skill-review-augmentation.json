@@ -1,0 +1,219 @@
+{
+  "id": "episode-2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation",
+  "session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Specify Aspire skill review and augmentation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran Step 0 and Step 0.5 gates",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed requirements interview",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified and designed the specification",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Generated durable specification artifacts",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran gap and critic review",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated artifacts",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T03:36:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2628d8c1282277ad39bc605eb6a31131eff2d77e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-11T08:50:12+00:00",
+      "type": "commit",
+      "content": "Commit: bdbbec71a7e47ba0f1bf7c146cdfcdf2ff35e1eb",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T08:50:53+00:00",
+      "type": "commit",
+      "content": "Commit: 0f831d50eb53d8ee6f39db2ad6ddbe5aed5572b1",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-11T08:51:30+00:00",
+      "type": "commit",
+      "content": "Commit: 82b96e8443285d7fca32d884a8288997d57cde6e",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T08:52:07+00:00",
+      "type": "commit",
+      "content": "Commit: 43031a623ffbf0bc9d932e24d06f274a7f3cc70a",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-11T08:57:33+00:00",
+      "type": "commit",
+      "content": "Commit: 0673e84b98c326052457b0840741ccd2da9c1242",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T08:58:03+00:00",
+      "type": "commit",
+      "content": "Commit: f8f93d147b",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-11T14:03:54+00:00",
+      "type": "commit",
+      "content": "Commit: 80f0e5e8c8",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-11T14:43:20+00:00",
+      "type": "commit",
+      "content": "Commit: 3c77d5b54e",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-11T15:03:31+00:00",
+      "type": "commit",
+      "content": "Commit: 3e97effb17",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14681-b252cc7ff-specify-aspire-skill-review-augmentation"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 10,
+    "files_changed": 44
+  },
+  "lessons": []
+}

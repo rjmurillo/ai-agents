@@ -112,7 +112,6 @@ Task(subagent_type="orchestrator", prompt="Fix #357")
 ## Related Skills
 
 - agent-workflow-pipeline: Full pipeline for large changes (10+ files)
-- orchestration-handoff-coordination: Handoff aggregation pattern
 - orchestration-parallel-execution: Parallel task dispatch
 - skill-analysis-002-rca-before-implementation: Analysis precedes work
 
@@ -134,7 +133,6 @@ Task(subagent_type="orchestrator", prompt="Fix complex system issue")
 ## Related
 
 - [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
-- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)
 - [orchestration-parallel-execution](orchestration-parallel-execution.md)
 - [orchestration-pr-chain](orchestration-pr-chain.md)
 - [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

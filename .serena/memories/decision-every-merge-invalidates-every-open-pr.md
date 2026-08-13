@@ -22,6 +22,12 @@ grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
 
+**That `false` is a 2026-08-03 reading and is no longer true. Strict is `true`
+today, deliberately, and must stay on. See "Do not correct
+`strict_required_status_checks_policy` back to `false`" below, and issue #4646.
+The `merge_group` half still holds: no workflow answers that event, and a merge
+queue cannot be enabled on this repository anyway.**
+
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main
 clears violations. So **every merge invalidates every other open PR**, and a
@@ -133,6 +139,31 @@ each stale signal as a defect to diagnose:
 Owner decision recorded 2026-08-03: enable a merge queue, sequenced after the
 drain rather than before it, since a queue serializes merges and would have made
 the drain slower.
+
+## Implementation update, 2026-08-11
+
+Issue #4691's workflow inventory changed during implementation. Ruleset
+11104075 requires 16 contexts from 10 workflows. Both `Analyze` contexts come
+from `codeql-analysis.yml`; `ai-metrics-analysis.yml` is not a required-check
+producer.
+
+The code-readiness change adds `merge_group` support to those 10 workflows.
+Tree-sensitive checks run against the queued merge ref. PR-shaped checks
+conclude at job level because the PR already passed the same required context
+before queue entry. Structural tests pin all 16 live contexts, main-only event
+targeting, queue-ref concurrency, path-filter forcing, and PR anti-vacuity.
+Local `gh act merge_group` execution ran `Validate Path Normalization` against
+3,967 tracked Markdown files.
+
+Code readiness does not enable the queue. The repository API reports
+`owner.type = User`, while GitHub limits merge queues to organization-owned
+repositories for this configuration. The owner must transfer the repository to
+an organization or GitHub must expand eligibility before the ruleset gains a
+`merge_queue` rule.
+
+`strict_required_status_checks_policy` is deliberately `true`. It prevents a
+branch behind main from merging on checks that never saw current main. The
+merge-tree ratchet complements strict checks, it does not replace them.
 
 ## Corollary: the merged result can be red even when every input was green
 

@@ -1,0 +1,178 @@
+{
+  "id": "episode-2026-08-10-session-10033-pr-4644-autofix",
+  "session": "2026-08-10-session-10033-pr-4644-autofix",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 4644 Validate PR QA evidence",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed Validate PR",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated PR changes",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added QA evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T09:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: b923f542d7123f616ed537a49ad9e0408a428aa9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e005",
+        "e006",
+        "e008",
+        "e010",
+        "e012"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed branch against main",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Resolved only the session-evidence filename collision and Ruff baseline conflict, then validated the merged code at 181db77b164d7bf6e8cebafb970f583b6e17a138 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T13:05:04+00:00",
+      "type": "commit",
+      "content": "Commit: 181db77b164d7bf6e8cebafb970f583b6e17a138",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Merged current main without source conflict, then validated the merged code at 83c89b849c17a42077616daa0aebe78e3525da83 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T10:21:21+00:00",
+      "type": "commit",
+      "content": "Commit: 83c89b849c17a42077616daa0aebe78e3525da83",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Merged current main without source conflict, then validated the merged code at ed3e3442b844b95d8a2f661a0c87bfdee6b652c7 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-11T10:50:56+00:00",
+      "type": "commit",
+      "content": "Commit: ed3e3442b844b95d8a2f661a0c87bfdee6b652c7",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed branch against main      Merged current main without source conflict, then validated the merged code at 09d0412b8690522840b57a0058d01f8496c71620 with 97 passing focused tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-11T12:08:00+00:00",
+      "type": "commit",
+      "content": "Commit: 09d0412b8690522840b57a0058d01f8496c71620",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-10033-pr-4644-autofix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 10
+  },
+  "lessons": []
+}

@@ -27,6 +27,8 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches: [main]
   schedule:
     # Weekly scan on Monday at 9 AM UTC
     - cron: '0 9 * * 1'
@@ -47,12 +49,10 @@ jobs:
     permissions:
       contents: read
     outputs:
-      # For workflow_dispatch or schedule, always run analysis; otherwise use paths-filter result
-      # Parentheses added for explicit operator precedence (&&  has higher precedence than ||)
-      should-run-analysis: ${{ (github.event_name == 'workflow_dispatch' && 'true') || (github.event_name == 'schedule' && 'true') || steps.filter.outputs.scannable }}
+      should-run-analysis: ${{ steps.determine.outputs.should-run-analysis }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -61,8 +61,7 @@ jobs:
       - name: Check for scannable file changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
-        # Skip paths-filter for workflow_dispatch/schedule as they may not have proper context
-        if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule' && github.event_name != 'merge_group'
         with:
           # SINGLE SOURCE OF TRUTH: All scannable paths defined here only
           # Categories:
@@ -87,12 +86,24 @@ jobs:
               - '.codeql/**'
               - '**/*.py'
 
+      - name: Determine if analysis should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: scannable
+          FORCE_RUN_EVENTS: schedule,merge_group
+          OUTPUT_NAME: should-run-analysis
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
+
       - name: Report path check result
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "Manual trigger - running full analysis"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             echo "Scheduled trigger - running full analysis"
+          elif [ "${{ github.event_name }}" = "merge_group" ]; then
+            echo "Merge group - running full analysis"
           else
             echo "Scannable files changed: ${{ steps.filter.outputs.scannable }}"
           fi
@@ -122,7 +133,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -172,7 +183,7 @@ jobs:
       checks: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -220,7 +231,7 @@ jobs:
       security-events: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 

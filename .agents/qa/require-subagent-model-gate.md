@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate.json
-qaCommit: bb6d0666bd67a453518ea9e2b0111d0d2c3a13da
+qaCommit: c77b7e9cbaa20ac794436c1224b45219cd53e829
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -13,6 +13,9 @@ definition file, plus the ADR metric refresh it forced.
 
 ## Evidence
 
+- PR review fix suite: 489 passed, 3 skipped across the model gate,
+  markdown target filtering, hook generation, dispatcher, shipped artifact,
+  and CLI hook end-to-end tests.
 - Unit and contract suites: 1852 passed across tests/hooks,
   tests/test_hook_dispatch.py, and tests/build_scripts/test_hook_contract_knowledge.py
   (final run after the round-6 dissent fixes; full-suite run earlier in the

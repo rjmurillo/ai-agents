@@ -75,6 +75,24 @@ def test_bare_interpreter_with_third_party_import_is_flagged(tmp_path: Path) -> 
     assert scan(repo) == {"README.md": ["tool.py"]}
 
 
+def test_duplicate_invocation_of_baselined_script_is_a_regression(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "tool.py": "import yaml\n",
+            "README.md": ("Run once: `python3 tool.py`.\nRun twice: `python3 tool.py`.\n"),
+        },
+    )
+    baseline = write_baseline(repo, {"README.md": ["tool.py"]})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 1
+    assert "new invocation(s): tool.py" in capsys.readouterr().err
+
+
 def test_cli_exits_1_when_a_clean_file_starts_offending(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -989,9 +1007,7 @@ def test_update_baseline_refuses_repository_subdirectory(
     assert "repository root must be" in capsys.readouterr().err
 
 
-def test_validation_refuses_empty_scan(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_validation_refuses_empty_scan(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = make_repo(tmp_path, {"tests/fixture.md": "No command.\n"})
     baseline = write_baseline(repo, {})
 

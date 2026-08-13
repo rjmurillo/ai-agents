@@ -1,0 +1,101 @@
+# Vendor Provenance Gate (Trusted Base-Branch Validator)
+#
+# Security architecture:
+# - Uses pull_request_target: workflow YAML executes from BASE branch (main)
+# - Validator script is from base branch checkout only
+# - Candidate data fetched via git (no actions/checkout for PR head)
+# - NO candidate code is ever executed
+# - persist-credentials: false on the single checkout
+#
+# Rollout: GitHub reports a job's `name:` as the check-run context, not the
+# workflow `name:`. Requiring the workflow name would wait forever because it
+# is never emitted. Configure branch protection with exactly this context:
+#
+# Required status check context: Validate Vendor Provenance
+#
+# The line above is pinned to the job `name:` below by
+# tests/ci/test_validate_vendor_provenance.py::TestWorkflowContract, so the
+# instruction cannot drift from the emitted context.
+#
+# Once configured, this gate prevents any PR from merging tampered vendor
+# content regardless of what that PR modifies in its own workflow or
+# validator copies.
+
+name: Vendor Provenance
+
+permissions:
+  contents: read
+
+on:
+  pull_request_target:
+    branches: [main, fix/vendor-provenance-bootstrap]
+    paths:
+      - '.claude/hooks/PreToolUse/_vendor/**'
+      - '.claude/hooks/PreToolUse/_markdownlint_verifier.py'
+      - '.claude/hooks/PreToolUse/markdownlint-safe-config.yaml'
+      - '.claude/hooks/PreToolUse/markdownlint-cli2.yaml'
+      - 'src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py'
+      - 'src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml'
+      - 'src/copilot-cli/hooks/PreToolUse/markdownlint-cli2.yaml'
+      - 'build/scripts/generate_hooks_events.py'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/hooks/PreToolUse/_vendor/**'
+      - 'scripts/ci/validate_vendor_provenance.py'
+
+jobs:
+  provenance:
+    name: Validate Vendor Provenance
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+
+    steps:
+      # Checkout base branch (trusted code only)
+      - name: Checkout trusted code (base branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.base_ref || github.ref_name }}
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+
+      # Fetch candidate commit and extract data via git (no checkout action)
+      - name: Fetch candidate data via git
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Fine-grained PAT for cross-fork PR head fetches (rate limits, private forks).
+          # Falls back to implicit GITHUB_TOKEN when unset.
+          GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
+        run: |
+          CANDIDATE_ROOT="$RUNNER_TEMP/candidate"
+          git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}"             fetch --depth=1 origin "$PR_SHA"
+          uv run --frozen python - "$PR_SHA" "$CANDIDATE_ROOT" <<'PY'
+          from pathlib import Path
+          import sys
+
+          from scripts.ci.merge_tree_materialization import materialize_tree
+
+          if not materialize_tree(Path.cwd(), sys.argv[1], Path(sys.argv[2])):
+              raise SystemExit(1)
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '24'
+
+      # Run trusted validator (from base branch) against candidate data
+      - name: Validate vendor provenance (trusted gate)
+        run: |
+          CANDIDATE_ROOT="$RUNNER_TEMP/candidate"
+          uv run --frozen python scripts/ci/validate_vendor_provenance.py \
+            --candidate-root "$CANDIDATE_ROOT" \
+            --vendor-rel .claude/hooks/PreToolUse/_vendor/markdownlint \
+            --verifier-rel .claude/hooks/PreToolUse/_markdownlint_verifier.py \
+            --mirror-rel src/copilot-cli/hooks/PreToolUse/_markdownlint_verifier.py \
+            --config-rel .claude/hooks/PreToolUse/markdownlint-safe-config.yaml \
+            --cli2-config-rel .claude/hooks/PreToolUse/markdownlint-cli2.yaml \
+            --copilot-config-rel src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml \
+            --copilot-cli2-config-rel src/copilot-cli/hooks/PreToolUse/markdownlint-cli2.yaml
