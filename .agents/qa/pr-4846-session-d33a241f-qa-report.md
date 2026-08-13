@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 4d2b7a80b421c503da3828e61bf53daf2a346780
+qaCommit: ffeb3955ced4708ec67069128dab223e8f1ea4d9
 ---
 
 # QA Report: PR #4846 vendor provenance autofix
@@ -14,7 +14,7 @@ Validated the final branch against current `main`. The gate now requires a trust
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` | 294 passed |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` | 298 passed |
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
 | `actionlint .github/workflows/vendor-provenance.yml` | Passed |
@@ -30,7 +30,7 @@ The workflow uses immutable event SHAs and base-owned validation code. A malicio
 
 Promised: address current review blockers, update the branch, and restore merge readiness.
 
-Delivered: trusted dual-identity authorization, literal candidate pin parsing, bounded YAML loading, current `main`, 294 passing tests, and real validator evidence.
+Delivered: trusted dual-identity authorization, literal candidate pin parsing, bounded YAML loading, current `main`, 298 passing tests, and real validator evidence.
 
 Gap: None found in tested scope.
 
