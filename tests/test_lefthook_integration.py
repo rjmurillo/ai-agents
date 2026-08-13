@@ -811,6 +811,9 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
     assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
+    assert pre_push_jobs["python-tests"]["env"] == {
+        "AI_AGENTS_PYTEST_WORKER_CAP": "4"
+    }
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True

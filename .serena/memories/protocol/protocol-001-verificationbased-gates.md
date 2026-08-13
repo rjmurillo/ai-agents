@@ -117,7 +117,7 @@ After verification gates:
 ## Related
 
 - [protocol-002-verification-based-gate-effectiveness](protocol-002-verification-based-gate-effectiveness.md)
-- [protocol-004-rfc-2119-must-evidence](protocol-004-rfc-2119-must-evidence.md)
+- [protocol-rfc-evidence](protocol-rfc-evidence.md)
 - [protocol-005-template-enforcement](protocol-005-template-enforcement.md)
 - [protocol-006-legacy-session-grandfathering](protocol-006-legacy-session-grandfathering.md)
 - [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
