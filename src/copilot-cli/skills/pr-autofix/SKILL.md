@@ -25,6 +25,9 @@ into a skill or references/ requires changing how the command is invoked and loa
 which is a structural change that must be measured against the eval harness before
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
+Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
+Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`
+Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
 -->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
