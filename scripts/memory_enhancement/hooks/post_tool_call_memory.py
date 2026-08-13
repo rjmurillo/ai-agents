@@ -24,8 +24,16 @@ def main() -> int:
 
     suggestion = _analyze_tool_result(tool_name, error_text)
     if suggestion:
-        print(suggestion, file=sys.stderr)
-        return 2
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PostToolUseFailure",
+                        "additionalContext": suggestion,
+                    }
+                }
+            )
+        )
 
     return 0
 

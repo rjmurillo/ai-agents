@@ -223,7 +223,7 @@ class TestInvokerExitCodes:
         assert result.stdout.strip() != ""
 
     @pytest.mark.unit
-    def test_capture_returns_two_for_an_error_payload(self, tmp_path):
+    def test_capture_adds_context_for_an_error_payload(self, tmp_path):
         result = _run(
             "PostToolUseFailure",
             "PostToolUse/invoke_memory_capture.py",
@@ -235,8 +235,9 @@ class TestInvokerExitCodes:
             tmp_path,
         )
 
-        assert result.returncode == 2, result.stderr
-        assert "<memory-suggestion>" in result.stderr
+        assert result.returncode == 0, result.stderr
+        output = json.loads(result.stdout)
+        assert "<memory-suggestion>" in output["hookSpecificOutput"]["additionalContext"]
 
     @pytest.mark.unit
     def test_capture_uses_failure_event_instead_of_text_sniffing(self, tmp_path):
@@ -251,8 +252,10 @@ class TestInvokerExitCodes:
             tmp_path,
         )
 
-        assert result.returncode == 2, result.stderr
-        assert "<memory-suggestion>" in result.stderr
+        assert result.returncode == 0, result.stderr
+        output = json.loads(result.stdout)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "Exit code 1 command output" in context
 
     @pytest.mark.unit
     def test_capture_ignores_a_successful_tool_event(self, tmp_path):
@@ -288,8 +291,9 @@ class TestInvokerExitCodes:
             project_dir,
         )
 
-        assert result.returncode == 2, result.stderr
-        assert "<memory-suggestion>" in result.stderr
+        assert result.returncode == 0, result.stderr
+        output = json.loads(result.stdout)
+        assert "<memory-suggestion>" in output["hookSpecificOutput"]["additionalContext"]
 
     @pytest.mark.unit
     def test_unanchored_command_fails_from_foreign_cwd(self, tmp_path):

@@ -8,9 +8,8 @@ becomes a silent no-op.
 
 Hook Type: PostToolUseFailure (non-blocking, fail-open)
 Exit Codes:
-    0 = nothing worth capturing.
-    2 = stderr carries a ``<memory-suggestion>`` block. The tool already
-        ran, so this shows the suggestion to the model without blocking.
+    0 = stdout is empty or carries documented PostToolUseFailure
+        ``additionalContext``.
 
 References:
     - Issue #4011 (memory hooks were never registered)

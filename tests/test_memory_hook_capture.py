@@ -227,7 +227,7 @@ class TestPostToolUseFailurePayload:
         assert "ModuleNotFoundError" in result
 
     @pytest.mark.unit
-    def test_real_payload_reaches_exit_code_two(self, monkeypatch):
+    def test_real_payload_adds_context_and_returns_zero(self, monkeypatch, capsys):
         self._stdin(
             monkeypatch,
             {
@@ -236,10 +236,13 @@ class TestPostToolUseFailurePayload:
             },
         )
 
-        assert main() == 2
+        assert main() == 0
+        output = json.loads(capsys.readouterr().out)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "<memory-suggestion>" in context
 
     @pytest.mark.unit
-    def test_failure_without_indicator_reaches_exit_code_two(self, monkeypatch):
+    def test_failure_without_indicator_adds_context(self, monkeypatch, capsys):
         self._stdin(
             monkeypatch,
             {
@@ -248,7 +251,11 @@ class TestPostToolUseFailurePayload:
             },
         )
 
-        assert main() == 2
+        assert main() == 0
+        output = json.loads(capsys.readouterr().out)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "Exit code 1 command output" in context
+        assert "\ncommand output" not in context
 
     @pytest.mark.unit
     def test_missing_error_returns_zero(self, monkeypatch):
