@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion.json
-qaCommit: 5692f717c76813bee89cbc5cab055ca601de9616
+qaSessionLog: .agents/sessions/2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage.json
+qaCommit: 5d6c4fc4dd2cd0693862b09824181f6385937650
 ---
 
 # PR 4944 vendored cache exclusion coverage
