@@ -2,38 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-EVAL_DIR = REPO_ROOT / "scripts" / "eval"
-SCRIPT = EVAL_DIR / "eval_runtime_parity.py"
-FIXTURES = (
-    REPO_ROOT
-    / "scripts"
-    / "eval"
-    / "examples"
-    / "runtime-parity-fixtures.json"
-)
-
-spec = importlib.util.spec_from_file_location("eval_runtime_parity", SCRIPT)
-assert spec and spec.loader
-parity = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = parity
-path_added = str(EVAL_DIR) not in sys.path
-if path_added:
-    sys.path.insert(0, str(EVAL_DIR))
-try:
-    spec.loader.exec_module(parity)
-finally:
-    if path_added:
-        sys.path.remove(str(EVAL_DIR))
+from tests.eval._runtime_parity_test_support import FIXTURES, parity
 
 
 def _completed(
@@ -393,37 +368,6 @@ def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
     )
     assert all(record["claude_agent_sha256"] for record in report["fixtures"])
     assert all(record["copilot_agent_sha256"] for record in report["fixtures"])
-
-
-def test_report_hashes_the_exact_installed_agent_bytes(tmp_path: Path) -> None:
-    report, code = parity.run_evaluation(
-        fixtures_path=_minimal_corpus(tmp_path),
-        model=parity.DEFAULT_MODEL,
-        output=tmp_path / "run" / "report.json",
-        claude_bin="claude",
-        copilot_bin="copilot",
-        timeout=30,
-        dry_run=False,
-        runner=FakeRunner(),
-    )
-
-    fixture = parity.load_fixtures(_minimal_corpus(tmp_path))[0]
-    record = report["fixtures"][0]
-    workspaces = tmp_path / "run" / "workspaces" / fixture.fixture_id
-
-    assert code == parity.EXIT_OK
-    claude_agent = (
-        workspaces / "claude" / ".claude" / "agents" / "parity.md"
-    )
-    copilot_agent = (
-        workspaces / "copilot" / ".github" / "agents" / "parity.agent.md"
-    )
-    assert record["claude_agent_sha256"] == hashlib.sha256(
-        claude_agent.read_bytes()
-    ).hexdigest()
-    assert record["copilot_agent_sha256"] == hashlib.sha256(
-        copilot_agent.read_bytes()
-    ).hexdigest()
 
 
 def test_existing_output_is_a_config_error(tmp_path: Path) -> None:
