@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: b78da6a33a613c57ca6d814edf7ad2de03a6cd96
+qaCommit: 3106ced1f614decbb29e2b1c9a763ede49951b85
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -22,8 +22,9 @@ machine.
 ## Deterministic evidence
 
 - `uv run ruff check` on both modules and the test file: pass.
-- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 42 passed.
+- `uv run pytest tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_review_fixes.py -q`: 44 passed.
 - `uv run pytest tests/eval -q`: 1975 passed, 4 skipped.
+- Pre-push Python suite: 27805 passed, 37 skipped, 2 warnings.
 - Malformed JSONL text and non-object JSON now exit 3 and record an external
   runtime failure.
 - Claude receives only Anthropic credentials. Copilot receives only GitHub
@@ -37,7 +38,9 @@ machine.
 - Coverage: 89 percent across `_runtime_parity.py` and
   `eval_runtime_parity.py`.
 - `eval_runtime_parity.py --dry-run`: four fixtures and both controls loaded.
-- Taste lints: zero errors across three Python files.
+- Runtime failures use one report shape. Agent digests use agent names, and
+  agent installation preserves source line endings.
+- Taste lints reported one file-size error and three warnings as advisory.
 
 ## Real CLI evidence
 
