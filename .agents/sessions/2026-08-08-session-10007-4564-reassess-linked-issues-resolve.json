@@ -140,6 +140,6 @@
       "result": "79 targeted tests passed. Ruff, generated mirror check, and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "964e774b667ef79bace5c19211b640735743a904",
+  "endingCommit": "3112bc8e477d312014c4fa833f92a657bc18c091",
   "nextSteps": []
 }

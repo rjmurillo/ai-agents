@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10007-4564-reassess-linked-issues-resolve.json
-qaCommit: 964e774b667ef79bace5c19211b640735743a904
+qaCommit: 3112bc8e477d312014c4fa833f92a657bc18c091
 ---
 
 # PR 4564 Session 10007 QA Report
@@ -14,7 +14,7 @@ check and blocker implementations.
 
 ## Results
 
-- Targeted tests: PASS, 243 tests.
+- Targeted tests: PASS, 247 tests.
 
   ```text
   uv run pytest tests/test_github_pr_diagnostics.py \
