@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, ADR, and catalog evidence committed through eea9d2900fa92b1f14267ed640ffd9930a87191c"
+        "Evidence": "Implementation, ADR, catalog, and plugin namespace evidence committed through fffec5b416b3801e5a35a89bdaebab6e00b35698"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "397 passed, 3 skipped; build_all --check passed; plugin version gate passed; pre-PR passed 51 of 51"
+        "Evidence": "397 passed, 3 skipped; plugin namespace suite passed 286 with 1 skipped; build and plugin version gates passed; pre-PR passed 51 of 51"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -135,7 +135,7 @@
       "result": "Preserved plugin namespaces, corrected fail-open runtime evidence, and reused the existing six-round ADR-068/071/085 debate log"
     }
   ],
-  "endingCommit": "eea9d2900fa92b1f14267ed640ffd9930a87191c",
+  "endingCommit": "fffec5b416b3801e5a35a89bdaebab6e00b35698",
   "nextSteps": [
     "Guarded push after lease renewal and remote-head binding",
     "Wait for required CI and complete every review thread lifecycle",

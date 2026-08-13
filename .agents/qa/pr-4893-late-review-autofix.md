@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review.json
-qaCommit: eea9d2900fa92b1f14267ed640ffd9930a87191c
+qaCommit: fffec5b416b3801e5a35a89bdaebab6e00b35698
 ---
 
 # QA: PR 4893 late review autofix
@@ -19,6 +19,7 @@ facts.
 - `uv run python build/scripts/build_all.py --check`: passed.
 - `uv run python build/scripts/validate_plugin_version_bump.py`: passed.
 - Hook contract knowledge regression: 1 passed.
+- Plugin namespace and generator regression suite: 286 passed, 1 skipped.
 - Session logs 14681 and 14682: passed validation after QA evidence refresh.
 - `uv run python scripts/validation/pre_pr.py`: 51 passed, 0 failed.
 - Scoped markdown validation selected zero files because `.agents/**` is
