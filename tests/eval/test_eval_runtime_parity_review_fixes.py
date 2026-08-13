@@ -215,6 +215,7 @@ def test_a_runtime_timeout_writes_the_standard_failure_record(
     assert record["exit_code"] is None
     assert record["resolved_model"] is None
     assert record["raw_output"] == ""
+    assert record["stderr"] == ""
     assert record["response"] == ""
     assert record["question_mechanism"] is None
     assert record["tool_events"] == []
@@ -316,6 +317,98 @@ def test_consequential_choice_exposes_each_question_capability() -> None:
     assert "--no-ask-user" not in copilot
 
 
+def test_structured_question_without_prose_is_scored(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(FIXTURES.read_text(encoding="utf-8"))
+    payload["fixtures"] = [
+        fixture
+        for fixture in payload["fixtures"]
+        if fixture["id"] == "consequential-choice"
+    ]
+    fixtures = tmp_path / "fixtures.json"
+    fixtures.write_text(json.dumps(payload), encoding="utf-8")
+    question = {
+        "question": "Choose deployment",
+        "options": [
+            {"label": "A) Canary deployment"},
+            {"label": "B) Immediate deployment"},
+        ],
+        "recommendation": "Recommendation: A",
+    }
+
+    def structured_question_runner(argv, **kwargs):
+        args = [str(value) for value in argv]
+        executable = Path(args[0]).name.lower()
+        if "--version" in args:
+            return subprocess.CompletedProcess(
+                args, 0, f"{executable} test-version\n", ""
+            )
+        if executable.startswith("claude"):
+            events = [
+                {
+                    "type": "system",
+                    "subtype": "init",
+                    "model": parity.DEFAULT_MODEL,
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "name": "AskUserQuestion",
+                                "input": {"questions": [question]},
+                            }
+                        ]
+                    },
+                },
+                {"type": "result", "result": ""},
+            ]
+        else:
+            events = [
+                {
+                    "type": "assistant.message",
+                    "data": {"content": "", "model": parity.DEFAULT_MODEL},
+                },
+                {
+                    "type": "tool.execution_start",
+                    "data": {
+                        "toolName": "ask_user",
+                        "arguments": question,
+                        "model": parity.DEFAULT_MODEL,
+                    },
+                },
+            ]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            "\n".join(json.dumps(event) for event in events) + "\n",
+            "",
+        )
+
+    report, code = parity.run_evaluation(
+        fixtures_path=fixtures,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=structured_question_runner,
+    )
+
+    record = report["fixtures"][0]
+    assert code == parity.EXIT_OK
+    assert report["verdict"] == "PASS"
+    assert record["claude"]["response"] == ""
+    assert record["copilot"]["response"] == ""
+    assert record["claude"]["question_mechanism"] == "structured_event"
+    assert record["copilot"]["question_mechanism"] == "structured_event"
+    assert all(item["passed"] for item in record["claude"]["assertions"])
+    assert all(item["passed"] for item in record["copilot"]["assertions"])
+
+
 class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:
     """Both CLIs resolve --agent against the frontmatter name, not the filename."""
 
@@ -413,3 +506,61 @@ class TestQuestionMechanismClassifier:
 
     def test_no_tools_and_no_response_reports_no_answer(self):
         assert parity.question_mechanism([], "   ") == "no_answer"
+
+    @pytest.mark.parametrize(
+        "tools",
+        [
+            [
+                {
+                    "type": "tool_use",
+                    "name": "AskUserQuestion",
+                    "input": {
+                        "questions": [
+                            {
+                                "question": "Choose deployment",
+                                "options": [
+                                    {"label": "A) Canary deployment"},
+                                    {"label": "B) Immediate deployment"},
+                                ],
+                                "recommendation": "Recommendation: A",
+                            }
+                        ]
+                    },
+                }
+            ],
+            [
+                {
+                    "type": "tool.execution_start",
+                    "data": {
+                        "toolName": "ask_user",
+                        "arguments": json.dumps(
+                            {
+                                "question": "Choose deployment",
+                                "choices": [
+                                    "A) Canary deployment",
+                                    "B) Immediate deployment",
+                                ],
+                                "recommendation": "Recommendation: A",
+                            }
+                        ),
+                    },
+                }
+            ],
+        ],
+    )
+    def test_structured_question_payload_is_scoreable(self, tools):
+        fixture = self._consequential_choice()
+
+        results = parity.score_assertions(
+            fixture, parity.question_payload(tools), {}
+        )
+
+        assert all(result["passed"] for result in results)
+
+    @staticmethod
+    def _consequential_choice():
+        return next(
+            fixture
+            for fixture in parity.load_fixtures(FIXTURES)
+            if fixture.fixture_id == "consequential-choice"
+        )

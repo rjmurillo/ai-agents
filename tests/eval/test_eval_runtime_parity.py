@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -362,6 +363,9 @@ def test_auth_failure_returns_auth_exit_and_stops(tmp_path: Path) -> None:
     assert report["verdict"] == "ERROR"
     assert len(report["fixtures"]) == 1
     assert "copilot" not in report["fixtures"][0]
+    failure = report["fixtures"][0]["claude"]
+    assert failure["stderr"] == "Not logged in"
+    assert failure["error"] == "Not logged in"
 
 
 def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
@@ -389,6 +393,37 @@ def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
     )
     assert all(record["claude_agent_sha256"] for record in report["fixtures"])
     assert all(record["copilot_agent_sha256"] for record in report["fixtures"])
+
+
+def test_report_hashes_the_exact_installed_agent_bytes(tmp_path: Path) -> None:
+    report, code = parity.run_evaluation(
+        fixtures_path=_minimal_corpus(tmp_path),
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=FakeRunner(),
+    )
+
+    fixture = parity.load_fixtures(_minimal_corpus(tmp_path))[0]
+    record = report["fixtures"][0]
+    workspaces = tmp_path / "run" / "workspaces" / fixture.fixture_id
+
+    assert code == parity.EXIT_OK
+    claude_agent = (
+        workspaces / "claude" / ".claude" / "agents" / "parity.md"
+    )
+    copilot_agent = (
+        workspaces / "copilot" / ".github" / "agents" / "parity.agent.md"
+    )
+    assert record["claude_agent_sha256"] == hashlib.sha256(
+        claude_agent.read_bytes()
+    ).hexdigest()
+    assert record["copilot_agent_sha256"] == hashlib.sha256(
+        copilot_agent.read_bytes()
+    ).hexdigest()
 
 
 def test_existing_output_is_a_config_error(tmp_path: Path) -> None:

@@ -267,8 +267,8 @@ def live_files(fixture: Fixture, workspace: Path) -> dict[str, str]:
 AGENT_NAME = "parity"
 
 
-def _install_agent(source: Path, target: Path) -> None:
-    """Copy an agent file and rename it to the name both CLIs are invoked with.
+def _installed_agent_bytes(source: Path) -> bytes:
+    """Return the exact agent bytes installed for a parity run.
 
     Claude Code and Copilot CLI resolve `--agent <name>` against the frontmatter
     `name:` field, not the filename. Copying `orchestrator.md` to `parity.md`
@@ -292,9 +292,18 @@ def _install_agent(source: Path, target: Path) -> None:
             break
     if not renamed:
         raise ParityConfigError(f"{source} frontmatter has no name field")
+    return "".join(lines).encode("utf-8")
+
+
+def hash_installed_agent(source: Path) -> str:
+    """Return the digest of the transformed bytes loaded by the CLI."""
+    return hashlib.sha256(_installed_agent_bytes(source)).hexdigest()
+
+
+def _install_agent(source: Path, target: Path) -> None:
+    """Install an agent under the name used by both CLI invocations."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("w", encoding="utf-8", newline="") as target_file:
-        target_file.write("".join(lines))
+    target.write_bytes(_installed_agent_bytes(source))
 
 
 def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:

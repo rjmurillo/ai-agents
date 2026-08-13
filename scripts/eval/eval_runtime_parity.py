@@ -28,7 +28,7 @@ from _runtime_parity import (
     SENTINEL,
     Fixture,
     ParityConfigError,
-    hash_file,
+    hash_installed_agent,
     live_files,
     load_fixtures,
     prepare_workspace,
@@ -193,6 +193,58 @@ def question_mechanism(tools: Sequence[object], response: str) -> str:
     return "text_fallback" if response.strip() else "no_answer"
 
 
+def _payload_strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return [value]
+        return _payload_strings(decoded)
+    if isinstance(value, Mapping):
+        strings: list[str] = []
+        for item in value.values():
+            strings.extend(_payload_strings(item))
+        return strings
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        strings = []
+        for item in value:
+            strings.extend(_payload_strings(item))
+        return strings
+    return []
+
+
+def question_payload(tools: Sequence[object]) -> str:
+    """Return scoreable text from structured question tool inputs."""
+    strings: list[str] = []
+    for tool in tools:
+        if _tool_name(tool).lower() not in QUESTION_TOOLS:
+            continue
+        if not isinstance(tool, Mapping):
+            continue
+        if "input" in tool:
+            strings.extend(_payload_strings(tool["input"]))
+        data = tool.get("data")
+        if isinstance(data, Mapping):
+            for key in ("arguments", "input", "parameters"):
+                if key in data:
+                    strings.extend(_payload_strings(data[key]))
+    return "\n".join(strings)
+
+
+def _structured_tool_model(
+    events: Sequence[Mapping[str, object]],
+) -> str | None:
+    models: set[str] = set()
+    for event in events:
+        data = event.get("data")
+        if not isinstance(data, Mapping):
+            continue
+        model = data.get("model")
+        if isinstance(model, str):
+            models.add(model)
+    return models.pop() if len(models) == 1 else None
+
+
 def _traces(events: Sequence[Mapping[str, object]]) -> tuple[list[object], list[object]]:
     tools: list[object] = []
     subagents: list[object] = []
@@ -297,6 +349,7 @@ def _run_fixture(
                 exit_code=run.returncode,
                 error=str(exc),
                 raw_output=run.stdout,
+                stderr=run.stderr,
             ),
             EXIT_EXTERNAL,
         )
@@ -305,11 +358,17 @@ def _run_fixture(
         if harness == "claude"
         else _copilot_result(events)
     )
-    files = live_files(fixture, workspace)
-    assertions = score_assertions(fixture, response, files)
     tools, subagents = _traces(events)
+    mechanism = question_mechanism(tools, response)
+    if harness == "copilot" and mechanism == "structured_event" and not resolved_model:
+        resolved_model = _structured_tool_model(events)
+    files = live_files(fixture, workspace)
+    assertion_text = (
+        question_payload(tools) if mechanism == "structured_event" else response
+    )
+    assertions = score_assertions(fixture, assertion_text, files)
     code = EXIT_OK if run.returncode == 0 else _failure_code(run)
-    if run.returncode == 0 and (not response or not resolved_model):
+    if run.returncode == 0 and (mechanism == "no_answer" or not resolved_model):
         code = EXIT_EXTERNAL
     assertions.append(
         {
@@ -326,12 +385,17 @@ def _run_fixture(
             "exit_code": run.returncode,
             "resolved_model": resolved_model,
             "raw_output": run.stdout,
+            "stderr": run.stderr,
             "response": response,
-            "question_mechanism": question_mechanism(tools, response),
+            "question_mechanism": mechanism,
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
-            "error": None,
+            "error": (
+                None
+                if run.returncode == 0
+                else run.stderr.strip() or f"runtime exited with code {run.returncode}"
+            ),
             "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
         },
         code,
@@ -373,8 +437,12 @@ def run_evaluation(
         report["fixtures"] = [
             {
                 "id": fixture.fixture_id,
-                "claude_agent_sha256": hash_file(fixture.claude_agent),
-                "copilot_agent_sha256": hash_file(fixture.copilot_agent),
+                "claude_agent_sha256": hash_installed_agent(
+                    fixture.claude_agent
+                ),
+                "copilot_agent_sha256": hash_installed_agent(
+                    fixture.copilot_agent
+                ),
                 "fixture_sha256": hashlib.sha256(
                     fixture.prompt.encode("utf-8")
                 ).hexdigest(),
@@ -394,8 +462,12 @@ def run_evaluation(
     for fixture in fixtures:
         fixture_record: dict[str, object] = {
             "id": fixture.fixture_id,
-            "claude_agent_sha256": hash_file(fixture.claude_agent),
-            "copilot_agent_sha256": hash_file(fixture.copilot_agent),
+            "claude_agent_sha256": hash_installed_agent(
+                fixture.claude_agent
+            ),
+            "copilot_agent_sha256": hash_installed_agent(
+                fixture.copilot_agent
+            ),
             "fixture_sha256": hashlib.sha256(
                 fixture.prompt.encode("utf-8")
             ).hexdigest(),

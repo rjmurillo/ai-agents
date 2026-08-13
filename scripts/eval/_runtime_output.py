@@ -16,6 +16,7 @@ def runtime_failure_record(
     exit_code: int | None,
     error: str,
     raw_output: str = "",
+    stderr: str = "",
 ) -> dict[str, object]:
     """Build the stable report shape for a failed runtime invocation."""
     return {
@@ -26,6 +27,7 @@ def runtime_failure_record(
         "exit_code": exit_code,
         "resolved_model": None,
         "raw_output": raw_output,
+        "stderr": stderr,
         "response": "",
         "question_mechanism": None,
         "tool_events": [],
