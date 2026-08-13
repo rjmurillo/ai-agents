@@ -24,11 +24,6 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover - reported by the validation phase
-    yaml = None
-
 # ── Trust-anchor pins (SHA-256, lowercase hex) ──
 # Each entry: (relative path in candidate, expected sha256, label).
 # Pins cover every file that executes BEFORE or DURING verification,
@@ -1415,7 +1410,9 @@ def _find_forbidden_config_keys(value: object, location: str = "$") -> list[str]
 
 def _validate_markdownlint_config_policy(candidate: Path) -> list[str]:
     """Safely parse markdownlint YAML and reject code-loading directives."""
-    if yaml is None:
+    try:
+        import yaml
+    except ImportError:
         return ["PyYAML is unavailable; cannot validate markdownlint config policy"]
     errors: list[str] = []
     for rel in _MARKDOWNLINT_POLICY_PATHS:

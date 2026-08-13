@@ -600,6 +600,23 @@ class TestWorkflowContractRegression:
 class TestRelevance:
     """Exercises check_relevance production function directly."""
 
+    def test_relevance_mode_does_not_import_pyyaml(self, tmp_path: Path) -> None:
+        fake_module = tmp_path / "yaml.py"
+        fake_module.write_text("raise RuntimeError('PyYAML imported during relevance')\n")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--check-relevance", "docs/readme.md"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "false"
+
     def test_workflow_sets_up_uv(self) -> None:
         """vendor-provenance.yml must install uv before validation."""
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
