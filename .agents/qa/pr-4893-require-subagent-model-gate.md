@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review.json
-qaCommit: 2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d
+qaCommit: 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f
 ---
 
 # QA: require-subagent-model gate (issue #4874)
@@ -42,6 +42,9 @@ definition file, plus the ADR metric refresh it forced.
 - Copilot payload contract grounded in a real session log (CLI 1.0.79
   toolRequests carrying agent_type and model), not inferred.
 - Deny-path wall clock 0.37 seconds against a 10-second budget.
+- Post-refresh pre-push tests: 27,886 passed, 37 skipped.
+- Merge-tree ratchet, mypy, build generation, and hook gates passed.
+- Post-refresh pre-PR validation passed every check.
 - adr-review converged round 6: 2 Accept, 4 Disagree-and-Commit, 0 Block;
   all dissent conditions applied in-tree.
 
