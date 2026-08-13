@@ -94,12 +94,12 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4944-issue-4923-vendored-cache-coverage.md"
+        "Evidence": ".agents/qa/pr-4944-session-14696-vendored-cache-coverage.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 5d6c4fc4dd)"
+        "Evidence": "Recovery baseline committed at HEAD: 18bb32f633"
       },
       "validationPassed": {
         "level": "MUST",
@@ -108,13 +108,13 @@
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Recovery tasks and push, re-check, and merge next steps are recorded in this session log."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-13-pr-4944-push-gate-recovery.md"
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -143,11 +143,35 @@
       "timestamp": "2026-08-13T10:04:49Z",
       "action": "Recorded validator-required QA rebinding for test commit 5d6c4fc4.",
       "outcome": "The QA report targets this session and the full test commit; no duplicate cache-boundary memory was created."
+    },
+    {
+      "timestamp": "2026-08-13T10:17:00Z",
+      "action": "Diagnosed the failed hook-enabled push.",
+      "outcome": "The shared QA report invalidated session 14695, retrospective evidence was absent, and the stale branch lacked a generated dispatcher file."
+    },
+    {
+      "timestamp": "2026-08-13T10:22:00Z",
+      "action": "Merged current origin/main into the branch.",
+      "outcome": "The clean merge produced HEAD 18bb32f633 and restored the generated dispatcher file."
+    },
+    {
+      "timestamp": "2026-08-13T10:25:00Z",
+      "action": "Reran focused post-merge QA.",
+      "outcome": "12 integration tests and 8 E2E tests passed with 1 expected skip; Ruff and git diff --check passed."
+    },
+    {
+      "timestamp": "2026-08-13T10:28:00Z",
+      "action": "Repaired session-scoped QA evidence.",
+      "outcome": "Session 14695 regained its original report binding, and session 14696 received a unique report bound to HEAD 18bb32f633."
+    },
+    {
+      "timestamp": "2026-08-13T10:30:00Z",
+      "action": "Recorded the push-gate recovery retrospective.",
+      "outcome": "The retrospective documents the failure, recovery, and prevention rules without bypassing hooks."
     }
   ],
-  "endingCommit": "5d6c4fc4dd",
+  "endingCommit": "18bb32f633",
   "nextSteps": [
-    "Finalize and commit this session log.",
     "Push test/4923-cache-exclusion-coverage.",
     "Re-check PR #4944 reviews and required checks.",
     "Merge PR #4944 after required checks pass."

@@ -52,7 +52,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
     },
     {
@@ -67,15 +69,91 @@
         "e004"
       ],
       "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T10:17:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the failed hook-enabled push.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:22:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main into the branch.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T10:25:00+00:00",
+      "type": "milestone",
+      "content": "Reran focused post-merge QA.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:28:00+00:00",
+      "type": "milestone",
+      "content": "Repaired session-scoped QA evidence.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T10:30:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the push-gate recovery retrospective.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T10:22:58+00:00",
+      "type": "commit",
+      "content": "Commit: 18bb32f633",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
     }
   ],
   "metrics": {
-    "duration_minutes": 5,
+    "duration_minutes": 31,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 1
+    "commits": 2,
+    "files_changed": 4
   },
   "lessons": []
 }
