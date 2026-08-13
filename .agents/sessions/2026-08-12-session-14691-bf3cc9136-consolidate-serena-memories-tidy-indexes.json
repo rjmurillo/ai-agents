@@ -150,6 +150,14 @@
       "detail": "A complete manifest was validated before mutation. Ten memories were deleted, 48 paths matched the declared set, all diff hunks matched the authorized transform, and memory index, size, token, reference, and retrieval checks passed."
     }
   ],
+  "episodeMetrics": {
+    "filesChanged": 54,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "d832110007e28b90608db6e4229aca5937574778",
+      "head": "90be321b3bfad576e3c1d440402d4333a87326c9"
+    }
+  },
   "endingCommit": "90be321b3bfad576e3c1d440402d4333a87326c9",
   "nextSteps": []
 }
