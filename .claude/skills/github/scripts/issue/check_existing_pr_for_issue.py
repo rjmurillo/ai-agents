@@ -7,12 +7,12 @@ already claims that issue via a closing keyword. Two workers acting on the same
 issue otherwise open duplicate PRs (the #2477 failure mode).
 
 Detection is deterministic: list open PRs and match each body/title against the
-GitHub closing-keyword forms for the issue number (Fixes/Closes/Resolves and the
-non-closing Refs), rather than a fragile free-text search.
+GitHub closing-keyword forms for the issue number (Fixes/Closes/Resolves),
+rather than a fragile free-text search.
 
 Exit codes follow ADR-035:
-    0 - No open PR references the issue (safe to proceed)
-    1 - One or more open PRs already reference the issue (do not open a duplicate)
+    0 - No open PR claims implementation ownership (safe to proceed)
+    1 - One or more open PRs claim implementation ownership (do not open a duplicate)
     2 - Config error (plugin lib path missing)
     3 - External error (gh/API failure)
     4 - Auth error (not authenticated)
@@ -54,16 +54,17 @@ from github_core.output import (
     write_skill_output,
 )
 
-# GitHub closing keywords plus the non-closing "Refs"/"Ref". Matched against an
-# issue number, case-insensitively, requiring the "#" form so a bare number in
-# prose does not produce a false positive.
-_KEYWORDS = "close[sd]?|fix(e[sd])?|resolve[sd]?|ref[s]?"
+# GitHub closing keywords identify PRs that claim implementation ownership. Issue
+# #2477 originally included "Refs", but issue #4894 proved that diagnostic
+# references can name unrelated blockers without implementing them.
+_KEYWORDS = "close[sd]?|fix(e[sd])?|resolve[sd]?"
 _GH_TIMEOUT_SECONDS = 30
 _GIT_TIMEOUT_SECONDS = 10
+_PullRequestPayload = dict[str, object]
 
 
 def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
-    """Return True if ``text`` links to ``issue`` via a closing/refs keyword."""
+    """Return True when ``text`` claims ``issue`` via a closing keyword."""
 
     if not text:
         return False
@@ -119,10 +120,10 @@ def _as_text(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _iter_pull_requests(payload: object) -> list[dict]:
+def _iter_pull_requests(payload: object) -> list[_PullRequestPayload]:
     if not isinstance(payload, list):
         return []
-    prs: list[dict] = []
+    prs: list[_PullRequestPayload] = []
     for item in payload:
         if isinstance(item, dict):
             prs.append(item)
@@ -131,14 +132,14 @@ def _iter_pull_requests(payload: object) -> list[dict]:
     return prs
 
 
-def _head_ref(pr: dict) -> str:
+def _head_ref(pr: _PullRequestPayload) -> str:
     head = pr.get("head")
     if isinstance(head, dict):
         return _as_text(head.get("ref"))
     return _as_text(pr.get("headRefName"))
 
 
-def _author_login(pr: dict) -> str:
+def _author_login(pr: _PullRequestPayload) -> str:
     user = pr.get("user")
     if isinstance(user, dict):
         return _as_text(user.get("login"))
@@ -152,8 +153,8 @@ def find_open_prs_for_issue(
     *,
     current_branch_name: str = "",
     current_user_login: str = "",
-) -> list[dict]:
-    """Return open PRs whose title or body references ``issue``."""
+) -> list[_PullRequestPayload]:
+    """Return open PRs whose title or body claims implementation of ``issue``."""
 
     result = _run(
         ["gh", "api", f"repos/{owner}/{repo}/pulls?state=open&per_page=100",
@@ -236,7 +237,10 @@ def main(argv: list[str] | None = None) -> int:
 
     write_skill_output(
         data, output_format=fmt,
-        human_summary=f"No open PR references issue #{args.issue}; safe to proceed.",
+        human_summary=(
+            f"No open PR claims implementation ownership of issue #{args.issue}; "
+            "safe to proceed."
+        ),
         status="PASS", script_name="check_existing_pr_for_issue.py",
     )
     return 0
