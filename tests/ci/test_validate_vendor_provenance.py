@@ -197,16 +197,11 @@ class TestLockfilePolicy:
         assert "integrity" in r.stdout.lower()
 
 
-# ── Config authentication (hash-pinned, no YAML parser) ──
+# ── Config authentication and content policy ──
 
 
-class TestConfigHashAuthentication:
-    """Config files are authenticated by SHA-256 hash pin, not content parsing.
-
-    The regex YAML parser has been removed. Security boundary is the pin.
-    Any config file present in the candidate must match its hash pin.
-    Absence is permitted for vendor-only paths when base also lacks the file.
-    """
+class TestConfigAuthentication:
+    """Config files require both pinned provenance and safe YAML content."""
 
     def test_config_present_wrong_hash_rejected(self, tmp_path: Path) -> None:
         """Any config content that doesn't match the pin hash is rejected."""
@@ -228,8 +223,7 @@ class TestConfigHashAuthentication:
         # Should not mention the config at all
         assert "markdownlint-safe-config" not in r.stdout or "PASS" in r.stdout
 
-    def test_exec_key_content_rejected_by_hash(self, tmp_path: Path) -> None:
-        """customRules content rejected not by regex but by hash mismatch."""
+    def test_exec_key_content_rejected(self, tmp_path: Path) -> None:
         root = _make_valid_candidate(tmp_path)
         cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
         cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -237,9 +231,9 @@ class TestConfigHashAuthentication:
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
         assert "SHA-256 mismatch" in r.stdout
+        assert "forbidden execution key" in r.stdout
 
-    def test_unicode_escape_bypass_blocked_by_hash(self, tmp_path: Path) -> None:
-        r"""'custom\u0052ules' bypass blocked because hash won't match."""
+    def test_unicode_escape_bypass_blocked(self, tmp_path: Path) -> None:
         root = _make_valid_candidate(tmp_path)
         cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
         cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -247,9 +241,9 @@ class TestConfigHashAuthentication:
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
         assert "SHA-256 mismatch" in r.stdout
+        assert "forbidden execution key" in r.stdout
 
-    def test_yaml_alias_bypass_blocked_by_hash(self, tmp_path: Path) -> None:
-        """YAML tag/alias bypass blocked because hash won't match."""
+    def test_yaml_alias_bypass_blocked(self, tmp_path: Path) -> None:
         root = _make_valid_candidate(tmp_path)
         cfg = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
         cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -257,6 +251,7 @@ class TestConfigHashAuthentication:
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 1
         assert "SHA-256 mismatch" in r.stdout
+        assert "aliases, anchors, and tags are forbidden" in r.stdout
 
 
 # ── Symlink containment ──
@@ -1958,6 +1953,9 @@ class TestMarkdownlintConfigPolicy:
         [
             "customRules:\n  - ./evil.cjs\n",
             "config:\n  nested:\n    markdownItPlugins:\n      - ./evil.mjs\n",
+            "config:\n  nested:\n    extends: ./evil.yaml\n",
+            "config:\n  nested:\n    plugins:\n      - ./evil.cjs\n",
+            "config:\n  nested:\n    require: ./evil.cjs\n",
             '"custom\\u0052ules":\n  - ./evil.cjs\n',
         ],
     )
@@ -1984,6 +1982,19 @@ class TestMarkdownlintConfigPolicy:
         errors = _validate_markdownlint_config_policy(tmp_path)
 
         assert any("aliases, anchors, and tags are forbidden" in error for error in errors)
+
+    def test_oversized_config_is_rejected_before_loading(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _MAX_MARKDOWNLINT_CONFIG_BYTES,
+            _validate_markdownlint_config_policy,
+        )
+
+        config = tmp_path / ".markdownlint-cli2.yaml"
+        config.write_bytes(b"x" * (_MAX_MARKDOWNLINT_CONFIG_BYTES + 1))
+
+        errors = _validate_markdownlint_config_policy(tmp_path)
+
+        assert any("config exceeds" in error for error in errors)
 
     def test_safe_config_passes(self, tmp_path: Path) -> None:
         from scripts.ci.validate_vendor_provenance import (
