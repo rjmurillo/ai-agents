@@ -175,6 +175,6 @@
       "result": "Overflow errors now report UTF-16 code units. The 25 focused tests and Ruff passed."
     }
   ],
-  "endingCommit": "987228d9f352a6fcbd777b698c505c781f8916ca",
+  "endingCommit": "b1096020a1e62ee4944697749e25005450a8cfb5",
   "nextSteps": []
 }
