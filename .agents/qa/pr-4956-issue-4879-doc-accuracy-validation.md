@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only.json
-qaCommit: 7da6e607d1ade69b4ddd98500392e7e84b2e80d3
+qaCommit: 94a3b96cc06ee0aa225bb187a5ef33a044529440
 ---
 
 # Issue 4879 doc-accuracy validation

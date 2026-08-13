@@ -147,6 +147,19 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T15:26:19+00:00",
+      "type": "commit",
+      "content": "Commit: 94a3b96cc06ee0aa225bb187a5ef33a044529440",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
     }
@@ -156,8 +169,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 68
+    "commits": 3,
+    "files_changed": 72
   },
   "lessons": []
 }
