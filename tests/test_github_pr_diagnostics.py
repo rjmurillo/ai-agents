@@ -503,14 +503,25 @@ class TestEditPrBodyStaleWriteGuard:
         assert rc == 0
         mock_update.assert_not_called()
 
-    def test_update_body_sends_body_literal(self):
+    def test_fetch_current_body_preserves_trailing_newlines(self):
+        body = "Body with trailing newlines\n\n"
+        with patch(
+            f"{_edit_mod.__name__}.subprocess.run",
+            return_value=_completed(stdout=json.dumps({"body": body})),
+        ):
+            result = _edit_mod.fetch_current_body("owner", "repo", 42)
+
+        assert result == body
+
+    def test_update_body_sends_body_via_stdin(self):
+        body = "@/path/that/must/not/be/read"
         with patch(
             f"{_edit_mod.__name__}.subprocess.run",
             return_value=_completed(stdout="42\n"),
         ) as mock_run:
-            _edit_mod.update_body("owner", "repo", 42, "@/path/that/must/not/be/read")
+            _edit_mod.update_body("owner", "repo", 42, body)
 
         command = mock_run.call_args.args[0]
-        assert "--raw-field" in command
-        assert "--field" not in command
-        assert "body=@/path/that/must/not/be/read" in command
+        assert command[command.index("--input") + 1] == "-"
+        assert "--raw-field" not in command
+        assert json.loads(mock_run.call_args.kwargs["input"]) == {"body": body}

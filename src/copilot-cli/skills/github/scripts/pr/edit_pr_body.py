@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Edit a pull request body with a stale-write guard.
 
-Reads the current body, checks the SHA-256 hash against an expected value
-(when provided), and only writes if the body has actually changed. This
-detects edits made before the final read and avoids no-op API calls. GitHub
-rejects conditional headers on this PATCH endpoint, so it cannot prevent an
-edit made between that read and the update request.
+Reads the current body, checks its SHA-256 hash against an expected value
+(when provided), and only writes if the body changed. This detects edits made
+between the caller's hash capture and this script's read. GitHub rejects
+conditional headers on this PATCH endpoint, so it cannot prevent an edit made
+between that read and the update request.
 
 Safety behavior:
-  - Rejects a body that changed between hash capture and the final read.
+  - Rejects a body whose hash no longer matches the caller's expected hash.
   - No-ops when the new body is identical to the current body.
   - Warns when the new body introduces em/en dashes.
   - Warns when one line contains multiple closing targets. GitHub closes only
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -111,7 +112,6 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
         [
             "gh", "api",
             f"repos/{owner}/{repo}/pulls/{pr}",
-            "--jq", ".body // \"\"",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -123,7 +123,11 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
         if "404" in result.stderr or "Not Found" in result.stderr:
             return None
         raise RuntimeError(result.stderr.strip())
-    return result.stdout.rstrip("\n")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to decode PR response: {exc}") from exc
+    return payload.get("body") or ""
 
 
 def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
@@ -133,9 +137,10 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
             "gh", "api",
             f"repos/{owner}/{repo}/pulls/{pr}",
             "--method", "PATCH",
-            "--raw-field", f"body={new_body}",
+            "--input", "-",
             "--jq", ".number",
         ],
+        input=json.dumps({"body": new_body}),
         capture_output=True,
         encoding="utf-8",
         errors="replace",

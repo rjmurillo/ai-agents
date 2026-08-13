@@ -109,7 +109,7 @@ _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
 def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
     """Query repository settings for allowed merge methods.
 
-    Returns a dict mapping strategy names to booleans.
+    Returns repository allow_* fields mapped to booleans.
     """
     result = subprocess.run(
         [
@@ -123,13 +123,11 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         check=False,
     )
     if result.returncode != 0:
-        print(f"Error querying repository settings: {result.stderr}", file=sys.stderr)
         raise RuntimeError(f"Failed to query repository settings: {result.stderr.strip()}")
 
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from GitHub API: {e}", file=sys.stderr)
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
     if not isinstance(data, dict):
         raise ValueError("GitHub repository settings response must be an object")

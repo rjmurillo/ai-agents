@@ -462,7 +462,7 @@ class TestGetAllowedMergeMethods:
             result = get_allowed_merge_methods("o/r")
         assert result["allow_rebase_merge"] is False
 
-    def test_raises_on_api_failure(self):
+    def test_raises_on_api_failure_without_stderr_noise(self, capsys):
         with patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="error"),
@@ -470,6 +470,7 @@ class TestGetAllowedMergeMethods:
             with pytest.raises(RuntimeError) as exc:
                 get_allowed_merge_methods("o/r")
             assert "Failed to query repository settings" in str(exc.value)
+        assert capsys.readouterr().err == ""
 
     def test_raises_on_invalid_json(self):
         with patch(
