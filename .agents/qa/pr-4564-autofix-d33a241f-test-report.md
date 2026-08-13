@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-4564.json
-qaCommit: 3112bc8e477d312014c4fa833f92a657bc18c091
+qaCommit: 39b49306bd46ae8080b1536eddeee43f74612fff
 ---
 
 # PR 4564 Autofix QA Report
