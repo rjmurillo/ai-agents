@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of d19a366659fdd9fbdad81a5244b8f605a652824a."
+        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of 5f6872e64e42984a30696d53356c8ad66fd08284."
       },
       "validationPassed": {
         "level": "MUST",
@@ -169,7 +169,7 @@
       "result": "Reports now hash installed agent bytes, retain stderr diagnostics, and score structured question payloads without fallback prose. Forty-eight targeted tests and the pre-push Python suite passed after merging current main."
     }
   ],
-  "endingCommit": "d19a366659fdd9fbdad81a5244b8f605a652824a",
+  "endingCommit": "5f6872e64e42984a30696d53356c8ad66fd08284",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
