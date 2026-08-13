@@ -19,5 +19,5 @@
 - [design-001-nonoverlapping-specialization-92](design-001-nonoverlapping-specialization-92.md)
 - [design-002-clear-entry-criteria-90](design-002-clear-entry-criteria-90.md)
 - [design-003-explicit-limitations-88](design-003-explicit-limitations-88.md)
-- [design-004-composability-88](design-004-composability-88.md)
-- [design-005-verifiable-success-90](design-005-verifiable-success-90.md)
+- [design-composability](design-composability.md)
+- [design-verifiable-success](design-verifiable-success.md)

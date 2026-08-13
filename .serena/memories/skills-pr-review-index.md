@@ -19,7 +19,7 @@
 | anti-pattern status conflation completion readiness premature | [pr-review/anti-pattern-status-001](pr-review/anti-pattern-status-001.md) |
 | bot mention side effects copilot coderabbit trigger | [pr-review/pr-review-bot-mention-side-effects](pr-review/pr-review-bot-mention-side-effects.md) |
 | checklist phases context acknowledgment verification | [pr-review/pr-review-checklist](pr-review/pr-review-checklist.md) |
-| coderabbit sparse-checkout git-ls-tree .agents blindness flag-missing false-positive checkout-pattern | [pr-review/pr-review-coderabbit-sparse-checkout-blindness](pr-review/pr-review-coderabbit-sparse-checkout-blindness.md) |
+| coderabbit sparse-checkout git-ls-tree .agents blindness flag-missing false-positive checkout-pattern | [pr-review/review-001-coderabbit-sparse-checkout-blindness](pr-review/review-001-coderabbit-sparse-checkout-blindness.md) |
 | copilot follow-up PR detection branch pattern duplicate | [pr-review/pr-review-copilot-followup](pr-review/pr-review-copilot-followup.md) |
 | core workflow conversation resolution threads merge | [pr-review/pr-review-core-workflow](pr-review/pr-review-core-workflow.md) |
 | list-completeness verification cross-check total-count | [pr-review/pr-enum-001](pr-review/pr-enum-001.md) |
