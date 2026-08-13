@@ -173,8 +173,13 @@
       "time": "12:29",
       "action": "Corrected the final suppressed review finding.",
       "result": "Overflow errors now report UTF-16 code units. The 25 focused tests and Ruff passed."
+    },
+    {
+      "time": "13:06",
+      "action": "Aligned durable linting memory with the implementation.",
+      "result": "Replaced UTF-16 command characters with UTF-16 code units and refreshed memory token counts."
     }
   ],
-  "endingCommit": "b1096020a1e62ee4944697749e25005450a8cfb5",
+  "endingCommit": "701f8dd6cb25722136c84ced6d801910a1ebb690",
   "nextSteps": []
 }
