@@ -55,6 +55,17 @@ def test_an_ordinary_fixture_id_still_loads(tmp_path: Path) -> None:
     assert parity.load_fixtures(path)[0].fixture_id == "plain-id"
 
 
+def test_agent_install_preserves_crlf_line_endings(tmp_path: Path) -> None:
+    source = tmp_path / "source.md"
+    source.write_bytes(b"---\r\nname: original\r\n---\r\nbody\r\n")
+    target = tmp_path / "target.md"
+    runtime_parity = sys.modules["_runtime_parity"]
+
+    runtime_parity._install_agent(source, target)
+
+    assert target.read_bytes() == b"---\r\nname: parity\r\n---\r\nbody\r\n"
+
+
 def test_runtime_env_redirects_every_home_and_cache_root(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -172,6 +183,45 @@ def test_a_version_probe_timeout_returns_the_external_exit_code(capsys) -> None:
 
     assert code == parity.EXIT_EXTERNAL
     assert "Error:" in capsys.readouterr().err
+
+
+def test_a_runtime_timeout_writes_the_standard_failure_record(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "report.json"
+
+    def timing_out_runtime(argv, **kwargs):
+        args = [str(value) for value in argv]
+        if "--version" in args:
+            return subprocess.CompletedProcess(args, 0, "test-version\n", "")
+        raise subprocess.TimeoutExpired(args, kwargs.get("timeout", 1))
+
+    code = parity.main(
+        [
+            "--fixtures",
+            str(FIXTURES),
+            "--output",
+            str(output),
+            "--timeout",
+            "30",
+        ],
+        runner=timing_out_runtime,
+    )
+
+    record = json.loads(output.read_text(encoding="utf-8"))["fixtures"][0]["claude"]
+    assert code == parity.EXIT_EXTERNAL
+    assert record["provenance"] == "Claude runtime"
+    assert record["command"][0] == "claude"
+    assert record["exit_code"] is None
+    assert record["resolved_model"] is None
+    assert record["raw_output"] == ""
+    assert record["response"] == ""
+    assert record["question_mechanism"] is None
+    assert record["tool_events"] == []
+    assert record["subagent_events"] == []
+    assert record["assertions"] == []
+    assert record["error"] == "runtime timed out"
+    assert record["passed"] is False
 
 
 @pytest.mark.parametrize(

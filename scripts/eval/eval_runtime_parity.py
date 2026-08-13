@@ -4,7 +4,7 @@
 The evaluator installs one Claude agent and one Copilot agent into separate
 isolated git repositories. Each CLI receives the same fixture request through
 its non-interactive prompt flag. Reports keep runtime events, resolved model
-ids, prompt hashes, tool traces, and assertion results.
+ids, agent hashes, tool traces, and assertion results.
 
 Exit codes follow AGENTS.md: 0 ok, 1 logic, 2 config, 3 external, 4 auth.
 """
@@ -23,7 +23,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from _runtime_output import RuntimeOutputError, parse_events
+from _runtime_output import RuntimeOutputError, parse_events, runtime_failure_record
 from _runtime_parity import (
     SENTINEL,
     Fixture,
@@ -278,22 +278,26 @@ def _run_fixture(
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return {"error": "runtime timed out", "exit_code": None}, EXIT_EXTERNAL
+        return (
+            runtime_failure_record(
+                harness,
+                _redacted_argv(argv, harness),
+                exit_code=None,
+                error="runtime timed out",
+            ),
+            EXIT_EXTERNAL,
+        )
     try:
         events = parse_events(run.stdout)
     except RuntimeOutputError as exc:
         return (
-            {
-                "provenance": (
-                    "Claude runtime"
-                    if harness == "claude"
-                    else "Copilot runtime"
-                ),
-                "command": _redacted_argv(argv, harness),
-                "exit_code": run.returncode,
-                "error": str(exc),
-                "passed": False,
-            },
+            runtime_failure_record(
+                harness,
+                _redacted_argv(argv, harness),
+                exit_code=run.returncode,
+                error=str(exc),
+                raw_output=run.stdout,
+            ),
             EXIT_EXTERNAL,
         )
     response, resolved_model = (
@@ -327,6 +331,7 @@ def _run_fixture(
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
+            "error": None,
             "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
         },
         code,
@@ -368,8 +373,8 @@ def run_evaluation(
         report["fixtures"] = [
             {
                 "id": fixture.fixture_id,
-                "claude_prompt_sha256": hash_file(fixture.claude_agent),
-                "copilot_prompt_sha256": hash_file(fixture.copilot_agent),
+                "claude_agent_sha256": hash_file(fixture.claude_agent),
+                "copilot_agent_sha256": hash_file(fixture.copilot_agent),
                 "fixture_sha256": hashlib.sha256(
                     fixture.prompt.encode("utf-8")
                 ).hexdigest(),
@@ -389,8 +394,8 @@ def run_evaluation(
     for fixture in fixtures:
         fixture_record: dict[str, object] = {
             "id": fixture.fixture_id,
-            "claude_prompt_sha256": hash_file(fixture.claude_agent),
-            "copilot_prompt_sha256": hash_file(fixture.copilot_agent),
+            "claude_agent_sha256": hash_file(fixture.claude_agent),
+            "copilot_agent_sha256": hash_file(fixture.copilot_agent),
             "fixture_sha256": hashlib.sha256(
                 fixture.prompt.encode("utf-8")
             ).hexdigest(),

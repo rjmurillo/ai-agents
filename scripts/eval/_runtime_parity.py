@@ -275,7 +275,8 @@ def _install_agent(source: Path, target: Path) -> None:
     therefore registers an agent still called `orchestrator`, and the CLI exits
     1 with `--agent 'parity' not found` before the model is ever called.
     """
-    text = source.read_text(encoding="utf-8")
+    with source.open(encoding="utf-8", newline="") as source_file:
+        text = source_file.read()
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != "---":
         raise ParityConfigError(f"{source} has no frontmatter block")
@@ -285,13 +286,15 @@ def _install_agent(source: Path, target: Path) -> None:
         if stripped == "---":
             break
         if stripped.startswith("name:"):
-            lines[index] = f"name: {AGENT_NAME}\n"
+            line_ending = lines[index][len(lines[index].rstrip("\r\n")) :]
+            lines[index] = f"name: {AGENT_NAME}{line_ending}"
             renamed = True
             break
     if not renamed:
         raise ParityConfigError(f"{source} frontmatter has no name field")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("".join(lines), encoding="utf-8")
+    with target.open("w", encoding="utf-8", newline="") as target_file:
+        target_file.write("".join(lines))
 
 
 def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:

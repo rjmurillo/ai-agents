@@ -301,8 +301,8 @@ def test_run_evaluation_passes_all_fixtures(tmp_path: Path) -> None:
         assert record["claude"]["raw_output"]
         assert record["copilot"]["raw_output"]
         assert record["controls"]["provenance"] == "prompt-only"
-        assert record["claude_prompt_sha256"]
-        assert record["copilot_prompt_sha256"]
+        assert record["claude_agent_sha256"]
+        assert record["copilot_agent_sha256"]
         assert record["fixture_sha256"]
 
 
@@ -387,6 +387,8 @@ def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
         record["controls"]["provenance"] == "prompt-only"
         for record in report["fixtures"]
     )
+    assert all(record["claude_agent_sha256"] for record in report["fixtures"])
+    assert all(record["copilot_agent_sha256"] for record in report["fixtures"])
 
 
 def test_existing_output_is_a_config_error(tmp_path: Path) -> None:
