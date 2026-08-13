@@ -156,6 +156,31 @@ commit in `docs/autonomous-pr-monitor.md` because the in-tree run said clean.
 - Treating a green in-tree markdownlint run as proof a file is clean
 - **Prevention**: Check `Linting: N files` shows N > 0, or lint out of tree
 
+## Contradiction: ignores cannot protect process startup
+
+The conventional answer is to put generated roots only in
+`.markdownlint-cli2.yaml` `ignores`. That is insufficient when the caller
+expands changed paths into command arguments before markdownlint starts.
+
+Issue #4892 measured this failure on 2026-08-11. The branch target builder
+included 4,149 untracked Markdown files under `worktrees/`,
+`.agent-scratch/`, and `.scratch/`. Passing 4,168 arguments made
+markdownlint-cli2 0.23.1 exit 249 before it emitted a finding. The caller then
+printed MD040 and MD033 advice despite receiving no lint-rule output.
+
+The fix needs both layers:
+
+1. `scripts/validation/checks_dash.py:_VENDORED_PREFIXES` filters those three
+   root prefixes before `checks_tooling._markdown_lint_targets` builds argv.
+2. `.markdownlint-cli2.yaml` ignores the same roots during config-driven scans.
+3. `checks_tooling.validate_markdown_lint` batches at 100 targets and 7,500
+   UTF-16 code units, then reports the real exit code and output stream.
+
+Verification on the issue branch selected all three probe paths before the fix
+and zero after it. Targeted tests cover root prefixes, nested lookalikes,
+count-based batching, non-BMP Windows command length, continued autofix after
+one failed batch, and empty-output failure reporting.
+
 ## Related
 
 - [linting-autofix](linting-autofix.md)

@@ -296,6 +296,71 @@ def render_artifact(
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
+
+## Phase 5: Persist and Close
+
+### Memory Persistence
+
+| Learning | Atomicity | Existing Match | Result |
+|----------|-----------|----------------|--------|
+| [Learning] | [%] | [Memory name or none] | [Added / Updated / Deduplicated / Skipped / Failed] |
+
+### +/Delta
+
+#### + Keep
+- [What worked well in this retrospective]
+
+#### Delta Change
+- [What should be different next time]
+
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+
+#### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+
+#### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+
+#### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+
+### ROTI Assessment
+
+**Score**: [0-4]
+
+**Benefits Received**:
+- [Benefit 1]
+- [Benefit 2]
+
+**Time Invested**: [Duration]
+
+**Verdict**: [Continue | Modify | Stop]
+
+### Helped, Hindered, Hypothesis
+
+#### Helped
+- [What made this retrospective effective]
+
+#### Hindered
+- [What got in the way]
+
+#### Hypothesis
+- [Experiment to try next retrospective]
 """
     return artifact, any_below
 

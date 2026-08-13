@@ -78,6 +78,30 @@ class TestExportBackupValidateOutputPath:
         assert _export_backup.validate_output_path(output, mem_dir) is False
 
 
+class TestSecurityReviewBoundary:
+    @pytest.mark.parametrize(
+        ("module", "runner_name"),
+        [
+            (_export_direct, "_run_security_review_direct"),
+            (_export_memories, "_run_security_review_memories"),
+            (_export_backup, "_run_security_review"),
+        ],
+        ids=["direct", "memories", "full-backup"],
+    )
+    def test_passes_export_path_positionally(
+        self,
+        module: object,
+        runner_name: str,
+        tmp_path: Path,
+    ) -> None:
+        export_file = tmp_path / "memory export.json"
+        export_file.write_text('{"data": "safe content"}', encoding="utf-8")
+
+        runner = getattr(module, runner_name)
+
+        assert runner(export_file) == 0
+
+
 class TestExportDirectMain:
     def test_exits_1_when_sqlite3_missing(self, monkeypatch) -> None:
         monkeypatch.setattr("shutil.which", lambda x: None)

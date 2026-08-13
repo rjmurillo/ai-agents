@@ -1,10 +1,13 @@
 # Learning Extraction Template
 
-The byte-exact retrospective artifact structure. Lifted verbatim from the canonical source
-agent body at `.claude/agents/retrospective.md` (Phase 4, "Learning Extraction Template",
-original lines 696-789). The output artifact MUST match this template, modulo filled
-placeholders. Do not reword the headings or table columns; downstream readers and the
-auto-retro skeleton-fill path depend on the exact shape.
+The byte-exact retrospective artifact structure. Phases 0 through 4 were lifted verbatim
+from the canonical source agent body at `.claude/agents/retrospective.md` (Phase 4,
+"Learning Extraction Template", original lines 696-789). Phase 5 records the persistence
+and closing outputs required by [SKILL.md](../SKILL.md), using the memory
+protocol in `diagnosis-and-actions.md` and the closing activities in `frameworks.md`. The
+output artifact MUST match this template, modulo filled placeholders. Do not reword the
+headings or table columns; downstream readers and the auto-retro skeleton-fill path depend
+on the exact shape.
 
 Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 
@@ -97,6 +100,71 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
+
+## Phase 5: Persist and Close
+
+### Memory Persistence
+
+| Learning | Atomicity | Existing Match | Result |
+|----------|-----------|----------------|--------|
+| [Learning] | [%] | [Memory name or none] | [Added / Updated / Deduplicated / Skipped / Failed] |
+
+### +/Delta
+
+#### + Keep
+- [What worked well in this retrospective]
+
+#### Delta Change
+- [What should be different next time]
+
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+
+#### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+
+#### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+
+#### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+
+### ROTI Assessment
+
+**Score**: [0-4]
+
+**Benefits Received**:
+- [Benefit 1]
+- [Benefit 2]
+
+**Time Invested**: [Duration]
+
+**Verdict**: [Continue | Modify | Stop]
+
+### Helped, Hindered, Hypothesis
+
+#### Helped
+- [What made this retrospective effective]
+
+#### Hindered
+- [What got in the way]
+
+#### Hypothesis
+- [Experiment to try next retrospective]
 ````
 
 <!-- vendor-portability: declared. This template names .agents/retrospective/YYYY-MM-DD-[scope].md as the save location. The path is a write target created on demand; it is not a read precondition. Issue #2050. -->
