@@ -1134,7 +1134,7 @@ def _check_unpinned_executables(
                 continue
             if not f.is_file():
                 continue
-            rel = f.relative_to(candidate)
+            rel_path = f.relative_to(candidate)
             if "__pycache__" in f.parts and (candidate / ".git").exists():
                 tracked = subprocess.run(
                     [
@@ -1144,7 +1144,7 @@ def _check_unpinned_executables(
                         "ls-files",
                         "--error-unmatch",
                         "--",
-                        str(rel),
+                        str(rel_path),
                     ],
                     check=False,
                     capture_output=True,
@@ -1159,7 +1159,7 @@ def _check_unpinned_executables(
                 continue
             if f.suffix in (".md", ".txt", ".rst", ".cfg", ".ini", ".toml", ".lock", ".typed"):
                 continue
-            rel = str(PurePosixPath(rel))
+            rel = str(PurePosixPath(rel_path))
             if rel not in pinned_rels:
                 errors.append(f"Unpinned executable: {rel} (sha256: {_sha256_file(f)[:16]}...)")
     return errors
