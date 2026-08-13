@@ -40,12 +40,7 @@ def _run_subprocess(
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    """Run a subprocess and return (exit_code, stdout, stderr).
-
-    When ``env`` is provided it replaces the child environment entirely, so
-    callers that only want to add a variable should merge it with
-    ``os.environ`` themselves before passing it in.
-    """
+    """Run a subprocess after resolving its executable for the target platform."""
     try:
         command = [resolve_executable(args[0], env=env), *args[1:]]
         result = subprocess.run(
