@@ -1148,6 +1148,8 @@ def _check_unpinned_executables(
                     ],
                     check=False,
                     capture_output=True,
+                    encoding="utf-8",
+                    errors="replace",
                     text=True,
                 )
                 if tracked.returncode != 0:
