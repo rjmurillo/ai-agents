@@ -1853,7 +1853,7 @@ class TestWorkflowImmutableBaseRef:
 
         assert "github.event.pull_request.user.login" in content
         assert "github.event.sender.login" in content
-        assert "types: [opened, synchronize]" in content
+        assert "types: [opened, reopened, synchronize, edited]" in content
         assert '--pull-request-author "$PR_AUTHOR"' in content
         assert '--pull-request-sender "$PR_SENDER"' in content
 
