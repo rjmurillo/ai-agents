@@ -4,7 +4,7 @@ The drift-prone volatile facts behind `ai-agents-architecture-contract`. SKILL.m
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
-Verified 2026-08-09 against the working tree. Volatile facts are date-stamped inline in SKILL.md. Sources and re-verification commands:
+Verified 2026-08-11 against the working tree. Volatile facts are date-stamped inline in SKILL.md. Sources and re-verification commands:
 
 | Claim | Source | Re-verify |
 |---|---|---|
