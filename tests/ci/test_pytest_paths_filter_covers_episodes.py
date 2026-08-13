@@ -45,7 +45,7 @@ RULE_INPUT_ROOTS = (
 PATHS_FILTER_ACTION = "dorny/paths-filter"
 # The action version ``_selected`` models. Re-read ``src/filter.ts`` at this
 # commit before changing the pin: ``MatchOptions`` is where ``dot`` is set.
-PATHS_FILTER_PIN = f"{PATHS_FILTER_ACTION}@7b450fff21473bca461d4b92ce414b9d0420d706"
+PATHS_FILTER_PIN = f"{PATHS_FILTER_ACTION}@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d"
 
 
 def _select_paths_filter(steps: Iterable[dict]) -> dict:
