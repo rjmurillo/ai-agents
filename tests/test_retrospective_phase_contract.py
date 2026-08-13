@@ -45,7 +45,8 @@ DELTA_TRIAGE_CONTRACT = (
 )
 
 SPEC = importlib.util.spec_from_file_location(MODULE_NAME, SCRIPT)
-assert SPEC is not None and SPEC.loader is not None
+if SPEC is None or SPEC.loader is None:
+    raise ImportError(f"Unable to load retrospective renderer from {SCRIPT}")
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[MODULE_NAME] = MODULE
 SPEC.loader.exec_module(MODULE)
@@ -93,7 +94,7 @@ def test_template_and_renderer_cover_every_process_phase() -> None:
         assert contract_line in artifact
 
 
-def test_copilot_cli_mirrors_match_canonical_sources() -> None:
+def test_copilot_cli_files_match_canonical_sources() -> None:
     assert COPILOT_TEMPLATE.read_bytes() == TEMPLATE.read_bytes()
     assert COPILOT_SCRIPT.read_bytes() == SCRIPT.read_bytes()
 
