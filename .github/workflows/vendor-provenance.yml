@@ -22,6 +22,10 @@ permissions:
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited]
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
 
 jobs:
   provenance:
@@ -30,11 +34,11 @@ jobs:
     timeout-minutes: 10
 
     env:
-      PR_SHA: ${{ github.event.pull_request.head.sha }}
-      BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login || '' }}
       PR_SENDER: ${{ github.event.sender.login }}
-      PR_ACTION: ${{ github.event.action }}
+      PR_ACTION: ${{ github.event_name == 'merge_group' && 'merge_group' || github.event.action }}
 
     steps:
       - name: Materialize trusted base (immutable SHA)

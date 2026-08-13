@@ -798,6 +798,24 @@ class TestRelevance:
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
         assert "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d" in wf
 
+    def test_workflow_targets_main_only(self) -> None:
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+
+        assert "pull_request_target:\n    types:" in wf
+        assert wf.count("branches: [main]") == 2
+
+    def test_workflow_produces_check_for_merge_group(self) -> None:
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+
+        assert "merge_group:\n    types: [checks_requested]\n    branches: [main]" in wf
+        assert "github.event.merge_group.head_sha" in wf
+        assert "github.event.merge_group.base_sha" in wf
+
+    def test_merge_group_cannot_authorize_trust_anchor_updates(self) -> None:
+        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
+
+        assert "&& 'merge_group' || github.event.action" in wf
+
     def test_watched_file_triggers(self) -> None:
         from scripts.ci.validate_vendor_provenance import check_relevance
 
