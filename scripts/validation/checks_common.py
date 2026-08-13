@@ -42,7 +42,8 @@ def _run_subprocess(
 ) -> tuple[int, str, str]:
     """Run a subprocess after resolving its executable for the target platform."""
     try:
-        command = [resolve_executable(args[0], env=env), *args[1:]]
+        executable = args[0] if os.path.dirname(args[0]) else resolve_executable(args[0], env=env)
+        command = [executable, *args[1:]]
         result = subprocess.run(
             command,
             capture_output=True,
