@@ -287,6 +287,25 @@ class TestCurrentLogin:
 
 
 class TestClaimMain:
+    def test_no_match_reports_no_implementation_claim(self, capsys):
+        calls = [
+            _proc(0, "alice\n"),
+            _proc(0, json.dumps([[]])),
+        ]
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value="work"),
+            patch.object(_check.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+
+            assert _check.main(["--issue", "5", "--output-format", "human"]) == 0
+
+        output = capsys.readouterr().out
+        assert "No open PR claims implementation ownership of issue #5" in output
+
     def test_duplicate_pr_exits_without_invalid_error_type(self):
         prs = [
             {
