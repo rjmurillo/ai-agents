@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14704-b664c5c25-autofix-4934-dorny-paths-filter-merge.json
-qaCommit: 1946b0909fdcbb91adb947357f09d75e5bb6870b
+qaCommit: e498f66eb1b9b4b7d1fe2c03bbbd6c6f662ced72
 ---
 
 # QA Report: PR 4934 dorny/paths-filter
 
 ## Scope
 
-Validated the `dorny/paths-filter` v4.0.3 action update and its matcher model
-pin at commit `1946b0909fdcbb91adb947357f09d75e5bb6870b`.
+Validated the `dorny/paths-filter` v4.0.3 action update, its matcher model pin,
+and QA evidence at commit `e498f66eb1b9b4b7d1fe2c03bbbd6c6f662ced72`.
 
 ## Evidence
 
