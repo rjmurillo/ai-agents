@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, ADR, catalog, and plugin namespace evidence committed through 2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d"
+        "Evidence": "Implementation, ADR, catalog, plugin namespace fixes, and main refresh committed through 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "397 passed, 3 skipped; plugin namespace suite passed 286 with 1 skipped; build and plugin version gates passed; pre-PR passed 51 of 51"
+        "Evidence": "Post-refresh pre-push tests passed 27,886 with 37 skipped; merge-tree ratchet, mypy, build generation, hook gates, and pre-PR validation passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -135,7 +135,7 @@
       "result": "Preserved plugin namespaces, corrected fail-open runtime evidence, and reused the existing six-round ADR-068/071/085 debate log"
     }
   ],
-  "endingCommit": "2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d",
+  "endingCommit": "5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f",
   "nextSteps": [
     "Guarded push after lease renewal and remote-head binding",
     "Wait for required CI and complete every review thread lifecycle",
