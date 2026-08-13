@@ -30,10 +30,12 @@ class FakeRunner:
         claude_model: str = parity.DEFAULT_MODEL,
         copilot_model: str = parity.DEFAULT_MODEL,
         auth_failure: str | None = None,
+        fail_prompt_marker: str | None = None,
     ) -> None:
         self.claude_model = claude_model
         self.copilot_model = copilot_model
         self.auth_failure = auth_failure
+        self.fail_prompt_marker = fail_prompt_marker
         self.calls: list[list[str]] = []
 
     def __call__(self, argv, **kwargs):
@@ -48,6 +50,8 @@ class FakeRunner:
         workspace = Path(kwargs["cwd"])
         prompt = (workspace / "PARITY_FIXTURE.md").read_text(encoding="utf-8")
         response = self._response(prompt, workspace)
+        if self.fail_prompt_marker and self.fail_prompt_marker in prompt:
+            response = "WRONG_RESPONSE"
         if executable.startswith("claude"):
             output = [
                 {
@@ -301,6 +305,25 @@ def test_model_mismatch_fails_closed_and_stops(tmp_path: Path) -> None:
     assert code == parity.EXIT_LOGIC
     assert report["verdict"] == "FAIL_MODEL_MISMATCH"
     assert len(report["fixtures"]) == 1
+
+
+def test_behavioral_failure_still_runs_every_fixture(tmp_path: Path) -> None:
+    runner = FakeRunner(fail_prompt_marker="Phases 1 and 2")
+
+    report, code = parity.run_evaluation(
+        fixtures_path=FIXTURES,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=runner,
+    )
+
+    assert code == parity.EXIT_LOGIC
+    assert report["verdict"] == "FAIL"
+    assert len(report["fixtures"]) == 4
 
 
 def test_requested_model_override_fails_closed(tmp_path: Path) -> None:

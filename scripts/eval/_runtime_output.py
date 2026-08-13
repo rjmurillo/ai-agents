@@ -57,8 +57,8 @@ def copilot_result(
         return "", None
     attributed = set(models)
     if len(attributed) == 1 and None not in attributed:
-        return chunks[-1], models[-1]
-    return chunks[-1], None
+        return "\n".join(chunks), models[-1]
+    return "\n".join(chunks), None
 
 
 def failure_code(run: subprocess.CompletedProcess[str]) -> int:
@@ -80,6 +80,35 @@ def runtime_error(
     if not resolved_model:
         return "runtime answer has no attributable model"
     return None
+
+
+def comparison_verdict(
+    claude: Mapping[str, object],
+    copilot: Mapping[str, object],
+    model: str,
+) -> str | None:
+    """Return the parity failure shared by one completed fixture pair."""
+    if (
+        claude["resolved_model"] != model
+        or copilot["resolved_model"] != model
+        or claude["resolved_model"] != copilot["resolved_model"]
+    ):
+        return "FAIL_MODEL_MISMATCH"
+    if claude["question_mechanism"] != copilot["question_mechanism"]:
+        return "FAIL_QUESTION_MECHANISM_MISMATCH"
+    if not claude["passed"] or not copilot["passed"]:
+        return "FAIL"
+    return None
+
+
+def accumulate_verdict(current: str, incoming: str) -> str:
+    """Keep the most specific behavioral failure across all fixtures."""
+    priority = {
+        "PASS": 0,
+        "FAIL": 1,
+        "FAIL_QUESTION_MECHANISM_MISMATCH": 2,
+    }
+    return incoming if priority[incoming] > priority[current] else current
 
 
 def redacted_argv(argv: Sequence[str], harness: str) -> list[str]:

@@ -137,7 +137,7 @@ def test_a_mixed_model_sequence_reports_no_model() -> None:
         {"type": "assistant.message", "data": {"content": "done", "model": "m2"}},
     ]
 
-    assert parity._copilot_result(events) == ("done", None)
+    assert parity._copilot_result(events) == ("part\ndone", None)
 
 
 def test_every_content_bearing_message_attributed_reports_the_model() -> None:
@@ -146,7 +146,31 @@ def test_every_content_bearing_message_attributed_reports_the_model() -> None:
         {"type": "assistant.message", "data": {"content": "done", "model": "m1"}},
     ]
 
-    assert parity._copilot_result(events) == ("done", "m1")
+    assert parity._copilot_result(events) == ("part\ndone", "m1")
+
+
+def test_earlier_copilot_message_is_included_in_assertion_scoring() -> None:
+    events = [
+        {
+            "type": "assistant.message",
+            "data": {"content": "RESTART_PHASE_1", "model": "m1"},
+        },
+        {
+            "type": "assistant.message",
+            "data": {"content": "CONTINUE_PHASE_3", "model": "m1"},
+        },
+    ]
+    fixture = next(
+        fixture
+        for fixture in parity.load_fixtures(FIXTURES)
+        if fixture.fixture_id == "resume-phase-3"
+    )
+
+    response, _ = parity._copilot_result(events)
+    results = parity.score_assertions(fixture, response, {})
+
+    assert results[0]["passed"] is True
+    assert results[1]["passed"] is False
 
 
 def test_no_content_reports_no_model() -> None:

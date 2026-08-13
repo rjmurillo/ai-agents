@@ -32,7 +32,13 @@ from _runtime_output import (
     structured_tool_model,
 )
 from _runtime_output import (
+    accumulate_verdict as _accumulate_verdict,
+)
+from _runtime_output import (
     claude_result as _claude_result,
+)
+from _runtime_output import (
+    comparison_verdict as _comparison_verdict,
 )
 from _runtime_output import (
     copilot_result as _copilot_result,
@@ -319,24 +325,6 @@ def _fixture_record(fixture: Fixture) -> dict[str, object]:
     }
 
 
-def _comparison_verdict(
-    claude: Mapping[str, object],
-    copilot: Mapping[str, object],
-    model: str,
-) -> str | None:
-    if (
-        claude["resolved_model"] != model
-        or copilot["resolved_model"] != model
-        or claude["resolved_model"] != copilot["resolved_model"]
-    ):
-        return "FAIL_MODEL_MISMATCH"
-    if claude["question_mechanism"] != copilot["question_mechanism"]:
-        return "FAIL_QUESTION_MECHANISM_MISMATCH"
-    if not claude["passed"] or not copilot["passed"]:
-        return "FAIL"
-    return None
-
-
 def _run_fixture_pair(
     fixture: Fixture,
     model: str,
@@ -386,6 +374,7 @@ def _run_live_fixtures(
 ) -> tuple[list[dict[str, object]], str, int]:
     records: list[dict[str, object]] = []
     final_code = EXIT_OK
+    final_verdict = "PASS"
     for fixture in fixtures:
         record, code, verdict = _run_fixture_pair(
             fixture,
@@ -398,9 +387,11 @@ def _run_live_fixtures(
         )
         records.append(record)
         final_code = max(final_code, code)
-        if verdict is not None:
+        if verdict in {"ERROR", "FAIL_MODEL_MISMATCH"}:
             return records, verdict, final_code
-    return records, "PASS", final_code
+        if verdict is not None:
+            final_verdict = _accumulate_verdict(final_verdict, verdict)
+    return records, final_verdict, final_code
 
 
 def run_evaluation(
