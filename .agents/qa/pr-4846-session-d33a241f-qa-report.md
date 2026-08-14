@@ -1,16 +1,36 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: fd82d92fc904ebb7cac3c7f07a4f135052586569
+qaCommit: 2ea883515483013b86e76a0881dbc869176caf03
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `fd82d92fc904ebb7cac3c7f07a4f135052586569`
-(qaCommit, above; this is the 8th rebind of this report). After the
-previous report's commit (`9995125bb`) was pushed, CI failed: `origin/main`
+Validated the branch at commit `2ea883515483013b86e76a0881dbc869176caf03`
+(qaCommit, above; this is the 9th rebind of this report). After the 6
+commits ending at `fd82d92fc` (below) pushed clean and CI went green
+(118/118 checks passing, 0 failed, 0 pending), `mergeStateStatus` stayed
+`BLOCKED`. Ruleset `11104075` sets `required_approving_review_count: 0`
+(the empty `reviewDecision` is not a blocker) but
+`required_review_thread_resolution: true`; a GraphQL query of all 49
+review threads found exactly 1 unresolved, a `copilot-pull-request-reviewer`
+comment on `.github/workflows/vendor-provenance.yml:134` (thread
+`PRRT_kwDOQoWRls6Za-ys`) identifying a real stale-success race: `PR_SHA`
+is unchanged across `edited`/`reopened` events, and the workflow only
+published its custom "Validate Vendor Provenance" check-run at the very
+end of the job, so a prior run's completed/success check-run for that
+SHA would remain the latest status for that context throughout the whole
+re-validation window, once this check is configured as a required status
+check. Commit `2ea883515` (below) closes the race by creating an
+`in_progress` check-run immediately after the trusted-base tree
+materializes and completing that exact run ID at the end, instead of
+always creating a fresh one.
+
+The 6 commits ending at `fd82d92fc` themselves resolved a 3rd main-drift
+cycle: after the previous report's commit (`9995125bb`) was pushed, CI
+failed: `origin/main`
 had advanced past `4ecc1fdf3`, and `bc179ad3a` itself (not just its doc
 text, already handled in the prior update) touches 15 vendor-provenance-
 pinned files this branch does not own (`.claude/hooks/hooks.json`,
@@ -117,13 +137,25 @@ after this PR merges.
 | `git diff origin/main -- tests/build_scripts/test_dispatcher_matcher_union.py` (after commit 26) | Empty (byte-identical) |
 | `uv run pytest -q --timeout=180` (full local suite, all 28,204 tests, after commit 26) | 0 failures, exit 0 |
 | `python3 scripts/detect_scope_explosion.py` (after commit 26) | 50/50 files (exit 0; allowed, the hard block starts at 51) |
+| Push `a78cd276e..15acee85f` through the guarded `run_pr_mutation_if_live` wrapper (full pre-push hook chain) | exit 0; merge-tree-ratchet, python-tests (28,204 tests), session-json-validation all clean |
+| `get_pr_checks.py --pull-request 4846 --wait` (post-push CI poll) | 118 passed, 0 failed, 0 pending, `MergeRefUsable: true` |
+| GraphQL `reviewThreads` query, all 49 threads | 48 resolved, 1 unresolved (`PRRT_kwDOQoWRls6Za-ys`, `.github/workflows/vendor-provenance.yml:134`) |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py -q` (after commit 27, `2ea883515`) | 204 passed (6 new: `TestCreateCheckRun` x4, 2 new `TestPublishCheckRun` cases) |
+| `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | All checks passed |
+| `uv run mypy scripts/ci/validate_vendor_provenance.py` | Success: no issues found |
+| `actionlint .github/workflows/vendor-provenance.yml` | No findings |
+| `uv run python scripts/validate_workflows.py .github/workflows/vendor-provenance.yml` | 0 errors (1 pre-existing, non-blocking ADR-006 line-count advisory) |
+| First commit attempt: `workflow-validation` pre-commit hook | Blocked: expression-injection risk, direct `${{ steps.create_check.outputs.check_run_id }}` interpolation in a `run:` block |
+| Fix: bind via `env: CHECK_RUN_ID`, reference `"$CHECK_RUN_ID"`; re-run `scripts/validate_workflows.py` | 0 errors |
+| `git merge-tree --write-tree origin/main HEAD` (after commit 27) | 0 conflicts |
+| `python3 scripts/detect_scope_explosion.py` (after commit 27) | 50/50 files (unchanged; all 3 touched files already tracked in this branch's diff) |
 
 
 
 ## Changes Since Previous QA Report
 
 Content commits landed between `3d96506c5` (last commit the prior report's
-prose and frontmatter agreed on) and `fd82d92fc` (this report's `qaCommit`):
+prose and frontmatter agreed on) and `2ea883515` (this report's `qaCommit`):
 
 1. `57cd644f6` fix(ci): sort test imports (ruff I001)
 2. `d1f7d44a5` fix(security): use NUL-delimited git ls-tree for gitlink rejection
@@ -151,6 +183,8 @@ prose and frontmatter agreed on) and `fd82d92fc` (this report's `qaCommit`):
 24. `7208f4940` fix: sync hook build scripts and markdownlint config from origin/main
 25. `9b9535f1e` fix: refresh vendor-provenance pin table and scope ADR-metric guard for bc179ad3a drift
 26. `fd82d92fc` fix: sync matcher-union test expectation from origin/main (bc179ad3a)
+27. `15acee85f` docs: rebind QA evidence to matcher-union sync commit (8th rebind)
+28. `2ea883515` fix: publish an in-progress check run before vendor-provenance validation runs
 
 ## Correctness Assessment
 
@@ -375,6 +409,41 @@ diff origin/main` for this file is empty after commit 26). The full
 not over, the hard limit (which blocks only above 50), leaving zero
 headroom for any further new file this branch might need to add before
 merging.
+
+Commit 27 (`15acee85f`) is the 8th evidence rebind (frontmatter/session-log
+only, no logic change). Commit 28 (`2ea883515`) responds to the one review
+comment left unresolved after commits 22-27 pushed and CI went green: a
+`copilot-pull-request-reviewer` finding that `.github/workflows/vendor-
+provenance.yml` published its "Validate Vendor Provenance" check-run only
+at the end of the job via a POST-only `_publish_check_run`, so on
+`edited`/`reopened` events (`PR_SHA` unchanged) a prior run's completed
+success for that SHA would remain the latest status for that check
+context throughout a re-run's entire execution window -- a real gap for
+whenever this check is configured as a required status check (not yet
+done, per the file's own header comment). The fix adds `_create_check_run`
+(POST, `status: in_progress`) called from a new step placed immediately
+after the trusted-base tree materializes (the earliest point the script
+exists, since this workflow has no `actions/checkout` by design), and
+`_publish_check_run` now accepts an optional `check_run_id` to PATCH that
+exact run to `completed` instead of always POSTing a new one; without an
+ID (creation failed, or a non-`pull_request_target` event) it falls back
+to the unchanged prior behavior. The new step is best-effort (`|| true`
+around the one command that can fail) so a Checks-API hiccup degrades to
+the old publish-at-the-end path rather than failing the whole validation
+job, while `set -euo pipefail` is preserved to satisfy
+`test_fail_closed_pipefail`. The first commit attempt was itself blocked
+by the `workflow-validation` pre-commit hook for direct `${{ steps.
+create_check.outputs.check_run_id }}` interpolation inside a `run:` block
+(flagged as an expression-injection risk, since step outputs are treated
+as tainted regardless of actual provenance); the fix binds the value
+through the step's `env:` block instead and references the quoted shell
+variable, after which `scripts/validate_workflows.py` reports 0 errors.
+6 new tests cover `_create_check_run` and the PATCH-vs-POST branch of
+`_publish_check_run`; the full `tests/ci/test_validate_vendor_provenance.py`
+suite (204 tests) passes, `actionlint` and `mypy` are clean, and
+`git merge-tree --write-tree origin/main HEAD` reports 0 conflicts.
+Branch scope is unchanged at 50/50: all 3 files commit 28 touches were
+already tracked in this branch's diff before this commit.
 
 ## Verdict
 

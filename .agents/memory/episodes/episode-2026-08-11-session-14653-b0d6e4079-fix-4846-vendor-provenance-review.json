@@ -91,7 +91,8 @@
         "e035",
         "e036",
         "e037",
-        "e039"
+        "e039",
+        "e041"
       ],
       "leads_to": [
         "e006"
@@ -528,6 +529,30 @@
       "caused_by": [
         "e038"
       ],
+      "leads_to": [
+        "e042"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed 6 commits (a78cd276e..15acee85f) through the guarded run_pr_mutation_if_live wrapper (full pre-push hook chain: merge-tree-ratchet, python-tests 28,204 tests, session-json-validation, all clean, exit 0). Re-acquired the lease post-push (session-14706-pr4846) and polled CI: 118/118 checks passing, 0 failed, 0 pending, MergeRefUsable true. Checked PR metadata: autoMergeRequest null (never armed), mergeStateStatus BLOCKED. Investigated the BLOCKED status: the active ruleset (id 11104075, 'Copilot review for default branch') sets required_approving_review_count: 0, so the empty reviewDecision is NOT a blocker; required_review_thread_resolution: true is the actual rule in effect. GraphQL query of all 49 review threads found exactly 1 unresolved: a copilot-pull-request-reviewer comment on .github/workflows/vendor-provenance.yml line 134 (thread PRRT_kwDOQoWRls6Za-ys), flagging a real stale-success race: PR_SHA is unchanged across edited/reopened events, and the workflow only published its custom 'Validate Vendor Provenance' check-run (via _publish_check_run, POST-only) at the very end of the job, so a prior run's completed/success check-run for that same SHA would remain the latest status for that context throughout the whole re-validation window, once this check is configured as a required status check.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-08-14T23:37:34+00:00",
+      "type": "commit",
+      "content": "Commit: 2ea883515483013b86e76a0881dbc869176caf03",
+      "caused_by": [
+        "e040"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -537,7 +562,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 26,
+    "commits": 27,
     "files_changed": 51
   },
   "lessons": []
