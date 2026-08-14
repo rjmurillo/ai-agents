@@ -2373,6 +2373,22 @@ _EMPTY_FRONTMATTER = """\
 # Body
 """
 
+_FOUR_DASH_MALFORMED = """\
+----
+title: Broken memory
+description: invalid: nested mapping
+----
+
+# Body
+"""
+
+_LEADING_WHITESPACE_MALFORMED = (
+    "\n  \n----\n"
+    "title: Broken memory\n"
+    "description: invalid: nested mapping\n"
+    "----\n\n# Body\n"
+)
+
 
 class TestCheckFrontmatterValidity:
     """Tests for YAML frontmatter validity validation (issue #4918)."""
@@ -2434,6 +2450,22 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
         assert result.invalid_files == []
+
+    def test_noncanonical_boundary_length_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "four-dash-memory.md").write_text(_FOUR_DASH_MALFORMED)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["four-dash-memory.md"]
+
+    def test_leading_whitespace_is_normalized_like_loader(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "leading-space-memory.md").write_text(
+            _LEADING_WHITESPACE_MALFORMED
+        )
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["leading-space-memory.md"]
 
     def test_only_malformed_flagged_in_mixed_tree(self, tmp_path: Path) -> None:
         (tmp_path / "good.md").write_text(_VALID_FRONTMATTER)

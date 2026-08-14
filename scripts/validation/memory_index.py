@@ -881,6 +881,7 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 # scripts/memory_enhancement/serena_integration.py load_memories so this gate
 # guards exactly the files that reach the loader (PR #4985 review).
 _CANONICAL_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
+_FRONTMATTER_BOUNDARY = re.compile(r"^-{3,}\s*$")
 
 
 def _parse_leading_frontmatter(
@@ -900,16 +901,17 @@ def _parse_leading_frontmatter(
 
     Stricter than ``frontmatter.loads``, which silently returns empty metadata
     for an unclosed delimiter, a list, or a scalar (issue #4918). Detection
-    keys on the first line being exactly ``---`` so a horizontal rule later in
-    the body is never misread as frontmatter.
+    mirrors python-frontmatter 1.3.0: surrounding whitespace is stripped and
+    YAML boundaries match ``^-{3,}\\s*$``. A horizontal rule later in the body
+    is therefore never misread as frontmatter.
     """
     if text.startswith("\ufeff"):
         text = text[1:]
-    lines = text.splitlines()
-    if not lines or lines[0].rstrip() != "---":
+    lines = text.strip().splitlines()
+    if not lines or _FRONTMATTER_BOUNDARY.fullmatch(lines[0]) is None:
         return False, None, None
     for idx in range(1, len(lines)):
-        if lines[idx].rstrip() == "---":
+        if _FRONTMATTER_BOUNDARY.fullmatch(lines[idx]):
             block = "\n".join(lines[1:idx])
             try:
                 metadata = yaml.safe_load(block)
