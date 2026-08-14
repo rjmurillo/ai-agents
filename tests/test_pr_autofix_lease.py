@@ -155,6 +155,36 @@ def _live_held_body(owner: str = _OWNER, session: str = _SESSION) -> str:
     )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_ownership_token_dir(tmp_path, monkeypatch):
+    """Redirect the durable ownership token at a per-test temp directory.
+
+    acquire() writes a token on a confirmed ACT and release() clears it. This
+    autouse fixture keeps those writes out of the developer's real XDG state
+    dir and gives every test an isolated token namespace (issue #4966 HIGH).
+    """
+    monkeypatch.setenv("PR_AUTOFIX_LEASE_STATE_DIR", str(tmp_path / "lease-tokens"))
+    yield
+
+
+def _write_token(
+    owner: str = _OWNER,
+    session: str = _SESSION,
+    pr: int = 1,
+    now: datetime | None = None,
+) -> None:
+    _mod._write_ownership_token(owner, session, pr, now or datetime.now(UTC))
+
+
+def _has_token(
+    owner: str = _OWNER,
+    session: str = _SESSION,
+    pr: int = 1,
+    now: datetime | None = None,
+) -> bool:
+    return _mod._has_valid_ownership_token(owner, session, pr, now or datetime.now(UTC))
+
+
 # ===========================================================================
 # parse_lease_block: positive
 # ===========================================================================
@@ -701,11 +731,12 @@ class TestAcquire:
         assert result.reason == "lease-store-unavailable"
         post.assert_not_called()
 
-    def test_renewing_store_read_error_fails_open_to_act(self):
-        # Issue #4966 boundary: a renew caller already holds the lease from an
-        # earlier successful read, so the SAME store failure fails open to ACT
-        # (it extends, it does not claim). The SHA gate stays authoritative
-        # (issue #4376). Contrast with test_store_read_error_fails_closed_to_skip.
+    def test_renewing_store_read_error_with_token_fails_open_to_act(self):
+        # Issue #4966 HIGH: a renew fails open through an unreadable store ONLY
+        # when a durable ownership token proves this session won the lease at
+        # an earlier acquire. The token, not the "renew" command name, is the
+        # proof. It extends in place; the SHA gate stays authoritative (#4376).
+        _write_token(now=_NOW)
         with (
             patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
             _patch_post() as post,
@@ -717,7 +748,26 @@ class TestAcquire:
         assert result.reason == "lease-store-unavailable"
         post.assert_not_called()
 
-    def test_store_write_error_fails_open_to_act(self):
+    def test_renewing_store_read_error_without_token_fails_closed_to_skip(self):
+        # Issue #4966 HIGH repro: `renew --session never-acquired` on an
+        # unreadable store. No ownership token exists, so the command name is
+        # not proof of ownership and the renew fails CLOSED to SKIP.
+        with (
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
+            _patch_post() as post,
+            _patch_head(),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, renewing=True)
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+        post.assert_not_called()
+
+    def test_store_write_error_on_fresh_acquire_fails_closed_to_skip(self):
+        # Issue #4966 CRITICAL: a fresh acquire that reads free but cannot
+        # PUBLISH its claim fails CLOSED. Two sessions can both read free and
+        # both fail to POST; if this failed open both would ACT (the original
+        # race one step later). ACT requires a published claim.
         with (
             _patch_list([]),
             patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")),
@@ -725,8 +775,68 @@ class TestAcquire:
             _patch_login(),
         ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+
+    def test_store_write_error_on_self_renew_fails_open_to_act(self):
+        # A self-renew whose read CONFIRMED a still-live self-owned lease keeps
+        # that prior claim when the TTL-extension write fails: it fails open to
+        # ACT (issue #4376). Contrast with the fresh-acquire write failure.
+        mine = _comment(
+            _body(owner=_OWNER, session=_SESSION), "2026-06-19T11:59:00Z", author=_AUTHOR
+        )
+        with (
+            _patch_list([mine]),
+            patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")),
+            _patch_head(),
+            _patch_login(_AUTHOR),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
         assert result.action == "ACT"
         assert result.reason == "lease-store-unavailable"
+
+    def test_post_claim_reread_error_on_fresh_acquire_fails_closed_to_skip(self):
+        # Issue #4966 CRITICAL (reviewer UNCOVERED gap): a fresh acquire posts
+        # its claim, then the authoritative RE-READ fails. It cannot confirm it
+        # won the post race, so it fails CLOSED to SKIP. Two sessions that both
+        # read free and both lose the re-read must not both proceed.
+        with (
+            patch.object(_mod, "list_lease_comments", side_effect=[[], LeaseStoreError("boom")]),
+            patch.object(_mod, "post_lease_comment", return_value=None) as post,
+            _patch_head(),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+        post.assert_called_once()
+
+    def test_post_claim_reread_error_on_self_renew_fails_open_to_act(self):
+        # A self-renew that cannot re-read still holds the confirmed-live prior
+        # claim; no competitor can steal a live lease, so it fails open to ACT
+        # (issue #4376). Contrast with the fresh-acquire re-read failure.
+        mine = _comment(
+            _body(owner=_OWNER, session=_SESSION), "2026-06-19T11:59:00Z", author=_AUTHOR
+        )
+        with (
+            patch.object(
+                _mod, "list_lease_comments", side_effect=[[mine], LeaseStoreError("boom")]
+            ),
+            patch.object(_mod, "post_lease_comment", return_value=None),
+            _patch_head(),
+            _patch_login(_AUTHOR),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "ACT"
+        assert result.reason == "lease-store-unavailable"
+
+    def test_confirmed_acquire_writes_ownership_token(self):
+        # A confirmed ACT persists the durable ownership token a later renew
+        # relies on to fail open through a store outage (issue #4966 HIGH).
+        with _patch_list([]), _patch_post(), _patch_head(), _patch_login():
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "ACT"
+        assert _has_token(now=_NOW)
 
 
 # ===========================================================================
@@ -1374,7 +1484,11 @@ class TestMainExitCodes:
             )
         assert exc.value.code == 2
 
-    def test_auth_failure_fails_open_after_repo_validation(self, capsys):
+    def test_auth_failure_on_acquire_fails_closed_to_skip(self, capsys):
+        # Issue #4966 CRITICAL: assert_gh_authenticated exit 4 reaches main
+        # before any lease read. acquire cannot verify ownership through a
+        # dead credential, so it fails CLOSED to SKIP (was ACT/exit 0, the
+        # transport-failure fail-open the reviewer flagged).
         with (
             patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
@@ -1383,8 +1497,8 @@ class TestMainExitCodes:
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
         payload = json.loads(capsys.readouterr().out)
-        assert rc == 0
-        assert payload["Data"]["action"] == "ACT"
+        assert rc == 1
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
     def test_release_exits_zero(self):
@@ -1433,39 +1547,63 @@ class TestMainExitCodes:
 
 
 # ===========================================================================
-# Issue #4375: assert_gh_authenticated() exit must fail-open to ACT, not
-# propagate exit 4 before lease logic (ADR-076 part 3 step 6).
+# Issue #4966: assert_gh_authenticated() exit 3/4 before any lease read must
+# fail CLOSED to SKIP for acquire/status (it cannot verify ownership). This
+# narrows the prior blanket fail-open (issues #4375/#4376): release still
+# fails open (TTL covers relinquish) and renew fails open only with a token.
 # ===========================================================================
 
 
-class TestAuthFailOpenFix:
-    """Fix: main() catches SystemExit from assert_gh_authenticated() and
-    external resolve_repo_params() failures and returns
-    ACT/lease-store-unavailable. Invalid repo arguments remain exit 2."""
+class TestAuthCloseFix:
+    """main() catches SystemExit(3) transport and SystemExit(4) auth from
+    assert_gh_authenticated() before any lease read. acquire and status fail
+    CLOSED to SKIP (exit 1); release fails open to ACT; renew fails open only
+    against a durable ownership token. Invalid repo arguments remain exit 2."""
 
-    def test_auth_failure_exits_zero_act(self, capsys):
-        # assert_gh_authenticated raises SystemExit(4) on auth failure.
-        # main() must catch it and return 0 (ACT) with reason
-        # lease-store-unavailable.
+    def test_auth_failure_on_acquire_fails_closed_to_skip(self, capsys):
+        # assert_gh_authenticated raises SystemExit(4) on auth failure. acquire
+        # cannot verify ownership, so main() returns SKIP/exit 1 (issue #4966).
         with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
             rc = main(
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
-        assert rc == 0
+        assert rc == 1
         payload = json.loads(capsys.readouterr().out)
-        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_auth_failure_on_status_exits_zero_act(self, capsys):
-        # status path also goes through main(); same contract.
+    def test_transport_failure_on_acquire_fails_closed_to_skip(self, capsys):
+        # Reviewer UNCOVERED gap: transport failure maps to exit 3, which main()
+        # previously converted to ACT/exit 0. acquire now fails CLOSED to SKIP.
+        with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(3)):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_failure_on_status_fails_closed_to_skip(self, capsys):
+        # status path also goes through main(); same contract as acquire.
         with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
             rc = main(["status", "--pull-request", "1", "--output-format", "json"])
-        assert rc == 0
+        assert rc == 1
         payload = json.loads(capsys.readouterr().out)
-        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_transport_failure_on_status_fails_closed_to_skip(self, capsys):
+        with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(3)):
+            rc = main(["status", "--pull-request", "1", "--output-format", "json"])
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
     def test_auth_failure_on_release_exits_zero_act(self, capsys):
+        # release still fails open: relinquishing under an unreadable store is
+        # safe because TTL expiry covers a missed tombstone (ADR-076 step 6).
         with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
             rc = main(
                 ["release", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
@@ -1473,6 +1611,33 @@ class TestAuthFailOpenFix:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_failure_on_renew_with_token_exits_zero_act(self, capsys):
+        # A renew whose credential dies before the read fails open ONLY with a
+        # durable ownership token proving this session already won the lease
+        # (issue #4966 HIGH). The token is written at the last confirmed
+        # acquire; here it is seeded directly against the real clock main uses.
+        _write_token(pr=1)
+        with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_failure_on_renew_without_token_fails_closed_to_skip(self, capsys):
+        # `renew --session never-acquired` with a dead credential: no token, so
+        # the command name is not proof of ownership. Fails CLOSED to SKIP.
+        with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
     def test_repo_resolution_failure_propagates(self):
@@ -1655,8 +1820,11 @@ class TestRenewSubcommand:
                 main(["renew", "--pull-request", "1", "--output-format", "json"])
         assert exc.value.code == 2
 
-    def test_renew_store_error_fails_open_to_act(self, capsys):
-        # The SHA gate remains authoritative when the advisory store is down.
+    def test_renew_store_error_with_token_fails_open_to_act(self, capsys):
+        # A renew whose store read fails extends in place ONLY with a durable
+        # ownership token (issue #4966 HIGH). The SHA gate stays authoritative
+        # while the advisory store is down (issue #4376).
+        _write_token(pr=1)
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
@@ -1672,17 +1840,28 @@ class TestRenewSubcommand:
         assert payload["Data"]["action"] == "ACT"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_renew_auth_failure_fails_open_to_act(self, capsys):
-        with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
+    def test_renew_store_error_without_token_fails_closed_to_skip(self, capsys):
+        # No ownership token: a renew on an unreadable store cannot prove prior
+        # ownership, so it fails CLOSED to SKIP (issue #4966 HIGH repro).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("down")),
+            _patch_head(),
+            _patch_login(),
+        ):
             rc = main(
                 ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
-        assert rc == 0
+        assert rc == 1
         payload = json.loads(capsys.readouterr().out)
-        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_renew_login_lookup_failure_fails_open_to_act(self, capsys):
+    def test_renew_login_lookup_failure_with_token_fails_open_to_act(self, capsys):
+        # The login lookup (`gh api user`) blips, so acquire cannot verify its
+        # own identity. A token proves prior ownership, so renew fails open.
+        _write_token(pr=1)
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
@@ -1694,6 +1873,21 @@ class TestRenewSubcommand:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_renew_login_lookup_failure_without_token_fails_closed_to_skip(self, capsys):
+        # Without a token, an unresolved login cannot verify ownership: SKIP.
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "_gh_authenticated_login", return_value=""),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "SKIP"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
     def test_duration_exceeding_ttl_covered_by_two_renewals(self):
