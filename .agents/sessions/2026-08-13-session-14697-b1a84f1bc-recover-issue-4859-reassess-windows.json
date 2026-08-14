@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14697,
+    "date": "2026-08-13",
+    "branch": "fix/issue-4859-windows-merge-tree",
+    "startingCommit": "784ad3d21aeb259e188de8352c4aef88de484819",
+    "objective": "Recover issue 4859, reassess Windows merge-tree ratchet failure, finish root-cause fix, tests, validation, focused PR, and adversarial review"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Activation tool was not exposed by this harness; Serena code tools were available against the configured repository"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved; no issue 4859 handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill inventory listed 60 entries, including issue context, claim, PR context, checks, and PR creation scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill and PROJECT-CONSTRAINTS skill-first rules read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded count-ratchet freshness, merge invalidation, stale main PR base, session-init, and GitHub skill memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4859-windows-merge-tree"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4859-windows-merge-tree"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue worktree status and all registered external worktrees inspected"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "784ad3d21aeb259e188de8352c4aef88de484819"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session checklist items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory needed; existing rules and issue 4859 record the durable behavior"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only passed with no markdown files selected by repository scope"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4859-pr-4968-windows-merge-tree-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commits 91459ce77c4baee3e6b0b975237ea9ef5a266cde, c020527ad974e73bb8d9cbccbd9f835ce08b0765, and merge 6d52dd5907897f61947f215884548280f3838994"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "18 focused and 66 affected merge-tree tests passed; scoped Ruff, Python syntax, generated-tree, plugin-lib, install-parity, and all 51 pre-PR checks passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All issue-4859 SQL child todos updated through review and validation"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not needed for a focused two-file defect fix"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Claimed issue 4859 and rebuilt stale state from GitHub, git refs, branches, pull requests, and external worktrees.",
+      "outcome": "Issue remains open, assigned to rjmurillo, priority P1, with no focused competing pull request."
+    },
+    {
+      "action": "Read issue 4859 discourse and its merge-tree and Ruff ratchet lineage.",
+      "outcome": "Reviewed issues 4398, 4538, 2993, and 4518 plus pull requests 3099, 4446, 4508, 4539, 4545, and 4619."
+    },
+    {
+      "action": "Reproduced both claims on exact current origin/main commit 784ad3d21aeb259e188de8352c4aef88de484819.",
+      "outcome": "Windows prefix control returned exit 3 and cleanup retry control failed against the prior implementation."
+    },
+    {
+      "action": "Rebased the recovered unpublished fix onto current origin/main.",
+      "outcome": "The branch contains one focused implementation commit changing two files."
+    },
+    {
+      "action": "Ran local positive, negative, edge, lint, and merge-tree ratchet checks.",
+      "outcome": "Twelve focused tests and 60 affected tests passed; Ruff and every registered merge-tree ratchet passed."
+    },
+    {
+      "action": "Ran GPT-5.6 Sol artifact-only review against the final diff and deterministic evidence.",
+      "outcome": "PASS with no actionable finding."
+    },
+    {
+      "action": "Fetched PR 4968 failure logs and reproduced the remaining Windows cleanup defect from the exact CI diagnostic.",
+      "outcome": "The POSIX checkout prefix was correct, but Git object files remained read-only on Windows; cleanup exhausted lock retries and returned exit 3."
+    },
+    {
+      "action": "Added read-only attribute clearing through shutil.rmtree onexc while retaining bounded transient retries and explicit persistent-failure diagnostics.",
+      "outcome": "Focused callback, concurrency, path-contract, and merge-tree suites pass locally."
+    },
+    {
+      "action": "Merged current origin/main and combined its symlink/read-only cleanup work with the PR path-prefix and bounded retry fixes.",
+      "outcome": "Conflict markers cleared; 18 focused and 66 affected merge-tree tests passed."
+    }
+  ],
+  "endingCommit": "6d52dd5907897f61947f215884548280f3838994",
+  "nextSteps": [
+    "Push the QA/session evidence commit and verify PR 4968 checks on GitHub.",
+    "Resolve only any remaining PR 4968 review or CI blockers."
+  ]
+}

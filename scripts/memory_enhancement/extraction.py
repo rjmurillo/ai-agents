@@ -1,7 +1,7 @@
 """Failure pattern extraction from tool results.
 
 Extracts a learnable pattern from a tool failure and formats it as a
-memory suggestion. Used by the post_tool_call hook.
+memory suggestion. Used by the PostToolUseFailure hook.
 """
 
 from __future__ import annotations
@@ -117,4 +117,4 @@ def _find_error_line(result_text: str) -> str:
     for line in result_text.splitlines():
         if _ERROR_PATTERN.search(line):
             return line.strip()[:_MAX_PATTERN_LENGTH]
-    return result_text[:_MAX_PATTERN_LENGTH]
+    return " ".join(result_text.split())[:_MAX_PATTERN_LENGTH]

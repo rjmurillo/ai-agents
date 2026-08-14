@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import errno
+import os
 import shutil
+import stat
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
 from scripts.ci import merge_tree_materialization as _mat
 from scripts.ci import merge_tree_ratchet_check as _m
-from tests.ci.test_merge_tree_ratchet_check import _commit_all, _make_repo_with_baselines
+from scripts.ci import ruff_count_ratchet as _ruff
+from tests.ci.test_merge_tree_ratchet_check import (
+    _commit_all,
+    _git,
+    _make_repo_with_baselines,
+)
+
+pytestmark = pytest.mark.windows_path
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -37,6 +47,63 @@ def test_export_ignored_scored_file_is_still_materialized(tmp_path: Path) -> Non
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_merge_tree_ruff_count_matches_direct_count_on_windows(tmp_path: Path) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    (repo / "scored.py").write_text("import os\n", encoding="utf-8")
+    _commit_all(repo, "add scored file")
+    real_ruff_count = _ruff.current_count
+    direct_count = real_ruff_count(repo)
+    merged_counts: list[int] = []
+
+    def count_merged_tree(root: Path) -> int:
+        count = real_ruff_count(root)
+        assert count is not None
+        merged_counts.append(count)
+        return count
+
+    with (
+        patch.object(_mat.os, "sep", "\\"),
+        patch(
+            "scripts.ci.ruff_count_ratchet.current_count",
+            side_effect=count_merged_tree,
+        ),
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+    ):
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+
+    assert direct_count is not None
+    assert direct_count > 0
+    assert rc == _m.EXIT_OK
+    assert merged_counts == [direct_count]
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_materialization_preserves_symlinks_when_git_config_disables_them(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    target = repo / "target.py"
+    target.write_text("value = 1\n", encoding="utf-8")
+    link = repo / "package_link"
+    try:
+        link.symlink_to(target.name)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    _commit_all(repo, "add symlink")
+    _git(repo, "config", "core.symlinks", "false")
+
+    destination = tmp_path / "materialized"
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    assert _mat.materialize_tree(repo, head, destination)
+    assert (destination / "package_link").is_symlink()
+    assert (destination / "package_link").read_text(encoding="utf-8") == "value = 1\n"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 @pytest.mark.parametrize("failed_step", ["_materialize_tree", "_init_scratch_repo"])
 def test_materialization_or_scratch_init_failure_is_external(
     tmp_path: Path, failed_step: str
@@ -48,9 +115,7 @@ def test_materialization_or_scratch_init_failure_is_external(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_missing_git_launch_is_external(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_missing_git_launch_is_external(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
     with patch.object(_mat, "resolve_executable", side_effect=FileNotFoundError("git")):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
@@ -88,9 +153,162 @@ def test_cleanup_failure_does_not_mask_primary_failure(
     assert "PermissionError: denied" in capsys.readouterr().err
 
 
-def test_remove_tree_reports_permission_error(tmp_path: Path) -> None:
+def test_remove_tree_retries_transient_permission_error(tmp_path: Path) -> None:
     target = tmp_path / "scratch"
     target.mkdir()
-    with patch.object(_mat.shutil, "rmtree", side_effect=PermissionError("denied")):
+    real_rmtree = shutil.rmtree
+    attempts = 0
+
+    def remove_after_transient_lock(path: Path, **_: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 4:
+            raise PermissionError("pack index locked")
+        real_rmtree(path)
+
+    with (
+        patch.object(
+            _mat.shutil,
+            "rmtree",
+            side_effect=remove_after_transient_lock,
+        ) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
         error = _mat.remove_tree(target, "scratch")
+
+    assert error is None
+    assert remove.call_count == 5
+    assert sleep.call_args_list == [
+        call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS[:4]
+    ]
+    assert not target.exists()
+
+
+def test_remove_tree_reports_permission_error_after_retry_budget(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    with (
+        patch.object(_mat.shutil, "rmtree", side_effect=PermissionError("denied")) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
+        error = _mat.remove_tree(target, "scratch")
+
     assert error == "scratch cleanup failed: PermissionError: denied"
+    assert remove.call_count == len(_mat._CLEANUP_RETRY_DELAYS) + 1
+    assert sleep.call_args_list == [
+        call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS
+    ]
+
+
+def test_remove_tree_retries_transient_os_error(tmp_path: Path) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    real_rmtree = shutil.rmtree
+    attempts = 0
+
+    def remove_after_transient_error(path: Path, **_: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError(errno.ENOTEMPTY, "directory not empty")
+        real_rmtree(path)
+
+    with (
+        patch.object(
+            _mat.shutil,
+            "rmtree",
+            side_effect=remove_after_transient_error,
+        ) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
+        error = _mat.remove_tree(target, "scratch")
+
+    assert error is None
+    assert remove.call_count == 2
+    sleep.assert_called_once_with(_mat._CLEANUP_RETRY_DELAYS[0])
+    assert not target.exists()
+
+
+def test_remove_tree_reports_permanent_os_error_without_retry(tmp_path: Path) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    failure = OSError(errno.EIO, "I/O error")
+    with (
+        patch.object(_mat.shutil, "rmtree", side_effect=failure) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
+        error = _mat.remove_tree(target, "scratch")
+
+    assert error == "scratch cleanup failed: OSError: [Errno 5] I/O error"
+    remove.assert_called_once_with(target, onexc=_mat._make_writable_and_retry)
+    sleep.assert_not_called()
+
+
+def test_remove_tree_missing_path_does_not_retry(tmp_path: Path) -> None:
+    target = tmp_path / "missing"
+    with (
+        patch.object(_mat.shutil, "rmtree", side_effect=FileNotFoundError) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
+        error = _mat.remove_tree(target, "scratch")
+
+    assert error is None
+    remove.assert_called_once_with(target, onexc=_mat._make_writable_and_retry)
+    sleep.assert_not_called()
+
+
+def test_make_writable_and_retry_clears_readonly_attribute(tmp_path: Path) -> None:
+    target = tmp_path / "readonly"
+    target.write_text("content", encoding="utf-8")
+    target.chmod(target.stat().st_mode & ~stat.S_IWRITE)
+
+    with patch.object(_mat.os, "chmod", wraps=os.chmod) as chmod:
+        _mat._make_writable_and_retry(os.unlink, str(target), PermissionError())
+
+    assert not target.exists()
+    chmod.assert_called_once()
+
+
+@pytest.mark.parametrize("missing_step", ["stat", "retry"])
+def test_make_writable_and_retry_accepts_concurrent_removal(
+    tmp_path: Path, missing_step: str
+) -> None:
+    target = tmp_path / "disappearing"
+    target.write_text("content", encoding="utf-8")
+
+    if missing_step == "stat":
+        target.unlink()
+        _mat._make_writable_and_retry(os.unlink, str(target), PermissionError())
+    else:
+        def removed_before_retry(path: str) -> None:
+            Path(path).unlink()
+            raise FileNotFoundError(path)
+
+        _mat._make_writable_and_retry(
+            removed_before_retry, str(target), PermissionError()
+        )
+
+    assert not target.exists()
+
+
+def test_make_writable_and_retry_reraises_non_permission_error(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "locked"
+    failure = OSError(errno.EBUSY, "busy")
+
+    with pytest.raises(OSError, match="busy"):
+        _mat._make_writable_and_retry(os.unlink, str(target), failure)
+
+
+def test_remove_tree_clears_readonly_files(tmp_path: Path) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    readonly = target / "pack.idx"
+    readonly.write_text("index\n", encoding="utf-8")
+    readonly.chmod(stat.S_IREAD)
+
+    assert _mat.remove_tree(target, "scratch") is None
+    assert not target.exists()

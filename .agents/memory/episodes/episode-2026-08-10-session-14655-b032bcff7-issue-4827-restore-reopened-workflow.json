@@ -1,0 +1,116 @@
+{
+  "id": "episode-2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow",
+  "session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own issue 4827 restore reopened PR workflow checks",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked coordination",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue discourse",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced current-main defect",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented fix",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated changes",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T23:49:17+00:00",
+      "type": "commit",
+      "content": "Commit: 2d728c5dce",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T04:46:08+00:00",
+      "type": "commit",
+      "content": "Commit: 543e77fae8d79be3c2b952e35f318c6eb378e782",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T15:26:46+00:00",
+      "type": "commit",
+      "content": "Commit: d4bfe9584e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14655-b032bcff7-issue-4827-restore-reopened-workflow"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 7
+  },
+  "lessons": []
+}

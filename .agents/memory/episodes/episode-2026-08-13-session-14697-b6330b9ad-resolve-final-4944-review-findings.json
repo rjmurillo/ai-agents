@@ -1,0 +1,284 @@
+{
+  "id": "episode-2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings",
+  "session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4944 post-merge closure evidence",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fast-forwarded the three concurrent fix commits onto the worktree.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created the minimal PR 4944 closure plan.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed focused QA at 40cfeaf4d.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Obtained a fresh GPT-5.6 Sol adversarial review at 40cfeaf4d.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T11:16:45+00:00",
+      "type": "commit",
+      "content": "Commit: 374a580ea",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e008",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:20:18+00:00",
+      "type": "commit",
+      "content": "Commit: c8336cc37",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 40cfeaf4d",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reran focused QA at the tracked closure evidence commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T11:51:29+00:00",
+      "type": "commit",
+      "content": "Commit: 69d9874cc90712070914d65d72bb2e03a1b1fd73",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:58:11+00:00",
+      "type": "commit",
+      "content": "Commit: f89a800d56d6ae2bdbb7c870892577fadd1055e4",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created a clean evidence branch from exact origin/main.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored only the four approved source artifacts and corrected the two post-merge evidence findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T11:51:57+00:00",
+      "type": "commit",
+      "content": "Commit: 5acc676414b423d8a9e10bfe3041ab3ffd284874",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T12:00:04+00:00",
+      "type": "commit",
+      "content": "Commit: 91796736cc2f355de354bf473fd8a600b69e1729",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T12:24:51+00:00",
+      "type": "milestone",
+      "content": "Reran focused validation at the initial evidence commit.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T12:24:51+00:00",
+      "type": "milestone",
+      "content": "Measured automatic and explicit Markdown lint scopes separately.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-13T12:22:20+00:00",
+      "type": "commit",
+      "content": "Commit: 9093705a61a8c030d039cb29ee56605c133abcd3",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e015",
+        "e016"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T12:26:43+00:00",
+      "type": "milestone",
+      "content": "Ran session-end after the evidence binding commit.",
+      "caused_by": [
+        "e015",
+        "e016"
+      ],
+      "leads_to": [
+        "e019",
+        "e021"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "milestone",
+      "content": "Refreshed the base and rebound the QA evidence.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "test",
+      "content": "merge-tree-ratchet failed with 'ruff count ratchet: EXTERNAL ERROR - counter returned None', the stale-base signature. Merging origin/main at 028fabd8e cleared it. The merge made the session 14697 QA report stale, so every evidence row was re-run at the merge commit: 20 passed with 1 expected skip, Ruff clean, and an empty vendored_copy.py diff.",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-13T15:13:09+00:00",
+      "type": "commit",
+      "content": "Commit: 028fabd8ee",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-13-session-14697-b6330b9ad-resolve-final-4944-review-findings"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 168,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 7
+  },
+  "lessons": []
+}

@@ -8,7 +8,7 @@ name: Synthesis Panel Gate
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - '.agents/architecture/DESIGN-REVIEW-*.md'
 

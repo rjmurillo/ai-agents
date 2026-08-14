@@ -1,0 +1,29 @@
+{
+  "scenarios": [
+    {
+      "id": "PTA1",
+      "desc": "Discovers a non-pytest, non-GitHub test layout from the repository's own manifests",
+      "input": "The repository is a Go module with a go.mod file. Tests live as *_test.go files colocated with their source files; there is no tests/ or test/ directory. CI runs through a Jenkinsfile, not GitHub Actions. A new exported function ParseConfig was added with no colocated ParseConfig_test.go. Decide how you conclude that ParseConfig lacks coverage.",
+      "verdict_options": [
+        "DISCOVER_LAYOUT_FROM_MANIFEST",
+        "ASSUME_PYTEST_TESTS_DIR"
+      ],
+      "expected_verdict": "DISCOVER_LAYOUT_FROM_MANIFEST",
+      "expected_reason_contains": "go.mod",
+      "rationale": "The Tool Use Directive instructs discovering the test framework and locations from the repository's manifests, test-runner configuration, and existing test-file layout rather than assuming a fixed directory name or framework. A Go module with colocated _test.go files must be recognized on its own terms, not forced into a tests/ + pytest assumption."
+    },
+    {
+      "id": "PTA2",
+      "desc": "Falls back to current working changes when no PR number or diff is given",
+      "input": "This agent was invoked with no PR number, no explicit diff, and no named file list. Decide what scope you analyze for test coverage.",
+      "verdict_options": [
+        "ANALYZE_CURRENT_WORKING_CHANGES",
+        "REQUEST_PR_NUMBER_BEFORE_PROCEEDING",
+        "REFUSE_FOR_LACK_OF_SCOPE"
+      ],
+      "expected_verdict": "ANALYZE_CURRENT_WORKING_CHANGES",
+      "expected_reason_contains": "working",
+      "rationale": "The Agent Contract states inputs are an explicit diff or named file set, and when scope is omitted the agent uses the current working changes. It must not assume a PR number is always available, since GitHub is one host among several."
+    }
+  ]
+}

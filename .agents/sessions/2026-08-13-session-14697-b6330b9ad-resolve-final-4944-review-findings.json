@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14697,
+    "date": "2026-08-13",
+    "branch": "docs/4944-closure-evidence",
+    "startingCommit": "e52604fd07c02c71475a5d8e282ba2bd3163516e",
+    "objective": "Repair PR 4944 post-merge closure evidence"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active; initial instructions and task-relevant memory reads succeeded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded before closure edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed GitHub skill scripts and read the session-init and session-end skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the usage-mandatory Serena memory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, usage-mandatory, skills-session-init-index, skills-validation-index, skills-linting-index, and root-cause-scope-creep-tools. No memory was written because this repair adds no reusable decision."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/4944-closure-evidence"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/4944-closure-evidence"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The preserved test branch was clean. This branch was created from exact origin/main and only the four named source artifacts were restored."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e52604fd07c02c71475a5d8e282ba2bd3163516e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory was written because this evidence repair adds no reusable decision, pattern, or cross-session fact."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED by session-end: pre_pr.py --markdown-lint-only selected 0 of 4 agent-artifact files because .agents/** is ignored. Explicit markdownlint-cli2@0.23.1 ran outside repository ignore discovery with --configPointer /config on those four plan, retrospective, and QA files; output was 'Linting: 4 files' and 'Summary: 0 issues in 0 files', exit 0."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4944-session-14697-final-review.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial evidence committed and tested at 9093705a61a8c030d039cb29ee56605c133abcd3."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py and git_hook_policy.py sessions passed at 9093705a61a8c030d039cb29ee56605c133abcd3."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All nine plan acceptance criteria are marked verified."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created a clean evidence branch from exact origin/main.",
+      "outcome": "docs/4944-closure-evidence started at e52604fd07c02c71475a5d8e282ba2bd3163516e; merge commit 5acc676414b423d8a9e10bfe3041ab3ffd284874 is its ancestor."
+    },
+    {
+      "action": "Restored only the four approved source artifacts and corrected the two post-merge evidence findings.",
+      "outcome": "The plan, session 14697, QA 14697, and its matching episode came from 91796736cc2f355de354bf473fd8a600b69e1729; session 14696 received the lint correction plus validator-required ending and QA bindings."
+    },
+    {
+      "timestamp": "2026-08-13T12:24:51Z",
+      "action": "Reran focused validation at the initial evidence commit.",
+      "outcome": "At 9093705a61a8c030d039cb29ee56605c133abcd3, focused pytest passed 20 tests with 1 expected skip in 1.52 seconds; Ruff, diff check, empty runtime-helper diff, session creation validation, and branch session policy passed."
+    },
+    {
+      "timestamp": "2026-08-13T12:24:51Z",
+      "action": "Measured automatic and explicit Markdown lint scopes separately.",
+      "outcome": "The repository wrapper selected 0 of 4 ignored agent-artifact targets. An explicit no-ignore run linted 4 files with 0 issues and exit 0."
+    },
+    {
+      "timestamp": "2026-08-13T12:26:43Z",
+      "action": "Ran session-end after the evidence binding commit.",
+      "outcome": "Automatic discovery found no uncommitted Markdown. An explicit four-file session-end run selected 0 ignored files and marked lint incomplete, so the final record keeps that NOT LINTED result separate from the explicit four-file PASS."
+    },
+    {
+      "timestamp": "2026-08-13T08:13:09-07:00",
+      "action": "Refreshed the base and rebound the QA evidence.",
+      "outcome": "merge-tree-ratchet failed with 'ruff count ratchet: EXTERNAL ERROR - counter returned None', the stale-base signature. Merging origin/main at 028fabd8e cleared it. The merge made the session 14697 QA report stale, so every evidence row was re-run at the merge commit: 20 passed with 1 expected skip, Ruff clean, and an empty vendored_copy.py diff."
+    }
+  ],
+  "endingCommit": "028fabd8ee",
+  "nextSteps": []
+}

@@ -1,0 +1,102 @@
+{
+    "id": "episode-2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end",
+    "session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end",
+    "timestamp": "2026-08-12T00:00:00+00:00",
+    "causal_order_version": 2,
+    "outcome": "success",
+    "task": "Resolve GitHub issue 4868 end to end",
+    "decisions": [],
+    "events": [
+        {
+            "id": "e001",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Session start",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e002",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Reproduced issue",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e003",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Recovered prior work",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e004",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Validated fix",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e005",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Created pull request",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e006",
+            "timestamp": "2026-08-12T00:00:00+00:00",
+            "type": "milestone",
+            "content": "Addressed artifact review",
+            "caused_by": [],
+            "leads_to": [
+                "e007"
+            ],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        },
+        {
+            "id": "e007",
+            "timestamp": "2026-08-13T15:09:27+00:00",
+            "type": "commit",
+            "content": "Commit: 2afd8ad304b563f9270f1b9b73aba57fc61eabca",
+            "caused_by": [
+                "e001",
+                "e002",
+                "e003",
+                "e004",
+                "e005",
+                "e006"
+            ],
+            "leads_to": [],
+            "_source_session": "2026-08-12-session-14696-bd686ca2f-resolve-github-issue-4868-end"
+        }
+    ],
+    "metrics": {
+        "duration_minutes": null,
+        "tool_calls": null,
+        "errors": 0,
+        "recoveries": 0,
+        "commits": 1,
+        "files_changed": 11
+    },
+    "lessons": []
+}
