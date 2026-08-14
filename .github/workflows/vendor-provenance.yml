@@ -50,9 +50,15 @@ jobs:
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
         run: |
           set -euo pipefail
-          # Start from an empty workspace with a bare git repo
+          # Start from an empty workspace with a bare git repo. `-f` makes rm
+          # ignore nonexistent-file errors from unmatched glob patterns (safe,
+          # not a fail-open mask); any other rm failure (e.g. permission
+          # denied) still trips `set -e` per this workflow's fail-closed
+          # contract. The three-pattern glob (`*`, `.[!.]*`, `..?*`) matches
+          # regular files, single/two-char dotfiles, and multi-dot names,
+          # while `.` and `..` are never matched by any pattern.
           cd "$GITHUB_WORKSPACE"
-          rm -rf ./* ./.??* 2>/dev/null || true
+          rm -rf -- * .[!.]* ..?*
           git init --quiet
           git remote add origin "https://github.com/${{ github.repository }}.git"
           git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
