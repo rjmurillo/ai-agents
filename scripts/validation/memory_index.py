@@ -877,6 +877,11 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 
     return result
 
+# File names the canonical memory loader skips. Kept in parity with
+# scripts/memory_enhancement/serena_integration.py load_memories so this gate
+# guards exactly the files that reach the loader (PR #4985 review).
+_CANONICAL_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
+
 
 def _parse_leading_frontmatter(
     text: str,
@@ -918,12 +923,13 @@ def _parse_leading_frontmatter(
 def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
     """Validate that leading YAML frontmatter parses on every memory file.
 
-    Scans all .md files under memory_path (recursively). A file that opens with
-    a frontmatter block (first line exactly ``---``) must close that block and
-    carry a YAML mapping. A file with no leading frontmatter is fine:
-    frontmatter is optional in existing Serena memories (issue #4900), so a
-    plain-Markdown file, or one with a later horizontal rule, is not a
-    violation.
+    Scans .md files under memory_path recursively, skipping only ``README.md``
+    and ``CLAUDE.md`` to match the canonical loader's selection (see the comment
+    below). A file that opens with a frontmatter block (first line exactly
+    ``---``) must close that block and carry a YAML mapping. A file with no
+    leading frontmatter is fine: frontmatter is optional in existing Serena
+    memories (issue #4900), so a plain-Markdown file, or one with a later
+    horizontal rule, is not a violation.
 
     Three malformed shapes that ``frontmatter.loads`` accepted as empty
     metadata are now violations (issue #4918): an unclosed opening delimiter, a
@@ -935,10 +941,29 @@ def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
     if not memory_path.exists():
         return result
 
+    # File selection and YAML handling here stay in parity with the canonical
+    # memory loader, scripts/memory_enhancement/serena_integration.py, so this
+    # gate guards the exact files that reach it. Canonical selection
+    # (load_memories), quoted verbatim:
+    #     skip_names = {"README.md", "CLAUDE.md"}
+    #     for md_file in sorted(memories_dir.rglob("*.md")):
+    #         if md_file.name in skip_names:
+    #             continue
+    # Canonical YAML handling (_extract_metadata), quoted verbatim:
+    #     try:
+    #         post = frontmatter.loads(raw_text)
+    #     except yaml.YAMLError:
+    #         # Malformed YAML frontmatter; treat as plain markdown
+    # Divergence: the loader warns and falls back to plain Markdown on a
+    # YAMLError and treats empty metadata as "no frontmatter". This gate
+    # instead FAILS (records a violation) on an unclosed delimiter, a
+    # non-mapping block, or unparseable YAML, because merging that corruption
+    # is the defect #4918 exists to stop. Hidden directories are not skipped:
+    # the loader still reads a malformed '.trash/*.md', so this gate must too.
     for f in sorted(memory_path.rglob("*.md")):
-        relative = f.relative_to(memory_path)
-        if any(part.startswith(".") for part in relative.parts):
+        if f.name in _CANONICAL_SKIP_NAMES:
             continue
+        relative = f.relative_to(memory_path)
         has_frontmatter, metadata, error = _parse_leading_frontmatter(
             f.read_text(encoding="utf-8")
         )
@@ -1508,6 +1533,13 @@ def format_markdown(report: ValidationReport) -> str:
         lines.append("")
         for v in report.naming_convention.violations:
             lines.append(f"- {v}")
+        lines.append("")
+
+    if report.frontmatter_validity and report.frontmatter_validity.issues:
+        lines.append("## Malformed Frontmatter")
+        lines.append("")
+        for issue in report.frontmatter_validity.issues:
+            lines.append(f"- {issue}")
         lines.append("")
 
     return "\n".join(lines)
