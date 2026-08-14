@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14705.json
-qaCommit: a203844dd50b7f59897301ce0d70b2290593d77e
+qaCommit: f38e33061aff7d36208b548f78629076e3b39ed8
 ---
 
 # PR 4972 Ship First-PR Ordering QA
