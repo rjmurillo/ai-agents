@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Memory committed in PR #4983 (3f913d7c9). Session-specific doc-accuracy state deferred to separate memory-only PR per .claude/rules/claude-agents.md:42."
+        "Evidence": "Memory committed in PR #4983 (3f913d7c9 on chore/pr-4956-memory-split). Doc-accuracy state preserved in authorized session storage (deferred to separate PR per no-bundling rule)."
       },
       "markdownLintRun": {
         "level": "MUST",

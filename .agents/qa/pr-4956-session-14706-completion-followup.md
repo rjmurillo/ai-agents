@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena.json
-qaCommit: 6102727d606843c0bdd1e4d28c02da4d8f792800
+qaCommit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f
 ---
 
 # PR 4956 completion follow-up validation
