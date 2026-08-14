@@ -1568,9 +1568,8 @@ def _reject_gitlinks(pr_sha: str) -> list[str]:
     """
     try:
         result = subprocess.run(
-            ["git", "ls-tree", "-r", pr_sha],
+            ["git", "ls-tree", "-r", "-z", pr_sha],
             capture_output=True,
-            text=True,
             timeout=30,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -1578,10 +1577,19 @@ def _reject_gitlinks(pr_sha: str) -> list[str]:
     if result.returncode != 0:
         return [f"_reject_gitlinks: git ls-tree exited {result.returncode} (fail closed)"]
     errors: list[str] = []
-    for line in result.stdout.splitlines():
-        parts = line.split(None, 3)
-        if len(parts) >= 4 and parts[0] == "160000":
-            errors.append(f"gitlink rejected: {parts[3]}")
+    # NUL-delimited records are newline-safe (ci-scripts.md:29).
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        # Format: b"<mode> <type> <hash>\t<path>"
+        tab_idx = record.find(b"\t")
+        if tab_idx == -1:
+            continue
+        meta = record[:tab_idx]
+        path = record[tab_idx + 1:]
+        parts = meta.split(None, 2)
+        if len(parts) >= 1 and parts[0] == b"160000":
+            errors.append(f"gitlink rejected: {path.decode(errors='replace')}")
     return errors
 
 

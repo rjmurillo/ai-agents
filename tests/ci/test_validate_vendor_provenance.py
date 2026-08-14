@@ -2333,9 +2333,10 @@ class TestRejectGitlinks:
 
         from scripts.ci.validate_vendor_provenance import _reject_gitlinks
 
+        # NUL-delimited output (git ls-tree -r -z)
         fake_output = (
-            "100644 blob abc123\tREADME.md\n"
-            "160000 commit def456\t.claude/hooks/evil\n"
+            b"100644 blob abc123\tREADME.md\0"
+            b"160000 commit def456\t.claude/hooks/evil\0"
         )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
@@ -2349,10 +2350,11 @@ class TestRejectGitlinks:
 
         from scripts.ci.validate_vendor_provenance import _reject_gitlinks
 
+        # NUL-delimited output (git ls-tree -r -z)
         fake_output = (
-            "160000 commit aaa\tvendor/sub1\n"
-            "160000 commit bbb\tvendor/sub2\n"
-            "100644 blob ccc\tclean.py\n"
+            b"160000 commit aaa\tvendor/sub1\0"
+            b"160000 commit bbb\tvendor/sub2\0"
+            b"100644 blob ccc\tclean.py\0"
         )
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
@@ -2361,6 +2363,23 @@ class TestRejectGitlinks:
         assert len(errors) == 2
         assert "vendor/sub1" in errors[0]
         assert "vendor/sub2" in errors[1]
+
+    def test_newline_in_path_handled(self) -> None:
+        """Paths containing newlines are safely parsed via NUL delimiters."""
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        fake_output = (
+            b"160000 commit aaa\tvendor/evil\npath\0"
+            b"100644 blob bbb\tclean.py\0"
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = fake_output
+            errors = _reject_gitlinks("fakesha")
+        assert len(errors) == 1
+        assert "evil\npath" in errors[0]
 
     def test_timeout_fails_closed(self) -> None:
         import subprocess
