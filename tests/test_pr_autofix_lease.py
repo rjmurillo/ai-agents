@@ -686,7 +686,10 @@ class TestAcquire:
         assert result.reason == "free"
         post.assert_called_once()
 
-    def test_store_read_error_fails_open_to_act(self):
+    def test_store_read_error_fails_closed_to_skip(self):
+        # Issue #4966: an unreadable store leaves ownership unknown, so acquire
+        # must decline (SKIP) instead of claiming a branch a foreign live lease
+        # may hold. It must not post a claim on that blind path.
         with (
             patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
             _patch_post() as post,
@@ -694,11 +697,25 @@ class TestAcquire:
             _patch_login(),
         ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
-        assert result.action == "ACT"
+        assert result.action == "SKIP"
         assert result.reason == "lease-store-unavailable"
         post.assert_not_called()
 
-    def test_store_write_error_fails_open_to_act(self):
+    def test_renewing_store_read_error_fails_open_to_act(self):
+        # Issue #4966 boundary: a renew caller already holds the lease from an
+        # earlier successful read, so the SAME store failure fails open to ACT
+        # (it extends, it does not claim). The SHA gate stays authoritative
+        # (issue #4376). Contrast with test_store_read_error_fails_closed_to_skip.
+        with (
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
+            _patch_post() as post,
+            _patch_head(),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, renewing=True)
+        assert result.action == "ACT"
+        assert result.reason == "lease-store-unavailable"
+        post.assert_not_called()
         with (
             _patch_list([]),
             patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")),
@@ -837,7 +854,10 @@ class TestBaseShaProvenance:
         assert result.action == "SKIP"
         post.assert_not_called()
 
-    def test_store_read_failure_records_no_pr_head(self):
+    def test_store_read_failure_skips_without_pr_head(self):
+        # Issue #4966: the ownership read now fails closed to SKIP. On that path
+        # acquire never reaches the PR head read, so base_sha stays None and no
+        # zero sentinel is fabricated for a branch it declined.
         with (
             _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
             patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
@@ -845,7 +865,9 @@ class TestBaseShaProvenance:
             _patch_login(),
         ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
-        assert result.base_sha == "0" * 40
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+        assert result.base_sha is None
 
 
 # ===========================================================================
@@ -1016,11 +1038,25 @@ class TestStatus:
         assert result.action == "ACT"
         assert result.reason == "free"
 
-    def test_status_store_error_fails_open_to_act(self):
+    def test_status_store_error_fails_closed_to_skip(self):
+        # Issue #4966: reporting ACT told concurrent sessions the branch was
+        # free at the one moment none of them could read the store. Unknown
+        # ownership must read as decline.
         with patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")):
             result = status("o", "r", 1, now=_NOW)
-        assert result.action == "ACT"
+        assert result.action == "SKIP"
         assert result.reason == "lease-store-unavailable"
+
+    def test_cold_start_acts_but_unreadable_store_skips(self):
+        # The three-state distinction issue #4966 requires: a readable store
+        # with no live lease (cold start) still ACTs, while a store that could
+        # not be read SKIPs. "No store yet" is not "a store that failed to read".
+        with _patch_list([]):
+            cold = status("o", "r", 1, now=_NOW)
+        with patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")):
+            unreadable = status("o", "r", 1, now=_NOW)
+        assert (cold.action, cold.reason) == ("ACT", "free")
+        assert (unreadable.action, unreadable.reason) == ("SKIP", "lease-store-unavailable")
 
 
 # ===========================================================================
@@ -1360,7 +1396,10 @@ class TestMainExitCodes:
             )
         assert rc == 0
 
-    def test_store_error_fails_open_exits_zero(self):
+    def test_store_error_fails_closed_exits_one(self, capsys):
+        # Issue #4966: a lease-store read failure is now SKIP (exit 1), so the
+        # caller declines the branch. Distinct from a resolved-auth failure,
+        # which still fails open to ACT (issue #4375, TestAuthFailOpenFix).
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
@@ -1371,7 +1410,24 @@ class TestMainExitCodes:
             rc = main(
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
-        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_status_store_error_exits_one(self, capsys):
+        # CLI status path: an unreadable store fails closed to SKIP (exit 1),
+        # matching the reproduction in issue #4966 (was ACT/exit 0).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("down")),
+        ):
+            rc = main(["status", "--pull-request", "1", "--output-format", "json"])
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert payload["Data"]["action"] == "SKIP"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
 
 
 # ===========================================================================

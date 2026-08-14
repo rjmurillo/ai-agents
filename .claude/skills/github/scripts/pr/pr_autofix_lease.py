@@ -38,8 +38,9 @@ hard safety boundary and is never replaced or relaxed by this module.
 Exit codes (within the ADR-035 range, matching `check_pr_live_state.py`'s
 ACT/SKIP convention):
     0 - ACT: caller may proceed (lease acquired, renewed, released, or
-        fail-open on auth/store error per ADR-076 part 3 step 6)
-    1 - SKIP: a live lease is held by another loop (acquire/renew only)
+        fail-open on an auth or store-write error per ADR-076 part 3 step 6)
+    1 - SKIP: another live lease holds the branch, OR the ownership read
+        could not reach the store (fail-closed; ADR-090, issue #4966)
     2 - PR not found / usage error
     3 - External error (API failure)
     4 - Auth error (only for non-lease operations; lease operations fail
@@ -70,12 +71,30 @@ plus ``git cherry``; it reads ZERO comments. This module adds a NEW
 comment-timeline read path; it does not reuse that probe's store. The
 reuse is the ACT/SKIP gate *pattern*, not a shared store (ADR-076 part 1).
 
-Fail-open difference, by design (ADR-076 part 3, step 6): on a lease-store
-read/write failure this module FAILS OPEN to ACT (exit 0) with reason
-``lease-store-unavailable`` rather than surfacing the API error as exit 3.
-The SHA gate is the backstop, so a store outage must degrade to today's
-behavior, never to a workflow outage. A genuine PR-not-found or auth
-failure still exits 2 / 4.
+Fail-open vs fail-closed, by design. Two failure classes get opposite
+verdicts because they answer different questions:
+
+* The blind ownership READ (``status``, and a fresh ``acquire`` that
+  holds no prior lease) FAILS CLOSED to SKIP (exit 1) with reason
+  ``lease-store-unavailable``. An unreadable store leaves ownership
+  unknown, and a gate that cannot determine ownership must not act on the
+  branch (ADR-090; issue #4966; ``.claude/rules/security.md`` MUST-7,
+  "infrastructure failure is not a security pass"). Reporting ACT here
+  told every concurrent session the branch was free at the one moment
+  none of them could tell.
+* A ``renew`` (the caller already holds the lease from an earlier
+  successful read), a store WRITE failure after a free read, an
+  unresolved auth/login, and ``release`` still FAIL OPEN to ACT (exit 0)
+  with the same reason, per ADR-076 part 3 step 6 and issues #4375/#4376.
+  Those paths either already observed the branch free (the SHA gate
+  absorbs the residual race), are extending a lease this session already
+  won, or are relinquishing (TTL covers a missed tombstone), so failing
+  them closed would convert a store outage into a workflow outage.
+
+A genuine PR-not-found or auth resolution error still exits 2 / 4. The
+"no store yet" cold start (a successful read that returns no live lease)
+is distinct from "a store that could not be read": the former ACTs, the
+latter SKIPs.
 
 Security (ADR-076 Security section): the lease comment is untrusted input
 read from the PR timeline. Three hardening controls bound forgery:
@@ -797,21 +816,30 @@ def acquire(
     pr: int,
     now: datetime | None = None,
     acting_author: str | None = None,
+    renewing: bool = False,
 ) -> LeaseResult:
     """Acquire (or self-renew) the lease for ``pr`` (ADR-076 part 3 acquire).
 
     Returns ACT when the caller may proceed (free lock, or self-renewal),
-    SKIP when another live lease holds the branch. Fails open to ACT with
-    reason ``lease-store-unavailable`` on any store error (step 6).
+    SKIP when another live lease holds the branch. A fresh acquire fails
+    CLOSED: if the first store read cannot reach the timeline, it returns
+    SKIP/``lease-store-unavailable`` so a caller with no prior ownership
+    does not claim a branch it cannot verify is free (ADR-090; issue
+    #4966). ``renewing=True`` marks a caller that already holds the lease
+    from an earlier successful read; it fails OPEN to ACT on the same read
+    failure, because the holder is extending, not claiming, and the SHA
+    gate stays authoritative (issue #4376). A store WRITE failure after a
+    free read also fails open to ACT (step 6) for the same reason.
 
     Self-renewal keys on ``acting_author``: the VERIFIED login of the
     credential running acquire, matched against the verified author of the
     authoritative lease comment, never against the forgeable body
     ``owner`` / ``session`` (ADR-076 Security, CWE-345). ``acting_author``
     is injectable for deterministic tests; production passes None and the
-    authenticated ``gh`` login is resolved. An unresolved login fails open
-    to ``ACT/lease-store-unavailable`` because ownership loss was not
-    positively confirmed. The SHA gate remains the mutation backstop.
+    authenticated ``gh`` login is resolved. An unresolved login is an
+    auth/identity failure, distinct from a store read failure, and retains
+    the ADR-076 fail-open to ``ACT/lease-store-unavailable`` (issue #4375);
+    the SHA gate remains the mutation backstop.
 
     ``base_sha`` is the PR head SHA read from GitHub (ADR-076 part 3 step
     1), never the caller's local HEAD, so an acquire run from the wrong
@@ -824,10 +852,12 @@ def acquire(
     A competing writer that wins the reread race turns the acquire into
     SKIP, so two actors do not both continue with false success.
 
-    Only the comment read fails open. The head read runs after the lease
-    verdict and records the zero sentinel on failure, so a transient error
-    on it cannot skip the read that enforces mutual exclusion, and it costs
-    nothing on the SKIP path.
+    The first comment read fails closed to SKIP for a fresh acquire
+    (issue #4966), or open to ACT when ``renewing`` (the holder extends in
+    place). The head read runs after the lease verdict and records the
+    zero sentinel on failure, so a transient error on it cannot skip the
+    read that enforces mutual exclusion, and it costs nothing on the SKIP
+    path.
 
     ``now`` is injectable for deterministic tests; production passes None
     and the current UTC instant is used.
@@ -843,10 +873,24 @@ def acquire(
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        logger.warning("op=lease_acquire_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult(
-            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
-        )
+        if renewing:
+            # A renew caller already holds the lease from an earlier successful
+            # read, so it extends in place and fails open to ACT. The SHA gate
+            # stays authoritative while the advisory store is down (ADR-076
+            # step 6; issue #4376). A fresh acquire fails closed below, so no
+            # competitor can enter during the outage; the holder proceeding
+            # adds no new concurrency. Residual lease-loss is issue #4926.
+            logger.warning("op=lease_renew_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
+            return LeaseResult(
+                "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+            )
+        # Fail closed: a fresh acquire has no prior ownership evidence, so an
+        # unreadable store leaves ownership unknown. A gate that cannot
+        # determine ownership must not mutate the branch (ADR-090; issue
+        # #4966), so SKIP rather than blindly claim a branch a foreign live
+        # lease may already hold.
+        logger.warning("op=lease_acquire_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("SKIP", "lease-store-unavailable")
 
     current = select_authoritative_lease(comments)
     verdict = classify_acquire(current, author, session, now)
@@ -963,8 +1007,12 @@ def status(repo_owner: str, repo: str, pr: int, now: datetime | None = None) -> 
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        logger.warning("op=lease_status_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult("ACT", "lease-store-unavailable")
+        # Fail closed: an unreadable store leaves ownership unknown, and the
+        # safe reading of unknown is decline (issue #4966; ADR-090).
+        # Reporting ACT here told concurrent sessions the branch was free at
+        # the one moment none of them could tell.
+        logger.warning("op=lease_status_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("SKIP", "lease-store-unavailable")
     current = select_authoritative_lease(comments)
     if current is not None and current.is_live(now):
         return LeaseResult(
@@ -1045,7 +1093,14 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
     # section (issue #4376). A renew that finds the lease free (e.g. expired)
     # re-claims it, which is the correct recovery.
     if args.command in ("acquire", "renew"):
-        return acquire(args.lease_owner, args.session, owner, repo, args.pull_request)
+        return acquire(
+            args.lease_owner,
+            args.session,
+            owner,
+            repo,
+            args.pull_request,
+            renewing=args.command == "renew",
+        )
     return release(args.lease_owner, args.session, owner, repo, args.pull_request)
 
 
