@@ -56,9 +56,16 @@ def test_exit_code_documentation_covers_the_cli_contract() -> None:
     10: Findings at or above severity threshold"""
     skill_path = Path(mod.__file__).resolve().parents[1] / "SKILL.md"
     skill_docs = skill_path.read_text(encoding="utf-8")
+    source_citation = (
+        "Canonical source bundled with this skill:\n\n"
+        "```text\n"
+        "scripts/doc_accuracy.py\n"
+        "```"
+    )
 
     assert contract in (mod.__doc__ or "")
-    assert "Canonical source: `scripts/doc_accuracy.py` module docstring." in skill_docs
+    assert source_citation in skill_docs
+    assert (skill_path.parent / "scripts" / "doc_accuracy.py").is_file()
     assert f"```text\n{contract}\n```" in skill_docs
 
 
