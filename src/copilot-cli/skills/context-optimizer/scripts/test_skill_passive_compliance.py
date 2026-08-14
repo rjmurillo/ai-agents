@@ -230,11 +230,21 @@ def audit_size_exception(skill_path: Path) -> CheckResult | None:
     """Audit structured evidence for a declared skill size exception."""
     skill_md = skill_path / "SKILL.md"
     content = skill_md.read_text()
-    if not re.search(
-        r"^size-exception:\s*true\s*$",
-        content,
-        re.IGNORECASE | re.MULTILINE,
-    ):
+    # Parse only YAML frontmatter for size-exception declaration,
+    # matching the canonical parser at SkillForge/scripts/frontmatter.py.
+    has_exception = False
+    if content.startswith("---"):
+        fm_lines = content.split("\n")
+        for i in range(1, len(fm_lines)):
+            if fm_lines[i].strip() == "---":
+                frontmatter_block = "\n".join(fm_lines[1:i])
+                has_exception = bool(re.search(
+                    r"^\s*size-exception:\s*true\s*(?:#.*)?$",
+                    frontmatter_block,
+                    re.IGNORECASE | re.MULTILINE,
+                ))
+                break
+    if not has_exception:
         return None
 
     comment_body = find_size_exception_comment(content)
@@ -510,7 +520,7 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
                 "plugin-provided context",
             ],
             "requiredSeparateChecks": [
-                f"Run skill_size.py separately for the scanned skill tree: {path}",
+                f"Contributors: run skill_size.py separately for the scanned skill tree: {path} (upstream rjmurillo/ai-agents only)",
             ],
             "vendorGuidance": {
                 "claudeMd": (
@@ -620,7 +630,11 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
 
     # Check 4-6: Skills (if scanning skills directory)
     if full_path.exists():
-        skill_dirs = sorted(skill_md.parent for skill_md in full_path.rglob("SKILL.md"))
+        skill_dirs = sorted(
+            skill_md.parent
+            for skill_md in full_path.rglob("SKILL.md")
+            if "worktrees" not in skill_md.parts
+        )
 
         for skill_dir in skill_dirs:
             skill_name = skill_dir.name
