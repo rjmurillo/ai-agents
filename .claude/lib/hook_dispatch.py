@@ -5,9 +5,11 @@ registered matcher shim. The aggregate Python interpreter cold-start (~200 ms
 each, ~40 shims) caused host kills that denied benign tools (false
 fail-closed).
 
-This dispatcher collapses N per-shim processes into one. The host spawns a
-single interpreter per event; each shim then runs *in process* via ``runpy``,
-so the interpreter cold-start is paid once instead of N times.
+This dispatcher collapses N per-shim host registrations into one. The host
+spawns a single interpreter per event; an untimed shim runs *in process* via
+``runpy``, while a shim carrying timeout metadata runs in a child process so
+its bound is enforceable (#4706). Cold-start savings apply only to untimed
+shims.
 
 Design contract (the security-critical part):
 
@@ -19,7 +21,9 @@ Design contract (the security-critical part):
   non-zero denies the tool (fail-closed, ADR-066). A shim that cannot load
   (SyntaxError, ImportError) degrades with exit 0 (#4672); a shim that loads
   and raises during execution denies (exit 2). Per-shim timeout metadata is
-  validated but not enforced; the host owns the cumulative event timeout. In
+  enforced for gate shims since #4706 (a timed shim runs in a child process
+  and a timeout denies); observe mode ignores it and the host owns the
+  cumulative event timeout. In
   observe mode every shim runs regardless; failures are logged and the
   dispatcher returns 0. Current generated observers are ``PostToolUse``,
   ``PreCompact``, ``SessionStart``, and ``UserPromptSubmit``.

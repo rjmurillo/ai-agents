@@ -28,15 +28,19 @@ from checks_common import _resolve_branch_base_ref, _run_subprocess  # noqa: E40
 _DASH_RE = re.compile("[\u2013\u2014]")
 
 
-# Paths skipped by the branch-wide dash scan and the markdown-lint target
-# builder, which shares this predicate:
+# Paths skipped by the branch-wide dash scan and (via _markdown_lint_targets
+# in checks_tooling.py, which shares this predicate) the markdown-lint target
+# builder:
 # - node_modules/, .venv/, .serena/cache/: vendored content (REQ-006-AC5)
 # - tests/hooks/fixtures/: test fixtures intentionally contain U+2014/U+2013
 #   to exercise the detection logic; flagging them would fail every PR that
 #   touches the dash-guard test suite
-# - worktrees/, .agent-scratch/, .scratch/: agent-session scratch trees, not
-#   authored source. The changed-path union includes untracked files, so these
-#   roots must be filtered before markdownlint receives its argument list.
+# - worktrees/, .agent-scratch/, .scratch/: untracked agent-session scratch
+#   trees, not authored source. The changed-path union in
+#   checks_changed_paths.py includes untracked files, so a sibling session's
+#   scratch tree lands in the markdown-lint target list; at scale (4000+
+#   files) markdownlint-cli2 v0.23.1 exits 249 with no findings, and the
+#   caller's canned MD040/MD033 hint then misreports the cause (issue #4892).
 _VENDORED_PREFIXES = (
     "node_modules/",
     ".venv/",

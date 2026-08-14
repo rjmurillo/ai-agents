@@ -1,0 +1,239 @@
+{
+  "id": "episode-2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate",
+  "session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate",
+  "timestamp": "2026-08-11T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Vendor require-subagent-model PreToolUse hook into plugin and repo surfaces for Claude and Copilot CLI (issue 4874)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-11T04:45:00+00:00",
+      "type": "milestone",
+      "content": "Created issue #4874 and claimed it; branch feat/require-subagent-model-hook.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-11T05:00:00+00:00",
+      "type": "milestone",
+      "content": "Authored .claude/hooks/PreToolUse/invoke_require_subagent_model.py: PreToolUse gate denying sub-agent spawns that name no model and resolve no agent definition file; fail-open on malformed input (#4672 policy); escape hatch CLAUDE_CODE_SUBAGENT_MODEL.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-11T05:10:00+00:00",
+      "type": "milestone",
+      "content": "Registered plugin dispatch group plugin-pretooluse-10-require_subagent_model (dispatch_groups.json, hooks.json dispatcher entry); regenerated src/copilot-cli/hooks (shim, manifest, hooks.json; host union Bash|Agent|Task).",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-11T05:15:00+00:00",
+      "type": "milestone",
+      "content": "Added repo-local Copilot surface .github/hooks/require-subagent-model.json (native preToolUse, matcher task). No settings.json twin: duplicate-entry contract (hook_contracts.py) forbids it; documented prune in test_dispatch_groups_parity.py.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-11T05:20:00+00:00",
+      "type": "milestone",
+      "content": "Tests: tests/hooks/test_require_subagent_model.py (payload matrix both harness spellings, definition search roots, process-boundary fail-open), AUTHORIZED_HOOKS ledger entry (#4874).",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-11T06:30:00+00:00",
+      "type": "milestone",
+      "content": "adr-review for ADR-068/ADR-071/ADR-085 converged at round 6: 2 Accept, 4 Disagree-and-Commit, 0 Block (rounds 1-5: fired re-evaluation triggers, #4706 contradiction, falsified savings claim, fail-open contract scoping, glob-spoof code fix). All dissent conditions honored in-commit. Debate log: .agents/critique/ADR-068-071-085-metric-refresh-debate-log.md.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-11T06:45:00+00:00",
+      "type": "milestone",
+      "content": "Synced dependent docs-of-record: agent-harness-reference, ai-agents-architecture-contract (+provenance), ai-agents-config-catalog, ai-agents-portability-campaign; hook_dispatch.py stale timeout docstring; knowledge-test pins and refutations; mirrors regenerated.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008",
+        "e009"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T10:03:00+00:00",
+      "type": "milestone",
+      "content": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:03:00+00:00",
+      "type": "test",
+      "content": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T12:03:01+00:00",
+      "type": "commit",
+      "content": "Commit: 164227594de83d26b495927414a0b05147e2901b",
+      "caused_by": [
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T13:25:45+00:00",
+      "type": "commit",
+      "content": "Commit: 2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T14:15:07+00:00",
+      "type": "commit",
+      "content": "Commit: 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T14:55:58+00:00",
+      "type": "commit",
+      "content": "Commit: abf4b8651e8a297876ede306aaac54f1cab739b8",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T15:09:19+00:00",
+      "type": "commit",
+      "content": "Commit: e7202ce172f8b6474367eaae2f08d0dda1deb7bb",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T15:41:58+00:00",
+      "type": "commit",
+      "content": "Commit: 99dce54d4d7c4285688681f5ffec61adacdf36c0",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T16:25:24+00:00",
+      "type": "commit",
+      "content": "Commit: c27f1e42463e4e31d91f67c1433d3634d2a3d0db",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T02:59:08+00:00",
+      "type": "commit",
+      "content": "Commit: 4bb24a294b16859b08050ded72f55636fb26cdb9",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-11-session-14681-b71853e6d-vendor-require-subagent-model-pretooluse-hook-gate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 3198,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 58
+  },
+  "lessons": []
+}

@@ -6,8 +6,8 @@ from __future__ import annotations
 # DO NOT EDIT BY HAND - regenerated on every build. Apply NO-REGEN
 # sentinel ("# NO-REGEN" or sidecar .noregen) to opt out.
 # Exit codes: 0 when the matcher does not fire (allow) or the wrapped script
-# succeeds, the wrapped script's own code when it fires, 2 to block on any
-# internal error. Never 0 silently on malformed input.
+# succeeds, or the wrapped script's own code when it fires. Internal matcher
+# errors use the wrapped hook's declared fail-open or fail-closed policy.
 import os as _os
 import sys as _sys
 import io as _io
@@ -16,6 +16,7 @@ import re as _re
 import fnmatch as _fnmatch
 
 _MATCHER = '^(Write|Edit)$'
+_INPUT_ERROR_CODE = 2
 
 # Bound the standalone shim read before JSON parsing so a malicious or buggy
 # upstream cannot cause unbounded allocation (CWE-400).
@@ -301,7 +302,7 @@ def _shim_dispatch_selections(payload):
             "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
-        _sys.exit(2)
+        _sys.exit(_INPUT_ERROR_CODE)
 
 
 def _shim_debug_trace(fire):
@@ -321,7 +322,7 @@ def _shim_dispatch():
             "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
-        _sys.exit(2)
+        _sys.exit(_INPUT_ERROR_CODE)
     if len(_raw) > _HOOK_STDIN_CEILING_BYTES:
         print(
             "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
@@ -329,7 +330,7 @@ def _shim_dispatch():
             ),
             file=_sys.stderr,
         )
-        _sys.exit(2)
+        _sys.exit(2)  # always fail-closed for oversized payloads
     try:
         payload = _shim_load_json(_raw or b"{}")
     except RecursionError:
@@ -345,13 +346,13 @@ def _shim_dispatch():
             ),
             file=_sys.stderr,
         )
-        _sys.exit(2)
+        _sys.exit(_INPUT_ERROR_CODE)
     except ValueError as exc:
         print(
             "matcher-shim [{}]: malformed JSON on stdin: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
-        _sys.exit(2)
+        _sys.exit(_INPUT_ERROR_CODE)
     fire = False
     for selection in _shim_dispatch_selections(payload):
         if not fire:

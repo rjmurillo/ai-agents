@@ -1,0 +1,107 @@
+{
+  "id": "episode-2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context",
+  "session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve GitHub issue 4881 context optimizer compliance scope",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T14:44:12+00:00",
+      "type": "milestone",
+      "content": "Recovered issue ownership and stale implementation state.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T14:50:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the defect on current origin/main.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T15:05:00+00:00",
+      "type": "milestone",
+      "content": "Completed the root-cause fix and generated mirrors.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T15:25:00+00:00",
+      "type": "milestone",
+      "content": "Validated runtime behavior and safety safeguards.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T15:35:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent artifact review.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T15:10:35+00:00",
+      "type": "commit",
+      "content": "Commit: 95eab548731c696830ab9e9cb91b92d385d3e291",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T15:11:19+00:00",
+      "type": "commit",
+      "content": "Commit: 4f50b1ac323d553ec96e775e633a8e3a21529670",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 50,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 10
+  },
+  "lessons": []
+}
