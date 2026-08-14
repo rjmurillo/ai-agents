@@ -61,9 +61,22 @@
       "id": "e005",
       "timestamp": "2026-08-14T16:52:35+00:00",
       "type": "commit",
-      "content": "Commit: fadc1ef6f7c07e71856254901ab9e480dce3c2bb",
+      "content": "Commit: fadc1ef6f",
       "caused_by": [
         "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T18:24:03+00:00",
+      "type": "commit",
+      "content": "Commit: 92358004b8004da624d48215c3a47b7f8ea646b2",
+      "caused_by": [
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
@@ -74,8 +87,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 15
   },
   "lessons": []
 }
