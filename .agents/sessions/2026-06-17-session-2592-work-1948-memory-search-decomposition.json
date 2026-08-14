@@ -125,7 +125,7 @@
       "detail": "ADR-063 Decision point 1 binds the split axis to operation, not tier (overriding issue #1948 body probable-shape tier guess). Smallest reversible slice the ADR explicitly commits to: extract the Tier 1 search operation into a memory-search sub-skill while memory survives as the thin router (Decision points 1, 2, 5). The router-vs-dedicated-sibling location of the Memory-First Gate (Decision point 3) is left open by the ADR for later debate, so Phase 1 does not touch it. Remainder (episode/causal/maintenance sub-skills, gate location, eval/mirror regen, AC4-AC10) flagged in PR body. Refs #1948, not Fixes."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "08fdc045afa58d3f0e628ee3f5cbd903fb6d2f9c",
   "nextSteps": [
     "Phase 2 of #1948: decide Memory-First Gate location (ADR-063 Decision point 3, router vs memory-gate sibling).",
     "Add episode/causal/maintenance operation sub-skills.",

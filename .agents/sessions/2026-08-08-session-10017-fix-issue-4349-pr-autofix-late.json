@@ -188,7 +188,7 @@
       "outcome": "445 broader pr-autofix tests passed with 1 expected skip; 114 final lease tests passed; ruff, Markdown lint for 2 files, generated artifact parity, diff check, and full pre_pr.py passed"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5bbda22c0",
   "nextSteps": [
     "Push the readiness identity and causal lease commits, reply to and resolve all reachable threads",
     "Retain auto-merge and drive PR #4769 to merge"

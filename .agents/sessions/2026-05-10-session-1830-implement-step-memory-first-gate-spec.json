@@ -254,7 +254,7 @@
       "detail": "spec.md+SKILL.md tally examples now show H6/AC-13 case alongside pass + H11/AC-09. DESIGN-008 halt-block heading updated to H6-H11."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7be6b55a",
   "nextSteps": [
     "Post-merge: live /spec smoke test on a fresh feature request",
     "Address deferred sub-issues of #1951: #1971-#1978 (LLM-eval harness, ADR-060, additional security hardening)"

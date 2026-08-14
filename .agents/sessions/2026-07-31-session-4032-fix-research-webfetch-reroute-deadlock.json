@@ -143,7 +143,7 @@
       "result": "Parity gate holds; both manifests carry the same strictly greater version"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "90c6dafca99864020ab7bb4a19b01162ae3c2fcd",
   "nextSteps": [
     "Upstream: context-mode's PreToolUse hook names tools the caller may not hold. File that at the context-mode project, not here.",
     "Watch whether the Bash(python3:*/skills/github/scripts/*) prefix pattern draws a security review thread; push-pr.md uses a per-script form."

@@ -123,5 +123,5 @@
     "Two touched test files are now past 340 lines against a 500 line advisory ceiling. Extraction should be planned before the next addition to either.",
     "#3746 is the same family but a different root cause: external_tmp_path resolving inside the repo from a nested worktree. Not fixed here."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "d5e894636cb25ca82f3d37f1e5bb046e8fc97581"
 }

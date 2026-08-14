@@ -148,7 +148,7 @@
       "detail": "5ea35eddb012ea78eedef4c6d8ac8f0b959da89f fix(ci): reject out-of-range health_score before rendering a percentage. Refs #3971. Co-Authored-By: Copilot <223556219+Copilot@users.noreply.github.com>"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5ea35eddb012ea78eedef4c6d8ac8f0b959da89f",
   "nextSteps": [
     "Run pre_pr.py full validation",
     "Commit atomically with Copilot trailers",

@@ -145,7 +145,7 @@
       "result": "Removed the fast-success cleanup. A regression now proves the lease remains held until per-PR work ends."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "75c22a3e0fe768b600a93a40819a0789b7b286c4",
   "nextSteps": [
     "Merge this PR, then refresh PR #4845 from main and push it again."
   ]

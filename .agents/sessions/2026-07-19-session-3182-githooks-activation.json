@@ -188,7 +188,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "6d3ca1f7",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",

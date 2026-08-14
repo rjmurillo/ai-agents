@@ -160,5 +160,5 @@
       "evidence": "git_hook_policy.py mypy is a changed-line ratchet (issue #2993); it blocked on test_scan.py:1855 valid-type and :1856 attr-defined because ScanResult is a runtime alias of a dynamically loaded module, not a static type. No other use in the file annotates with it. After the edit the ratchet exits 0 and ruff passes on the file."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "b4e257631"
 }

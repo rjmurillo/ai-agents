@@ -152,7 +152,7 @@
       "result": "Workflow header and TestWorkflowContract agree on 'Validate Vendor Provenance' in commit 05f3d4230acc58a3597a20b6150d691d51f40736."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "05f3d4230acc58a3597a20b6150d691d51f40736",
   "nextSteps": [
     "Push QA report and session log, wait for required checks, then run completion gate."
   ]

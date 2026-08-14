@@ -170,7 +170,7 @@
       "result": "Recursive duplicate JSON keys now fail closed with a fixed payload-free diagnostic. Conflicting name, input, and call-ID aliases fail closed. Matching aliases use recursive type-strict equality and replay as one snake_case schema; null tool_input still falls back to toolArgs. Dispatcher helpers remain at complexity 10 or lower and preserve the established manifest validation order. Focused suite: 277 passed, 1 intentional exclusion. Build-script suite: 891 passed, 1 intentional exclusion. Full suite: 14486 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78, generation, plugin smoke, manifest parity, and pre-PR checks passed. Final implementation tip is 2b59d62b35ab5dabef576f6120e8c6c485e60218."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2b59d62b35ab5dabef576f6120e8c6c485e60218",
   "nextSteps": [
     "Commit the refreshed QA report, dispatcher memory, and session record.",
     "Regenerate the complete diff for the current tip and run all 15 review axes.",

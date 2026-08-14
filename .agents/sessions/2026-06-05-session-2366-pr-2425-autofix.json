@@ -95,7 +95,7 @@
       "entry": "Corrected session-end fields to mark merge-readiness validation as blocked while the governance thread and required checks remained open; removed local absolute path evidence."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Add companion ADR and consensus evidence for CI-FEEDBACK-SUBLOOP governance adoption.",
     "Request human maintainer approval on PR #2425 after governance evidence is present.",

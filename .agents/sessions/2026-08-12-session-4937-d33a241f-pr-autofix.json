@@ -138,7 +138,7 @@
       "result": "Updated qaCommit to merge commit e1996a77cb79f07721541477f1ae4851144d3487 so the QA evidence covers every current branch change."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e1996a77cb79f07721541477f1ae4851144d3487",
   "nextSteps": [
     "Push the QA evidence commit through a fresh live-state gate.",
     "Wait for required checks and re-run the four-condition Ready-to-Merge gate.",

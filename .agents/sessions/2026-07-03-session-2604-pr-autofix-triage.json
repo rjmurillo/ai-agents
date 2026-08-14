@@ -127,7 +127,7 @@
       "evidence": "Compared file sets: #2822's only real delta was 4 additive edits on the same mirror-obligation theme (TESTING-ANTI-PATTERNS.md Anti-Pattern 6 'Stale Contract Tests' +17 lines; SHOULD rule #4 'Mirror obligation on contract changes' in .claude/rules/testing.md, .github/instructions/testing.instructions.md, src/copilot-cli/instructions/testing.instructions.md). #2793 does not touch these files, so ported #2822's exact versions (byte-match verified). Plugin parity 0.5.255 and version-bump validators pass; existing 0.5.255 bump already covers the new .claude/ and src/copilot-cli/ content. #2822's own session/episode artifacts (session-2603) intentionally not ported."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2342e77f",
   "nextSteps": [
     "Renovate PRs #2826/#2825/#2819/#2804/#2803 remain BLOCKED by empty-verdict AI-review required checks; needs a workflow fix (make infra-failure verdicts non-required/passing) or authorized admin merge.",
     "Draft PR #2822 superseded: its unique content (4 files) ported into #2793; closing #2822 as duplicate."

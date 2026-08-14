@@ -117,7 +117,7 @@
       "evidence": "Commit 2ee3e7fa1c uses Invoke-ScriptAnalyzer -LiteralPath with escaped single-quoted paths and adds tests for quoted and wildcard-like paths."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2ee3e7fa1c",
   "nextSteps": [
     "Push merge resolution to PR #2830 and wait for GitHub checks.",
     "Keep auto-merge enabled and poll until PR #2830 reports MERGED."

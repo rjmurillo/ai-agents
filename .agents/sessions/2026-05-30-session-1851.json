@@ -121,7 +121,7 @@
     "Added tests: parametrized pruning, nested-worktree pruning, SKIP_DIRS contract, --staged-only path, 30s timing budget; kept canonical test_runs_without_error",
     "Hook suite green (43 passed); script coverage 88%"
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a471eac0",
   "nextSteps": [
     "Reviewer verification of os.walk pruning and timing-budget test",
     "Merge after CI passes"

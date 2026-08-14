@@ -120,6 +120,6 @@
       "evidence": "uv run pytest tests/ci/test_classify_semantic_title_result.py -q: 12 passed. Full tests/ci/: 27 passed. RED confirmed first (ModuleNotFoundError), GREEN after implementation, mutation (exit_code 1->0 on semantic failure) made 3 tests fail then restored to 27 passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": []
 }

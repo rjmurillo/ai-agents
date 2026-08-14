@@ -152,7 +152,7 @@
       "result": "Updated the final session-specific QA markdown artifacts so the session-end checks and Validate PR stay pinned to the latest validator fix commit."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a9289765e5388b8802c36e345722badb7d58eb20",
   "nextSteps": [
     "Wait for required checks to pass, then merge only if the Ready-to-Merge gate returns all four conditions true."
   ],

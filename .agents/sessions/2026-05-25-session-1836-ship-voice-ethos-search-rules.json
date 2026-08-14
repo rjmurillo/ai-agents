@@ -166,7 +166,7 @@
       "evidence": "this pending commit"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "TBD",
   "nextSteps": [
     "Push feat/voice-rule with ALLOW_LARGE_PUSH=1 and ensure pre-push pytest + build_all --check pass",
     "Open PR via gh skill once push succeeds",

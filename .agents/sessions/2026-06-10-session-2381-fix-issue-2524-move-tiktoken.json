@@ -126,7 +126,7 @@
       "entry": "Verification: uv run pytest of import-safety + word-removal + tests/context-optimizer/ = 124 passed (no pollution); CLI runs normally with tiktoken; CLI exits 4 with install hint when tiktoken blocked; ruff + mypy clean."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Open PR Fixes #2524"
   ]

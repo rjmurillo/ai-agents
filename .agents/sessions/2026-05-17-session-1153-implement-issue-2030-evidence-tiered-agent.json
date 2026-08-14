@@ -142,7 +142,7 @@
       "outcome": "Resolved findings 1,2,3,4,6,7 in-session (naming disambiguation, idempotency-key docs, scope note, assertion comment, 2 added tests). Finding 5 (wire validator into pre_pr.py) carried as a follow-up."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b4cdb6d7",
   "nextSteps": [
     "Follow-up: wire scripts/validation/validate_skillbook.py into scripts/validation/pre_pr.py for shift-left local validation (critic finding 5).",
     "Follow-up: wire select output into agent prompts or session start so the skillbook has a consumer.",

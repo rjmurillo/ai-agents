@@ -49,7 +49,7 @@
     {"step": "Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage", "outcome": "Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop."},
     {"step": "Commit G: pre-push fixes", "outcome": "Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit."}
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Re-run /pr-quality:all to verify all 7 CI gates now PASS",
     "If any gate still flags, recurse: fix-loop until clean",

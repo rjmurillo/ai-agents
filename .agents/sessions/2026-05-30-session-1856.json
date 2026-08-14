@@ -130,7 +130,7 @@
       "detail": "No marker surface exists for a UserPromptSubmit hook (only the prompt is on stdin; no hook writes a Serena-activation marker). Emit one unconditional reminder correct whether or not Serena is active. Documented in hook docstring."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Open PR with Fixes #1993.",
     "qa review of the hook contract and test coverage.",

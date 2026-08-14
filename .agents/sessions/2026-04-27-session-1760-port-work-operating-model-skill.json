@@ -130,7 +130,7 @@
       "action": "Validated: 51 pytest cases pass, ruff/mypy clean. Validator CLI smoke test on minimal valid doc returns rc=0. Atomic skill commit 0a0c915d created (5 files, 1020 insertions). Note: native Write tool blocked in this session by broken security_gate hook (CLAUDE_PLUGIN_ROOT pointed at context-mode plugin lacking lib/); files were created via ctx_execute python as workaround. Hook bug to be flagged in retrospective."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0a0c915d",
   "nextSteps": [
     "Commit session log",
     "Push branch to origin",

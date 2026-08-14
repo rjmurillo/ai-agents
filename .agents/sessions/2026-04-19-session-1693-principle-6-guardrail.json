@@ -144,7 +144,7 @@
       "outcome": "1 pre-existing drift (merge-resolver, not in scope). 6 touched agents all report OK. No new drift introduced."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "pending",
   "nextSteps": [
     "Commit with conventional message feat(agents): scope #1693",
     "Push branch and open PR referencing Fixes #1693",

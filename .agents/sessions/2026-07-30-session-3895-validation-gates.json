@@ -121,5 +121,5 @@
     "Push fix/validation-gates and open the PR targeting main.",
     "Verify PR validation workflow passes (pr-validation CI)."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "fb7981005"
 }

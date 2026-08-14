@@ -132,7 +132,7 @@
       "outcome": "42 targeted tests passed. Four xdist workers passed the 25,321-test non-integration partition twice in 315.53 and 301.03 seconds."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "4e7c0868f97104396b328cf9b6f08f2d8518afbe",
   "nextSteps": [
     "Open an atomic pull request referencing Issue #4823."
   ]

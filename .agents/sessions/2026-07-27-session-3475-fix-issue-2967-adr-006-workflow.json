@@ -135,7 +135,7 @@
       "entry": "Validated with targeted pytest, ruff, mypy, ADR-006 scanner, validate_workflows.py, workflow-local via pre_pr.py, and pre_pr.py."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2a154d55",
   "nextSteps": [
     "Continue issue #2967 with the remaining 85 validator-reported blocks, largest first.",
     "Next highest-leverage targets are pr-maintenance.yml:280 and pr-validation.yml:174 at 68 code lines each."

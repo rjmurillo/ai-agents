@@ -109,7 +109,7 @@
    ]
   }
  ],
- "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+ "endingCommit": "a63c6ef1",
  "nextSteps": [
   "Push docs/3252-adr083-copy-only and open a PR: Refs #3222 #3251 #3252 #3256 (use Refs, not Closes, so #3252 stays under owner control and ai-spec-validation deep-validation is skipped). Explain implemented: false (phases 1,2,4,5 unbuilt).",
   "Babysit the Copilot review-convergence loop (fix -> resolve threads -> push until a push yields 0 new threads), then self-merge via squash once checks are green and threads resolved.",

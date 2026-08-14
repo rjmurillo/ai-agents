@@ -143,7 +143,7 @@
       "outcome": "Episode metrics.commits now matches the three commit events in the extracted episode."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "48a1a8ed2",
   "nextSteps": [
     "Run /review and merge PRs #2683, #2685, and this ADR-approvals PR.",
     "Close #2686 (ADR-074 collision resolved).",

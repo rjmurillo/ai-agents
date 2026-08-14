@@ -158,7 +158,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "4d31c635",
   "nextSteps": [
     "Both ADR-062 amendment and ADR-084 are now accepted (repo-owner @rjmurillo, 2026-07-18); the adr-review 6/6 consensus is final.",
     "The #3216 purge and #3217/#3218 follow-ons can proceed; acceptance is complete and no longer blocks implementation.",

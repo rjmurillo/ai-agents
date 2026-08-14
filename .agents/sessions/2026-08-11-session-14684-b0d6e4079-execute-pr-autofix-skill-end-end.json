@@ -152,7 +152,7 @@
       "result": "0 rows affected: no row with id 'pr-autofix-batch-d' exists in the todos table (only batch-a/b/c present). SQL executed as instructed; discrepancy flagged for the operator since batch outcome is genuinely mixed (2 merged, 3 blocked), not fully done."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "850adac79bff1920020176b6dddfd1a42e601b27",
   "nextSteps": [
     "PR 4606: obtain a human/CODEOWNERS review approval (all technical work is complete: conflict resolution, CI, and threads; only branch-protection approval is missing). Then re-run the completion gate and merge.",
     "PR 4564: retry pr-autofix once the external local:pr-autofix lease releases; re-derive tier fresh (main has moved further since last triage).",

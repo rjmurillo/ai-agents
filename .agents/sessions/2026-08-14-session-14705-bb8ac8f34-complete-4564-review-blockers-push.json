@@ -145,7 +145,7 @@
       "result": "Removed unsupported closure and resumability claims, then recorded current verification evidence."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5027648d01",
   "nextSteps": [
     "Commit session and QA evidence.",
     "Push through the renewed lease and late live-state wrapper.",

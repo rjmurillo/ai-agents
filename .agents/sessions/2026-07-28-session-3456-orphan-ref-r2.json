@@ -123,7 +123,7 @@
       "step": "Pre-push first failed on portability ratchet drift, then scanner constants and tests were adjusted to avoid new upstream path refs."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "25c80d4d",
   "nextSteps": [
     "Push PR #3550 branch after retrospective evidence update; do not self-merge."
   ]

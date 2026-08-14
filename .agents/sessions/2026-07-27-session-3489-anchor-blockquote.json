@@ -144,7 +144,7 @@
       "step": "Declined the review's third finding rather than patching it. An indented code block inside a blockquote is still counted as prose. This is the fourth defect found in _strip_code across two PRs, and each fix has been one more special case in a hand-rolled block parser. markdown-it-py is already a direct dependency and scripts/utils/markdown_parser.py already wraps it, so the remedy is to walk the AST instead. Filed as #3499 rather than mixing a rewrite into a behavior fix."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "661f2e665",
   "nextSteps": [
     "#3499 tracks replacing _strip_code with a markdown-it AST walk, which would fix the indented-code false positive and retire the class rather than the instance.",
     "#3482 tracks the pre-existing gap that a bare directory reference ending at a word boundary is not counted.",

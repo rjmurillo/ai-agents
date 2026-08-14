@@ -145,5 +145,5 @@
     "The gate scopes to scripts/ because that is what #3649 asked for and what is now at zero. Extending it to build/, tests/ and .claude/ would need those trees measured and burned down first.",
     "The pre-existing E501 in scripts/validation/validate_review_marker.py and the 22 files that ruff format would reformat are untouched repository debt, not regressions from this change."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": ""
 }

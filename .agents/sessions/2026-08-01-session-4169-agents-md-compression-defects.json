@@ -140,7 +140,7 @@
       "result": "#3902 already covered it, so measured cost evidence was added to that thread instead of opening a duplicate. A duplicate filed earlier in the session, #4173, had already shown the cost of skipping this step."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0e02b65dc",
   "nextSteps": [
     "Merge PR #4174 once CI completes; it fixes all three main-red failures by extracting constants rather than suppressing the file-size rule",
     "Push rjmurillo/fix-agents-bash-contradiction and rjmurillo/doc-conflict-audit-method once main is green, then release the remaining fleet branches in sequence",

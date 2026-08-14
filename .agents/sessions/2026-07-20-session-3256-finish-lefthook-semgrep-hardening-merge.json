@@ -291,7 +291,7 @@
       "evidence": "Removed stale custom-hook paths, documented all six supported Lefthook configuration families, and passed 59 security-detection tests"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ae1fd30ce37c95cc373eb8de86ce988a019eb7ba",
   "nextSteps": [
     "Commit the security guide correction, then push the final commits",
     "Resolve the three remaining PR review threads",

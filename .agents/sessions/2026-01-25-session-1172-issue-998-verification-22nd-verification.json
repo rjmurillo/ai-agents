@@ -3,7 +3,7 @@
     "Issue #998 is already complete and verified",
     "All exit criteria met: graph traversal works with Serena memory format"
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "80a66e89",
   "protocolCompliance": {
     "sessionStart": {
       "constraintsRead": {

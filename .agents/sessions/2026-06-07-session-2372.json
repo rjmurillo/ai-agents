@@ -5,7 +5,7 @@
     "branch": "fix/2481-verify-issue-close",
     "startingCommit": "0924f56558",
     "objective": "Drive PR 2482 to ready to merge gate",
-    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+    "endingCommit": "3226162e32"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -131,7 +131,7 @@
       "entry": "Committed review fixes as 3226162e32 and wrote Serena memory sessions/pr-2482-review-response."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Push branch after remote head verification, reply to six threads, resolve them, run merge-ready gate."
   ],

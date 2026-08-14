@@ -147,7 +147,7 @@
       "outcome": "Updated endingCommit to the final pre-follow-up commit and regenerated the session episode so commit and file metrics cover the full session"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b7adbaf52",
   "nextSteps": [
     "Run pre-PR validation, push PR #4577, resolve reachable review feedback, retain auto-merge, and drive to merge"
   ]

@@ -145,7 +145,7 @@
       "evidence": "Sessions 3626, 3630, 3650, 3652. Edges 2 to 3, 17 to 19, 7 to 8, 12 to 13."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7270f8762",
   "nextSteps": [
     "PR 4163 repairs the same corpus by a compatible mechanism; four of these files overlap and will conflict on content.",
     "extract_session_episode.py still merges existing events first on --preserve, which issue 3765 asked to change. List order no longer determines the causal chain, so the repair did not need it. File separately if it still matters.",

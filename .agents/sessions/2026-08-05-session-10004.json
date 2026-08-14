@@ -201,7 +201,7 @@
       "evidence": "git checkout -- silently destroyed the uncommitted fix while undoing a revert experiment in the same file. Caught only because the half-2 result was implausibly identical to half-1. Switched to byte-exact backup plus diff confirmation."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "f6677e7ea",
   "nextSteps": [
     "Push branch and open PR.",
     "Re-push the blocked docs/git-cat-file-proves-existence-not-reachability branch once this lands."

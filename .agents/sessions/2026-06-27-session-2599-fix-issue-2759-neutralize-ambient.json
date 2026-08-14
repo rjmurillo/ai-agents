@@ -135,7 +135,7 @@
       "detail": "Merged origin/main into PR 2768 after review threads were resolved. The only conflict was .agents/memory/causality/causal-graph.json, resolved to origin/main per merge-resolver guidance that main .agents audit artifacts are authoritative."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
   "nextSteps": [
     "Monitor PR checks and merge once all required checks pass."
   ]

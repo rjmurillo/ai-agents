@@ -160,7 +160,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9814c716c0",
   "nextSteps": [
     "Re-poll PRs #3380, #3381, and #3382 for new review threads",
     "Work the remaining open issues in the causal graph cluster"

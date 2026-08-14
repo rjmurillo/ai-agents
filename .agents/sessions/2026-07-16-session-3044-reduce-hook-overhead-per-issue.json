@@ -195,7 +195,7 @@
       "evidence": "push forced update 9f17b6d2..62dff4b1; cherry-picks ff177737/9f17b6d2 empty; https://github.com/rjmurillo/ai-agents/pull/3153"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "62dff4b1",
   "nextSteps": [
     "Synthesize both strategies: keep main narrow per-guard matchers for Bash singles (0-spawn common case beats 1-spawn dispatcher); group ONLY where multiple hooks share one matcher (git-commit chain, git-push chain, UserPromptSubmit, SessionStart, Stop, Write/Edit pre+post) plus plugin self-host dedupe and Copilot matcher union",
     "Restore origin/main versions of generate_dispatcher.py, generate_hooks_events.py, settings.json, hooks.json, serena memory copilot-disable-all-hooks-windows.md; re-apply matcher-union and expansion patches onto main versions; rebuild dispatch_groups.json from main final settings",

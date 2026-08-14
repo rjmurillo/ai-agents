@@ -108,5 +108,5 @@
     "Leave the PR #4290 suppression on main; issue #4285 tracks the table-driven registry that replaces the sequence.",
     "Add the test-file scope tag to the ratchet memory's split-not-suppress guidance."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "8d9d644cd61c27d9513f84ae11f6e03454dd9392"
 }

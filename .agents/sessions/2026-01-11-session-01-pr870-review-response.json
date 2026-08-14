@@ -147,7 +147,7 @@
       "outcome": "Commit 9eb9daa (fix) and de5eea2 (session log) pushed to origin/copilot/document-exit-codes-scripts"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "de5eea2",
   "nextSteps": [
     "Monitor CI checks completion (11 checks in progress)",
     "PR ready for merge once all checks pass"

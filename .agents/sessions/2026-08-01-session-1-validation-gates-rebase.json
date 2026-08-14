@@ -100,5 +100,5 @@
         {"step": "All 872 tests pass, taste ratchet 612==612."}
     ],
     "nextSteps": ["Verify PR #4022 is CLEAN after push."],
-    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+    "endingCommit": "adf71d065"
 }

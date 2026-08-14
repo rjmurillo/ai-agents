@@ -142,7 +142,7 @@
       "evidence": "A1=4 A2=5 A3=4 A4=4 A5=5 A6=5 A7=5 = 32; was 25/35 C tier"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Merge PR 5/10",
     "PR 6/10: analyst.shared.md (A6 + A5 search-before-claiming + A2)"

@@ -113,7 +113,7 @@
       "step": "Ran a focused critic recheck after revision. It found no remaining P0 blockers and three P1 clarity gaps, then the ADR was updated for base_sha semantics, v1 expiry parsing, and kill-criteria observability."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ab300c5fe4",
   "nextSteps": [
     "Open an ADR-only PR for ADR-090 and wait for it to land before starting the implementation PR for issue #3413.",
     "Implementation PR must add mocked tests for second holder blocked, stale claim reclaimed, crashed claim expiry, authorized override audit, missing holder fail-closed, and duplicate acquire no-op success."

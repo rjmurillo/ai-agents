@@ -130,7 +130,7 @@
       "entry": "Verification: behavioral proof prints {\"decision\":\"block\"} + exit_code 2 for a staged security file without evidence; 38 gate tests + 20 sibling branch-guard tests pass; ruff + mypy clean on source/tests/mirror."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Open PR Fixes #2521 (stacked on fix/2348); add behavioral smoke per ADR-033 if harness-level e2e desired"
   ]

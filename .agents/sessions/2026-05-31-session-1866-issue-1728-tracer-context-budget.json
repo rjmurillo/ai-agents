@@ -39,7 +39,7 @@
       "evidence": "validate_install_parity.py -> install-parity: OK; npx markdownlint-cli2 -> 0 errors; grep for U+2013/U+2014 -> none"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "1e121af52",
   "nextSteps": [
     "Open PR with Refs #1728 (tracer; full 24-agent rollout tracked separately)",
     "Proceed to #2001: full spec-generator agent->skill conversion with ADR-057 eval (user authorized spend)"

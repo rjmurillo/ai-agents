@@ -100,6 +100,6 @@
       "result": "29 targeted tests passed; mutation harness killed all five mutants; ruff, taste, and type-ignore ratchets passed at baselines 326, 601, and 44."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2b81f6c757",
   "nextSteps": []
 }

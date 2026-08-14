@@ -145,6 +145,6 @@
       "outcome": "Pinned the prior issue QA report to the post-merge commit so session validation excludes later documentation-only commits"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "dd8dc0a65df6b0c10c11de83adb4787362a4f20e",
   "nextSteps": []
 }

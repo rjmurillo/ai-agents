@@ -134,7 +134,7 @@
       "entry": "Verified the batch: `uv run pytest` reported 30 passed (canonical tests/skills/memory and tests/hooks) plus 26 passed in each of the .claude and copilot-cli skill-local trees, 82 total, run separately to avoid a conftest-name collision; `uv run ruff check` and `uv run mypy` clean on the changed set; build_all.py mirror parity confirmed. Filing a follow-up issue for the residual edit/deletion orphaning, which needs replace-episode-contributions semantics beyond #3034's scope."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7defa3338",
   "nextSteps": [
     "Land the re-review follow-up commits and open the PR (Fixes #3034) for owner review.",
     "File a follow-up issue for episode edit/deletion orphaning (additive merge never removes a changed episode's prior nodes/edges/patterns)."

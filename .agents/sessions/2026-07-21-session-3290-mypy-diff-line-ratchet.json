@@ -160,7 +160,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cd6b7d11720b7437f8a78c44caf425195c82e54e",
   "nextSteps": [
     "Push the session-log and causal-graph normalization; resolve the causal-graph review thread.",
     "Drive PR #3314 to merge once all required checks are green and every review thread is resolved (ruleset: 0 approvals, squash-only, Copilot review on push, required thread resolution).",

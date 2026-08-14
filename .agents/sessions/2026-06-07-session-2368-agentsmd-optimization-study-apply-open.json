@@ -126,7 +126,7 @@
       "evidence": "Applied AGENTS.md v2; created ADR-070 (conditional rule loading / assembly layer); added scripts/eval/_pr_churn.py, scripts/eval/analyze-pr-churn.py, tests/eval/test_pr_churn.py, scripts/eval/README.md row."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "d2800b214",
   "nextSteps": [
     "Push branch + open PR for AGENTS.md v2 + ADR-070 + eval tooling",
     "Route ADR-070 through adr-review",

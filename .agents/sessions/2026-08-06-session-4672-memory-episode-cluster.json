@@ -182,7 +182,7 @@
       "control": "With origin/main memory_index.py restored and the new test kept, duplicate_link_targets_fail passed=True instead of rejecting the duplicate. Restored fix made it pass."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "bab8fbf6c",
   "nextSteps": [
     "Push branch and create pull request."
   ]

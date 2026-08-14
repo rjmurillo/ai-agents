@@ -126,7 +126,7 @@
       "outcome": "uv run pytest tests/ -q --tb=short returned exit 0 with zero failures; pre_pr.py returned exit 0 with all validations passed"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "735cc876f7",
   "nextSteps": [
     "Do not regenerate existing .agents/memory/episodes artifacts in this PR; they are historical generated records and rewriting them would alter memory history. The code fix prevents new rank-only false edges."
   ],

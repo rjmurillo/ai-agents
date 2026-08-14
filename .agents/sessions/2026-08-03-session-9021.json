@@ -133,7 +133,7 @@
       "outcome": "Dated the conflict: the equality test landed 2026-07-30 in PR #3824, the slack-tolerance policy landed 2026-08-03 in PR #4214 for issue #4057, and the older test silently overrode the newer policy. Added count_ratchet.baseline_health with MAX_BASELINE_SLACK of 5, seven unit tests covering equality, slack inside the bound, slack exactly at the bound, slack one past it, a regression above the baseline, distinct remedies for the two failures, and a configurable bound. Mutation run killed 3 of 3 real mutants with a docstring-only control surviving."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Determine whether the required status check policy demands an up-to-date base; if it does not, that is the mechanism that let the 83 second race land and is the durable fix.",
     "Consider a post-merge re-measure of the count ratchets against the merged tree, since merge_tree_ratchet_check.py measures a PR against its own base and cannot see a baseline moved after its last run."

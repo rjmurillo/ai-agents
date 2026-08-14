@@ -141,7 +141,7 @@
       "result": "Focused suites passed 41 tests and the final full suite passed 27941 tests with 37 skipped. The committed backup inserted 2359 rows into a temporary database copy. Ruff, taste lints, CWE-78 scan, security review, fresh QA, and GPT-5.6 Sol review passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "dbf1449b54",
   "nextSteps": [
     "Complete repository validation, open one PR with Fixes #4949, resolve all checks and review threads, and merge.",
     "After merge verification on origin/main, mark SQL todo fix-4949-forgetful-import done."

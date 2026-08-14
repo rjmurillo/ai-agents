@@ -135,7 +135,7 @@
       "entry": "Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and reconciled the episode commit metric with the recorded commit events."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5f25b005",
   "nextSteps": [
     "Open PR for the ADR-079 acceptance, drive to merge, then close #2855 as decided.",
     "Resume backlog: 2814 (ADR-006 inline logic), 2840 (model pins, blocked on 2902 pricing), and the 2910-2953 follow-up chores."

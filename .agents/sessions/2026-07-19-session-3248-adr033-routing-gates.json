@@ -134,7 +134,7 @@
    ]
   }
  ],
- "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+ "endingCommit": "27df92abe",
  "nextSteps": [
   "Push docs/3248-adr033-routing-gates-retirement and open a PR: Refs #3194 #3246 #3248 (use Refs, not Closes, so #3248 stays under owner control and ai-spec-validation deep-validation is skipped).",
   "Babysit the Copilot review-convergence loop (fix -> resolve threads -> push until a push yields 0 new threads), then self-merge via squash once checks are green and threads resolved.",

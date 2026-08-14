@@ -192,7 +192,7 @@
       "outcome": "Relevance segmentation was neither quote-aware nor redirection-aware, so a redirection or a quoted operator argument skipped the only segment. Measured 4 leaks. Added quote-aware redirection stripping, quote-aware splitting, and a fail-closed backstop for segments that still will not parse. 0 of 9 leak and 0 of 10 ordinary redirection commands are falsely denied."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "1d7213f787fab4961c985fc819b09abd99381497",
   "nextSteps": [
     "Reply in-thread to all 10 threads with the measurement and disposition, then resolve",
     "Re-fetch after 45 seconds and process any new actionable threads recursively",

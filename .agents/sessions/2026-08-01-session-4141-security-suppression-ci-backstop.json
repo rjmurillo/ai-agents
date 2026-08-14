@@ -120,7 +120,7 @@
       "result": "0 unresolved threads on PR #4141"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9c28f9792",
   "nextSteps": [
     "Wait for CI to go green on PR #4141",
     "Issue #3792 (RUF100/dead noqa) remains deferred"

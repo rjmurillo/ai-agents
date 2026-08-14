@@ -163,7 +163,7 @@
       "timestamp": "2026-07-30T16:14:29.109511Z"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0d610bc2f7d43f531d8a9fa9c03854fbca7a6b4e",
   "nextSteps": [
     "Push the branch and open a PR referencing issue 3991.",
     "Add .github/copilot-instructions.md to a budget gate so the 4579-byte figure cannot silently regrow."

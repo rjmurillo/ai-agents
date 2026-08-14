@@ -338,7 +338,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a09c11e9c",
   "nextSteps": [
     "Drive PR #3667 (eval, Fixes #3665) and PR #3669 (hooks, Fixes #3666) to merge. Both were green or running at the time of writing.",
     "Decide #3670. The ADR review policy reads as enforced but runs only client-side with no CI backstop, so it is a guardrail, not a security boundary. Either add a CI job running the policy against the GitHub API base SHA, or document it as advisory and stop hardening it. Owner call; the issue carries both options.",

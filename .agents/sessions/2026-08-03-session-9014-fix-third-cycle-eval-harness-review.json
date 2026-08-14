@@ -152,7 +152,7 @@
       "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "6ce10f87b",
   "nextSteps": [
     "Route the external process and metadata boundaries to security PIV before merge",
     "Keep #4123 open until this typed refusal implementation lands",

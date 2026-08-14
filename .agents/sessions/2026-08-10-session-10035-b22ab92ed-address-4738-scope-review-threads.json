@@ -149,7 +149,7 @@
       "detail": "Ran TestIsAncestor, the scope suites, PR validation tests, and the Windows path marker suite after the new thread fix."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "feb0c72592b026d8eb9a72bc09f77e609f0394eb",
   "nextSteps": [
     "Push the final autofix branch and resolve the remaining PR #4738 review thread."
   ]

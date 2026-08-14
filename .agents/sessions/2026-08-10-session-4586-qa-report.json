@@ -125,7 +125,7 @@
       "entry": "Fixed mypy type annotations, reran targeted tests, and rebound QA report to d08463638b6f986d73892bb0e54177732086a768."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "d08463638b6f986d73892bb0e54177732086a768",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,

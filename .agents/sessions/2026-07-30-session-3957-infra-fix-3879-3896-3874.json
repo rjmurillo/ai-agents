@@ -107,7 +107,7 @@
       "action": "Added check_test_tree_writes.py gate for #3772, fixed type-ignore ratchet in pr_commit_count.py, closed #3885 with evidence, added retrospective"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Wire gates into pre_pr_sequence.py",
     "Triage #3772, #3806, #3885, #3925 with measurements",

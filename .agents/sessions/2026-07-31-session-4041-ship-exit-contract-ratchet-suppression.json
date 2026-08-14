@@ -140,7 +140,7 @@
       "evidence": "commits 4047a91f5, 31e380578, 7b315de86"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7b315de8611d284f34315f9229c57a8d0ed53546",
   "nextSteps": [
     "Open the PR with Fixes lines for 4061, 4068, and 2967.",
     "Lower the --exact pin in pr-validation.yml as each open ADR-006 child issue lands.",

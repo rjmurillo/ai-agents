@@ -122,7 +122,7 @@
     "pre_pr.py failed on existing repo-level markdownlint/python-file linting and merge-resolver agent drift; act dry-run failed because act is not installed.",
     "Push/PR blocked: authenticated GitHub token belongs to ZardLi1115 and lacks workflow scope; GitHub rejected the branch because the fix edits .github/workflows/slash-command-quality.yml."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "final amended commit on fix/issue-1972-spec-d-evals",
   "nextSteps": [
     "Push branch and open PR after authenticating with a token that can push to rjmurillo/ai-agents or to a fork with workflow scope."
   ]

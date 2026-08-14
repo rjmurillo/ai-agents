@@ -111,7 +111,7 @@
       "entry": "Ran targeted pytest, ruff, git diff check, and quick pre_pr.py successfully."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Open a PR for issue #3875 with the ADR update and regression test.",
     "Queue QA review of the PR before merge."

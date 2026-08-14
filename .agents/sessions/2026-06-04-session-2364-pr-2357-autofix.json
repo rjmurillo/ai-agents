@@ -99,7 +99,7 @@
       "entry": "Addressed Bugbot thread PRRT_kwDOQoWRls6HE_br by changing Classification Summary fields from Context Retrieval to Context Gather in the GitHub orchestrator install copy."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit and push merge resolution, validate PR checks and review threads, then merge PR #2357 if ready."
   ]

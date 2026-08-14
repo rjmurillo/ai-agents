@@ -130,6 +130,6 @@
       "entry": "Copilot review on PR #2575: ADR-008 (Accepted) deferring solely to ADR-066 (Proposed) left an accepted-defers-to-proposed ambiguity. Verified ADR-071 is Accepted (six-agent adr-review 2026-06-02) and its Decision item 5 records the binding fail-closed rule; the amendment bullet now cites ADR-071 item 5 as binding with ADR-066 as the detailed D1/D2 reconciliation. Serena memory updated to match."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": []
 }

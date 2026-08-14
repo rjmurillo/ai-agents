@@ -156,7 +156,7 @@
       "files": ["scripts/forgetful/import_forgetful_memories.py", "test/forgetful/test_import_error_handling.py"]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b6c4018b",
   "nextSteps": [
     "Create PR with auto-merge for all 7 fixes",
     "Address remaining P2 issues: #1149, #1151, #1152, #1172"

@@ -95,7 +95,7 @@
       "entry": "Process bugs observed: pre-commit prints success despite taste-lints errors; setting TMPDIR inside the repo makes full pytest create fixture manifests that validate_plugin_manifests scans as real manifests; get_pr_checks polling saw one GitHub 504."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit latest main merge resolution and this session log.",
     "Apply docstring fixes requested by new review threads, push, poll CI, and rerun completion gate."

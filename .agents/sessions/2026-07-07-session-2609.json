@@ -135,7 +135,7 @@
    "entry": "Bumped .claude and src/copilot-cli plugin.json 0.6.4 -> 0.6.5 in lockstep for packaged-lib + hook-source change."
   }
  ],
- "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+ "endingCommit": "16219bc89333d8c020943f5cdc08c3f275968aaf",
  "nextSteps": [
   "Push fix/pretooluse-bash-hook-wedge, open PR referencing the wedge-class issue, drive to merge.",
   "Resume open-issue backlog: 2814, 2840, 2855, 2902, 2903, 2909, 2910-2946."

@@ -147,7 +147,7 @@
     "patterns": [],
     "avoidances": []
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7a0dce3cd8d6326213f070033dc9b26adc1c0e04",
   "nextSteps": [
     "Issue #3598 owns quarantine or migration of legacy unversioned intra-episode causal links."
   ]

@@ -140,7 +140,7 @@
       "evidence": "uv run python build/scripts/validate_plugin_version_bump.py --base origin/main reports plugin-version-bump: OK"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "d82b847882b359fbfc84fc01efe7fd277b7c5fc1",
   "nextSteps": [
     "Widen the lefthook staged-dashes glob and scripts/validation/checks_dash.py past *.md so the .py surface is guarded at commit time, not only by the new pytest."
   ]

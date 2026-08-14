@@ -157,7 +157,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "3ebcecab",
   "nextSteps": [
     "Open PR with Refs #3295 and Refs #3197 (partial: the dead-code slice of the bulk purge; coverage-confirmed KILLs and logic re-homes stay in #3295).",
     "Babysit the PR to green; resolve review-on-push threads; self-merge (squash).",

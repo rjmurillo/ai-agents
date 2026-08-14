@@ -160,7 +160,7 @@
       "detail": "A new Copilot scan found the same abbreviated/full SHA duplication in the hook-preserved session 14691 episode. Regenerated that episode with --force; it now has four distinct commit events, metrics.commits equal to 4, and zero causal-order violations."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "4690a3aa00291441f98973c39cb059dd5f5919dc",
   "nextSteps": [
     "Wait for PR #4952 CI to settle. Do not merge."
   ]

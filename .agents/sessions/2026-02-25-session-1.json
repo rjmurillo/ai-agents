@@ -130,7 +130,7 @@
       "action": "Merge commit with resolved traceability-protocol.md conflict"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Enable auto-merge on PR #1209"
   ]

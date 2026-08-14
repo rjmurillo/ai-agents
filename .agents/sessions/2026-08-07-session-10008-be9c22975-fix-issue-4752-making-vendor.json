@@ -140,6 +140,6 @@
       "entry": "The full pre-push suite exposed one stale test that required the removed path filter. Replaced it with a parsed YAML assertion for unconditional exec-validator wiring; 68 focused tests passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "746f3fcab",
   "nextSteps": []
 }

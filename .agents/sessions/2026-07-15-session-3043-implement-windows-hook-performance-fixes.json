@@ -191,7 +191,7 @@
       "entry": "Rescoped four broad shell matchers to their existing command families and regenerated Copilot shims. Validation: pytest matcher and generator suites, 195 passed; Ruff and mypy passed; build_all --check, manifest parity, and plugin version bump passed. Two final Windows Job Object traces started 334 and 332 processes, zero direct shell wrappers, and two plugin dispatchers; both returned TRACE_TOOL_OK and TRACE_SESSION_OK."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "223151e00df66ad1fe6fa5fa30e4dacfb61b8b32",
   "nextSteps": [
     "Push the final matcher-rescope commits to origin/perf/batch-claude-hooks.",
     "Update PR #3076 with the controlled enabled-hook process evidence.",

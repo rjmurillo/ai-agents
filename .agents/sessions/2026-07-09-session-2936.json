@@ -135,7 +135,7 @@
       "entry": "Documented the exemption and the fixture reconstructability in ADR-075; verified 0 em/en dashes; ran the 49-test suite green and ruff on all changed files."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "64576c75c",
   "nextSteps": [
     "Serial-push fix/2936-adr075-content-controlled (pre-push runs the full pytest suite).",
     "Open the PR with Fixes #2936 and run the adversarial GPT-5.5 review loop.",

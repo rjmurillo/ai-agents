@@ -137,6 +137,6 @@
       "result": "The review thread is resolved and the PR head contains the root-cause documentation fix."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9b0900ebf7",
   "nextSteps": []
 }

@@ -110,7 +110,7 @@
       "entry": "Taught the SkillForge validator the model-rationale property (_constants.py, per ADR-080 point 4) so the haiku alias skills validate. Drained the baseline 113 to 52 (frozen_count 52) and reran the check: warn OK, enforce exit 0, 31 tests green. Confirmed agent_registry.py requires model on agents, which is why the agent half stays owner-gated (removing agent pins breaks validation; keeping them fails the alias rule)."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "63499ec39f20dcf6e6b72c44c92159c0dbdb8435",
   "nextSteps": [
     "Owner decision A: reconcile ADR-080 step 2b (generator must stop injecting model) against ADR-002 and templates.md MUST-4/5 and agent_registry required model field. The three disagree; agents cannot both drop the pin and pass validation.",
     "Owner decision B: authorize eval API spend to sweep the ~17 fixture-backed agents (KEEP_PIN over >= 8 fixtures records a manifest entry; DROP_PIN or no fixtures removes the pin).",

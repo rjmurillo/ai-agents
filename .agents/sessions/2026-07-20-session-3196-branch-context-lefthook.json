@@ -130,7 +130,7 @@
       "evidence": "check_plugin_manifest_parity.py reported matching version 0.6.91"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b0247bade50edaf92fa611500c339b68768e5fda",
   "nextSteps": [
     "Drive the stacked #3196 PR to green and self-merge once the base chore/lefthook-migration (PR #3259) lands",
     "Continue epic #3197 remaining children on a Task-capable harness where adr-review and Sol are available"

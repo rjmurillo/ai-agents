@@ -121,7 +121,7 @@
       "entry": "Merged origin/main, reran targeted tests, and rebound QA report to eb3171023b5e174e02d34cb67bd8fd479e3450a4."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,

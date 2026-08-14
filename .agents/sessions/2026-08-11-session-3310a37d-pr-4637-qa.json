@@ -125,7 +125,7 @@
       "entry": "The final pre-push pass surfaced a changed-file mypy error in get_pr_name_only; fixed the return cast, reran mypy and the full build_ai_review_context pytest file, and rebound QA evidence to 77f1a929823a5860904f4857627a2ea3e316bd1e."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "77f1a929823a5860904f4857627a2ea3e316bd1e",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,

@@ -6,7 +6,7 @@
     "branch": "fix/3328-foreign-prose-sha",
     "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
     "objective": "Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
-    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+    "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -126,7 +126,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65",
   "nextSteps": [
     "Options 1 and 3 in the issue stay open. This change reduces over-counting but does not make the inference exact, because a prose SHA created during the session that the session did not author is still indistinguishable from one it did.",
     "Existing episode artifacts under .agents/memory/episodes are not backfilled; the extractor only runs on logs at commit time. Decide separately whether a one-time re-extraction is worth the churn."

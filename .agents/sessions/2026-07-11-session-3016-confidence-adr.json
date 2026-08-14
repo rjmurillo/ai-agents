@@ -147,7 +147,7 @@
       "entry": "Owner accepted ADR-081: shadow-study reframe accepted, blocking hook rejected (latency/cost). Flipped status proposed -> accepted and recorded the track-1 decision."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "470724842",
   "nextSteps": [
     "Owner chooses among the three tracks in ADR-081 (shadow study, gate hardening, or WONTFIX).",
     "If gate hardening is chosen, implement evidence-after-last-edit in the false-completion gate."

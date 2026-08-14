@@ -87,6 +87,6 @@
       "outcome": "13 file-like paths cited, 0 missing after the fix. Negative control against the pre-fix file flags exactly the two absent paths, so the check can fail"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9f795dc333060451ed52249ad73ac46ef989312e",
   "nextSteps": []
 }

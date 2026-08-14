@@ -119,6 +119,6 @@
       "entry": "Fixed #2618: new_issue.py now emits the ADR-051 JSON error envelope on every failure path via write_skill_error, and applies labels through a separate 'gh issue edit --add-label' call so a missing label no longer loses the created issue. On label failure the envelope carries Data.issue_number and url for repair. TDD: wrote a failing test for the missing-label envelope (RED), implemented to GREEN, mutated _apply_labels to swallow the failure and confirmed the test caught it (assert 0 == 3), then restored. Command: 'uv run pytest tests/test_new_issue.py tests/skills/github/test_new_issue.py tests/skills/github/test_issue_scripts.py -q' result: 71 passed. Updated 3 pre-existing tests across the duplicate test files to the new return-code + envelope contract (former SystemExit assertions encoded the buggy non-envelope behavior)."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": []
 }

@@ -144,7 +144,7 @@
       "evidence": "See endingCommit and the PR URL printed at the end of the session."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "If review identifies additional bot generators (e.g. release-please summaries), extend _BOT_DETAILS_SUMMARY_PATTERN.",
     "Consider documenting in CONTRIBUTING.md that <details> blocks now carry change claims unless the summary matches a known bot prefix (deferred per acceptance criterion 'if relevant')."

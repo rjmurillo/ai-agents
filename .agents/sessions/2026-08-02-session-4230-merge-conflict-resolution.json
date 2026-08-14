@@ -33,5 +33,5 @@
     {"step": "Validated with targeted pytest, ruff, check_skill_md_portability --base-ref origin/main, and scripts/validation/pre_pr.py."}
   ],
   "nextSteps": ["Verify PR #4230 reports CLEAN after the pushed conflict-resolution commits."],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "93c80baa8aaf"
 }

@@ -204,7 +204,7 @@
       "outcome": "One test file grew from 402 to 691 lines, crossed the 500-line taste-lint error threshold, and raised the whole-repo count by one. That single increment failed four pre-push jobs with three different messages, and the fourth was a test-suite failure that reads as unrelated. Recorded the direct check, the staging requirement the ratchet has, and why merge-tree-ratchet's merge-or-rebase advice is wrong for this case."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "c6c61fbf5",
   "nextSteps": [
     "If the token requirement should also gate CI rather than only local pushes, issue #3275 is the open thread for provisioning COPILOT_GITHUB_TOKEN to the smoke job.",
     "Consider whether git_hook_policy.py should fail with a named remediation when no credential variable is set, instead of letting the suite report an assertion failure that reads like a flake."

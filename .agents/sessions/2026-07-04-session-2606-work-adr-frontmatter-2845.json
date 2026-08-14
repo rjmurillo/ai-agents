@@ -139,7 +139,7 @@
       "outcome": "37 ADR detector tests passed, ruff passed, plugin version validator passed, security-review agent found no security findings"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cd40d4712",
   "nextSteps": [
     "Push fix/adr-frontmatter-2845 to PR 2851",
     "Reply to and resolve verified PR 2851 review threads",

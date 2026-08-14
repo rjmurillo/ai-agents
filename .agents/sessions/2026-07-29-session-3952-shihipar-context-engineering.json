@@ -672,7 +672,7 @@
       "timestamp": "2026-07-30T22:40:00Z"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "3dbb52bf8445e2ae58571ca1c1586c00678b7b44",
   "nextSteps": [
     "Run adversarial round 10 against the rewritten salvage path. Convergence is disproven: twelve defects of one class over nine rounds is evidence the next round finds a thirteenth.",
     "File the structural issue Sol has now raised three times: stop writing a general malformed-JSON parser. Twelve defects of one class is evidence against the approach, not against any one implementation. Consider an ADR.",

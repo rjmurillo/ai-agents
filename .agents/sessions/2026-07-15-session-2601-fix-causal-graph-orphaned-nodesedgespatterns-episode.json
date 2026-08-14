@@ -119,6 +119,6 @@
       "evidence": "update_causal_graph.py: per-episode contributions map (mean-derived weight/success_rate), replace-semantics on edit, remove_episode_contributions, --prune-episode-ids; pre-commit prunes staged episode deletions (diff-filter=D). Legacy anonymous evidence preserved via sentinel keys. uv run pytest tests/skills/memory/ -> 247 passed (28 in update_causal_graph incl 8 new #3039); ruff+mypy clean; mirror regenerated; bash -n pre-commit OK. Plugin bumped 0.6.34->0.6.35."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5db854d7ea",
   "nextSteps": []
 }

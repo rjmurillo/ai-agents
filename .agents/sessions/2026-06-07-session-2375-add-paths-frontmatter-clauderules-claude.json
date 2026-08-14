@@ -126,7 +126,7 @@
       "evidence": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (manifest versions bumped), Install Parity PASS, Em/en-dash PASS."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Patch generate_rules.py to flatten paths-list to applyTo comma-string for Copilot + filter internal globs on list items; add generator test",
     "Convert 13 path-scoped rules applyTo->paths (YAML list)",

@@ -98,7 +98,7 @@
       "entry": "Tests: updated the two security-gate tests that encoded the old fail-closed contract to assert fail-open; added path-key positive/negative cases; rewrote the guards tests for the env+remote model and added _remote_repo_name URL-parsing coverage. Regenerated src/copilot-cli shims and lib via build_all, reverting the unrelated Windows CRLF churn so the diff stays scoped. Bumped both plugin.json manifests to 0.5.199 (parity)."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Open the PR (Fixes #2610) once the full suite confirms no new failures beyond the pre-existing Windows-only relativize/CodeQL cases.",
     "After merge and plugin republish, the vendored install needs `copilot plugin update` to pick up 0.5.199.",

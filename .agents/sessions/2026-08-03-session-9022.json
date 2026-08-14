@@ -127,7 +127,7 @@
       "outcome": "Repository merge config is allow_merge_commit false, allow_rebase_merge false, allow_squash_merge true, and every commit on main is single-parent. GitHub builds squash commits server-side, so MAX_AUTHORED_FILES_PER_COMMIT never inspected them. This refuted a defect report drafted earlier in the session that cited 43-file and 71-file commits on main as evidence the gate was unsatisfiable."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "58ce707aa86a35125379b992d1cfeb7a89d0d32d",
   "nextSteps": [
     "Push the branch and open the pull request referencing #3755 for the ratchet race context.",
     "Check whether the ruff and type-ignore ratchets ship the same exact-equality test, which would make two more scalars equally fragile."

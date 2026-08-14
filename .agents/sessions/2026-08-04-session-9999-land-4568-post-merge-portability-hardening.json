@@ -175,6 +175,6 @@
       "result": "All checks passed, review threads reached zero, issue #4116 reopened, mypy feedback gap filed as #4674, and mixed-timezone extraction crash filed as #4675"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "fbadfa5a2",
   "nextSteps": []
 }

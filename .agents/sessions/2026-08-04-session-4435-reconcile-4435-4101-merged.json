@@ -157,6 +157,6 @@
       "detail": "PR #4435 merged at head 4e2d339fe74b431184da77887c5058f9ba1a7c34 as squash commit 0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a. The landed commit now anchors this session record."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a",
   "nextSteps": []
 }

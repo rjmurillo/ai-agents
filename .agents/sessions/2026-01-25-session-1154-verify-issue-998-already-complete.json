@@ -141,5 +141,5 @@
     "All exit criteria verified: CLI works, Serena integration confirmed, cycle detection operational",
     "No further work needed on this issue"
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "140f1949"
 }

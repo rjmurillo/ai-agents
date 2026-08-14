@@ -135,7 +135,7 @@
       "entry": "Bumped project-toolkit plugin manifests from origin/main 0.6.140 to 0.6.141."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cad820e2",
   "nextSteps": [
     "Push branch fix/3484-skip-clause-standard and open PR for issue #3484."
   ]

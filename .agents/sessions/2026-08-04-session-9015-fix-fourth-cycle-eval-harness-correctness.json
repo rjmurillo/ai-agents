@@ -152,7 +152,7 @@
       "outcome": "Pre-PR passed 49 of 50 validations except Count Ratchets; #4538 already tracks main at 140 findings against baseline 126, and this branch improves the count to 137"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "77b9f15bb",
   "nextSteps": [
     "Merge the #4538 red-main repair, merge fresh origin/main, and rerun pre_pr.py",
     "Route process, environment, provider, and untrusted-input changes to security PIV",

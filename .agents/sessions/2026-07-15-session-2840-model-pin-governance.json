@@ -110,7 +110,7 @@
       "entry": "Seeded the frozen baseline (113 source pins), authored the empty evidence manifest, wrote 21 tests to the ADR's positive/negative/edge AC, and wired validate_model_pins into pre_pr.py in warn mode. Committed in two atomic commits."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "3f305744e8",
   "nextSteps": [
     "Open the PR (Refs #2840) for owner review; post a #2840 status comment with the ADR-080 step mapping, the sweep cost proof, and the remaining migration plan.",
     "Follow-up PRs per ADR-080 sequence: generator default change (step 2), then batched migration (de-version skills/commands, sweep the ~17 fixture-backed agents at n>=3 to populate the manifest, flip the check to enforce once the baseline drains).",

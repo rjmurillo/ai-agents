@@ -128,7 +128,7 @@
       "details": "0 unaddressed comments, 0 unresolved threads, CI checks running"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8cbd580c",
   "nextSteps": [
     "Wait for all CI checks to pass (CodeRabbit pending)",
     "Run /pr-review 1102 to perform comprehensive PR review",

@@ -140,7 +140,7 @@
       "result": "Taste count matches baseline 600. pre_pr.py reports 43 passed, 0 failed, 4 skipped."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ce3ae7ca3",
   "nextSteps": [
     "Push the branch and open the follow-up pull request.",
     "Resolve CI and review findings before merge."

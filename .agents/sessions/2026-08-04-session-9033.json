@@ -147,7 +147,7 @@
       "detail": "The pre-push python-tests job failed one test out of 22952: test_the_shipped_baseline_matches_the_tracked_tree, taste baseline 587 against a tree of 586. A detached worktree at pristine origin/main 7281a710d with zero branch content reproduced the identical failure and the identical numbers, so the red is main's, not this branch's. Lowered scripts/ci/taste_count_baseline.txt to 586, which is the direction the ratchet permits and the equality the test demands. scripts/ci/ruff_count_baseline.txt stays at 126."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a450a51a9",
   "nextSteps": [
     "Issue #4538 acceptance criterion 4 is still open: add a gate that blocks lowering a ratchet baseline below the count measured on the post-merge main tree. This branch meets criteria 1 through 3 only, so the PR body cites Refs #4538 rather than Fixes.",
     "Watch whether other open PRs behind a81239d0c hit the same inherited ruff ceiling; the RUF100 remedy recorded in the decision memory applies to them unchanged.",

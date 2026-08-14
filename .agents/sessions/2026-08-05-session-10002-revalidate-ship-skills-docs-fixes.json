@@ -181,7 +181,7 @@
       "summary": "Merged current origin/main, aligned assess regression test fixtures with build_comparisons input collection, reran targeted tests, subprocess encoding ratchet, and skill portability validation."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "334acc95517d5ee0d5637963fc8f6346477d5f3e",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

@@ -161,7 +161,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e75904528b",
   "nextSteps": [
     "Wire the other two arms of #3360: traceability.py (orphaned designs) and consistency.py (4 of 7 features).",
     "Extend hook_contracts.py to the copilot-cli surface per #3384.",

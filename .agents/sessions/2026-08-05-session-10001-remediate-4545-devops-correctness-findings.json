@@ -135,7 +135,7 @@
       "result": "106 targeted tests passed, coverage reached 86%, scoped Ruff and mypy passed, CWE-78 scan found nothing, the real merge-tree ratchet passed, and pre_pr completed 46 checks with 4 skips and 0 failures."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "3c3773371",
   "nextSteps": [
     "Route subprocess isolation and lefthook.yml changes to security PIV before merge."
   ]

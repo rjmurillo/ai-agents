@@ -130,6 +130,6 @@
       "result": "Markdownlint examined 1 file with 0 issues; 151 targeted tests passed; pre_pr.py reported 44 passed and 4 skipped."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9587ecd5e37c3129a77f22f3aa9c681509982205",
   "nextSteps": []
 }

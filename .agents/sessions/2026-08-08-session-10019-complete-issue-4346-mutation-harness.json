@@ -147,7 +147,7 @@
       "entry": "Merged origin/main at ec9f6cb30 without rewriting history in c4d87f3ed. The post-merge entrypoint and mutation regression suite passed 151 tests in 267.62 seconds, and pre_pr.py exited 0."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "c4d87f3ed",
   "nextSteps": [
     "Commit this session record, push normally, verify commits are reachable, update PR 4571 evidence, retain auto-merge, monitor checks, and verify issue 4346 closes."
   ]

@@ -125,6 +125,6 @@
       "outcome": "Timed shims now share the untimed load-failure path, so syntax or read failures warn and allow instead of denying. Targeted pytest passed with 502 tests green."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "22c9a5596",
   "nextSteps": []
 }

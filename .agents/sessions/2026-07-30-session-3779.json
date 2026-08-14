@@ -125,5 +125,5 @@
     "Push the committed and thread-clean branches behind it: fix/3601-nested-agent-detection, then the #3688 and #3807 branches after re-bumping their plugin manifests above main.",
     "File the four follow-ups named in the retrospective that have no issue yet: the push ref-lock race, the endingCommit warning-versus-error demotion, the moving taste-lint baseline, and monkeypatched subprocess fakes encoding false exit-code contracts."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": ""
 }

@@ -133,7 +133,7 @@
       "outcome": "Replaced Unicode em-dash (U+2014) with hyphen in one node label, repaired 7 node IDs. Repo dash-prohibition gate satisfied."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0fd7210a81",
   "nextSteps": [
     "Report to the user that the open issue count is 17, not the 31 the objective assumed.",
     "Skill-local _get_repo_root copies each say 'Canonical reference: scripts/github_core/repo.py::get_repo_root' while duplicating its body; that duplication is worth its own issue.",

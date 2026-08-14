@@ -126,7 +126,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b2c8a534e79785f80fa237a089d1a35256b62c40",
   "nextSteps": [
     "Push branch docs/adr-057-normalize-workflow-refs and open a PR with base fix/3185-adr057-eval-enforcement-torn-state, referencing the nit and Refs #3185.",
     "Report the new PR URL and state; do not merge without explicit user direction."

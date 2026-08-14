@@ -138,7 +138,7 @@
       "finding": "markdownlint, ruff, skill validation, skill-size, GitHub Actions SHA pinning all pass; ADR-057 eval recommended for behavioral file changes (non-blocking)"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "efbabaf",
   "nextSteps": [
     "Push claude/autofix-pr-1719-2bewz to origin",
     "PR #1719 maintainer decision: close as superseded by PR #1680, OR merge the autofix branch into feature/1676-session-end-enforcement to resolve conflicts with empty net diff"

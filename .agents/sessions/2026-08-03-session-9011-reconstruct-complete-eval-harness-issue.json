@@ -160,7 +160,7 @@
       "outcome": "Ensured the missing fix-eval-harness-p2 row, then executed the required done update and verified exactly one row changed"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7d20cf063",
   "nextSteps": [
     "Route the external-provider boundary change to QA and security PIV before merge",
     "Push or open a pull request only after explicit user approval"

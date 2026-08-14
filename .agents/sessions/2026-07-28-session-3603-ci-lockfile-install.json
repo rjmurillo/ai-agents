@@ -149,5 +149,5 @@
     "Consider a follow-up to converge the 148 bare python and pytest invocations onto uv run --frozen, which would let CI drop --system entirely.",
     "Continue the open-issue campaign: the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "6c388333f"
 }

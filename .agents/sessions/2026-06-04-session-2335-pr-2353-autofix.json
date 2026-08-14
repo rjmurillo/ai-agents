@@ -154,7 +154,7 @@
       "entry": "Validation passed after review fix: uv run pytest tests/commands/test_checkpoint_command_contract.py tests/build_scripts/test_generate_agent_catalog.py tests/test_validation_pre_pr.py -q, 115 passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Push review fix, reply to and resolve Copilot thread, wait for required checks, merge PR #2353 if ready."
   ]

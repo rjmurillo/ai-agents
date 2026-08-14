@@ -142,7 +142,7 @@
       "evidence": "python3 build/scripts/generate_rules.py exited 0; uv run pytest focused rule and manifest suites: 43 passed; plugin-version-bump against HEAD exited 0."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit review response, push, update PR description, resolve threads, poll CI, squash merge when CLEAN."
   ]

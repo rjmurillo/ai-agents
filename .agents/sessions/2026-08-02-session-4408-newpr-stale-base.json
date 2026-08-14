@@ -164,5 +164,5 @@
     "Run cross-family adversarial review on the diff before opening the PR.",
     "The same stale-base class also makes the count ratchets fail with 'BASELINE ABOVE BASE'; that gate already prints its own rebase instruction, so no code change is warranted there."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "fc549e93dafb5c77e6a5a2c9b8ed1bd504e09c8c"
 }

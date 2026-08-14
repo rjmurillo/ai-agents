@@ -155,7 +155,7 @@
       "entry": "Committed the corrected audit and Serena memory at 8047d177 after forced markdownlint evaluated both ignored-path documents with zero errors."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8047d177a325b63d5b88bc6b83156dba82011d93",
   "nextSteps": [
     "Limit remediation to Windows bug fixes and removal or rescoping of existing advisory hooks while Copilot CLI remains maintenance-only.",
     "Fix the Windows encoding, project-root validation, import, and duplicate session-guidance defects.",

@@ -125,7 +125,7 @@
       "evidence": "pytest tests/hooks/test_lsp_health.py tests/hooks/test_invoke_lsp_read_guard.py tests/hooks/test_invoke_lsp_bash_grep_guard.py tests/hooks/test_invoke_lsp_pre_delegation_guard_main.py tests/hooks/test_invoke_lsp_pre_delegation_guard.py tests/hooks/test_lsp_provider.py -> 261 passed. Mutation (if False) made the 3 read-guard fail-open tests fail, then restored. Full tests/hooks suite: 1518 passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Security agent / architect review the ADR-062 policy relaxation (LSP_DOWN fail-open path) before merge",
     "Optional follow-up: a SessionStart probe that sets LSP_DOWN automatically when the language server manager reports uninitialized, and clears the marker on recovery"

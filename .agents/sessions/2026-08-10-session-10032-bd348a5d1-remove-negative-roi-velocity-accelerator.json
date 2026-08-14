@@ -132,7 +132,7 @@
       "result": "Full suite passed 25,413 tests with 36 skipped; focused workflow tests and generated artifact checks passed; no live references remain."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8384b9e45687b733b00ec036ade63d22da210caf",
   "nextSteps": [
     "Verify PR 4819 CI and merge readiness."
   ]

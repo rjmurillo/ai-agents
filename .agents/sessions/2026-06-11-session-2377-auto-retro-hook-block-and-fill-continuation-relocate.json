@@ -37,7 +37,7 @@
     {"step": "implement", "evidence": "invoke_auto_retrospective.py: added write_continue_response (mirrors invoke_session_validator) emitted on the create path, instructing the retrospective skill with an inline fallback; relocated update_retro_index to .agents/retrospective/INDEX.md with bare-filename links. invoke_context_loader.py: _find_latest_retrospective and _count_pending_skeletons exclude INDEX.md. Migrated the existing index, removed docs/retros/, updated .githooks/pre-push + tree-neutral test comments, deleted the 3 stale skeletons (06-06/07/09)."},
     {"step": "verify", "evidence": ".venv pytest tests/test_auto_retrospective.py tests/test_context_loader.py tests/test_pre_push_tree_neutral.py tests/test_pr_description.py tests/hooks/test_topical_memory_injection.py = 135 passed. Runtime smoke: real hook invocation emits continue=true with the retrospective-skill instruction and writes .agents/retrospective/INDEX.md. Loop-safety covered by test_skip_path_emits_no_continuation."}
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit hook + context-loader + index migration + tests; pre_pr; push; open PR",
     "Bot review: the continuation reason is long but one-time per day on non-trivial sessions only"

@@ -131,7 +131,7 @@
       "entry": "Targeted tests, ruff, full pytest suite, and pre_pr.py passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "89eb3f100",
   "nextSteps": [
     "Push branch and open PR for #4184.",
     "Queue security review because the change adds a dependency."

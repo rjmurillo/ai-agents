@@ -125,7 +125,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "4e45e6583e",
   "nextSteps": [
     "Guarded background push of fix/3499-markdown-it-ast; capture new head SHA.",
     "Report the SUBSUMED, PARTIAL, or WRONG verdict on rival bot PR #3558 and the #3567 plus #3558 combination coherence."

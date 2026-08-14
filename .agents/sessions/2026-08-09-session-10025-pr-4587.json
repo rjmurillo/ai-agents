@@ -116,7 +116,7 @@
       "outcome": "79 affected tests and pre_pr.py pass."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8b86362522ff1491abadba99ec7d6cbbb0e4995d",
   "nextSteps": [
     "Push once and confirm Validate PR finds the QA report.",
     "Confirm Architect and aggregate AI Quality Gate results clear on the final SHA."

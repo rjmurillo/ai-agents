@@ -165,7 +165,7 @@
       "outcome": "Issues #4857 atomic-commit shim miscount, #4858 dispatcher timeout dropped, #4861 e2e fails instead of skipping on expired CLI auth"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cc8cd816d9ed4e7a0a201f7f60dbc15d7dab1456",
   "nextSteps": [
     "Verify PR #4862 CI and address failures",
     "Do not merge or enable auto-merge"

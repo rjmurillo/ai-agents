@@ -275,7 +275,7 @@
       "entry": "Committed ADR generator trigger and SkillForge missing-helper review-thread fixes in e602877ae3 after pre-commit validation passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e602877ae3",
   "nextSteps": [
     "Commit this session-log update, push fix/cluster-prompts, resolve the six verified Copilot threads, wait for checks, rebump if the plugin version race fails again, and merge PR 2844 after GitHub reports ready."
   ]

@@ -134,7 +134,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
   "nextSteps": [
     "PR #3347 review round 1 addressed: draft-07 validator, non-object payloads, JSON null, duplicate section messages, brittle exemption test.",
     "Open the PR for issue #3346 and drive its review threads to zero.",

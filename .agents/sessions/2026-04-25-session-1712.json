@@ -138,7 +138,7 @@
       "finding": "Diff scoped to three new files only: audit, prototype, session log."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Behavioral A/B using PR #1735 eval scenarios: route 20 representative security prompts through current vs prototype agent; compare coverage, precision, tokens",
     "If A/B passes: separate PR replacing .claude/agents/security.md with the prototype",

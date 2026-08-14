@@ -136,7 +136,7 @@
       "evidence": "Added explicit UTF-8 decoding with replacement for subprocess helpers, normalized environment keys, and scrubbed inherited GIT_ variables before invoking copied hooks."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "final branch commit for PR 2848",
   "nextSteps": [
     "Push final commit, resolve four review threads with fix evidence, enable auto squash merge, and poll PR 2848 until merged."
   ]

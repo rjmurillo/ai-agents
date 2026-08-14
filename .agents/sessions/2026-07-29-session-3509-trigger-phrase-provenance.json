@@ -7,7 +7,7 @@
     "startingCommit": "0f78e62fd5",
     "objective": "Close the closed-loop gap in the skill trigger standard. Reproduce the claim that documented trigger phrases are authored rather than observed, record the measurement and the authoring rules in the standard, and settle sibling issue #3494 with data instead of shipping the phrase promotion it proposed."
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "87c2439de3",
   "protocolCompliance": {
     "sessionStart": {
       "branchVerified": {

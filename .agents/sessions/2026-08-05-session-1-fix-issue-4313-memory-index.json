@@ -145,6 +145,6 @@
       "details": "Verified with targeted pytest, ruff, coverage, command reproduction, mutation proof, and security review."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "6e85585cad",
   "nextSteps": []
 }

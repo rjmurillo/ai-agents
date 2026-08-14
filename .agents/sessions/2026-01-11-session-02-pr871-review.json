@@ -189,7 +189,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "b3fe637",
   "nextSteps": [
     "PR #871 merged successfully",
     "Incoherence fixes tracked in issue #881 for follow-up implementation",

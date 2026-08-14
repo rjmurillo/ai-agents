@@ -147,7 +147,7 @@
       "outcome": "An untruncated search found 36 memories touching agent generation, four of which gave incomplete or false edit-location guidance. architecture-agent-mirror-two-pipeline.md listed .claude/agents/ as a GENERATED destination; agent-generation-edit-locations.md named a PowerShell generator that no longer exists and left .github/agents/ as an unanswered question; two recipe memories named only two of the four files to edit. All four corrected against a negative control: reverting only .claude/agents/orchestrator.md and running build_all.py leaves it reverted, proving it is hand-maintained. The first duplicate check was truncated with head -10 and missed these; the untruncated grep is what surfaced them."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5d1f67d4f6",
   "nextSteps": [
     "Push feat/orchestrator-wave-discipline and open the PR, then run scripts/validation/pr_description.py --ci against the live PR number",
     "Run an adversarial review on a different model family (gpt-5.6-sol) against the new PR, per the standing requirement",

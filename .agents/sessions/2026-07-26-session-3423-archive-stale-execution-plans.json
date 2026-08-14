@@ -141,7 +141,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9f1df6b3",
   "nextSteps": [
     "Decide #3424: rebuild the bundle registry and enforce, or delete the check now that /autoplan carries the routing intent",
     "Land #3425 as a paired edit across both instruction trees with the plugin manifest bump",

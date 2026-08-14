@@ -137,7 +137,7 @@
       "result": "Merged current main without source conflict, then validated the merged code at 09d0412b8690522840b57a0058d01f8496c71620 with 97 passing focused tests."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "09d0412b8690522840b57a0058d01f8496c71620",
   "nextSteps": [
     "Verify required CI and the completion gate after the documentation-only evidence update."
   ]

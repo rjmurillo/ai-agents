@@ -145,7 +145,7 @@
       "result": "183 targeted tests passed. Ruff, taste ratchets, merge-tree ratchet, generated mirror check, and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,

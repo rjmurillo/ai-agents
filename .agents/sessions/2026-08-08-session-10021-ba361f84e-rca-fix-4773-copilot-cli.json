@@ -177,7 +177,7 @@
       "result": "qaCommit and endingCommit now point at merge commit e63bbd3e9b48bb0b94e5550dd9aee42809587ece; only QA evidence files changed after the merge."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e63bbd3e9b48bb0b94e5550dd9aee42809587ece",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."

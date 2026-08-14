@@ -143,7 +143,7 @@
       "evidence": "A1=5 A2=5 A3=4 A4=4 A5=5 A6=5 A7=4 = 32; A7 carried at 4 = 32; rounded estimate 32-33; was 25/35 C tier"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "821bfbbb",
   "nextSteps": [
     "Merge PR 7/10",
     "PR 8/10: pr-quality.*.prompt.md template fix (7 clones)",

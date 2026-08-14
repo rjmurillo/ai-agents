@@ -122,7 +122,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Persist learnings to Serena for cross-session availability",
     "Merge PR #1593 after CI passes"

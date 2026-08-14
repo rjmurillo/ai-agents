@@ -138,7 +138,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e07f8a56",
   "nextSteps": [
     "Open PR with Fixes #3275 (single-task issue, auto-close intended) and Refs #3222, #3197.",
     "Babysit the PR to green; resolve the review-on-push threads; self-merge (squash).",

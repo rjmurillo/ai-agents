@@ -127,6 +127,6 @@
       "evidence": "_script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "9dc494e6d3464db8a6cb340ed3ed4ccd9d997c0f",
   "nextSteps": []
 }

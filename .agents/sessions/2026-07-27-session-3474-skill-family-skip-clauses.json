@@ -135,7 +135,7 @@
       "step": "Round 2 (gemini-3.1-pro-preview) returned zero findings but reported a different non-reciprocal edge count than the PR body. Challenged the discrepancy. The reviewer reconciled the two numbers in prose and concluded no change was needed. Re-measuring showed both numbers were wrong. The audit script required a routing target to sit immediately before the closing paren, so it read memory-search's '(use memory or memory-enhancement)' as one edge and missed the other. The corpus holds exactly one compound parenthetical, which is why three script versions looked correct. Rewrote the extractor to parse the whole parenthetical, added assertions against hand-known cases, and printed the edge list rather than the total. Corrected count is 19 within-family non-reciprocal edges on the branch, 11 in ai-agents and 8 in memory. Measured the merge-base with the same predicate at 20, confirming this change closes one edge and introduces none. Corrected the PR body, the decision memory, and this log."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Issue #3484 tracks the three ambiguities in the SKIP-clause standard and proposes a validator so the rule stops drifting unobserved.",
     "The reciprocity rule is scoped to within-family pairs and carries a chaining-parent escape. A raw cross-family scan reports many more pairs and must not be used as a violation count.",

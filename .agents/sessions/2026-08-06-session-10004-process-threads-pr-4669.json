@@ -133,7 +133,7 @@
       "head": "bb44f876d77a295768e5e8e191bd131b6a9b30c0"
     }
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "bb44f876d77a295768e5e8e191bd131b6a9b30c0",
   "nextSteps": [
     "Push and resolve threads on PR #4669"
   ]

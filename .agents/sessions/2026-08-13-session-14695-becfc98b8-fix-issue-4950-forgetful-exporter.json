@@ -172,7 +172,7 @@
       "outcome": "Forgetful UUID exemptions now require explicit exporter mode, default scans retain UUID detection, and all three shipped Claude-Mem callers use the positional scanner contract with real boundary coverage"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "fa6b62a07bd0fa50af40dc90f904a1a8bb879792",
   "nextSteps": [
     "Push the CI fixes, wait for all PR 4957 checks and comments, merge when clean, and verify origin/main"
   ]

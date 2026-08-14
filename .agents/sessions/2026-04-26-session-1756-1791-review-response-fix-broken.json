@@ -119,6 +119,6 @@
     "Updated AGENTS.md:24: Validate-PRReadiness.ps1 -> python3 scripts/validation/pre_pr.py",
     "Budget validation passed: AGENTS.md 2845/3000, total 5550/6600"
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": []
 }

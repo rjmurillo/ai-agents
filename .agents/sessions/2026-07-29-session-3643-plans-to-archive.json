@@ -139,7 +139,7 @@
       "outcome": "All three corrected. The sessionEnd copy is the notable one: reusing a prior log as a template put false compliance evidence in the record, and only the bot review caught it."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "be6c0878",
   "nextSteps": [
     "The execution-plans skill still writes complete plan and abandon plan output to completed/ and abandoned/. That is the drift that caused this round trip; it ships in two plugin trees so it was left out of scope here and flagged on #3426.",
     "scripts/validation/active_plan_closeout.py advises Move the plan to completed/ or abandoned/, which now names staging rather than the terminal destination.",

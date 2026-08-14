@@ -5,7 +5,7 @@
     "date": "2026-07-03",
     "branch": "claude/auto-router-skill",
     "startingCommit": "dca57fa",
-    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+    "endingCommit": "31ea835c",
     "objective": "Babysit PR #2829 toward merge by fixing mechanical validation failures while leaving the orchestrator-retirement design thread unresolved."
   },
   "protocolCompliance": {

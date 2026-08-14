@@ -135,7 +135,7 @@
       "result": "actionlint .github/workflows/dependabot-approve-and-auto-merge.yml -> exit 0 (clean). YAML safe_load OK. tests/test_validate_workflows.py -> 16 passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "64bda8c54d8f42f9c9fa2bc198e457a671df1089",
   "nextSteps": [
     "Merge once CI green; renovate/dependabot auto-approve resumes with BOT_PAT. No admin action required."
   ]

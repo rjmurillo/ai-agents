@@ -135,7 +135,7 @@
             ]
         }
     ],
-    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+    "endingCommit": "8e48ac37",
     "nextSteps": [
         "Open PR with Fixes #3296; babysit to green; resolve any review-on-push threads; self-merge (squash, delete branch).",
         "Continue the remaining open backlog; most survivors are design-heavy/governance (delegate ADR work to a Sol worktree) or anti-churn cleanups the user warned against. Do not auto-close epic #3197; #3219 is deferred build-on-demand."

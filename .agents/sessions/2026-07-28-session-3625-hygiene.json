@@ -136,7 +136,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "bc070c780",
   "nextSteps": [
     "Open the PR covering #3625, #3597, #3651, #3627, and #3616.",
     "Replace the F2 command-word heuristic in the semgrep gate with a quote-aware scanner; the adversarial review found 16 evasions of the separator-set regex."

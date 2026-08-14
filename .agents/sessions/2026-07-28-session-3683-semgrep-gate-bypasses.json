@@ -106,7 +106,7 @@
       "step": "Found and fixed a tooling defect that blocks every contributor. The path-normalization pre-push job walks the working tree with rglob and filters against a five-name exclude list, so it scanned git-ignored trees and failed on a .pytest_cache fixture whose deliberate /home/runner string exists to prove the audit detects a leaked runner path. The exclude list is a blocklist and .pytest_cache is one of 290 ignored paths in a normal tree. Replaced it with a batch git check-ignore --stdin call that fails open outside a repository or when git is unavailable, preserving prior behavior for non-repo inputs. Filed as #3686 with seven regression tests."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "4674a805876ec5b51d526ba730f6091da141a59b",
   "nextSteps": [
     "Open the PR for the semgrep gate and path-normalization fixes",
     "Ship the queued fixes from triage, highest value first: #3626 doubled artifact path in an executable session-init command, #3624 false ADR-007 attribution, #3597 missing eval sweep gitignore, #3652 unquoted hash truncating five workflow step names, #3664 free-form string interpolated into a workflow shell",

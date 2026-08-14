@@ -135,7 +135,7 @@
       "step": "Proved every new test is load-bearing with a five-way mutation table run from a scratch copy outside the repository. Disabling the enforcement block fails 2 tests. Forcing the detector to always return True fails 6. Forcing it to always return False fails 6. Dropping the over-a-limit guard fails the under-limit negative control. Dropping the exception-declared guard fails the no-exception negative control. Every one of the 16 new tests fails under at least one mutation, so none is tautological."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "e61b6955f",
   "nextSteps": [
     "#3632 still owns the real remedy: defer the Prior Art block out of /spec so both forms drop under the ceiling and the key can be deleted.",
     "Both rationales name #3632 as their removal condition, so closing #3632 without deleting the comments would leave a stale justification behind.",

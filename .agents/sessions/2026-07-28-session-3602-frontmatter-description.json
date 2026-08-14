@@ -133,7 +133,7 @@
       "action": "Verified no mirror exists for build/scripts/, so nothing needs syncing and no plugin manifest bump is required."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "1e0099d20914cfd6e11850c98948e224cc4a3bd2",
   "nextSteps": [
     "Drive PR #3725 to merge: two bot threads asked for this log's endingCommit and nextSteps, which this entry supplies.",
     "The validator now warns when nextSteps is absent. 71 of 1003 committed logs predate the field, so the check warns rather than blocks; revisit promoting it to an error once that backlog is drained."

@@ -111,7 +111,7 @@
       "entry": "Validation passed: 105 run_workflow_local_test tests, 1066 validation tests, ruff on touched files, py_compile, and pre_pr validations."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cf10e2d4",
   "nextSteps": [
     "Push wt/t_1afef4c5 as rjmurillo-bot and open PR with Fixes #3869.",
     "Queue QA review task for the PR."

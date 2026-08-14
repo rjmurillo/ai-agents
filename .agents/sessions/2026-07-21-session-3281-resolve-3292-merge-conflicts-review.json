@@ -160,7 +160,7 @@
       "result": "All six ADR roles accepted ADR-068, ADR-071, and ADR-085 with no P0 or P1 findings. Five pinned real-CLI cases passed. The full suite passed with 13,531 passed and 23 skipped. The 72-file change landed as 21 commits with no commit above five files."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "743e5bd14c6fdd355b49509b14690ff1db499d08",
   "nextSteps": [
     "Push fix/copilot-hook-contract and update PR 3292 evidence.",
     "Resolve existing and newly generated review threads, then merge PR 3292 after required checks pass."

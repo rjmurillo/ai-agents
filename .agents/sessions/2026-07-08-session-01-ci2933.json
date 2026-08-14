@@ -139,7 +139,7 @@
       "detail": "Security agent reported PASS: least privilege, SHA pinning, credential persistence, secret handling, command injection surface, artifact path, and trigger surface passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5cc3bb75db7a37114275676b01af8fbd001f09ab",
   "nextSteps": [
     "Monitor the PR checks after auto-merge is armed."
   ]

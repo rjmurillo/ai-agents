@@ -127,7 +127,7 @@
       "action": "Verification passed: uv run pytest tests/ -q completed with 14369 passed, 21 skipped, and 45 xfailed. Focused contracts reported 41 passed. Ruff, mypy, Python 3.10 syntax, security scan, and two independent code reviews passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "c04a9e9a3",
   "nextSteps": [
     "Run the PR live-state and exact-SHA gates, then push c04a9e9a3 plus this session log.",
     "Reply to and resolve Cursor thread PRRT_kwDOQoWRls6RgpxL after the fix is on the remote head.",

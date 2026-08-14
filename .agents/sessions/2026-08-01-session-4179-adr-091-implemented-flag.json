@@ -110,7 +110,7 @@
       "result": "The version key is absent from both parity manifests on main, which is what ADR-092 requires."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "a5017d74df4daa5a733e750f2813ac70ad176fe6",
   "nextSteps": [
     "Close #4202 once this lands: the workflow it describes is deleted from main by ADR-092, so the direct-push failure cannot recur",
     "Correct the public causal account in #4195: both the original account (fenced-block stripping) and the adversarial replacement (prose and table edits) located the movement in the files map, which PR #4197 never touched. Regenerating files from PR #4182's own tree gives 0 disagreements; the three moved entries are in marker_files. Both accounts partitioned the JSON diff with a text filter, which cannot separate two maps whose keys share the same shape",

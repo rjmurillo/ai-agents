@@ -139,7 +139,7 @@
       "evidence": "A1=5 A2=4 A3=4 A4=4 A5=4 A6=5 A7=5 = 32/35; was 27/35 B tier"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cbd7c796",
   "nextSteps": [
     "Merge PR 2/10",
     "PR 3/10: critic.shared.md (A6 + A5 ADR-read directive)"

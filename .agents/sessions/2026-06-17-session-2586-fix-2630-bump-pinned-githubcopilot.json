@@ -139,7 +139,7 @@
       "detail": "gh act dry-run `gh act schedule -W .github/workflows/pr-maintenance.yml -j process-prs -n` parsed and ran the graph (discover-prs success; process-prs matrix empty offline as expected). run_workflow_local_test.py on the changed workflow+action ran under act; the Process-PR-comments step itself needs COPILOT_GITHUB_TOKEN + live Copilot API, which act cannot supply, so that step is verified by the unit tests + the local 1.0.63 install/run instead."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "14bb688be5b5a33620597fb128b49dea86c758b0",
   "nextSteps": [
     "Open PR for #2630.",
     "Flag to maintainer: amend ADR-044 to record the 1.0.63 upgrade (ADR work, Ask First, out of scope for this bug-fix PR)."

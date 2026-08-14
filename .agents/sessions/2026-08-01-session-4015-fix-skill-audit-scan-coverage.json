@@ -145,7 +145,7 @@
       "evidence": "uv run pytest tests/test_validation_skill_frontmatter.py tests/test_validation_skill_size.py tests/validation/test_check_vendor_portability.py -q -> 231 passed in 2.31s"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "f4411cf72",
   "nextSteps": [
     "Open the pull request against main with Fixes #4015 and Fixes #4046",
     "Watch CI for the vendor-portability and skill-audit workflows"

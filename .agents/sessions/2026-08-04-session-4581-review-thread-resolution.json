@@ -141,7 +141,7 @@
       "detail": "Copilot opened two new threads showing StatusContext rows disabled CheckRun recency in dedupe_checks. Added a failing mixed StatusContext plus CheckRun regression, fixed selection to base recency on CheckRun candidates only, regenerated the mirror, and reran targeted validation."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "205c3576c",
   "nextSteps": [
     "Push the final follow-up commit once and wait for the pre-push suite.",
     "Verify remote SHA equals local HEAD after the push.",

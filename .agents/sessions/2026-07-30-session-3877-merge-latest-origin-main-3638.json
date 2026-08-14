@@ -139,6 +139,6 @@
       "entry": "Recorded final merge commit 763d9512ae04f54df236d6803ed26fb16b2b87cd in a follow-up so session validation can verify ancestry."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "763d9512a",
   "nextSteps": []
 }

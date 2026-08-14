@@ -126,7 +126,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "fedd71a097",
   "nextSteps": [
     "Open PR referencing #2755, link #2743/#2760; note STALENESS_DEFERRALS removal belongs to #2743 branch (absent on main)."
   ]

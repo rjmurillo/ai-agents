@@ -134,7 +134,7 @@
       "action": "Fixed all 3 plugin.json manifests: stripped invalid agents/skills/commands/hooks keys per Anthropic spec (auto-discovery handles defaults). Created .claude/hooks/hooks.json with inline matcher format ported from settings.json so plugin consumers receive hooks. Validator green on all 3 manifests."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "49a04d1d",
   "nextSteps": [
     "Atomic commits per AGENTS.md (\u22645 files)",
     "Push branch and open PR with post-incident summary",

@@ -145,7 +145,7 @@
       "outcome": "Gate mode returns the first denying shim's own code, not 2. The generator header, both generated Copilot dispatchers, and the Claude entrypoint docstring said only 2 blocks."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "05f7c63842e0fbb2c09c185b77c1c620d279aa2a",
   "nextSteps": [
     "Work the causal graph cluster: #3350, #3356, #3367, #3375.",
     "#3402, #3399, and the two unstarted arms of #3360."

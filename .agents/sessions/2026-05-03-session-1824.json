@@ -119,7 +119,7 @@
       "action": "ADR Review Protocol — ADR-058 agent-eval-discipline (issue #1854). Architect agent conducted multi-perspective review (architect, critic, independent-thinker, security, analyst, high-level-advisor). Outcome: APPROVED with amendments incorporated. Debate log written to .agents/critique/ADR-058-debate-log.md per ADR-033 architect-evidence gate. Evidence: subagent_type='architect' invocation; adr-review skill protocol followed in three rounds; multi-agent consensus reached on ADR content."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "58556d22",
   "nextSteps": [
     "Plan creation for #1854 (subsequent session: PLAN-1854-agent-eval-harness-spike.md)",
     "T4-1 runner scaffolding implementation",

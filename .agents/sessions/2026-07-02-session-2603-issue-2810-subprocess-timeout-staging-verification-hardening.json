@@ -120,7 +120,7 @@
     "mcp_client.py: added a win32 reader-thread read timeout so os.read cannot block forever on Windows, and an overall monotonic deadline in _read_response against notification/id-mismatch floods.",
     "Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "f13f73f",
   "nextSteps": [
     "Open draft PR for #2810; continue remaining open-issue work (#2811 PR-B, #2821)."
   ]

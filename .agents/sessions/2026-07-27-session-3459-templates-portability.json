@@ -161,7 +161,7 @@
       "outcome": "Hooks regenerate memory artifacts from the session file on every commit; files remain as auto-generated derivatives of this session log"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ac9a29da8",
   "nextSteps": [
     "If a future skill takes a real runtime dependency on templates/, the marker is the wrong answer: the content has to move into the plugin root instead, per .claude/rules/plugin-self-containment.md",
     "check_skill_portability.py is the script-file companion to this validator and was not examined for the same gap",

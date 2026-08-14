@@ -145,7 +145,7 @@
       "result": "All push hooks pass. Ready for PR creation."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "95034ea20",
   "nextSteps": [
     "Create PR closing #4375, #4376, #4377 with separate Fixes lines.",
     "Verify closingIssuesReferences after PR creation."

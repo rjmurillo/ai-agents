@@ -125,7 +125,7 @@
       "result": "12 tests in test_portability_git_lookup.py. Anchors pre-verified unique, then every mutation killed by exactly one test; two always-refuse controls killed 10 and 8."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Resolve the two Copilot review threads on PR #4233 citing 0482ef6428, which is what holds the PR at BLOCKED",
     "Rewrite the PR body to cover the module split, the five hardening fixes, and the episode repair",

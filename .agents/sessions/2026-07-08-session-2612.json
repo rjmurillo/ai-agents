@@ -139,7 +139,7 @@
       "entry": "Resolved 5 PR #2951 review threads: repointed orphan-report-format.md to scripts/validation/traceability.py (--format markdown/--strict), aligned spec-schemas.md command comments to the two real checks, and invoked python explicitly in the devops.md PowerShell CI snippet (both mirrors)."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Force-push fix/2864-residual-dead-ps1-refs; verify PR #2951 mergeStateStatus CLEAN and threads still 0 unresolved.",
     "Open new PR for the two orphaned post-merge hardening fixes (byte-cap UTF-8 in invoke_correction_applier.py; OSError degrade in detect_test_coverage_gaps.py).",

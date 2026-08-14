@@ -164,7 +164,7 @@
       "outcome": "A standalone repository and a moved linked checkout now keep their foreign data without printing git worktree remove. Missing paths retain the cleanup command."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "3722ace753ca0a78690a67265aac7b173d6fd037",
   "nextSteps": [
     "Reply to the occupied-path review thread, resolve it, and merge once all four Ready-to-Merge conditions hold."
   ]

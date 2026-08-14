@@ -119,6 +119,6 @@
       "evidence": "Added 4 evidence-backed memories (#2468 advisory-envelope, #2707 two-pipeline mirror recipe, #2710 eval multiprovider transport, #2168 LSP-first ADR-062) + memory-index.md row. validate_memory_tier.py PASS (344 warnings, my 4 referenced); em-dash prohibition clean; serena markdownlint-exempt. 5 files."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "c48b74e6f5",
   "nextSteps": []
 }

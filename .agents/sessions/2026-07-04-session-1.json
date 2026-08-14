@@ -155,7 +155,7 @@
       "entry": "Committed latest origin/main merge and plugin rebump for PR 2853."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7104d81cde",
   "nextSteps": [
     "Push PR #2853, wait for required checks, and verify merge."
   ]

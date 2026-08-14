@@ -154,7 +154,7 @@
       "outcome": "design + fail-closed contract + gated rollout documented"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "eaa4654131463bf8697a7b33f1a8dd58088ac492",
   "nextSteps": [
     "Merge PR #2305 to auto-close #2291, #2292, #2229, #2302, #2304",
     "adr-review consensus on ADR-068, then wire generate_dispatcher into generate_hooks (gated cutover) + RUN_INSTALLED_PLUGIN_HOOK_E2E on real Copilot before flipping hooks.json",

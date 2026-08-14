@@ -114,7 +114,7 @@
       "entry": "Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8385764d799b84a32c18d55a0bb3a8b1dd3162a5",
   "nextSteps": [
     "Ask the reporter of #3321 for the installed project-toolkit version and a --log-dir hook stderr capture. Below 0.6.98 the upgrade closes it; at or above 0.6.98 a second mechanism exists that this session did not find.",
     "If the reporter is below 0.6.98, close #3321 as fixed by #3295 and point at the regression fixtures added here.",

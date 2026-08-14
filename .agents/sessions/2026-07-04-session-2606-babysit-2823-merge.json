@@ -175,7 +175,7 @@
       "evidence": "origin/main advanced with plugin manifests at 0.5.259. Updated both PR manifests to 0.5.260 and build_all.py --check passed."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0e91286c7",
   "nextSteps": [
     "Commit and push the 0.5.260 plugin re-bump, update the PR body, verify zero unresolved threads, and poll until PR 2823 is merged."
   ]

@@ -147,7 +147,7 @@
       "detail": "Pre-push plugin-source gate required src/claude/.claude-plugin/plugin.json to move from 0.3.36 to 0.3.37 because this PR edits src/claude agents."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "bcd1a32be120c4a6e6b3306385beb6853c78ce8f",
   "nextSteps": [
     "Push branch, reply to six review threads, resolve them, and confirm zero unresolved threads."
   ]

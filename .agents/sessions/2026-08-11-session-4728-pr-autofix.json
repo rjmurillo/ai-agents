@@ -152,7 +152,7 @@
       "detail": "Merged current origin/main into 0c7c50f2b3d7db149047b5c83e6c95fba557ec9f. The exact 55-test safe-push selection passed locally."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "0c7c50f2b3d7db149047b5c83e6c95fba557ec9f",
   "nextSteps": [
     "Commit updated session evidence.",
     "Run pre_pr.py again, then guarded-push the branch.",

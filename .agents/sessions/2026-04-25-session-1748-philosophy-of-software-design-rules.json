@@ -144,7 +144,7 @@
       "outcome": "PR URL recorded below."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "5eaf9952",
   "prUrl": "pending",
   "nextSteps": [
     "Auto-merge will land once required checks pass.",

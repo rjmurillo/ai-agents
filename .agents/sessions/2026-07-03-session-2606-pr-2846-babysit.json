@@ -139,7 +139,7 @@
    "evidence": "origin/main plugin manifests were at 0.5.260 after rebase. Both local manifests were set to 0.5.261."
   }
  ],
- "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+ "endingCommit": "4c0e1881b0c0",
  "nextSteps": [
   "Push fix/cluster-secgate, monitor PR #2846 checks, rebump plugin manifests if the version race advances, enable auto-merge, and remove the dedicated worktree after merge."
  ]

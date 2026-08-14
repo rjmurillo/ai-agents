@@ -131,7 +131,7 @@
       "outcome": "Added a fifth trap covering issue 4692. The harness task tool offers agent types named explore and research that are Copilot CLI product configuration rather than anything this repository ships, and they are read-only: no Bash, no session state writes, no raw gh, no issue or pull request API. The names collide with the repository-owned /research command and analyst agent, which do have execution tools, and that collision is the trap. Measured this session: sixteen triage agents dispatched as read-only types were told to record findings and update tracking state and none could, with nothing in the transcript reporting a permission error, so the loss read as agents being unhelpful rather than unable. Included the grep that confirms no file in this repository configures those types."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "d20aa50b9",
   "nextSteps": [
     "Find the writer that sets core.bare=true during the pre-push stage (issue #4698).",
     "Consider a fast repository health check that fails when core.bare is true alongside a work tree."

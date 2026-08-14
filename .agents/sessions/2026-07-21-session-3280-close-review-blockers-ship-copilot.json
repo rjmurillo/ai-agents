@@ -155,7 +155,7 @@
       "result": "Typed the dynamically imported return boundaries without casts or suppressions, preserved fail-closed behavior, bumped both project-toolkit manifests to 0.6.95, and passed mypy, Ruff, 98 dispatcher tests, syntax-floor validation, manifest checks, code review, and silent-failure review."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "02d20f014b4aad9dd0708f0796b8879e17fd654c",
   "nextSteps": [
     "Push fix/copilot-hook-contract.",
     "Create the hook contract PR with issue references, evidence, and commit-limit-bypass label."

@@ -234,7 +234,7 @@
       "action": "Round 16: restructured REQ-009 ACs to clear the AC8-deferred signal that the Validate Spec Coverage CI check was interpreting as failure. Old AC8 (/test Gate 5 wiring) moved into a new 'PR2 follow-up' section instead of being a deferred AC. Old AC9 (test coverage) renumbered to AC8. DESIGN-009 + TASK-009 updated for the new numbering. PR1 now claims all eight ACs (AC1-AC8) satisfied."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "8e545bd3",
   "nextSteps": [
     "PR2 follow-up: implement script-path detection AC3 broadly; wire /test Gate 5 AC8",
     "Track preexisting orphans surfaced in --include-adrs and --include-skill-descriptions modes via separate cleanup issue",

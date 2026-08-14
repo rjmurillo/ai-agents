@@ -185,7 +185,7 @@
       "action": "Validation: targeted pytest suite passed with TMPDIR and basetemp under /home/richard/src/GitHub/rjmurillo/pytest-tmp-pr3587; ruff passed; validate_agent_matrix_refs.py returned 0 on the repo; blockquote and invalid-fence ghost probes returned 1; invalid UTF-8 probe returned 2."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "aac0eefc",
   "nextSteps": [
     "Wait for PR #3571 to land, then merge origin/main into this branch and retain both validate-generated-agents workflow gates.",
     "Bump both plugin manifest version fields strictly above main after that merge.",

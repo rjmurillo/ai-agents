@@ -130,6 +130,6 @@
       "outcome": "89 tests pass; ruff check clean; mypy clean on scripts/validate_session_json.py"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": []
 }

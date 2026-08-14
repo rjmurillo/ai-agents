@@ -135,7 +135,7 @@
       "result": "Moved descendant containment checks ahead of suffix and is_file filters in both portability scanners, added four targeted escape regressions, reran the portability suite to 364 passing tests, and got a second PASS security review with no Critical or High findings."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit the session log, push the refreshed branch, wait for required CI, rerun readiness and completion gates, and merge only if all Ready-to-Merge conditions hold."
   ]

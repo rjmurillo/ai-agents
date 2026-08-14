@@ -39,7 +39,7 @@
       "evidence": "validate_marketplace_counts reports both marketplaces up to date at 25 agents; install-parity OK; plugin-version-bump OK"
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "926bcdd9b21d2ed14656a7d0bee3007f2af6fbfd",
   "nextSteps": [
     "Open PR with Fixes #1906",
     "Weekly cron workflow (consuming-repo concern, not a template concern) deferred to the consuming repo's CI"

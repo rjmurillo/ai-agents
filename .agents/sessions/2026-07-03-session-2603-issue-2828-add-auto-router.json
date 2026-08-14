@@ -121,7 +121,7 @@
     "Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
     "Verification: validate_skill_format.py --path .claude/skills/autoplan PASSED; dash byte-check clean."
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "dca57fa",
   "nextSteps": [
     "Draft PR #2829 opened for #2828.",
     "Follow-up: point the CLAUDE.md Skill routing section at /autoplan as the canonical router so the two tables do not drift."

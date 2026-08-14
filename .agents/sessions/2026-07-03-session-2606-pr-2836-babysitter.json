@@ -127,7 +127,7 @@
    "evidence": "uv run pytest tests/test_generate_quality_report.py -x: 23 passed; byte check found zero conflict markers and zero prohibited dash bytes in tests/test_generate_quality_report.py."
   }
  ],
- "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+ "endingCommit": "c16297e77",
  "nextSteps": [
   "Commit and push the merge resolution, then re-enable auto-merge if GitHub cleared it.",
   "Poll PR #2836 until state is MERGED; do not report merge before observing it."

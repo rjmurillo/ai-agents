@@ -111,7 +111,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "f2b0811323e2d05c371f857839edc6f3596777a0",
   "nextSteps": [
     "Continue with any remaining CodeQL integration work or create PR"
   ]

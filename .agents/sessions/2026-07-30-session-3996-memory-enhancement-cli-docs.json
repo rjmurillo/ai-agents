@@ -235,7 +235,7 @@
       "outcome": "Version gate OK at 0.6.5432, build_all idempotent, 104 targeted tests pass, taste lints 0 errors, 0 em or en dashes across all 13 changed files."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "7c64e26c23a9e1ee091de6495b82bff7099ffb35",
   "nextSteps": [
     "File: search emits memory ids that verify --memory-id rejects for any memory in a subdirectory.",
     "File: session_end_memory.py and reinforce_memories() are unreachable because no SessionEnd hook is registered, yet hook-protocol.md lists the hook as live.",

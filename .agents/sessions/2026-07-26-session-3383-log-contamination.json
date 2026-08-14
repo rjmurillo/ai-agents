@@ -141,7 +141,7 @@
       "outcome": "The branch was stacked on fix/3385-historical-session-logs. That PR merged during this session, so the stack rebased into a conflict against its own merged content. Recreated the branch off origin/main and cherry-picked the two 3383 commits clean. Fifth merge race this session."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "740890409fd1e15f8e9aa63adb37d2d17b740ea2",
   "nextSteps": [
     "Comment on #3383 with the guard 3 rejection evidence and the list of 10 self-contradicting logs.",
     "Work the causal graph cluster: #3350, #3356, #3367, #3375."

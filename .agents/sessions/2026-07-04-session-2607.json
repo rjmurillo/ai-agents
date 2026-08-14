@@ -255,7 +255,7 @@
       "entry": "Validated PSScriptAnalyzer timeout change with targeted pytest, ruff, and prohibited dash byte check."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "pending-psscriptanalyzer-timeout-fix",
   "nextSteps": [
     "Commit and push the PSScriptAnalyzer install-timeout fix, resolve the verified Copilot thread, poll checks, rebump plugin manifests on version races, and merge PR #2849."
   ]

@@ -88,6 +88,6 @@
       "description": "Skip semantic conflict guard when scanner script changes (bootstrapping case). PR extends EXTRA_SCAN_ROOTS; guard would always fire on such extensions."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ac1e76c74173f949c48262c81a20edc126212b2b",
   "nextSteps": []
 }

@@ -127,7 +127,7 @@
       "summary": "181 passed. Four pwsh tests execute the counter block sliced out of the shipped workflow, including the four-failure case the old regex could never reach. Negative controls: restoring the phantom regex turns 4 tests red, dropping the echo turns 1 red, restoring the double write turns 1 red. Confirmed --pre-commit and the no-flag callers are unaffected."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "54548416a0",
   "nextSteps": [
     "Watch the first CI run that fails session validation and confirm the findings appear in the job log.",
     "Issue #3363 (episode extractor counts any SHA as a session commit) is the next item in this cluster."

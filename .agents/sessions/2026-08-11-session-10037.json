@@ -165,7 +165,7 @@
       "result": "Three learnings. First, a document that quotes a corpus figure is not always part of that corpus: canonical-source-mirror.md is path-scoped, so shrinking it moved nothing, and the arithmetic prediction of 70,236 was wrong where the live measurement of 70,249 was right. Measure after every edit, never predict. Second, the .py always-on ceiling had 26 bytes of headroom on main, so any rule edit larger than a sentence breaches it; the breach reads as an unrelated test failure rather than as a budget message. Third, a scope narrowing that reads as a pure reduction can still grow a per-extension corpus, because the applyTo glob list that replaces two-character universal scope costs 155 characters in every mirror."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "ce3641d1084338690a381587c4117f34d9d96e69",
   "nextSteps": [
     "Main carries 26 bytes of .py headroom under the 99,000 ceiling before this PR and 49 after it. The next always-on or code-scoped rule edit of any size will breach it, so the ceiling decision cannot be deferred much longer.",
     "The three prose documents have no regenerator. Every always-on scope change re-breaks them, which is what .serena/memories/architecture/growing-an-always-on-rule-breaks-four-prose-documents.md already records."

@@ -196,7 +196,7 @@
       "outcome": "The complete Python suite passed 25,216 tests with 36 skipped in 725.88 seconds."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d",
   "nextSteps": [
     "Push PR 4775, resolve remaining review threads, verify a real security verdict, merge, close issue 4547, then reassess PR 4721."
   ]

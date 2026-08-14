@@ -161,5 +161,5 @@
     "Investigate CRLF line endings per issue #896",
     "Verify install script on Windows per issue #897"
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
+  "endingCommit": "bce23f0"
 }

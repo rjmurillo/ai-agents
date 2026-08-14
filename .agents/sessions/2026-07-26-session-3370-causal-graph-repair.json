@@ -154,7 +154,7 @@
       ]
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "d29d6efa13",
   "nextSteps": [
     "Open a PR referencing issue 3370 and reply on the issue with the stale-asymmetry finding.",
     "Re-poll the three open PRs for new review threads and CI status.",

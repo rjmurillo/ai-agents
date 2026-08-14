@@ -126,7 +126,7 @@
       "detail": "User directive: full 7-hook port, all Serena-supported languages, 3-tier fallback (Serena -> native LSP -> grep/glob/sed last), graduated hard-block enabled on merge, with kill switch + fail-open safety net."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Write .agents/critique/ADR-062-debate-log.md and .agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
     "Build shared lib (detect_lsp_provider, symbol_detection, gate_state) with 100% tests",

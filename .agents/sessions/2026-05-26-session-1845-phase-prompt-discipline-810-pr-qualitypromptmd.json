@@ -132,7 +132,7 @@
       "files": []
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "PR 9/10: rewrite default-ai-review.md",
     "PR 10/10: rewrite D-tier freestanding agents"

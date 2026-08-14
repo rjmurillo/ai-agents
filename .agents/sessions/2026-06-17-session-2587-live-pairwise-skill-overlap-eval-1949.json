@@ -135,7 +135,7 @@
       "result": "uv run pytest tests/test_eval_skill_overlap.py = 55 passed. markdownlint-cli2 on the regenerated REPORT.md + the analysis = 0 errors."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Follow-up PR (AC5): add explicit boundary statements to curating-memories + memory-enhancement SKILL.md, and to exploring-knowledge-graph + memory (memory=Tier1 flat recall + tier router; exploring=multi-hop relation traversal).",
     "Confirmatory Pair 2 eval after the boundary rewrite: if cross-coverage drops below 50% the rewrite worked (KEEP both); if it stays >=80% exploring-knowledge-graph becomes a real FOLD candidate into memory's deep tier (AC4)."

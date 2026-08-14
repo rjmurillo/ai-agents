@@ -37,7 +37,7 @@
     {"step": "implement", "evidence": "Replaced alwaysApply:false with a 16-entry source-code paths list (py,cs,ts,tsx,js,jsx,go,rs,java,rb,c,h,cpp,ps1,psm1,sql) in 9 SE rules. Regenerated mirrors: 18 instruction files now applyTo the code-glob comma-string (was applyTo universal). Bumped plugin 0.5.162 to 0.5.163 in both manifests."},
     {"step": "verify", "evidence": "generate_rules regen clean (60 written); clean-architecture.instructions.md applyTo is the flattened comma-string, no bracket leak. 67 key tests pass (generate_rules, canonical-source-mirror, parity, templates-schema). Full pytest + pre_pr run before push."}
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "",
   "nextSteps": [
     "Commit SE rules + regenerated instructions + plugin bump; push; open PR2 (base = PR1 branch)",
     "Retarget PR2 to main after PR1 merges"

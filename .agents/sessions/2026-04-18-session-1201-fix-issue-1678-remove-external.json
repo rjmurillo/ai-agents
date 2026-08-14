@@ -134,7 +134,7 @@
       "outcome": "All checks pass."
     }
   ],
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "pending",
   "nextSteps": [
     "Commit with conventional message fix(agents): scope #1678",
     "Push branch and open PR referencing Fixes #1678",

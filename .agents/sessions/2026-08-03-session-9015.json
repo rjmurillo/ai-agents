@@ -160,7 +160,7 @@
       }
     ]
   },
-  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
+  "endingCommit": "2c9956c2a",
   "nextSteps": [
     "Push and open the PR",
     "Renumber the anti-pattern to 8 if test/vacuous-assertion-anti-pattern merges first"
