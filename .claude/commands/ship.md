@@ -116,7 +116,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 
 1. Run all 4 pre-flight checks, branching by `host`, `mode`, and `pr`.
 2. If any blocking check fails: report what failed, why, and how to fix. Stop. (In `mode=contributor`, check 3 is advisory and never blocks. A `Pipeline: DEFERRED` result from check 1 is not a failure and does not stop the run.)
-3. If all pass:
+3. If no blocking check failed:
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
    - `mode=owner`, `host=ado`: run /validate-pr-description, then create the PR with `az repos pr create` (the gh-based /push-pr does not apply to ADO).
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
