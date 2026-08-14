@@ -854,7 +854,7 @@ PRs with many commits often indicate scope creep or should be split into smaller
 
 - **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
 - **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-- **Above active limit**: The workflow blocks the PR. You MUST either split the PR or add the `commit-limit-bypass` label.
+- **Above active limit**: The workflow blocks the PR. You MUST split the PR, or ask a human maintainer to decide on the `commit-limit-bypass` label. That label is human-only (see "Bypassing the Limit" below); do not apply it yourself.
 
 The active limit is 20 by default. Validation may raise it to 40 after detecting
 a qualifying base merge. Exactly 20 or 40 commits remains an alert, not a block.
@@ -907,7 +907,7 @@ The validator strips these sections before extracting file mentions, so any inli
 
 #### Bypassing Description Validation
 
-For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), apply the `description-validation-bypass` label.
+For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), ask a human maintainer to apply the `description-validation-bypass` label. Do not apply it yourself.
 
 1. A human maintainer MUST add the `description-validation-bypass` label (case-insensitive match)
 2. The validator still runs and prints all issues for visibility, but exits 0
