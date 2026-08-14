@@ -141,7 +141,7 @@
       "result": "284 tests passed and Ruff reported zero findings."
     }
   ],
-  "endingCommit": "22610337d9",
+  "endingCommit": "8f60289a9c",
   "nextSteps": [
     "Push guarded commits, clear review threads, run completion gate, and merge only if all conditions pass."
   ]
