@@ -61,6 +61,62 @@ class TestSetIssueLabels:
         assert result["Data"]["applied"] == ["bug", "P1"]
         assert result["Data"]["total_applied"] == 2
 
+    def test_apply_comma_separated_labels(self, _import_module, capsys):
+        mod = _import_module
+        # Documented comma form (#4967): one --labels arg, three names applied.
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _label_exists "security"
+                    make_completed_process(),  # _apply_label "security"
+                    make_completed_process(),  # _label_exists "area-workflows"
+                    make_completed_process(),  # _apply_label "area-workflows"
+                    make_completed_process(),  # _label_exists "technical-debt"
+                    make_completed_process(),  # _apply_label "technical-debt"
+                ],
+            ),
+        ):
+            rc = mod.main(
+                ["--issue", "1", "--labels", "security,area-workflows,technical-debt"]
+            )
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["applied"] == [
+            "security",
+            "area-workflows",
+            "technical-debt",
+        ]
+        assert result["Data"]["total_applied"] == 3
+
+    def test_apply_comma_separated_with_priority_label(self, _import_module, capsys):
+        mod = _import_module
+        # Comma form carrying a priority label (#4967): the priority applies and
+        # a stale conflicting priority is reconciled away (#2623).
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=["priority:P3"]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _label_exists "security"
+                    make_completed_process(),  # _apply_label "security"
+                    make_completed_process(),  # _label_exists "priority:P2"
+                    make_completed_process(),  # _apply_label "priority:P2"
+                    make_completed_process(),  # _remove_label "priority:P3"
+                ],
+            ),
+        ):
+            rc = mod.main(["--issue", "1", "--labels", "security,priority:P2"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["applied"] == ["security", "priority:P2"]
+        assert result["Data"]["removed"] == ["priority:P3"]
+
     def test_mutating_label_calls_include_timeout(self, _import_module):
         mod = _import_module
         with patch("subprocess.run", return_value=make_completed_process()) as run:
@@ -264,3 +320,49 @@ class TestPriorityMutualExclusion:
         ):
             labels = mod._get_issue_labels("o", "r", 1)
         assert labels == []
+
+
+class TestExpandLabels:
+    """Parser-level contract: comma and space label forms agree (#4967)."""
+
+    def _names(self, mod, label_args):
+        parser = mod.build_parser()
+        args = parser.parse_args(["--issue", "1", *label_args])
+        return mod.expand_labels(args.labels or [])
+
+    def test_single_label(self, _import_module):
+        assert self._names(_import_module, ["--labels", "bug"]) == ["bug"]
+
+    def test_comma_separated(self, _import_module):
+        assert self._names(
+            _import_module, ["--labels", "security,area-workflows,priority:P2"]
+        ) == ["security", "area-workflows", "priority:P2"]
+
+    def test_space_separated(self, _import_module):
+        assert self._names(
+            _import_module, ["--labels", "security", "area-workflows", "priority:P2"]
+        ) == ["security", "area-workflows", "priority:P2"]
+
+    def test_comma_and_space_agree(self, _import_module):
+        comma = self._names(_import_module, ["--labels", "a,b,c"])
+        space = self._names(_import_module, ["--labels", "a", "b", "c"])
+        assert comma == space == ["a", "b", "c"]
+
+    def test_repeated_flag_accumulates(self, _import_module):
+        assert self._names(
+            _import_module, ["--labels", "bug", "--labels", "enhancement,priority:P1"]
+        ) == ["bug", "enhancement", "priority:P1"]
+
+    def test_label_with_space_preserved(self, _import_module):
+        assert self._names(_import_module, ["--labels", "needs discussion"]) == [
+            "needs discussion"
+        ]
+
+    def test_empty_value_dropped(self, _import_module):
+        assert self._names(_import_module, ["--labels", ""]) == []
+
+    def test_whitespace_only_dropped(self, _import_module):
+        assert self._names(_import_module, ["--labels", "  ", "good"]) == ["good"]
+
+    def test_no_labels_flag(self, _import_module):
+        assert self._names(_import_module, []) == []

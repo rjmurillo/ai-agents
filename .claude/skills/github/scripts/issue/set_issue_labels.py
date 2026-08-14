@@ -79,6 +79,35 @@ def compute_priority_removals(
     ]
 
 
+def expand_labels(raw_labels: list[object]) -> list[str]:
+    """Flatten ``--labels`` arguments into individual label names (issue #4967).
+
+    Accepts both public forms so the documented comma syntax and the historical
+    space syntax agree:
+
+    - Space-separated arguments from ``nargs="*"``: ``--labels bug enhancement``.
+    - Comma-separated values inside any argument: ``--labels "bug,enhancement"``.
+    - Repeated ``--labels`` flags (``action="append"`` yields nested lists),
+      which accumulate instead of silently dropping earlier groups.
+
+    Commas act as separators, so a label may not contain a literal comma. A
+    single argument may still contain spaces, so multi-word names such as
+    ``needs discussion`` survive intact. Whitespace around each name is trimmed
+    and empty results are dropped.
+    """
+    names: list[str] = []
+    for group in raw_labels:
+        tokens = group if isinstance(group, list) else [group]
+        for token in tokens:
+            if not isinstance(token, str):
+                continue
+            for part in token.split(","):
+                stripped = part.strip()
+                if stripped:
+                    names.append(stripped)
+    return names
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Apply labels to a GitHub Issue with auto-creation support.",
@@ -89,8 +118,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--labels",
         nargs="*",
-        default=[],
-        help="Label names to apply",
+        action="append",
+        default=None,
+        help=(
+            "Label names to apply. Accepts space-separated arguments and "
+            "comma-separated values interchangeably, so 'bug enhancement' and "
+            "'bug,enhancement' are equivalent. Repeat the flag to add more. "
+            "Whitespace is trimmed; multi-word names (no comma) are preserved."
+        ),
     )
     parser.add_argument(
         "--priority",
@@ -288,10 +323,8 @@ def main(argv: list[str] | None = None) -> int:
     create_missing = not args.no_create_missing
 
     all_labels: list[dict[str, str]] = []
-    for label in args.labels:
-        stripped = label.strip()
-        if stripped:
-            all_labels.append({"name": stripped, "color": args.default_color})
+    for name in expand_labels(args.labels or []):
+        all_labels.append({"name": name, "color": args.default_color})
 
     if args.priority:
         all_labels.append({"name": f"priority:{args.priority}", "color": args.priority_color})
