@@ -210,6 +210,7 @@ class TestProcessDischargesTheDeferral:
         """The discharge step must use a GitHub-aware flow, not the ADO-only validator."""
         discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
         assert "get_pr_checks.py" in discharge
+        assert "--pull-request" in discharge
 
     def test_contributor_mode_still_creates_no_pr(self, ship_text: str) -> None:
         """Inverse guard: the deferral must not leak PR creation into contributor mode."""
