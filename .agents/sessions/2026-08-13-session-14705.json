@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14705,
+    "date": "2026-08-13",
+    "branch": "fix/4841-ship-first-pr",
+    "startingCommit": "ab9c636de5",
+    "objective": "Fix ship.md first-PR pipeline validation deadlock (issue 4841)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active for this project; list_memories and memory files under .serena/memories/ read"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions returned the Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only reference, preserved)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/{issue,pr}/ before any GitHub call"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read (language, skill, workflow, commit, PR scope sections)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "generator-skill-references-mirror-only-through-build-all.md and feedback-generated-artifact-runtime-verification.md read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4841-ship-first-pr"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4841-ship-first-pr"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected in fresh worktree /home/richard/sessions/fix-4841 from origin/main ab9c636de5"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ab9c636de5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session checklist items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only; file unmodified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Existing memory generator-skill-references-mirror-only-through-build-all.md already carries the build_all.py mirror rule this session applied; no new memory required"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 2 targets; both ship documents are in the .markdownlint-cli2.yaml ignore list"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4972-issue-4841-ship-first-pr-ordering.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 3bd39453140a49b4104c505c46460f2f6b777f8d)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed; build_all.py --check exit 0; 24 targeted plus 784 related tests passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "todo fix-issue-4841 tracked to completion"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue 4841 and the linked workflow docs (.claude/commands/ship.md, .claude/skills/pipeline-validator/SKILL.md, .claude/commands/push-pr.md) plus related issue 2749.",
+      "outcome": "Confirmed root cause: ship pre-flight check 1 invoked pipeline-validator for every GitHub run, and the validator halts without a PR, so /push-pr (the step that creates the first PR) was unreachable."
+    },
+    {
+      "action": "Checked for a competing PR and claimed the issue through the github skill scripts.",
+      "outcome": "check_existing_pr_for_issue.py reported existing_pr_count 0; claim_issue.py hit GitHub 502/GraphQL outages on three attempts (exit 3)."
+    },
+    {
+      "action": "Branched pre-flight check 1 on PR existence in .claude/commands/ship.md and added a discharge step after /push-pr.",
+      "outcome": "GitHub owner mode with no PR runs the local readiness checks, creates the PR, then validates its CI checks; runs with an open PR keep pre-flight pipeline validation unchanged."
+    },
+    {
+      "action": "Regenerated the Copilot mirror with build/scripts/build_all.py.",
+      "outcome": "src/copilot-cli/skills/ship/SKILL.md carries the same ordering; build_all.py --check reports no drift after commit."
+    },
+    {
+      "action": "Added tests/commands/test_ship_first_pr_ordering.py, parsing sections and bullets of both ship documents.",
+      "outcome": "24 tests pass on the fix; the same file run against the origin/main ship documents failed 16 of 24, and the 8 that passed are the ADO, contributor-mode, and inline pre-fix control checks."
+    },
+    {
+      "action": "Renamed the QA report to carry the PR number after opening PR 4972.",
+      "outcome": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the issue-numbered name found no report."
+    }
+  ],
+  "endingCommit": "f38e33061aff7d36208b548f78629076e3b39ed8",
+  "nextSteps": [
+    "Watch PR 4972 checks; Validate PR failed once on the QA report name and is fixed by the rename.",
+    "tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_stops_delayed_child_after_lease_loss is load-sensitive and fails intermittently on this machine; unrelated to this change and worth its own issue."
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-13-session-14705",
+  "session": "2026-08-13-session-14705",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix ship.md first-PR pipeline validation deadlock (issue 4841)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4841 and the linked workflow docs (.claude/commands/ship.md, .claude/skills/pipeline-validator/SKILL.md, .claude/commands/push-pr.md) plus related issue 2749.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked for a competing PR and claimed the issue through the github skill scripts.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branched pre-flight check 1 on PR existence in .claude/commands/ship.md and added a discharge step after /push-pr.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot mirror with build/scripts/build_all.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/commands/test_ship_first_pr_ordering.py, parsing sections and bullets of both ship documents.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T15:12:25+00:00",
+      "type": "commit",
+      "content": "Commit: 3bd39453140a49b4104c505c46460f2f6b777f8d",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the QA report to carry the PR number after opening PR 4972.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
