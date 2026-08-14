@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/4782-push-gate-human-only-label",
+    "startingCommit": "a225da30e",
+    "objective": "Stop enforcement messages from telling their reader to apply a human-only bypass label (issue #4782)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "activate_project was not exposed as a separate tool; Serena resolved the project from the working directory and list_memories returned the 42.3 KB memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual before any repository edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only reference; .agents/handoffs holds no issue 4782 handoff."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue and used check_existing_pr_for_issue.py and claim_issue.py instead of raw gh for the claim."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md gates, .claude/rules/canonical-source-mirror.md, ci-scripts.md, testing.md, session-logs.md, push-lock.md and governance.md read before editing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "CONTRIBUTING.md lines 845-916 read as the canonical authority for both human-only labels; .claude/rules/governance.md read before touching .agents/governance/GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the Serena memory index and process/process-bypass-pattern-generalization, which records the session 1187 bypass cascade this issue is an instance of."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4782-push-gate-human-only-label in worktree /home/richard/src/GitHub/rjmurillo/ai-agents-worktrees/issue-4782"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported fix/4782-push-gate-human-only-label, created from origin/main at a225da30e"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fresh worktree; git status listed only the five intended modifications and one new test file."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a225da30e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified before the push."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote memory decision-enforcement-messages-never-instruct-a-human-only-label recording the three-surface inventory and the guard test that pins it."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on CONTRIBUTING.md and .agents/governance/GOTCHAS.md reported 0 issues; GOTCHAS.md was NOT LINTED because .markdownlint-cli2.yaml excludes .agents/**, so 1 of 2 files was selected."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4782-human-only-label-guidance.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Four atomic commits: CONTRIBUTING.md authority, the three enforcement messages with their tests, the GOTCHAS.md entry with this log, then the QA report and episode."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest on the changed suites reported 565 passed; uv run ruff check clean on all changed Python files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "BLOCKED: no task row exists for issue 4782; the issue itself carries the state."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. The retrospective for the underlying incident is the issue body itself, which already records the PR #4735 and PR #4479 evidence."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T20:25:00Z",
+      "action": "Read the full issue #4782 discourse and confirmed no competing work existed.",
+      "detail": "check_existing_pr_for_issue.py reported existing_pr_count 0 and git ls-remote showed no 4782 branch. claim_issue.py returned claimed rjmurillo. The two issue comments are automated triage from the velocity accelerator and CodeRabbit, with no human counter-proposal to the suggested fix."
+    },
+    {
+      "timestamp": "2026-08-14T20:35:00Z",
+      "action": "Audited every message in the tree that names a human-only label.",
+      "detail": "CONTRIBUTING.md declares exactly two labels human-only, at lines 883 and 912. Three enforcement messages named one of them as the reader's own next step: git_hook_policy.py needs-split cap (the reported one), enforce_pr_validation.py blocked-PR annotation, and pr_description.py file-mismatch CRITICAL. check_pr_bypass_label.py reports presence without recommending, and pr_commit_count.py defers enforcement without naming a remedy, so both are correct as they stand. Of the candidates the issue named for audit, [skip-drift-check] already carries its code-owner obligation in show_drift_failure.py and the lefthook SKIP_ variables print only after the fact, so neither is the same defect."
+    },
+    {
+      "timestamp": "2026-08-14T20:45:00Z",
+      "action": "Rewrote all three messages to state the constraint, the sanctioned action, and the prohibition.",
+      "detail": "Each names the label only as a maintainer decision and cites CONTRIBUTING.md by section heading rather than by line number, because a line number in a runtime message rots silently. Followed the atomic-commit precedent from commit e1fbc5a7a, which states the local remedy and then closes the bypass door."
+    },
+    {
+      "timestamp": "2026-08-14T21:00:00Z",
+      "action": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
+      "detail": "Eight tests: the CONTRIBUTING.md citations still resolve, no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority, all three messages defer to a maintainer, and three no-over-fire controls prove the allowed paths never mention the bypass. test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
+    },
+    {
+      "timestamp": "2026-08-14T21:10:00Z",
+      "action": "Ran the four-mutant negative control.",
+      "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open one templated PR for issue #4782 and let CI settle. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
+  ]
+}

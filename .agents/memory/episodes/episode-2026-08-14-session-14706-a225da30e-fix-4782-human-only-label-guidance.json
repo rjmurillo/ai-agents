@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance",
+  "session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Stop enforcement messages from telling their reader to apply a human-only bypass label (issue #4782)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T20:25:00+00:00",
+      "type": "milestone",
+      "content": "Read the full issue #4782 discourse and confirmed no competing work existed.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T20:35:00+00:00",
+      "type": "milestone",
+      "content": "Audited every message in the tree that names a human-only label.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T20:45:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote all three messages to state the constraint, the sanctioned action, and the prohibition.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T21:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T21:10:00+00:00",
+      "type": "milestone",
+      "content": "Ran the four-mutant negative control.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 45,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
