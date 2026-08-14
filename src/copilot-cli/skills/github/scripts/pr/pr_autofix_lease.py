@@ -871,6 +871,20 @@ def _ownership_token_dir() -> str:
     return os.path.join(base, "pr-autofix-lease")
 
 
+def _normalize_repo_identity(repo_owner: str, repo: str) -> tuple[str, str]:
+    """Lowercase the repository identity so a case variant maps to one key.
+
+    GitHub owner and repository names are case-insensitive, so ``Octo/Repo`` and
+    ``octo/repo`` name one repository addressing one remote lease. Normalizing
+    the identity in the key, payload, and validation keeps a case-variant
+    release matched to the token its acquire wrote. Without it, release computes
+    a different path, misses the token, posts the tombstone, and leaves the
+    original valid token able to authorize a post-release fail-open renew
+    (issue #4966 review).
+    """
+    return repo_owner.lower(), repo.lower()
+
+
 def _ownership_token_path(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> str:
     """Return the token path for one (repo, owner, session, pr) holder.
 
@@ -879,8 +893,10 @@ def _ownership_token_path(owner: str, session: str, repo_owner: str, repo: str, 
     renew of PR #1 in a different repository sharing the same global token
     directory (issue #4966 review). The identity is hashed so a forgeable
     ``owner`` (``local:pr-autofix``) or ``session`` string cannot craft a path
-    outside the token directory (CWE-22).
+    outside the token directory (CWE-22). The identity is lowercased first so a
+    case-variant caller resolves the same path (issue #4966 review).
     """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
     key = hashlib.sha256(
         f"{repo_owner}\x00{repo}\x00{owner}\x00{session}\x00{pr}".encode()
     ).hexdigest()
@@ -896,6 +912,7 @@ def _write_ownership_token(
     fail open, never correctness. The worst case of a lost token is a renew
     that fails closed to SKIP, which is the safe direction.
     """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
     path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     payload = json.dumps(
         {
@@ -912,12 +929,7 @@ def _write_ownership_token(
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(payload)
     except OSError as exc:
-        # Semgrep python-logger-credential-disclosure flags the literal "token"
-        # in these lease operation labels. No credential is logged: pr is an int
-        # and err is filesystem text scrubbed by safe_log_str. Confirmed false
-        # positive; the four lease_token_* log calls carry the same note.
-        # nosemgrep: python-logger-credential-disclosure
-        logger.warning("op=lease_token_write_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        logger.warning("op=lease_ownership_write_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
 
 
 def _has_valid_ownership_token(
@@ -933,13 +945,13 @@ def _has_valid_ownership_token(
     abandoned token from granting fail-open past one lease lifetime; a healthy
     holder rewrites it on every successful renew, well inside that window.
     """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
     path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     try:
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
-        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
-        logger.warning("op=lease_token_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
+        logger.warning("op=lease_ownership_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
     if (
         data.get("owner") != owner
@@ -978,15 +990,13 @@ def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str,
     except FileNotFoundError:
         return True
     except OSError as exc:
-        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
-        logger.warning("op=lease_token_unlink_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        logger.warning("op=lease_ownership_unlink_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
     try:
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(json.dumps({"revoked": True, "pr": pr}))
         return True
     except OSError as exc:
-        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
-        logger.error("op=lease_token_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        logger.error("op=lease_ownership_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
 
 
@@ -1060,7 +1070,7 @@ def acquire(
         # (issue #4966 HIGH; the `renew --session never-acquired` repro).
         logger.warning("op=lease_login_unavailable pr=%d renewing=%s", pr, renewing)
         if renewing and _has_valid_ownership_token(owner, session, repo_owner, repo, pr, now):
-            logger.warning("op=lease_renew_failopen_token pr=%d cause=login-unresolved", pr)
+            logger.warning("op=lease_renew_failopen_ownership pr=%d cause=login-unresolved", pr)
             return LeaseResult(
                 "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
             )
@@ -1078,7 +1088,7 @@ def acquire(
             # can enter during the outage; the holder proceeding adds no new
             # concurrency. Residual lease-loss is issue #4926.
             logger.warning(
-                "op=lease_renew_failopen_token pr=%d err=%s", pr, safe_log_str(str(exc))
+                "op=lease_renew_failopen_ownership pr=%d err=%s", pr, safe_log_str(str(exc))
             )
             return LeaseResult(
                 "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
@@ -1209,7 +1219,7 @@ def release(
     # matches a live lease this session owns, so its fail-open renew stays
     # correct, and TTL expiry eventually reaps the lease.
     if not _clear_ownership_token(owner, session, repo_owner, repo, pr):
-        logger.warning("op=lease_release_token_revoke_failed pr=%d", pr)
+        logger.warning("op=lease_release_ownership_revoke_failed pr=%d", pr)
         return LeaseResult("SKIP", "token-revocation-failed")
     author = _gh_authenticated_login() if acting_author is None else acting_author
     try:

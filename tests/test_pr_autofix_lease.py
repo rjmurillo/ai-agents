@@ -879,6 +879,25 @@ class TestOwnershipTokenRepoIsolation:
         assert data["repo_owner"] == "octo"
         assert data["repo"] == "alpha"
 
+    def test_case_variant_repository_maps_to_one_token_path(self):
+        # GitHub owner/repo names are case-insensitive, so ``Octo/Repo`` and
+        # ``octo/repo`` name one repository and must hash to one token path
+        # (issue #4966 review).
+        path_mixed = _mod._ownership_token_path(_OWNER, _SESSION, "Octo", "Repo", 1)
+        path_lower = _mod._ownership_token_path(_OWNER, _SESSION, "octo", "repo", 1)
+        assert path_mixed == path_lower
+
+    def test_case_variant_release_revokes_the_acquire_token(self):
+        # Acquire writes the token under one casing; a release under a different
+        # casing must find and revoke that same token. Without normalization the
+        # release computes a different path, misses the token, posts the
+        # tombstone anyway, and leaves the original valid token able to
+        # authorize a post-release fail-open renew (issue #4966 review).
+        _write_token(pr=1, repo_owner="Octo", repo="Repo", now=_NOW)
+        assert _has_token(pr=1, repo_owner="octo", repo="repo", now=_NOW)
+        assert _mod._clear_ownership_token(_OWNER, _SESSION, "octo", "repo", 1) is True
+        assert not _has_token(pr=1, repo_owner="Octo", repo="Repo", now=_NOW)
+
 
 # ===========================================================================
 # base_sha provenance: the PR head, never the caller's checkout
