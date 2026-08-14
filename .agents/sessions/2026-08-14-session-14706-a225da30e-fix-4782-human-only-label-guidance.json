@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Wrote memory decision-enforcement-messages-never-instruct-a-human-only-label recording the three-surface inventory and the guard test that pins it."
+        "Evidence": "No memory mutation. Searched .serena/memories: process/process-bypass-pattern-generalization covers the agent-behavior half, and the mechanism-design half now lives in three durable surfaces this PR touches (CONTRIBUTING.md, .agents/governance/GOTCHAS.md, and the guard test). .claude/rules/knowledge-persistence.md says a must-obey convention belongs in a rule file, not a Serena memory, so a memory here would duplicate without binding. Residual gap recorded as PR follow-up: the guard pins the three known surfaces, so a brand-new fourth enforcement message naming a human-only label would not be caught."
       },
       "markdownLintRun": {
         "level": "MUST",
