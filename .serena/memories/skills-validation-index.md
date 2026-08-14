@@ -16,3 +16,4 @@
 | ADR numbering conflicts QA final renumber duplicate verification | [validation/validation-474-adr-numbering-qa-final](validation/validation-474-adr-numbering-qa-final.md) |
 | portability git timeout diagnostics fail closed operation context | [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) |
 | revert experiment injected code runs for real guard proof coverage | [testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real](testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md) |
+| frontmatter delimiter FM_BOUNDARY colon-space loader mirror parity false-negative | [validation/validation-frontmatter-gate-parity](validation/validation-frontmatter-gate-parity.md) |
