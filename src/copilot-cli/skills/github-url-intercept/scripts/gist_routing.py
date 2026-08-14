@@ -83,6 +83,11 @@ def _parse_page_file_selector(
         return None, None, None
 
     requested_file_slug = unquote(parsed_url.fragment.removeprefix("file-"))
+    # Reject empty or control-character-containing decoded selectors.
+    if not requested_file_slug or any(
+        ord(c) < 32 or ord(c) == 127 for c in requested_file_slug
+    ):
+        return None
     requested_file_base_slug = re.sub(
         r"-L\d+(?:-L\d+)?$",
         "",

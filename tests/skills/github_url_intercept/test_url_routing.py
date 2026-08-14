@@ -289,6 +289,10 @@ def test_normal_gist_query_does_not_hide_sibling_files() -> None:
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66.js?file=safe.txt#file-evil-txt",
         "https://gist.github.com/rjmurillo/"
+        "df38029ed77a71c6ac97cb1bc0823d66#file-",
+        "https://gist.github.com/rjmurillo/"
+        "df38029ed77a71c6ac97cb1bc0823d66#file-evil%0Atxt",
+        "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66.js?file=",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/unknown",
