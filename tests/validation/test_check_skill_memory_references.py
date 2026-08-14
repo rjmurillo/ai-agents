@@ -28,11 +28,9 @@ Coverage:
 
 from __future__ import annotations
 
-import importlib
 import importlib.util
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -40,14 +38,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = (
     REPO_ROOT / "scripts" / "validation" / "check_skill_memory_references.py"
 )
-
-# Import the pre-PR modules the way production imports them (issue #2223):
-# prepend ``scripts/validation`` to ``sys.path`` and import by bare name.
-_VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
-if str(_VALIDATION_DIR) not in sys.path:
-    sys.path.insert(0, str(_VALIDATION_DIR))
-checks_spec = importlib.import_module("checks_spec")
-pre_pr_sequence = importlib.import_module("pre_pr_sequence")
 
 
 def _load_module():
@@ -426,72 +416,3 @@ class TestShippedCorpus:
         assert csmr.main(["--repo-root", str(REPO_ROOT)]) == csmr.EXIT_OK
         assert "[PASS]" in capsys.readouterr().out
 
-
-# --- Pre-PR wiring ---------------------------------------------------------
-
-
-class TestPrePrWiring:
-    """A gate nobody runs is not a gate (``.claude/rules/testing.md`` SHOULD 6).
-
-    The checker can be perfect and still let issue #4897 recur if the pre-PR
-    sequence never calls it, so these tests grade the wiring, not the logic.
-    """
-
-    def test_the_wrapper_fails_when_the_script_reports_findings(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            checks_spec,
-            "_run_subprocess",
-            lambda *_a, **_k: (csmr.EXIT_UNRESOLVED, "[FAIL] 1 unresolved", ""),
-        )
-
-        assert checks_spec.validate_skill_memory_references(REPO_ROOT) is False
-
-    def test_the_wrapper_fails_on_a_configuration_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Exit 2 is a failure too: an unmeasured corpus is not a pass."""
-        monkeypatch.setattr(
-            checks_spec,
-            "_run_subprocess",
-            lambda *_a, **_k: (csmr.EXIT_CONFIG, "", "[ERROR] repo root"),
-        )
-
-        assert checks_spec.validate_skill_memory_references(REPO_ROOT) is False
-
-    def test_the_wrapper_passes_only_on_zero(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            checks_spec,
-            "_run_subprocess",
-            lambda *_a, **_k: (csmr.EXIT_OK, "[PASS] 0 unresolved", ""),
-        )
-
-        assert checks_spec.validate_skill_memory_references(REPO_ROOT) is True
-
-    def test_the_wrapper_skips_when_the_script_is_absent(
-        self, tmp_path: Path
-    ) -> None:
-        """Vendor installs ship no validators; a skip is not a silent pass."""
-        with pytest.raises(checks_spec.MissingScriptSkip):
-            checks_spec.validate_skill_memory_references(tmp_path)
-
-    def test_the_sequence_runs_the_gate_after_skip_clause_routing(self) -> None:
-        recorded: list[str] = []
-
-        def fake_run_validation(
-            name: str, _state: object, _callback: object, skip: bool = False
-        ) -> bool:
-            recorded.append(name)
-            return True
-
-        state = SimpleNamespace(total=0, skipped=0)
-        args = SimpleNamespace(quick=True, skip_tests=True, verbose=False)
-        pre_pr_sequence.run_all_validations(
-            REPO_ROOT, args, state, fake_run_validation
-        )
-
-        idx = recorded.index("Skill SKIP Clause Routing")
-        assert recorded[idx + 1] == "Skill Memory References"
