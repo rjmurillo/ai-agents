@@ -7,6 +7,7 @@ duplicate detection, orphan detection, memory-index references, and output forma
 
 from __future__ import annotations
 
+import re
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -17,6 +18,7 @@ import pytest
 import yaml
 
 from scripts.validation.memory_index import (
+    _FM_BOUNDARY,
     DomainIndex,
     IndexEntry,
     _load_base_reference_counts,
@@ -2617,6 +2619,81 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["leading-space-memory.md"]
+
+    def test_local_boundary_pattern_matches_canonical(self) -> None:
+        """Pin the copied delimiter to the parser's own constant.
+
+        The behavior cases below use fixed inputs, so an upstream `FM_BOUNDARY`
+        that still recognizes those inputs would leave them green while the
+        local copy drifts (PR #5004 review). Comparing the pattern text catches
+        the drift itself.
+
+        The flags differ on purpose: the canonical constant carries
+        `re.MULTILINE` because it scans a whole document, while `_FM_BOUNDARY`
+        matches one already-split line.
+        """
+        canonical = frontmatter.default_handlers.YAMLHandler.FM_BOUNDARY
+        assert _FM_BOUNDARY.pattern == canonical.pattern
+        assert canonical.flags & re.MULTILINE
+        assert not _FM_BOUNDARY.flags & re.MULTILINE
+
+    def test_bom_before_valid_frontmatter_is_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """A BOM loses valid metadata as surely as a malformed block does.
+
+        `FM_BOUNDARY.match` fails on `\ufeff---`, so the loader reads the whole
+        file as plain Markdown and drops the metadata without warning. Flagging
+        only BOM-plus-malformed would leave that silent loss open
+        (PR #5004 review).
+        """
+        content = "\ufeff" + _VALID_FRONTMATTER
+        assert frontmatter.loads(content).metadata == {}
+
+        (tmp_path / "bom-valid-memory.md").write_text(content, encoding="utf-8")
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["bom-valid-memory.md"]
+        assert "BOM" in result.issues[0]
+
+    def test_bom_before_malformed_frontmatter_is_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        content = "\ufeff" + _MALFORMED_FRONTMATTER
+        (tmp_path / "bom-bad-memory.md").write_text(content, encoding="utf-8")
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["bom-bad-memory.md"]
+
+    def test_bom_without_frontmatter_is_not_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        # No metadata means nothing to lose, so a BOM alone is not a defect.
+        (tmp_path / "bom-plain-memory.md").write_text(
+            "\ufeff" + _NO_FRONTMATTER, encoding="utf-8"
+        )
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_unicode_line_separator_does_not_close_a_block(
+        self, tmp_path: Path
+    ) -> None:
+        """Only `\\n` starts a line, because only `\\n` anchors `re.MULTILINE`.
+
+        `str.splitlines()` would treat the `\\u2028` here as a line break and
+        find a closing delimiter the canonical parser cannot see, turning an
+        unclosed block into a parsed one (PR #5004 review). The block stays
+        unclosed for both, which this gate reports as the documented
+        stricter-than-canonical case.
+        """
+        content = "---\ntitle: Broken\u2028---\n\n# Body\n"
+        assert frontmatter.loads(content).metadata == {}
+
+        (tmp_path / "u2028-memory.md").write_text(content, encoding="utf-8")
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert "unclosed frontmatter delimiter" in result.issues[0]
 
     def test_only_malformed_flagged_in_mixed_tree(self, tmp_path: Path) -> None:
         (tmp_path / "good.md").write_text(_VALID_FRONTMATTER)

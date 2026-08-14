@@ -920,20 +920,35 @@ def _parse_leading_frontmatter(
     not match the opening one (the canonical ``FM_BOUNDARY.split(text, 2)`` does
     not require that either).
 
+    Lines are split on ``\\n`` only. ``str.splitlines()`` would also break on
+    ``\\v``, ``\\f``, ``\\x1c``-``\\x1e``, ``\\x85``, ``\\u2028`` and
+    ``\\u2029``, while the canonical ``re.MULTILINE`` anchors exist only around
+    ``\\n``. Splitting the same way keeps a delimiter the canonical parser
+    cannot see from becoming one here (PR #5004 review).
+
     Stricter/looser/different than canonical:
 
     - STRICTER on an unclosed delimiter, a list block, and a scalar block.
       ``frontmatter.loads`` returns empty metadata for all three and warns for
       none, which is how corruption reaches main (issue #4918).
-    - STRICTER on a leading UTF-8 BOM. ``FM_BOUNDARY.match`` fails on the BOM,
-      so the loader reads a BOM-prefixed file as plain Markdown and silently
-      drops its metadata; this gate strips the BOM and validates the block.
+    - STRICTER on a UTF-8 BOM in front of the delimiter, whatever the block
+      contains. ``FM_BOUNDARY.match`` fails on the BOM, so the loader reads the
+      whole file as plain Markdown and drops the metadata without warning. A
+      valid block behind a BOM is therefore just as lost as a malformed one,
+      so both are reported (PR #5004 review).
     """
-    if text.startswith("\ufeff"):
-        text = text[1:]
-    lines = text.strip().splitlines()
-    if not lines or not _FM_BOUNDARY.match(lines[0]):
+    normalized = text.strip()
+    bom_prefixed = normalized.startswith("\ufeff")
+    if bom_prefixed:
+        normalized = normalized[1:].strip()
+    lines = normalized.split("\n")
+    if not _FM_BOUNDARY.match(lines[0]):
         return False, None, None
+    if bom_prefixed:
+        return True, None, (
+            "UTF-8 BOM before the frontmatter delimiter; the loader reads the "
+            "whole file as plain Markdown and drops the metadata"
+        )
     for idx in range(1, len(lines)):
         if _FM_BOUNDARY.match(lines[idx]):
             block = "\n".join(lines[1:idx])

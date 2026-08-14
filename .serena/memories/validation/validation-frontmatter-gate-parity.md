@@ -14,7 +14,7 @@ false negatives is decorative.
 **Context**: Writing a CI or hook gate that mirrors a runtime loader, parser,
 or validator.
 
-## Evidence (issue #4918, PR #4985)
+## Evidence (issue #4918, PR #5004)
 
 Two distinct defects, one incident:
 
@@ -29,11 +29,30 @@ Two distinct defects, one incident:
 
 2. The first gate written to stop recurrence keyed on `line == "---"`. The
    parser it mirrors, python-frontmatter's `YAMLHandler`, uses
-   `FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)`. A file opening with
-   `----` therefore had real, broken frontmatter to the loader (which warned)
-   and no frontmatter at all to the gate (which passed). A differential probe
-   over 14 delimiter shapes found the two false negatives; asserting the gate
-   flags every shape the real parser raises on now guards it.
+   `FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)`, and
+   `frontmatter.parse` normalizes with `text = u(text, encoding).strip()`
+   before matching. A file opening with `----`, or with a blank first line,
+   therefore had real, broken frontmatter to the loader (which warned) and no
+   frontmatter at all to the gate (which passed). A differential probe over 16
+   shapes found three false negatives; asserting the gate flags every shape the
+   real parser raises on now guards it.
+
+## Mirror Both Directions
+
+Copying the pattern closes only the false negatives you thought to probe. Two
+more came from review:
+
+- **Pin the constant, not just the behavior.** Fixed-input tests stay green
+  when upstream changes a pattern that still matches those inputs. Assert
+  `local.pattern == canonical.pattern` so the drift itself fails.
+- **A valid block behind a BOM is lost too.** `FM_BOUNDARY.match` fails on
+  `\ufeff---`, so the loader reads the file as plain Markdown and drops
+  metadata with no warning at all. A gate that only flags BOM-plus-malformed
+  leaves the silent case open. Ask what the mirrored tool does with the
+  *valid* input, not only the broken one.
+- **Split lines the way the pattern anchors.** `str.splitlines()` breaks on
+  `\v`, `\f`, `\x85`, `\u2028` and more; `re.MULTILINE` anchors only around
+  `\n`. Splitting more widely invents delimiters the parser cannot see.
 
 ## Pattern
 
