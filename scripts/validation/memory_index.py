@@ -39,7 +39,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-import frontmatter
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -879,21 +878,57 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
     return result
 
 
+def _parse_leading_frontmatter(
+    text: str,
+) -> tuple[bool, object, str | None]:
+    """Parse a leading YAML frontmatter block directly.
+
+    Returns ``(has_frontmatter, metadata, error)``:
+
+    - ``(False, None, None)`` when the file has no leading frontmatter block.
+      Frontmatter is optional (issue #4900), so plain Markdown, or a file whose
+      only ``---`` is a horizontal rule in the body, is not frontmatter.
+    - ``(True, metadata, None)`` when a closed block parsed successfully.
+      ``metadata`` is whatever YAML produced (dict, list, scalar, or None).
+    - ``(True, None, error)`` when the opening delimiter never closes or the
+      block is not parseable YAML. ``error`` is a one-line reason.
+
+    Stricter than ``frontmatter.loads``, which silently returns empty metadata
+    for an unclosed delimiter, a list, or a scalar (issue #4918). Detection
+    keys on the first line being exactly ``---`` so a horizontal rule later in
+    the body is never misread as frontmatter.
+    """
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        return False, None, None
+    for idx in range(1, len(lines)):
+        if lines[idx].rstrip() == "---":
+            block = "\n".join(lines[1:idx])
+            try:
+                metadata = yaml.safe_load(block)
+            except yaml.YAMLError as exc:
+                detail = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+                return True, None, detail
+            return True, metadata, None
+    return True, None, "unclosed frontmatter delimiter (missing closing '---')"
+
+
 def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
     """Validate that leading YAML frontmatter parses on every memory file.
 
-    Scans all .md files under memory_path (recursively). A file that opens
-    with a frontmatter block must contain valid YAML in that block. A file
-    with no leading frontmatter is fine: frontmatter is optional in existing
-    Serena memories (issue #4900), so a plain-Markdown file, or one with a
-    later horizontal rule, is not a violation.
+    Scans all .md files under memory_path (recursively). A file that opens with
+    a frontmatter block (first line exactly ``---``) must close that block and
+    carry a YAML mapping. A file with no leading frontmatter is fine:
+    frontmatter is optional in existing Serena memories (issue #4900), so a
+    plain-Markdown file, or one with a later horizontal rule, is not a
+    violation.
 
-    The detection mirrors the ``memory_enhancement verify-all`` warning site
-    in ``scripts/memory_enhancement/serena_integration.py``: it flags exactly
-    the files that tool warns about, so a repaired tree stays repaired
-    (issue #4918). ``frontmatter.loads`` raises ``yaml.YAMLError`` only when a
-    leading block exists and fails to parse; it returns empty metadata without
-    raising for frontmatter-free content.
+    Three malformed shapes that ``frontmatter.loads`` accepted as empty
+    metadata are now violations (issue #4918): an unclosed opening delimiter, a
+    block that parses to a list, and a block that parses to a scalar. An empty
+    block (``None``) stays valid because it carries no colon-space corruption.
     """
     result = FrontmatterResult()
 
@@ -904,17 +939,28 @@ def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
         relative = f.relative_to(memory_path)
         if any(part.startswith(".") for part in relative.parts):
             continue
-        try:
-            frontmatter.loads(f.read_text(encoding="utf-8"))
-        except yaml.YAMLError as exc:
+        has_frontmatter, metadata, error = _parse_leading_frontmatter(
+            f.read_text(encoding="utf-8")
+        )
+        if not has_frontmatter:
+            continue
+        rel_posix = relative.as_posix()
+        if error is not None:
             result.passed = False
-            rel_posix = relative.as_posix()
             result.invalid_files.append(rel_posix)
-            detail = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
             result.issues.append(
-                f"Malformed YAML frontmatter: {rel_posix} ({detail}). "
-                f"Quote values that contain a colon-space, or remove the "
-                f"frontmatter block."
+                f"Malformed YAML frontmatter: {rel_posix} ({error}). "
+                f"Quote values that contain a colon-space, close the block with "
+                f"a '---' delimiter, or remove the frontmatter block."
+            )
+            continue
+        if metadata is not None and not isinstance(metadata, dict):
+            result.passed = False
+            result.invalid_files.append(rel_posix)
+            result.issues.append(
+                f"Malformed YAML frontmatter: {rel_posix} (frontmatter must be "
+                f"a mapping, got {type(metadata).__name__}). Use 'key: value' "
+                f"lines, or remove the frontmatter block."
             )
 
     return result
