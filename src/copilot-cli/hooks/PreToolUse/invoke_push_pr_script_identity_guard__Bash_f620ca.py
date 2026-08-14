@@ -330,7 +330,7 @@ def _shim_dispatch():
             ),
             file=_sys.stderr,
         )
-        _sys.exit(_INPUT_ERROR_CODE)
+        _sys.exit(2)  # always fail-closed for oversized payloads
     try:
         payload = _shim_load_json(_raw or b"{}")
     except RecursionError:

@@ -250,6 +250,11 @@ def _project_root(payload: dict[str, object]) -> Path:
     configured = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if configured:
         return Path(configured).expanduser()
+    # Copilot hooks run with cwd set to the repository root by contract.
+    # The payload cwd may be a project subdirectory, so use process cwd
+    # for Copilot to avoid missing agent definitions above the subdirectory.
+    if os.environ.get(_COPILOT_CLI_ENV):
+        return Path.cwd()
     cwd = payload.get("cwd")
     return Path(cwd) if isinstance(cwd, str) and cwd.strip() else Path(".")
 

@@ -127,6 +127,15 @@ def _handler_exits_with(handler: _ast.ExceptHandler, exit_code: int) -> bool:
     )
 
 
+def _is_broad_except(handler: _ast.ExceptHandler) -> bool:
+    """Return True when *handler* catches ``Exception``, ``BaseException``, or is bare."""
+    if handler.type is None:
+        return True
+    if isinstance(handler.type, _ast.Name) and handler.type.id in ("Exception", "BaseException"):
+        return True
+    return False
+
+
 def _has_main_try_handler(body: str, exit_code: int) -> bool:
     try:
         tree = _ast.parse(body)
@@ -140,8 +149,11 @@ def _has_main_try_handler(body: str, exit_code: int) -> bool:
                 continue
             if not _statement_invokes_main(statement.body[0]):
                 continue
-            if any(_handler_exits_with(handler, exit_code) for handler in statement.handlers):
-                return True
+            for handler in statement.handlers:
+                if not _is_broad_except(handler):
+                    continue
+                if _handler_exits_with(handler, exit_code):
+                    return True
     return False
 
 
@@ -251,7 +263,7 @@ def _wrap_body_in_function(body: str) -> str:
                 "    try:\n"
                 "        return main()\n"
                 "    except Exception as _exc:\n"
-                "        sys.stderr.write('[WARNING] hook error "
+                "        __import__('sys').stderr.write('[WARNING] hook error "
                 "(fail-open): ' + str(_exc) + '\\n')\n"
                 "        return 0\n"
             )
@@ -260,7 +272,7 @@ def _wrap_body_in_function(body: str) -> str:
                 "    try:\n"
                 "        return main()\n"
                 "    except Exception as _exc:\n"
-                "        sys.stderr.write('[ERROR] hook error "
+                "        __import__('sys').stderr.write('[ERROR] hook error "
                 "(fail-closed): ' + str(_exc) + '\\n')\n"
                 "        return 2\n"
             )

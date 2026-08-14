@@ -330,7 +330,7 @@ def _shim_dispatch():
             ),
             file=_sys.stderr,
         )
-        _sys.exit(_INPUT_ERROR_CODE)
+        _sys.exit(2)  # always fail-closed for oversized payloads
     try:
         payload = _shim_load_json(_raw or b"{}")
     except RecursionError:
@@ -619,6 +619,11 @@ def _original_main(stdin_bytes):
         configured = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if configured:
             return Path(configured).expanduser()
+        # Copilot hooks run with cwd set to the repository root by contract.
+        # The payload cwd may be a project subdirectory, so use process cwd
+        # for Copilot to avoid missing agent definitions above the subdirectory.
+        if os.environ.get(_COPILOT_CLI_ENV):
+            return Path.cwd()
         cwd = payload.get("cwd")
         return Path(cwd) if isinstance(cwd, str) and cwd.strip() else Path(".")
 
@@ -677,7 +682,7 @@ def _original_main(stdin_bytes):
     try:
         return main()
     except Exception as _exc:
-        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
+        __import__('sys').stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
         return 0
 
 _shim_dispatch()
