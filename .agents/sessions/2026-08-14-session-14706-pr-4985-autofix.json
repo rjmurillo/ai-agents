@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated implementation commit c79ed6253896c201759e82adb01bfad0173b118a; QA evidence is evidence-only"
+        "Evidence": "Validated implementation commit 8bcfe9175d2d1217fc0a39c4fb2b05ec3d123682; QA evidence is evidence-only"
       },
       "validationPassed": {
         "level": "MUST",
@@ -105,14 +105,14 @@
     },
     {
       "action": "Updated branch with origin/main",
-      "result": "Clean merge commit c79ed6253896c201759e82adb01bfad0173b118a"
+      "result": "Clean merge commit 8bcfe9175d2d1217fc0a39c4fb2b05ec3d123682"
     },
     {
       "action": "Ran focused tests and guards",
       "result": "172 tests passed; 43/43 memory domains and 565 files checked; YAML and Ruff passed"
     }
   ],
-  "endingCommit": "c79ed6253896c201759e82adb01bfad0173b118a",
+  "endingCommit": "8bcfe9175d2d1217fc0a39c4fb2b05ec3d123682",
   "nextSteps": [
     "Push after live-state and SHA-safety checks",
     "Run completion gate and merge only when all readiness conditions pass"
