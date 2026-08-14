@@ -60,6 +60,9 @@ _NUMBERED_ITEM_RE = re.compile(r"^\d+\. ", re.MULTILINE)
 _HOST_BULLET_RE = re.compile(r"^ {3}- (?P<body>.*)$", re.MULTILINE)
 # Claude: Invoke Skill(skill="pipeline-validator"). Copilot: Invoke `skill: "pipeline-validator"`.
 _INVOKE_VALIDATOR_RE = re.compile(r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"')
+_DISCHARGES_CI_RE = re.compile(
+    r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"|get_pr_checks\.py'
+)
 _NO_PR_DECISION_RE = re.compile(r"^- (\*\*No PR found:\*\* .+)$", re.MULTILINE)
 
 
@@ -117,8 +120,17 @@ def github_bullets_without_pr_condition(pipeline_item: str) -> list[str]:
     return [b for b in host_bullets(pipeline_item) if "`host=github`" in b and "pr=" not in b]
 
 
+def discharges_ci(text: str) -> bool:
+    """True when ``text`` discharges the deferred CI check via any supported mechanism.
+
+    The discharge can invoke the pipeline-validator skill (ADO path) or query CI status
+    through ``get_pr_checks.py`` (GitHub path).
+    """
+    return _DISCHARGES_CI_RE.search(text) is not None
+
+
 def deferral_discharged_after_push_pr(process_section: str) -> bool:
-    """True when a later process step invokes the validator than the step creating the PR.
+    """True when a later process step validates CI than the step creating the PR.
 
     Compares list-item positions rather than character offsets: the discharge step names
     `/push-pr` again while describing which PR to validate, so an offset comparison would
@@ -126,8 +138,8 @@ def deferral_discharged_after_push_pr(process_section: str) -> bool:
     """
     items = numbered_items(process_section)
     creates = [i for i, item in enumerate(items) if "/push-pr" in item]
-    invokes = [i for i, item in enumerate(items) if invokes_pipeline_validator(item)]
-    return bool(creates) and bool(invokes) and min(invokes) > min(creates)
+    validates = [i for i, item in enumerate(items) if discharges_ci(item)]
+    return bool(creates) and bool(validates) and min(validates) > min(creates)
 
 
 def canonical_no_pr_contract() -> str:
@@ -165,8 +177,12 @@ class TestPipelineHealthBranchesOnPrExistence:
         assert "not skipped" in without_pr[0]
 
     def test_no_pr_bullet_quotes_the_canonical_validator_contract(self, ship_text: str) -> None:
-        """The cited reason must be the validator's real contract, not a remembered one."""
-        assert ".claude/skills/pipeline-validator/SKILL.md" in ship_text
+        """The cited reason must be the validator's real contract, not a remembered one.
+
+        The reference uses a generic name ("the pipeline-validator skill") rather than a
+        tree-specific path, per plugin-self-containment.md.
+        """
+        assert "pipeline-validator skill" in ship_text.lower()
         assert canonical_no_pr_contract() in ship_text
 
     def test_ado_branch_still_evaluates_build_policies(self, pipeline_item: str) -> None:
@@ -190,10 +206,26 @@ class TestProcessDischargesTheDeferral:
         assert "DEFERRED->FAIL" in discharge
         assert "RESULT: BLOCKED" in discharge
 
+    def test_discharge_uses_github_aware_ci_check(self, ship_text: str) -> None:
+        """The discharge step must use a GitHub-aware flow, not the ADO-only validator."""
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "get_pr_checks.py" in discharge
+
     def test_contributor_mode_still_creates_no_pr(self, ship_text: str) -> None:
         """Inverse guard: the deferral must not leak PR creation into contributor mode."""
         process = section(ship_text, "Process")
         assert "`mode=contributor`: do NOT create a PR and do NOT merge." in process
+
+
+class TestPrDetectionDistinguishesErrors:
+    """The `pr` variable must not treat auth/network failures as 'no PR'."""
+
+    def test_mode_detection_distinguishes_no_pr_from_query_failure(self, ship_text: str) -> None:
+        detection = section(ship_text, "Mode Detection")
+        # Must mention that non-zero exit can mean different things
+        assert "no PR exists" in detection.lower() or "no pull requests" in detection.lower()
+        # Must require stopping on non-no-PR failures
+        assert "stop" in detection.lower() or "error" in detection.lower()
 
 
 class TestShipReportStatesTheDeferral:

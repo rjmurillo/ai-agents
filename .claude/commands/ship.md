@@ -43,7 +43,7 @@ Determine two facts:
 
 - **(a) Branch ownership.** Are you on a branch you own (you created it and push to it freely), or are you a contributor pushing commits onto someone else's feature branch? Treat a branch whose open PR lists a different author as not yours.
 - **(b) Open PR exists for this branch.** Query the host:
-  - `host=github`: `gh pr view --json number,author,state,url` for the current branch. Treat the result as an open PR only when the JSON `state` field is exactly `OPEN`. A non-zero exit or any other state means no open PR for contributor-mode detection.
+  - `host=github`: `gh pr view --json number,author,state,url` for the current branch. Treat the result as an open PR only when the JSON `state` field is exactly `OPEN`. A non-zero exit can mean "no PR exists" or "the query itself failed" (auth, network, API rate limit). Distinguish these: capture both stdout and stderr, then check whether stderr contains the documented no-PR message (e.g. "no pull requests found"). Only set `pr=none` on that specific signal. On any other non-zero exit, stop with an error; do not assume no PR exists.
   - `host=ado`: derive `branch_ref="refs/heads/$(git rev-parse --abbrev-ref HEAD)"`, then run `az repos pr list --source-branch "$branch_ref" --status active --output json`. An empty array means no open PR for the branch.
 
 Set the mode:
@@ -61,7 +61,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 
 1. **Pipeline health**
    - `host=github`, `pr=#<number>` (open PR exists): Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?
-   - `host=github`, `pr=none` (no open PR; `mode=owner` only): pipeline validation is DEFERRED, not skipped. `.claude/skills/pipeline-validator/SKILL.md` Step 1 states its contract verbatim: "**No PR found:** Report to user. A PR must exist before pipeline validation. The calling skill should have created one." Invoking it here stops the run before Process step 3, which is the step that creates the first PR, so the branch can never leave this state (Issue #4841). Do NOT invoke it now. Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4, which are the local readiness checks. Process step 4 discharges the deferral against the PR that `/push-pr` creates; a failure there fails the ship.
+   - `host=github`, `pr=none` (no open PR; `mode=owner` only): pipeline validation is DEFERRED, not skipped. The pipeline-validator skill's Step 1 states its contract verbatim: "**No PR found:** Report to user. A PR must exist before pipeline validation. The calling skill should have created one." Invoking it here stops the run before Process step 3, which is the step that creates the first PR, so the branch can never leave this state (Issue #4841). Do NOT invoke it now. Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4, which are the local readiness checks. Process step 4 discharges the deferral against the PR that `/push-pr` creates; a failure there fails the ship.
    - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies for the branch behind a Bash step instead. List the active branch policies and the latest policy or build status, then confirm every required policy is satisfied:
 
      ```bash
@@ -120,7 +120,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
    - `mode=owner`, `host=ado`: run /validate-pr-description, then create the PR with `az repos pr create` (the gh-based /push-pr does not apply to ADO).
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
-4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`host=github`, `mode=owner`, `pr=none`), invoke Skill(skill="pipeline-validator") now, against the PR /push-pr just created. The precondition the validator requires is satisfied at this point: the PR exists. All CI checks green and no suppressed failures makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
+4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`host=github`, `mode=owner`, `pr=none`), validate CI on the PR that `/push-pr` just created. The pipeline-validator skill is host-aware only for ADO; for GitHub, query CI status directly through the GitHub skill's check-status flow (`get_pr_checks.py --wait --timeout-seconds 300`). All CI checks green and no suppressed failures makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
 5. Report: host, mode, `pr` at pre-flight time, what was validated or shipped, PR link, any warnings.
 
 ## Principles
