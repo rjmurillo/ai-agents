@@ -193,7 +193,7 @@
       "result": "Nested git initialization drops inherited repository context, and the resume fixture now requires an exact reply with no surrounding prose. Sixty targeted tests passed."
     }
   ],
-  "endingCommit": "dba57ccf6c2e685d31c6671c191d4280d8c07341",
+  "endingCommit": "97dcd557d3167d1166b8c69af60a85971a66055a",
   "nextSteps": [
     "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
   ]
