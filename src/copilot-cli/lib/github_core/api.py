@@ -190,6 +190,49 @@ _AUTH_FAILURE_STATUSES = frozenset(
     {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
 )
 
+# Substrings that prove a gh failure message is a credential fault (ADR-035
+# exit 4). Quoted verbatim from the canonical per-script copy in
+# `.claude/skills/github/scripts/issue/close_issue.py::_AUTH_ERROR_MARKERS`
+# as of commit bc179ad3a:
+#
+#     _AUTH_ERROR_MARKERS = (
+#         "credential",
+#         "not logged in",
+#         "bad credentials",
+#         "could not authenticate",
+#         "authentication",
+#         "requires authentication",
+#     )
+#
+# The same tuple is copy-pasted into new_issue.py (with a "Copied verbatim from
+# close_issue.py" comment), reopen_issue.py, get_issue_comments.py, and
+# get_pr_reviews.py. This is the shared home so new callers stop adding copy
+# number six; the existing copies are left alone (issue #4951 touches only
+# close_issue.py).
+AUTH_ERROR_MARKERS = (
+    "credential",
+    "not logged in",
+    "bad credentials",
+    "could not authenticate",
+    "authentication",
+    "requires authentication",
+)
+
+
+def is_auth_failure_text(text: str) -> bool:
+    """Return True when gh failure text names a credential fault (exit 4).
+
+    Stricter than :func:`classify_gh_failure_text`, on purpose. That function
+    classifies the output of an auth *preflight*, where the probe has already
+    failed, so its fallback bucket is ``INVALID_CREDENTIALS``. Applied to an
+    arbitrary API error ("Could not resolve to a PullRequest") the fallback
+    would report a credential fault and send the operator to ``gh auth login``
+    for an upstream problem. This predicate requires an explicit marker and
+    leaves everything else to the caller, which maps it to exit 3 (external).
+    """
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in AUTH_ERROR_MARKERS)
+
 
 @dataclass(frozen=True)
 class GhAuthResult:
@@ -270,9 +313,19 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
 )
 
 
-def _sanitize_auth_detail(text: str, limit: int = 200) -> str:
-    """Redact tokens and collapse whitespace so detail is envelope/log safe."""
-    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", text or "")
+def sanitize_failure_detail(text: object, limit: int = 200) -> str:
+    """Redact tokens and collapse whitespace so detail is envelope/log safe.
+
+    Collapsing whitespace also strips CR/LF, which is the CWE-117 log-forging
+    defense ``log_safety.safe_log_str`` provides; this helper additionally
+    redacts credentials and bounds the length, so remote text (a gh stderr
+    body, a GraphQL error) is safe to place in an error envelope.
+
+    Was ``_sanitize_auth_detail``. Renamed and made public in issue #4951 so
+    the PR merge-state reader and the close verifier sanitize probe details
+    the same way instead of each growing a copy.
+    """
+    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", str(text) if text else "")
     redacted = " ".join(redacted.split())
     if len(redacted) > limit:
         redacted = redacted[:limit] + "..."
@@ -361,7 +414,7 @@ def _graphql_viewer_probe() -> GhAuthResult:
 
     combined = f"{result.stdout}\n{result.stderr}"
     return GhAuthResult(
-        classify_gh_failure_text(combined), _sanitize_auth_detail(combined)
+        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
     )
 
 
