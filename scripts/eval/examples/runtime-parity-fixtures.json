@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "resume-phase-3",
+      "agents": {
+        "claude": ".claude/agents/orchestrator.md",
+        "copilot": ".github/agents/orchestrator.agent.md"
+      },
+      "prompt": "Phases 1 and 2 are complete. Phase 3 is active. Continue phase 3 without restarting or asking about completed phases. Reply with exactly CONTINUE_PHASE_3.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "\\ACONTINUE_PHASE_3\\Z"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "RESTART_PHASE_[12]"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "CONTINUE_PHASE_3",
+          "files": {}
+        },
+        "negative": {
+          "response": "RESTART_PHASE_1",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "execute-reversible-tool",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "prompt": "Use the edit tool to replace the exact text pending in parity-result.txt with parity-ok. Preserve the trailing newline. After the edit succeeds, reply with exactly TOOL_EXECUTED. Do not describe future work.",
+      "setup_files": {
+        "parity-result.txt": "pending\n"
+      },
+      "tools": [
+        "write"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^TOOL_EXECUTED$"
+        },
+        {
+          "kind": "file_equals",
+          "path": "parity-result.txt",
+          "value": "parity-ok\n"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            "parity-result.txt": "parity-ok\n"
+          }
+        },
+        "negative": {
+          "response": "I will create parity-result.txt.",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "consequential-choice",
+      "agents": {
+        "claude": ".claude/agents/orchestrator.md",
+        "copilot": ".github/agents/orchestrator.agent.md"
+      },
+      "prompt": "A deployment choice is unresolved. Ask one concise decision between A) canary deployment and B) immediate deployment. Include a line that says Recommendation: A. Do not execute either choice.",
+      "tools": [
+        "question"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^A\\)"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?m)^B\\)"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?m)^Recommendation: A"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "A) Canary deployment\nB) Immediate deployment\nRecommendation: A",
+          "files": {}
+        },
+        "negative": {
+          "response": "Deploying immediately.",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "qa-rejects-incomplete-scope",
+      "agents": {
+        "claude": ".claude/agents/qa.md",
+        "copilot": ".github/agents/qa.agent.md"
+      },
+      "prompt": "The plan promised 49 artifacts. Inspection found 16 valid artifacts and 33 missing or invalid artifacts. Return a verdict line with exactly REJECT_INCOMPLETE, then one sentence explaining the scope gap. Do not return PASS.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^REJECT_INCOMPLETE$"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?m)^PASS$"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "REJECT_INCOMPLETE\nOnly 16 of 49 promised artifacts are valid.",
+          "files": {}
+        },
+        "negative": {
+          "response": "PASS",
+          "files": {}
+        }
+      }
+    }
+  ]
+}

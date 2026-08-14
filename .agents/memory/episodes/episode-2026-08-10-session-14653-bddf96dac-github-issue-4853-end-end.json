@@ -1,0 +1,455 @@
+{
+  "id": "episode-2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end",
+  "session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end",
+  "timestamp": "2026-08-10T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own GitHub issue 4853 end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed and triaged issue 4853",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the runtime measurement gap",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented the bounded runtime evaluator",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated deterministic behavior",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed real Copilot CLI 1.0.79",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed real Claude Code 2.1.179",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-PR subprocess decoding finding",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created draft PR 4877 and checked CI",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-11T04:39:28+00:00",
+      "type": "commit",
+      "content": "Commit: a53ab08fd94acf90c9aa7e767c93cd2a3b4b75f8",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e013",
+        "e015",
+        "e017",
+        "e021",
+        "e023",
+        "e025",
+        "e028",
+        "e031",
+        "e034"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-12T05:27:52+00:00",
+      "type": "commit",
+      "content": "Commit: 1c1941c7db5d7c067d5610ab2b31d8413d7e5386",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-12T06:17:24+00:00",
+      "type": "commit",
+      "content": "Commit: 1794672d6898dc458e765f7679c4b61fa90ba0a4",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-12T07:13:30+00:00",
+      "type": "commit",
+      "content": "Commit: aa1d1635c096d11a42bd844fdc42e5a11baaca7b",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final three review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-12T14:52:24+00:00",
+      "type": "commit",
+      "content": "Commit: b78da6a33a613c57ca6d814edf7ad2de03a6cd96",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the post-head review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T10:38:44+00:00",
+      "type": "commit",
+      "content": "Commit: 3106ced1f614decbb29e2b1c9a763ede49951b85",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the fresh-head suppressed findings",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T11:29:56+00:00",
+      "type": "commit",
+      "content": "Commit: 9d4683a4eb4dbe2e3b805a138b6c1924a6dc0745",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-13T12:19:03+00:00",
+      "type": "commit",
+      "content": "Commit: d19a366659fdd9fbdad81a5244b8f605a652824a",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-13T12:32:24+00:00",
+      "type": "commit",
+      "content": "Commit: 5f6872e64e42984a30696d53356c8ad66fd08284",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the second fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-13T13:02:56+00:00",
+      "type": "commit",
+      "content": "Commit: 6e5e30fda2e25826d4e6f53b307b36c177db8eb0",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the third fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-13T13:30:10+00:00",
+      "type": "commit",
+      "content": "Commit: 2a75e36db65dc3ac249228185688f6ebf1701758",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the fourth fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-13T14:06:58+00:00",
+      "type": "commit",
+      "content": "Commit: 3734f8625643c1ec0308ce4ba2b6a1155c04dba9",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-13T14:08:47+00:00",
+      "type": "commit",
+      "content": "Commit: b4353d410cc1c284fe79a9ff8b2501fe6fd4944b",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the fifth fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-13T14:45:12+00:00",
+      "type": "commit",
+      "content": "Commit: e762525110ba0e82be1e2e06fd4d65ae5ae4bc2c",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-13T14:46:58+00:00",
+      "type": "commit",
+      "content": "Commit: 5f0c41c76cc8903adba4f251542f3e14e837b466",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the sixth fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-13T15:21:24+00:00",
+      "type": "commit",
+      "content": "Commit: a4c2a4bd3b01ecef768d98b8cfab956945ecacf6",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-13T15:23:01+00:00",
+      "type": "commit",
+      "content": "Commit: 4d5b1e8c8f40f834f43fa6fc53a12874037de19a",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the seventh fresh-head review",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-13T15:56:52+00:00",
+      "type": "commit",
+      "content": "Commit: dba57ccf6c2e685d31c6671c191d4280d8c07341",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 18,
+    "files_changed": 13
+  },
+  "lessons": []
+}
