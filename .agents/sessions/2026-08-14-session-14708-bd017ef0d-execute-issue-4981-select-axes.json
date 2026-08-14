@@ -11,18 +11,18 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "serena-initial_instructions and serena-onboarding read"
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read"
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "AGENTS.md and CONTRIBUTING.md"
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,23 +31,23 @@
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "find .claude/skills/review and src/copilot-cli/skills/review"
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "CONTRIBUTING.md setup and validation guidance"
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".claude/rules/generated-artifacts.md, .claude/rules/canonical-source-mirror.md, .claude/rules/session-logs.md"
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "serena-read_memory memory_maintenance"
       },
       "branchVerified": {
         "level": "MUST",
@@ -61,8 +61,8 @@
       },
       "gitStatusVerified": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git status --short before code commit and after evidence prep"
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -73,38 +73,38 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All required sessionEnd items are now complete"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "AGENTS.md and CONTRIBUTING.md preserved; no handoff file changed"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "serena-write_memory eval/skill-router-spike"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "uv run --frozen markdownlint-cli2 .claude/skills/review/SKILL.md src/copilot-cli/skills/review/SKILL.md"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-14-session-14708-risk-based-review-axes.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "bd398324901f268f1558e87512923c562e4d7abb"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -118,7 +118,32 @@
       }
     }
   },
-  "workLog": [],
-  "endingCommit": "",
+  "workLog": [
+    {
+      "task": "Read review and session instructions",
+      "outcome": "Read .claude/rules/generated-artifacts.md, .claude/rules/canonical-source-mirror.md, .claude/rules/session-logs.md, .claude/skills/review/SKILL.md, .github/prompts/review-pr.prompt.md, src/copilot-cli/skills/review/SKILL.md, AGENTS.md, and CONTRIBUTING.md"
+    },
+    {
+      "task": "Expand review routing eval coverage",
+      "outcome": "Added review routing fixtures to evals/skill-router-spike/fixtures.json and a regression test in tests/eval/test_eval_skill_router.py"
+    },
+    {
+      "task": "Validate targeted review evals",
+      "outcome": "uv run --frozen markdownlint-cli2 .claude/skills/review/SKILL.md src/copilot-cli/skills/review/SKILL.md passed; python3 scripts/eval/eval_skill_router.py --fixtures evals/skill-router-spike/fixtures.json --dry-run passed; PYTEST_ADDOPTS='' python3 -m pytest -o addopts='' tests/eval/test_eval_skill_router.py tests/eval/test_eval_knowledge_integration.py -q passed (20/20)"
+    },
+    {
+      "task": "Validate broader eval subset",
+      "outcome": "PYTEST_ADDOPTS='' python3 -m pytest -o addopts='' tests/eval/test_eval_skill_router.py tests/eval/test_eval_knowledge_integration.py tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_report_contract.py tests/eval/test_eval_runtime_parity_review_fixes.py -q collected 80 tests, 74 passed, and 6 runtime-parity tests failed with pre-existing 'current worktree does not contain this evaluator' errors"
+    },
+    {
+      "task": "Commit review routing changes",
+      "outcome": "Committed the review contract, eval fixtures, and regression test at bd398324901f268f1558e87512923c562e4d7abb"
+    },
+    {
+      "task": "Validate session log",
+      "outcome": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json passed"
+    }
+  ],
+  "endingCommit": "bd398324901f268f1558e87512923c562e4d7abb",
   "nextSteps": []
 }
