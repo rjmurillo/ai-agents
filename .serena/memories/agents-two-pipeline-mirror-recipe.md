@@ -31,27 +31,21 @@ Editing any agent's shared behavior. See `.claude/rules/claude-agents.md` MUST-1
 
 Source: issue/PR #2707 (MERGED); `.claude/rules/claude-agents.md`; `build/scripts/detect_agent_drift.py`.
 
-## Correction (2026-08-03): four hand-maintained surfaces, not two
+## Verified application (2026-08-13)
 
-The recipe above names two files to edit. Measurement says four. `build_all.py`
-prints `Output Root: <repo>/src` and writes only `src/copilot-cli/agents/` and
-`src/vs-code-agents/`. Every other agent surface is hand-maintained, so a
-one-character fix to the shared body has to be repeated by hand in three more
-places:
+The recipe above remains current. A shared agent has four hand-maintained
+surfaces and two generated surfaces:
 
 | Surface | Written by | Checked by |
 |---|---|---|
 | `templates/agents/<a>.shared.md` | hand | source of the two generated copies |
 | `src/claude/<a>.md` | hand | co-change parity (`validate_install_parity.py`) |
 | `.claude/agents/<a>.md` | hand | `check_agent_content_parity.py`: byte-identical to `src/claude/` |
-| `.github/agents/<a>.prompt.md` | hand | `detect_agent_drift.py` install-copy comparison vs `.claude/agents/` |
-| `src/copilot-cli/agents/<a>.agent.md` | `build_all.py` | drift gate |
-| `src/vs-code-agents/<a>.agent.md` | `build_all.py` | drift gate |
+| `.github/agents/<a>.agent.md` | hand | co-change parity and install drift checks |
+| `src/copilot-cli/agents/<a>.agent.md` | `build/generate_agents.py` | generator validation and drift checks |
+| `src/vs-code-agents/<a>.agent.md` | `build/generate_agents.py` | generator validation and drift checks |
 
-Also: `build/scripts/generate_agents.py` does not exist. `build_all.py` imports
-the module and calls it; invoking the path directly gives Errno 2.
-
-Evidence: PR #4069, 2026-08-03. A bare `|` inside a backticked grep pattern in a
-table cell tripped MD056 in all six copies. Running `build_all.py` fixed two of
-them. `check_agent_content_parity.py` then reported the trees byte-identical only
-after the remaining three were edited by hand.
+Issue #2707 established the recipe. Session 14695 applied it to
+`code-reviewer`, `code-simplifier`, `pr-test-analyzer`, and
+`silent-failure-hunter`. The explicit six-file install-parity check passed for
+each changed agent after regeneration.

@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Memory updated: .serena/memories/agents-two-pipeline-mirror-recipe.md and .serena/memories/memory-index.md committed in this PR. Session-specific doc-accuracy finding state deferred to split-pr-4956-memory per .claude/rules/claude-agents.md:42 (MUST NOT bundle skill code changes with memory changes in the same PR)."
+        "Evidence": "Memory committed in PR #4983 (3f913d7c9). Session-specific doc-accuracy state deferred to separate memory-only PR per .claude/rules/claude-agents.md:42."
       },
       "markdownLintRun": {
         "level": "MUST",
