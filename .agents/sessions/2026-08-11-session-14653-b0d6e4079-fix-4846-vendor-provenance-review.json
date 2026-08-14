@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 9b2ca67102)"
+        "Evidence": "All changes committed (HEAD: 36e52fe60)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -141,7 +141,7 @@
       "result": "284 tests passed and Ruff reported zero findings."
     }
   ],
-  "endingCommit": "1556cdbd99",
+  "endingCommit": "36e52fe60",
   "nextSteps": [
     "Push guarded commits, clear review threads, run completion gate, and merge only if all conditions pass."
   ]
