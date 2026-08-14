@@ -2309,3 +2309,131 @@ class TestMarkdownlintConfigPolicy:
         config.write_text("config:\n  MD040: true\n")
 
         assert _validate_markdownlint_config_policy(tmp_path) == []
+
+
+class TestRejectGitlinks:
+    """Tests for _reject_gitlinks (gitlink/submodule bypass prevention)."""
+
+    def test_clean_tree_returns_no_errors(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        # HEAD of the current repo should have no gitlinks
+        errors = _reject_gitlinks("HEAD")
+        assert errors == []
+
+    def test_invalid_sha_fails_closed(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        errors = _reject_gitlinks("0000000000000000000000000000000000000000")
+        assert len(errors) == 1
+        assert "fail closed" in errors[0]
+
+    def test_gitlink_detected_in_output(self) -> None:
+        from unittest.mock import patch
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        fake_output = (
+            "100644 blob abc123\tREADME.md\n"
+            "160000 commit def456\t.claude/hooks/evil\n"
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = fake_output
+            errors = _reject_gitlinks("fakesha")
+        assert len(errors) == 1
+        assert ".claude/hooks/evil" in errors[0]
+
+    def test_multiple_gitlinks_all_reported(self) -> None:
+        from unittest.mock import patch
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        fake_output = (
+            "160000 commit aaa\tvendor/sub1\n"
+            "160000 commit bbb\tvendor/sub2\n"
+            "100644 blob ccc\tclean.py\n"
+        )
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = fake_output
+            errors = _reject_gitlinks("fakesha")
+        assert len(errors) == 2
+        assert "vendor/sub1" in errors[0]
+        assert "vendor/sub2" in errors[1]
+
+    def test_timeout_fails_closed(self) -> None:
+        from unittest.mock import patch
+        import subprocess
+        from scripts.ci.validate_vendor_provenance import _reject_gitlinks
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("git", 30)):
+            errors = _reject_gitlinks("fakesha")
+        assert len(errors) == 1
+        assert "fail closed" in errors[0]
+
+
+class TestPublishCheckRun:
+    """Tests for _publish_check_run (Checks API publication)."""
+
+    def test_success_conclusion(self) -> None:
+        from unittest.mock import patch
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "{}"
+            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+        assert result == 0
+        call_args = mock_run.call_args
+        assert "check-runs" in call_args[0][0][2]
+
+    def test_failure_conclusion(self) -> None:
+        from unittest.mock import patch
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "{}"
+            result = _publish_check_run("owner/repo", "abc123", "failure", "bad")
+        assert result == 0
+
+    def test_api_failure_returns_1(self) -> None:
+        from unittest.mock import patch
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stderr = "unauthorized"
+            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+        assert result == 1
+
+    def test_timeout_returns_1(self) -> None:
+        from unittest.mock import patch
+        import subprocess
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 30)):
+            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+        assert result == 1
+
+
+class TestRejectGitlinksCLI:
+    """Tests for --reject-gitlinks CLI mode."""
+
+    def test_cli_clean_tree(self) -> None:
+        import subprocess
+        result = subprocess.run(
+            ["python3", "scripts/ci/validate_vendor_provenance.py",
+             "--reject-gitlinks", "HEAD"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0
+        assert "PASS" in result.stdout
+
+    def test_cli_bad_sha(self) -> None:
+        import subprocess
+        result = subprocess.run(
+            ["python3", "scripts/ci/validate_vendor_provenance.py",
+             "--reject-gitlinks", "0" * 40],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1

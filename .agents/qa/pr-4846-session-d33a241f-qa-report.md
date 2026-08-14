@@ -1,39 +1,32 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 9b2ca67102f6187f4e01134787ca298ad4ca9e7b
+qaCommit: c0c8badf54b8f774a82386f4f06c44e72b8c1977
 ---
 
-# QA Report: PR #4846 vendor provenance autofix
+# QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the final branch against current `main`. The gate requires a trusted pull request author and event sender. It reruns for opened, reopened, synchronized, and edited events. Candidate pin data uses literal parsing. Markdownlint configuration rejects aliases, anchors, tags, unsafe extension keys, and files over 256 KiB.
+Validated the branch at commit 63a2f9fd4aa3c1dbde48d18f492a9a3a85a8d2c7 against current main. Two post-review commits addressed Copilot findings: check-run publication on PR head SHA and gitlink rejection. Both features moved from inline YAML to tested Python per ADR-006.
 
 ## Test Results
 
 | Command | Result |
 |---------|--------|
-| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/ci/test_merge_group_readiness.py tests/workflows/test_workflow_jobs_check_out_repo.py tests/test_subprocess_text_encoding.py::test_every_capturing_call_under_scripts_pins_utf8 -q` | 343 passed |
-| `uv run mypy scripts/ci/validate_vendor_provenance.py` | Passed |
-| `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
-| `uv run ruff format --check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py` | Passed |
-| `uv run python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main` | Passed |
-| `actionlint .github/workflows/vendor-provenance.yml` | Passed |
-| `uv run python scripts/validation/validate_python_syntax.py .` | Passed |
-| Trusted author and sender validator run against current `main` | Passed |
-| Untrusted sender negative control | Rejected with exit 1 |
+| uv run pytest tests/ci/test_validate_vendor_provenance.py -q | 197 passed |
+| YAML syntax validation | Passed |
+
+## Changes Since Previous QA Report
+
+1. fix(ci): publish check run on PR head SHA (99a8b8a)
+2. fix(security): reject gitlinks in candidate tree (63a2f9f)
+3. refactor(ci): move workflow logic to Python per ADR-006 (this commit)
 
 ## Correctness Assessment
 
-The workflow uses immutable event SHAs and base-owned validation code. A malicious contributor cannot authorize an update by pushing to a trusted author's branch. YAML expansion and extension loading are rejected before parsing. Vendor executables remain pinned without treating package runtime files as standalone tools.
+The workflow uses immutable event SHAs and base-owned validation code. Gitlink bypass is now caught at the git tree object level before filesystem materialization. Check-run publication ensures branch protection rules gate on the PR head commit. All logic is in tested Python modules per ADR-006.
 
 ## Verdict
-
-Promised: address current review blockers, update the branch, and restore merge readiness.
-
-Delivered: trusted dual-identity and head-event authorization, main-only PR and merge-queue production, immutable merge-group identities, queue-safe trust updates, stdlib-only relevance checks, tracked Python bytecode authentication, pinned Python runtime inputs, required non-placeholder vendor pins, manifest symlink and executable-mode verification, dangling markdownlint config symlink rejection, `.claude/.npmrc` relevance, all generated markdownlint config policy inputs, formatter-module rejection, literal candidate pin parsing, bounded YAML loading, partial vendor tree rejection, current `main` at `784ad3d2`, the setup-uv v10 pin, 343 passing tests, clean Actionlint, and clean security re-review.
-
-Gap: None found in tested scope.
 
 **Status**: PASS

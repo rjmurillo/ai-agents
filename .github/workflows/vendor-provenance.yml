@@ -74,17 +74,8 @@ jobs:
       - name: Reject gitlinks in candidate tree
         run: |
           set -euo pipefail
-          # git checkout-index writes mode-160000 (gitlink/submodule) entries
-          # as empty directories, invisible to filesystem-based validators.
-          # Inspect the git tree object directly and fail closed on any gitlink.
-          GITLINKS=$(git ls-tree -r "$PR_SHA" | awk '$1 == "160000" { print $4 }')
-          if [ -n "$GITLINKS" ]; then
-            echo "::error::Candidate tree contains gitlink entries (submodules). This bypasses filesystem-based provenance validation."
-            echo "$GITLINKS" | while read -r path; do
-              echo "  rejected gitlink: $path"
-            done
-            exit 1
-          fi
+          python3 scripts/ci/validate_vendor_provenance.py \
+            --reject-gitlinks "$PR_SHA"
 
       - name: Check relevance (NUL-safe)
         id: relevance
@@ -121,6 +112,7 @@ jobs:
           uv run --frozen python scripts/ci/validate_vendor_provenance.py \
             --candidate-root /tmp/candidate \
             --base-root /tmp/base \
+            --pr-sha "$PR_SHA" \
             --pull-request-author "$PR_AUTHOR" \
             --pull-request-sender "$PR_SENDER" \
             --pull-request-action "$PR_ACTION"
@@ -135,21 +127,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # pull_request_target attaches the native job check to the base-branch
-          # SHA, not the PR head SHA.  Publishing an explicit check run on PR_SHA
-          # lets branch-protection rules gate on the PR head commit.
           if [ "${{ job.status }}" = "success" ]; then
             CONCLUSION="success"
-            SUMMARY="Vendor provenance validated for $PR_SHA"
           else
             CONCLUSION="failure"
-            SUMMARY="Vendor provenance validation failed for $PR_SHA"
           fi
-          gh api "repos/${{ github.repository }}/check-runs" \
-            -X POST \
-            -f "name=Validate Vendor Provenance" \
-            -f "head_sha=$PR_SHA" \
-            -f "status=completed" \
-            -f "conclusion=$CONCLUSION" \
-            -f "output[title]=Vendor Provenance" \
-            -f "output[summary]=$SUMMARY"
+          python3 scripts/ci/validate_vendor_provenance.py \
+            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION"

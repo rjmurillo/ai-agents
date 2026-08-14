@@ -1559,6 +1559,75 @@ def _validate_integrity_manifest(vendor_dir: Path) -> list[str]:
 # ── .npmrc rejection ──
 
 
+def _reject_gitlinks(pr_sha: str) -> list[str]:
+    """Reject gitlink (submodule) entries in the candidate tree.
+
+    git checkout-index writes mode-160000 (gitlink) entries as empty
+    directories, invisible to filesystem-based validators.  Inspecting the
+    git tree object directly closes this bypass vector.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-tree", "-r", pr_sha],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ["_reject_gitlinks: git ls-tree failed (fail closed)"]
+    if result.returncode != 0:
+        return [f"_reject_gitlinks: git ls-tree exited {result.returncode} (fail closed)"]
+    errors: list[str] = []
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) >= 4 and parts[0] == "160000":
+            errors.append(f"gitlink rejected: {parts[3]}")
+    return errors
+
+
+def _publish_check_run(
+    repo: str, head_sha: str, conclusion: str, summary: str,
+) -> int:
+    """Publish a check run on the PR head SHA via the GitHub Checks API.
+
+    pull_request_target attaches the native job check to the base-branch
+    SHA, not the PR head SHA.  This function mirrors the job conclusion
+    onto the PR head commit so branch-protection rules can gate on it.
+
+    Returns 0 on success, 1 on failure.
+    """
+    import json as _json
+    payload = _json.dumps({
+        "name": "Validate Vendor Provenance",
+        "head_sha": head_sha,
+        "status": "completed",
+        "conclusion": conclusion,
+        "output": {
+            "title": "Vendor Provenance",
+            "summary": summary,
+        },
+    })
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api", f"repos/{repo}/check-runs",
+                "-X", "POST",
+                "--input", "-",
+            ],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(f"ERROR: check-run publication failed: {exc}", file=sys.stderr)
+        return 1
+    if result.returncode != 0:
+        print(f"ERROR: check-run publication failed: {result.stderr}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
     check = vendor_dir
     errors: list[str] = []
@@ -1820,7 +1889,45 @@ def main() -> int:
         default="",
         help="GitHub pull_request_target action that triggered validation",
     )
+    parser.add_argument(
+        "--pr-sha",
+        default="",
+        help="PR head SHA for git-tree-level checks (gitlink rejection)",
+    )
+    parser.add_argument(
+        "--publish-check-run",
+        nargs=3,
+        metavar=("REPO", "HEAD_SHA", "CONCLUSION"),
+        help="Publish check run on HEAD_SHA: REPO HEAD_SHA success|failure",
+    )
+    parser.add_argument(
+        "--reject-gitlinks",
+        metavar="SHA",
+        help="Check tree SHA for gitlink entries and exit 0/1",
+    )
     args = parser.parse_args()
+
+    # Gitlink rejection mode
+    if args.reject_gitlinks:
+        errs = _reject_gitlinks(args.reject_gitlinks)
+        if errs:
+            for e in errs:
+                print(f"ERROR: {e}", file=sys.stderr)
+            return 1
+        print("PASS: No gitlinks in candidate tree")
+        return 0
+
+    # Check-run publication mode
+
+    # Check-run publication mode
+    if args.publish_check_run:
+        repo, head_sha, conclusion = args.publish_check_run
+        summary = (
+            f"Vendor provenance validated for {head_sha}"
+            if conclusion == "success"
+            else f"Vendor provenance validation failed for {head_sha}"
+        )
+        return _publish_check_run(repo, head_sha, conclusion, summary)
 
     # Relevance-check mode: output true/false and exit
     if args.check_relevance_stdin:
@@ -1883,6 +1990,12 @@ def main() -> int:
     errs = _reject_settings_local(root)
     _run_phase("Settings Local Rejection", errs)
     all_errors.extend(errs)
+
+    # 0d. Reject gitlinks (submodules) in candidate tree
+    if args.pr_sha:
+        errs = _reject_gitlinks(args.pr_sha)
+        _run_phase("Gitlink Rejection", errs)
+        all_errors.extend(errs)
 
     # 1. Authenticate pinned artifacts (including vendor deletion check)
     errs = _authenticate_pinned(root, base, pins)
