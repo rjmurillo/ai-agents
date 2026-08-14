@@ -127,24 +127,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "${{ job.status }}" = "success" ]; then
-            CONCLUSION="success"
-          else
-            CONCLUSION="failure"
-          fi
-          # Use gh api directly (not Python script) so this step
-          # succeeds even when workspace materialization failed.
-          gh api "repos/${{ github.repository }}/check-runs" \
-            -X POST \
-            --input - <<EOF
-          {
-            "name": "Vendor Provenance Gate",
-            "head_sha": "$PR_SHA",
-            "status": "completed",
-            "conclusion": "$CONCLUSION",
-            "output": {
-              "title": "Vendor Provenance Gate",
-              "summary": "Vendor provenance validation $CONCLUSION"
-            }
-          }
-          EOF
+          CONCLUSION=${{ job.status == 'success' && 'success' || 'failure' }}
+          python3 scripts/ci/validate_vendor_provenance.py \
+            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION" \
+            || gh api "repos/${{ github.repository }}/check-runs" -X POST \
+              -f name="Vendor Provenance Gate" -f head_sha="$PR_SHA" \
+              -f status=completed -f conclusion="$CONCLUSION"
