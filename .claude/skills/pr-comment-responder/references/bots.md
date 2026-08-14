@@ -110,8 +110,8 @@ cursor[bot] has 100% actionability (9/9 comments) - every comment identified a r
 
 | Reviewer | Memory Name |
 |----------|-------------|
-| cursor[bot] | `cursor-bot-review-patterns` |
-| Copilot | `copilot-pr-review-patterns` |
-| coderabbitai[bot] | (Use pr-comment-responder-skills) |
+| cursor[bot] | `pr-review/cursor-bot-review-patterns` |
+| Copilot | `copilot/copilot-pr-review-patterns` |
+| coderabbitai[bot] | (Use `pr-review/pr-comment-responder-skills`) |
 
-Statistics are sourced from `pr-comment-responder-skills` memory and should be updated after each PR review session.
+Statistics are sourced from `pr-review/pr-comment-responder-skills` memory and should be updated after each PR review session.
