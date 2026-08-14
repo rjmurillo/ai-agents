@@ -1,0 +1,92 @@
+{
+  "id": "episode-2026-08-14-session-14706",
+  "session": "2026-08-14-session-14706",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Issue #4940: correct five docs that teach ADR-080-forbidden versioned model pins",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4940 discourse and confirmed no existing PR",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed issue and created external worktree from origin/main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established canonical contract from source, not memory",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected all five docs so every copyable example is conformant",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a regression guard and proved it non-vacuous",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "test",
+      "content": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran scoped validation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review pass on the ADR-040 amendment",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

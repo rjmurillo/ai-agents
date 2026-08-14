@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "docs/4940-model-pin-examples",
+    "startingCommit": "a225da30e1b79d1df5487a0315d215b76301cc7f",
+    "objective": "Issue #4940: correct five docs that teach ADR-080-forbidden versioned model pins"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; project ai-agents active in worktree issue-4940"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only reference; not modified)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts: check_existing_pr_for_issue.py and issue/claim_issue.py invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md (root) plus .agents/CLAUDE.md read before editing"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-080 and ADR-040 read in full; scripts/validation/check_model_pins.py read (604 lines)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory tasks/issue-2840-model-pin-migration read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/4940-model-pin-examples"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/4940-model-pin-examples"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at worktree creation from origin/main a225da30e"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a225da30e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #4940 discourse and confirmed no existing PR",
+      "evidence": "gh issue view 4940; check_existing_pr_for_issue.py returned existing_pr_count 0"
+    },
+    {
+      "step": "Claimed issue and created external worktree from origin/main",
+      "evidence": "claim_issue.py --issue 4940 -> {\"claimed\":\"rjmurillo\"}; worktree issue-4940 on docs/4940-model-pin-examples at a225da30e"
+    },
+    {
+      "step": "Established canonical contract from source, not memory",
+      "evidence": "check_model_pins.py _VERSIONED_RE, ROLLING_ALIASES, DEFAULT_MODEL; copilot-cli.yaml model_tiers; _eval_common.py pricing; SkillForge _constants.py REQUIRED/OPTIONAL_PROPERTIES"
+    },
+    {
+      "step": "Corrected all five docs so every copyable example is conformant",
+      "evidence": "docs/SKILL-AUTHORING.md, .agents/steering/claude-skills.md, ADR-040, SKILL-STANDARDS-RECONCILED.md, DESIGN-REVIEW-context-optimizer-refactoring.md; historical decisions preserved via Superseded callouts"
+    },
+    {
+      "step": "Added a regression guard and proved it non-vacuous",
+      "evidence": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs"
+    },
+    {
+      "step": "Ran scoped validation",
+      "evidence": "markdownlint-cli2 docs/SKILL-AUTHORING.md -> 0 issues; check_model_pins.py --mode warn -> OK no new or changed pin violations; ruff check and ruff format clean"
+    },
+    {
+      "step": "adr-review pass on the ADR-040 amendment",
+      "evidence": ".agents/critique/ADR-040-amendment-2026-08-14-model-pin-examples-debate-log.md; detect_adr_changes.py --since-commit origin/main reported ADR-040 Modified; single-reviewer pass disclosed in the log (no subagent delegation available this session)"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
+    "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance"
+  ]
+}

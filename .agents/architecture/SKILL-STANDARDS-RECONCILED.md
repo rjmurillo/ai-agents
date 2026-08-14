@@ -4,6 +4,12 @@
 **Status**: CANONICAL REFERENCE
 **Supersedes**: Fragmented documentation across memories, ADRs, and analysis documents
 
+> **Model policy ([ADR-080](./ADR-080-model-pin-justification-policy.md),
+> accepted 2026-07-11)**: a skill or command may not carry a versioned id. Omit
+> `model:` and inherit the harness model, or use the bare cost alias `haiku`
+> with a `model-rationale:` line. Every `model:` example below follows that
+> rule. Enforced by `scripts/validation/check_model_pins.py`.
+
 ---
 
 ## Executive Summary
@@ -52,7 +58,8 @@ This document reconciles all skill knowledge from official standards (agentskill
 | Field | Constraints | Purpose | Rationale |
 |-------|-------------|---------|-----------|
 | `version` | Semantic versioning (X.Y.Z) | Track skill evolution | SkillForge validator requirement |
-| `model` | Claude model alias or dated ID | Specify execution model | Claude Code optimization, ADR-040 |
+| `model` | Omitted (inherit), or a bare rolling alias priced below the default (`haiku`) | Override the harness-inherited model | ADR-080; versioned ids banned on skills |
+| `model-rationale` | One line; required whenever `model` is set | Justify the cheaper tier | ADR-080 rule 3 |
 
 **Extended Metadata Fields** (in `metadata` object):
 
@@ -114,11 +121,17 @@ This document reconciles all skill knowledge from official standards (agentskill
 - ai-agents project exclusively uses Claude Code, so extension is justified
 - Field does not conflict with standard (arbitrary top-level fields allowed)
 
-**Guidance**:
+**Guidance** (rewritten 2026-08-14; [ADR-080](./ADR-080-model-pin-justification-policy.md) supersedes the ADR-040-era rule that made `model` required and allowed dated ids):
 
-- **ai-agents skills**: REQUIRED top-level field
+- **ai-agents skills**: OPTIONAL. Omit it and inherit the harness model. That is
+  the default and needs no justification.
 - **Portable skills**: OMIT this field (use platform defaults)
-- **Value format**: Use aliases (`claude-opus-4-6`) for auto-updates, dated IDs (`claude-opus-4-6-20251015`) for deterministic behavior
+- **Value format**: never a versioned id (`claude-opus-4-6`, `claude-haiku-4-5`,
+  `claude-opus-4-6-20251015`). A skill cannot be swept by the eval harness, so
+  no evidence can justify a version pin, and
+  `scripts/validation/check_model_pins.py` rejects one. The only allowed pin is
+  a bare rolling alias that prices below the harness default (today `haiku`)
+  carrying a `model-rationale:` line.
 
 ### Conflict 3: Required Fields Count
 
@@ -133,18 +146,24 @@ This document reconciles all skill knowledge from official standards (agentskill
 | Tier | Required Fields | Scope |
 |------|----------------|-------|
 | **Official Standard** | `name`, `description` | Portable skills, cross-platform |
-| **ai-agents Project** | `name`, `version`, `description`, `license`, `model` | Project-internal skills |
+| **ai-agents Project** | `name`, `version`, `description`, `license` | Project-internal skills |
+
+> **Superseded 2026-07-11 by [ADR-080](./ADR-080-model-pin-justification-policy.md)**:
+> `model` was the fifth required field in the ADR-040 era. It is now optional
+> and usually absent. `.claude/skills/SkillForge/scripts/_constants.py` lists
+> `model` under `OPTIONAL_PROPERTIES` with the comment "Optional model alias;
+> omit to inherit, bare alias only, no versioned id".
 
 **Rationale**:
 
 - Official standard intentionally minimal for interoperability
-- ai-agents project has higher quality bar (versioning, licensing, model selection)
+- ai-agents project has higher quality bar (versioning, licensing)
 - Two-tier system allows both portable skills and project-optimized skills
 
 **Validation**:
 
 - External skills: Validate against 2-field minimum (portable)
-- ai-agents skills: Validate against 5-field standard (project quality bar)
+- ai-agents skills: Validate against the 4-field project standard
 
 ### Conflict 4: allowed-tools Format
 
@@ -187,31 +206,40 @@ allowed-tools: Read Grep Glob
 
 | Field | Location | Purpose | When to Use |
 |-------|----------|---------|-------------|
-| `model` | Top-level | Model that executes THIS skill | Always (ai-agents requirement) |
+| `model` | Top-level | Model that executes THIS skill | Only as a bare cost alias with `model-rationale` (ADR-080); otherwise omit |
 | `metadata.subagent_model` | In metadata | Model for agents THIS skill delegates to | Orchestrator skills only |
 
 **Rationale**:
 
 - These fields serve different purposes and are not in conflict
 - Orchestrator skills may use a different model than the agents they invoke
-- Example: adr-review uses Opus for orchestration, but may delegate to Sonnet agents
+- Example: adr-review omits `model` (inherits) and records `subagent_model` for
+  the agents it delegates to
 
-**Example (orchestrator)**:
+**Scope note (2026-08-14)**: ADR-080 governs the key named `model` only.
+`check_model_pins.py` collects nested pins with `if key == "model"`
+(`_collect_nested_pins`), so `metadata.subagent_model` is outside the gate. No
+harness or script reads `subagent_model` either: it appears in
+`.claude/skills/adr-review/SKILL.md` and `.claude/skills/SkillForge/SKILL.md`
+and nowhere in code. It is inert metadata, and the versioned id it carries
+there still ages the same way ADR-080 describes.
+
+**Example (orchestrator)**: abridged from `.claude/skills/adr-review/SKILL.md`.
 
 ```yaml
 ---
 name: adr-review
-model: claude-opus-4-6           # Orchestrator runs on Opus
+# No model: line. The orchestrator inherits the harness model (ADR-080).
 metadata:
-  subagent_model: claude-opus-4-6  # Delegates to Opus agents
+  subagent_model: claude-opus-4-6  # Delegated agents; not read by any harness (see scope note above)
 ```
 
-**Example (non-orchestrator)**:
+**Example (non-orchestrator)**: abridged from `.claude/skills/session-init/SKILL.md`.
 
 ```yaml
 ---
 name: session-init
-model: claude-sonnet-4-6         # Skill runs on Sonnet
+# No model: line. Inherits the harness model (ADR-080).
 metadata:
   domains: [session-protocol]    # No subagent_model (not an orchestrator)
 ```
@@ -231,7 +259,10 @@ description: What and when to use    # Max 1024 chars, trigger keywords
 # REQUIRED (ai-agents Project)
 version: 1.0.0                       # Semantic versioning
 license: MIT                         # SPDX identifier
-model: claude-sonnet-4-6             # Model alias or dated ID
+
+# OPTIONAL (ADR-080 model policy; omit both lines to inherit the harness model)
+model: haiku                         # Bare cost alias only, never a versioned id
+model-rationale: cost. ...           # Required whenever model is set
 
 # OPTIONAL (Official Standard)
 compatibility: Requires network      # Max 500 chars, env requirements
@@ -244,7 +275,7 @@ mode: context                        # Mode command category
 # OPTIONAL (ai-agents Extensions)
 metadata:
   # Orchestrator-specific
-  subagent_model: claude-opus-4-6    # Model for delegated agents
+  subagent_model: claude-opus-4-6    # Delegated agents; inert metadata, outside the ADR-080 gate
 
   # Classification
   domains: [architecture, planning]  # Domain categories
@@ -304,19 +335,26 @@ metadata:
 - **Example**: `MIT`, `Apache-2.0`, `GPL-3.0-only`
 - **Purpose**: Legal compliance
 
-#### model (REQUIRED for ai-agents)
+#### model (OPTIONAL; omit to inherit, per ADR-080)
 
 - **Type**: String
-- **Format**: Model alias or dated snapshot ID
-- **Aliases** (recommended):
-  - `claude-opus-4-6` - Maximum reasoning, orchestration ($5/$25 per MTok)
-  - `claude-sonnet-4-6` - Standard workflows ($3/$15 per MTok)
-  - `claude-haiku-4-5` - Speed, lightweight ($1/$5 per MTok)
-- **Dated IDs** (deterministic behavior):
-  - `claude-opus-4-6-20251015`
-  - `claude-sonnet-4-6-20251015`
-  - `claude-haiku-4-5-20251015`
-- **Selection Criteria**:
+- **Format**: bare rolling alias (`sonnet`, `opus`, `haiku`). A versioned id
+  (`claude-opus-4-6`, `claude-haiku-4-5`, or any dated snapshot) is rejected on
+  a skill or command by `scripts/validation/check_model_pins.py`:
+  `skill carries versioned id '...'; skills and commands may not pin a version (ADR-080 rule 1)`
+- **Default**: absent. The skill inherits the harness model, which is correct
+  and needs no justification.
+- **Allowed pin**: only an alias that resolves, through `model_tiers` in
+  `templates/platforms/copilot-cli.yaml`, to a model priced below the harness
+  default `claude-sonnet-4-6`. Today that is `haiku` alone
+  (`claude-haiku-4.5`, $1/$5 per MTok versus $3/$15). `sonnet` and `opus` fail
+  with `cost rationale on '...' but it does not price below the default`.
+- **Companion field**: `model-rationale` is required whenever `model` is set.
+- **Agents differ**: ADR-080 rule 2 allows a versioned pin on an *agent* backed
+  by a KEEP_PIN sweep entry in `.agents/governance/model-pin-evidence.json`.
+  That path does not exist for skills or commands.
+- **Selection Criteria** (historical tier guidance; use it to judge whether the
+  cheap tier suffices, not to write a versioned id):
 
 | Characteristic | Haiku | Sonnet | Opus |
 |----------------|-------|--------|------|
@@ -447,7 +485,8 @@ Checklist for all skills:
 - [ ] `name`: matches regex `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 64 chars
 - [ ] `name`: matches parent directory name exactly
 - [ ] `description`: non-empty, max 1024 chars, includes trigger keywords
-- [ ] `model` (ai-agents): valid alias or dated ID matching `^claude-(opus|sonnet|haiku)-4-5(-\d{8})?$`
+- [ ] `model` (ai-agents): absent, or the bare cost alias `haiku` with a `model-rationale` line (ADR-080). Never a versioned id such as `claude-opus-4-6`
+- [ ] `model-rationale` (ai-agents): present whenever `model` is set
 - [ ] `version` (ai-agents): semantic versioning format `^\d+\.\d+\.\d+$`
 - [ ] `license` (ai-agents): valid SPDX identifier
 - [ ] `allowed-tools` (if present): space-delimited (not comma-separated)
@@ -506,15 +545,21 @@ name: my-skill
 version: 1.0.0  # Moved to top-level
 description: Does something useful
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   domains: [analysis]  # Domain-specific fields remain
 ---
 ```
 
-### 7.2 From Dated IDs to Aliases
+### 7.2 From a Versioned Pin to Inherit or a Cost Alias
 
-**Before** (dated snapshot):
+Rewritten 2026-08-14. This section previously told authors to convert dated
+snapshots into versioned aliases (`claude-opus-4-6-20251015` to
+`claude-opus-4-6`). [ADR-080](./ADR-080-model-pin-justification-policy.md)
+rule 1 bans both spellings on a skill or command: each is a versioned id, each
+breaks when that model retires (issue #2839), and no sweep can justify either
+because the harness cannot evaluate a skill.
+
+**Before** (versioned id, dated or not):
 
 ```yaml
 ---
@@ -522,21 +567,30 @@ model: claude-opus-4-6-20251015
 ---
 ```
 
-**After** (alias for auto-updates):
+**After, default** (delete the line and inherit the harness model):
 
 ```yaml
 ---
-model: claude-opus-4-6  # Auto-updates within ~1 week of release
+name: my-skill
+description: Does something useful
 ---
 ```
 
-**When to Keep Dated IDs**:
+**After, cost exception** (bare alias priced below the default, with its
+rationale; today only `haiku` qualifies):
 
-- Security-critical skills requiring deterministic behavior
-- Skills where behavioral change could cause incidents
-- Compliance requirements for reproducible behavior
+```yaml
+---
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
+---
+```
 
-**Examples**: `security-detection`, `session-log-fixer` (per ADR-040)
+**Determinism is no longer a reason to pin.** The ADR-040-era exception for
+security-critical skills (`security-detection`, `session-log-fixer`) is
+superseded: `.claude/skills/security-detection/SKILL.md` ships `model: haiku`
+with a cost rationale, `.claude/skills/session-log-fixer/SKILL.md` carries no
+`model:` line at all, and a versioned pin on either would fail the gate.
 
 ### 7.3 Comma-Separated to Space-Delimited (allowed-tools)
 
@@ -588,7 +642,8 @@ allowed-tools: Read Grep Glob
 
 **Project-Optimized Skills** (ai-agents only):
 
-- Include all 5 required fields: `name`, `version`, `description`, `license`, `model`
+- Include the 4 required fields: `name`, `version`, `description`, `license`
+- Leave `model` out unless a cost alias is justified (ADR-080)
 - Use ai-agents metadata fields: `domains`, `type`, `subagent_model`, etc.
 - Leverage PowerShell in `modules/` and `scripts/`
 - Add Pester tests in `tests/`
@@ -735,7 +790,7 @@ name: session-init
 version: 1.0.0
 description: Create protocol-compliant session logs with verification-based enforcement. Prevents recurring CI validation failures by reading canonical template from SESSION-PROTOCOL.md and validating immediately. Use when starting any new session.
 license: MIT
-model: claude-sonnet-4-6
+# No model: line. Inherits the harness model (ADR-080), as the shipped skill does.
 metadata:
   domains:
     - session-protocol
@@ -773,9 +828,9 @@ name: adr-review
 version: 1.0.0
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
 license: MIT
-model: claude-opus-4-6
+# No model: line. Orchestration is not a reason to pin (ADR-080).
 metadata:
-  subagent_model: claude-opus-4-6  # Model for delegated agents
+  subagent_model: claude-opus-4-6  # Delegated agents; inert metadata, no harness reads it
   domains:
     - architecture
     - governance
@@ -826,7 +881,8 @@ See [references/debate-protocol.md](references/debate-protocol.md) for full prot
 | `description` | ✅ Official | Top-level | Free text, no XML | 1024 chars | agentskills.io |
 | `version` | ✅ ai-agents | Top-level | Semantic versioning | - | ADR-040 |
 | `license` | ✅ ai-agents | Top-level | SPDX identifier | - | ADR-040 |
-| `model` | ✅ ai-agents | Top-level | Alias or dated ID | - | ADR-040 |
+| `model` | ⚪ Optional | Top-level | Bare cost alias (`haiku`) or absent; no versioned id | - | ADR-080 |
+| `model-rationale` | ⚪ Optional | Top-level | Free text; required when `model` is set | - | ADR-080 |
 | `compatibility` | ⚪ Optional | Top-level | Free text | 500 chars | agentskills.io |
 | `allowed-tools` | ⚪ Optional | Top-level | Space-delimited | - | agentskills.io |
 | `disable-model-invocation` | ⚪ Optional | Top-level | Boolean | - | claude.com |
