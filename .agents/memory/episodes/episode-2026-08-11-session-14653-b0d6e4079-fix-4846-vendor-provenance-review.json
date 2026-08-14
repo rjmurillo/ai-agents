@@ -5,7 +5,18 @@
   "causal_order_version": 2,
   "outcome": "success",
   "task": "Fix PR 4846 vendor provenance CI and review threads",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "context": "",
+      "chosen": "Resolved the 12-file merge-tree conflict via git merge-file 3-way merges (base/ours/main-tip extracted per-file with git show), taking main's newer 4-group value for every conflicting hunk since this branch does not adopt bc179ad3a's actual hook registration change (out of scope) and .claude/hooks/hooks.json itself is unchanged on this branch. Before committing, empirically verified the resolution is correct for CI rather than trusting reasoning alone: materialized the tree produced by git merge-tree --write-tree origin/main HEAD into a scratch directory via git read-tree + checkout-index, then ran tests/build_scripts/test_hook_contract_knowledge.py::test_operational_skills_match_current_hook_registration_counts directly against that materialized merge-ref tree.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -63,7 +74,10 @@
         "e004",
         "e025",
         "e027",
-        "e029"
+        "e029",
+        "e031",
+        "e032",
+        "e033"
       ],
       "leads_to": [
         "e006"
@@ -384,6 +398,52 @@
       "caused_by": [
         "e028"
       ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound QA/session evidence to 24cdcf8a3 (docs: rebind QA evidence to workspace-cleanup fix commit, committed as 52d813f4f). Re-checked live-state (head unchanged, auto_merge_method null), renewed the pr-autofix lease, and attempted a push of the pending 2 commits (24cdcf8a3, 52d813f4f).",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the 12-file merge-tree conflict via git merge-file 3-way merges (base/ours/main-tip extracted per-file with git show), taking main's newer 4-group value for every conflicting hunk since this branch does not adopt bc179ad3a's actual hook registration change (out of scope) and .claude/hooks/hooks.json itself is unchanged on this branch. Before committing, empirically verified the resolution is correct for CI rather than trusting reasoning alone: materialized the tree produced by git merge-tree --write-tree origin/main HEAD into a scratch directory via git read-tree + checkout-index, then ran tests/build_scripts/test_hook_contract_knowledge.py::test_operational_skills_match_current_hook_registration_counts directly against that materialized merge-ref tree.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "content": "Resolved the 12-file merge-tree conflict via git merge-file 3-way merges (base/ours/main-tip extracted per-file with git show), taking main's newer 4-group value for every conflicting hunk since this branch does not adopt bc179ad3a's actual hook registration change (out of scope) and .claude/hooks/hooks.json itself is unchanged on this branch. Before committing, empirically verified the resolution is correct for CI rather than trusting reasoning alone: materialized the tree produced by git merge-tree --write-tree origin/main HEAD into a scratch directory via git read-tree + checkout-index, then ran tests/build_scripts/test_hook_contract_knowledge.py::test_operational_skills_match_current_hook_registration_counts directly against that materialized merge-ref tree.      The test PASSED against the materialized merge-ref tree (plugin_summary computed from the merge-ref's hooks.json, '2 events, 4 groups', matches all 6 resolved doc files there), while the same test still FAILS when run against this branch's raw, unmerged local checkout (plugin_summary '2 events, 3 groups' vs. doc text now saying 4 groups) -- confirming this is the same class of merge-ref false negative already established for the trust-anchor pin fix, not a real regression. Ran the full targeted suite (74 tests across test_hook_contract_knowledge.py, test_generate_hooks_runtime_contract.py, test_knowledge_surface_consistency.py, test_pytest_marker_skill_docs.py): 73 passed, 1 expected local-only failure (documented above). Committed the 6 conflicting files in 2 commits to respect the 5-authored-file limit: fb2c89b4c (5 files + mirrors) and 76cb25d2f (1 file + mirror). Re-ran git merge-tree --write-tree origin/main HEAD: 0 conflicts (down from 12). Rebound QA/session evidence to 76cb25d2f.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-14T20:48:51+00:00",
+      "type": "commit",
+      "content": "Commit: 76cb25d2f",
+      "caused_by": [
+        "e030"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -393,7 +453,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 23,
+    "commits": 24,
     "files_changed": 33
   },
   "lessons": []

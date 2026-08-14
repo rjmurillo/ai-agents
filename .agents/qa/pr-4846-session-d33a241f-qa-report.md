@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 24cdcf8a3af90db89fe1fda08786c894a12d8880
+qaCommit: 76cb25d2fc5c3a12441683008b4fb3d7495e5da5
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `24cdcf8a3af90db89fe1fda08786c894a12d8880`
+Validated the branch at commit `76cb25d2fc5c3a12441683008b4fb3d7495e5da5`
 (qaCommit, above). The previous report's PASS evidence was stale: it named
 `qaCommit: 1556cdbd99...` but its prose and test run described commit
 `63a2f9fd4...`, several commits earlier, so the recorded results did not
@@ -16,8 +16,8 @@ establish the verdict for the SHA the frontmatter claimed. This report
 re-runs every check against the actual `qaCommit` SHA and lists every
 content commit since the last commit both prose and frontmatter agreed on
 (`3d96506c5`, "refactor(ci): move gitlink and check-run logic to Python
-per ADR-006"), including 7 commits landed after the prior update of this
-report (commits 12-18 below): the repo's required `Run Python Tests`
+per ADR-006"), including 9 commits landed after the prior update of this
+report (commits 12-20 below): the repo's required `Run Python Tests`
 check was failing the Trust-Anchor Authentication phase for 4 pinned
 files this branch does not touch (`pyproject.toml`, `uv.lock`,
 `.claude/hooks/PostToolUse/invoke_memory_capture.py`,
@@ -31,7 +31,14 @@ SHA-256 pins to match. After that push landed, `copilot-pull-request-
 reviewer` opened a new thread on `.github/workflows/vendor-provenance.yml`
 flagging that the workspace-cleanup step masked `rm` failures and used an
 incomplete dotfile glob, contradicting the workflow's own "fail closed"
-contract; commit 18 fixes both.
+contract; commit 18 fixes both. A push attempt with commits 17-18 then
+failed the local `merge-tree-ratchet` pre-push check: `origin/main` had
+advanced again via `bc179ad3a` (an already-merged, out-of-scope feature
+commit, #4893), which added a 4th hook-registration group and updated 6
+skill doc files (plus mirrors) this branch also touches, on the same
+physical lines this branch's own commit 16 had edited. Commits 19-20
+resync those 6 files (split to respect the 5-file limit) to main's exact
+text, restoring a clean merge-tree.
 
 ## Test Results
 
@@ -51,6 +58,11 @@ contract; commit 18 fixes both.
 | `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` (re-run after commit 18) | 343 passed |
 | `uv run pytest tests/test_validate_workflows.py tests/validation_pre_pr/test_workflow_checks.py tests/validation/test_check_ci_dependency_pins.py -q` | 183 passed |
 | Manual bash check of the new cleanup glob: empty directory, and a directory seeded with `regular.txt .a .bb ..c .hidden` plus a subdirectory | Both cases fully cleared, exit 0 |
+| `git merge-tree --write-tree origin/main HEAD` (after commits 19-20) | 0 conflicts (was 12, one per file, before) |
+| `uv run pytest tests/build_scripts/test_hook_contract_knowledge.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/test_knowledge_surface_consistency.py tests/test_pytest_marker_skill_docs.py -q` (raw branch checkout) | 73 passed, 1 failed (`test_operational_skills_match_current_hook_registration_counts`; expected, see Correctness Assessment) |
+| Same test, run against a scratch checkout materialized from `git merge-tree --write-tree origin/main HEAD`'s output tree (the actual CI merge-ref content) | 1 passed |
+
+
 
 ## Changes Since Previous QA Report
 
@@ -75,6 +87,8 @@ prose and frontmatter agreed on) and `24cdcf8a3` (this report's `qaCommit`):
 16. `b700f2cf2` docs(hooks): document CLAUDE_PROJECT_DIR anchoring and PostToolUseFailure
 17. `471bd50ea` docs(hooks): reference #4870 memory-capture fix in config catalog skills
 18. `24cdcf8a3` fix(security): fail closed on vendor-provenance workspace cleanup
+19. `fb2c89b4c` docs(hooks): sync 5 skill docs with main's post-4893 hook counts
+20. `76cb25d2f` docs(hooks): sync portability-campaign skill with post-4893 hook count
 
 ## Correctness Assessment
 
@@ -161,6 +175,43 @@ both an empty directory and one seeded with `regular.txt .a .bb ..c
 contract` already asserted "no error suppression on git commands (rm
 cleanup is acceptable)" scoped to `git` invocations only, so it is
 unaffected by removing the `rm` suppression.
+
+Commits 19-20 resolve a second, unrelated main-drift conflict: after
+commit 18 was ready to push, `origin/main` advanced by 15 commits to a
+new tip, `bc179ad3a` (`feat(hooks): require explicit model on sub-agent
+spawns`, #4893, 54 files, already merged), which added a 4th group to
+the vendored `.claude/hooks/hooks.json` inventory and updated 6 skill
+doc files (`agent-harness-reference/SKILL.md`,
+`ai-agents-architecture-contract/SKILL.md` +
+`references/provenance.md` + `references/weak-points.md`,
+`ai-agents-config-catalog/SKILL.md`,
+`ai-agents-portability-campaign/SKILL.md`, plus their
+`src/copilot-cli/skills/**` mirrors) to state the new "2 events, 4
+groups" count. This branch's own commit 16 had touched the same
+physical table rows/lines to record an unrelated, legitimately
+cherry-picked fact (the settings.json event count), so `git merge-tree
+--write-tree origin/main HEAD` reported a genuine line-level conflict
+in all 6 files (`merge-tree-ratchet` exit 100) even though the two
+edits are logically orthogonal. This branch does not adopt
+`bc179ad3a`'s actual hook registration (out of scope), so
+`.claude/hooks/hooks.json` itself is unchanged here and still computes
+"2 events, 3 groups" against a raw, unmerged checkout of this branch.
+Because the required `Run Python Tests` check evaluates the
+`pull_request` merge-ref (branch head merged with `origin/main`'s
+current tip, the same mechanism documented above for the trust-anchor
+pins), `hooks.json` resolves to main's 4-group content in CI regardless
+of this branch's own commits. Commits 19-20 sync the 6 doc files to
+`origin/main`'s exact text (verified byte-identical) so the merge-ref
+stays internally consistent (documented count equals the merge-ref's
+actual computed count) and the merge-tree conflict clears. This was
+verified empirically, not just reasoned about: `git merge-tree
+--write-tree origin/main HEAD` was materialized into a scratch working
+tree via `git read-tree` + `checkout-index`, and
+`test_operational_skills_match_current_hook_registration_counts` was
+run directly against that materialized tree, where it passed (the same
+test fails when run against this branch's raw, unmerged local
+checkout, exactly as expected, since that checkout's `hooks.json` is
+stale relative to what CI will actually evaluate).
 
 ## Verdict
 

@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 24cdcf8a3)"
+        "Evidence": "All changes committed (HEAD: 76cb25d2f)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,10 +151,19 @@
     {
       "action": "Pushed 7 new commits; pre-push chain passed including Session End Validation (QA evidence rebound to 471bd50ea beforehand). After the push, copilot-pull-request-reviewer opened a new thread on .github/workflows/vendor-provenance.yml:55, flagging that the workspace-cleanup rm command masked failures (2>/dev/null || true) and used an incomplete dotfile glob (.??* misses 1-2 char dotfiles), contradicting the workflow's documented fail-closed contract.",
       "result": "Threat-modeled the finding: checkout-index never deletes stray untracked files, so a masked rm failure or missed dotfile could let a base-owned validator process read content outside BASE_SHA. Fixed both issues: dropped the error-masking redirect so a real rm failure still trips set -euo pipefail, and replaced the glob with the standard three-pattern set (*, .[!.]*, ..?*) covering all dotfile lengths while excluding . and ... Verified with actionlint (clean), a manual bash reproduction (empty dir and a dir seeded with regular/.a/.bb/..c/.hidden files both fully cleared, exit 0), and 343+183 targeted tests passing. Committed as 24cdcf8a3."
+    },
+    {
+      "action": "Rebound QA/session evidence to 24cdcf8a3 (docs: rebind QA evidence to workspace-cleanup fix commit, committed as 52d813f4f). Re-checked live-state (head unchanged, auto_merge_method null), renewed the pr-autofix lease, and attempted a push of the pending 2 commits (24cdcf8a3, 52d813f4f).",
+      "result": "Push FAILED at the merge-tree-ratchet lefthook step (scripts/ci/merge_tree_ratchet_check.py, exit 100): origin/main had advanced 15 commits to a new tip, bc179ad3a (feat(hooks): require explicit model on sub-agent spawns, #4893, already merged, 54 files/4160 insertions, out of scope for this branch). git merge-tree --write-tree origin/main HEAD reported 12 real content conflicts: bc179ad3a added a 4th group to the vendored .claude/hooks/hooks.json inventory and updated 6 skill doc files (agent-harness-reference/SKILL.md, ai-agents-architecture-contract/SKILL.md + references/provenance.md + references/weak-points.md, ai-agents-config-catalog/SKILL.md, ai-agents-portability-campaign/SKILL.md, plus their src/copilot-cli/skills mirrors) to state the new 4-group count, on the exact same physical table rows/lines this branch's own commit 16 (b700f2cf2) had independently edited to record an unrelated, legitimately cherry-picked fact (the settings.json event count)."
+    },
+    {
+      "action": "Resolved the 12-file merge-tree conflict via git merge-file 3-way merges (base/ours/main-tip extracted per-file with git show), taking main's newer 4-group value for every conflicting hunk since this branch does not adopt bc179ad3a's actual hook registration change (out of scope) and .claude/hooks/hooks.json itself is unchanged on this branch. Before committing, empirically verified the resolution is correct for CI rather than trusting reasoning alone: materialized the tree produced by git merge-tree --write-tree origin/main HEAD into a scratch directory via git read-tree + checkout-index, then ran tests/build_scripts/test_hook_contract_knowledge.py::test_operational_skills_match_current_hook_registration_counts directly against that materialized merge-ref tree.",
+      "result": "The test PASSED against the materialized merge-ref tree (plugin_summary computed from the merge-ref's hooks.json, '2 events, 4 groups', matches all 6 resolved doc files there), while the same test still FAILS when run against this branch's raw, unmerged local checkout (plugin_summary '2 events, 3 groups' vs. doc text now saying 4 groups) -- confirming this is the same class of merge-ref false negative already established for the trust-anchor pin fix, not a real regression. Ran the full targeted suite (74 tests across test_hook_contract_knowledge.py, test_generate_hooks_runtime_contract.py, test_knowledge_surface_consistency.py, test_pytest_marker_skill_docs.py): 73 passed, 1 expected local-only failure (documented above). Committed the 6 conflicting files in 2 commits to respect the 5-authored-file limit: fb2c89b4c (5 files + mirrors) and 76cb25d2f (1 file + mirror). Re-ran git merge-tree --write-tree origin/main HEAD: 0 conflicts (down from 12). Rebound QA/session evidence to 76cb25d2f."
     }
   ],
-  "endingCommit": "24cdcf8a3",
+  "endingCommit": "76cb25d2f",
   "nextSteps": [
-    "Reply to and resolve the new copilot-pull-request-reviewer thread, rebind QA/session evidence once more if needed, renew the lease, push, then re-run the full completion gate before releasing the lease."
+    "Re-check live-state, renew the lease, and push the pending commits (fb2c89b4c, 76cb25d2f). Watch for origin/main advancing again before the push completes (has happened twice this session); if so, repeat the merge-tree-ratchet diagnosis/resolution cycle.",
+    "After a successful push: poll CI to green, re-check for new bot threads (reply/resolve as needed), run the full completion gate, investigate reviewDecision empty / mergeStateStatus BLOCKED as a possible external blocker, and release the lease once gate-clean or genuinely externally blocked."
   ]
 }
