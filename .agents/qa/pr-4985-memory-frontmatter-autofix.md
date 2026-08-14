@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-pr-4985-autofix.json
-qaCommit: a06e162c1698453ef1481165e398952945d5c2d1
+qaCommit: e66f787ae040da620bb3807ce9434c8de98aa435
 ---
 
 # PR 4985 Memory Frontmatter Autofix QA
@@ -23,6 +23,7 @@ The full Validate PR log contained one failure: `No QA report found for code cha
 | Memory index CI guard | Exit 0; 43/43 domains passed, 565 files checked, 0 missing files, 0 keyword issues |
 | YAML frontmatter parse | Exit 0; canonical name and scalar string description loaded |
 | Ruff | All checks passed for the changed validator and tests |
+| Taste-count ratchet | Exit 0; count equals baseline 583 after formatter complexity extraction |
 | Base update | Clean merge of origin/main into the PR branch |
 
 ## Guard Cases

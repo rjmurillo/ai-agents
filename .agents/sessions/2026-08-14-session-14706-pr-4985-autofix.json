@@ -89,12 +89,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated implementation commit a06e162c1698453ef1481165e398952945d5c2d1; QA evidence is evidence-only"
+        "Evidence": "Validated implementation commit e66f787ae040da620bb3807ce9434c8de98aa435; QA evidence is evidence-only"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "172 tests passed; memory index CI guard, direct YAML parse, and Ruff passed"
+        "Evidence": "172 tests passed; memory index CI guard, direct YAML parse, Ruff, and taste-count ratchet passed"
       }
     }
   },
@@ -105,14 +105,14 @@
     },
     {
       "action": "Updated branch with origin/main",
-      "result": "Clean merge commit a06e162c1698453ef1481165e398952945d5c2d1"
+      "result": "Clean merge commit e66f787ae040da620bb3807ce9434c8de98aa435"
     },
     {
       "action": "Ran focused tests and guards",
       "result": "172 tests passed; 43/43 memory domains and 565 files checked; YAML and Ruff passed"
     }
   ],
-  "endingCommit": "a06e162c1698453ef1481165e398952945d5c2d1",
+  "endingCommit": "e66f787ae040da620bb3807ce9434c8de98aa435",
   "nextSteps": [
     "Push after live-state and SHA-safety checks",
     "Run completion gate and merge only when all readiness conditions pass"
