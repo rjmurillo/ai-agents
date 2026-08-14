@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fbec84e94 (frontmatter repair), 8f7b685db (unclosed/list/scalar gaps), cd0e9c38a (canonical alignment), f8caac4b0 (delimiter parity), ab659dbf5 (memory + index mirrors), d0becf519 (formatter decomposition), 8972531ef (strip parity)"
+        "Evidence": "fbec84e94 (frontmatter repair), 8f7b685db (unclosed/list/scalar gaps), cd0e9c38a (canonical alignment), f8caac4b0 (delimiter parity), ab659dbf5 (memory + index mirrors), d0becf519 (formatter decomposition), 8972531ef (strip parity), 5b51f5b98 (review findings)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,9 +146,13 @@
     {
       "task": "Replace the branch after the placeholder-identity guard blocked every push",
       "outcome": "Nine commits on fix/4918-implementation-008-frontmatter were authored as 'Test <test@test.com>' by that autofix session, and the pre-push guard evaluates the whole branch delta, so no compliant push was possible. Owner chose a clean branch over a history rewrite. Cherry-picked the six compliant commits onto origin/main e60e3b896, replayed the autofix session's strip parity as one attributed commit, and confirmed the resulting tree is byte-identical to the verified tree on the old branch."
+    },
+    {
+      "task": "Address the independent review on PR 5004",
+      "outcome": "Copilot raised three findings and all three held on inspection: a BOM in front of a VALID block also loses metadata silently and the gate passed it, str.splitlines() invents line boundaries that re.MULTILINE does not anchor, and fixed-input differential tests cannot catch upstream pattern drift. Fixed all three in one commit with the inverse cases covered: BOM+valid, BOM+malformed, BOM+plain, a \\u2028 regression, and a direct assertion that _FM_BOUNDARY.pattern equals YAMLHandler.FM_BOUNDARY.pattern. 190 tests pass."
     }
   ],
-  "endingCommit": "8972531ef003950827b30aeb5c8a1a34ef1a798e",
+  "endingCommit": "5b51f5b98d97f40fe56096b75fc078780d5c801e",
   "nextSteps": [
     "Watch PR 5004 CI, especially Validate PR (QA report gate) and the session protocol job",
     "File a defect for the pr-autofix session committing as 'Test <test@test.com>' (issue #2466 pattern); no CI check catches it, so the identity reaches main when such a PR merges",

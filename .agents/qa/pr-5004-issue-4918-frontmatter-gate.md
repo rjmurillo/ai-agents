@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14708.json
-qaCommit: 8972531ef003950827b30aeb5c8a1a34ef1a798e
+qaCommit: 5b51f5b98d97f40fe56096b75fc078780d5c801e
 ---
 
 # PR 5004 Issue 4918 Frontmatter Repair and Gate QA
@@ -27,7 +27,7 @@ Quoted verbatim from issue 4918:
 
 ## Verdict
 
-**PASS.** All three criteria verified at commit `8972531ef003950827b30aeb5c8a1a34ef1a798e`.
+**PASS.** All three criteria verified at commit `5b51f5b98d97f40fe56096b75fc078780d5c801e`.
 
 ## Evidence
 
@@ -36,7 +36,7 @@ Quoted verbatim from issue 4918:
 | 1 | Valid YAML, meaning preserved | `frontmatter.loads` on the repaired file, compare `description` to the original text | Parsed value equals `Constraints for writing spec artifacts (REQ/DESIGN/TASK): read spec-schemas.md first; validate enums before committing` (`True`) |
 | 2 | Zero malformed warnings | `uv run --frozen python -m memory_enhancement verify-all` piped to `grep -ci "malformed YAML frontmatter"` | `0` |
 | 3 | Index validator | `uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet` | `Result: PASSED`, exit 0, 567 indexed files, 0 missing, 0 keyword issues |
-| 3 | Targeted tests | `uv run --frozen python -m pytest tests/test_validation_memory_index.py -q` | `185 passed` |
+| 3 | Targeted tests | `uv run --frozen python -m pytest tests/test_validation_memory_index.py -q` | `190 passed` |
 
 ## Negative Control
 
@@ -81,7 +81,7 @@ docstring; each one silently discards metadata under the loader.
 
 | Gate | Command | Result |
 |------|---------|--------|
-| Unit tests | `pytest tests/test_validation_memory_index.py -q` | 185 passed |
+| Unit tests | `pytest tests/test_validation_memory_index.py -q` | 190 passed |
 | Lint | `ruff check scripts/validation/memory_index.py tests/test_validation_memory_index.py` | All checks passed |
 | Types | `mypy scripts/validation/memory_index.py` | Success, no issues |
 | Token counts | `scripts/update_memory_index_tokens.py --check` | current |
@@ -110,6 +110,17 @@ which `AGENTS.md` prohibits. This branch replays the same content from
 `origin/main` under a compliant identity with the logical commit boundaries
 preserved, and the `strip()` parity contribution from that session is carried in
 its own commit with attribution.
+
+## Review Findings Addressed
+
+Copilot raised three findings on PR 5004; all three were adopted, with the
+inverse case closed in the same commit (`5b51f5b98`).
+
+| Finding | Verified against canonical | Change |
+|---|---|---|
+| A BOM in front of a *valid* block still loses metadata, and the gate passed it | `frontmatter.loads("\ufeff" + valid).metadata == {}` | Any BOM before the delimiter now fails, whatever the block holds. Tests cover BOM+valid, BOM+malformed, and BOM+plain (not a defect: no metadata to lose) |
+| `str.splitlines()` breaks on `\v`, `\f`, `\x85`, `\u2028`; `re.MULTILINE` anchors only around `\n` | canonical pattern carries `re.MULTILINE` | Split on `\n` alone, with a `\u2028` regression test |
+| Fixed-input differential tests do not catch upstream pattern drift | `YAMLHandler.FM_BOUNDARY.pattern` | Added a direct assertion that the local pattern equals the canonical one, and that the flag difference is the only difference |
 
 ## Residual Risk
 
