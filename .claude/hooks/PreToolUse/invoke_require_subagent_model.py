@@ -247,11 +247,14 @@ def _read_payload() -> object:
 def _is_copilot_payload(payload: dict[str, object]) -> bool:
     """Detect Copilot payloads from guaranteed schema signals.
 
-    Copilot uses lowercase ``toolName``/``toolArgs`` while Claude Code uses
-    ``tool_name``/``tool_input``.  This avoids depending on ``COPILOT_CLI``
-    which is not part of the documented hook contract.
+    Native Copilot uses lowercase ``toolName``/``toolArgs`` while Claude Code
+    uses ``tool_name``/``tool_input``.  The Copilot plugin dispatcher uses
+    PascalCase ``PreToolUse`` and sets ``COPILOT_PLUGIN_ROOT``, so its
+    payloads match the Claude schema but run in a Copilot context.
     """
-    return "toolName" in payload and "tool_name" not in payload
+    if "toolName" in payload and "tool_name" not in payload:
+        return True
+    return bool(os.environ.get("COPILOT_PLUGIN_ROOT", "").strip())
 
 
 def _project_root(payload: dict[str, object]) -> Path:
