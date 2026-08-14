@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py and targeted PR validation completed successfully"
+        "Evidence": "Revalidated at 4bb24a294b16859b08050ded72f55636fb26cdb9: focused hook and registration, generator, runtime-contract, shipped-artifact, CLI E2E, Ruff, mypy, and drift checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -135,7 +135,7 @@
       "result": "397 passed, 3 skipped; catalog evidence committed through 164227594de83d26b495927414a0b05147e2901b; existing six-round adr-review evidence remains authoritative"
     }
   ],
-  "endingCommit": "c27f1e42463e4e31d91f67c1433d3634d2a3d0db",
+  "endingCommit": "4bb24a294b16859b08050ded72f55636fb26cdb9",
   "nextSteps": [
     "Push under lease and late live-state guard.",
     "Wait for required CI, then reply to and resolve all 15 review threads.",
