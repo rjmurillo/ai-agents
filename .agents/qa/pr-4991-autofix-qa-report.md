@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-4991.json
-qaCommit: e59c04f6e38bf6344437a99f3e405b8b910cbce4
+qaCommit: 0f4367924dc9c55c1f5e1c00f6386bd3a2d38180
 ---
 
 # PR 4991 Autofix QA Report
@@ -14,10 +14,11 @@ Validated the case-sensitive `SkillForge` to `skillforge` rename, route and gene
 
 - Structural then installation suites: 35 passed.
 - Installation then structural suites: 35 passed.
-- Focused structural, installation, generator, and quick-validation suites: 85 passed.
+- Focused structural, installation, generator, quick-validation, and count-ratchet suites: 97 passed.
 - Generator and quick-validation checks: 41 passed.
 - Route-resolution checks: 36 passed.
 - Name-directory positive, negative, and case-only edge checks: 4 passed.
+- Taste-count ratchet: 583 violations, equal to baseline; PASS.
 - QA agent final verdict: PASS; no blocking defects remain.
 
 ## Verdict
