@@ -7,8 +7,8 @@ Per Skill-PR-Review-007: gh pr view may return stale data.
 
 Exit codes follow ADR-035:
     0   - Query succeeded; merge state reported in JSON ``"merged"`` field
-    2   - Error occurred (config/parse error)
-    3   - External error (API failure)
+    2   - Config error, or the remote answered "no such PR"
+    3   - External error (API failure, timeout, unusable payload)
     4   - Auth error
     100 - Legacy skip-review sentinel, only with ``--exit-100-on-merged``
 
@@ -17,6 +17,21 @@ should branch on the JSON ``"merged"`` field. This makes the script behave
 like every other shell-friendly probe ("exit 0 means I answered your
 question") and stops a successful merge verification from looking like a
 failed call. See issue #2308.
+
+The merge state comes from ``github_core.pr_merge_state.read_pr_merge_state``,
+which owns the GraphQL query this script used to hold itself. One reader means
+this script and ``close_issue.py --verify-claims`` cannot drift into
+disagreeing about whether a PR is merged, which is the failure issue #4951
+recorded: on 2026-08-13 the REST probe in ``close_issue.py`` called PR #4729
+and PR #3076 unmerged and this script proved both merged.
+
+Two behaviors changed with that move (issue #4951):
+
+- An auth failure during the query now exits 4 instead of 3. The table above
+  always documented 4 as the auth code; previously only the ``gh auth status``
+  preflight could produce it.
+- A payload with no boolean ``merged`` field now exits 3 instead of printing
+  ``"merged": false``. A missing field is missing evidence, not a No.
 
 The legacy exit-100 sentinel from Skill-PR-Review-007 remains available via
 ``--exit-100-on-merged`` for scripts that already encoded the "100 = skip
@@ -51,23 +66,9 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
-    gh_graphql,
     resolve_repo_params,
 )
-
-_QUERY = """\
-query($owner: String!, $repo: String!, $prNumber: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $prNumber) {
-      state
-      merged
-      mergedAt
-      mergedBy {
-        login
-      }
-    }
-  }
-}"""
+from github_core.pr_merge_state import PrMergeStatus, read_pr_merge_state
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -109,37 +110,29 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    try:
-        data = gh_graphql(
-            _QUERY,
-            {"owner": owner, "repo": repo, "prNumber": args.pull_request},
-        )
-    except RuntimeError as exc:
-        error_and_exit(f"GraphQL query failed: {exc}", 3)
+    state = read_pr_merge_state(owner, repo, args.pull_request)
 
-    pr = data.get("repository", {}).get("pullRequest")
-    if not pr:
+    if state.status is PrMergeStatus.PROBE_FAILED:
+        error_and_exit(f"GraphQL query failed: {state.detail}", state.exit_code)
+    if state.status is PrMergeStatus.NOT_FOUND:
         error_and_exit(
             f"PR #{args.pull_request} not found in {owner}/{repo}.", 2,
         )
-
-    merged_by = pr.get("mergedBy", {})
-    merged_by_login = merged_by.get("login") if merged_by else None
 
     output = {
         "success": True,
         "pull_request": args.pull_request,
         "owner": owner,
         "repo": repo,
-        "state": pr.get("state"),
-        "merged": pr.get("merged", False),
-        "merged_at": pr.get("mergedAt"),
-        "merged_by": merged_by_login,
+        "state": state.state,
+        "merged": state.is_merged,
+        "merged_at": state.merged_at,
+        "merged_by": state.merged_by,
     }
 
     print(json.dumps(output, indent=2))
 
-    if pr.get("merged") is True:
+    if state.is_merged:
         return 100 if args.exit_100_on_merged else 0
 
     return 0
