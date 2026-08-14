@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1e1c9a1d0 guide, 79dadd0c6 architecture docs, c98f24b03 regression guard"
+        "Evidence": "1e1c9a1d0 guide, 79dadd0c6 architecture docs, c98f24b03 regression guard, 72c2f8934 ADR-040 amendment review"
       },
       "validationPassed": {
         "level": "MUST",
@@ -152,7 +152,7 @@
       "evidence": "detect_infrastructure.py CRITICAL_PATTERNS entry '.*Auth.*\\.(cs|ts|js|py)$' matches the substring 'auth' in test_skill_authoring_docs_model_pins.py; the test reads repo markdown and runs no subprocess, no network, no user input"
     }
   ],
-  "endingCommit": "c98f24b03c5cb21ee95adbb813ba72a16eae1fdb",
+  "endingCommit": "72c2f893484ee56e611e00bfb3aae25d0ef6792b",
   "nextSteps": [
     "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
     "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance"
