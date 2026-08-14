@@ -627,14 +627,14 @@ def _original_main(stdin_bytes):
 
 
     def _project_root(payload: dict[str, object]) -> Path:
+        # Copilot hooks run with cwd set to the repository root by contract.
+        # Detect Copilot first so CLAUDE_PROJECT_DIR (a Claude-only variable)
+        # cannot redirect Copilot definition lookup.
+        if _is_copilot_payload(payload):
+            return Path.cwd()
         configured = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if configured:
             return Path(configured).expanduser()
-        # Copilot hooks run with cwd set to the repository root by contract.
-        # The payload cwd may be a project subdirectory, so use process cwd
-        # for Copilot to avoid missing agent definitions above the subdirectory.
-        if _is_copilot_payload(payload):
-            return Path.cwd()
         cwd = payload.get("cwd")
         return Path(cwd) if isinstance(cwd, str) and cwd.strip() else Path(".")
 

@@ -23,8 +23,10 @@ Copilot repo surface `.github/hooks/require-subagent-model.json` (native
 - Read stdin through 2 MiB plus one byte. Parse complete bounded payloads and
   deny overflow. A smaller read can truncate valid JSON and reach the
   malformed-input fail-open path.
-- Prefer `CLAUDE_PROJECT_DIR` over payload `cwd`, which may be a project
-  subdirectory. For namespaced agents, check active `CLAUDE_PLUGIN_ROOT` and
+- For Claude payloads, prefer `CLAUDE_PROJECT_DIR` over payload `cwd`, which
+  may be a project subdirectory. Copilot uses process cwd (repository root
+  by contract); `CLAUDE_PROJECT_DIR` is never consulted for Copilot payloads.
+  For namespaced agents, check active `CLAUDE_PLUGIN_ROOT` and
   `COPILOT_PLUGIN_ROOT` directories only when the plugin manifest name matches
   the requested namespace.
 - Reject unsafe agent and namespace path segments, including glob characters,
