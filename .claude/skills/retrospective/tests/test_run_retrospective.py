@@ -186,6 +186,23 @@ def test_integration_run_writes_conformant_artifact(tmp_path):
     assert "Step 1: Shipped X -> ok" in content
 
 
+def test_default_scope_uses_host_local_date_end_to_end(tmp_path, monkeypatch):
+    # Arrange: simulate a host whose local date is ahead of UTC.
+    _write_session(tmp_path, {"workLog": ["host-local work"]})
+    monkeypatch.setattr(_mod, "host_session_date", lambda: "2026-06-03")
+
+    # Act: omit --scope so the entry point establishes the host-local scope.
+    rc = main(["--project-dir", str(tmp_path)])
+
+    # Assert
+    assert rc == 0
+    written = tmp_path / _artifact_relpath(
+        "retrospective", "2026-06-03-2026-06-03.md"
+    )
+    assert written.is_file()
+    assert "host-local work" in written.read_text(encoding="utf-8")
+
+
 def test_scope_date_controls_artifact_date_and_prefix(tmp_path):
     # Arrange
     _write_session(tmp_path, {"workLog": ["scoped work"]})

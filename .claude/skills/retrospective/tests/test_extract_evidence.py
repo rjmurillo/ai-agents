@@ -476,6 +476,27 @@ def test_cli_emits_json_and_exits_zero(tmp_path, capsys):
     assert payload["work_items"] == ["did a thing"]
 
 
+def test_cli_default_scope_uses_host_local_date(tmp_path, capsys, monkeypatch):
+    # Arrange: UTC may still be on the prior date when this host-local log exists.
+    sessions = tmp_path / ("." + "agents") / "sessions"
+    selected = _write_session(
+        sessions,
+        "2026-06-04-session-1-local.json",
+        {"workLog": ["host-local work"]},
+    )
+    monkeypatch.setattr(_mod, "host_session_date", lambda: "2026-06-04")
+
+    # Act: omit --scope so the CLI must establish the current host-local scope.
+    rc = main(["--project-dir", str(tmp_path)])
+    payload = json.loads(capsys.readouterr().out)
+
+    # Assert
+    assert rc == 0
+    assert payload["scope"] == "2026-06-04"
+    assert payload["session_log_path"] == str(selected)
+    assert payload["work_items"] == ["host-local work"]
+
+
 def test_cli_returns_two_for_bad_project_dir(tmp_path):
     # Arrange: a path that is not a directory.
     not_a_dir = tmp_path / "missing"

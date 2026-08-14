@@ -32,7 +32,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta, timezone
 from pathlib import Path
 
 UTC = timezone.utc
@@ -375,7 +375,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scope",
-        default=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+        default=host_session_date(),
         help="Retrospective scope label (default: today's date).",
     )
     parser.add_argument(

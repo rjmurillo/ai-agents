@@ -857,7 +857,8 @@ class TestValidateSessionSection:
         """
         from datetime import datetime, timedelta, timezone
 
-        two_days = (datetime.now(tz=timezone.utc).date() + timedelta(days=2)).isoformat()
+        fixed_now = datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc)
+        two_days = (fixed_now.date() + timedelta(days=2)).isoformat()
         session = {
             "number": 1,
             "date": two_days,
@@ -867,7 +868,9 @@ class TestValidateSessionSection:
         }
         result = ValidationResult()
 
-        validate_session_section(session, result)
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
 
         assert any("future" in e for e in result.errors)
         assert any(two_days in e for e in result.errors)

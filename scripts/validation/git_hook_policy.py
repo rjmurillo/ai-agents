@@ -984,17 +984,23 @@ def _current_branch(repo_root: Path) -> str | None:
 
 
 def _recent_date_prefixes() -> tuple[str, str]:
-    """Return today's and yesterday's UTC date strings for cross-midnight tolerance.
+    '''Return today's and yesterday's UTC date strings for cross-midnight tolerance.
 
-    UTC anchor. Retains parity with
-    ``.claude/skills/retrospective/scripts/run_retrospective.py``, whose
-    ``_artifact_date`` uses the exact expression
-    ``datetime.now(tz=UTC).strftime("%Y-%m-%d")``.
+    UTC anchor. The canonical artifact-date contract in
+    ``.claude/skills/retrospective/scripts/run_retrospective.py`` is::
+
+        def _artifact_date(scope: str) -> str:
+            """Return the artifact date, preferring a dated retrospective scope."""
+            return _scope_date(scope) or datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    Stricter/looser/different than canonical: this helper has no scope input
+    and returns both today and yesterday for a fallback search window, while
+    the canonical function prefers an explicit scope and returns one date.
     Session logs use a different authority: they are named by the host local
     date (Issue #4779), so session-log scanning routes through
     ``recent_host_session_dates`` instead. Do not merge the two; a UTC consumer
     reading a host-local session date is exactly the bug #4779 fixes.
-    """
+    '''
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1014,7 +1020,7 @@ def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     """
     if not sessions_dir.is_dir():
         return None
-    today, yesterday = recent_host_session_dates()
+    today, _ = recent_host_session_dates()
     anchor = date.fromisoformat(today)
     candidates: list[Path] = []
     try:
