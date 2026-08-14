@@ -134,7 +134,8 @@
         "e009",
         "e010",
         "e015",
-        "e016"
+        "e016",
+        "e017"
       ],
       "leads_to": [
         "e012"
@@ -194,6 +195,17 @@
       "timestamp": "2026-08-14T00:00:00+00:00",
       "type": "milestone",
       "content": "Recorded why the sanctioned new_pr.py path could not run here",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the QA report to carry the PR number",
       "caused_by": [],
       "leads_to": [
         "e011"
