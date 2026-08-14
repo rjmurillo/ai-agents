@@ -10,7 +10,8 @@ between that read and the update request.
 Safety behavior:
   - Rejects a body whose hash no longer matches the caller's expected hash.
   - No-ops when the new body is identical to the current body.
-  - Warns when the new body contains em/en dashes.
+  - Warns when the resulting body contains em/en dashes, including retained
+    bytes that were already present in the current body.
   - Warns when one closing keyword has multiple bare issue references. GitHub
     requires the full keyword syntax for each target.
 

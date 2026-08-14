@@ -312,11 +312,22 @@ class TestExtractClaims:
     """Tests for extract_claims."""
 
     def test_active_fix_extracted(self):
-        claims = _audit_mod.extract_claims(10, "Fixes #123", "main", {}, "owner", "repo")
+        closing_refs = {("owner", "repo", 123): "OPEN"}
+        claims = _audit_mod.extract_claims(
+            10, "Fixes #123", "main", closing_refs, "owner", "repo"
+        )
         assert len(claims) == 1
         assert claims[0]["target_number"] == 123
         assert claims[0]["context_class"] == "active"
         assert claims[0]["github_will_close"] is True
+
+    def test_nonexistent_issue_does_not_close(self):
+        claims = _audit_mod.extract_claims(
+            10, "Fixes #999999999", "main", {}, "owner", "repo"
+        )
+
+        assert claims[0]["target_state"] == "unknown"
+        assert claims[0]["github_will_close"] is False
 
     def test_non_default_branch_claim_does_not_close(self):
         claims = _audit_mod.extract_claims(
@@ -332,17 +343,32 @@ class TestExtractClaims:
         assert claims[0]["github_will_close"] is False
 
     def test_cross_repository_claim_on_default_branch_closes(self):
+        closing_refs = {("other", "project", 123): "OPEN"}
         claims = _audit_mod.extract_claims(
             10,
             "Fixes other/project#123",
             "main",
-            {},
+            closing_refs,
             "owner",
             "repo",
             default_branch="main",
         )
 
         assert claims[0]["github_will_close"] is True
+
+    def test_same_issue_number_in_other_repository_does_not_match(self):
+        closing_refs = {("other", "project", 123): "OPEN"}
+        claims = _audit_mod.extract_claims(
+            10,
+            "Fixes owner/repo#123",
+            "main",
+            closing_refs,
+            "owner",
+            "repo",
+        )
+
+        assert claims[0]["target_state"] == "unknown"
+        assert claims[0]["github_will_close"] is False
 
     def test_no_claims_on_empty_body(self):
         assert _audit_mod.extract_claims(10, "", "main", {}, "owner", "repo") == []
@@ -408,9 +434,33 @@ class TestAuditResume:
 
 
 class TestClosingReferencePagination:
+    def test_resolves_references_by_repository_identity(self):
+        references = [
+            {
+                "number": 123,
+                "state": "OPEN",
+                "repository": {"nameWithOwner": "owner/first"},
+            },
+            {
+                "number": 123,
+                "state": "CLOSED",
+                "repository": {"nameWithOwner": "owner/second"},
+            },
+        ]
+
+        assert _audit_mod._resolve_closing_refs(references) == {
+            ("owner", "first", 123): "OPEN",
+            ("owner", "second", 123): "CLOSED",
+        }
+
     def test_fetch_open_prs_collects_all_closing_references(self):
         initial_references = [
-            {"number": number, "state": "OPEN"} for number in range(1, 101)
+            {
+                "number": number,
+                "state": "OPEN",
+                "repository": {"nameWithOwner": "owner/repo"},
+            }
+            for number in range(1, 101)
         ]
         first_page = {
             "repository": {
@@ -433,8 +483,16 @@ class TestClosingReferencePagination:
                     "closingIssuesReferences": {
                         "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "nodes": [
-                            {"number": 101, "state": "CLOSED"},
-                            {"number": 102, "state": "OPEN"},
+                            {
+                                "number": 101,
+                                "state": "CLOSED",
+                                "repository": {"nameWithOwner": "owner/repo"},
+                            },
+                            {
+                                "number": 102,
+                                "state": "OPEN",
+                                "repository": {"nameWithOwner": "owner/repo"},
+                            },
                         ],
                     },
                 },

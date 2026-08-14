@@ -79,7 +79,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
                 body
                 closingIssuesReferences(first: 100) {
                     pageInfo { hasNextPage endCursor }
-                    nodes { number state }
+                    nodes { number state repository { nameWithOwner } }
                 }
             }
         }
@@ -92,7 +92,7 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
         pullRequest(number: $number) {
             closingIssuesReferences(first: 100, after: $cursor) {
                 pageInfo { hasNextPage endCursor }
-                nodes { number state }
+                nodes { number state repository { nameWithOwner } }
             }
         }
     }
@@ -209,14 +209,16 @@ def _inside_code_span(text: str, position: int) -> bool:
 
 def _resolve_closing_refs(
     pr_closing_nodes: list[dict[str, Any]],
-) -> dict[int, str]:
-    """Build a map from issue number to state from GraphQL closingIssuesReferences."""
-    result: dict[int, str] = {}
+) -> dict[tuple[str, str, int], str]:
+    """Build an owner, repository, and issue state map from closing references."""
+    result: dict[tuple[str, str, int], str] = {}
     for node in pr_closing_nodes:
         num = node.get("number")
         state = node.get("state", "")
-        if num is not None:
-            result[int(num)] = state
+        name_with_owner = (node.get("repository") or {}).get("nameWithOwner", "")
+        if num is not None and "/" in name_with_owner:
+            target_owner, target_repo = name_with_owner.split("/", 1)
+            result[(target_owner.casefold(), target_repo.casefold(), int(num))] = state
     return result
 
 
@@ -224,7 +226,7 @@ def extract_claims(
     pr_number: int,
     body: str,
     base_branch: str,
-    closing_refs: dict[int, str],
+    closing_refs: dict[tuple[str, str, int], str],
     owner: str,
     repo: str,
     default_branch: str = "main",
@@ -242,8 +244,13 @@ def extract_claims(
         context_cls = classify_claim(body, m, fenced_positions, html_positions)
         target_owner = m.group("owner") or owner
         target_repo_name = m.group("repo2") or repo
+        target_key = (
+            target_owner.casefold(),
+            target_repo_name.casefold(),
+            target_num,
+        )
 
-        target_state = closing_refs.get(target_num, "unknown")
+        target_state = closing_refs.get(target_key, "unknown")
 
         claims.append({
             "pr_number": pr_number,
@@ -257,6 +264,7 @@ def extract_claims(
             "github_will_close": (
                 context_cls == "active"
                 and base_branch == default_branch
+                and target_key in closing_refs
             ),
         })
     return claims
