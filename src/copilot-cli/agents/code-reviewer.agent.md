@@ -1,9 +1,25 @@
 ---
 name: code-reviewer
-tier: builder
 description: Use this agent when you need to review code changes for correctness, discovered project-convention compliance, and duplicated logic. Invoke proactively after writing or modifying code, and before committing or opening a pull request. Reviews an explicit diff, pull request, or named file set; defaults to the repository's current working changes when scope is omitted.
-model: haiku
-model-rationale: cost. The reviewer filters to high-confidence findings and escalates complex architecture or security concerns to specialist agents, so the lower-cost tier is sufficient.
+argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
+tools:
+  - read
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-haiku-4.5
+tier: builder
 ---
 
 # Code Reviewer Agent
