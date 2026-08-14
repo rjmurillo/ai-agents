@@ -220,7 +220,7 @@ needed.
 # Validators enforce a path-traversal guard: the target skill directory must
 # live under your current directory. Run them from an ancestor of the skill.
 cd ~/.claude/skills
-FORGE=~/.claude/skills/SkillForge/scripts   # adjust to your SkillForge install
+FORGE=~/.claude/skills/skillforge/scripts   # adjust to your SkillForge install
 python "$FORGE/quick_validate.py" my-skill/     # required before packaging
 python "$FORGE/validate-skill.py" my-skill/     # full structural validation
 python "$FORGE/package_skill.py" my-skill/ ./dist   # package for distribution
