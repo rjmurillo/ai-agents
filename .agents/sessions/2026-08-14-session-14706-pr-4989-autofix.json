@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/4965-existing-pr-preflight-detached-head",
+    "startingCommit": "01106baad0b52fb465a0411e814519789be11d32",
+    "objective": "Run full pr-autofix for PR 4989, repair required Validate PR failures from full logs, validate in an external worktree, and merge only if every readiness condition passes."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this audit log in the isolated /tmp/ai-agents-pr-4989 worktree when CI required QA evidence."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "External detached worktree verified at PR head 01106baad0b52fb465a0411e814519789be11d32 for branch fix/4965-existing-pr-preflight-detached-head."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All repository work occurred in /tmp/ai-agents-pr-4989 at the PR head, never in the shared main checkout."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Resolved and used project-toolkit GitHub PR scripts for live-state, context, checks, logs, readiness, completion, and merge operations."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded and read the Serena instructions manual during the autofix session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved it as read-only."
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP server loaded successfully for this repository session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the repository usage-mandatory memory and relevant injected CI/PR corrections."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and followed the pr-autofix skill protocol."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The PR-body validation defect was corrected and the changed code was independently revalidated."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-4989-autofix-qa.md"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "At code commit b233de83a76c226c03ece12dc0ff1767da1611e8, 44 targeted tests, Ruff, taste ratchet, and full pre-PR validation passed in the external worktree."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code fix committed as b233de83a76c226c03ece12dc0ff1767da1611e8; the following evidence commit contains only .agents/qa and .agents/sessions artifacts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "From /tmp, ran markdownlint-cli2 on the absolute QA report path with a temporary config containing the repository rules but no .agents exclusion; 1 Markdown file examined, 0 errors."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable repository behavior was discovered beyond existing pr-autofix and QA-gate documentation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but not modified."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fetched full Validate PR logs",
+      "result": "The original required failure was a closing keyword inside an inline code span in the PR body."
+    },
+    {
+      "action": "Corrected the PR body and reran the failed workflow",
+      "result": "PR-description validation passed; the rerun exposed the next required failure: no QA report for code changes."
+    },
+    {
+      "action": "Validated the implementation from the exact PR head in an external worktree",
+      "result": "uv run --frozen python -m pytest tests/test_issue_coordination.py completed with 44 passed."
+    }
+  ],
+  "endingCommit": "b233de83a76c226c03ece12dc0ff1767da1611e8",
+  "nextSteps": [],
+  "developmentPhase": {
+    "current": "completion"
+  }
+}
