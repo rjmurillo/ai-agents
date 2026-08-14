@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit eb73b083d46fb762a10af3d042340b39fb0215e1; evidence committed separately"
+        "Evidence": "Validated merge commit a5639f5ba04e4ffd3d438238fcf1c7e2e4b614b7; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,9 +138,13 @@
     {
       "action": "Addressed two active suppressed Copilot review findings.",
       "outcome": "Restored TestValidateSessionStart and clarified that real-timezone end-to-end tests cover agreement while controlled-instant unit tests prove host-date authority."
+    },
+    {
+      "action": "Merged current origin/main and resolved the session identity collision.",
+      "outcome": "Preserved main session 14706 unchanged, renumbered this PR session to 14707, and passed 382 focused tests plus session validation after the merge."
     }
   ],
-  "endingCommit": "eb73b083d46fb762a10af3d042340b39fb0215e1",
+  "endingCommit": "a5639f5ba04e4ffd3d438238fcf1c7e2e4b614b7",
   "nextSteps": [
     "Commit and push QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",

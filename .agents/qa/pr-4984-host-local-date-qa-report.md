@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: eb73b083d46fb762a10af3d042340b39fb0215e1
+qaCommit: a5639f5ba04e4ffd3d438238fcf1c7e2e4b614b7
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -27,6 +27,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Independent QA agent | 69 targeted tests passed; no blocking functional gap |
 | Completion-gate review fixes | 382 focused tests passed; Ruff passed |
 | Review-finding disposition | Restored test class boundary and narrowed end-to-end claims to agreement |
+| Main synchronization | Merge conflict resolved by preserving main session 14706 and renumbering PR evidence to 14707 |
 
 ## Verdict
 
