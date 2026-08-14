@@ -37,13 +37,16 @@ registration contract documentation.
 - The repository settings command denies under Claude and exits without
   reading stdin under Copilot.
 
-## Branch-Wide Advisory
+## Branch-Wide Validation
 
-Full pre-PR validation passed 49 of 51 gates. Its count ratchet reports
-branch-existing Ruff debt against the current `origin/main`, and its Windows
-Markdown subprocess cannot launch `npx.cmd` directly. The exact pinned
-Markdown linter passed through a local executable launcher. Scoped Ruff and
-mypy report no issues in changed Python files.
+Full Windows pre-PR validation passed 49 of 51 gates before the earlier
+session reports were rebound. The Windows merge-tree scratch represented the
+tracked `memory_enhancement` symlink as a regular file, which changed Ruff's
+import classification and produced 15 synthetic `I001` findings. The exact
+merge-tree gate passed in the symlink-capable WSL clone with Ruff at 27 of 27
+and all other registered ratchets below their ceilings. All four PR session
+logs then passed validation. Scoped Ruff and mypy report no issues in changed
+Python files.
 
 ## Verdict
 

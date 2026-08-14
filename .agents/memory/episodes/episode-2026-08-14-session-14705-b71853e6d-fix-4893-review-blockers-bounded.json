@@ -106,12 +106,38 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T04:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the guarded Windows push with all hooks enabled",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T04:14:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed prior QA bindings and repeated cross-platform validation",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
     }
   ],
   "metrics": {
-    "duration_minutes": 62,
+    "duration_minutes": 139,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
