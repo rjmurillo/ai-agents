@@ -37,10 +37,12 @@ hard safety boundary and is never replaced or relaxed by this module.
 
 Exit codes (within the ADR-035 range, matching `check_pr_live_state.py`'s
 ACT/SKIP convention):
-    0 - ACT: caller may proceed (lease acquired, renewed, released, or
-        fail-open on an auth or store-write error per ADR-076 part 3 step 6)
+    0 - ACT: caller may proceed. Returned on a clean acquire or self-renew,
+        a release, or one of the three fail-open paths enumerated in the
+        "Fail-open vs fail-closed" section below.
     1 - SKIP: another live lease holds the branch, OR the ownership read
-        could not reach the store (fail-closed; ADR-090, issue #4966)
+        could not reach the store (fail-closed; issue #4966, narrowing
+        ADR-076 part 3 step 6)
     2 - PR not found / usage error
     3 - External error (API failure). For ``acquire`` / ``status`` / a
         tokenless ``renew`` this is remapped to exit 1 (SKIP): an
@@ -81,6 +83,17 @@ returned only when this session provably holds the branch. Fail-open
 survives only where relinquishing or extending-a-confirmed-hold cannot
 create a race.
 
+Record reconciliation. This narrows ADR-076 part 3 step 6, whose accepted
+text still reads "Fail open ... return ACT with reason
+lease-store-unavailable" for the read/write path. Issue #4966 (P0)
+authorizes the narrowing: a blanket fail-open lets two sessions race one
+branch. ADR-090 (proposed, issue #3413) formalizes the fail-closed
+direction but is not yet accepted or implemented, so issue #4966 is the
+operative authority here, not ADR-090. This module also does not adopt
+ADR-090's distinct exit-3/4 table; store and auth failures are remapped to
+SKIP (exit 1), this tool's native "do not mutate" verdict, which is stricter
+than and consistent with ADR-090's "must not mutate" intent.
+
 * Any store failure that leaves ownership UNVERIFIABLE fails CLOSED to
   SKIP (exit 1) with reason ``lease-store-unavailable``. This covers a
   ``status`` read, a fresh ``acquire``'s first read, a fresh acquire's
@@ -89,7 +102,7 @@ create a race.
   proceed), an unresolved login, and auth/transport failure (exit 3/4)
   for ``acquire`` / ``status`` / a tokenless ``renew``. An unreadable
   store leaves ownership unknown, and a gate that cannot determine
-  ownership must not act on the branch (ADR-090; issue #4966;
+  ownership must not act on the branch (issue #4966;
   ``.claude/rules/security.md`` MUST-7, "infrastructure failure is not a
   security pass"). Reporting ACT here told every concurrent session the
   branch was free at the one moment none of them could tell.
@@ -941,7 +954,7 @@ def acquire(
     claim that was published AND confirmed as the latest live marker, or a
     self-renewal of a lease the read confirmed this session already holds.
     Every store failure that leaves ownership unverifiable returns
-    SKIP/``lease-store-unavailable`` (ADR-090; issue #4966). The failure
+    SKIP/``lease-store-unavailable`` (issue #4966). The failure
     verdicts are:
 
     - First store READ fails: a fresh acquire SKIPs (no prior ownership).
@@ -989,7 +1002,7 @@ def acquire(
         # user`), so this session cannot verify its own identity against the
         # authoritative lease. A fresh acquire fails CLOSED to SKIP: it cannot
         # tell a free branch from one it holds, and a gate that cannot
-        # determine ownership must not mutate (ADR-090; issue #4966). A renew
+        # determine ownership must not mutate (issue #4966). A renew
         # may still fail OPEN, but only against a durable ownership token this
         # session wrote at acquire time, never on the command name alone
         # (issue #4966 HIGH; the `renew --session never-acquired` repro).
@@ -1021,7 +1034,7 @@ def acquire(
         # Fail closed: a fresh acquire (or a renew with no ownership token) has
         # no prior ownership evidence, so an unreadable store leaves ownership
         # unknown. A gate that cannot determine ownership must not mutate the
-        # branch (ADR-090; issue #4966), so SKIP rather than blindly claim a
+        # branch (issue #4966), so SKIP rather than blindly claim a
         # branch a foreign live lease may already hold.
         logger.warning("op=lease_acquire_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
         return LeaseResult("SKIP", "lease-store-unavailable")
@@ -1187,7 +1200,7 @@ def status(repo_owner: str, repo: str, pr: int, now: datetime | None = None) -> 
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
         # Fail closed: an unreadable store leaves ownership unknown, and the
-        # safe reading of unknown is decline (issue #4966; ADR-090).
+        # safe reading of unknown is decline (issue #4966).
         # Reporting ACT here told concurrent sessions the branch was free at
         # the one moment none of them could tell.
         logger.warning("op=lease_status_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
@@ -1290,7 +1303,7 @@ def _handle_unreachable_auth(args: argparse.Namespace, code: int, output_format:
     3 on a transport failure. Neither can reach the store, so neither can
     verify branch ownership. For ``acquire`` and ``status`` that means SKIP:
     an ownership gate that cannot read the store must not authorize a mutation
-    (ADR-090; issue #4966 CRITICAL; ``.claude/rules/security.md`` MUST-7,
+    (issue #4966 CRITICAL; ``.claude/rules/security.md`` MUST-7,
     "infrastructure failure is not a security pass"). ``release`` still fails
     open to ACT because a missed tombstone is covered by TTL expiry.
     ``renew`` fails open ONLY when a durable ownership token proves this
