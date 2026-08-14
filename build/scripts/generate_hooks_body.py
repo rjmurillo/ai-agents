@@ -128,10 +128,10 @@ def _handler_exits_with(handler: _ast.ExceptHandler, exit_code: int) -> bool:
 
 
 def _is_broad_except(handler: _ast.ExceptHandler) -> bool:
-    """Return True when *handler* catches ``Exception``, ``BaseException``, or is bare."""
+    """Return True when *handler* catches ``Exception`` (matching the generated trailer)."""
     if handler.type is None:
         return True
-    if isinstance(handler.type, _ast.Name) and handler.type.id in ("Exception", "BaseException"):
+    if isinstance(handler.type, _ast.Name) and handler.type.id == "Exception":
         return True
     return False
 

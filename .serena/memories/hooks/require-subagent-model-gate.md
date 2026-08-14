@@ -15,10 +15,11 @@ Copilot repo surface `.github/hooks/require-subagent-model.json` (native
 - Copilot `task` args carry `agent_type` AND optional `model` (observed in a
   real session log, CLI 1.0.79, 2026-08-06, `~/.copilot/session-state/*/events.jsonl`
   `toolRequests`). Claude's `Agent` tool uses `subagent_type` and `model`.
-- Copilot CLI also reads repo `.claude/settings.json` hook blocks cross-tool,
-  so the repository PreToolUse entry passes `--claude-settings-only`. That
-  invocation exits before reading stdin when `COPILOT_CLI` is set. Plugin and
-  `.github/hooks` invocations omit the flag and continue to enforce Copilot.
+- Claude Code enforcement runs through the installed plugin dispatcher
+  (`.claude/hooks/hooks.json`, group `plugin-pretooluse-10-require_subagent_model`).
+  Copilot enforcement runs through the native `.github/hooks` registration.
+  There is no `.claude/settings.json` PreToolUse entry; the parity test
+  explicitly requires the twin to remain absent.
 - Read stdin through 2 MiB plus one byte. Parse complete bounded payloads and
   deny overflow. A smaller read can truncate valid JSON and reach the
   malformed-input fail-open path.

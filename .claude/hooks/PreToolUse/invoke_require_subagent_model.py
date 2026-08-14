@@ -46,7 +46,6 @@ _MAX_STDIN_BYTES = 2 * 1024 * 1024
 _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
 _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
 _COPILOT_CLI_ENV = "COPILOT_CLI"
-_CLAUDE_SETTINGS_ONLY_ARG = "--claude-settings-only"
 _EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
 _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"})
 _UNQUOTED_MODEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9._ /()+-]*")
@@ -260,11 +259,6 @@ def _project_root(payload: dict[str, object]) -> Path:
 
 
 def main() -> int:
-    if (
-        _CLAUDE_SETTINGS_ONLY_ARG in sys.argv[1:]
-        and os.environ.get(_COPILOT_CLI_ENV)
-    ):
-        return 0
     try:
         payload = _read_payload()
     except OverflowError as exc:
