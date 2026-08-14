@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena",
+  "session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Complete PR 4956 follow-up and split Serena memory",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T03:30:00+00:00",
+      "type": "milestone",
+      "content": "Reacquired PR 4956 and reviewed the four suppressed completion-gate findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T04:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserved and removed the unrelated Serena changes.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T04:20:00+00:00",
+      "type": "milestone",
+      "content": "Fixed portable citations and added a regression assertion.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T04:31:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed completion evidence.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T04:23:51+00:00",
+      "type": "commit",
+      "content": "Commit: b985c58bae",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T04:27:09+00:00",
+      "type": "commit",
+      "content": "Commit: c636b5b31559667b7bf0434421664e60d7192d7f",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 61,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}

@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code.json
-qaCommit: ae98831ce6abdfca896296252b6a2263261c940f
+qaCommit: c636b5b31559667b7bf0434421664e60d7192d7f
 ---
 
 # PR 4956 exit-code documentation validation
 
 ## Result
 
-PASS. The canonical documentation, generated mirrors, and executable behavior
-agree on exit codes 0, 1, 2, 3, and 10.
+PASS. The canonical documentation, portable generated mirror, and executable
+behavior agree on exit codes 0, 1, 2, 3, and 10.
 
 ## Evidence
 
@@ -20,6 +20,7 @@ agree on exit codes 0, 1, 2, 3, and 10.
   - exit 3 for a Git object database failure
   - exit 10 for an unresolved symbol finding
   - exact agreement between the canonical module contract and skill docs
+  - the plugin-relative `scripts/doc_accuracy.py` source citation
 - `uv run ruff check .claude/skills/doc-accuracy/scripts/doc_accuracy.py
   tests/skills/doc-accuracy/test_doc_accuracy.py` exited 0.
 - `uv run python .claude/skills/SkillForge/scripts/quick_validate.py

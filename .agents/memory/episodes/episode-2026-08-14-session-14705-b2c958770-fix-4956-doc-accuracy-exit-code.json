@@ -39,7 +39,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
     },
     {
@@ -54,15 +56,52 @@
         "e003"
       ],
       "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T04:30:00+00:00",
+      "type": "milestone",
+      "content": "Applied completion-gate follow-up",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T04:23:51+00:00",
+      "type": "commit",
+      "content": "Commit: b985c58bae",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T04:27:09+00:00",
+      "type": "commit",
+      "content": "Commit: c636b5b31559667b7bf0434421664e60d7192d7f",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
     }
   ],
   "metrics": {
-    "duration_minutes": 92,
+    "duration_minutes": 184,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 16
   },
   "lessons": []
 }
