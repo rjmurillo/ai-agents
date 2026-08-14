@@ -9,7 +9,7 @@ license: MIT
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
-of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-11. Each
+of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-14. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
 abuse story or a guard. Before you set any of these, read its row. The house
 rule (learned in session 1187, see the Removed Flags section): escape hatches

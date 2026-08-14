@@ -501,58 +501,16 @@ class TestRegistrations:
         assert group["surface"] == "plugin"
         assert group["shims"][0]["file"] == "PreToolUse/invoke_require_subagent_model.py"
         assert group["shims"][0]["copilotMatcher"] == "^(Agent|Task)$"
-    @staticmethod
-    def _settings_hook_entry() -> dict[str, object]:
+    def test_no_settings_json_pretooluse_twin(self):
+        """ADR-085 forbids a settings.json twin for plugin gates."""
         settings = json.loads(
             (REPO_ROOT / ".claude/settings.json").read_text(encoding="utf-8")
         )
-        matching = [
-            hook
-            for group in settings["hooks"]["PreToolUse"]
-            for hook in group["hooks"]
-            if group.get("matcher") == "Agent|Task"
-            and "invoke_require_subagent_model.py" in hook["command"]
-        ]
-        assert len(matching) == 1
-        return matching[0]
-
-    @staticmethod
-    def _run_settings_command(
-        entry: dict[str, object],
-        payload: dict[str, object],
-        home: Path,
-        *,
-        copilot: bool,
-    ) -> subprocess.CompletedProcess[str]:
-        command = str(entry["command"])
-        argv = shlex.split(command)
-        argv[0] = sys.executable
-        env = os.environ.copy()
-        env.update({"HOME": str(home), "USERPROFILE": str(home)})
-        env.pop("COPILOT_CLI", None)
-        if copilot:
-            env["COPILOT_CLI"] = "1"
-        return subprocess.run(
-            argv,
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=REPO_ROOT,
-            env=env,
-            timeout=30,
+        assert "PreToolUse" not in settings.get("hooks", {}), (
+            "settings.json must not register a PreToolUse twin; "
+            "the plugin dispatcher handles this gate (ADR-085)"
         )
 
-    def test_repo_settings_gate_runs_only_for_claude_code(self, tmp_path):
-        entry = self._settings_hook_entry()
-        payload = _claude_payload(tmp_path, subagent_type="general-purpose")
-
-        claude = self._run_settings_command(entry, payload, tmp_path, copilot=False)
-        copilot = self._run_settings_command(entry, payload, tmp_path, copilot=True)
-
-        assert "--claude-settings-only" in entry["command"]
-        assert claude.returncode == 2
-        assert copilot.returncode == 0
     def test_plugin_hooks_json_registered(self):
         plugin_hooks = json.loads(
             (REPO_ROOT / ".claude/hooks/hooks.json").read_text(encoding="utf-8")

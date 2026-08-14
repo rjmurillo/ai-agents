@@ -624,15 +624,11 @@ def _original_main(stdin_bytes):
 
 
     def main() -> int:
-        if _CLAUDE_SETTINGS_ONLY_ARG in sys.argv[1:]:
-            # Under Copilot the dedicated shim handles enforcement.
-            if os.environ.get(_COPILOT_CLI_ENV):
-                return 0
-            # When the project-toolkit plugin is installed, the dispatcher
-            # fires this gate via hooks.json (gate-mode skips self-host bail).
-            # Bail here to avoid the double-fire ADR-085 forbids.
-            if os.environ.get("CLAUDE_PLUGIN_ROOT"):
-                return 0
+        if (
+            _CLAUDE_SETTINGS_ONLY_ARG in sys.argv[1:]
+            and os.environ.get(_COPILOT_CLI_ENV)
+        ):
+            return 0
         try:
             payload = _read_payload()
         except OverflowError as exc:

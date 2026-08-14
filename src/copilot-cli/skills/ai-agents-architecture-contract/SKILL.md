@@ -75,7 +75,7 @@ parity twins:
 
 | Surface | File | Registered (re-verified 2026-08-14) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 8 groups |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 7 groups |
 | Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 4 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
@@ -162,7 +162,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: local settings print `6 8`, vendored source prints `2 4`, and generated Copilot config prints `2 2`
+- [ ] Confirmed event counts still match: local settings print `5 7`, vendored source prints `2 4`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 
