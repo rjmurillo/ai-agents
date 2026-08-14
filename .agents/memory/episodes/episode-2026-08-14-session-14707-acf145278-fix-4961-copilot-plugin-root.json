@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root",
+  "session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix merge-resolver COPILOT_PLUGIN_ROOT resolution (issue 4961)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T20:05:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4961 discourse and the closed precedent issue 4270, then checked for an existing PR",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T20:20:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the defect against the shipped script",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T20:35:00+00:00",
+      "type": "milestone",
+      "content": "Mirrored the canonical fallthrough resolver from cluster_threads.py and the github_core validation from claim_issue.py",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T20:50:00+00:00",
+      "type": "milestone",
+      "content": "Added 12 tests in the CI-collected location tests/skills/merge-resolver/test_resolve_lib_dir.py",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T21:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a four-mutant sweep with an inverted control",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T21:40:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push gates rejected the branch: merge-tree conflict and a session-number collision with session 14706 landed on main",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T22:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the gates on the rebased tree",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T21:34:11+00:00",
+      "type": "commit",
+      "content": "Commit: acf14527853378f89d27f63c2474b8d1df3d58ea",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 115,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

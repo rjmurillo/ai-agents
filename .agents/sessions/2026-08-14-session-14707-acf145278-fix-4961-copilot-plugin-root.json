@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14707,
+    "date": "2026-08-14",
+    "branch": "fix/4961-merge-resolver-copilot-plugin-root",
+    "startingCommit": "4ecc1fdf3",
+    "objective": "Fix merge-resolver COPILOT_PLUGIN_ROOT resolution (issue 4961)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available and used (read_memory usage-mandatory)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions read this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read before work; left unmodified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created by .claude/skills/session-init/scripts/new_session_log_json.py and renamed off a collision with session 14706 on origin/main."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub issue skill scripts listed; used check_existing_pr_for_issue.py and claim_issue.py instead of raw gh."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read in full; .claude/rules/canonical-source-mirror.md, testing.md, and plugin-self-containment.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory read via Serena; ADR titles enumerated from .agents/architecture/."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4961-merge-resolver-copilot-plugin-root"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4961-merge-resolver-copilot-plugin-root"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree /home/richard/src/GitHub/rjmurillo/ai-agents-worktrees/issue-4961 created from origin/main; status clean at start, rebased onto 4ecc1fdf3 before push."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4ecc1fdf3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable cross-session fact: the plugin-root fallthrough precedent is already recorded by issue 4270 and cluster_threads.py; session decisions captured here and in the QA report."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 over the repo: 0 issues in 1116 files."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4961-session-14707-test-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix and tests committed as acf145278 on fix/4961-merge-resolver-copilot-plugin-root."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py: 51 validations passed; ruff clean on changed paths; portability 160/160; taste ratchet 581 <= 583."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4961 claimed via claim_issue.py; PR opened referencing Fixes #4961."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-defect fix with a documented precedent (issue 4270); no retrospective triggered."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T20:05:00Z",
+      "action": "Read issue 4961 discourse and the closed precedent issue 4270, then checked for an existing PR",
+      "result": "check_existing_pr_for_issue.py reported existing_pr_count 0; claim_issue.py claimed 4961 for rjmurillo."
+    },
+    {
+      "timestamp": "2026-08-14T20:20:00Z",
+      "action": "Reproduced the defect against the shipped script",
+      "result": "A foreign CLAUDE_PLUGIN_ROOT with a valid COPILOT_PLUGIN_ROOT exited 2 ('Plugin lib directory not found'), or exited 1 with ModuleNotFoundError when the foreign root shipped its own lib."
+    },
+    {
+      "timestamp": "2026-08-14T20:35:00Z",
+      "action": "Mirrored the canonical fallthrough resolver from cluster_threads.py and the github_core validation from claim_issue.py",
+      "result": "resolve_pr_conflicts.py gained _lib_dir_candidates and _resolve_lib_dir; docstrings quote both canonical sources verbatim and name three divergences."
+    },
+    {
+      "timestamp": "2026-08-14T20:50:00Z",
+      "action": "Added 12 tests in the CI-collected location tests/skills/merge-resolver/test_resolve_lib_dir.py",
+      "result": "Copilot, Claude, foreign-root fallthrough, foreign lib without github_core, workspace, relative fallback, exit-2 message, plus two subprocess CLI cases."
+    },
+    {
+      "timestamp": "2026-08-14T21:00:00Z",
+      "action": "Ran a four-mutant sweep with an inverted control",
+      "result": "M1 claude-before-copilot DEAD, M2 accept-any-existing-lib DEAD, M3 first-candidate-only DEAD, M4 docstring reword SURVIVED; mutants=4 unexpected=0."
+    },
+    {
+      "timestamp": "2026-08-14T21:40:00Z",
+      "action": "Pre-push gates rejected the branch: merge-tree conflict and a session-number collision with session 14706 landed on main",
+      "result": "Rebased onto 4ecc1fdf3, renumbered this log to 14707, and added the machine-readable QA report the session validator requires."
+    },
+    {
+      "timestamp": "2026-08-14T22:00:00Z",
+      "action": "Re-ran the gates on the rebased tree",
+      "result": "89 focused tests pass, mutation sweep unchanged (4 mutants, 0 unexpected), pre_pr.py 51 validations pass."
+    }
+  ],
+  "endingCommit": "acf14527853378f89d27f63c2474b8d1df3d58ea",
+  "nextSteps": [
+    "Watch CI on the PR for the merge-resolver skill tests.",
+    "Consider a follow-up issue: other skill scripts still collapse COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with 'or', which shadows a valid root when the first is set but foreign."
+  ]
+}
