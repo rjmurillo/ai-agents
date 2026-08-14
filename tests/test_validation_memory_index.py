@@ -1929,6 +1929,64 @@ class TestFormatMarkdown:
         md = format_markdown(report)
         assert "## Domain: test" in md
 
+    def test_reports_missing_file_issues(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha bravo charlie | test-absent |\n"
+            ),
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        md = format_markdown(report)
+        assert "### File Issues" in md
+        assert "- Missing file: test-absent.md" in md
+
+    def test_reports_orphaned_files(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha bravo charlie | test-skill |\n"
+            ),
+            "test-skill.md": "c",
+            "test-stray.md": "c",
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        md = format_markdown(report)
+        assert "## Orphaned Files" in md
+        assert "- test-stray - add to skills-test-index.md" in md
+
+    def test_reports_malformed_frontmatter(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha bravo charlie | test-skill |\n"
+            ),
+            "test-skill.md": _MALFORMED_FRONTMATTER,
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        md = format_markdown(report)
+        assert "## Malformed Frontmatter" in md
+        assert "- Malformed YAML frontmatter: test-skill.md" in md
+
+    def test_omits_sections_with_nothing_to_report(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha bravo charlie delta echo | test-skill |\n"
+            ),
+            "test-skill.md": "c",
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        md = format_markdown(report)
+        assert "### File Issues" not in md
+        assert "## Orphaned Files" not in md
+        assert "## Naming Convention Violations" not in md
+        assert "## Malformed Frontmatter" not in md
+
 
 class TestFormatJson:
     """Tests for JSON output format."""

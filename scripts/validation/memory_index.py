@@ -35,6 +35,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -1499,6 +1500,44 @@ def run_validation(
 # ---------------------------------------------------------------------------
 
 
+def _bullet_section(heading: str, items: Iterable[str]) -> list[str]:
+    """Render a heading over a bullet list, or nothing when there are no items.
+
+    Every optional section of the report has the same shape, and inlining that
+    shape five times is what pushed ``format_markdown`` past the complexity
+    ceiling the taste ratchet enforces.
+    """
+    bullets = [f"- {item}" for item in items]
+    if not bullets:
+        return []
+    return [heading, "", *bullets, ""]
+
+
+def _domain_section(domain: str, result: DomainResult) -> list[str]:
+    """Render one domain's status, file issues, and keyword uniqueness table."""
+    lines = [
+        f"## Domain: {domain}",
+        "",
+        f"**Status**: {'PASS' if result.passed else 'FAIL'}",
+        "",
+    ]
+    lines.extend(_bullet_section("### File Issues", result.file_references.issues))
+
+    densities = result.keyword_density.densities
+    if densities:
+        lines.append("### Keyword Uniqueness")
+        lines.append("")
+        lines.append("| File | Uniqueness |")
+        lines.append("|------|------------|")
+        for file_name, density in densities.items():
+            pct = round(density * 100)
+            status = "OK" if density >= 0.40 else "LOW"
+            lines.append(f"| {file_name} | {pct}% ({status}) |")
+        lines.append("")
+
+    return lines
+
+
 def format_markdown(report: ValidationReport) -> str:
     """Format validation report as markdown."""
     lines: list[str] = [
@@ -1521,50 +1560,29 @@ def format_markdown(report: ValidationReport) -> str:
     ]
 
     for domain, result in report.domain_results.items():
-        lines.append(f"## Domain: {domain}")
-        lines.append("")
-        lines.append(f"**Status**: {'PASS' if result.passed else 'FAIL'}")
-        lines.append("")
+        lines.extend(_domain_section(domain, result))
 
-        if result.file_references.issues:
-            lines.append("### File Issues")
-            for issue in result.file_references.issues:
-                lines.append(f"- {issue}")
-            lines.append("")
-
-        if result.keyword_density.densities:
-            lines.append("### Keyword Uniqueness")
-            lines.append("")
-            lines.append("| File | Uniqueness |")
-            lines.append("|------|------------|")
-            for file_name, density in result.keyword_density.densities.items():
-                pct = round(density * 100)
-                status = "OK" if density >= 0.40 else "LOW"
-                lines.append(f"| {file_name} | {pct}% ({status}) |")
-            lines.append("")
-
-    if report.orphans:
-        lines.append("## Orphaned Files")
-        lines.append("")
-        for orphan in report.orphans:
-            lines.append(
-                f"- {orphan.file} - add to {orphan.expected_index}"
-            )
-        lines.append("")
-
-    if report.naming_convention and report.naming_convention.violations:
-        lines.append("## Naming Convention Violations")
-        lines.append("")
-        for v in report.naming_convention.violations:
-            lines.append(f"- {v}")
-        lines.append("")
-
-    if report.frontmatter_validity and report.frontmatter_validity.issues:
-        lines.append("## Malformed Frontmatter")
-        lines.append("")
-        for issue in report.frontmatter_validity.issues:
-            lines.append(f"- {issue}")
-        lines.append("")
+    lines.extend(
+        _bullet_section(
+            "## Orphaned Files",
+            (
+                f"{orphan.file} - add to {orphan.expected_index}"
+                for orphan in report.orphans
+            ),
+        )
+    )
+    lines.extend(
+        _bullet_section(
+            "## Naming Convention Violations",
+            report.naming_convention.violations if report.naming_convention else [],
+        )
+    )
+    lines.extend(
+        _bullet_section(
+            "## Malformed Frontmatter",
+            report.frontmatter_validity.issues if report.frontmatter_validity else [],
+        )
+    )
 
     return "\n".join(lines)
 
