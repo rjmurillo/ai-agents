@@ -145,7 +145,7 @@
     },
     {
       "action": "Verified the tests detect the defect by reverting the isolation and re-running",
-      "outcome": "8 of 17 failed with isolation removed, including the guard on both modules; all 17 pass with it restored"
+      "outcome": "8 failed out of 17 with isolation removed, including the guard on both modules; all 17 pass with it restored"
     },
     {
       "action": "Reproduced the issue's exact failure end to end via ruff_count_ratchet.current_count(<scratch>)",
