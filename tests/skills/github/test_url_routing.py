@@ -17,6 +17,7 @@ SCRIPT_PATH = (
     / "scripts"
     / "test_url_routing.py"
 )
+PLUGIN_ROOT_EXPR = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 
 
 def _load_module():
@@ -35,51 +36,83 @@ def _run(url: str, capsys: pytest.CaptureFixture[str]) -> tuple[int, dict]:
 
 
 @pytest.mark.parametrize(
-    ("url", "method", "command_snippet"),
+    ("url", "method", "command"),
     [
         (
             "https://github.com/rjmurillo/ai-agents/pull/123",
             "Script",
-            'get_pr_context.py" --pull-request "123"',
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
+            '--pull-request "123" --owner "rjmurillo" --repo "ai-agents"',
         ),
         (
             "https://github.com/rjmurillo/ai-agents/pull/123/checks",
             "Script",
-            'get_pr_checks.py" --pull-request "123"',
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_checks.py" '
+            '--pull-request "123" --owner "rjmurillo" --repo "ai-agents"',
         ),
         (
-            "https://github.com/rjmurillo/ai-agents/pull/123/files#r456",
-            "GhApi",
-            "pulls/comments/456",
+            "https://github.com/rjmurillo/ai-agents/pull/123/files",
+            "Script",
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
+            '--pull-request "123" --owner "rjmurillo" --repo "ai-agents" '
+            "--include-changed-files",
         ),
         (
-            "https://github.com/rjmurillo/ai-agents/issues/456#issuecomment-789",
-            "GhApi",
-            "issues/comments/789",
+            "https://github.com/rjmurillo/ai-agents/pull/123/changes",
+            "Script",
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
+            '--pull-request "123" --owner "rjmurillo" --repo "ai-agents" --include-diff',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123/commits",
+            "Script",
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
+            '--pull-request "123" --owner "rjmurillo" --repo "ai-agents"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/issues/456",
+            "Script",
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/issue/get_issue_context.py" '
+            '--issue "456" --owner "rjmurillo" --repo "ai-agents"',
         ),
         (
             "https://github.com/rjmurillo/ai-agents/discussions/789",
             "GhApi",
-            "discussions/789",
+            'gh api "repos/rjmurillo/ai-agents/discussions/789"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/actions/runs/123",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/actions/runs/123"',
         ),
         (
             "https://github.com/rjmurillo/ai-agents/actions/runs/123/job/456",
             "GhApi",
-            "actions/jobs/456",
+            'gh api "repos/rjmurillo/ai-agents/actions/jobs/456"',
         ),
         (
             "https://github.com/rjmurillo/ai-agents/commit/abc1234",
             "GhApi",
-            "commits/abc1234",
+            'gh api "repos/rjmurillo/ai-agents/commits/abc1234"',
         ),
         (
             "https://github.com/rjmurillo/ai-agents/compare/main...feature",
             "GhApi",
-            "compare/main...feature",
+            'gh api "repos/rjmurillo/ai-agents/compare/main...feature"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/blob/main/src/app.py",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/contents/src/app.py?ref=main"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/tree/main/src",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/contents/src?ref=main"',
         ),
     ],
 )
-def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: str, command_snippet: str) -> None:
+def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: str, command: str) -> None:
     module = _load_module()
     rc = module.main(["--url", url])
     output = json.loads(capsys.readouterr().out)
@@ -87,7 +120,43 @@ def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: s
     assert rc == 0
     assert output["success"] is True
     assert output["recommended_route"]["method"] == method
-    assert command_snippet in output["recommended_route"]["command"]
+    assert output["recommended_route"]["command"] == command
+
+
+@pytest.mark.parametrize(
+    ("url", "method", "command"),
+    [
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123#pullrequestreview-456789",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/pulls/123/reviews/456789"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123/files#r456",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/pulls/comments/456"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123/changes#r456",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/pulls/comments/456"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/issues/456#issuecomment-789123456",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/issues/comments/789123456"',
+        ),
+    ],
+)
+def test_fragment_routes_success(capsys: pytest.CaptureFixture[str], url: str, method: str, command: str) -> None:
+    module = _load_module()
+    rc = module.main(["--url", url])
+    output = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert output["success"] is True
+    assert output["recommended_route"]["method"] == method
+    assert output["recommended_route"]["command"] == command
 
 
 @pytest.mark.parametrize(
@@ -98,6 +167,17 @@ def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: s
         "https://github.com/rjmurillo/ai-agents/commit/abcxyz",
         "https://github.com/rjmurillo/ai-agents/pull/123/checks/extra",
         "https://github.com/rjmurillo/ai-agents/actions/runs/123/job/456/extra",
+        "https://github.com/rjmurillo/ai-agents/pull/123/checks#r456",
+        "https://github.com/rjmurillo/ai-agents/pull/123#discussion_r987654321",
+        "https://github.com/rjmurillo/ai-agents/pull/123#issuecomment-123456789",
+        "https://github.com/rjmurillo/ai-agents/pull/123/files#issuecomment-789",
+        "https://github.com/rjmurillo/ai-agents/pull/123/changes#issuecomment-789",
+        "https://github.com/rjmurillo/ai-agents/issues/456#discussion_r123",
+        "https://github.com/rjmurillo/ai-agents/discussions/789#issuecomment-123",
+        "https://github.com/rjmurillo/ai-agents/actions/runs/123#issuecomment-123",
+        "https://github.com/rjmurillo/ai-agents/blob/main/src/app.py#r123",
+        "https://github.com/rjmurillo/ai-agents/tree/main/src#issuecomment-123",
+        "https://github.com/rjmurillo/ai-agents/compare/main...feature#r123",
     ],
 )
 def test_rejects_non_exact_routes(capsys: pytest.CaptureFixture[str], url: str) -> None:
@@ -109,4 +189,3 @@ def test_rejects_non_exact_routes(capsys: pytest.CaptureFixture[str], url: str) 
     assert output["success"] is False
     assert output["recommended_route"] is None
     assert "Invalid GitHub URL format" in output["error"]
-

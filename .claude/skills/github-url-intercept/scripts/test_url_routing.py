@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """Parse GitHub URLs and route to efficient API calls.
 
@@ -77,15 +76,18 @@ class RouteMethod(StrEnum):
 SCRIPT_ROUTES: dict[UrlType, dict[str, str]] = {
     UrlType.PULL: {
         "script": "get_pr_context.py",
-        "path": ".claude/skills/github/scripts/pr/get_pr_context.py",
+        "path": "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_context.py",
     },
     UrlType.ISSUE: {
         "script": "get_issue_context.py",
-        "path": ".claude/skills/github/scripts/issue/get_issue_context.py",
+        "path": "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/get_issue_context.py",
     },
 }
 
-CHECKS_SCRIPT_PATH = ".claude/skills/github/scripts/pr/get_pr_checks.py"
+CHECKS_SCRIPT_PATH = (
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+    "/skills/github/scripts/pr/get_pr_checks.py"
+)
 
 # ---------------------------------------------------------------------------
 # URL parsing
