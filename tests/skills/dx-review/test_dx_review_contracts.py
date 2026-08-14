@@ -22,6 +22,15 @@ SKILL_PATH = (
 
 _skill_text: str | None = None
 
+PROVENANCE_REFERENCE_PATTERNS = (
+    re.compile(r"(?im)^##\s+provenance\s*$"),
+    re.compile(r"(?i)\bgstack\b"),
+    re.compile(r"(?i)\bgarrytan\b"),
+    re.compile(r"(?i)\bSKILL\.md\.tmpl\b"),
+    re.compile(r"(?i)\badapted\b"),
+    re.compile(r"\bd078622b73539fc1a7a27e709861e9b6b058ae98\b"),
+)
+
 
 def _load_skill() -> str:
     global _skill_text
@@ -129,6 +138,11 @@ def check_tthw_not_hardcoded_tested(text: str) -> bool:
     return True
 
 
+def check_no_provenance_or_source_references(text: str) -> bool:
+    """Return True when the skill omits upstream provenance prose."""
+    return not any(pattern.search(text) for pattern in PROVENANCE_REFERENCE_PATTERNS)
+
+
 # ---------------------------------------------------------------------------
 # Positive cases: real skill passes all contracts
 # ---------------------------------------------------------------------------
@@ -148,6 +162,9 @@ class TestRealSkillContracts:
 
     def test_tthw_not_hardcoded_tested(self) -> None:
         assert check_tthw_not_hardcoded_tested(_load_skill())
+
+    def test_omits_provenance_and_gstack_references(self) -> None:
+        assert check_no_provenance_or_source_references(_load_skill())
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +257,16 @@ def _hardcode_tthw_scorecard_row(text: str) -> str:
     )
 
 
+def _insert_gstack_provenance(text: str) -> str:
+    """Re-introduce the removed upstream provenance block."""
+    provenance = (
+        "## Provenance\n\n"
+        "Adapted from gstack at "
+        "d078622b73539fc1a7a27e709861e9b6b058ae98.\n\n"
+    )
+    return text.replace("## Triggers", provenance + "## Triggers", 1)
+
+
 class TestMutationsBash:
     """Mutations that re-add Bash must fail check_no_bash_preapproved."""
 
@@ -290,3 +317,11 @@ class TestMutationsTthw:
     def test_hardcode_tthw_scorecard_row(self) -> None:
         mutated = _hardcode_tthw_scorecard_row(_load_skill())
         assert not check_tthw_not_hardcoded_tested(mutated)
+
+
+class TestMutationsProvenance:
+    """Mutations that restore upstream provenance must fail."""
+
+    def test_gstack_provenance_is_absent(self) -> None:
+        mutated = _insert_gstack_provenance(_load_skill())
+        assert not check_no_provenance_or_source_references(mutated)

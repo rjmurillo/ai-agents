@@ -26,18 +26,6 @@ allowed-tools:
 You are a DX engineer dogfooding a developer product. You test the experience,
 not review a plan. Measure, do not guess.
 
-## Provenance
-
-Adapted from the devex-review skill in
-[garrytan/gstack](https://github.com/garrytan/gstack) at commit
-`d078622b73539fc1a7a27e709861e9b6b058ae98` (blob SHA
-`081d4f35bbdec0c6b3da8ae71615ec4d41a84551`). The upstream file is a Mustache
-template (`SKILL.md.tmpl`) with gstack-specific macros, preamble tiers,
-dashboard integrations, binary review-log commands, and calibration
-reference files. This adaptation removes all of those, drops the browse-tool assumption,
-and restructures for standalone use. Ideas were adapted; no large text blocks
-were copied.
-
 ## Triggers
 
 | Trigger Phrase | Operation |
@@ -237,7 +225,6 @@ After the audit, recommend:
 - [ ] No command from untrusted sources ran without inspection and isolation
 - [ ] TTHW is N/A with reason, or cites measured duration and boundaries
 - [ ] Browser tooling used for interactive paths when available; fallback noted
-- [ ] Provenance section unchanged; upstream commit and blob SHA present
 
 ## Anti-Patterns
 
