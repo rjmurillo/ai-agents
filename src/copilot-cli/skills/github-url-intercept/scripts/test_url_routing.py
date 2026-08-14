@@ -102,7 +102,7 @@ def is_safe_input(
 # ---------------------------------------------------------------------------
 
 
-def parse_github_url(url: str) -> dict | None:
+def parse_github_url(url: str) -> dict[str, Any] | None:
     """Parse a GitHub URL into structured components.
 
     Returns None if the URL is invalid or contains dangerous characters.
@@ -222,7 +222,7 @@ def parse_github_url(url: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def get_recommended_route(parsed: dict) -> dict:
+def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
     """Determine the optimal command for a parsed GitHub URL."""
     owner = parsed["owner"]
     repo = parsed["repo"]
