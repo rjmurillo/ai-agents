@@ -178,7 +178,7 @@
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
-    "errors": 17,
+    "errors": 8,
     "recoveries": 0,
     "commits": 2,
     "files_changed": 6

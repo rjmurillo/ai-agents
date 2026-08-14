@@ -60,7 +60,10 @@ before you doubt the branch.
 Workaround if you are blocked right now: push from a non-linked clone. All
 hooks still run there.
 
-## Do this in any script that runs git against a caller-supplied root
+## Guidance: isolating GIT_* in scripts that run git against a caller-supplied root
+
+> **Non-binding incident guidance.** This is a Serena memory note, not a project rule.
+> Cross-harness conventions must live under `.claude/rules/` per `.claude/rules/knowledge-persistence.md`.
 
 Pass an environment, never inherit one:
 
