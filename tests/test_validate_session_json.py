@@ -871,6 +871,9 @@ class TestValidateSessionSection:
 
         assert any("future" in e for e in result.errors)
         assert any(two_days in e for e in result.errors)
+
+
+class TestValidateSessionStart:
     """Tests for validate_session_start function."""
 
     def test_complete_must_items(self) -> None:

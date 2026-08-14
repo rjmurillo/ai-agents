@@ -1,11 +1,10 @@
-"""End-to-end date-authority test: creator names it, every consumer finds it.
+"""End-to-end agreement test: creator names it, every consumer finds it.
 
-Issue #4779. The unit tests inject a clock, so passing under two ``TZ`` values
-only proves test isolation. This module proves the whole pipeline: it sets a
-real ``TZ`` (both drift directions plus UTC), lets a real creator name a session
-log with the real host clock, then asserts each date-prefix consumer locates the
-same file with its own real host clock. Creator and consumers share one date
-authority, so a far-east session near midnight UTC stays visible.
+Issue #4779. Controlled-instant unit tests prove that the shared date helpers
+select the host-local calendar date when it differs from UTC. This module has a
+different responsibility: under real process timezones, a real creator and all
+date-prefix consumers must agree on the same filename. It intentionally tests
+pipeline agreement rather than independently proving the date authority.
 """
 
 from __future__ import annotations
@@ -107,8 +106,13 @@ def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_pa
     assert Path(result).name == created.name
 
 
-def test_created_filename_matches_host_date_not_utc(host_timezone, tmp_path):
-    """The filename date equals the host-local date the JSON payload records."""
+def test_created_filename_and_payload_agree(host_timezone, tmp_path):
+    """The real creator uses one date consistently in filename and payload.
+
+    The controlled-instant authority assertions live in
+    ``tests/skills/session/test_date_helpers.py``; this end-to-end assertion
+    covers agreement only.
+    """
     created = _create_session_log(tmp_path)
 
     payload = json.loads(created.read_text(encoding="utf-8"))
