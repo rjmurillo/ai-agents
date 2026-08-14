@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code.json
-qaCommit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f
+qaCommit: 9aa3d27c1823d78b0159c1cdcf037b35898c75e1
 ---
 
 # PR 4956 exit-code documentation validation

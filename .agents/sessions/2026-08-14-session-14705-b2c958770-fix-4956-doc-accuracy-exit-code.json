@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a remove the unrelated memory and use a portable source citation; remaining files are protocol-owned QA and session evidence."
+        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a remove the unrelated memory and use a portable source citation; remaining files are protocol-owned QA and session evidence.; memory split in 9aa3d27c182."
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,6 +145,6 @@
       "outcome": "Removed the unrelated Serena patch, preserved it for split-pr-4956-memory, replaced repository-only citations with scripts/doc_accuracy.py, and refreshed validation at 52a1c5414a."
     }
   ],
-  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+  "endingCommit": "9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
   "nextSteps": []
 }

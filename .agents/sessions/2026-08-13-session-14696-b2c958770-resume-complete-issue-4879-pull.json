@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a were committed and validated; original implementation history remains intact."
+        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a were committed and validated; original implementation history remains intact.; memory split in 9aa3d27c182."
       },
       "validationPassed": {
         "level": "MUST",
@@ -157,6 +157,6 @@
       "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at 52a1c5414a."
     }
   ],
-  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+  "endingCommit": "9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
   "nextSteps": []
 }

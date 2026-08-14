@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit."
+        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit.; memory split in 9aa3d27c182."
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,7 +145,7 @@
       "outcome": "Reconciled all branch-created session and QA bindings with 52a1c5414a and documented the separate memory todo."
     }
   ],
-  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+  "endingCommit": "9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
   "nextSteps": [
     "Push PR #4956 under renewed lease and late live-state protection.",
     "Reply to current review discourse with validation evidence.",

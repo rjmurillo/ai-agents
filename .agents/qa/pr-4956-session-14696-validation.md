@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull.json
-qaCommit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f
+qaCommit: 9aa3d27c1823d78b0159c1cdcf037b35898c75e1
 ---
 
 # PR 4956 session 14696 validation
