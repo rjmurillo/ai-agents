@@ -144,7 +144,7 @@
       "outcome": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the issue-numbered name found no report."
     }
   ],
-  "endingCommit": "b1749a2ccf1dbec9544443e3f3068e881b52c1aa",
+  "endingCommit": "c2a84376dda3e24ea2495f57836680e6fb4889a1",
   "nextSteps": [
     "Watch PR 4972 checks; Validate PR failed once on the QA report name and is fixed by the rename.",
     "tests/test_pr_autofix_late_live_state_gate.py::test_fast_exit_stops_delayed_child_after_lease_loss is load-sensitive and fails intermittently on this machine; unrelated to this change and worth its own issue."
