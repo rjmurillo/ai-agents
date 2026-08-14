@@ -6,6 +6,7 @@ content via API instead of HTML. Routes to github skill scripts when
 available, falls back to gh api for other resource types.
 
 Supported URL types:
+- Gists: gist.github.com/{owner}/{id}
 - Pull requests: /pull/{n}, /pull/{n}#discussion_r{id}
 - Issues: /issues/{n}, /issues/{n}#issuecomment-{id}
 - Files: /blob/{ref}/{path}, /tree/{ref}/{path}
@@ -31,6 +32,7 @@ from typing import Any
 
 
 class UrlType(StrEnum):
+    GIST = "Gist"
     PULL = "Pull"
     ISSUE = "Issue"
     BLOB = "Blob"
@@ -105,6 +107,25 @@ def parse_github_url(url: str) -> dict | None:
 
     Returns None if the URL is invalid or contains dangerous characters.
     """
+    gist_match = re.match(
+        r"^https?://gist\.github\.com/([^/]+)/([a-fA-F0-9]+)/?(?:#.*)?$",
+        url,
+    )
+    if gist_match:
+        owner, gist_id = gist_match.groups()
+        if not is_safe_input(owner, SAFE_OWNER_REPO_RE):
+            return None
+        return {
+            "owner": owner,
+            "repo": None,
+            "url_type": UrlType.GIST.value,
+            "resource_id": gist_id,
+            "ref": None,
+            "path": None,
+            "fragment_type": None,
+            "fragment_id": None,
+        }
+
     match = re.match(r"^https?://github\.com/([^/]+)/([^/]+)/?(.*)$", url)
     if not match:
         return None
@@ -264,6 +285,7 @@ def get_recommended_route(parsed: dict) -> dict:
     resource_id = parsed["resource_id"]
 
     fallback_map: dict[UrlType, str] = {
+        UrlType.GIST: f'gh api "gists/{resource_id}"',
         UrlType.BLOB: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.TREE: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.COMMIT: f'gh api "repos/{owner}/{repo}/commits/{resource_id}"',

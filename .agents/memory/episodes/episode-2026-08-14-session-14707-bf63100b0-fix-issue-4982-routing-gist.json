@@ -1,0 +1,47 @@
+{
+  "id": "episode-2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist",
+  "session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix issue 4982 by routing gist URLs through the GitHub API with CLI contract tests",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce gist routing failure",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement and mirror gist routing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate and review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}
