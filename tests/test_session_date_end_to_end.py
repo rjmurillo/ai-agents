@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -99,27 +99,49 @@ def test_git_hook_policy_consumer_finds_host_dated_log(host_timezone, tmp_path):
     assert created in candidates, f"candidate set missed the log under TZ={host_timezone}"
 
 
+def _create_then_scan_across_timezones(
+    tmp_path: Path,
+    *,
+    creator_timezone: str,
+    scanner_timezone: str,
+    creator_date: str,
+    scanner_today: str,
+) -> Path:
+    """Create for one host date, then scan from another fixed host date."""
+    os.environ["TZ"] = creator_timezone
+    time.tzset()
+    with patch.object(
+        new_session_log_json, "host_session_date", return_value=creator_date
+    ):
+        created = _create_session_log(tmp_path)
+
+    os.environ["TZ"] = scanner_timezone
+    time.tzset()
+    scanner_yesterday = (
+        date.fromisoformat(scanner_today) - timedelta(days=1)
+    ).isoformat()
+    with patch(
+        "scripts.validation.git_hook_policy.recent_host_session_dates",
+        return_value=(scanner_today, scanner_yesterday),
+    ):
+        candidates = _recent_session_candidates(created.parent)
+
+    assert candidates is not None
+    assert created in candidates
+    return created
+
+
 def test_git_hook_policy_finds_next_day_log_after_timezone_switch(tmp_path):
     """A UTC scanner finds a log created for a UTC+14 host next day."""
     original = os.environ.get("TZ")
     try:
-        os.environ["TZ"] = "UTC"
-        time.tzset()
-        host_ahead_date = (datetime.now().date() + timedelta(days=1)).isoformat()
-
-        os.environ["TZ"] = "Pacific/Kiritimati"
-        time.tzset()
-        with patch.object(
-            new_session_log_json, "host_session_date", return_value=host_ahead_date
-        ):
-            created = _create_session_log(tmp_path)
-
-        os.environ["TZ"] = "UTC"
-        time.tzset()
-        candidates = _recent_session_candidates(created.parent)
-
-        assert candidates is not None
-        assert created in candidates
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Pacific/Kiritimati",
+            scanner_timezone="UTC",
+            creator_date="2026-08-09",
+            scanner_today="2026-08-08",
+        )
     finally:
         if original is None:
             os.environ.pop("TZ", None)
@@ -132,23 +154,32 @@ def test_git_hook_policy_finds_log_across_extreme_timezone_switch(tmp_path):
     """A UTC-12 scanner finds a UTC+14 creator date two days ahead."""
     original = os.environ.get("TZ")
     try:
-        os.environ["TZ"] = "Etc/GMT+12"
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Pacific/Kiritimati",
+            scanner_timezone="Etc/GMT+12",
+            creator_date="2026-08-10",
+            scanner_today="2026-08-08",
+        )
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
         time.tzset()
-        creator_date = (datetime.now().date() + timedelta(days=2)).isoformat()
 
-        os.environ["TZ"] = "Pacific/Kiritimati"
-        time.tzset()
-        with patch.object(
-            new_session_log_json, "host_session_date", return_value=creator_date
-        ):
-            created = _create_session_log(tmp_path)
 
-        os.environ["TZ"] = "Etc/GMT+12"
-        time.tzset()
-        candidates = _recent_session_candidates(created.parent)
-
-        assert candidates is not None
-        assert created in candidates
+def test_git_hook_policy_finds_log_across_reverse_timezone_switch(tmp_path):
+    """A UTC+14 scanner finds a UTC-12 creator date two days behind."""
+    original = os.environ.get("TZ")
+    try:
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Etc/GMT+12",
+            scanner_timezone="Pacific/Kiritimati",
+            creator_date="2026-08-08",
+            scanner_today="2026-08-10",
+        )
     finally:
         if original is None:
             os.environ.pop("TZ", None)

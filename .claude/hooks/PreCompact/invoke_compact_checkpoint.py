@@ -33,11 +33,13 @@ from pathlib import Path
 def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
     """Return the newest readable session log from today or yesterday.
 
-    Runs only when ``hook_utilities`` cannot be imported, so it cannot route
-    through ``hook_utilities.recent_host_session_dates``. It applies the same
-    host-local date rule inline: session logs are named by the contributor's
-    host local date, not UTC (Issue #4779), so a UTC-anchored scan would miss
-    a far-east session near midnight.
+    Runs only when ``hook_utilities`` cannot be imported. It mirrors
+    ``scripts/hook_utilities/utilities.py::recent_host_session_dates``:
+    ``current = now()``, then today is ``current.strftime("%Y-%m-%d")`` and
+    yesterday is ``(current - timedelta(days=1)).strftime("%Y-%m-%d")``.
+    The fallback intentionally uses inline ``datetime.now()`` and skips a
+    date after a glob error, while the canonical importer warns and returns
+    ``None``. Both remain host-local rather than UTC (Issue #4779).
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():

@@ -988,7 +988,7 @@ def _recent_date_prefixes() -> tuple[str, str]:
 
     UTC anchor. Retains parity with
     ``.claude/skills/retrospective/scripts/run_retrospective.py``, whose
-    ``_retrospective_date`` uses the exact expression
+    ``_artifact_date`` uses the exact expression
     ``datetime.now(tz=UTC).strftime("%Y-%m-%d")``.
     Session logs use a different authority: they are named by the host local
     date (Issue #4779), so session-log scanning routes through
@@ -1004,8 +1004,8 @@ def _recent_date_prefixes() -> tuple[str, str]:
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     """Return adjacent-date session logs, or None if unreadable.
 
-    The four-day window handles cross-midnight sessions and the full UTC+14 to
-    UTC-12 creator/scanner date range. Dates come from
+    The five-day window handles cross-midnight sessions and the full UTC+14 to
+    UTC-12 creator/scanner date range in either direction. Dates come from
     ``recent_host_session_dates`` (host local), the same authority the creator
     uses to name the file (Issue #4779); a UTC anchor here would make a
     far-east session invisible near midnight. Returning None rather than an
@@ -1016,11 +1016,10 @@ def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
         return None
     today, yesterday = recent_host_session_dates()
     anchor = date.fromisoformat(today)
-    tomorrow = (anchor + timedelta(days=1)).isoformat()
-    day_after_tomorrow = (anchor + timedelta(days=2)).isoformat()
     candidates: list[Path] = []
     try:
-        for date_prefix in (day_after_tomorrow, tomorrow, today, yesterday):
+        for day_offset in (2, 1, 0, -1, -2):
+            date_prefix = (anchor + timedelta(days=day_offset)).isoformat()
             candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None
@@ -1143,8 +1142,9 @@ def _is_committed_here(repo_root: Path, path: Path) -> bool:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
-    Checks both today's and yesterday's host-local dates to handle
-    cross-midnight sessions gracefully (Issue #4779). Follows
+    Delegates date selection to ``_recent_session_candidates``, whose window
+    covers cross-midnight sessions and the full host timezone range (Issue
+    #4779). Follows
     hook_utilities.get_today_session_log selection semantics (newest dated
     session log by mtime) with the per-file stat resilience of
     hook_utilities._newest_by_mtime: a single unreadable candidate
