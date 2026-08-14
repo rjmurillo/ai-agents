@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 0f4367924dc9c55c1f5e1c00f6386bd3a2d38180"
+        "Evidence": "All non-evidence code committed through d480e34040e9bd69a00ca8b8ef351357ff162708"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,8 +138,12 @@
     {
       "action": "Updated branch and repaired count ratchet",
       "result": "Merged current main, added a reasoned test-suite file-size suppression, taste count equals baseline 583, and 97 focused tests pass"
+    },
+    {
+      "action": "Revalidated after final base refresh",
+      "result": "Merged origin/main at 4ecc1fdf3; taste ratchet stayed at baseline 583 and 97 focused tests passed"
     }
   ],
-  "endingCommit": "0f4367924dc9c55c1f5e1c00f6386bd3a2d38180",
+  "endingCommit": "d480e34040e9bd69a00ca8b8ef351357ff162708",
   "nextSteps": []
 }
