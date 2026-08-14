@@ -83,8 +83,8 @@
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Deferred: memory write intentionally excluded from this PR per .claude/rules/claude-agents.md:42 (MUST NOT bundle skill code changes with memory changes in the same PR). Patch preserved in authorized session storage as pr-4956-memory.patch (SHA-256 fed46127e43c501f8a2ba61fd036e19c9c88cac56a6dc5cde58e479ae865860a), assigned to split-pr-4956-memory."
+        "Complete": true,
+        "Evidence": "Memory updated: .serena/memories/agents-two-pipeline-mirror-recipe.md and .serena/memories/memory-index.md committed in this PR. Session-specific doc-accuracy finding state deferred to split-pr-4956-memory per .claude/rules/claude-agents.md:42 (MUST NOT bundle skill code changes with memory changes in the same PR)."
       },
       "markdownLintRun": {
         "level": "MUST",
