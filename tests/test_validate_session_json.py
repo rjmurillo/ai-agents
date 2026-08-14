@@ -825,8 +825,52 @@ class TestValidateSessionSection:
 
         assert not any("future" in e for e in result.errors)
 
+    def test_host_local_date_one_day_ahead_of_utc_is_accepted(self) -> None:
+        """A host-local date one day ahead of UTC is tolerated (#4779).
 
-class TestValidateSessionStart:
+        The creator names the log by the host-local date. A far-east host
+        (max UTC+14) can be one calendar day ahead of the UTC-running
+        validator. That one-day gap is legitimate and must not be flagged.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        tomorrow = (datetime.now(tz=timezone.utc).date() + timedelta(days=1)).isoformat()
+        session = {
+            "number": 1,
+            "date": tomorrow,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        validate_session_section(session, result)
+
+        assert not any("future" in e for e in result.errors)
+
+    def test_date_two_days_ahead_of_utc_emits_error(self) -> None:
+        """Two days ahead exceeds the max timezone offset, so it is flagged (#4779).
+
+        No real timezone puts the host-local date two calendar days ahead of
+        UTC, so a +2 date is a placeholder or a wrong date, not a timezone
+        artifact.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        two_days = (datetime.now(tz=timezone.utc).date() + timedelta(days=2)).isoformat()
+        session = {
+            "number": 1,
+            "date": two_days,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        validate_session_section(session, result)
+
+        assert any("future" in e for e in result.errors)
+        assert any(two_days in e for e in result.errors)
     """Tests for validate_session_start function."""
 
     def test_complete_must_items(self) -> None:
