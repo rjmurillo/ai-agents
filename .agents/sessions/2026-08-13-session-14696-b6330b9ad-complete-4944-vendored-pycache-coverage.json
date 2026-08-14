@@ -182,6 +182,11 @@
     "Merge PR #4944 after required checks pass."
   ],
   "episodeMetrics": {
-    "filesChanged": 8
+    "filesChanged": 8,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "base": "5dbc09bf1",
+      "head": "5acc676414b423d8a9e10bfe3041ab3ffd284874"
+    }
   }
 }
