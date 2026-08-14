@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Suggest a memory when a tool result carries an error or a novel fact.
+"""Suggest a memory when a failed tool result carries a learnable error.
 
 Thin invoker for ``memory_enhancement.hooks.post_tool_call_memory``. That
 package lives under ``scripts/`` in this repository and does not ship with
 the plugin, so a consumer install resolves nothing here and the hook
 becomes a silent no-op.
 
-Hook Type: PostToolUse (non-blocking, fail-open)
+Hook Type: PostToolUseFailure (non-blocking, fail-open)
 Exit Codes:
-    0 = nothing worth capturing.
-    2 = stderr carries a ``<memory-suggestion>`` block. The tool already
-        ran, so this shows the suggestion to the model without blocking.
+    0 = stdout is empty or carries documented PostToolUseFailure
+        ``additionalContext``.
 
 References:
     - Issue #4011 (memory hooks were never registered)
+    - Issue #4870 (capture only actual tool failures)
 """
 
 from __future__ import annotations
