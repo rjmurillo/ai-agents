@@ -965,8 +965,16 @@ def _has_valid_ownership_token(
     try:
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.warning("op=lease_ownership_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return False
+    if not isinstance(data, dict):
+        # A syntactically valid but non-object token (``[]``, a bare number, a
+        # string) decodes cleanly, then the field reads below would raise
+        # AttributeError on ``.get`` and crash the CLI during the very outage
+        # this fail-open path exists to survive. An unrecognizable token proves
+        # no ownership, so fail closed to SKIP (issue #4966 review).
+        logger.warning("op=lease_ownership_malformed pr=%d", pr)
         return False
     if (
         data.get("owner") != owner

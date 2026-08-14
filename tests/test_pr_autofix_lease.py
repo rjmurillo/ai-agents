@@ -952,6 +952,33 @@ class TestOwnershipTokenRepoIsolation:
         assert _has_token(pr=1, now=_NOW + MAX_TTL) is False
         assert _has_token(pr=1, now=_NOW + MAX_TTL - timedelta(seconds=1)) is True
 
+    def test_non_object_token_fails_closed_without_crashing(self):
+        # A syntactically valid but non-object token (a JSON array) decodes
+        # cleanly, then .get would raise AttributeError and crash the CLI during
+        # the outage this fail-open path exists to survive. It must fail closed
+        # to False instead (issue #4966 review).
+        path = Path(_mod._ownership_token_path(_OWNER, _SESSION, "o", "r", 1))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("[]", encoding="utf-8")
+        assert _has_token(pr=1, now=_NOW) is False
+
+    def test_scalar_token_fails_closed_without_crashing(self):
+        # A bare JSON number is also a valid non-object token and must not crash
+        # the field reads (issue #4966 review).
+        path = Path(_mod._ownership_token_path(_OWNER, _SESSION, "o", "r", 1))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("42", encoding="utf-8")
+        assert _has_token(pr=1, now=_NOW) is False
+
+    def test_invalid_utf8_token_fails_closed_without_crashing(self):
+        # A token file that is not valid UTF-8 raises UnicodeDecodeError during
+        # the read. That is not a JSONDecodeError, so it must be caught
+        # explicitly and treated as no proof of ownership (issue #4966 review).
+        path = Path(_mod._ownership_token_path(_OWNER, _SESSION, "o", "r", 1))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\xff\xfe\x00\x01")
+        assert _has_token(pr=1, now=_NOW) is False
+
 
 # ===========================================================================
 # base_sha provenance: the PR head, never the caller's checkout
