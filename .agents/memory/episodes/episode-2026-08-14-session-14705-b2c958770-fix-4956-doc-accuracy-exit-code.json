@@ -65,7 +65,9 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
     },
     {
@@ -93,6 +95,17 @@
         "e005"
       ],
       "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T04:42:33+00:00",
+      "type": "commit",
+      "content": "Commit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
     }
   ],
   "metrics": {
@@ -100,8 +113,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 16
+    "commits": 4,
+    "files_changed": 19
   },
   "lessons": []
 }

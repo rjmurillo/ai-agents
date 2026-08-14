@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits b985c58bae and c636b5b315 remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit."
+        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,15 +137,15 @@
     {
       "timestamp": "2026-08-14T04:20:00+00:00",
       "action": "Fixed portable citations and added a regression assertion.",
-      "outcome": "Canonical and generated skill docs now cite scripts/doc_accuracy.py; commit c636b5b315 passed focused tests and hooks."
+      "outcome": "Canonical and generated skill docs now cite scripts/doc_accuracy.py; commit 52a1c5414a passed focused tests and hooks."
     },
     {
       "timestamp": "2026-08-14T04:31:00+00:00",
       "action": "Refreshed completion evidence.",
-      "outcome": "Reconciled all branch-created session and QA bindings with c636b5b315 and documented the separate memory todo."
+      "outcome": "Reconciled all branch-created session and QA bindings with 52a1c5414a and documented the separate memory todo."
     }
   ],
-  "endingCommit": "c636b5b31559667b7bf0434421664e60d7192d7f",
+  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
   "nextSteps": [
     "Push PR #4956 under renewed lease and late live-state protection.",
     "Reply to current review discourse with validation evidence.",
