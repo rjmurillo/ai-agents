@@ -121,9 +121,9 @@ all.
 Two independent registration sources serve different consumers. Do not force
 parity between them:
 
-| Surface | Consumer | Shape re-verified 2026-07-22 |
+| Surface | Consumer | Shape re-verified 2026-08-12 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 5 events, 7 groups |
+| `.claude/settings.json` | Claude Code direct in this repository | 6 events, 7 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 3 groups |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A

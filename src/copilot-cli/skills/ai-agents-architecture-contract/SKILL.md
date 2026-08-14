@@ -73,9 +73,9 @@ Two meta-patterns bind these together:
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File | Registered (re-verified 2026-07-22) |
+| Surface | File | Registered (re-verified 2026-08-12) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 7 groups |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 7 groups |
 | Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 3 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
@@ -137,7 +137,7 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: `.claude/settings.json` has 5 events and 7 groups, `.claude/hooks/hooks.json` has 2 events and 3 groups; do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 7 groups, `.claude/hooks/hooks.json` has 2 events and 3 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
