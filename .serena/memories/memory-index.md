@@ -23,7 +23,7 @@
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
 |new_pr create stale main ref session end validation: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
-|close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
+|close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (2127)
 |pr autofix late merge live state base refresh: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
