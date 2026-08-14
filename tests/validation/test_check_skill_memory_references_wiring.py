@@ -17,6 +17,7 @@ is graded rather than assumed.
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,7 +88,7 @@ def test_the_sequence_runs_the_gate_after_skip_clause_routing() -> None:
         return True
 
     state = SimpleNamespace(total=0, skipped=0)
-    args = SimpleNamespace(quick=True, skip_tests=True, verbose=False)
+    args = argparse.Namespace(quick=True, skip_tests=True, verbose=False)
     pre_pr_sequence.run_all_validations(REPO_ROOT, args, state, fake_run_validation)
 
     assert GATE_NAME in recorded

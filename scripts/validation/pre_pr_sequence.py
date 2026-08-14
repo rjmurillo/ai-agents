@@ -169,9 +169,11 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     override is passed positionally only when the environment supplies one.
     """
     deferral_repo = os.environ.get("GH_REPO")
-    return validate_no_orphaned_build_deferrals(
-        repo_root / "build" / "scripts" / "build_all.py",
-        *([deferral_repo] if deferral_repo else []),
+    return bool(
+        validate_no_orphaned_build_deferrals(
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
+        )
     )
 
 
@@ -186,7 +188,7 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return validate_copilot_routing_exclusions(repo_root)
+    return bool(validate_copilot_routing_exclusions(repo_root))
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
