@@ -57,7 +57,8 @@ license: MIT
 ```
 
 Required fields: `name`, `version`, `description`.
-Optional fields: `model`, `license`.
+Optional fields: `model`, `model-rationale` (required whenever `model` is set),
+`license`.
 
 **Model policy (ADR-080)**: omit `model:` and inherit the harness model. A
 skill may not carry a versioned id (`claude-sonnet-4-6`); the eval harness

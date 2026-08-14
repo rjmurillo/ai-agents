@@ -117,10 +117,10 @@ metadata:                   # Optional (SkillForge): domain-specific fields
 
 | Field | Status | Location | Source |
 |-------|--------|----------|--------|
-| `name` | Required | Top-level | Official Anthropic spec |
-| `version` | Required | Top-level | SkillForge validator |
-| `description` | Required | Top-level | Official Anthropic spec |
-| `license` | Required | Top-level | SkillForge validator |
+| `name` | Required | Top-level | Official Anthropic spec; SkillForge `REQUIRED_PROPERTIES` |
+| `version` | Required by ai-agents convention | Top-level | Project convention; SkillForge lists it under `OPTIONAL_PROPERTIES` |
+| `description` | Required | Top-level | Official Anthropic spec; SkillForge `REQUIRED_PROPERTIES` |
+| `license` | Required by ai-agents convention | Top-level | Project convention; SkillForge lists it under `OPTIONAL_PROPERTIES` and `RECOMMENDED_PROPERTIES` |
 | `model` | Optional (ADR-080) | Top-level | Omit to inherit; bare cost alias only |
 | `model-rationale` | Optional (ADR-080) | Top-level | Required whenever `model` is set |
 | `allowed-tools` | Optional | Top-level | Official Anthropic spec |
@@ -129,11 +129,14 @@ metadata:                   # Optional (SkillForge): domain-specific fields
 
 **Rationale**:
 - SkillForge validate-skill.py defines the authoritative structure
-- Required fields (name, version, description, license) at top-level. `model`
-  was required when this ADR was accepted; ADR-080 made it optional, and
-  `.claude/skills/SkillForge/scripts/_constants.py` now lists it under
-  `OPTIONAL_PROPERTIES` with the comment "Optional model alias; omit to
-  inherit, bare alias only, no versioned id"
+- The validator itself requires only `name` and `description`
+  (`.claude/skills/SkillForge/scripts/_constants.py`:
+  `REQUIRED_PROPERTIES = {'name', 'description'}`). `version` and `license` are
+  an ai-agents project convention this ADR added on top; `license` is in
+  `RECOMMENDED_PROPERTIES`. `model` was a fifth required field when this ADR was
+  accepted; ADR-080 made it optional, and `_constants.py` now lists it under
+  `OPTIONAL_PROPERTIES` with the comment "Optional model alias; omit to inherit,
+  bare alias only, no versioned id"
 - Metadata reserved for domain-specific extensions
 - Consistent structure improves validation and packaging compatibility
 
@@ -357,8 +360,8 @@ named above no longer exists, and the model rule is superseded, see below):
 - ~~Model identifier matches pattern `^claude-((opus|sonnet)-4-6|haiku-4-5)(-\d{8})?$`~~
   Superseded by ADR-080: a versioned id is rejected on a skill or command.
   `scripts/validation/check_model_pins.py` is the current gate, and
-  `scripts/validate_skill_format.py` (Lefthook, staged files) validates the rest
-  of the frontmatter.
+  `.claude/skills/SkillForge/scripts/validate-skill.py` (Lefthook's `skillforge`
+  job, staged `SKILL.md` files) validates the rest of the frontmatter.
 - Description length <=1024 characters
 - YAML syntax valid (no tabs, proper indentation)
 - Arrays use block-style format (not inline `['...']` syntax)

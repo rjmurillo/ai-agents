@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json
-qaCommit: 72c2f893484ee56e611e00bfb3aae25d0ef6792b
+qaCommit: cd65c4c06f228b66c64de8ade4a41bc12ec0a8d2
 ---
 
 # Issue 4940 Model Pin Doc Examples QA
@@ -54,8 +54,14 @@ f"bare alias '{model}' lacks a model-rationale field"
 f"cost rationale on '{model}' but it does not price below the default '{default}'"
 ```
 
-The docs quote those strings verbatim, so a reworded gate message shows up as a
-doc mismatch instead of aging silently.
+Coverage of those strings, stated precisely (corrected after PR #5003 review):
+`docs/SKILL-AUTHORING.md` and `.agents/architecture/SKILL-STANDARDS-RECONCILED.md`
+quote the "carries versioned id" and "cost rationale on" messages so a reader
+recognises the failure they will see. The "lacks a model-rationale field"
+message is not quoted anywhere, and no test compares doc text to validator
+strings, so rewording a gate message would leave all 18 tests green and the
+quoted text stale. The guard asserts what the documents teach, not what the
+validator prints.
 
 Two consequences of that regex drove corrections the issue's line list missed:
 
@@ -75,8 +81,8 @@ which is why it is the only alias the docs offer.
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Doc regression guard | `uv run pytest tests/test_skill_authoring_docs_model_pins.py -q` | 17 passed |
-| Non-vacuity control | detector run against `git show origin/main:<doc>` for all five docs | 5 of 5 WOULD FAIL (5 hits, 1, 5, 5, 1) |
+| Doc regression guard | `uv run pytest tests/test_skill_authoring_docs_model_pins.py -q` | 18 passed |
+| Non-vacuity control | detector run against `git show origin/main:<doc>` for all five docs | 5 of 5 WOULD FAIL (5 hits, 1, 5, 7, 1) |
 | Model pin gate | `uv run python scripts/validation/check_model_pins.py --mode warn` | exit 0, "OK: no new or changed pin violations" |
 | Markdown lint | `npx markdownlint-cli2 docs/SKILL-AUTHORING.md` | 0 issues (the `.agents/**` docs are excluded by `.markdownlint-cli2.yaml`) |
 | Python lint | `uv run ruff check` and `ruff format --check` on the new test | All checks passed |
@@ -105,10 +111,11 @@ diff.
 - [x] Tests verify behavior, not execution. The guard asserts what a document
   teaches, and the pre-fix control shows all five documents failing it before
   the change.
-- [x] No coverage theater. Six unit tests pin the edges: an unlabelled pin
+- [x] No coverage theater. Seven unit tests pin the edges: an unlabelled pin
   fires, a labelled one does not, a pin later in a `# Wrong` fence still fires,
   `**Before**` migration fences are exempt, a bare alias is not mistaken for a
-  version, and the dotted spelling matches.
+  version, the dotted spelling matches, and a `**Before**` label does not exempt the
+  `**After**` fence that follows it (added after the PR #5003 review).
 - [x] Line-level, not block-level, matching. The pre-fix troubleshooting section
   put `# Wrong` and `# Correct` in one fence, so a block-level marker check
   would have accepted the exact shape this guard exists to catch.
@@ -121,7 +128,12 @@ diff.
 2. The `model` column of ADR-040's Section 3 tier table still shows versioned
    ids. Deliberate: it is the historical tier reasoning, marked do-not-copy by
    the callout above it.
-3. Serena memory `claude/claude-code-skill-frontmatter-standards`, memory
+3. `.agents/architecture/SKILL-STANDARDS-RECONCILED.md` lines 60, 93 and 100
+   still call `version` a "SkillForge validator requirement". `_constants.py`
+   lists it under `OPTIONAL_PROPERTIES`, so those lines are inaccurate. They sit
+   outside this diff and outside the model-pin scope; recorded as a follow-up
+   rather than corrected here.
+4. Serena memory `claude/claude-code-skill-frontmatter-standards`, memory
    `skills/skillcreator-enhancement-patterns`, and
    `.agents/analysis/claude-code-skill-frontmatter-2026.md` still carry the
    retired `claude-opus-4-5` guidance. Out of scope for a docs PR; recorded as
