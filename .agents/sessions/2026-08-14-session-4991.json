@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4991,
+    "date": "2026-08-14",
+    "branch": "fix/4812-skillforge-name-mismatch",
+    "startingCommit": "194975a0fe74730a48ae281d1b7c6d92a4534c7c",
+    "objective": "Run full PR autofix for PR 4991 and repair Validate PR CI"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP toolset available; initial instructions loaded for this repository session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as read-only reference"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 61 Python helpers under .claude/skills/github/scripts and used pr-autofix scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and relevant PR autofix corrections"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4812-skillforge-name-mismatch"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4812-skillforge-name-mismatch"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree was clean before the QA-discovered code fix"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "194975a0fe74730a48ae281d1b7c6d92a4534c7c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No repository memory update required; the fix is captured in committed QA evidence"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report checked with markdownlint-cli2"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All non-evidence code committed at e59c04f6e38bf6344437a99f3e405b8b910cbce4"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed on this completed log"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4991 autofix task completed through QA evidence and CI verification"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4991-autofix-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Diagnosed Validate PR full logs",
+      "result": "Required check failed because no SHA-bound QA report existed"
+    },
+    {
+      "action": "Ran adversarial QA",
+      "result": "Found global sys.path pollution causing 11 order-dependent failures"
+    },
+    {
+      "action": "Fixed and validated test isolation",
+      "result": "Removed global sys.path mutation; 85 focused tests passed and final QA passed 151 executions"
+    },
+    {
+      "action": "Prepared CI evidence",
+      "result": "Created SHA-bound QA report for commit e59c04f6e38bf6344437a99f3e405b8b910cbce4"
+    }
+  ],
+  "endingCommit": "e59c04f6e38bf6344437a99f3e405b8b910cbce4",
+  "nextSteps": []
+}
