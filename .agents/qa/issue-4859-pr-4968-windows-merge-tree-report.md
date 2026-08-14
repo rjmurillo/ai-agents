@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows.json
-qaCommit: 91459ce77c4baee3e6b0b975237ea9ef5a266cde
+qaCommit: 6d52dd5907897f61947f215884548280f3838994
 ---
 
 # QA Report: Issue 4859 Windows merge-tree ratchet
@@ -9,7 +9,7 @@ qaCommit: 91459ce77c4baee3e6b0b975237ea9ef5a266cde
 ## Scope
 
 Validated Windows checkout prefix handling and transient scratch cleanup at
-commit `91459ce77c4baee3e6b0b975237ea9ef5a266cde`.
+commit `6d52dd5907897f61947f215884548280f3838994`.
 
 ## Control Evidence
 
@@ -22,8 +22,12 @@ commit `91459ce77c4baee3e6b0b975237ea9ef5a266cde`.
 
 ## Fixed Evidence
 
-- `tests/ci/test_merge_tree_materialization.py`: 12 passed.
-- Five affected merge-tree test files: 60 passed.
+- `tests/ci/test_merge_tree_materialization.py`: 18 passed.
+- Five affected merge-tree test files: 66 passed.
+- Windows read-only Git object cleanup now clears the attribute through
+  `shutil.rmtree(onexc=...)` before retrying removal.
+- Concurrent child removal and non-permission failure controls passed.
+- Main merge preserved Git symlink materialization and its read-only integration control.
 - Scoped Ruff on both changed Python files: passed.
 - Direct Ruff ratchet: 27 equals baseline 27.
 - Merge-tree ratchet: Ruff 27, taste 579, type-ignore 44,

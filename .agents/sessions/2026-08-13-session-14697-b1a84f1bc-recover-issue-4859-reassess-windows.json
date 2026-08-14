@@ -94,17 +94,17 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4859-windows-merge-tree-report.md"
+        "Evidence": ".agents/qa/issue-4859-pr-4968-windows-merge-tree-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commit 91459ce77c4baee3e6b0b975237ea9ef5a266cde"
+        "Evidence": "Implementation commits 91459ce77c4baee3e6b0b975237ea9ef5a266cde, c020527ad974e73bb8d9cbccbd9f835ce08b0765, and merge 6d52dd5907897f61947f215884548280f3838994"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py passed"
+        "Evidence": "18 focused and 66 affected merge-tree tests passed; scoped Ruff, Python syntax, generated-tree, plugin-lib, and install-parity checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,12 +142,23 @@
     {
       "action": "Ran GPT-5.6 Sol artifact-only review against the final diff and deterministic evidence.",
       "outcome": "PASS with no actionable finding."
+    },
+    {
+      "action": "Fetched PR 4968 failure logs and reproduced the remaining Windows cleanup defect from the exact CI diagnostic.",
+      "outcome": "The POSIX checkout prefix was correct, but Git object files remained read-only on Windows; cleanup exhausted lock retries and returned exit 3."
+    },
+    {
+      "action": "Added read-only attribute clearing through shutil.rmtree onexc while retaining bounded transient retries and explicit persistent-failure diagnostics.",
+      "outcome": "Focused callback, concurrency, path-contract, and merge-tree suites pass locally."
+    },
+    {
+      "action": "Merged current origin/main and combined its symlink/read-only cleanup work with the PR path-prefix and bounded retry fixes.",
+      "outcome": "Conflict markers cleared; 18 focused and 66 affected merge-tree tests passed."
     }
   ],
-  "endingCommit": "91459ce77c4baee3e6b0b975237ea9ef5a266cde",
+  "endingCommit": "6d52dd5907897f61947f215884548280f3838994",
   "nextSteps": [
-    "Commit QA and session evidence.",
-    "Run pre-PR validation, push the branch, and create one pull request that fixes only issue 4859.",
-    "Verify remote checks and review threads, then finalize SQL todo states."
+    "Push the QA/session evidence commit and verify PR 4968 checks on GitHub.",
+    "Resolve only any remaining PR 4968 review or CI blockers."
   ]
 }
