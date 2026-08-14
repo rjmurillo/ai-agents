@@ -28,6 +28,9 @@ python3 scripts/eval/eval-rule-activation.py \
 # Detect pairwise skill overlap (are two skills redundant with each other?):
 python3 scripts/eval/eval-skill-overlap.py \
   --pairs scripts/eval/examples/example-overlap-pairs.json --dry-run
+
+# Validate real Claude and Copilot CLI parity fixtures without model calls:
+uv run python scripts/eval/eval_runtime_parity.py --dry-run
 ```
 
 ## Providers
@@ -60,10 +63,13 @@ Three things about `copilot-cli` that will cost you a run if you miss them:
   directory. In this repository those files are usually the variable under
   test, so running from the repo root would put the treatment into the control
   cell and quietly destroy the comparison.
-- **Do not compare its scores to an HTTP provider's.** User-level config in
-  `~/.copilot/` still loads (the auth token lives there), so it is a constant
-  within a run but not across transports. Same reasoning ADR-058 already
-  applies to cross-provider comparison.
+- **It is a prompt-only transport.** It passes prompt text through ACP and
+  disables custom instructions, tools, and built-in MCP servers. It does not
+  measure project instruction loading, custom-agent frontmatter, or real tool
+  behavior. Use `eval_runtime_parity.py` for those questions.
+- **Do not compare its scores to an HTTP provider's.** The Copilot CLI system
+  prompt remains present even when custom instructions are disabled. Same
+  reasoning ADR-058 already applies to cross-provider comparison.
 - **Do not use the CLI's reported token counts as a measurement.** They are
   non-monotonic: the same trivial prompt reported 109.3k tokens from `/tmp` and
   95.9k from inside the repo, because the figure folds in tool definitions and
@@ -89,8 +95,47 @@ override the executable and the default 900s timeout.
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
+| `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
+
+## Real CLI Runtime Parity
+
+`eval_runtime_parity.py` answers a different question from API and ACP prompt
+evals. It loads generated agent artifacts through each CLI's project-agent
+mechanism, then runs the same fixture request through both binaries.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures scripts/eval/examples/runtime-parity-fixtures.json \
+  --model claude-opus-4.6 \
+  --output artifacts/runtime-parity/report.json
+```
+
+Each fixture declares one Claude agent, one Copilot agent, deterministic
+assertions, and positive and negative controls. The runner creates a nested git
+repository per harness; its project profile contains only the selected agent. Claude uses an
+isolated config directory, project settings, and an empty MCP configuration.
+Copilot uses an isolated `COPILOT_HOME`, disables custom instructions, and
+disables built-in MCP servers. A sentinel instruction is placed on each
+excluded profile surface; any leak fails the run. The fixture request is passed
+as the non-interactive prompt to both CLIs. Reports redact that argv field.
+Fixture requests are visible to local process inspection while a CLI runs.
+Treat fixture text as public test data. Never place credentials in it.
+
+Reports include:
+
+- CLI versions and the requested model;
+- resolved model ids, with exact mismatch failure before later fixtures run;
+- SHA-256 hashes for both installed agent artifacts and the fixture request;
+- raw JSONL stdout, stderr, final response, tool events, and subagent events;
+- per-assertion verdicts labeled `Claude runtime` or `Copilot runtime`;
+- `prompt-only` positive and negative control results.
+
+The checked-in suite covers phase resume, reversible tool execution,
+consequential choice handling, and QA rejection of 16 valid artifacts against
+49 promised. `--dry-run` validates paths, assertions, controls, and CLI
+versions without sending a model request.
 
 ## End-to-End Delivery Eval
 
