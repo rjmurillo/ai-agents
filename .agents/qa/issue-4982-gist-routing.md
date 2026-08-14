@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist.json
-qaCommit: 55d6347071044ef6e5d575fee23ec9f364227a0e
+qaCommit: 5d6b3bf0f39932f7f6a8dfd25fb644191d5ed497
 ---
 
 # Issue 4982 Gist Routing QA Report
