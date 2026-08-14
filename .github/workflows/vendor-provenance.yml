@@ -53,7 +53,7 @@ jobs:
           git init --quiet
           git remote add origin "https://github.com/${{ github.repository }}.git"
           git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
-            fetch --depth=50 origin "$BASE_SHA" "$PR_SHA"
+            fetch origin "$BASE_SHA" "$PR_SHA"
           # Populate workspace with trusted base code (read-tree ignores
           # candidate .gitattributes export-ignore directives)
           git read-tree "$BASE_SHA"
