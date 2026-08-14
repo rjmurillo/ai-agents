@@ -158,9 +158,14 @@
       "timestamp": "2026-08-14T22:15:00Z",
       "action": "CI 'Check QA Report Exists' failed on PR 5000",
       "result": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md; renamed the report to pr-5000-session-14707-test-report.md and repointed this log."
+    },
+    {
+      "timestamp": "2026-08-14T22:45:00Z",
+      "action": "PR 5000 description gate FAIL, then review finding from copilot-pull-request-reviewer",
+      "result": "Description gate: inline-backtick paths under '## Changes' are change claims; moved the mirror and out-of-scope subsections to '## Design Decisions' and '## Out of Scope' and verified locally with scripts/validation/pr_description.py (0 issues). Review finding: the candidate predicate accepted github_core on directory name alone, so a partial package imported instead of falling through; predicate now requires github_core/api.py, plus 3 new tests and mutant M5. Commit 271d20435."
     }
   ],
-  "endingCommit": "acf14527853378f89d27f63c2474b8d1df3d58ea",
+  "endingCommit": "271d20435dbe6949f4114a235fd68600b269cf04",
   "nextSteps": [
     "Watch CI on the PR for the merge-resolver skill tests.",
     "Consider a follow-up issue: other skill scripts still collapse COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with 'or', which shadows a valid root when the first is set but foreign."

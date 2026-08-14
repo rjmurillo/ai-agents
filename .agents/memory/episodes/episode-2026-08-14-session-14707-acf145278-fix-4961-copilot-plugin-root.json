@@ -76,7 +76,7 @@
       "type": "milestone",
       "content": "Pre-push gates rejected the branch: merge-tree conflict and a session-number collision with session 14706 landed on main",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e007"
@@ -105,7 +105,7 @@
         "e005"
       ],
       "leads_to": [
-        "e006"
+        "e011"
       ],
       "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
     },
@@ -117,17 +117,56 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T22:45:00+00:00",
+      "type": "milestone",
+      "content": "PR 5000 description gate FAIL, then review finding from copilot-pull-request-reviewer",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T21:34:11+00:00",
+      "type": "commit",
+      "content": "Commit: acf145278",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T23:21:58+00:00",
+      "type": "commit",
+      "content": "Commit: 271d20435dbe6949f4114a235fd68600b269cf04",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
     }
   ],
   "metrics": {
-    "duration_minutes": 130,
+    "duration_minutes": 160,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }
