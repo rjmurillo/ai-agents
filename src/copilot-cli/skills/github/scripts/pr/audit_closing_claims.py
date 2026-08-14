@@ -136,7 +136,8 @@ def _strip_fenced_code(text: str) -> tuple[str, set[int]]:
             is_line_start = i == 0 or text[i - 1] == "\n"
             m = (
                 re.match(
-                    rf" {{0,3}}{re.escape(fence_char)}{{{opening_fence_length},}}",
+                    rf" {{0,3}}{re.escape(fence_char)}"
+                    rf"{{{opening_fence_length},}}(?=[ \t]*(?:\n|\Z))",
                     text[i:],
                 )
                 if is_line_start
@@ -160,7 +161,7 @@ def _strip_html_comments(text: str) -> tuple[str, set[int]]:
     """Return (text_with_html_comments_replaced, set_of_comment_positions)."""
     comment_positions: set[int] = set()
     result = list(text)
-    for m in re.finditer(r"<!--.*?-->", text, re.DOTALL):
+    for m in re.finditer(r"<!--.*?(?:-->|\Z)", text, re.DOTALL):
         for i in range(m.start(), m.end()):
             comment_positions.add(i)
             result[i] = " "

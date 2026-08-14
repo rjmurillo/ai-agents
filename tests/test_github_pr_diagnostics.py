@@ -271,6 +271,11 @@ class TestClassifyClaim:
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "fenced_code"
 
+    def test_fence_with_trailing_text_does_not_close_block(self):
+        text = "~~~\ncode\n~~~ trailing\nFixes #99\n~~~"
+
+        assert self._classify(text, "Fixes #99") == "fenced_code"
+
     def test_html_comment(self):
         text = "<!-- Fixes #77 this is hidden -->"
         _, fenced = _audit_mod._strip_fenced_code(text)
@@ -279,6 +284,11 @@ class TestClassifyClaim:
         m = re.search(r"Fixes #77", text)
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "html_comment"
+
+    def test_unterminated_html_comment_extends_to_end(self):
+        text = "Visible prose\n<!-- Fixes #77"
+
+        assert self._classify(text, "Fixes #77") == "html_comment"
 
     def test_escaped_hash(self):
         text = r"See \#123 for context"
