@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, cohesive CLI contract suite shares fixtures.
 """Tests for the issue-coordination skill scripts (issue #2477).
 
 Covers check_existing_pr_for_issue.py (duplicate-PR detection) and claim_issue.py
