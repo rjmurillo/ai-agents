@@ -2330,6 +2330,7 @@ class TestRejectGitlinks:
 
     def test_gitlink_detected_in_output(self) -> None:
         from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _reject_gitlinks
 
         fake_output = (
@@ -2345,6 +2346,7 @@ class TestRejectGitlinks:
 
     def test_multiple_gitlinks_all_reported(self) -> None:
         from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _reject_gitlinks
 
         fake_output = (
@@ -2361,8 +2363,9 @@ class TestRejectGitlinks:
         assert "vendor/sub2" in errors[1]
 
     def test_timeout_fails_closed(self) -> None:
-        from unittest.mock import patch
         import subprocess
+        from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _reject_gitlinks
 
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("git", 30)):
@@ -2376,6 +2379,7 @@ class TestPublishCheckRun:
 
     def test_success_conclusion(self) -> None:
         from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run") as mock_run:
@@ -2388,6 +2392,7 @@ class TestPublishCheckRun:
 
     def test_failure_conclusion(self) -> None:
         from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run") as mock_run:
@@ -2398,6 +2403,7 @@ class TestPublishCheckRun:
 
     def test_api_failure_returns_1(self) -> None:
         from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run") as mock_run:
@@ -2407,8 +2413,9 @@ class TestPublishCheckRun:
         assert result == 1
 
     def test_timeout_returns_1(self) -> None:
-        from unittest.mock import patch
         import subprocess
+        from unittest.mock import patch
+
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 30)):
