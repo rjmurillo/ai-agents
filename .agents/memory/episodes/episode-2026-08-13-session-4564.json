@@ -441,7 +441,9 @@
       "caused_by": [
         "e034"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e036"
+      ],
       "_source_session": "2026-08-13-session-4564"
     },
     {
@@ -456,14 +458,38 @@
         "e033"
       ],
       "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-14T01:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed final Markdown parser findings",
+      "caused_by": [
+        "e036"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-14T00:58:45+00:00",
+      "type": "commit",
+      "content": "Commit: 7e9c055a9105ad4e2c26e967e0829556ee2bfb30",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-13-session-4564"
     }
   ],
   "metrics": {
-    "duration_minutes": 925,
+    "duration_minutes": 960,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 18,
+    "commits": 19,
     "files_changed": 23
   },
   "lessons": []
