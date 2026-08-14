@@ -321,7 +321,7 @@ Before committing a new skill, verify:
 - [ ] Frontmatter ends with `---` before Markdown content
 - [ ] YAML uses spaces for indentation (not tabs)
 - [ ] SKILL.md under 500 lines (use progressive disclosure if larger)
-- [ ] Pre-commit validation passes (`scripts/validate_skill_format.py`, run by Lefthook on staged skills)
+- [ ] Pre-commit validation passes (`.claude/skills/SkillForge/scripts/validate-skill.py <skill-dir>`, which Lefthook's `skillforge` job runs on staged `SKILL.md` files through `scripts/validation/git_hook_policy.py`)
 - [ ] Model-pin check passes (`uv run python scripts/validation/check_model_pins.py`; `scripts/validation/pre_pr.py` runs it in warn mode)
 
 ## Troubleshooting

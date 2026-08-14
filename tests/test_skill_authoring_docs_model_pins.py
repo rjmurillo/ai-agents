@@ -59,13 +59,16 @@ _YAML_FENCE_RE = re.compile(r"^```ya?ml\s*$(.*?)^```\s*$", re.MULTILINE | re.DOT
 
 # A fenced block may show a rejected pin when the pin itself is labelled. The
 # label must sit within LABEL_LOOKBACK_LINES above the pin (an in-block comment)
-# or be the "**Before**" prose heading of a migration example. Matching the
-# whole block instead would let a "# Correct" line hide behind a "# Wrong" line
-# in the same fence, which is exactly the shape the old docs used.
+# or be the "**Before**" prose heading that introduces a migration example.
+# Matching the whole block instead would let a "# Correct" line hide behind a
+# "# Wrong" line in the same fence, which is exactly the shape the old docs
+# used. The prose label is read from the LAST nonblank line before the fence,
+# not from a character window: in a migration section the "**Before**" heading
+# sits within a few hundred characters of the "**After**" fence that follows it,
+# so a window would exempt the corrected example too (PR #5003 review).
 MARKER_WORDS = ("wrong", "before", "never", "rejected", "superseded", "banned")
 PROSE_LABELS = ("**Before**",)
 LABEL_LOOKBACK_LINES = 3
-PROSE_LOOKBACK_CHARS = 200
 
 
 def _read(rel_path: str) -> str:
@@ -80,9 +83,15 @@ def _yaml_blocks(text: str) -> list[re.Match[str]]:
 
 
 def _has_prose_label(text: str, block_start: int) -> bool:
-    """True when the fence is introduced as a 'Before' migration example."""
-    prose = text[max(0, block_start - PROSE_LOOKBACK_CHARS) : block_start]
-    return any(label in prose for label in PROSE_LABELS)
+    """True when the last line before the fence introduces a 'Before' example.
+
+    Only the introducing line counts. A migration section writes "**Before**",
+    one short fence, then "**After**" and the corrected fence; anything wider
+    than the introducing line exempts the corrected fence as well.
+    """
+    preceding = text[:block_start].splitlines()
+    introducing = next((line for line in reversed(preceding) if line.strip()), "")
+    return any(label in introducing for label in PROSE_LABELS)
 
 
 def _is_labelled(lines: list[str], index: int) -> bool:
@@ -174,6 +183,23 @@ def test_before_prose_label_exempts_a_migration_example() -> None:
     doc = "**Before** (versioned id):\n\n```yaml\nmodel: claude-opus-4-6-20251015\n```\n"
 
     assert _versioned_pins_taught(doc) == []
+
+
+def test_before_label_does_not_exempt_the_after_fence() -> None:
+    """Edge: the corrected fence of a migration pair is still checked.
+
+    The label is read from the line that introduces each fence. A window wide
+    enough to reach back over the 'Before' fence would let a regression hide in
+    the 'After' example, which is the one authors copy (PR #5003 review).
+    """
+    doc = (
+        "**Before** (versioned id):\n\n"
+        "```yaml\nmodel: claude-opus-4-6-20251015\n```\n\n"
+        "**After** (corrected):\n\n"
+        "```yaml\nmodel: claude-opus-4-6\n```\n"
+    )
+
+    assert _versioned_pins_taught(doc) == ["claude-opus-4-6"]
 
 
 def test_bare_alias_is_not_flagged() -> None:
