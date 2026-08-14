@@ -42,8 +42,10 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _LEFTHOOK = _REPO_ROOT / "lefthook.yml"
 
-# Placeholders lefthook 2.1.10 substitutes. The file-list names come from the
-# binary's own help text (`replace files templates with {all_files}`); `{0}` and
+# Placeholders lefthook 2.1.10 substitutes. The four file templates are the
+# complete set the pinned binary carries: `strings <lefthook> | grep -oE
+# '\{[a-z_]*files\}'` yields {all_files}, {files}, {push_files}, {staged_files}
+# and nothing else. `{cmd}` is the runner-command template, and `{0}` plus
 # `{1}`..`{n}` are the hook's positional arguments, probed as described above.
 _SUPPORTED_PLACEHOLDERS = frozenset(
     {"staged_files", "push_files", "all_files", "files", "cmd"}

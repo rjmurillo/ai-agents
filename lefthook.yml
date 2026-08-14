@@ -393,6 +393,9 @@ pre-push:
     # commit-message-policy job above uses the same `"{1}"` form. Keep this job
     # ahead of the long-running groups: aborting here is the whole point, since
     # the jobs below take 6-15 minutes before git would report the rejection.
+    # The 1m timeout is the deleted copy's, which is the safer of the two: the
+    # script allows `git ls-remote` 10s per pushed ref, so a push of several
+    # refs on a slow link could exceed the 30s this copy carried.
     - name: push-ref-staleness
       timeout: 1m
       run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
