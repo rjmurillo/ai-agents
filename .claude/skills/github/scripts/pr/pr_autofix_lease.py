@@ -37,13 +37,21 @@ hard safety boundary and is never replaced or relaxed by this module.
 
 Exit codes (within the ADR-035 range, matching `check_pr_live_state.py`'s
 ACT/SKIP convention):
-    0 - ACT: caller may proceed (lease acquired, renewed, released, or
-        fail-open on auth/store error per ADR-076 part 3 step 6)
-    1 - SKIP: a live lease is held by another loop (acquire/renew only)
+    0 - ACT: caller may proceed. Returned on a clean acquire or self-renew,
+        a release, or one of the three fail-open paths enumerated in the
+        "Fail-open vs fail-closed" section below.
+    1 - SKIP: another live lease holds the branch, OR the ownership read
+        could not reach the store (fail-closed; issue #4966, narrowing
+        ADR-076 part 3 step 6)
     2 - PR not found / usage error
-    3 - External error (API failure)
-    4 - Auth error (only for non-lease operations; lease operations fail
-        open to exit 0 per ADR-076 part 3 step 6)
+    3 - External error (API failure). For ``acquire`` / ``status`` / a
+        tokenless ``renew`` this is remapped to exit 1 (SKIP): an
+        ownership gate that cannot reach the store must not authorize a
+        mutation (issue #4966). ``release`` and a token-backed ``renew``
+        still fail open to exit 0.
+    4 - Auth error. Same remapping as exit 3: fresh ``acquire`` / ``status``
+        fail closed to SKIP; ``release`` and a token-backed ``renew`` fail
+        open to exit 0 (ADR-076 part 3 step 6, narrowed by issue #4966).
 
 Stricter/looser/different than canonical
 ========================================
@@ -70,12 +78,49 @@ plus ``git cherry``; it reads ZERO comments. This module adds a NEW
 comment-timeline read path; it does not reuse that probe's store. The
 reuse is the ACT/SKIP gate *pattern*, not a shared store (ADR-076 part 1).
 
-Fail-open difference, by design (ADR-076 part 3, step 6): on a lease-store
-read/write failure this module FAILS OPEN to ACT (exit 0) with reason
-``lease-store-unavailable`` rather than surfacing the API error as exit 3.
-The SHA gate is the backstop, so a store outage must degrade to today's
-behavior, never to a workflow outage. A genuine PR-not-found or auth
-failure still exits 2 / 4.
+Fail-open vs fail-closed, by design. The default is fail CLOSED: ACT is
+returned only when this session provably holds the branch. Fail-open
+survives only where relinquishing or extending-a-confirmed-hold cannot
+create a race.
+
+Record reconciliation. This narrows ADR-076 part 3 step 6, whose accepted
+text still reads "Fail open ... return ACT with reason
+lease-store-unavailable" for the read/write path. Issue #4966 (P0)
+authorizes the narrowing: a blanket fail-open lets two sessions race one
+branch. ADR-090 (proposed, issue #3413) formalizes the fail-closed
+direction but is not yet accepted or implemented, so issue #4966 is the
+operative authority here, not ADR-090. This module also does not adopt
+ADR-090's distinct exit-3/4 table; store and auth failures are remapped to
+SKIP (exit 1), this tool's native "do not mutate" verdict, which is stricter
+than and consistent with ADR-090's "must not mutate" intent.
+
+* Any store failure that leaves ownership UNVERIFIABLE fails CLOSED to
+  SKIP (exit 1) with reason ``lease-store-unavailable``. This covers a
+  ``status`` read, a fresh ``acquire``'s first read, a fresh acquire's
+  claim WRITE or post-claim RE-READ (ACT requires a published-and-
+  confirmed claim, so two sessions that both read free cannot both
+  proceed), an unresolved login, and auth/transport failure (exit 3/4)
+  for ``acquire`` / ``status`` / a tokenless ``renew``. An unreadable
+  store leaves ownership unknown, and a gate that cannot determine
+  ownership must not act on the branch (issue #4966;
+  ``.claude/rules/security.md`` MUST-7, "infrastructure failure is not a
+  security pass"). Reporting ACT here told every concurrent session the
+  branch was free at the one moment none of them could tell.
+* Only three paths FAIL OPEN to ACT (exit 0). (1) ``release``: TTL expiry
+  covers a missed tombstone, so relinquishing under an unreadable store
+  cannot create a race. (2) A ``renew`` whose earlier read CONFIRMED a
+  still-live self-owned lease (a self-renew), whose only remaining failure
+  is the TTL-extension write or its re-read: the prior claim is still
+  live, so the holder keeps it (issue #4376). (3) A ``renew`` whose store
+  read or auth failed BEFORE any confirmation, but which presents a
+  durable local ownership token this session wrote on its last confirmed
+  acquire/renew: the token, not the ``renew`` command name, is the
+  ownership proof (issue #4966 HIGH). In all three the SHA gate remains
+  the mutation backstop.
+
+A genuine PR-not-found or usage error still exits 2. The "no store yet"
+cold start (a successful read that returns no live lease) is distinct from
+"a store that could not be read": the former ACTs, the latter SKIPs.
 
 Security (ADR-076 Security section): the lease comment is untrusted input
 read from the PR timeline. Three hardening controls bound forgery:
@@ -107,6 +152,7 @@ The lease is never an authorization; only the SHA gate gates a push.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -175,6 +221,17 @@ TTL = timedelta(minutes=15)
 #: consistent. Equal to TTL: a well-formed self-renewal sets
 #: ``expires_at = acquired_at + TTL``, so any longer window is forged or corrupt.
 MAX_TTL = TTL
+
+#: Worst-case gh CLI I/O between ``acquire`` reading the entry-time clock and a
+#: self-renew fail-open decision: gh auth login, the git head read, the lease
+#: list, the PR head read, the claim POST, and the authoritative re-read (30s
+#: each plus the 10s git head). A self-renew only extends its prior claim
+#: through a store outage when the claim stays live across this whole window.
+#: A claim that could expire mid-operation fails CLOSED instead, so a partial
+#: outage (this session's write fails while a competitor can still read) cannot
+#: let a fresh session acquire the branch under a stale ACT (issue #4966
+#: review). The SHA gate stays authoritative regardless.
+RENEW_FAILOPEN_LIVENESS_MARGIN = timedelta(seconds=180)
 
 #: Upper bound on the number of timeline comments scanned per acquire/status
 #: (ADR-076 Security / part 3). A PR flooded with forged ``<!-- PR-AUTOFIX-LEASE
@@ -789,6 +846,199 @@ def _warn_on_checkout_mismatch(pr: int, local_sha: str | None, base_sha: str) ->
     )
 
 
+# ---------------------------------------------------------------------------
+# Local ownership token. A ``renew`` fails open to ACT when the store is
+# unreachable so a long pre-push validation keeps its lease (issue #4376).
+# That fail-open is only safe for a caller that actually acquired the lease.
+# The command name alone is not proof: ``renew --session never-acquired``
+# must not mint ACT during an outage (issue #4966 HIGH finding). This token is
+# the independent ownership proof: ``acquire`` writes it on a confirmed win,
+# ``renew`` reads it before the fail-open, and ``release`` clears it.
+#
+# It is a LOCAL identity artifact, never the lease store. The lease store is
+# the PR timeline (ADR-076 part 1); this file only records "this session, on
+# this machine, won the lease for this (repository, PR) at time T". The
+# repository identity is part of the token key and payload, so a token written
+# for one repository cannot authorize a renew in another repository that
+# shares the global token directory (issue #4966 review). It grants no push
+# (the SHA gate does) and is bounded by MAX_TTL, so an abandoned token cannot
+# grant fail-open past one lease lifetime. Acquire/renew run in the same
+# session on the same machine (ADR-076 Phase 1 is local-only), so the token is
+# always co-located with the caller that needs it.
+# ---------------------------------------------------------------------------
+
+#: Override for the ownership-token directory. Tests point this at a temp dir;
+#: production uses the XDG state directory. Not the lease store.
+_OWNERSHIP_TOKEN_DIR_ENV = "PR_AUTOFIX_LEASE_STATE_DIR"
+
+
+def _ownership_token_dir() -> str:
+    override = os.environ.get(_OWNERSHIP_TOKEN_DIR_ENV)
+    if override:
+        return override
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(
+        os.path.expanduser("~"), ".local", "state"
+    )
+    return os.path.join(base, "pr-autofix-lease")
+
+
+def _normalize_repo_identity(repo_owner: str, repo: str) -> tuple[str, str]:
+    """Lowercase the repository identity so a case variant maps to one key.
+
+    GitHub owner and repository names are case-insensitive, so ``Octo/Repo`` and
+    ``octo/repo`` name one repository addressing one remote lease. Normalizing
+    the identity in the key, payload, and validation keeps a case-variant
+    release matched to the token its acquire wrote. Without it, release computes
+    a different path, misses the token, posts the tombstone, and leaves the
+    original valid token able to authorize a post-release fail-open renew
+    (issue #4966 review).
+    """
+    return repo_owner.lower(), repo.lower()
+
+
+def _ownership_token_path(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> str:
+    """Return the token path for one (repo, owner, session, pr) holder.
+
+    The repository identity (``repo_owner``/``repo``) is part of the key so a
+    token written for PR #1 in one repository cannot authorize a token-backed
+    renew of PR #1 in a different repository sharing the same global token
+    directory (issue #4966 review). The identity is hashed so a forgeable
+    ``owner`` (``local:pr-autofix``) or ``session`` string cannot craft a path
+    outside the token directory (CWE-22). The identity is lowercased first so a
+    case-variant caller resolves the same path (issue #4966 review).
+    """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
+    key = hashlib.sha256(
+        f"{repo_owner}\x00{repo}\x00{owner}\x00{session}\x00{pr}".encode()
+    ).hexdigest()
+    return os.path.join(_ownership_token_dir(), f"{key}.json")
+
+
+def _write_ownership_token(
+    owner: str, session: str, repo_owner: str, repo: str, pr: int, now: datetime
+) -> None:
+    """Record that this session holds the lease (called on a confirmed ACT).
+
+    Best-effort: a write failure only weakens a future ``renew``'s ability to
+    fail open, never correctness. The worst case of a lost token is a renew
+    that fails closed to SKIP, which is the safe direction.
+    """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
+    payload = json.dumps(
+        {
+            "owner": owner,
+            "session": session,
+            "repo_owner": repo_owner,
+            "repo": repo,
+            "pr": pr,
+            "written_at": _to_rfc3339(now),
+        }
+    )
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+    except OSError as exc:
+        logger.warning("op=lease_ownership_write_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+
+
+def _has_valid_ownership_token(
+    owner: str, session: str, repo_owner: str, repo: str, pr: int, now: datetime
+) -> bool:
+    """Return True iff this session recorded a lease win within MAX_TTL.
+
+    This is the ownership proof ``renew`` needs to fail open when the store
+    is unreadable (issue #4966 HIGH). A caller that never acquired has no
+    token, so it fails closed to SKIP. The token key and payload both carry
+    the repository identity, so a token from another repository cannot satisfy
+    this check (issue #4966 review). The MAX_TTL freshness bound stops an
+    abandoned token from granting fail-open past one lease lifetime; a healthy
+    holder rewrites it on every successful renew, well inside that window. The
+    upper bound is strict (``< MAX_TTL``) to match ``Lease.is_live``'s strict
+    expiry (``now < expires_at``): a token exactly one TTL old coincides with
+    the instant the remote lease dies, so it must not authorize a fail-open
+    renew at that boundary (issue #4966 review).
+    """
+    repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.warning("op=lease_ownership_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return False
+    if not isinstance(data, dict):
+        # A syntactically valid but non-object token (``[]``, a bare number, a
+        # string) decodes cleanly, then the field reads below would raise
+        # AttributeError on ``.get`` and crash the CLI during the very outage
+        # this fail-open path exists to survive. An unrecognizable token proves
+        # no ownership, so fail closed to SKIP (issue #4966 review).
+        logger.warning("op=lease_ownership_malformed pr=%d", pr)
+        return False
+    if (
+        data.get("owner") != owner
+        or data.get("session") != session
+        or data.get("repo_owner") != repo_owner
+        or data.get("repo") != repo
+        or data.get("pr") != pr
+    ):
+        return False
+    written = _parse_rfc3339_utc(str(data.get("written_at", "")))
+    if written is None:
+        return False
+    return timedelta() <= now - written < MAX_TTL
+
+
+def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> bool:
+    """Revoke this session's ownership token (called on release).
+
+    Returns True when the token is gone or provably invalidated, False when
+    revocation could not be persisted. Revocation is NOT best-effort. The token
+    is ownership proof, so a residual valid token would let a post-release renew
+    fail open after the lease was already relinquished (issue #4966 review).
+    This is the asymmetric opposite of the acquire WRITE, which is safe as
+    best-effort because a lost write only makes a later renew fail CLOSED.
+
+    Removal escalates: unlink, then overwrite with a revoked marker that a later
+    ``_has_valid_ownership_token`` rejects on the field match. When both fail,
+    return False; the caller then keeps the remote lease held, so the surviving
+    token still matches a live lease this session owns and its fail-open renew
+    stays correct.
+    """
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
+    try:
+        os.remove(path)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        logger.warning("op=lease_ownership_unlink_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"revoked": True, "pr": pr}))
+        return True
+    except OSError as exc:
+        logger.error("op=lease_ownership_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return False
+
+
+def _self_renew_survives_store_io(current: Lease | None, now: datetime) -> bool:
+    """True when a confirmed-live self-lease outlasts a fail-open's store I/O.
+
+    ``acquire`` reads the authoritative lease once at entry-time ``now``, then
+    makes up to three 30s gh CLI calls (PR head, claim POST, authoritative
+    re-read) before a self-renew may fail open. If the prior claim would expire
+    inside that window, a partial store outage (this session's write fails while
+    a competitor can still read) lets a fresh session acquire the branch
+    mid-operation. Requiring the claim to stay live across
+    ``RENEW_FAILOPEN_LIVENESS_MARGIN`` keeps the fail-open on the safe side of
+    that boundary (issue #4966 review); a claim expiring sooner fails CLOSED to
+    SKIP. The SHA gate stays authoritative regardless.
+    """
+    return current is not None and current.expires_at > now + RENEW_FAILOPEN_LIVENESS_MARGIN
+
+
 def acquire(
     owner: str,
     session: str,
@@ -797,37 +1047,50 @@ def acquire(
     pr: int,
     now: datetime | None = None,
     acting_author: str | None = None,
+    renewing: bool = False,
 ) -> LeaseResult:
     """Acquire (or self-renew) the lease for ``pr`` (ADR-076 part 3 acquire).
 
-    Returns ACT when the caller may proceed (free lock, or self-renewal),
-    SKIP when another live lease holds the branch. Fails open to ACT with
-    reason ``lease-store-unavailable`` on any store error (step 6).
+    Returns ACT only when the caller provably holds the branch: a fresh
+    claim that was published AND confirmed as the latest live marker, or a
+    self-renewal of a lease the read confirmed this session already holds.
+    Every store failure that leaves ownership unverifiable returns
+    SKIP/``lease-store-unavailable`` (issue #4966). The failure
+    verdicts are:
+
+    - First store READ fails: a fresh acquire SKIPs (no prior ownership).
+      A renew ACTs ONLY when a durable ownership token proves this session
+      won the lease earlier; without a token it SKIPs, so the ``renew``
+      command name alone never mints ACT (issue #4966 HIGH; #4376).
+    - Login unresolved (``gh api user`` blip): same rule as the read
+      failure, since the session cannot verify its own identity.
+    - Claim WRITE fails / post-claim RE-READ fails: a fresh acquire SKIPs,
+      because ACT requires a published-and-confirmed claim; two sessions
+      that both read free and both fail here must not both proceed (issue
+      #4966 CRITICAL). A self-renew ACTs, because the read already
+      confirmed a still-live prior claim (issue #4376).
 
     Self-renewal keys on ``acting_author``: the VERIFIED login of the
     credential running acquire, matched against the verified author of the
     authoritative lease comment, never against the forgeable body
     ``owner`` / ``session`` (ADR-076 Security, CWE-345). ``acting_author``
     is injectable for deterministic tests; production passes None and the
-    authenticated ``gh`` login is resolved. An unresolved login fails open
-    to ``ACT/lease-store-unavailable`` because ownership loss was not
-    positively confirmed. The SHA gate remains the mutation backstop.
+    authenticated ``gh`` login is resolved.
 
     ``base_sha`` is the PR head SHA read from GitHub (ADR-076 part 3 step
     1), never the caller's local HEAD, so an acquire run from the wrong
     checkout cannot publish freshness evidence for another branch. The
     local HEAD is still read and reported as ``local_head_sha``, and a
-    mismatch is logged with both values (issues #4357, #4375).
+    mismatch is logged with both values (issues #4357, #4375). The head
+    read runs after the lease verdict and records the zero sentinel on
+    failure, so a transient error on it cannot skip the read that enforces
+    mutual exclusion, and it costs nothing on the SKIP path.
 
-    After posting a claim, acquire rereads the authoritative timeline and
-    only returns ACT when the posted claim is still the latest live marker.
-    A competing writer that wins the reread race turns the acquire into
-    SKIP, so two actors do not both continue with false success.
-
-    Only the comment read fails open. The head read runs after the lease
-    verdict and records the zero sentinel on failure, so a transient error
-    on it cannot skip the read that enforces mutual exclusion, and it costs
-    nothing on the SKIP path.
+    On a confirmed ACT the session writes a durable ownership token
+    (``_write_ownership_token``); ``release`` clears it. The token is the
+    only proof a later renew uses to fail open through a store outage; it
+    is a local identity artifact, never the lease store, and grants no push
+    (the SHA gate does).
 
     ``now`` is injectable for deterministic tests; production passes None
     and the current UTC instant is used.
@@ -836,22 +1099,56 @@ def acquire(
     author = _gh_authenticated_login() if acting_author is None else acting_author
     local_sha = _git_head_sha()
     if acting_author is None and author == "":
-        logger.warning("op=lease_login_unavailable pr=%d", pr)
-        return LeaseResult(
-            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
-        )
+        # The login could not be resolved (auth/transport blip on `gh api
+        # user`), so this session cannot verify its own identity against the
+        # authoritative lease. A fresh acquire fails CLOSED to SKIP: it cannot
+        # tell a free branch from one it holds, and a gate that cannot
+        # determine ownership must not mutate (issue #4966). A renew
+        # may still fail OPEN, but only against a durable ownership token this
+        # session wrote at acquire time, never on the command name alone
+        # (issue #4966 HIGH; the `renew --session never-acquired` repro).
+        logger.warning("op=lease_login_unavailable pr=%d renewing=%s", pr, renewing)
+        if renewing and _has_valid_ownership_token(owner, session, repo_owner, repo, pr, now):
+            logger.warning("op=lease_renew_failopen_ownership pr=%d cause=login-unresolved", pr)
+            return LeaseResult(
+                "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+            )
+        return LeaseResult("SKIP", "lease-store-unavailable")
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        logger.warning("op=lease_acquire_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult(
-            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
-        )
+        if renewing and _has_valid_ownership_token(owner, session, repo_owner, repo, pr, now):
+            # A renew whose store read fails extends in place ONLY when a
+            # durable ownership token proves this session already won the
+            # lease. It fails open to ACT; the SHA gate stays authoritative
+            # while the advisory store is down (ADR-076 step 6; issue #4376).
+            # The token, not the "renew" command name, is the proof (issue
+            # #4966 HIGH). A fresh acquire fails closed below, so no competitor
+            # can enter during the outage; the holder proceeding adds no new
+            # concurrency. Residual lease-loss is issue #4926.
+            logger.warning(
+                "op=lease_renew_failopen_ownership pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult(
+                "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+            )
+        # Fail closed: a fresh acquire (or a renew with no ownership token) has
+        # no prior ownership evidence, so an unreadable store leaves ownership
+        # unknown. A gate that cannot determine ownership must not mutate the
+        # branch (issue #4966), so SKIP rather than blindly claim a
+        # branch a foreign live lease may already hold.
+        logger.warning("op=lease_acquire_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("SKIP", "lease-store-unavailable")
 
     current = select_authoritative_lease(comments)
     verdict = classify_acquire(current, author, session, now)
     if verdict["action"] == "SKIP":
         return LeaseResult("SKIP", verdict["reason"], expires_at=verdict.get("expires_at"))
+    # ``self-renew`` means the read CONFIRMED this session already holds a live
+    # lease. That confirmation, not a token, lets a failed TTL extension below
+    # fail open: the prior claim is still live. A ``free`` verdict is a fresh
+    # claim with no such proof, so its write/re-read failures fail closed.
+    already_holds = verdict["reason"] == "self-renew"
 
     # The head read is freshness evidence, not the lock. Failing it open to ACT
     # alongside the comment read would let a transient API error skip the read
@@ -867,18 +1164,64 @@ def acquire(
     try:
         post_lease_comment(repo_owner, repo, pr, render_lease_comment(claim))
     except LeaseStoreError as exc:
-        logger.warning("op=lease_claim_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult(
-            "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
-        )
+        if already_holds and _self_renew_survives_store_io(current, now):
+            # A self-renew whose TTL-extension write fails keeps the prior,
+            # still-live claim it confirmed on the read above, so it fails open
+            # to ACT (issue #4376; SHA gate backstop). The liveness margin
+            # ensures the prior claim cannot expire during the store I/O.
+            logger.warning(
+                "op=lease_renew_write_failopen pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult(
+                "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+            )
+        if already_holds:
+            # The confirmed-live prior claim could expire inside the store-I/O
+            # window, so a partial outage might let a fresh session acquire the
+            # branch mid-operation. Fail CLOSED to SKIP rather than extend a
+            # claim that may already be dead (issue #4966 review).
+            logger.warning(
+                "op=lease_renew_expiry_failclosed pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult("SKIP", "lease-store-unavailable")
+        # A fresh claim that cannot be published fails CLOSED to SKIP. Two
+        # sessions can both read a free branch, both fail to POST, and both
+        # would ACT if this failed open: the original race one step later
+        # (issue #4966 CRITICAL). ACT requires a published claim, so an
+        # unpublished one cannot proceed.
+        logger.warning("op=lease_claim_write_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("SKIP", "lease-store-unavailable")
 
     try:
         latest_comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        logger.warning("op=lease_claim_recheck_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult(
-            "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+        if already_holds and _self_renew_survives_store_io(current, now):
+            # A self-renew that cannot re-read still holds the confirmed-live
+            # prior claim; no competitor can steal a live lease, so it fails
+            # open to ACT (issue #4376). The liveness margin ensures the prior
+            # claim cannot expire during the store I/O.
+            logger.warning(
+                "op=lease_renew_recheck_failopen pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult(
+                "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+            )
+        if already_holds:
+            # The confirmed-live prior claim could expire inside the store-I/O
+            # window, so a partial outage might let a fresh session acquire the
+            # branch mid-operation. Fail CLOSED to SKIP (issue #4966 review).
+            logger.warning(
+                "op=lease_renew_expiry_failclosed pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult("SKIP", "lease-store-unavailable")
+        # A fresh claim that cannot be re-read cannot confirm it won the post
+        # race, so it fails CLOSED to SKIP. ACT requires an authoritative
+        # re-read confirming this session's claim is the latest live marker
+        # (issue #4966 CRITICAL).
+        logger.warning(
+            "op=lease_claim_recheck_failclosed pr=%d err=%s", pr, safe_log_str(str(exc))
         )
+        return LeaseResult("SKIP", "lease-store-unavailable")
 
     current_after_post = select_authoritative_lease(latest_comments)
     if not _claim_is_authoritative(current_after_post, claim, author):
@@ -890,6 +1233,11 @@ def acquire(
             )
         return LeaseResult("SKIP", "lease-race-lost", expires_at=_to_rfc3339(claim.expires_at))
 
+    # A published claim confirmed as the latest live marker: this session holds
+    # the lease. Record the durable ownership token so a later renew can prove
+    # prior ownership and fail open through a store outage (issue #4966 HIGH,
+    # #4376). A token write failure is non-fatal (renew would just fail closed).
+    _write_ownership_token(owner, session, repo_owner, repo, pr, now)
     return LeaseResult(
         "ACT",
         verdict["reason"],
@@ -914,10 +1262,23 @@ def release(
     live lease still matches this owner, session, verified author, and an
     immutable claim ID. An already-free, legacy, or foreign lease returns
     ACT without writing. A store error fails open to ACT because TTL expiry
-    covers a missed release. ``now`` and ``acting_author`` are injectable
-    for deterministic tests.
+    covers a missed release (relinquishing under an unreadable store cannot
+    create a race; the worst case is the lease lingers one TTL). Releasing
+    also clears this session's durable ownership token so a later renew
+    cannot fail open after the session has relinquished. ``now`` and
+    ``acting_author`` are injectable for deterministic tests.
     """
     now = now or datetime.now(UTC)
+    # Revoke the local ownership proof BEFORE relinquishing the remote lease.
+    # Once a tombstone is posted this session no longer holds the lease, so a
+    # residual valid token must never survive that transition (issue #4966
+    # review). If revocation cannot be persisted, keep the remote lease held by
+    # returning without posting a tombstone: the surviving token then still
+    # matches a live lease this session owns, so its fail-open renew stays
+    # correct, and TTL expiry eventually reaps the lease.
+    if not _clear_ownership_token(owner, session, repo_owner, repo, pr):
+        logger.warning("op=lease_release_ownership_revoke_failed pr=%d", pr)
+        return LeaseResult("SKIP", "token-revocation-failed")
     author = _gh_authenticated_login() if acting_author is None else acting_author
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
@@ -963,8 +1324,12 @@ def status(repo_owner: str, repo: str, pr: int, now: datetime | None = None) -> 
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        logger.warning("op=lease_status_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
-        return LeaseResult("ACT", "lease-store-unavailable")
+        # Fail closed: an unreadable store leaves ownership unknown, and the
+        # safe reading of unknown is decline (issue #4966).
+        # Reporting ACT here told concurrent sessions the branch was free at
+        # the one moment none of them could tell.
+        logger.warning("op=lease_status_failclosed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult("SKIP", "lease-store-unavailable")
     current = select_authoritative_lease(comments)
     if current is not None and current.is_live(now):
         return LeaseResult(
@@ -1045,19 +1410,92 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
     # section (issue #4376). A renew that finds the lease free (e.g. expired)
     # re-claims it, which is the correct recovery.
     if args.command in ("acquire", "renew"):
-        return acquire(args.lease_owner, args.session, owner, repo, args.pull_request)
+        return acquire(
+            args.lease_owner,
+            args.session,
+            owner,
+            repo,
+            args.pull_request,
+            renewing=args.command == "renew",
+        )
     return release(args.lease_owner, args.session, owner, repo, args.pull_request)
+
+
+def _handle_unreachable_auth(
+    args: argparse.Namespace, code: int, output_format: str, repo_owner: str, repo: str
+) -> int:
+    """Emit a verdict when auth/transport fails before any lease read.
+
+    ``assert_gh_authenticated`` exits 4 on a genuine auth misconfiguration and
+    3 on a transport failure. Neither can reach the store, so neither can
+    verify branch ownership. For ``acquire`` and ``status`` that means SKIP:
+    an ownership gate that cannot read the store must not authorize a mutation
+    (issue #4966 CRITICAL; ``.claude/rules/security.md`` MUST-7,
+    "infrastructure failure is not a security pass"). ``release`` still fails
+    open to ACT because a missed tombstone is covered by TTL expiry.
+    ``renew`` fails open ONLY when a durable ownership token proves this
+    session already holds the lease (issue #4966 HIGH; #4376); without a token
+    it SKIPs, so the ``renew`` command name alone never mints ACT. The token
+    check uses the resolved repository identity, so a token from another
+    repository cannot mint ACT here (issue #4966 review).
+
+    The exit code is preserved in the log and human summary so an operator can
+    tell a persistent auth misconfiguration (exit 4) from a transient
+    transport blip (exit 3). The machine ``reason`` stays
+    ``lease-store-unavailable`` so callers branch on one sentinel.
+    """
+    if args.command == "release":
+        action = "ACT"
+    elif args.command == "renew" and _has_valid_ownership_token(
+        args.lease_owner, args.session, repo_owner, repo, args.pull_request, datetime.now(UTC)
+    ):
+        action = "ACT"
+    else:
+        action = "SKIP"
+    cause = "auth misconfiguration" if code == 4 else "transport failure"
+    logger.warning(
+        "op=lease_main_unreachable exit_code=%d command=%s pr=%d action=%s",
+        code,
+        args.command,
+        args.pull_request,
+        action,
+    )
+    result = {
+        "success": True,
+        "pull_request": args.pull_request,
+        "owner": repo_owner,
+        "repo": repo,
+        "command": args.command,
+        "action": action,
+        "reason": "lease-store-unavailable",
+        "expires_at": None,
+        "base_sha": None,
+        "local_head_sha": None,
+    }
+    write_skill_output(
+        result,
+        output_format=output_format,
+        human_summary=(
+            f"PR #{args.pull_request} lease {args.command}: {action} "
+            f"(lease-store-unavailable; {cause}, exit {code} before store read)"
+        ),
+        status="PASS" if action == "ACT" else "WARNING",
+        script_name=_SCRIPT_NAME,
+    )
+    return 0 if action == "ACT" else 1
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
     # ADR-076 part 3 step 6: repo-parameter validation must run before any
-    # auth fail-open so malformed owner/repo still exits 2. Valid auth
-    # failures still fail open to ACT with reason=lease-store-unavailable.
-    # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
-    # converts an advisory coordination mechanism into a workflow outage
-    # (issue #4375).
+    # auth handling so malformed owner/repo still exits 2. A resolvable-but-
+    # unreachable auth/transport failure (exit 3/4) then routes through
+    # _handle_unreachable_auth: acquire/status fail CLOSED to SKIP because they
+    # cannot verify ownership (issue #4966), release fails open, and renew
+    # fails open only against a durable ownership token. This narrows the prior
+    # blanket auth fail-open (issues #4375/#4376) for the ownership-read path
+    # only; release's fail-open and the SHA-gate backstop are unchanged.
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     try:
@@ -1066,42 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
         code = exc.code if isinstance(exc.code, int) else 3
         if code not in (3, 4):
             raise
-        # Auth failure. Fail open per ADR-076 part 3
-        # step 6: emit an ACT/lease-store-unavailable result on the same
-        # output channel so the caller sees a structured verdict, then exit
-        # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
-        # result. Output serialization failures remain fatal because callers
-        # cannot act safely without a readable lease verdict.
-        logger.warning(
-            "op=lease_main_failopen exit_code=%d command=%s pr=%d",
-            code,
-            args.command,
-            args.pull_request,
-        )
-        fail_open_result = {
-            "success": True,
-            "pull_request": args.pull_request,
-            "owner": args.owner or "",
-            "repo": args.repo or "",
-            "command": args.command,
-            "action": "ACT",
-            "reason": "lease-store-unavailable",
-            "expires_at": None,
-            "base_sha": None,
-            "local_head_sha": None,
-        }
-        write_skill_output(
-            fail_open_result,
-            output_format=output_format,
-            human_summary=(
-                f"PR #{args.pull_request} lease {args.command}: "
-                f"ACT (lease-store-unavailable; auth/repo resolution failed, "
-                f"original exit {code})"
-            ),
-            status="PASS",
-            script_name=_SCRIPT_NAME,
-        )
-        return 0
+        return _handle_unreachable_auth(args, code, output_format, owner, repo)
 
     result = _run_command(args, owner, repo)
 
