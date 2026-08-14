@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-pr4973-autofix.json
-qaCommit: 3117d2e6fb03eacfce1c82b7406ce1e4f06a4d2e
+qaCommit: 01f3bfdde6bcffcbfe282e2701d16c108e951803
 ---
 
 # PR 4973 Review Fixes QA Report
