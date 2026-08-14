@@ -72,8 +72,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": null,
-    "_files_changed_note": "Original value 63 was unreliable: session.startingCommit is a short SHA (10 chars) which causes extract_session_episode.py to reject the commit range and fall back to staged-file count. Set to null pending full SHA regeneration."
+    "files_changed": 5
   },
   "lessons": []
 }
