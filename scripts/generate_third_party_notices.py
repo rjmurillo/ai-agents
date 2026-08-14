@@ -33,6 +33,7 @@ class ShippedComponent:
     author: str
     url: str
     license_text: str = ""
+    license_blank_line_prefix: str = "   "
     category: str = "forked"
 
 
@@ -67,6 +68,36 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
             "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
             "SOFTWARE.\n"
         ),
+    },
+    "gstack": {
+        "license": "MIT",
+        "url": "https://github.com/garrytan/gstack",
+        "author": "Garry Tan",
+        "local_path": ".claude/skills/dx-review",
+        "license_text": (
+            "MIT License\n"
+            "\n"
+            "Copyright (c) 2026 Garry Tan\n"
+            "\n"
+            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+            'of this software and associated documentation files (the "Software"), to deal\n'
+            "in the Software without restriction, including without limitation the rights\n"
+            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+            "copies of the Software, and to permit persons to whom the Software is\n"
+            "furnished to do so, subject to the following conditions:\n"
+            "\n"
+            "The above copyright notice and this permission notice shall be included in all\n"
+            "copies or substantial portions of the Software.\n"
+            "\n"
+            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
+            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+            "SOFTWARE.\n"
+        ),
+        "license_blank_line_prefix": "",
     },
 }
 
@@ -188,6 +219,7 @@ def find_forked_components(project_root: Path, shipped_paths: list[Path]) -> lis
                     author=info["author"],
                     url=info["url"],
                     license_text=info.get("license_text", ""),
+                    license_blank_line_prefix=info.get("license_blank_line_prefix", "   "),
                     category="forked",
                 )
             )
@@ -322,7 +354,8 @@ def _format_entry(num: int, dep: ShippedComponent) -> list[str]:
     if dep.license_text:
         lines.append("   " + "-" * 60)
         for text_line in dep.license_text.strip().splitlines():
-            lines.append(f"   {text_line}")
+            prefix = "   " if text_line else dep.license_blank_line_prefix
+            lines.append(f"{prefix}{text_line}")
         lines.append("   " + "-" * 60)
         lines.append("")
     elif dep.url:
@@ -364,6 +397,7 @@ def main() -> int:
     runtime = find_runtime_dependencies(project_root, shipped_paths)
 
     content = format_notices(forked, runtime)
+    content_bytes = content.encode("utf-8")
 
     output_path = project_root / args.output
 
@@ -371,14 +405,14 @@ def main() -> int:
         if not output_path.exists():
             print(f"ERROR: {args.output} does not exist. Run without --check to generate.")
             return 1
-        existing = output_path.read_text()
-        if existing != content:
+        existing = output_path.read_bytes()
+        if existing != content_bytes:
             print(f"ERROR: {args.output} is out of date. Run without --check to regenerate.")
             return 1
         print(f"OK: {args.output} is up to date.")
         return 0
 
-    output_path.write_text(content)
+    output_path.write_bytes(content_bytes)
 
     forked_count = len(forked)
     runtime_count = len(runtime)
