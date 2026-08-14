@@ -68,6 +68,32 @@ jobs:
           git read-tree "$BASE_SHA"
           git checkout-index -a -f
 
+      - name: Create in-progress check run
+        # Runs as early as the trusted-base checkout allows (this workflow
+        # has no actions/checkout step; the script only exists once the
+        # base tree above has been materialized). On `edited`/`reopened`,
+        # PR_SHA is unchanged, so without this step a prior run's
+        # completed "Validate Vendor Provenance" check-run for that same
+        # SHA remains the latest status for the whole re-validation
+        # window. Creating an in_progress run here immediately shadows
+        # any such stale success. Best-effort: a failure here must not
+        # fail the job, since `_publish_check_run` falls back to creating
+        # a fresh completed run at the end (issue raised in PR #4846
+        # review).
+        if: always() && github.event_name == 'pull_request_target'
+        id: create_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Best-effort: `|| true` keeps this non-fatal (see rationale
+          # above) without weakening the file-wide fail-closed contract;
+          # a creation failure degrades to the pre-existing POST-only
+          # publish path, it does not abort the job.
+          CHECK_RUN_ID=$(python3 scripts/ci/validate_vendor_provenance.py \
+            --create-check-run "${{ github.repository }}" "$PR_SHA") || true
+          echo "check_run_id=$CHECK_RUN_ID" >> "$GITHUB_OUTPUT"
+
       - name: Materialize candidate and comparison trees
         run: |
           set -euo pipefail
@@ -134,8 +160,10 @@ jobs:
         if: always() && github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ github.token }}
+          CHECK_RUN_ID: ${{ steps.create_check.outputs.check_run_id }}
         run: |
           set -euo pipefail
           CONCLUSION=${{ job.status == 'success' && 'success' || 'failure' }}
           python3 scripts/ci/validate_vendor_provenance.py \
-            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION"
+            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION" \
+            --check-run-id "$CHECK_RUN_ID"

@@ -1603,14 +1603,77 @@ def _reject_gitlinks(pr_sha: str) -> list[str]:
     return errors
 
 
+def _create_check_run(repo: str, head_sha: str) -> str | None:
+    """Create an in_progress check run on the PR head SHA.
+
+    Call this near the start of the job, before any validation runs. On
+    `edited`/`reopened` events `PR_SHA` is unchanged, so a prior run's
+    successful "Validate Vendor Provenance" check-run for that same SHA
+    would otherwise remain the latest status for that context throughout
+    the whole re-validation window (once this check is configured as a
+    required status check, that stale success falsely satisfies branch
+    protection while revalidation is still executing). Creating an
+    `in_progress` run here immediately shadows any prior completed run,
+    so the required context is unsatisfied until `_publish_check_run`
+    completes this exact check-run ID.
+
+    Returns the numeric check-run ID as a string on success, None on
+    failure (caller falls back to the create-on-publish path, which is
+    fail-closed for a brand-new SHA but keeps the exact race this
+    function exists to close for edited/reopened events).
+    """
+    import json as _json
+    payload = _json.dumps({
+        "name": "Validate Vendor Provenance",
+        "head_sha": head_sha,
+        "status": "in_progress",
+    })
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api", f"repos/{repo}/check-runs",
+                "-X", "POST",
+                "--input", "-",
+            ],
+            input=payload,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(f"ERROR: check-run creation failed: {exc}", file=sys.stderr)
+        return None
+    if result.returncode != 0:
+        print(f"ERROR: check-run creation failed: {result.stderr}", file=sys.stderr)
+        return None
+    try:
+        check_run_id = _json.loads(result.stdout)["id"]
+    except (_json.JSONDecodeError, KeyError, TypeError) as exc:
+        print(f"ERROR: check-run creation returned malformed response: {exc}", file=sys.stderr)
+        return None
+    return str(check_run_id)
+
+
 def _publish_check_run(
-    repo: str, head_sha: str, conclusion: str, summary: str,
+    repo: str,
+    head_sha: str,
+    conclusion: str,
+    summary: str,
+    check_run_id: str | None = None,
 ) -> int:
     """Publish a check run on the PR head SHA via the GitHub Checks API.
 
     pull_request_target attaches the native job check to the base-branch
     SHA, not the PR head SHA.  This function mirrors the job conclusion
     onto the PR head commit so branch-protection rules can gate on it.
+
+    When `check_run_id` is given (the ID returned by `_create_check_run`),
+    this PATCHes that exact in_progress run to completed, closing the
+    stale-success race on edited/reopened events. Without it, this POSTs
+    a brand-new completed run (used when creation failed or was skipped),
+    matching the prior fail-closed behavior for a first-time SHA.
 
     Returns 0 on success, 1 on failure.
     """
@@ -1625,13 +1688,21 @@ def _publish_check_run(
             "summary": summary,
         },
     })
+    if check_run_id:
+        args = [
+            "gh", "api", f"repos/{repo}/check-runs/{check_run_id}",
+            "-X", "PATCH",
+            "--input", "-",
+        ]
+    else:
+        args = [
+            "gh", "api", f"repos/{repo}/check-runs",
+            "-X", "POST",
+            "--input", "-",
+        ]
     try:
         result = subprocess.run(
-            [
-                "gh", "api", f"repos/{repo}/check-runs",
-                "-X", "POST",
-                "--input", "-",
-            ],
+            args,
             input=payload,
             capture_output=True,
             text=True,
@@ -1921,6 +1992,25 @@ def main() -> int:
         help="Publish check run on HEAD_SHA: REPO HEAD_SHA success|failure",
     )
     parser.add_argument(
+        "--check-run-id",
+        default="",
+        help=(
+            "Existing check-run ID to complete via PATCH instead of "
+            "creating a new one (pair with --publish-check-run; ID comes "
+            "from --create-check-run). Closes the stale-success window on "
+            "edited/reopened events where PR_SHA is unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--create-check-run",
+        nargs=2,
+        metavar=("REPO", "HEAD_SHA"),
+        help=(
+            "Create an in_progress check run on HEAD_SHA near job start; "
+            "prints the numeric check-run ID to stdout on success"
+        ),
+    )
+    parser.add_argument(
         "--reject-gitlinks",
         metavar="SHA",
         help="Check tree SHA for gitlink entries and exit 0/1",
@@ -1937,7 +2027,14 @@ def main() -> int:
         print("PASS: No gitlinks in candidate tree")
         return 0
 
-    # Check-run publication mode
+    # Check-run creation mode (in_progress, near job start)
+    if args.create_check_run:
+        repo, head_sha = args.create_check_run
+        check_run_id = _create_check_run(repo, head_sha)
+        if check_run_id is None:
+            return 1
+        print(check_run_id)
+        return 0
 
     # Check-run publication mode
     if args.publish_check_run:
@@ -1947,7 +2044,10 @@ def main() -> int:
             if conclusion == "success"
             else f"Vendor provenance validation failed for {head_sha}"
         )
-        return _publish_check_run(repo, head_sha, conclusion, summary)
+        return _publish_check_run(
+            repo, head_sha, conclusion, summary,
+            check_run_id=args.check_run_id or None,
+        )
 
     # Relevance-check mode: output true/false and exit
     if args.check_relevance_stdin:

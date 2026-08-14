@@ -2441,6 +2441,90 @@ class TestPublishCheckRun:
             result = _publish_check_run("owner/repo", "abc123", "success", "ok")
         assert result == 1
 
+    def test_check_run_id_patches_existing_run(self) -> None:
+        """PATCHes the given ID instead of POSTing a new check run."""
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "{}"
+            result = _publish_check_run(
+                "owner/repo", "abc123", "success", "ok", check_run_id="999",
+            )
+        assert result == 0
+        call_args = mock_run.call_args[0][0]
+        assert call_args[:2] == ["gh", "api"]
+        assert call_args[2] == "repos/owner/repo/check-runs/999"
+        assert "-X" in call_args
+        assert call_args[call_args.index("-X") + 1] == "PATCH"
+
+    def test_no_check_run_id_posts_new_run(self) -> None:
+        """Falls back to POST when no check_run_id is given (unchanged)."""
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "{}"
+            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+        assert result == 0
+        call_args = mock_run.call_args[0][0]
+        assert call_args[2] == "repos/owner/repo/check-runs"
+        assert call_args[call_args.index("-X") + 1] == "POST"
+
+
+class TestCreateCheckRun:
+    """Tests for _create_check_run (in_progress check-run creation)."""
+
+    def test_success_returns_id(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = '{"id": 12345}'
+            result = _create_check_run("owner/repo", "abc123")
+        assert result == "12345"
+        call_args = mock_run.call_args[0][0]
+        assert call_args[2] == "repos/owner/repo/check-runs"
+        assert call_args[call_args.index("-X") + 1] == "POST"
+
+    def test_api_failure_returns_none(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stderr = "unauthorized"
+            result = _create_check_run("owner/repo", "abc123")
+        assert result is None
+
+    def test_timeout_returns_none(self) -> None:
+        import subprocess
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 30)):
+            result = _create_check_run("owner/repo", "abc123")
+        assert result is None
+
+    def test_malformed_response_returns_none(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "not json"
+            result = _create_check_run("owner/repo", "abc123")
+        assert result is None
+
 
 class TestRejectGitlinksCLI:
     """Tests for --reject-gitlinks CLI mode."""
