@@ -688,32 +688,3 @@ mutation failures remain `ACT` failures.
 Canonical code lives under `.claude/skills/github/scripts/`. Workflow contracts
 live in `.claude/skills/pr-comment-responder/references/`. Focused positive,
 negative, edge, and concurrency coverage passed 137 tests.
-
-## Issue #4897: Instructions MUST Name This Memory With Its Scope
-
-This memory lives at `.serena/memories/pr-review/pr-comment-responder-skills.md`.
-`read_memory` resolves a name as a path under `.serena/memories/`, so the bare
-name `pr-comment-responder-skills` resolves to nothing.
-
-The pr-comment-responder skill and agent ran a BLOCKING Phase 0 step on the bare
-name for months. Every agent that followed the instruction literally failed its
-own blocking gate, and the daily `update-reviewer-stats` workflow wrote this
-memory's statistics to a file that did not exist. Nothing in the repository
-could observe either failure.
-
-Rules now in force:
-
-- Instructions MUST use the scoped name `pr-review/pr-comment-responder-skills`.
-  The same applies to the sibling reviewer memories:
-  `pr-review/cursor-bot-review-patterns` and
-  `copilot/copilot-pr-review-patterns`.
-- `scripts/validation/check_skill_memory_references.py` fails the pre-PR
-  sequence when a literal `read_memory` or `edit_memory` name in any skill or
-  agent instruction file resolves to no tracked memory. It runs as the
-  "Skill Memory References" gate, immediately after "Skill SKIP Clause Routing".
-- The gate deliberately does not read prose mentions of
-  `.serena/memories/<name>.md` and does not read `write_memory`, whose argument
-  names a file to create rather than one that must already exist.
-
-A memory name in an instruction is an executable path, not a label. Test it the
-way the runtime resolves it.
