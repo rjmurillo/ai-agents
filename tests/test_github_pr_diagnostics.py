@@ -63,37 +63,12 @@ _MOCK_REPO = RepoInfo(owner="testowner", repo="testrepo")
 # ===========================================================================
 
 class TestMergePrSkipPreflightWhenExplicit:
-    """When --strategy is explicit and REST quota fails, continue gracefully."""
+    """When --strategy is explicit, skip repository-settings discovery."""
 
     def _pr_state(self, state="OPEN", mergeable="MERGEABLE"):
         return {"state": state, "mergeable": mergeable, "mergeStateStatus": "CLEAN"}
 
-    def test_get_allowed_merge_methods_called_when_strategy_explicit(self):
-        """Explicit --strategy still calls REST for validation (but tolerates failures)."""
-        pr_data = self._pr_state()
-        merge_result = _completed()
-        settings = {"allow_squash_merge": True, "allow_merge_commit": False,
-                    "allow_rebase_merge": False}
-
-        with (
-            patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
-            patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
-            patch(f"{_merge_mod.__name__}.get_allowed_merge_methods",
-                  return_value=settings) as mock_settings,
-            patch("subprocess.run", return_value=merge_result),
-            patch(f"{_merge_mod.__name__}.write_skill_output"),
-        ):
-            _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
-        mock_settings.assert_called_once()
-
-    def test_rest_quota_error_on_explicit_strategy_continues(self):
-        """When REST quota is exhausted with explicit --strategy, proceed anyway.
-
-        Issue #4490: the unconditional REST call blocked merges even when the
-        caller already knew the strategy.  Now: exhausted quota with explicit
-        strategy is a warning-not-fatal; GitHub rejects bad strategies itself.
-        """
+    def test_get_allowed_merge_methods_not_called_when_strategy_explicit(self):
         pr_data = self._pr_state()
         merge_result = _completed()
 
@@ -103,13 +78,12 @@ class TestMergePrSkipPreflightWhenExplicit:
             patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
             patch(
                 f"{_merge_mod.__name__}.get_allowed_merge_methods",
-                side_effect=RuntimeError("HTTP 403 X-RateLimit-Remaining: 0"),
-            ),
+            ) as mock_settings,
             patch("subprocess.run", return_value=merge_result),
             patch(f"{_merge_mod.__name__}.write_skill_output"),
         ):
-            # Must NOT raise -- quota exhaustion on explicit strategy is tolerated.
             _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
+        mock_settings.assert_not_called()
 
     def test_rest_fallback_receives_sanitized_body(self):
         pr_data = {
@@ -144,23 +118,6 @@ class TestMergePrSkipPreflightWhenExplicit:
         fallback_body = mock_rest.call_args.args[5]
         assert fallback_body.strip() == "Summary"
         assert "Co-authored-by: Test" not in fallback_body
-
-    def test_non_quota_rest_error_on_explicit_strategy_is_fatal(self):
-        pr_data = self._pr_state()
-
-        with (
-            patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
-            patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
-            patch(
-                f"{_merge_mod.__name__}.get_allowed_merge_methods",
-                side_effect=RuntimeError("HTTP 500 repository settings unavailable"),
-            ),
-            patch(f"{_merge_mod.__name__}.write_skill_error"),
-        ):
-            with pytest.raises(SystemExit) as exc_info:
-                _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
-        assert exc_info.value.code == 3
 
     def test_get_allowed_merge_methods_called_when_no_strategy(self):
         pr_data = self._pr_state()
@@ -340,17 +297,44 @@ class TestExtractClaims:
         assert claims[0]["github_will_close"] is False
 
     def test_non_default_branch_claim_does_not_close(self):
+        closing_refs = {("owner", "repo", 123): "OPEN"}
         claims = _audit_mod.extract_claims(
             10,
             "Fixes #123",
             "release",
-            {},
+            closing_refs,
             "owner",
             "repo",
             default_branch="main",
         )
 
         assert claims[0]["github_will_close"] is False
+
+    def test_colon_syntax_is_extracted(self):
+        closing_refs = {("owner", "repo", 42): "OPEN"}
+        claims = _audit_mod.extract_claims(
+            10,
+            "Closes: #42",
+            "main",
+            closing_refs,
+            "owner",
+            "repo",
+        )
+
+        assert claims[0]["claim_text"] == "Closes: #42"
+        assert claims[0]["github_will_close"] is True
+
+    def test_repeated_colon_is_not_extracted(self):
+        claims = _audit_mod.extract_claims(
+            10,
+            "Closes:: #42",
+            "main",
+            {("owner", "repo", 42): "OPEN"},
+            "owner",
+            "repo",
+        )
+
+        assert claims == []
 
     def test_cross_repository_claim_on_default_branch_closes(self):
         closing_refs = {("other", "project", 123): "OPEN"}
@@ -584,8 +568,18 @@ class TestBodyHashAndValidate:
         assert any("one" in w.lower() or "line" in w.lower() or "first" in w.lower()
                    for w in warnings)
 
+    def test_validate_body_and_separated_issues_flagged(self):
+        warnings = _edit_mod.validate_body("Fixes #1 and #2")
+
+        assert len(warnings) == 1
+        assert "repeat the keyword" in warnings[0]
+
     def test_validate_body_multiple_keywords_on_one_line_is_clean(self):
         warnings = _edit_mod.validate_body("Fixes #1, closes #2")
+        assert warnings == []
+
+    def test_validate_body_lowercase_multiple_keywords_is_clean(self):
+        warnings = _edit_mod.validate_body("fixes #1, closes #2")
         assert warnings == []
 
     def test_validate_body_single_issue_per_line_clean(self):
@@ -707,3 +701,66 @@ class TestEditPrBodyStaleWriteGuard:
         assert command[command.index("--input") + 1] == "-"
         assert "--raw-field" not in command
         assert json.loads(mock_run.call_args.kwargs["input"]) == {"body": body}
+
+    def test_fetch_timeout_returns_api_error_envelope(self, capsys):
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["gh", "api"], 30),
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert "timed out" in output["Error"]["Message"]
+
+    def test_update_timeout_returns_api_error_envelope(self, capsys):
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                side_effect=[
+                    _completed(stdout=json.dumps({"body": "old body"})),
+                    subprocess.TimeoutExpired(["gh", "api"], 30),
+                ],
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert "timed out" in output["Error"]["Message"]
+
+    def test_missing_gh_returns_api_error_envelope(self, capsys):
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                side_effect=FileNotFoundError("gh executable not found"),
+            ),
+        ):
+            rc = _edit_mod.main([
+                "--pull-request", "42",
+                "--body", "new body",
+                "--output-format", "json",
+            ])
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Error"]["Type"] == "ApiError"
+        assert "gh executable not found" in output["Error"]["Message"]

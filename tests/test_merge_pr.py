@@ -36,7 +36,6 @@ _mod = _import_script("merge_pr")
 main = _mod.main
 build_parser = _mod.build_parser
 get_allowed_merge_methods = _mod.get_allowed_merge_methods
-is_rest_quota_error = _mod._is_rest_quota_error
 validate_strategy = _mod.validate_strategy
 
 
@@ -507,33 +506,6 @@ class TestGetAllowedMergeMethods:
 
 
 # ---------------------------------------------------------------------------
-# Tests: _is_rest_quota_error
-# ---------------------------------------------------------------------------
-
-
-class TestIsRestQuotaError:
-    @pytest.mark.parametrize(
-        "message",
-        [
-            "HTTP 403, X-RateLimit-Remaining: 0",
-            "API rate limit exceeded for user",
-        ],
-    )
-    def test_accepts_explicit_core_quota_exhaustion(self, message):
-        assert is_rest_quota_error(RuntimeError(message))
-
-    @pytest.mark.parametrize(
-        "message",
-        [
-            "You have exceeded a secondary rate limit",
-            "The rate limit policy could not be loaded",
-        ],
-    )
-    def test_rejects_other_rate_limit_messages(self, message):
-        assert not is_rest_quota_error(RuntimeError(message))
-
-
-# ---------------------------------------------------------------------------
 # Tests: validate_strategy
 # ---------------------------------------------------------------------------
 
@@ -588,10 +560,10 @@ class TestValidateStrategy:
         assert "Metadata" in envelope
         assert envelope["Metadata"]["Script"] == "merge_pr.py"
 
-    def test_strategy_rejected_in_main(self):
+    def test_missing_strategy_rejected_when_repo_allows_none(self):
         settings = {
             "allow_merge_commit": False,
-            "allow_squash_merge": True,
+            "allow_squash_merge": False,
             "allow_rebase_merge": False,
         }
         with patch(
@@ -603,7 +575,7 @@ class TestValidateStrategy:
             "merge_pr.get_allowed_merge_methods", return_value=settings,
         ):
             with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50", "--strategy", "merge"])
+                main(["--pull-request", "50"])
             assert exc.value.code == 1
 
     def test_rebase_strategy_rejected(self):
@@ -741,12 +713,12 @@ class TestDefaultStrategyIntegration:
         merge_cmd = merge_calls[-1]
         assert "--squash" in merge_cmd
 
-    def test_explicit_disallowed_strategy_emits_envelope(self, capsys):
-        """Explicit --strategy merge on squash-only repo → JSON envelope."""
-        squash_only = {
-            "allow_merge_commit": False,
-            "allow_squash_merge": True,
-            "allow_rebase_merge": False,
+    def test_explicit_strategy_skips_settings_discovery(self):
+        pr_data = {
+            "state": "OPEN",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "headRefName": "feature",
         }
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -754,16 +726,18 @@ class TestDefaultStrategyIntegration:
             "merge_pr.resolve_repo_params",
             return_value=RepoInfo(owner="rjmurillo", repo="ai-agents"),
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value=squash_only,
+            "merge_pr.get_allowed_merge_methods",
+        ) as settings, patch(
+            "merge_pr._fetch_pr_state", return_value=pr_data,
+        ), patch(
+            "subprocess.run", return_value=_completed(),
+        ), patch(
+            "merge_pr.write_skill_output",
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "2444", "--strategy", "merge",
-                      "--output-format", "json"])
-            assert exc.value.code == 1
-        envelope = json.loads(capsys.readouterr().out)
-        assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 1
-        assert envelope["Error"]["Type"] == "InvalidParams"
+            rc = main(["--pull-request", "2444", "--strategy", "merge"])
+
+        assert rc == 0
+        settings.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

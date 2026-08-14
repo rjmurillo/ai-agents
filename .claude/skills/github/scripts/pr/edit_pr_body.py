@@ -67,7 +67,7 @@ _DASH_RE = re.compile(r"[\u2013\u2014]")
 
 _CLOSING_MULTI_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
-    r"#\d+(?:(?:[ \t]+|[ \t]*,[ \t]*)#\d+)+",
+    r"#\d+(?:(?:[ \t]+|[ \t]*,[ \t]*|[ \t]+and[ \t]+)#\d+)+",
     re.IGNORECASE,
 )
 
@@ -195,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current_body = fetch_current_body(owner, repo, pr)
-    except RuntimeError as exc:
+    except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
             str(exc), 3, error_type="ApiError",
             output_format=fmt, script_name=_SCRIPT_NAME,
@@ -267,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         update_body(owner, repo, pr, new_body)
-    except RuntimeError as exc:
+    except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
             str(exc), 3, error_type="ApiError",
             output_format=fmt, script_name=_SCRIPT_NAME,
