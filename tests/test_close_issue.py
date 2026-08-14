@@ -1225,3 +1225,65 @@ class TestVerifyClaimsGate:
             rc = main(["--issue", "60", "--verify-claims"])
         assert rc == 0
         assert mock_run.call_count == 2
+
+    def test_verified_failure_keeps_the_documented_headline(self, capsys):
+        """Exit 1 keeps the #2481 wording other readers depend on.
+
+        `.serena/memories/github-skill/issue-comment-file-must-live-inside-the-repo.md`
+        quotes this sentence as the thing an operator sees, and callers grep
+        for it. Issue #4951 changed which situations reach it, not the words.
+        """
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(_pr_open()):
+            rc = main(
+                [
+                    "--issue",
+                    "139",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #1024.",
+                ],
+            )
+        assert rc == 1
+        message = _envelope(capsys)["Error"]["Message"]
+        assert message.startswith(
+            "Closing comment cites unverifiable artifact(s); aborting close."
+        )
+
+    def test_probe_failure_headline_cannot_be_read_as_a_verdict(self, capsys):
+        """Exit 3/4 must not reuse the exit-1 sentence.
+
+        The two outcomes are different facts. Sharing a headline is how the
+        #4951 incident read as a verdict on PR #4729 when the probe had
+        simply fallen over.
+        """
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(_pr_probe_failed(4729)):
+            rc = main(
+                [
+                    "--issue",
+                    "4858",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #4729.",
+                ],
+            )
+        assert rc == 3
+        message = _envelope(capsys)["Error"]["Message"]
+        assert message.startswith(
+            "Could not verify closing comment claim(s) against GitHub; "
+            "aborting close without judging them."
+        )
+        assert "cites unverifiable artifact" not in message
