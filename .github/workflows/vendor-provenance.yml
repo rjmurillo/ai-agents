@@ -132,5 +132,19 @@ jobs:
           else
             CONCLUSION="failure"
           fi
-          python3 scripts/ci/validate_vendor_provenance.py \
-            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION"
+          # Use gh api directly (not Python script) so this step
+          # succeeds even when workspace materialization failed.
+          gh api "repos/${{ github.repository }}/check-runs" \
+            -X POST \
+            --input - <<EOF
+          {
+            "name": "Vendor Provenance Gate",
+            "head_sha": "$PR_SHA",
+            "status": "completed",
+            "conclusion": "$CONCLUSION",
+            "output": {
+              "title": "Vendor Provenance Gate",
+              "summary": "Vendor provenance validation $CONCLUSION"
+            }
+          }
+          EOF
