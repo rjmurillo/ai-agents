@@ -912,6 +912,11 @@ def _write_ownership_token(
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(payload)
     except OSError as exc:
+        # Semgrep python-logger-credential-disclosure flags the literal "token"
+        # in these lease operation labels. No credential is logged: pr is an int
+        # and err is filesystem text scrubbed by safe_log_str. Confirmed false
+        # positive; the four lease_token_* log calls carry the same note.
+        # nosemgrep: python-logger-credential-disclosure
         logger.warning("op=lease_token_write_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
 
 
@@ -933,6 +938,7 @@ def _has_valid_ownership_token(
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
+        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
         logger.warning("op=lease_token_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
     if (
@@ -972,12 +978,14 @@ def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str,
     except FileNotFoundError:
         return True
     except OSError as exc:
+        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
         logger.warning("op=lease_token_unlink_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
     try:
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(json.dumps({"revoked": True, "pr": pr}))
         return True
     except OSError as exc:
+        # nosemgrep: python-logger-credential-disclosure  (false positive; see note above)
         logger.error("op=lease_token_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
 
