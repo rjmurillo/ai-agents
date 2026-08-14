@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-14-session-14709-bda9b9020-fix-encoded-gi
 qaCommit: b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328
 ---
 
-# Issue 5001 Gist Fragment Hardening QA Report
+# PR 5007 Issue 5001 Gist Fragment Hardening QA Report
 
 ## Scope
 

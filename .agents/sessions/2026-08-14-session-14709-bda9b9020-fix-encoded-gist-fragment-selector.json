@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-5001-gist-fragment-hardening.md"
+        "Evidence": ".agents/qa/pr-5007-issue-5001-gist-fragment-hardening.md"
       },
       "changesCommitted": {
         "level": "MUST",
