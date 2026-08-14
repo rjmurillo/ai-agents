@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: 887f8209df00cf77988fbd4cb9751158dfc8a88d
+qaCommit: 4c41c97ecb2852ea7d72b52a39c4ea160e14d9d0
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -29,6 +29,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Review-finding disposition | Restored test class boundary and narrowed end-to-end claims to agreement |
 | Main synchronization | Merge conflict resolved by preserving main session 14706 and renumbering PR evidence to 14707 |
 | Windows portability | Module skips when `time.tzset` is unavailable; 12 Linux tests passed |
+| Cross-timezone consumers | Full UTC+14 to UTC-12 scanner window and retrospective host-date authority validated; 64 tests passed |
 
 ## Verdict
 
