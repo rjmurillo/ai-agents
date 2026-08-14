@@ -912,11 +912,13 @@ def _parse_leading_frontmatter(
     - ``(True, None, error)`` when the opening delimiter never closes or the
       block is not parseable YAML. ``error`` is a one-line reason.
 
-    Detection mirrors ``frontmatter.loads``: a block opens only when the FIRST
-    line is a ``_FM_BOUNDARY`` delimiter, so a horizontal rule later in the body
-    is never misread as frontmatter, and it closes at the next delimiter line,
-    whose dash count need not match the opening one (the canonical
-    ``FM_BOUNDARY.split(text, 2)`` does not require that either).
+    Detection mirrors ``frontmatter.loads``: surrounding whitespace is stripped
+    first, as ``frontmatter.parse`` does with "text = u(text, encoding).strip()",
+    a block opens only when the FIRST remaining line is a ``_FM_BOUNDARY``
+    delimiter, so a horizontal rule later in the body is never misread as
+    frontmatter, and it closes at the next delimiter line, whose dash count need
+    not match the opening one (the canonical ``FM_BOUNDARY.split(text, 2)`` does
+    not require that either).
 
     Stricter/looser/different than canonical:
 
@@ -929,7 +931,7 @@ def _parse_leading_frontmatter(
     """
     if text.startswith("\ufeff"):
         text = text[1:]
-    lines = text.splitlines()
+    lines = text.strip().splitlines()
     if not lines or not _FM_BOUNDARY.match(lines[0]):
         return False, None, None
     for idx in range(1, len(lines)):

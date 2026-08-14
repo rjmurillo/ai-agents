@@ -2471,6 +2471,16 @@ _DASHES_WITH_TRAILING_TEXT = """\
 Body text with a colon: value that is not frontmatter.
 """
 
+# `frontmatter.parse` strips before detecting ("text = u(text, encoding).strip()"),
+# so blank leading lines do not stop the loader from opening this block, warning,
+# and dropping the metadata. The gate strips for the same reason.
+_MALFORMED_LEADING_WHITESPACE = (
+    "\n  \n----\n"
+    "title: Broken memory\n"
+    "description: invalid: nested mapping\n"
+    "----\n\n# Body\n"
+)
+
 
 class TestCheckFrontmatterValidity:
     """Tests for YAML frontmatter validity validation (issue #4918)."""
@@ -2571,8 +2581,9 @@ class TestCheckFrontmatterValidity:
             _MALFORMED_FRONTMATTER,
             _MALFORMED_FOUR_DASH,
             _MALFORMED_FIVE_DASH,
+            _MALFORMED_LEADING_WHITESPACE,
         ],
-        ids=["three-dash", "four-dash", "five-dash"],
+        ids=["three-dash", "four-dash", "five-dash", "leading-whitespace"],
     )
     def test_gate_flags_every_shape_the_loader_warns_about(
         self, tmp_path: Path, content: str
@@ -2594,6 +2605,18 @@ class TestCheckFrontmatterValidity:
             "canonical loader raised YAMLError but the gate stayed silent"
         )
         assert result.invalid_files == ["probe-memory.md"]
+
+    def test_leading_whitespace_is_normalized_like_loader(
+        self, tmp_path: Path
+    ) -> None:
+        # Blank leading lines survive `frontmatter.parse`'s strip, so the
+        # loader still opens the block and warns; the gate must too.
+        (tmp_path / "leading-space-memory.md").write_text(
+            _MALFORMED_LEADING_WHITESPACE
+        )
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["leading-space-memory.md"]
 
     def test_only_malformed_flagged_in_mixed_tree(self, tmp_path: Path) -> None:
         (tmp_path / "good.md").write_text(_VALID_FRONTMATTER)
