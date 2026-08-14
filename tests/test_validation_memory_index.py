@@ -2021,6 +2021,67 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
+    def test_malformed_frontmatter_ci_fails(self, tmp_path: Path) -> None:
+        """The CLI entrypoint must exit 1 on malformed frontmatter (#4918).
+
+        Guards the report-to-CLI wiring: an in-process report failure that never
+        reached main() could silently green the gate.
+        """
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": (
+                "---\n"
+                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                "---\n\n"
+                "indexed content\n"
+            ),
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | [skills-test-index](skills-test-index.md) |\n"
+            ),
+        })
+        exit_code = main(["--path", str(tmp_path), "--ci"])
+        assert exit_code == 1
+
+    def test_malformed_frontmatter_markdown_reports_file(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Markdown output must name the malformed file, not just FAILED (#4918).
+
+        Without a frontmatter section the markdown report shows a generic
+        FAILED status with no filename or remediation.
+        """
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": (
+                "---\n"
+                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                "---\n\n"
+                "indexed content\n"
+            ),
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | [skills-test-index](skills-test-index.md) |\n"
+            ),
+        })
+        exit_code = main(
+            ["--path", str(tmp_path), "--format", "markdown", "--ci"]
+        )
+        assert exit_code == 1
+        out = capsys.readouterr().out
+        assert "## Malformed Frontmatter" in out
+        assert "test-indexed.md" in out
+
     def test_inherited_memory_index_target_over_limit_ci_fails(
         self, tmp_path: Path
     ) -> None:
@@ -2390,10 +2451,22 @@ class TestCheckFrontmatterValidity:
         assert result.passed is False
         assert result.invalid_files == ["implementation/impl-bad.md"]
 
-    def test_dotfiles_skipped(self, tmp_path: Path) -> None:
+    def test_trash_dir_files_checked(self, tmp_path: Path) -> None:
+        # The canonical loader (serena_integration.load_memories) scans hidden
+        # directories, so a malformed `.trash/*.md` still breaks it. This gate
+        # must flag it too, not skip it (PR #4985 review).
         dotdir = tmp_path / ".trash"
         dotdir.mkdir()
         (dotdir / "bad.md").write_text(_MALFORMED_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == [".trash/bad.md"]
+
+    def test_readme_and_claude_skipped(self, tmp_path: Path) -> None:
+        # The canonical loader skips these two names; this gate skips them too,
+        # so a doc file with no frontmatter is never a violation (PR #4985).
+        (tmp_path / "README.md").write_text(_MALFORMED_FRONTMATTER)
+        (tmp_path / "CLAUDE.md").write_text(_MALFORMED_FRONTMATTER)
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
         assert result.invalid_files == []
