@@ -41,6 +41,11 @@ _PLUGIN_ROOT_ENV_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "GITHUB_WO
 # import contract instead of the module's own constant.
 _CORE_PACKAGE_NAME = "github_core"
 
+# The module file inside that package the import above names. A candidate that
+# carries the package directory but not this file is not importable, so the
+# resolver must reject it (PR #5000 review).
+_CORE_MODULE_FILE_NAME = "api.py"
+
 # This repository's own plugin lib, derived from this file's location
 # (tests/skills/merge-resolver/ sits three levels below the repo root) rather
 # than from the module under test.
@@ -58,7 +63,28 @@ _SCRIPT = (
 
 
 def _make_plugin_root(base: Path, name: str) -> Path:
-    """Create a plugin root whose lib/ carries the github_core package."""
+    """Create a plugin root whose lib/ carries an importable github_core.
+
+    The package holds the module the script imports, so a root built here is
+    usable, not merely correctly named.
+    """
+    root = base / name
+    package = root / "lib" / _CORE_PACKAGE_NAME
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / _CORE_MODULE_FILE_NAME).write_text(
+        "class RepoInfo:\n    pass\n", encoding="utf-8"
+    )
+    return root
+
+
+def _make_partial_plugin_root(base: Path, name: str) -> Path:
+    """Create a plugin root whose github_core package lacks the imported module.
+
+    A broken or half-copied install has the right directory name and nothing
+    to import. Accepting it raises ModuleNotFoundError at line 133 instead of
+    falling through to a usable candidate (PR #5000 review).
+    """
     root = base / name
     (root / "lib" / _CORE_PACKAGE_NAME).mkdir(parents=True)
     return root
@@ -168,16 +194,32 @@ class TestResolveLibDir:
         assert (foreign / "lib").is_dir()
         assert mod._resolve_lib_dir() == str(claude / "lib")
 
+    def test_partial_core_package_without_the_imported_module_is_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """A github_core directory with no api.py is not importable.
+
+        Name-only validation would accept it and the import would then raise
+        ModuleNotFoundError, losing both the fallthrough and the exit 2.
+        """
+        _clear_plugin_env(monkeypatch)
+        partial = _make_partial_plugin_root(tmp_path, "half-installed")
+        claude = _make_plugin_root(tmp_path, "claude-plugin")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(partial))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude))
+
+        assert (partial / "lib" / _CORE_PACKAGE_NAME).is_dir()
+        assert mod._resolve_lib_dir() == str(claude / "lib")
+
     def test_uses_github_workspace_when_no_plugin_root_is_valid(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         _clear_plugin_env(monkeypatch)
-        workspace = tmp_path / "workspace"
-        (workspace / ".claude" / "lib" / _CORE_PACKAGE_NAME).mkdir(parents=True)
+        workspace = _make_plugin_root(tmp_path / "workspace", ".claude")
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(tmp_path / "context-mode"))
-        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path / "workspace"))
 
-        assert mod._resolve_lib_dir() == str(workspace / ".claude" / "lib")
+        assert mod._resolve_lib_dir() == str(workspace / "lib")
 
     def test_falls_back_to_repository_lib_when_no_variable_is_set(
         self, monkeypatch: pytest.MonkeyPatch
@@ -195,7 +237,12 @@ class TestResolveLibDir:
         """Fail-closed is preserved and the message names every rejection."""
         absent = tmp_path / "absent" / "lib"
         foreign = _make_foreign_plugin_root(tmp_path, "context-mode") / "lib"
-        monkeypatch.setattr(mod, "_lib_dir_candidates", lambda: [str(absent), str(foreign)])
+        partial = _make_partial_plugin_root(tmp_path, "half-installed") / "lib"
+        monkeypatch.setattr(
+            mod,
+            "_lib_dir_candidates",
+            lambda: [str(absent), str(foreign), str(partial)],
+        )
 
         with pytest.raises(SystemExit) as excinfo:
             mod._resolve_lib_dir()
@@ -203,7 +250,8 @@ class TestResolveLibDir:
         assert excinfo.value.code == 2
         stderr = capsys.readouterr().err
         assert f"{absent} (no such directory)" in stderr
-        assert f"{foreign} (no {_CORE_PACKAGE_NAME} package)" in stderr
+        assert f"{foreign} (no {_CORE_PACKAGE_NAME}/{_CORE_MODULE_FILE_NAME})" in stderr
+        assert f"{partial} (no {_CORE_PACKAGE_NAME}/{_CORE_MODULE_FILE_NAME})" in stderr
 
 
 class TestResolveLibDirCli:
@@ -269,6 +317,27 @@ class TestResolveLibDirCli:
 
         assert result.returncode == 2, result.stdout
         assert "Plugin lib directory not found" in result.stderr
-        assert f"{foreign / 'lib'} (no {_CORE_PACKAGE_NAME} package)" in result.stderr
+        assert (
+            f"{foreign / 'lib'} (no {_CORE_PACKAGE_NAME}/{_CORE_MODULE_FILE_NAME})"
+            in result.stderr
+        )
         assert f"{tmp_path / 'absent-plugin' / 'lib'} (no such directory)" in result.stderr
         assert f"{tmp_path / 'plugin' / 'lib'} (no such directory)" in result.stderr
+
+    def test_runs_when_a_partial_core_package_precedes_a_valid_root(
+        self, tmp_path: Path
+    ) -> None:
+        """A half-installed github_core must not end the run at import time."""
+        script = self._install_script(tmp_path)
+        partial = _make_partial_plugin_root(tmp_path, "half-installed")
+        result = self._run(
+            script,
+            {
+                "COPILOT_PLUGIN_ROOT": str(partial),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+            },
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "ModuleNotFoundError" not in result.stderr
+        assert "--branch-name" in result.stdout

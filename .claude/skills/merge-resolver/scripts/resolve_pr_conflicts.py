@@ -33,6 +33,16 @@ from typing import Any
 # that merely exists. Used by _resolve_lib_dir below.
 _CORE_PACKAGE = "github_core"
 
+# The module inside that package this script actually imports (see the
+# ``from github_core.api import RepoInfo`` line below). The candidate check
+# validates this file, not just the package directory, because a directory
+# named github_core that carries no api.py satisfies a name check and then
+# dies at import with ModuleNotFoundError, which is exit 1 with a traceback
+# instead of the documented exit 2 (PR #5000 review). Every shipped lib
+# carries it: .claude/lib/github_core/api.py and
+# src/copilot-cli/lib/github_core/api.py, verified 2026-08-14.
+_CORE_MODULE_FILE = "api.py"
+
 
 def _lib_dir_candidates() -> list[str]:
     """Return candidate ``lib`` directories, highest precedence first.
@@ -75,7 +85,7 @@ def _lib_dir_candidates() -> list[str]:
 
 
 def _resolve_lib_dir() -> str:
-    """Return the first candidate ``lib`` directory that carries github_core.
+    """Return the first candidate ``lib`` directory that carries github_core.api.
 
     Each candidate is validated before use, so a plugin root belonging to
     another plugin falls through to the next candidate instead of ending the
@@ -83,7 +93,7 @@ def _resolve_lib_dir() -> str:
     the context-mode plugin, and taking it as authoritative exits 2 while a
     valid root sits later in the list.
 
-    Fail-closed is preserved: when no candidate carries the package, the
+    Fail-closed is preserved: when no candidate carries the module, the
     process exits 2 (config error per ADR-035) naming every candidate tried
     and why each was rejected. It never imports from a foreign plugin.
 
@@ -97,14 +107,19 @@ def _resolve_lib_dir() -> str:
 
       A foreign plugin that ships its own ``lib`` directory satisfies that
       test and then fails at import with a traceback instead of ADR-035
-      exit 2. This resolver requires the imported package itself, matching
-      the validation in `.claude/skills/github/scripts/issue/claim_issue.py`
+      exit 2. This resolver requires the imported module itself.
+
+    - Stricter than `.claude/skills/github/scripts/issue/claim_issue.py`
       line 26, quoted verbatim:
 
           if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
 
-    - Stricter than that claim_issue.py line in turn: claim_issue.py collapses
-      the two plugin roots with ``or`` (line 24), so a set-but-foreign
+      That check accepts a ``github_core`` directory on name alone, so an
+      empty or partial package passes and the import then raises
+      ModuleNotFoundError. This resolver requires ``github_core/api.py``,
+      the module the import below names.
+    - Stricter than that claim_issue.py line in a second way: claim_issue.py
+      collapses the two plugin roots with ``or`` (line 24), so a set-but-foreign
       COPILOT_PLUGIN_ROOT skips CLAUDE_PLUGIN_ROOT entirely. This resolver
       validates each root separately, so neither shadows the other.
     - Different in reporting: the failure message names the rejection reason
@@ -115,9 +130,9 @@ def _resolve_lib_dir() -> str:
         if not os.path.isdir(lib_dir):
             rejected.append(f"{lib_dir} (no such directory)")
             continue
-        if os.path.isdir(os.path.join(lib_dir, _CORE_PACKAGE)):
+        if os.path.isfile(os.path.join(lib_dir, _CORE_PACKAGE, _CORE_MODULE_FILE)):
             return lib_dir
-        rejected.append(f"{lib_dir} (no {_CORE_PACKAGE} package)")
+        rejected.append(f"{lib_dir} (no {_CORE_PACKAGE}/{_CORE_MODULE_FILE})")
 
     print(
         f"Plugin lib directory not found. Tried: {'; '.join(rejected)}",
