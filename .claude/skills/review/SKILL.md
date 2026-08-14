@@ -28,7 +28,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` and `analyst` always run. Callers can pin additional always-on axes, and the remaining axes are selected from verified changed paths and diff effects using each axis prompt's applicability guidance. `spec-compliance` runs first and gates Stage 2: only a `CRITICAL_FAIL` short-circuits the review (see Process step 2). A Stage-1 `UNKNOWN` (INCONCLUSIVE) does NOT short-circuit; Stage 2 still runs and the UNKNOWN is preserved as an UNKNOWN in the merge, because no spec or acceptance criteria could be located and that absence must never suppress a real Stage-2 finding. The caller decides how the merged verdict gates its workflow.
 
-`/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. CI may wire a subset of the canonical axes (its per-axis job list can lag the `references/` directory); `/review` normally selects only the axes whose risk applies, but deep review or fail-closed fallback can run the full set. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and can be selected or pinned as always-on when relevant.
+`/review` is a strict superset of CI only in deep-review mode, when it runs the full canonical set. Risk-selected `/review` can be narrower than CI, because it may skip axes that do not apply. The 3 local-only skill axes (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and can be selected or pinned as always-on when relevant.
 
 ## Path resolution (harness-agnostic)
 
@@ -177,7 +177,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 ## Principles
 
-- **Strict superset of CI**. Any finding CI surfaces, `/review` surfaces first.
+- **Deep review is the strict superset of CI**. In deep-review mode, any finding CI surfaces, `/review` surfaces first.
 - **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.

@@ -20,6 +20,7 @@ import pytest
 
 # Ensure scripts/eval is importable.
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+_SKILL_ROUTER_FIXTURES = Path(__file__).resolve().parents[2] / "evals" / "skill-router-spike" / "fixtures.json"
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
@@ -261,3 +262,24 @@ class TestOldBehaviorWouldFail:
             "With BEFORE_REF='origin/main' and working-tree==origin/main content, "
             "main() must exit 1 (identical arms). The guard is not firing."
         )
+
+
+class TestReviewRoutingCoverage:
+    def test_review_routing_cases_are_present(self) -> None:
+        fixtures = {fx["id"]: fx for fx in json.loads(_SKILL_ROUTER_FIXTURES.read_text(encoding="utf-8"))}
+
+        expected = {
+            "review-05-low-risk-review": "review",
+            "review-06-security-routing": "security",
+            "review-07-dependency-routing": "architect",
+            "review-08-ci-routing": "devops",
+            "review-09-type-routing": "architect",
+            "review-10-test-routing": "qa",
+            "review-11-error-routing": "qa",
+            "review-12-fail-closed-additive": "review",
+        }
+
+        for fixture_id, correct in expected.items():
+            assert fixture_id in fixtures
+            assert fixtures[fixture_id]["correct"] == correct
+            assert correct in fixtures[fixture_id]["candidates"]
