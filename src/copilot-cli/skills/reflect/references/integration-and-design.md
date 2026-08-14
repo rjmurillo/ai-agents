@@ -27,7 +27,7 @@ Skill memories integrate with the memory system:
 python3 .claude/skills/memory/scripts/search_memory.py --query "github-observations constraints"
 
 # Read specific skill sidecar
-Read .serena/memories/github-observations.md
+Read .serena/memories/github/github-observations.md
 ```
 
 ### With Serena
@@ -35,8 +35,8 @@ Read .serena/memories/github-observations.md
 If Serena MCP is available:
 
 ```text
-mcp__serena__read_memory(memory_file_name="github-observations")
-mcp__serena__write_memory(memory_file_name="github-observations", memory_content="...")
+mcp__serena__read_memory(memory_file_name="github/github-observations")
+mcp__serena__write_memory(memory_file_name="github/github-observations", memory_content="...")
 ```
 
 ## Design Decisions

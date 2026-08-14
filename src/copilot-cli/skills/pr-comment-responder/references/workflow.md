@@ -78,8 +78,8 @@ python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --requi
 Load relevant memories before any triage decisions.
 
 ```python
-# ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+# ALWAYS load pr-review/pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 ```
 
 Verify core memory loaded:
@@ -129,9 +129,9 @@ python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 # an alias and never appears as a reviewer's login.
 for reviewer in ALL_REVIEWERS:
     if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+        mcp__serena__read_memory(memory_file_name="pr-review/cursor-bot-review-patterns")
     elif reviewer == "github-copilot[bot]":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+        mcp__serena__read_memory(memory_file_name="copilot/copilot-pr-review-patterns")
 ```
 
 ### Step 1.3: Retrieve ALL Comments
@@ -281,11 +281,11 @@ See [gates.md](gates.md) for full verification.
 
 ## Phase 9: Memory Storage (BLOCKING)
 
-Update `pr-comment-responder-skills` memory with session statistics:
+Update `pr-review/pr-comment-responder-skills` memory with session statistics:
 
 ```python
 mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
+    memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
     mode="literal"

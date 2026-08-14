@@ -101,7 +101,7 @@ For direct MCP tool access:
 ```python
 # Serena (file-based, always available)
 mcp__serena__list_memories()
-mcp__serena__read_memory(memory_file_name="powershell-arrays")
+mcp__serena__read_memory(memory_file_name="powershell/powershell-array-handling")
 mcp__serena__write_memory(memory_file_name="new-pattern", content="...")
 
 # Forgetful (semantic search, requires service)
