@@ -76,7 +76,7 @@ def validate_skill_dir(skill_dir: Path, verbose: bool = False) -> list[str]:
             errors.append(f"{skill_name}: missing required field '{field}' in frontmatter")
 
     fm_name = frontmatter.get("name", "")
-    if fm_name and fm_name != skill_name:
+    if "name" in frontmatter and fm_name != skill_name:
         errors.append(f"{skill_name}: frontmatter name '{fm_name}' does not match directory name")
 
     if verbose and not errors:
@@ -139,10 +139,9 @@ def check_global_installation(verbose: bool = False) -> int:
 
         logger.info("  %s: %d skills at %s", platform_name, len(skill_dirs), global_path)
 
-        if verbose:
-            for skill_dir in skill_dirs:
-                errors = validate_skill_dir(skill_dir, verbose)
-                all_errors.extend(errors)
+        for skill_dir in skill_dirs:
+            errors = validate_skill_dir(skill_dir, verbose)
+            all_errors.extend(errors)
 
     if not found_any:
         logger.info("")

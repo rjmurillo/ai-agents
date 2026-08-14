@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+import scripts.validate_skill_installation as validator_module
+
 from scripts.validate_skill_installation import (
     main,
     parse_frontmatter,
@@ -101,6 +103,22 @@ class TestValidateSkillDir:
         (skill / "SKILL.md").write_text("---\nname: myskill\ndescription: Test\n---\n")
         errors = validate_skill_dir(skill)
         assert any("does not match directory name" in e for e in errors)
+
+
+class TestGlobalInstallation:
+    def test_non_verbose_global_check_validates_skill_names(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        global_root = tmp_path / "global-skills"
+        skill = global_root / "SkillForge"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(
+            "---\nname: skillforge\ndescription: Test\n---\n"
+        )
+        monkeypatch.setattr(
+            validator_module, "GLOBAL_SKILL_PATHS", {"test": global_root}
+        )
+        assert validator_module.check_global_installation(verbose=False) == 1
 
 
 class TestMain:
