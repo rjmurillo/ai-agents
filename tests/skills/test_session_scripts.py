@@ -128,8 +128,8 @@ class TestNewSessionLogJson:
 
     def test_main_retries_on_collision(self, tmp_path):
         mod = self._import()
-        from datetime import UTC, datetime
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
         # Pre-create session 1 with today's date to force collision
