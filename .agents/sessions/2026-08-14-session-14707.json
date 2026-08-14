@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 93b6f3eb306fcebd4e4e20bd248c2cd8368b7f45; final evidence committed separately"
+        "Evidence": "Validated code commit b66e88638ce7b24e11d6b4d01ca76421c9757ce8; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, and 91 final focused tests passed; Ruff and generation passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, and 521 final focused tests passed; Ruff and generation passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -154,9 +154,13 @@
     {
       "action": "Closed the final suppressed timezone and documentation findings.",
       "outcome": "Branch scanning now covers scanner date plus/minus two days, reverse UTC-12 to UTC+14 behavior is regression-tested, and fallback/date-authority documentation names exact sources."
+    },
+    {
+      "action": "Addressed five final suppressed review findings.",
+      "outcome": "Removed the unused tuple binding, made omitted retrospective scopes host-local in both CLIs with end-to-end tests, documented exact canonical divergences, and froze the UTC validator boundary test."
     }
   ],
-  "endingCommit": "93b6f3eb306fcebd4e4e20bd248c2cd8368b7f45",
+  "endingCommit": "b66e88638ce7b24e11d6b4d01ca76421c9757ce8",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
