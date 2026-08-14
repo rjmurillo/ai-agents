@@ -169,15 +169,15 @@
       "outcome": "418 lines of checker tests and 95 lines of wiring tests, following the existing wiring-module convention; 37 tests before and after, no helper duplicated."
     },
     {
-      "action": "Commit 8: recorded the naming constraint and the new gate in the pr-review/pr-comment-responder-skills memory.",
-      "outcome": "The constraint now sits at the point of use; memory_index.py --ci still PASSED with no index churn."
+      "action": "Commit 8 appended a naming-constraint decision record to the pr-review/pr-comment-responder-skills memory; commit 12 reverted it.",
+      "outcome": "That memory is already 690 lines on origin/main, 190 over the taste-lints 500-line hard error, so touching it pulled a pre-existing ERROR into this branch's diff scope. The issue asked for scoping plus a gate, not a memory edit, and the gate enforces the constraint mechanically. Reverting cleared the error: taste-lints now reports 29 files scanned, 0 errors, 2 size advisories, exit 0."
     },
     {
       "action": "Ran the full gate set.",
       "outcome": "pytest tests/validation plus stats tests: 3090 passed, 1 skipped. pre_pr.py: 52 of 52 PASS, exit 0, including the new Skill Memory References gate. ruff clean, mypy clean, golden-principles no violations, taste-lints 0 errors, actionlint PASS on the changed workflow with the act run skipped for absent secrets, which the gate treats as non-blocking."
     }
   ],
-  "endingCommit": "344a95b7bb",
+  "endingCommit": "c6eb9b9b35",
   "nextSteps": [
     "Push the branch and open one PR against main quoting the full-corpus gate output, the negative control, and the mutation sweep, per .claude/rules/ci-scripts.md MUST 13.",
     "Watch CI for a count-ratchet trip from the two new files; re-measure against a refreshed origin/main before touching any baseline.",

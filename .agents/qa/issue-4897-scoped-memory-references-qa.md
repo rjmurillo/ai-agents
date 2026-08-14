@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder.json
-qaCommit: 344a95b7bbbfbcb513785f25565868eea6442635
+qaCommit: c6eb9b9b35c04efaa5bb18dcdc5749c370018dc4
 ---
 
 # Issue 4897 QA Report: Scoped Serena Memory References
@@ -149,8 +149,8 @@ tracked files:
 
 | Axis | Result |
 |------|--------|
-| golden-principles | PASS: 25 files scanned, no violations |
-| taste-lints | PASS with 2 warnings: 0 errors, file-size advisories at 320/500 and 418/500 |
+| golden-principles | PASS: 29 files scanned, no violations |
+| taste-lints | PASS with 2 warnings: 29 files scanned, 0 errors, file-size advisories at 320/500 and 418/500 |
 | code-qualities-assessment | WARN (acknowledged, see below) |
 | workflow local run (actionlint + act) | actionlint PASS; act skipped, secrets absent locally (exit 4, non-blocking by design) |
 
@@ -179,6 +179,25 @@ files a change adds, which is why the pre-existing siblings never trip it.
 Splitting a 320-line single-purpose gate into modules to satisfy a
 0.4-confidence heuristic would break the one-script-per-gate convention every
 sibling follows, so the finding is recorded rather than acted on.
+
+### Reverted: the memory decision record
+
+An earlier commit appended 29 lines to
+`.serena/memories/pr-review/pr-comment-responder-skills.md` recording the naming
+constraint. That file is 690 lines on `origin/main`, 190 over the taste-lints
+500-line hard error, so touching it at all pulled a pre-existing `[ERROR]` into
+this branch's diff scope:
+
+```text
+[ERROR] authored file-size: .serena/memories/pr-review/pr-comment-responder-skills.md:719
+  File exceeds 500 lines (719 lines)
+```
+
+The append bought nothing an acceptance criterion asked for, and the new gate
+enforces the constraint mechanically, which is stronger than a prose note. It
+was reverted rather than kept and explained away. Splitting the 690-line memory
+is unrelated scope and belongs in its own issue. Post-revert taste-lints: 29
+files scanned, 0 errors, 2 size advisories, exit 0.
 
 ## Verdict
 

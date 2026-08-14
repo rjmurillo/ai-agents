@@ -180,7 +180,8 @@
         "e011",
         "e012",
         "e013",
-        "e014"
+        "e014",
+        "e017"
       ],
       "leads_to": [
         "e016"
@@ -195,6 +196,30 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit 8 appended a naming-constraint decision record to the pr-review/pr-comment-responder-skills memory; commit 12 reverted it.",
+      "caused_by": [],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-14T22:16:07+00:00",
+      "type": "commit",
+      "content": "Commit: c6eb9b9b35",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder"
     }
@@ -204,7 +229,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 7
   },
   "lessons": []
