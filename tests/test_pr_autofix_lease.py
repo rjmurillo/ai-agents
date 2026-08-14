@@ -844,6 +844,51 @@ class TestAcquire:
         assert result.action == "ACT"
         assert _has_token(now=_NOW)
 
+    def test_store_write_error_on_near_expiry_self_renew_fails_closed_to_skip(self):
+        # A self-renew whose confirmed-live prior claim would expire inside the
+        # store-I/O window fails CLOSED on a write failure. A partial outage
+        # (this write fails while a competitor can still read) could let a fresh
+        # session acquire the branch mid-operation, so extending the claim is
+        # unsafe (issue #4966 review). Contrast with the ample-margin self-renew.
+        near = _NOW + timedelta(seconds=30)
+        mine = _comment(
+            _body(owner=_OWNER, session=_SESSION, expires=near),
+            "2026-06-19T11:59:00Z",
+            author=_AUTHOR,
+        )
+        with (
+            _patch_list([mine]),
+            patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")),
+            _patch_head(),
+            _patch_login(_AUTHOR),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+
+    def test_reread_error_on_near_expiry_self_renew_fails_closed_to_skip(self):
+        # Same boundary on the post-claim re-read path: a self-renew whose prior
+        # claim could expire during the store I/O fails CLOSED to SKIP rather
+        # than fail open on a claim that may already be dead (issue #4966
+        # review).
+        near = _NOW + timedelta(seconds=30)
+        mine = _comment(
+            _body(owner=_OWNER, session=_SESSION, expires=near),
+            "2026-06-19T11:59:00Z",
+            author=_AUTHOR,
+        )
+        with (
+            patch.object(
+                _mod, "list_lease_comments", side_effect=[[mine], LeaseStoreError("boom")]
+            ),
+            patch.object(_mod, "post_lease_comment", return_value=None),
+            _patch_head(),
+            _patch_login(_AUTHOR),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
+        assert result.reason == "lease-store-unavailable"
+
 
 class TestOwnershipTokenRepoIsolation:
     """The durable ownership token is scoped to one repository.
@@ -897,6 +942,15 @@ class TestOwnershipTokenRepoIsolation:
         assert _has_token(pr=1, repo_owner="octo", repo="repo", now=_NOW)
         assert _mod._clear_ownership_token(_OWNER, _SESSION, "octo", "repo", 1) is True
         assert not _has_token(pr=1, repo_owner="Octo", repo="Repo", now=_NOW)
+
+    def test_token_at_max_ttl_boundary_is_not_valid(self):
+        # The freshness bound is strict (< MAX_TTL) to match Lease.is_live's
+        # strict expiry (now < expires_at). A token exactly one TTL old
+        # coincides with the instant the remote lease dies, so it must not
+        # authorize a fail-open renew at that boundary (issue #4966 review).
+        _write_token(pr=1, now=_NOW)
+        assert _has_token(pr=1, now=_NOW + MAX_TTL) is False
+        assert _has_token(pr=1, now=_NOW + MAX_TTL - timedelta(seconds=1)) is True
 
 
 # ===========================================================================

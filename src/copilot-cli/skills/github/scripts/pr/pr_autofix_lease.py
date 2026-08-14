@@ -222,6 +222,17 @@ TTL = timedelta(minutes=15)
 #: ``expires_at = acquired_at + TTL``, so any longer window is forged or corrupt.
 MAX_TTL = TTL
 
+#: Worst-case gh CLI I/O between ``acquire`` reading the entry-time clock and a
+#: self-renew fail-open decision: gh auth login, the git head read, the lease
+#: list, the PR head read, the claim POST, and the authoritative re-read (30s
+#: each plus the 10s git head). A self-renew only extends its prior claim
+#: through a store outage when the claim stays live across this whole window.
+#: A claim that could expire mid-operation fails CLOSED instead, so a partial
+#: outage (this session's write fails while a competitor can still read) cannot
+#: let a fresh session acquire the branch under a stale ACT (issue #4966
+#: review). The SHA gate stays authoritative regardless.
+RENEW_FAILOPEN_LIVENESS_MARGIN = timedelta(seconds=180)
+
 #: Upper bound on the number of timeline comments scanned per acquire/status
 #: (ADR-076 Security / part 3). A PR flooded with forged ``<!-- PR-AUTOFIX-LEASE
 #: -->`` comments cannot turn the scan into an unbounded parse-cost DoS
@@ -943,7 +954,11 @@ def _has_valid_ownership_token(
     the repository identity, so a token from another repository cannot satisfy
     this check (issue #4966 review). The MAX_TTL freshness bound stops an
     abandoned token from granting fail-open past one lease lifetime; a healthy
-    holder rewrites it on every successful renew, well inside that window.
+    holder rewrites it on every successful renew, well inside that window. The
+    upper bound is strict (``< MAX_TTL``) to match ``Lease.is_live``'s strict
+    expiry (``now < expires_at``): a token exactly one TTL old coincides with
+    the instant the remote lease dies, so it must not authorize a fail-open
+    renew at that boundary (issue #4966 review).
     """
     repo_owner, repo = _normalize_repo_identity(repo_owner, repo)
     path = _ownership_token_path(owner, session, repo_owner, repo, pr)
@@ -964,7 +979,7 @@ def _has_valid_ownership_token(
     written = _parse_rfc3339_utc(str(data.get("written_at", "")))
     if written is None:
         return False
-    return timedelta() <= now - written <= MAX_TTL
+    return timedelta() <= now - written < MAX_TTL
 
 
 def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> bool:
@@ -998,6 +1013,22 @@ def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str,
     except OSError as exc:
         logger.error("op=lease_ownership_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
+
+
+def _self_renew_survives_store_io(current: Lease | None, now: datetime) -> bool:
+    """True when a confirmed-live self-lease outlasts a fail-open's store I/O.
+
+    ``acquire`` reads the authoritative lease once at entry-time ``now``, then
+    makes up to three 30s gh CLI calls (PR head, claim POST, authoritative
+    re-read) before a self-renew may fail open. If the prior claim would expire
+    inside that window, a partial store outage (this session's write fails while
+    a competitor can still read) lets a fresh session acquire the branch
+    mid-operation. Requiring the claim to stay live across
+    ``RENEW_FAILOPEN_LIVENESS_MARGIN`` keeps the fail-open on the safe side of
+    that boundary (issue #4966 review); a claim expiring sooner fails CLOSED to
+    SKIP. The SHA gate stays authoritative regardless.
+    """
+    return current is not None and current.expires_at > now + RENEW_FAILOPEN_LIVENESS_MARGIN
 
 
 def acquire(
@@ -1125,16 +1156,26 @@ def acquire(
     try:
         post_lease_comment(repo_owner, repo, pr, render_lease_comment(claim))
     except LeaseStoreError as exc:
-        if already_holds:
+        if already_holds and _self_renew_survives_store_io(current, now):
             # A self-renew whose TTL-extension write fails keeps the prior,
             # still-live claim it confirmed on the read above, so it fails open
-            # to ACT (issue #4376; SHA gate backstop).
+            # to ACT (issue #4376; SHA gate backstop). The liveness margin
+            # ensures the prior claim cannot expire during the store I/O.
             logger.warning(
                 "op=lease_renew_write_failopen pr=%d err=%s", pr, safe_log_str(str(exc))
             )
             return LeaseResult(
                 "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
             )
+        if already_holds:
+            # The confirmed-live prior claim could expire inside the store-I/O
+            # window, so a partial outage might let a fresh session acquire the
+            # branch mid-operation. Fail CLOSED to SKIP rather than extend a
+            # claim that may already be dead (issue #4966 review).
+            logger.warning(
+                "op=lease_renew_expiry_failclosed pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult("SKIP", "lease-store-unavailable")
         # A fresh claim that cannot be published fails CLOSED to SKIP. Two
         # sessions can both read a free branch, both fail to POST, and both
         # would ACT if this failed open: the original race one step later
@@ -1146,16 +1187,25 @@ def acquire(
     try:
         latest_comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        if already_holds:
+        if already_holds and _self_renew_survives_store_io(current, now):
             # A self-renew that cannot re-read still holds the confirmed-live
             # prior claim; no competitor can steal a live lease, so it fails
-            # open to ACT (issue #4376).
+            # open to ACT (issue #4376). The liveness margin ensures the prior
+            # claim cannot expire during the store I/O.
             logger.warning(
                 "op=lease_renew_recheck_failopen pr=%d err=%s", pr, safe_log_str(str(exc))
             )
             return LeaseResult(
                 "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
             )
+        if already_holds:
+            # The confirmed-live prior claim could expire inside the store-I/O
+            # window, so a partial outage might let a fresh session acquire the
+            # branch mid-operation. Fail CLOSED to SKIP (issue #4966 review).
+            logger.warning(
+                "op=lease_renew_expiry_failclosed pr=%d err=%s", pr, safe_log_str(str(exc))
+            )
+            return LeaseResult("SKIP", "lease-store-unavailable")
         # A fresh claim that cannot be re-read cannot confirm it won the post
         # race, so it fails CLOSED to SKIP. ACT requires an authoritative
         # re-read confirming this session's claim is the latest live marker
