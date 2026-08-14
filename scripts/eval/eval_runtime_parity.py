@@ -91,11 +91,7 @@ def _run_in_process_group(
     cwd: Path | str | None = None,
     env: Mapping[str, str] | None = None,
     capture_output: bool = False,
-    text: bool = False,
-    encoding: str | None = None,
-    errors: str | None = None,
     timeout: float | None = None,
-    check: bool = False,
     **_extra: object,
 ) -> subprocess.CompletedProcess[str]:
     """Drop-in replacement for subprocess.run that kills the full process tree on timeout.
@@ -116,9 +112,9 @@ def _run_in_process_group(
         env=env,
         stdout=stdout_arg,
         stderr=stderr_arg,
-        text=text,
-        encoding=encoding,
-        errors=errors,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
         start_new_session=use_session,
     )
     try:
