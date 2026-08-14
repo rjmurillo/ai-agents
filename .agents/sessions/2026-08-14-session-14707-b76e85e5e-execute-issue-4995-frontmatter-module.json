@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14707,
+    "date": "2026-08-14",
+    "branch": "fix/4995-frontmatter-module-collision",
+    "startingCommit": "4ecc1fdf3",
+    "objective": "Execute issue #4995 frontmatter module collision fix"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded and Serena tools were available in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena initial instructions and tool schema before code work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/AGENTS.md, .agents/CLAUDE.md, and scripts/AGENTS.md / scripts/CLAUDE.md."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read repository GitHub script guidance and used repository issue scripts."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/AGENTS.md, .agents/HANDOFF.md, .agents/SESSION-PROTOCOL.md, and session-init/session-end skill docs."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read session/init, github issue-ops, PR-context, and memory-related Serena memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4995-frontmatter-module-collision"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4995-frontmatter-module-collision"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Checked git branch and git status in the isolated worktree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4ecc1fdf3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: no changed markdown files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4995-frontmatter-module-collision.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 7dda345603)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created the issue session log and read the project context",
+      "outcome": "Captured branch, objective, HANDOFF.md, and relevant Serena memories before code changes."
+    },
+    {
+      "action": "Reproduced the order-dependent pytest failure on origin/main",
+      "outcome": "tests/test_validate_skill_installation.py failed when run after tests/test_validate_skill_structural.py with module frontmatter shadowing."
+    },
+    {
+      "action": "Removed the structural test sys.path pollution and committed the fix",
+      "outcome": "The combined pytest repro passed after the change."
+    },
+    {
+      "action": "Added QA evidence and completed the session log",
+      "outcome": "Recorded the passing QA report and validated the completed session log."
+    }
+  ],
+  "endingCommit": "7dda345603",
+  "nextSteps": []
+}
