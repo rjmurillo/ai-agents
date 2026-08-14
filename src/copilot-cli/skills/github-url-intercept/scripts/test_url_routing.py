@@ -209,6 +209,13 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
         return None
     url_type, resource_id, subroute, secondary_id, ref, path = resource
 
+    if fragment_type == "pullrequestreview" and url_type != UrlType.PULL:
+        return None
+    if fragment_type == "discussion_r" and (url_type != UrlType.PULL or subroute not in {"files", "changes"}):
+        return None
+    if fragment_type == "issuecomment" and url_type != UrlType.ISSUE:
+        return None
+
     return {
         "owner": owner,
         "repo": repo,
@@ -272,6 +279,7 @@ def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
                 "method": RouteMethod.SCRIPT.value,
                 "command": (
                     f'python3 "{CHECKS_SCRIPT_PATH}" --pull-request "{resource_id}"'
+                    f' --owner "{owner}" --repo "{repo}"'
                 ),
                 "script_path": CHECKS_SCRIPT_PATH,
                 "reason": "Use github skill script for structured output",
