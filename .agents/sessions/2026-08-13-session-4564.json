@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 7e9c055a9105ad4e2c26e967e0829556ee2bfb30."
+        "Evidence": "Current validated implementation ends at f54c626f36ab560ef22be6be5170c6e96fffbcae."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "307 tests, Ruff, install parity, conflict scan, and merge-tree ratchets passed."
+        "Evidence": "307 prior targeted tests plus 107 focused final-review tests, Ruff, install parity, conflict scan, and merge-tree ratchets passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -175,7 +175,7 @@
       "result": "Commit 7e9c055a9 fixed unterminated comments and invalid fence closers. 307 targeted tests passed and final Sol verification returned CLEAN."
     }
   ],
-  "endingCommit": "7e9c055a9105ad4e2c26e967e0829556ee2bfb30",
+  "endingCommit": "f54c626f36ab560ef22be6be5170c6e96fffbcae",
   "nextSteps": [
     "Guard push against the live PR head.",
     "Wait for required checks and rerun readiness from this worktree.",
