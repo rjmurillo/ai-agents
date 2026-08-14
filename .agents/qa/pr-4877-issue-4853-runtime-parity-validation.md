@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-10-session-14653-bddf96dac-github-issue-4853-end-end.json
-qaCommit: dba57ccf6c2e685d31c6671c191d4280d8c07341
+qaCommit: 97dcd557d3167d1166b8c69af60a85971a66055a
 ---
 
 # Issue 4853 Runtime Parity Validation
@@ -27,6 +27,9 @@ machine.
 - Pre-push Python tests passed after the latest base merge.
 - Full-tree Ruff remains red on unrelated files under `.agents/analysis`.
   Scoped Ruff on every changed Python file passes.
+- `_invoke_runtime` now uses `subprocess.Popen` with `start_new_session=True`
+  and `os.killpg` to kill the full process tree on timeout, preventing orphaned
+  CLI children from consuming model quota. Syntax and AST validation pass.
 - Malformed JSONL text and non-object JSON now exit 3 and record an external
   runtime failure.
 - Claude receives only Anthropic credentials. Copilot receives only GitHub
