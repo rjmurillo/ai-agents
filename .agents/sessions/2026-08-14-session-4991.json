@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 4d5424c993b6efc6f699b66003a8420cd1653d2e"
+        "Evidence": "All non-evidence code committed through 9d44632086ddbb56e20666834a2560cc195e8ddd"
       },
       "validationPassed": {
         "level": "MUST",
@@ -158,8 +158,12 @@
     {
       "action": "Fixed final suppressed plugin-portability findings",
       "result": "Converted SkillForge launch examples to plugin-root fallbacks, regenerated mirrors, and passed 36 generator tests"
+    },
+    {
+      "action": "Resolved latest active suppressed review findings",
+      "result": "Used project-local .claude fallback, corrected /skillforge documentation, regenerated mirrors, and passed 36 generator tests"
     }
   ],
-  "endingCommit": "4d5424c993b6efc6f699b66003a8420cd1653d2e",
+  "endingCommit": "9d44632086ddbb56e20666834a2560cc195e8ddd",
   "nextSteps": []
 }
