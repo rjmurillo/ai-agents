@@ -13,7 +13,8 @@ import os
 import re
 import sys
 import warnings
-from datetime import UTC, datetime, timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
 
@@ -23,6 +24,37 @@ _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
 # Hooks registered for both commands need to recognize both.
 _GH_PR_CREATE_PATTERN = re.compile(r"(?:^|\s)gh\s+pr\s+create\b")
 _DATE_FORMAT = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ISO_DATE = "%Y-%m-%d"
+
+
+def host_session_date(now: Callable[[], datetime] = datetime.now) -> str:
+    """Return the host local date as ``YYYY-MM-DD``.
+
+    Session logs are named by the contributor's host local date, not UTC
+    (Issue #4779). A consumer that scans by date prefix must anchor on the
+    same host clock the creator used, or a session in a far-east timezone
+    becomes invisible near midnight UTC. This is the consumer-side twin of
+    :func:`session_init.date_helpers.host_session_date`; the plugin boundary
+    forbids sharing one import, so ``tests/skills/session/test_date_helpers.py``
+    pins the two copies to identical output. ``now`` is injectable for
+    deterministic tests and must return a naive local datetime.
+    """
+    return now().strftime(_ISO_DATE)
+
+
+def recent_host_session_dates(now: Callable[[], datetime] = datetime.now) -> tuple[str, str]:
+    """Return ``(today, yesterday)`` host local date strings.
+
+    The two-day window absorbs a session that spans host-local midnight.
+    Anchored on the host clock so it matches :func:`host_session_date` and the
+    creator's filename (Issue #4779). Both strings derive from one captured
+    instant so a midnight tick between them cannot split the pair. ``now`` is
+    injectable for deterministic tests and must return a naive local datetime.
+    """
+    current = now()
+    today = current.strftime(_ISO_DATE)
+    yesterday = (current - timedelta(days=1)).strftime(_ISO_DATE)
+    return today, yesterday
 
 # Cross-platform file locking
 # Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
@@ -137,7 +169,7 @@ def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | 
     Returns the path with the latest modification time, or None if no logs found.
     """
     if date is None:
-        date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        date = host_session_date()
     elif not _DATE_FORMAT.fullmatch(date):
         msg = f"Invalid date format: {date!r}. Expected YYYY-MM-DD."
         raise ValueError(msg)
@@ -191,7 +223,7 @@ def _newest_by_mtime(candidates: list[Path]) -> Path | None:
 
 def get_today_session_logs(sessions_dir: str) -> list[Path]:
     """Find all session logs for today's date."""
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    today = host_session_date()
 
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
@@ -223,8 +255,7 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         warnings.warn(f"Session directory not found: {sessions_dir}", stacklevel=2)
         return None
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
+    today, yesterday = recent_host_session_dates()
 
     # First, check for today's sessions
     try:
@@ -248,7 +279,6 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         )
 
     # Only fall back to yesterday if no today session exists (cross-midnight continuation)
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     try:
         yesterday_candidates = list(sessions_path.glob(f"{yesterday}-session-*.json"))
     except OSError as exc:
