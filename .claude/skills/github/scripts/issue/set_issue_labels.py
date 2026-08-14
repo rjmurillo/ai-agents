@@ -121,10 +121,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         help=(
-            "Label names to apply. Accepts space-separated arguments and "
-            "comma-separated values interchangeably, so 'bug enhancement' and "
-            "'bug,enhancement' are equivalent. Repeat the flag to add more. "
-            "Whitespace is trimmed; multi-word names (no comma) are preserved."
+            "Label names to apply. To apply two labels 'bug' and "
+            "'enhancement', use either unquoted space-separated arguments "
+            "(--labels bug enhancement) or a quoted comma-separated string "
+            "(--labels \"bug,enhancement\"). Only commas split names, so a "
+            "quoted space-separated string (--labels \"bug enhancement\") is "
+            "one label named 'bug enhancement'. Repeat the flag to add more; "
+            "surrounding whitespace on each name is trimmed."
         ),
     )
     parser.add_argument(

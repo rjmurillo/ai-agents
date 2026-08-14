@@ -366,3 +366,55 @@ class TestExpandLabels:
 
     def test_no_labels_flag(self, _import_module):
         assert self._names(_import_module, []) == []
+
+
+class TestLabelHelpTextMatchesBehavior:
+    """The --labels help text must describe real parser behavior (#4967).
+
+    A false help string is the same doc/parser contradiction the issue was
+    filed for, so the documented spellings are asserted against actual
+    expand_labels output. Nothing else validated the help text, which is how
+    the earlier false 'bug enhancement equals bug,enhancement' claim shipped.
+    """
+
+    def _labels_help(self, mod) -> str:
+        parser = mod.build_parser()
+        for action in parser._actions:
+            if action.dest == "labels":
+                return action.help or ""
+        raise AssertionError("no --labels action found")
+
+    def _names(self, mod, label_args):
+        parser = mod.build_parser()
+        args = parser.parse_args(["--issue", "1", *label_args])
+        return mod.expand_labels(args.labels or [])
+
+    def test_help_shows_both_multi_label_spellings(self, _import_module):
+        help_text = self._labels_help(_import_module)
+        assert "--labels bug enhancement" in help_text
+        assert '--labels "bug,enhancement"' in help_text
+
+    def test_help_states_quoted_space_is_one_label(self, _import_module):
+        help_text = self._labels_help(_import_module)
+        assert '--labels "bug enhancement"' in help_text
+        assert "one label" in help_text
+
+    def test_documented_unquoted_space_form_yields_two_labels(self, _import_module):
+        # --labels bug enhancement  (shell splits into two argv tokens)
+        assert self._names(_import_module, ["--labels", "bug", "enhancement"]) == [
+            "bug",
+            "enhancement",
+        ]
+
+    def test_documented_quoted_comma_form_yields_two_labels(self, _import_module):
+        # --labels "bug,enhancement"  (one argv token, comma splits it)
+        assert self._names(_import_module, ["--labels", "bug,enhancement"]) == [
+            "bug",
+            "enhancement",
+        ]
+
+    def test_documented_quoted_space_form_yields_one_label(self, _import_module):
+        # --labels "bug enhancement"  (one argv token, no comma, stays one)
+        assert self._names(_import_module, ["--labels", "bug enhancement"]) == [
+            "bug enhancement",
+        ]
