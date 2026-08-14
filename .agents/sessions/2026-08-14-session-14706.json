@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No new durable memory was warranted; existing memories were preserved."
+        "Evidence": "Extracted .agents/memory/episodes/episode-2026-08-14-session-14706.json from the completed session."
       },
       "markdownLintRun": {
         "level": "MUST",
