@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder.json
-qaCommit: 4bfdfbdcc99684e82a90ef040442302648f75e0a
+qaCommit: 344a95b7bbbfbcb513785f25565868eea6442635
 ---
 
 # Issue 4897 QA Report: Scoped Serena Memory References
@@ -40,7 +40,19 @@ the repository could observe the failure.
 | Full validation suite | `pytest tests/validation/ tests/test_update_reviewer_signal_stats.py` | 3090 passed, 1 skipped |
 | Pre-PR sequence | `python scripts/validation/pre_pr.py` | 52/52 PASS, exit 0 |
 | Lint | `ruff check` on the 5 touched Python files | All checks passed |
-| Types | `mypy scripts/validation/check_skill_memory_references.py` | Success, no issues |
+| Types | `mypy` on the changed Python files | Success, no issues |
+
+### Mypy ratchet note
+
+The first full `pre_pr.py` run failed the "Mypy Changed Files (ratchet)" gate
+with 3 errors. Two were pre-existing `no-any-return` errors in
+`pre_pr_sequence.py` that only became visible because registering the new gate
+put that file in the changed set; both callbacks returned an untyped validator's
+result directly and are now wrapped in `bool()`, matching every other wrapper in
+`checks_spec.py`. The third was mine: the wiring test passed a `SimpleNamespace`
+where `run_all_validations` declares `argparse.Namespace`. The sibling registry
+test escapes this only because it imports the module by bare name, which types
+it as `Any`. All three are fixed and the gate passes.
 
 ## Gate Evidence
 

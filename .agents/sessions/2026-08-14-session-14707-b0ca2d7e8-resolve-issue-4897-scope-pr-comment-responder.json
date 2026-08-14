@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 4bfdfbdcc9)"
+        "Evidence": "All changes committed (HEAD: 344a95b7bb)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -177,7 +177,7 @@
       "outcome": "pytest tests/validation plus stats tests: 3090 passed, 1 skipped. pre_pr.py: 52 of 52 PASS, exit 0, including the new Skill Memory References gate. ruff clean, mypy clean, golden-principles no violations, taste-lints 0 errors, actionlint PASS on the changed workflow with the act run skipped for absent secrets, which the gate treats as non-blocking."
     }
   ],
-  "endingCommit": "4bfdfbdcc9",
+  "endingCommit": "344a95b7bb",
   "nextSteps": [
     "Push the branch and open one PR against main quoting the full-corpus gate output, the negative control, and the mutation sweep, per .claude/rules/ci-scripts.md MUST 13.",
     "Watch CI for a count-ratchet trip from the two new files; re-measure against a refreshed origin/main before touching any baseline.",
