@@ -135,7 +135,7 @@
       "result": "397 passed, 3 skipped; catalog evidence committed through 164227594de83d26b495927414a0b05147e2901b; existing six-round adr-review evidence remains authoritative"
     }
   ],
-  "endingCommit": "6030df0ce0b54830cb85189518bd9d1850e109e3",
+  "endingCommit": "d98888f32217ff6e75e230f607467e5e79cdca62",
   "nextSteps": [
     "Push under lease and late live-state guard.",
     "Wait for required CI, then reply to and resolve all 15 review threads.",
