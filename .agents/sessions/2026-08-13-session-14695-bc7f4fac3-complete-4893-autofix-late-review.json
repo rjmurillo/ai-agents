@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Post-refresh pre-push tests passed 27,886 with 37 skipped; complete-frontmatter suites passed 54 and 89 tests; merge-tree ratchet, mypy, build generation, hook gates, and pre-PR validation passed"
+        "Evidence": "Revalidated at 4bb24a294b16859b08050ded72f55636fb26cdb9: focused hook and registration, generator, runtime-contract, shipped-artifact, CLI E2E, Ruff, mypy, and drift checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -135,7 +135,7 @@
       "result": "Preserved plugin namespaces, corrected fail-open runtime evidence, and reused the existing six-round ADR-068/071/085 debate log"
     }
   ],
-  "endingCommit": "c27f1e42463e4e31d91f67c1433d3634d2a3d0db",
+  "endingCommit": "4bb24a294b16859b08050ded72f55636fb26cdb9",
   "nextSteps": [
     "Guarded push after lease renewal and remote-head binding",
     "Wait for required CI and complete every review thread lifecycle",
