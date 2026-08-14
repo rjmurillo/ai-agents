@@ -184,9 +184,9 @@
   "episodeMetrics": {
     "filesChanged": 8,
     "comparison": {
-      "kind": "githubPullRequest",
+      "kind": "gitCommitRange",
       "base": "5dbc09bf1",
-      "head": "5acc676414b423d8a9e10bfe3041ab3ffd284874"
+      "head": "9093705a61a8c030d039cb29ee56605c133abcd3"
     }
   }
 }
