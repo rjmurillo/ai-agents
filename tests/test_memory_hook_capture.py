@@ -24,11 +24,66 @@ class TestReadToolResult:
 
     @pytest.mark.unit
     def test_valid_json(self, monkeypatch):
-        payload = '{"tool_name": "Bash", "result": "output text"}'
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "Exit code 1\noutput text",
+            }
+        )
         monkeypatch.setattr("sys.stdin", io.StringIO(payload))
         name, result = _read_tool_result()
         assert name == "Bash"
-        assert result == "output text"
+        assert result == "Exit code 1\noutput text"
+
+    @pytest.mark.unit
+    def test_success_event_is_ignored(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "error": "Error handling examples",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+
+        name, result = _read_tool_result()
+
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_interrupted_failure_is_ignored(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "Command was interrupted",
+                "is_interrupt": True,
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+
+        name, result = _read_tool_result()
+
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_non_string_error_is_ignored(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": {"message": "bad payload"},
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+
+        name, result = _read_tool_result()
+
+        assert name == ""
+        assert result == ""
 
     @pytest.mark.unit
     def test_missing_fields(self, monkeypatch):
@@ -47,6 +102,63 @@ class TestReadToolResult:
     @pytest.mark.unit
     def test_empty_stdin(self, monkeypatch):
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_non_bool_is_interrupt_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "real error",
+                "is_interrupt": "yes",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_numeric_tool_name_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": 42,
+                "error": "real error",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_whitespace_only_error_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "   ",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_whitespace_only_tool_name_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "  ",
+                "error": "real error",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
         name, result = _read_tool_result()
         assert name == ""
         assert result == ""
@@ -110,24 +222,14 @@ class TestAnalyzeToolResult:
         assert "Bash" in result
 
     @pytest.mark.unit
-    def test_plain_output_generates_nothing(self):
-        result = _analyze_tool_result("Bash", "12345")
-        assert result == ""
+    def test_failure_without_error_keyword_generates_suggestion(self):
+        result = _analyze_tool_result("Bash", "Exit code 1\ncommand output")
+        assert "<memory-suggestion>" in result
+        assert "Exit code 1" in result
 
     @pytest.mark.unit
-    def test_successful_listing_generates_nothing(self):
-        """A directory listing is not a memory. Issue #4011: this fired on
-        roughly 40% of ordinary tool calls and injected empty suggestions."""
-        listing = "README.md\nsearch.py\nanalyze_pr_failure.py\ntest_error_handling.py"
-
-        result = _analyze_tool_result("Bash", listing)
-
-        assert result == ""
-
-    @pytest.mark.unit
-    def test_code_definition_output_generates_nothing(self):
-        result = _analyze_tool_result("Read", "def calculate_score():\nclass SearchEngine:")
-
+    def test_empty_failure_generates_nothing(self):
+        result = _analyze_tool_result("Bash", "")
         assert result == ""
 
 
@@ -158,90 +260,126 @@ class TestFormatSuggestion:
         assert "citation: tool_result:Read" in result
 
 
-class TestToolResponsePayload:
-    """Claude Code sends tool_response, not result (issue #4011)."""
+class TestPostToolUseFailurePayload:
+    """Claude Code sends failures in the top-level error field."""
 
     @staticmethod
     def _stdin(monkeypatch, payload):
+        payload = {"hook_event_name": "PostToolUseFailure", **payload}
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
 
     @pytest.mark.unit
-    def test_dict_tool_response_yields_error_text(self, monkeypatch):
-        self._stdin(monkeypatch, {
-            "tool_name": "Bash",
-            "tool_response": {
-                "stdout": "ERROR: ModuleNotFoundError: No module named foo",
-                "stderr": "Traceback (most recent call last):",
+    def test_error_field_yields_error_text(self, monkeypatch):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+                "error": "Exit code 1\nModuleNotFoundError: No module named foo",
             },
-        })
+        )
 
         name, result = _read_tool_result()
 
         assert name == "Bash"
         assert "ModuleNotFoundError" in result
-        assert "Traceback" in result
 
     @pytest.mark.unit
-    def test_real_payload_reaches_exit_code_two(self, monkeypatch):
-        self._stdin(monkeypatch, {
-            "tool_name": "Bash",
-            "tool_response": {"stdout": "ERROR: ModuleNotFoundError: No module named foo"},
-        })
-
-        assert main() == 2
-
-    @pytest.mark.unit
-    def test_result_key_still_wins_for_back_compat(self, monkeypatch):
-        self._stdin(monkeypatch, {
-            "tool_name": "Bash",
-            "result": "legacy text",
-            "tool_response": {"stdout": "ignored"},
-        })
-
-        _name, result = _read_tool_result()
-
-        assert result == "legacy text"
-
-    @pytest.mark.unit
-    def test_empty_tool_response_dict_yields_empty_text(self, monkeypatch):
-        self._stdin(monkeypatch, {"tool_name": "Bash", "tool_response": {}})
-
-        _name, result = _read_tool_result()
-
-        assert result == ""
-
-    @pytest.mark.unit
-    def test_bare_string_tool_response(self, monkeypatch):
-        self._stdin(monkeypatch, {"tool_name": "Read", "tool_response": "plain text"})
-
-        _name, result = _read_tool_result()
-
-        assert result == "plain text"
-
-    @pytest.mark.unit
-    def test_list_tool_response_is_joined(self, monkeypatch):
-        self._stdin(monkeypatch, {
-            "tool_name": "Read",
-            "tool_response": [{"content": "first"}, {"content": "second"}],
-        })
-
-        _name, result = _read_tool_result()
-
-        assert result == "first\nsecond"
-
-    @pytest.mark.unit
-    def test_null_tool_response_yields_empty_text(self, monkeypatch):
-        self._stdin(monkeypatch, {"tool_name": "Bash", "tool_response": None})
-
-        _name, result = _read_tool_result()
-
-        assert result == ""
-
-    @pytest.mark.unit
-    def test_benign_output_returns_zero(self, monkeypatch):
-        self._stdin(monkeypatch, {
-            "tool_name": "Bash",
-            "tool_response": {"stdout": "ok"},
-        })
+    def test_real_payload_adds_context_and_returns_zero(self, monkeypatch, capsys):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+                "error": "Exit code 1\nModuleNotFoundError: No module named foo",
+            },
+        )
 
         assert main() == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["hookSpecificOutput"]["hookEventName"] == "PostToolUseFailure"
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "<memory-suggestion>" in context
+
+    @pytest.mark.unit
+    def test_failure_without_indicator_adds_context(self, monkeypatch, capsys):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+                "error": "Exit code 1\ncommand output",
+            },
+        )
+
+        assert main() == 0
+        output = json.loads(capsys.readouterr().out)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert "Exit code 1 command output" in context
+        assert "\ncommand output" not in context
+
+    @pytest.mark.unit
+    def test_missing_error_returns_zero(self, monkeypatch, capsys):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+            },
+        )
+
+        assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_successful_result_with_failure_text_returns_zero(
+        self, monkeypatch, capsys
+    ):
+        self._stdin(
+            monkeypatch,
+            {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "error": '{"Success":true,"Data":{"note":"failure examples documented"}}',
+            },
+        )
+
+        assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_interrupted_failure_returns_zero_without_output(
+        self, monkeypatch, capsys
+    ):
+        self._stdin(
+            monkeypatch,
+            {
+                "tool_name": "Bash",
+                "error": "Command was interrupted",
+                "is_interrupt": True,
+            },
+        )
+
+        assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_missing_event_name_returns_zero(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "sys.stdin",
+            io.StringIO(
+                json.dumps(
+                    {
+                        "tool_name": "Bash",
+                        "error": "Error: quoted documentation",
+                    }
+                )
+            ),
+        )
+
+        assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
