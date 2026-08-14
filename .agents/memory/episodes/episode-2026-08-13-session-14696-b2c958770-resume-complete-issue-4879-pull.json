@@ -96,7 +96,8 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e011"
       ],
       "leads_to": [
         "e009"
@@ -124,6 +125,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed validation for the exit-code documentation follow-up.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T02:45:51+00:00",
+      "type": "commit",
+      "content": "Commit: ae98831ce6abdfca896296252b6a2263261c940f",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     }
@@ -133,8 +158,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 9
+    "commits": 4,
+    "files_changed": 14
   },
   "lessons": []
 }

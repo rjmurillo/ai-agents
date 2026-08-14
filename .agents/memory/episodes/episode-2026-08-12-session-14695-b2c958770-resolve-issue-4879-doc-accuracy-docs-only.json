@@ -132,7 +132,8 @@
         "e007",
         "e008",
         "e009",
-        "e010"
+        "e010",
+        "e014"
       ],
       "leads_to": [
         "e012"
@@ -160,6 +161,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed validation for the exit-code documentation follow-up.",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T02:45:51+00:00",
+      "type": "commit",
+      "content": "Commit: ae98831ce6abdfca896296252b6a2263261c940f",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
     }
@@ -169,7 +194,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 72
   },
   "lessons": []

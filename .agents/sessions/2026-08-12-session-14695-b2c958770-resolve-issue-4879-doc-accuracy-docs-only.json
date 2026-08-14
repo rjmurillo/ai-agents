@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed and validated after merging current main (HEAD: 94a3b96cc06e)"
+        "Evidence": "Follow-up documentation commit ae98831ce6 was committed and validated; original implementation history remains intact."
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,8 +163,12 @@
     {
       "action": "Ran repository validation and artifact-only adversarial review.",
       "outcome": "Ruff, skill contract checks, three portability checks, mirror comparison, regeneration, and all 51 pre-PR checks passed. GPT-5.6 Sol reviewed only the diff and issue contract and returned CLEAN."
+    },
+    {
+      "action": "Refreshed validation for the exit-code documentation follow-up.",
+      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at ae98831ce6."
     }
   ],
-  "endingCommit": "94a3b96cc06ee0aa225bb187a5ef33a044529440",
+  "endingCommit": "ae98831ce6abdfca896296252b6a2263261c940f",
   "nextSteps": []
 }
