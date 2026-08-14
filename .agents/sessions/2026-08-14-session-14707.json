@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 4c41c97ecb2852ea7d72b52a39c4ea160e14d9d0; final evidence committed separately"
+        "Evidence": "Validated code commit 93b6f3eb306fcebd4e4e20bd248c2cd8368b7f45; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, and 64 cross-timezone consumer tests passed; Ruff and generation passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, and 91 final focused tests passed; Ruff and generation passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -150,11 +150,15 @@
     {
       "action": "Closed three suppressed cross-timezone consumer findings.",
       "outcome": "Branch-context scanning now covers the full UTC+14 to UTC-12 date range; retrospective evidence uses host-local date authority; canonical and generated mirror tests passed."
+    },
+    {
+      "action": "Closed the final suppressed timezone and documentation findings.",
+      "outcome": "Branch scanning now covers scanner date plus/minus two days, reverse UTC-12 to UTC+14 behavior is regression-tested, and fallback/date-authority documentation names exact sources."
     }
   ],
-  "endingCommit": "4c41c97ecb2852ea7d72b52a39c4ea160e14d9d0",
+  "endingCommit": "93b6f3eb306fcebd4e4e20bd248c2cd8368b7f45",
   "nextSteps": [
-    "Commit and push QA/session evidence with SHA safety.",
+    "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
     "Merge only if all four readiness conditions pass."
   ]
