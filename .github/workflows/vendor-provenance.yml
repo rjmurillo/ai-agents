@@ -71,6 +71,21 @@ jobs:
           GIT_INDEX_FILE=/tmp/idx-base git read-tree "$BASE_SHA"
           GIT_INDEX_FILE=/tmp/idx-base git checkout-index -a --prefix=/tmp/base/
 
+      - name: Reject gitlinks in candidate tree
+        run: |
+          set -euo pipefail
+          # git checkout-index writes mode-160000 (gitlink/submodule) entries
+          # as empty directories, invisible to filesystem-based validators.
+          # Inspect the git tree object directly and fail closed on any gitlink.
+          GITLINKS=$(git ls-tree -r "$PR_SHA" | awk '$1 == "160000" { print $4 }')
+          if [ -n "$GITLINKS" ]; then
+            echo "::error::Candidate tree contains gitlink entries (submodules). This bypasses filesystem-based provenance validation."
+            echo "$GITLINKS" | while read -r path; do
+              echo "  rejected gitlink: $path"
+            done
+            exit 1
+          fi
+
       - name: Check relevance (NUL-safe)
         id: relevance
         run: |
