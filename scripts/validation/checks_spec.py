@@ -219,6 +219,37 @@ def validate_skill_skip_clauses(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_skill_memory_references(repo_root: Path) -> bool:
+    """Fail when instructions command a read of a memory that cannot resolve.
+
+    Wraps ``scripts/validation/check_skill_memory_references.py``. The wrapped
+    script exits 0 when every literal ``read_memory`` or ``edit_memory`` name
+    in the skill and agent instruction corpus resolves under
+    ``.serena/memories/``, 1 when one does not, and 2 when the given repo root
+    is not a directory. Exit 1 and 2 are both hard failures here.
+
+    Issue #4897: pr-comment-responder's BLOCKING Phase 0 named
+    ``pr-comment-responder-skills`` while the memory was tracked as
+    ``pr-review/pr-comment-responder-skills``, so the blocking step failed for
+    any agent that followed the instruction literally.
+    """
+    script = (
+        repo_root / "scripts" / "validation" / "check_skill_memory_references.py"
+    )
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_skill_memory_references.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
+
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
