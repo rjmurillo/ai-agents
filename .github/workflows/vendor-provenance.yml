@@ -129,7 +129,4 @@ jobs:
           set -euo pipefail
           CONCLUSION=${{ job.status == 'success' && 'success' || 'failure' }}
           python3 scripts/ci/validate_vendor_provenance.py \
-            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION" \
-            || gh api "repos/${{ github.repository }}/check-runs" -X POST \
-              -f name="Vendor Provenance Gate" -f head_sha="$PR_SHA" \
-              -f status=completed -f conclusion="$CONCLUSION"
+            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION"
