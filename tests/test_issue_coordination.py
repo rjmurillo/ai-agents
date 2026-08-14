@@ -170,7 +170,9 @@ class TestFindOpenPrsForIssue:
             )
         assert [m["number"] for m in out] == [11]
 
-    def test_skips_own_pr_when_branch_context_missing(self):
+    def test_surfaces_own_pr_when_branch_context_missing(self):
+        # Detached HEAD / empty branch must NOT suppress the owner's PR (#4965).
+        # Previously this returned [] and hid every current-user PR.
         prs = [
             {
                 "number": 10,
@@ -188,7 +190,7 @@ class TestFindOpenPrsForIssue:
                 2477,
                 current_user_login="alice",
             )
-        assert out == []
+        assert [m["number"] for m in out] == [10]
 
     def test_same_branch_from_different_author_still_blocks(self):
         prs = [
@@ -243,6 +245,147 @@ class TestFindOpenPrsForIssue:
             except RuntimeError:
                 raised = True
         assert raised
+
+
+def _owner_pr(number: int, head: str, login: str, issue: int = 2477):
+    return {
+        "number": number,
+        "title": "feat",
+        "body": f"Fixes #{issue}",
+        "html_url": f"u{number}",
+        "head": {"ref": head},
+        "user": {"login": login},
+    }
+
+
+class TestSelfBranchSuppression:
+    """Self-branch suppression fires only on an exact non-empty branch match (#4965)."""
+
+    def test_helper_same_branch_returns_true(self):
+        assert _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="work", current_user_login="alice"
+        )
+
+    def test_helper_detached_head_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="", current_user_login="alice"
+        )
+
+    def test_helper_different_branch_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="other", current_user_login="alice"
+        )
+
+    def test_helper_different_author_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "bob", "work", current_branch_name="work", current_user_login="alice"
+        )
+
+    def test_detached_head_surfaces_owner_pr(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_empty_environment_surfaces_owner_pr(self):
+        # CI without GITHUB_HEAD_REF resolves branch to "" just like detached HEAD.
+        prs = [[_owner_pr(10, "feature", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_same_branch_still_suppressed(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="work", current_user_login="alice"
+        )
+        assert out == []
+
+    def test_different_branch_surfaced(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="feature-x", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_different_author_surfaced_from_detached_head(self):
+        prs = [[_owner_pr(10, "work", "bob")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_multiple_candidate_prs_all_surfaced(self):
+        prs = [[
+            _owner_pr(10, "work", "alice"),
+            _owner_pr(11, "other", "bob"),
+        ]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert sorted(m["number"] for m in out) == [10, 11]
+
+    def test_no_candidates_returns_empty(self):
+        prs = [[{
+            "number": 12,
+            "title": "chore",
+            "body": "unrelated work",
+            "html_url": "u12",
+            "head": {"ref": "b"},
+            "user": {"login": "alice"},
+        }]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert out == []
+
+
+class TestCheckExistingMain:
+    """End-to-end main() behavior for the detached-HEAD fix (#4965)."""
+
+    def test_detached_head_reports_existing_owner_pr(self):
+        prs = [_owner_pr(10, "work", "alice", issue=5)]
+        calls = [
+            _proc(0, "alice\n"),  # current_login -> gh api user
+            _proc(0, json.dumps([prs])),  # gh api pulls
+        ]
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value=""),  # detached HEAD
+            patch.object(_check.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _check.main(["--issue", "5", "--output-format", "json"])
+                code = 0
+            except SystemExit as exc:
+                code = exc.code
+        assert code == 1
+
+    def test_api_error_is_not_reported_as_no_pr(self):
+        # A failed gh call must surface an external error, never a clean "no PR".
+        calls = [
+            _proc(0, "alice\n"),  # current_login -> gh api user
+            _proc(1, stderr="gh api pulls failed"),  # gh api pulls errors
+        ]
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value=""),
+            patch.object(_check.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _check.main(["--issue", "5", "--output-format", "json"])
+                code = 0
+            except SystemExit as exc:
+                code = exc.code
+        assert code == 3
 
 
 class TestClaimIssueAssignees:

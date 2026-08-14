@@ -146,6 +146,68 @@ def _author_login(pr: _PullRequestPayload) -> str:
     return _as_text(pr.get("author"))
 
 
+def _is_self_branch_pr(
+    author_login: str,
+    head_ref: str,
+    *,
+    current_branch_name: str,
+    current_user_login: str,
+) -> bool:
+    """Return True when a PR is the current user's own current-branch PR.
+
+    Suppression exists so the preflight does not flag the PR that belongs to the
+    branch you are already on. It applies only when the current branch name is
+    known and matches the PR head exactly.
+
+    An empty ``current_branch_name`` (detached HEAD, or CI without
+    ``GITHUB_HEAD_REF``) is NOT a match. Treating empty as a match suppressed
+    every PR by the current user, so in a single-author repo the duplicate-PR
+    guard reported zero coverage for every issue (issue #4965).
+    """
+    if not current_user_login or author_login != current_user_login:
+        return False
+    if not current_branch_name:
+        return False
+    return head_ref == current_branch_name
+
+
+def filter_prs_for_issue(
+    prs: object,
+    issue: int,
+    *,
+    repo_slug: str = "",
+    current_branch_name: str = "",
+    current_user_login: str = "",
+) -> list[_PullRequestPayload]:
+    """Return open PRs whose title or body claims implementation of ``issue``.
+
+    Pure matching logic, separated from the ``gh`` fetch so the suppression
+    rules are deterministically testable (issue #4965).
+    """
+    matches: list[_PullRequestPayload] = []
+    for pr in _iter_pull_requests(prs):
+        head_ref = _head_ref(pr)
+        author_login = _author_login(pr)
+        text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
+        if not references_issue(text, issue, repo_slug=repo_slug):
+            continue
+        if _is_self_branch_pr(
+            author_login,
+            head_ref,
+            current_branch_name=current_branch_name,
+            current_user_login=current_user_login,
+        ):
+            continue
+        matches.append({
+            "number": pr.get("number"),
+            "title": _as_text(pr.get("title")),
+            "url": _as_text(pr.get("html_url") or pr.get("url")),
+            "head": head_ref,
+            "author": author_login,
+        })
+    return matches
+
+
 def find_open_prs_for_issue(
     owner: str,
     repo: str,
@@ -154,7 +216,7 @@ def find_open_prs_for_issue(
     current_branch_name: str = "",
     current_user_login: str = "",
 ) -> list[_PullRequestPayload]:
-    """Return open PRs whose title or body claims implementation of ``issue``."""
+    """Fetch open PRs and return those claiming implementation of ``issue``."""
 
     result = _run(
         ["gh", "api", f"repos/{owner}/{repo}/pulls?state=open&per_page=100",
@@ -166,24 +228,13 @@ def find_open_prs_for_issue(
         prs = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError) as err:
         raise RuntimeError("could not parse gh api pulls output") from err
-    matches = []
-    for pr in _iter_pull_requests(prs):
-        head_ref = _head_ref(pr)
-        author_login = _author_login(pr)
-        text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
-        if not references_issue(text, issue, repo_slug=f"{owner}/{repo}"):
-            continue
-        if current_user_login and author_login == current_user_login:
-            if not current_branch_name or head_ref == current_branch_name:
-                continue
-        matches.append({
-            "number": pr.get("number"),
-            "title": _as_text(pr.get("title")),
-            "url": _as_text(pr.get("html_url") or pr.get("url")),
-            "head": head_ref,
-            "author": author_login,
-        })
-    return matches
+    return filter_prs_for_issue(
+        prs,
+        issue,
+        repo_slug=f"{owner}/{repo}",
+        current_branch_name=current_branch_name,
+        current_user_login=current_user_login,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
