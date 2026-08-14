@@ -6672,6 +6672,34 @@ def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
     return 0 if result.returncode == 4 else result.returncode
 
 
+def _placeholder_identity_range(push_ref: PushRef, repo_root: Path) -> str:
+    """Return the commit range to audit for placeholder identities.
+
+    ``resolve_push_update`` deliberately audits the full
+    ``merge-base(origin/main)..local_sha`` delta for checks that care about
+    everything a PR has ever introduced (commit-limit, suppression scanning).
+    Placeholder-identity leaks are different: the guard's purpose (issue
+    #2466) is to stop a *new* leak from reaching origin, not to re-flag a
+    commit origin already accepted on every later push. For an existing
+    remote ref, reusing the wide range means one tainted commit that
+    slipped past this guard once (a prior bypass, or an environment where
+    the hook was not installed) would still block every legitimate future
+    push to that branch forever, since correcting it would require
+    rewriting already-pushed history and force-pushing, which this guard
+    must not require.
+
+    So: when the ref already exists on the remote and its remote SHA is
+    locally resolvable, audit only ``remote_sha..local_sha``, the commits
+    genuinely new to this push. Fall back to the full
+    ``resolve_push_update`` range for a brand-new ref (nothing has reached
+    origin yet, so everything is new) or when the remote SHA cannot be
+    resolved locally (fail toward the stricter, wider check).
+    """
+    if not push_ref.is_new and _commit_ref_exists(repo_root, push_ref.remote_sha):
+        return f"{push_ref.remote_sha}..{push_ref.local_sha}"
+    return resolve_push_update(push_ref, repo_root).range_spec
+
+
 def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
     try:
         refs = parse_push_refs(stream)
@@ -6682,7 +6710,7 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
         if push_ref.is_deletion:
             continue
         try:
-            update = resolve_push_update(push_ref, repo_root)
+            range_spec = _placeholder_identity_range(push_ref, repo_root)
         except PushUpdateConfigError as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
@@ -6691,7 +6719,7 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
                 sys.executable,
                 "scripts/validation/check_placeholder_identity.py",
                 "--push-range",
-                update.range_spec,
+                range_spec,
                 "--repo-root",
                 str(repo_root),
             ],

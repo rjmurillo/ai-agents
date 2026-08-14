@@ -7118,6 +7118,97 @@ def test_placeholder_identity_handles_malformed_deletion_and_failure(
     assert policy.check_placeholder_identities(io.StringIO(), tmp_path) == 1
 
 
+def _plant_placeholder_commit(repo: Path, relative_path: str, content: str) -> str:
+    """Commit ``relative_path`` with the known placeholder identity, return its SHA."""
+    path = repo / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    _git(repo, "add", "--", relative_path)
+    _git(
+        repo,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@test.com",
+        "commit",
+        "-qm",
+        f"test: add {Path(relative_path).name}",
+    )
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
+def test_placeholder_identity_ignores_already_pushed_taint(tmp_path: Path) -> None:
+    """A tainted commit already on the remote must not block later clean pushes.
+
+    Regression for the case where a placeholder-identity commit reached
+    origin once (a prior bypass, or a push from an environment where this
+    guard was not installed) and then permanently blocked every later
+    push to that branch, since fixing it would require rewriting
+    already-pushed history and force-pushing.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _plant_placeholder_commit(repo, "tracked.txt", "tainted\n")
+    local_sha = _commit_file(repo, "tracked.txt", "clean follow-up\n")
+    push_ref = policy.PushRef(
+        "refs/heads/feature/test", local_sha, "refs/heads/feature/test", remote_sha
+    )
+
+    range_spec = policy._placeholder_identity_range(push_ref, repo)
+
+    assert range_spec == f"{remote_sha}..{local_sha}"
+    # Exercise the real identity check (not the CLI dispatch, which shells
+    # out to a script path that does not exist in this fabricated repo) to
+    # confirm the narrowed range actually excludes the tainted commit.
+    from scripts.validation import check_placeholder_identity
+    from scripts.validation.check_placeholder_identity import run_check
+
+    with mock.patch.object(check_placeholder_identity, "_is_pytest_tmp", return_value=False):
+        result = run_check(push_range=range_spec, repo_root=repo)
+    assert result.returncode == 0
+
+
+def test_placeholder_identity_still_blocks_new_taint_on_existing_ref(tmp_path: Path) -> None:
+    """A genuinely new placeholder-identity commit in this push must still be caught."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "tracked.txt", "clean base\n")
+    local_sha = _plant_placeholder_commit(repo, "tracked.txt", "newly tainted\n")
+    push_ref = policy.PushRef(
+        "refs/heads/feature/test", local_sha, "refs/heads/feature/test", remote_sha
+    )
+
+    range_spec = policy._placeholder_identity_range(push_ref, repo)
+
+    assert range_spec == f"{remote_sha}..{local_sha}"
+    from scripts.validation import check_placeholder_identity
+    from scripts.validation.check_placeholder_identity import run_check
+
+    with mock.patch.object(check_placeholder_identity, "_is_pytest_tmp", return_value=False):
+        result = run_check(push_range=range_spec, repo_root=repo)
+    assert result.returncode == 1
+
+
+def test_placeholder_identity_falls_back_when_remote_sha_unresolvable(tmp_path: Path) -> None:
+    """An unresolvable remote SHA must fall back to the wide resolve_push_update range."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "tracked", "base\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", base)
+    local_sha = _commit_file(repo, "tracked", "head\n")
+    unresolvable_remote_sha = "f" * 40
+    push_ref = policy.PushRef(
+        "refs/heads/feature/test",
+        local_sha,
+        "refs/heads/feature/test",
+        unresolvable_remote_sha,
+    )
+
+    range_spec = policy._placeholder_identity_range(push_ref, repo)
+
+    assert range_spec == f"{base}..{local_sha}"
+
+
 def test_additions_advisory_handles_warning_and_git_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
