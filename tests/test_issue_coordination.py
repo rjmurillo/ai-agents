@@ -38,6 +38,31 @@ def _proc(rc: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedPr
     return subprocess.CompletedProcess(["gh"], rc, stdout=stdout, stderr=stderr)
 
 
+def _gh_dispatch(*, user=None, pulls=None):
+    """Return a ``subprocess.run`` fake that routes gh calls by command.
+
+    ``current_login`` runs ``gh api user`` and the preflight runs
+    ``gh api repos/<owner>/<repo>/pulls...``. A positional ``side_effect`` list
+    binds responses to call order, so a test can pass for the wrong reason if
+    the two calls swap. Dispatching on the command proves which call maps to
+    which outcome and rejects any unexpected call.
+    """
+    def _run(cmd, *args, **kwargs):
+        argv = list(cmd) if isinstance(cmd, (list, tuple)) else [cmd]
+        path = argv[2] if len(argv) > 2 else ""
+        if argv[:3] == ["gh", "api", "user"]:
+            if user is None:
+                raise AssertionError(f"unexpected `gh api user` call: {argv}")
+            return user
+        if "pulls" in path:
+            if pulls is None:
+                raise AssertionError(f"unexpected pulls call: {argv}")
+            return pulls
+        raise AssertionError(f"unexpected gh call: {argv}")
+
+    return _run
+
+
 class TestReferencesIssue:
     def test_fixes_keyword(self):
         assert _check.references_issue("Fixes #2477 in this PR", 2477) is True
@@ -362,15 +387,15 @@ class TestCheckExistingMain:
 
     def test_detached_head_reports_existing_owner_pr(self):
         prs = [_owner_pr(10, "work", "alice", issue=5)]
-        calls = [
-            _proc(0, "alice\n"),  # current_login -> gh api user
-            _proc(0, json.dumps([prs])),  # gh api pulls
-        ]
+        run = _gh_dispatch(
+            user=_proc(0, "alice\n"),
+            pulls=_proc(0, json.dumps([prs])),
+        )
         with (
             patch.object(_check, "assert_gh_authenticated", return_value=None),
             patch.object(_check, "resolve_repo_params") as resolve,
             patch.object(_check, "current_branch", return_value=""),  # detached HEAD
-            patch.object(_check.subprocess, "run", side_effect=calls),
+            patch.object(_check.subprocess, "run", side_effect=run),
         ):
             resolve.return_value.owner = "o"
             resolve.return_value.repo = "r"
@@ -382,16 +407,18 @@ class TestCheckExistingMain:
         assert code == 1
 
     def test_api_error_is_not_reported_as_no_pr(self):
-        # A failed gh call must surface an external error, never a clean "no PR".
-        calls = [
-            _proc(0, "alice\n"),  # current_login -> gh api user
-            _proc(1, stderr="gh api pulls failed"),  # gh api pulls errors
-        ]
+        # A failed gh pulls call must surface an external error, never a clean
+        # "no PR". Dispatch by command so the pulls failure, not a misordered
+        # login call, is what maps to exit 3.
+        run = _gh_dispatch(
+            user=_proc(0, "alice\n"),
+            pulls=_proc(1, stderr="gh api pulls failed"),
+        )
         with (
             patch.object(_check, "assert_gh_authenticated", return_value=None),
             patch.object(_check, "resolve_repo_params") as resolve,
             patch.object(_check, "current_branch", return_value=""),
-            patch.object(_check.subprocess, "run", side_effect=calls),
+            patch.object(_check.subprocess, "run", side_effect=run),
         ):
             resolve.return_value.owner = "o"
             resolve.return_value.repo = "r"
