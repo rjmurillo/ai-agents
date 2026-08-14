@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -96,6 +97,64 @@ def test_git_hook_policy_consumer_finds_host_dated_log(host_timezone, tmp_path):
 
     assert candidates is not None, f"scan returned None under TZ={host_timezone}"
     assert created in candidates, f"candidate set missed the log under TZ={host_timezone}"
+
+
+def test_git_hook_policy_finds_next_day_log_after_timezone_switch(tmp_path):
+    """A UTC scanner finds a log created for a UTC+14 host next day."""
+    original = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        host_ahead_date = (datetime.now().date() + timedelta(days=1)).isoformat()
+
+        os.environ["TZ"] = "Pacific/Kiritimati"
+        time.tzset()
+        with patch.object(
+            new_session_log_json, "host_session_date", return_value=host_ahead_date
+        ):
+            created = _create_session_log(tmp_path)
+
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        candidates = _recent_session_candidates(created.parent)
+
+        assert candidates is not None
+        assert created in candidates
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def test_git_hook_policy_finds_log_across_extreme_timezone_switch(tmp_path):
+    """A UTC-12 scanner finds a UTC+14 creator date two days ahead."""
+    original = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "Etc/GMT+12"
+        time.tzset()
+        creator_date = (datetime.now().date() + timedelta(days=2)).isoformat()
+
+        os.environ["TZ"] = "Pacific/Kiritimati"
+        time.tzset()
+        with patch.object(
+            new_session_log_json, "host_session_date", return_value=creator_date
+        ):
+            created = _create_session_log(tmp_path)
+
+        os.environ["TZ"] = "Etc/GMT+12"
+        time.tzset()
+        candidates = _recent_session_candidates(created.parent)
+
+        assert candidates is not None
+        assert created in candidates
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
 
 
 def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_path):

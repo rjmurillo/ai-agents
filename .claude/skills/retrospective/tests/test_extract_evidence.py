@@ -193,6 +193,26 @@ def test_find_recent_session_log_fallback_excludes_future_logs(tmp_path):
     assert chosen == older
 
 
+def test_find_recent_session_log_default_uses_host_local_date(
+    tmp_path, monkeypatch
+):
+    """A host-ahead session remains eligible when UTC is a day behind."""
+    sessions = tmp_path / ("." + "agents") / "sessions"
+    host_today = _write_session(
+        sessions,
+        "2026-06-04-session-1-host-ahead.json",
+        {"workLog": ["ahead"]},
+    )
+    _write_session(
+        sessions, "2026-06-03-session-1-utc.json", {"workLog": ["utc"]}
+    )
+    monkeypatch.setattr(_mod, "host_session_date", lambda: "2026-06-04")
+
+    chosen = find_recent_session_log(sessions)
+
+    assert chosen == host_today
+
+
 def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
     # Arrange: current-day work exists, but the retrospective is scoped earlier.
     sessions = tmp_path / ("." + "agents") / "sessions"

@@ -65,6 +65,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+from hook_utilities.utilities import host_session_date  # noqa: E402
 from paths import artifact_dir as _resolve_artifact_dir  # noqa: E402
 
 
@@ -181,7 +182,7 @@ def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Pa
     candidates = list(sessions_dir.glob("*-session-*.json"))
     if not candidates:
         return None
-    today = today or datetime.now(tz=UTC).date()
+    today = today or date.fromisoformat(host_session_date())
     for target_day in (today, today - timedelta(days=1)):
         prefix = f"{target_day.isoformat()}-session-"
         dated = [path for path in candidates if path.name.startswith(prefix)]

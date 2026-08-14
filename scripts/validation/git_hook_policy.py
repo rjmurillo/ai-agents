@@ -24,7 +24,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -986,15 +986,15 @@ def _current_branch(repo_root: Path) -> str | None:
 def _recent_date_prefixes() -> tuple[str, str]:
     """Return today's and yesterday's UTC date strings for cross-midnight tolerance.
 
-    UTC anchor. Retains parity with the retrospective creator
-    (``run_retrospective.py``), which names retrospective files by the UTC date.
+    UTC anchor. Retains parity with
+    ``.claude/skills/retrospective/scripts/run_retrospective.py``, whose
+    ``_retrospective_date`` uses the exact expression
+    ``datetime.now(tz=UTC).strftime("%Y-%m-%d")``.
     Session logs use a different authority: they are named by the host local
     date (Issue #4779), so session-log scanning routes through
     ``recent_host_session_dates`` instead. Do not merge the two; a UTC consumer
     reading a host-local session date is exactly the bug #4779 fixes.
     """
-    from datetime import timedelta
-
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1002,9 +1002,10 @@ def _recent_date_prefixes() -> tuple[str, str]:
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
-    """Return today's and yesterday's session logs, or None if unreadable.
+    """Return adjacent-date session logs, or None if unreadable.
 
-    The two-day window handles cross-midnight sessions. Dates come from
+    The four-day window handles cross-midnight sessions and the full UTC+14 to
+    UTC-12 creator/scanner date range. Dates come from
     ``recent_host_session_dates`` (host local), the same authority the creator
     uses to name the file (Issue #4779); a UTC anchor here would make a
     far-east session invisible near midnight. Returning None rather than an
@@ -1014,10 +1015,13 @@ def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     if not sessions_dir.is_dir():
         return None
     today, yesterday = recent_host_session_dates()
+    anchor = date.fromisoformat(today)
+    tomorrow = (anchor + timedelta(days=1)).isoformat()
+    day_after_tomorrow = (anchor + timedelta(days=2)).isoformat()
     candidates: list[Path] = []
     try:
-        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
-        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
+        for date_prefix in (day_after_tomorrow, tomorrow, today, yesterday):
+            candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None
     return candidates
