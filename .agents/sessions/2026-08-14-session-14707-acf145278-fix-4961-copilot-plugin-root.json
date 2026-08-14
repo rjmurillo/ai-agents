@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4961-session-14707-test-report.md"
+        "Evidence": ".agents/qa/pr-5000-session-14707-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -153,6 +153,11 @@
       "timestamp": "2026-08-14T22:00:00Z",
       "action": "Re-ran the gates on the rebased tree",
       "result": "89 focused tests pass, mutation sweep unchanged (4 mutants, 0 unexpected), pre_pr.py 51 validations pass."
+    },
+    {
+      "timestamp": "2026-08-14T22:15:00Z",
+      "action": "CI 'Check QA Report Exists' failed on PR 5000",
+      "result": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md; renamed the report to pr-5000-session-14707-test-report.md and repointed this log."
     }
   ],
   "endingCommit": "acf14527853378f89d27f63c2474b8d1df3d58ea",

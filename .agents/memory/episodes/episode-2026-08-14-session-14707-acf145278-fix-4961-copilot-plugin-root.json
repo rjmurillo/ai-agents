@@ -91,7 +91,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
     },
     {
@@ -106,10 +108,21 @@
         "e006"
       ],
       "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T22:15:00+00:00",
+      "type": "milestone",
+      "content": "CI 'Check QA Report Exists' failed on PR 5000",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root"
     }
   ],
   "metrics": {
-    "duration_minutes": 115,
+    "duration_minutes": 130,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
