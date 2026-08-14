@@ -633,7 +633,10 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
         skill_dirs = sorted(
             skill_md.parent
             for skill_md in full_path.rglob("SKILL.md")
-            if "worktrees" not in skill_md.parts
+            if not any(
+                skill_md.parts[i] == ".claude" and i + 1 < len(skill_md.parts) and skill_md.parts[i + 1] == "worktrees"
+                for i in range(len(skill_md.parts) - 1)
+            )
         )
 
         for skill_dir in skill_dirs:
