@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert.json
-qaCommit: 210e015a7c74fa79d8c6b4fa835d222f1cbcab93
+qaCommit: 08dff887792215b5589b8e324c8203d566a8288d
 ---
 
 # Issue 4634 QA Report
@@ -15,8 +15,8 @@ duplicate job name in any hook.
 ## Scope
 
 - Base: `bc179ad3a31f8d1c5265aaf22ccab8409a522de2`
-- Head: `210e015a7c74fa79d8c6b4fa835d222f1cbcab93`
-- Last code commit: `259f78e64cf5ec22353cb0431e1ec903683e6dde`
+- Head: `08dff887792215b5589b8e324c8203d566a8288d`
+- Last code commit: `08dff887792215b5589b8e324c8203d566a8288d`
 - Issue: #4634
 
 ## Reproduction
@@ -84,7 +84,7 @@ URL that `git ls-remote` accepts.
 |---|---|
 | `tests/ci/test_lefthook_config_integrity.py` (new) | 15 passed |
 | `tests/test_push_ref_staleness.py` | 17 passed |
-| `tests/test_lefthook_integration.py` runtime end-to-end | 1 passed (module green) |
+| `tests/test_lefthook_integration.py` runtime end-to-end | 837 passed (whole module, includes the new end-to-end test) |
 | 11 lefthook, mutation, ratchet, and pushgate modules | 1120 passed, 2 skipped |
 | `tests/mutation/test_mutate_lefthook_ratchet_wiring.py` | 5 passed on a clean tree |
 | `uv run --frozen lefthook validate` | All good |
@@ -98,26 +98,43 @@ against the fix.
 
 | Control | Result |
 |---|---|
-| `_resolve_remote` reverted to `argv[0] if argv else "origin"` | 4 of 7 new unit tests fail |
+| `_resolve_remote` reverted to `argv[0] if argv else "origin"` (the `origin/main` script) | 4 of 7 new unit tests fail: `test_blank_argument_falls_back_to_origin`, `test_unexpanded_positional_placeholder_is_a_configuration_error`, `test_unsupported_placeholder_is_a_configuration_error`, `test_placeholder_never_queries_a_remote` |
 | Config tests run against `git show origin/main:lefthook.yml` | 4 of 15 fail: pre-push uniqueness, declared once, reads `{1}`, placeholder scan |
 | End-to-end test run against pre-fix config and script | Fails; lefthook prints two green summary lines for a push it should block |
 
 ## Acceptance Evidence
 
+Test names are copied from the files, not from recall.
+
 - AC1, delete the inert duplicate: `lefthook.yml` declares `push-ref-staleness`
-  once. `TestPushRefStalenessJob::test_job_is_declared_once` counts occurrences
-  across groups and fails at two.
+  once. `tests/ci/test_lefthook_config_integrity.py::TestPushRefStalenessJob::test_declared_exactly_once`
+  counts the name across the pre-push jobs, groups included, and asserts the
+  count is exactly 1, so the two-copy config fails it.
 - AC2, keep one job that reads the remote from supported pre-push inputs: the
   retained job runs
-  `uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"`.
-  `test_reads_the_remote_from_a_positional_placeholder` and
-  `test_does_not_use_the_unsupported_remote_token` pin both halves, and the
-  runtime test proves a named remote reaches `git ls-remote`.
+  `uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"` with
+  `use_stdin: true`. Three tests pin the three inputs:
+  `TestPushRefStalenessJob::test_reads_the_remote_from_the_first_hook_argument`
+  (the run body contains `"{1}"` and not `{remote}`),
+  `TestPushRefStalenessJob::test_reads_the_pushed_refs_from_stdin`
+  (`use_stdin` is True), and
+  `TestPlaceholderTokens::test_no_run_body_uses_an_unsupported_placeholder`
+  (no run body anywhere in the config uses a token outside the enumerated set).
+  `tests/test_lefthook_integration.py::test_pre_push_staleness_checks_the_remote_named_on_the_command_line`
+  proves at runtime that the named remote reaches `git ls-remote`.
 - AC3, parsed YAML test that rejects duplicate job names:
-  `TestJobNamesAreUnique` parses `lefthook.yml`, walks nested groups while
-  preserving duplicates, and asserts uniqueness per hook. Three synthetic
-  controls prove the detector fires on a duplicate, tolerates the same name in
-  two different hooks, and sees duplicates nested inside a group.
+  `TestJobNamesAreUnique::test_hook_declares_each_job_name_once` parses
+  `lefthook.yml`, walks nested groups while preserving duplicates, and asserts
+  uniqueness per hook (parametrized over `commit-msg`, `pre-commit`,
+  `pre-merge-commit`, `pre-push`). Three synthetic controls exercise the
+  detector: it fires on a top-level duplicate
+  (`test_detector_flags_a_top_level_duplicate`), fires on a duplicate nested
+  inside a group (`test_detector_flags_a_duplicate_inside_a_group`), and stays
+  silent when a top-level job and a nested job carry different names
+  (`test_detector_accepts_distinct_names_across_nesting`). The placeholder scan
+  carries the same pair: `TestPlaceholderTokens::test_detector_flags_the_reported_token`
+  fires on `{remote}`, while `test_detector_accepts_supported_tokens` and
+  `test_detector_ignores_shell_expansion` prove it does not over-fire.
 
 ## Inverse Failure Modes Closed
 
@@ -127,14 +144,39 @@ against the fix.
   `{remote}`.
 - Guarded the mirror case in the script: if a positional placeholder is ever
   left unexpanded again (a bare `lefthook run pre-push` does exactly this),
-  `_resolve_remote` warns on stderr and checks `origin` instead of treating the
-  literal token as a remote name. `test_placeholder_fallback_still_reports_a_stale_remote`
-  proves the fallback still returns exit 3, so the guard cannot degrade into
-  the pass-everything behavior it replaces.
+  `_resolve_remote` prints the offending token on stderr and returns exit 2,
+  the ADR-035 usage/configuration code. It does not substitute a default
+  remote. Review of PR #4998 named the reason: comparing the pushed refs
+  against a remote the caller never named exits 0 on a clean comparison nobody
+  asked for, which is the original false green from the other side.
+  `TestRemoteResolution::test_placeholder_never_queries_a_remote` asserts
+  `_remote_sha` is never called, so the guard cannot degrade into the
+  pass-everything behavior it replaces. Passing no argument at all still
+  defaults to `origin`, which direct invocation for testing relies on
+  (`test_missing_argument_falls_back_to_origin`).
 - Ordering invariant preserved: `tests/test_mutation_workspace.py` asserts
   `mutation-safety` precedes `push-ref-staleness`. Keeping the early position
   and deleting the late copy keeps that assertion meaningful, and the module is
   green (18 passed).
+
+## Review Round (PR #4998)
+
+Three Copilot threads, each answered with a change rather than a reply alone.
+
+| Thread | Finding | Resolution |
+|---|---|---|
+| Session log markdown lint evidence | "no changed markdown files" was wrong; the PR adds 4 | Replaced with the measured command and its verbatim output: `pre_pr.py --markdown-lint-only <4 paths>` reports `selected 0 of 4 target(s): each is excluded by .markdownlint-cli2.yaml`, rc 0. `.agents/**` and `.serena/**` are ignores entries at lines 138 and 139 |
+| QA acceptance evidence cited tests that do not exist | `test_job_is_declared_once`, `test_reads_the_remote_from_a_positional_placeholder`, `test_does_not_use_the_unsupported_remote_token`, and a "same name in two hooks" control were invented, not read | Acceptance Evidence above now copies every name from the files. Verified with `pytest --collect-only` |
+| `origin` fallback can hide a real staleness | Comparing against a remote the caller never named exits 0 on a clean comparison, recreating the false green | Adopted. A literal `{...}` argument now exits 2 (ADR-035 usage/configuration). The 3 unit tests that pinned the fallback were flipped in the same commit, and one now asserts `_remote_sha` is never called |
+
+Re-run after the contract change: 62 focused tests pass
+(`test_push_ref_staleness.py`, `test_lefthook_config_integrity.py`,
+`test_lefthook_ratchet_wiring.py`, `test_mutation_workspace.py`), 837 pass in
+`test_lefthook_integration.py`, `lefthook validate` reports All good, Ruff
+clean. Before adopting the stricter contract, grep across the repository found
+no `lefthook run pre-push` invocation against the real config in `scripts/`,
+`tests/`, `.claude/`, `docs/`, or `.github/`, so no legitimate caller now
+fails.
 
 ## Notes
 

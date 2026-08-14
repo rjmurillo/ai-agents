@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items verified and validation passed"
+        "Evidence": "All MUST items verified after the PR 4998 review round"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "Measured, not assumed. complete_session_log.py --markdown-files ran pre_pr.py --markdown-lint-only over the 4 changed .md files (.agents/qa/2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md, .agents/sessions/handoffs/2026-08-14-4634-handoff.md, .serena/memories/hooks/lefthook-substitutes-positional-args-not-names.md, .serena/memories/memory-index.md) and reported: 'NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 4 files'. Direct run prints the reason: '[WARNING] Markdown linting selected 0 of 4 target(s): each is excluded by .markdownlint-cli2.yaml', rc 0. The cause is the ignores entries '.agents/**' (line 138) and '.serena/**' (line 139) in .markdownlint-cli2.yaml, so this change contains no lintable markdown. Marked complete by hand: the tool returns Complete only for an empty auto-discovered scope (_run_markdown_lint returns 'markdown_files is None' when 0 of N are selected), and the earlier auto-discovered run said 'no changed markdown files' only because git diff cannot see untracked files. This wording states what actually ran."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 210e015a7c)"
+        "Evidence": "All changes committed (HEAD: 08dff88779)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed"
+        "Evidence": "validate_session_json.py: Session log is valid"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -158,9 +158,19 @@
       "time": "2026-08-14T06:10:00Z",
       "action": "Opened pull request 4998 and renamed the QA report so the required CI check can bind it to the pull request",
       "result": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the report is now named 2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md; the qaCommit binding is unchanged"
+    },
+    {
+      "time": "2026-08-14T07:10:00Z",
+      "action": "Triaged three Copilot review threads on pull request 4998 and answered each with a code or evidence change rather than a reply alone",
+      "result": "Thread 1: replaced the markdownLintRun evidence with the measured command and its verbatim WARNING that 0 of 4 targets were selected because .agents/** and .serena/** sit in the .markdownlint-cli2.yaml ignores block at lines 138 and 139. Thread 2: the QA report cited four test names that do not exist; replaced them with names copied from the files. Thread 3: adopted the reviewer's fail-closed contract, so an unexpanded placeholder now exits 2 (ADR-035 usage or configuration error) instead of falling back to origin, and the three unit tests pinning the old contract are flipped in the same commit"
+    },
+    {
+      "time": "2026-08-14T07:30:00Z",
+      "action": "Verified no caller depends on the removed fallback before adopting the stricter contract",
+      "result": "grep across the repository found no lefthook run pre-push invocation against the real config in scripts/, tests/, .claude/, docs/, or .github/; the only matches are prose. 62 focused tests and 837 lefthook integration tests pass; 4 of 7 remote-resolution tests fail against the origin/main script"
     }
   ],
-  "endingCommit": "210e015a7c",
+  "endingCommit": "08dff88779",
   "nextSteps": [
     "Open one pull request against main and link it to issue 4634.",
     "Re-run the placeholder enumeration from the pinned binary before widening the supported-token allowlist on any lefthook upgrade.",
