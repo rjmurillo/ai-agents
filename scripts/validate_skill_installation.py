@@ -76,7 +76,7 @@ def validate_skill_dir(skill_dir: Path, verbose: bool = False) -> list[str]:
             errors.append(f"{skill_name}: missing required field '{field}' in frontmatter")
 
     fm_name = frontmatter.get("name", "")
-    if fm_name and fm_name.lower() != skill_name.lower():
+    if fm_name and fm_name != skill_name:
         errors.append(f"{skill_name}: frontmatter name '{fm_name}' does not match directory name")
 
     if verbose and not errors:

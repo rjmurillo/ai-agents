@@ -495,3 +495,42 @@ class TestNameMatchesDirectory:
         assert any(self._MISMATCH in e for e in v.errors), (
             f"Expected directory-name mismatch error, got: {v.errors}"
         )
+
+    def test_shipped_corpus_has_no_name_directory_mismatch(self) -> None:
+        # Corpus guard: synthetic cases prove the validator, this proves the
+        # wiring to the committed skills. Renaming a real skill directory or
+        # editing its frontmatter name to disagree with the directory must fail
+        # CI here, not pass green as the synthetic tests would. Scans both the
+        # canonical and Copilot mirror roots. Refs #4812.
+        repo_root = Path(__file__).resolve().parents[1]
+        roots = [
+            repo_root / ".claude" / "skills",
+            repo_root / "src" / "copilot-cli" / "skills",
+        ]
+        offenders: list[str] = []
+        scanned = 0
+        orig = os.getcwd()
+        os.chdir(repo_root)
+        try:
+            for root in roots:
+                if not root.is_dir():
+                    continue
+                for skill_md in sorted(root.glob("*/SKILL.md")):
+                    skill_dir = skill_md.parent
+                    scanned += 1
+                    v: _ValidatorLike = SkillValidator(str(skill_dir))
+                    v.load_skill()
+                    v.parse_frontmatter()
+                    v.validate_frontmatter()
+                    offenders.extend(
+                        f"{skill_dir.relative_to(repo_root)}: {e}"
+                        for e in v.errors
+                        if self._MISMATCH in e
+                    )
+        finally:
+            os.chdir(orig)
+        assert scanned > 0, "No shipped skills scanned; corpus guard did nothing"
+        assert not offenders, (
+            "Shipped skills whose frontmatter name does not equal their "
+            f"directory name: {offenders}"
+        )

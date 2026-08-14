@@ -86,12 +86,21 @@ class TestValidateSkillDir:
         errors = validate_skill_dir(skill)
         assert any("does not match directory name" in e for e in errors)
 
-    def test_name_case_insensitive(self, tmp_path: Path) -> None:
+    def test_name_must_equal_directory_exact_match_passes(self, tmp_path: Path) -> None:
+        skill = tmp_path / "my-skill"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: my-skill\ndescription: Test\n---\n")
+        errors = validate_skill_dir(skill)
+        assert errors == []
+
+    def test_name_case_only_difference_rejected(self, tmp_path: Path) -> None:
+        # Case-only mismatch must fail. The frontmatter name must equal the
+        # directory name exactly, per the skill spec enforced in #4812.
         skill = tmp_path / "MySkill"
         skill.mkdir()
         (skill / "SKILL.md").write_text("---\nname: myskill\ndescription: Test\n---\n")
         errors = validate_skill_dir(skill)
-        assert errors == []
+        assert any("does not match directory name" in e for e in errors)
 
 
 class TestMain:
