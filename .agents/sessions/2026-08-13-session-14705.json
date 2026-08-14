@@ -156,7 +156,7 @@
       "result": "tests/test_stdout_flush_before_spawn.py 30 passed; flush moved inside try, immediately before the spawn"
     }
   ],
-  "endingCommit": "f7728da1150a8085d47735527c13fa56227fb991",
+  "endingCommit": "daf3d094326ff0bae65100493010c6a23c95c9cd",
   "nextSteps": [
     "Open PR with Fixes #4921",
     "Follow-up: invoke_codeql_scan_skill.py duplicates invoke_codeql_scan.py and is undocumented in SKILL.md (skillforge warning); consider consolidating to one wrapper",
