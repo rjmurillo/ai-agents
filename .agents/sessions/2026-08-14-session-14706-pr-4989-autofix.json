@@ -84,7 +84,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA Markdown is formatted with repository table and heading conventions; pre-PR validation will enforce Markdown-related gates before push."
+        "Evidence": "From /tmp, ran markdownlint-cli2 on the absolute QA report path with a temporary config containing the repository rules but no .agents exclusion; 1 Markdown file examined, 0 errors."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",

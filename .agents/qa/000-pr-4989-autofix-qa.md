@@ -33,4 +33,4 @@ PASS. The exact PR head fixes detached-HEAD existing-PR detection, and the requi
 
 ## Limitations
 
-This autofix did not alter implementation code. It validates the branch existing focused suite and the exact CI failure semantics; GitHub Actions remains the authority for the full required-check set.
+This autofix did not alter implementation code. It validates the branch's existing focused suite and the exact CI failure semantics; GitHub Actions remains the authority for the full required-check set.
