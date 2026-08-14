@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit bf5862dbea5469dec9d03c64258afc1b29ad49d4; final evidence committed separately"
+        "Evidence": "Validated code commit 3e30193222a18dddc026b150209716ee14873526; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, and 586 final focused tests passed; Ruff, plugin-lib sync, and generation passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, and 586 final focused tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -162,9 +162,13 @@
     {
       "action": "Addressed final plugin-payload review findings.",
       "outcome": "Moved three host-date regressions to the root tests tree, removed them from generated customer payloads, and made hook/library documentation self-contained inside the plugin."
+    },
+    {
+      "action": "Reproduced and fixed the Validate Generated Files failure from full logs.",
+      "outcome": "build_all.py identified the missing src/copilot-cli library mirror; committed the generated copy and confirmed the full staleness check passes."
     }
   ],
-  "endingCommit": "bf5862dbea5469dec9d03c64258afc1b29ad49d4",
+  "endingCommit": "3e30193222a18dddc026b150209716ee14873526",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",

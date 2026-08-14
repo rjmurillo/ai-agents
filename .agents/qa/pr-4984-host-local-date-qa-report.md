@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: bf5862dbea5469dec9d03c64258afc1b29ad49d4
+qaCommit: 3e30193222a18dddc026b150209716ee14873526
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -23,7 +23,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Creator and consumer agreement | Session creator, hook utility, git-hook policy, and checkpoint fallback passed |
 | Session evidence date | Generated filename and JSON payload both record 2026-08-14 on the host |
 | Ruff | All changed Python files passed |
-| Generated mirror parity | `generate_skills.py` completed with no diff |
+| Generated mirror parity | `build_all.py --check` passed after syncing the Copilot plugin library |
 | Independent QA agent | 69 targeted tests passed; no blocking functional gap |
 | Completion-gate review fixes | 382 focused tests passed; Ruff passed |
 | Review-finding disposition | Restored test class boundary and narrowed end-to-end claims to agreement |
