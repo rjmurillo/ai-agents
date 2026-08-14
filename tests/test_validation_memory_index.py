@@ -22,6 +22,7 @@ from scripts.validation.memory_index import (
     check_domain_prefix_naming,
     check_duplicate_entries,
     check_file_references,
+    check_frontmatter_validity,
     check_index_format,
     check_keyword_density,
     check_memory_index_references,
@@ -1838,10 +1839,62 @@ class TestRunValidation:
         assert report.passed is True
         assert report.orphans == []
 
+    def test_malformed_frontmatter_fails_validation(self, tmp_path: Path) -> None:
+        """A malformed frontmatter file must set report.passed = False (#4918).
 
-# ---------------------------------------------------------------------------
-# Output formatting
-# ---------------------------------------------------------------------------
+        Before this fix, memory_index.py --ci exited 0 even when a memory file
+        carried unparseable YAML frontmatter, so the corruption in
+        implementation-008 merged silently.
+        """
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": (
+                "---\n"
+                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                "---\n\n"
+                "indexed content\n"
+            ),
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | [skills-test-index](skills-test-index.md) |\n"
+            ),
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        assert report.passed is False, (
+            "malformed frontmatter must cause report.passed = False (#4918)"
+        )
+        assert report.frontmatter_validity is not None
+        assert report.frontmatter_validity.invalid_files == ["test-indexed.md"]
+
+    def test_valid_frontmatter_passes_validation(self, tmp_path: Path) -> None:
+        """Valid frontmatter is the negative control for #4918."""
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": (
+                "---\n"
+                "description: Constraints for artifacts, read spec first\n"
+                "---\n\n"
+                "indexed content\n"
+            ),
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | [skills-test-index](skills-test-index.md) |\n"
+            ),
+        })
+        report = run_validation(tmp_path, "json", Counter())
+        assert report.passed is True
+        assert report.frontmatter_validity is not None
+        assert report.frontmatter_validity.passed is True
 
 
 class TestFormatMarkdown:
@@ -2175,6 +2228,112 @@ class TestCheckNamingConvention:
 
     def test_empty_directory_passes(self, tmp_path: Path) -> None:
         result = check_naming_convention(tmp_path)
+        assert result.passed is True
+
+
+# ---------------------------------------------------------------------------
+# check_frontmatter_validity (issue #4918)
+# ---------------------------------------------------------------------------
+
+
+_VALID_FRONTMATTER = """\
+---
+title: Valid memory
+description: A plain description with no problematic punctuation
+---
+
+# Body
+"""
+
+# Unquoted value containing a colon-space: yaml reads it as a nested mapping
+# and raises. This is the exact corruption repaired in implementation-008.
+_MALFORMED_FRONTMATTER = """\
+---
+title: Broken memory
+description: Constraints for spec artifacts (REQ/DESIGN/TASK): read first
+---
+
+# Body
+"""
+
+# No leading frontmatter block. Optional per issue #4900, must not flag.
+_NO_FRONTMATTER = """\
+# Plain markdown
+
+Body text with a colon: value that is not frontmatter.
+"""
+
+# A horizontal rule appears later in the body, not at the top. Must not flag.
+_HR_LATER = """\
+# Plain markdown
+
+Intro paragraph.
+
+---
+
+Second section after a horizontal rule.
+"""
+
+
+class TestCheckFrontmatterValidity:
+    """Tests for YAML frontmatter validity validation (issue #4918)."""
+
+    def test_valid_frontmatter_passes(self, tmp_path: Path) -> None:
+        (tmp_path / "valid-memory.md").write_text(_VALID_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_malformed_frontmatter_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "broken-memory.md").write_text(_MALFORMED_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["broken-memory.md"]
+        assert "Malformed YAML frontmatter" in result.issues[0]
+        assert "broken-memory.md" in result.issues[0]
+
+    def test_missing_frontmatter_passes(self, tmp_path: Path) -> None:
+        (tmp_path / "plain-memory.md").write_text(_NO_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_later_horizontal_rule_passes(self, tmp_path: Path) -> None:
+        (tmp_path / "hr-memory.md").write_text(_HR_LATER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_only_malformed_flagged_in_mixed_tree(self, tmp_path: Path) -> None:
+        (tmp_path / "good.md").write_text(_VALID_FRONTMATTER)
+        (tmp_path / "plain.md").write_text(_NO_FRONTMATTER)
+        (tmp_path / "bad.md").write_text(_MALFORMED_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["bad.md"]
+
+    def test_subdirectory_files_checked(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "implementation"
+        subdir.mkdir()
+        (subdir / "impl-bad.md").write_text(_MALFORMED_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["implementation/impl-bad.md"]
+
+    def test_dotfiles_skipped(self, tmp_path: Path) -> None:
+        dotdir = tmp_path / ".trash"
+        dotdir.mkdir()
+        (dotdir / "bad.md").write_text(_MALFORMED_FRONTMATTER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_nonexistent_path_passes(self, tmp_path: Path) -> None:
+        result = check_frontmatter_validity(tmp_path / "does-not-exist")
+        assert result.passed is True
+
+    def test_empty_directory_passes(self, tmp_path: Path) -> None:
+        result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
 
 
