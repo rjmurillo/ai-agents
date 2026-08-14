@@ -201,11 +201,11 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 **cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
-**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (read via `Read .serena/memories/pr-comment-responder-skills.md`) and should be updated there after each PR review session.
+**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory (read via `Read .serena/memories/pr-review/pr-comment-responder-skills.md`) and should be updated there after each PR review session.
 
 #### Updating Signal Quality
 
-After completing each PR comment response session, update this section and the `pr-comment-responder-skills` memory with:
+After completing each PR comment response session, update this section and the `pr-review/pr-comment-responder-skills` memory with:
 
 1. Per-reviewer comment counts and actionability
 2. Any trend changes (improving/declining signal)
@@ -437,8 +437,8 @@ echo "[PASS] All gates cleared"
 #### Step 0.1: Load Core Skills Memory
 
 ```text
-# ALWAYS load pr-comment-responder-skills first
-Read .serena/memories/pr-comment-responder-skills.md
+# ALWAYS load pr-review/pr-comment-responder-skills first
+Read .serena/memories/pr-review/pr-comment-responder-skills.md
 ```
 
 This memory contains:
@@ -450,7 +450,7 @@ This memory contains:
 
 #### Step 0.2: Verify Core Memory Loaded
 
-Before proceeding, confirm `pr-comment-responder-skills` is loaded:
+Before proceeding, confirm `pr-review/pr-comment-responder-skills` is loaded:
 
 - [ ] Memory content appears in context
 - [ ] Reviewer signal quality table visible
@@ -460,15 +460,15 @@ Before proceeding, confirm `pr-comment-responder-skills` is loaded:
 
 #### Step 0.3: Note on Reviewer-Specific Memories
 
-Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+Reviewer-specific memories (e.g., `pr-review/cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
 
 ---
 
 | Reviewer | Memory Name | Content |
 |----------|-------------|---------|
-| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
-| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
-| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+| cursor[bot] | `pr-review/cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot/copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-review/pr-comment-responder-skills) |
 
 ---
 
@@ -625,10 +625,10 @@ Now that reviewers are enumerated, load memories for each unique reviewer:
 # For each reviewer, check for dedicated memory
 for reviewer in ALL_REVIEWERS:
     if reviewer == "cursor[bot]":
-        Read .serena/memories/cursor-bot-review-patterns.md
+        Read .serena/memories/pr-review/cursor-bot-review-patterns.md
     elif reviewer == "copilot-pull-request-reviewer":
-        Read .serena/memories/copilot-pr-review-patterns.md
-    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+        Read .serena/memories/copilot/copilot-pr-review-patterns.md
+    # Other reviewers use pr-review/pr-comment-responder-skills (already loaded in Phase 0)
 ```
 
 **Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
@@ -1553,11 +1553,11 @@ session_stats = {
 }
 ```
 
-#### Step 9.2: Update pr-comment-responder-skills Memory
+#### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
 ```python
 # Read current memory to get existing statistics
-current = Read .serena/memories/pr-comment-responder-skills.md
+current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -1566,7 +1566,7 @@ current = Read .serena/memories/pr-comment-responder-skills.md
 # Update Per-Reviewer Performance table with new totals
 # Find the row for each reviewer and update their cumulative stats
 mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
+    memory_file_name="pr-review/pr-comment-responder-skills",
     needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
     repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
     mode="regex"
@@ -1585,7 +1585,7 @@ new_pr_section = f"""### Per-PR Breakdown
 """
 
 mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
+    memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
     mode="literal"
@@ -1594,7 +1594,7 @@ mcp__serena__edit_memory(
 
 #### Step 9.3: Update Required Fields
 
-The following MUST be updated in `pr-comment-responder-skills`:
+The following MUST be updated in `pr-review/pr-comment-responder-skills`:
 
 | Section | What to Update |
 |---------|----------------|
@@ -1604,7 +1604,7 @@ The following MUST be updated in `pr-comment-responder-skills`:
 
 #### Step 9.4: Verify Memory Updated
 
-Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new PR:
 
 - [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
 - [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
@@ -1614,7 +1614,7 @@ Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
 
 ```text
 # Read updated memory and verify new PR data appears
-Read .serena/memories/pr-comment-responder-skills.md
+Read .serena/memories/pr-review/pr-comment-responder-skills.md
 ```
 
 ---
