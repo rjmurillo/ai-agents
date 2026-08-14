@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 import scripts.validate_skill_installation as validator_module
-
 from scripts.validate_skill_installation import (
     main,
     parse_frontmatter,
