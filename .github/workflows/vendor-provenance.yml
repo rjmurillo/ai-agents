@@ -18,6 +18,7 @@ name: Vendor Provenance
 
 permissions:
   contents: read
+  checks: write
 
 on:
   pull_request_target:
@@ -112,3 +113,28 @@ jobs:
       - name: No-op for unrelated PRs
         if: steps.relevance.outputs.dominated != 'true'
         run: echo "No hook/vendor files changed. Provenance check not required."
+
+      - name: Publish check run on PR head SHA
+        if: always() && github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # pull_request_target attaches the native job check to the base-branch
+          # SHA, not the PR head SHA.  Publishing an explicit check run on PR_SHA
+          # lets branch-protection rules gate on the PR head commit.
+          if [ "${{ job.status }}" = "success" ]; then
+            CONCLUSION="success"
+            SUMMARY="Vendor provenance validated for $PR_SHA"
+          else
+            CONCLUSION="failure"
+            SUMMARY="Vendor provenance validation failed for $PR_SHA"
+          fi
+          gh api "repos/${{ github.repository }}/check-runs" \
+            -X POST \
+            -f "name=Validate Vendor Provenance" \
+            -f "head_sha=$PR_SHA" \
+            -f "status=completed" \
+            -f "conclusion=$CONCLUSION" \
+            -f "output[title]=Vendor Provenance" \
+            -f "output[summary]=$SUMMARY"
