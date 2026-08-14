@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14707,
+    "date": "2026-08-14",
+    "branch": "fix/4982-gist-routing",
+    "startingCommit": "68eea97b4",
+    "objective": "Fix issue 4982 by routing gist URLs through the GitHub API with CLI contract tests"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools responded for the current project; activate_project was not exposed by this MCP registration"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only context"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/check_skill_exists.py --list-available completed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, skills-github-cli-index, and issue triage memories loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4982-gist-routing"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4982-gist-routing"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short reviewed; unrelated untracked files preserved"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "68eea97b4"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session end items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only: 4 of 8 files linted"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4982-gist-routing.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code commits through a10fd9eaad; final QA and memory evidence staged in this commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4982 fixed; follow-up issues 4992, 4993, and 4994 filed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce gist routing failure",
+      "outcome": "Confirmed valid gist URL exited 1 because parser accepted only github.com repository URLs"
+    },
+    {
+      "task": "Implement and mirror gist routing",
+      "outcome": "Added numeric, 20-character, and 32-character gist routing, preserved revision and file selectors, hardened raw paths, and regenerated the Copilot mirror"
+    },
+    {
+      "task": "Validate and review",
+      "outcome": "2,389 skill tests passed; routing modules reached 100% statement and branch coverage; Ruff, mypy, build generation, security scan, code review, and security review passed"
+    },
+    {
+      "task": "Record follow-up findings",
+      "outcome": "Filed issues 4992, 4993, and 4994 for non-gist router defects found during adversarial review"
+    },
+    {
+      "task": "Address PR #4996 review threads",
+      "outcome": "Rejected ambiguous ?file= + #file- embed selectors, replaced hardcoded .claude with COPILOT_PLUGIN_ROOT, regenerated Copilot mirror, added negative test"
+    },
+    {
+      "task": "Fix empty/control-char decoded file selectors",
+      "outcome": "Reject empty or control-char-containing decoded fragment selectors; added 2 negative tests"
+    }
+  ],
+  "endingCommit": "35126cef58bd48286e8f44001abbf41b0cc5bb6b",
+  "nextSteps": []
+}
