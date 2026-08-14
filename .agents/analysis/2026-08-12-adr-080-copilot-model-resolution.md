@@ -40,7 +40,7 @@ then reads the resolution lines out of the debug log.
 ## Result table
 
 | `model:` value | Shape | Outcome |
-|---|---|---|
+| --- | --- | --- |
 | `claude-opus-4.6` | versioned, current | accepted |
 | `claude-sonnet-4.6` | versioned, current | accepted |
 | `Claude Opus 4.6 (copilot)` | VS Code display name | **accepted** |
@@ -122,7 +122,13 @@ $ grep -rhE "^\s*model:" src/copilot-cli/skills/*/SKILL.md | sed 's/^ *//' | sor
 ```
 
 Those eight are the genuine instance of a bare alias reaching Copilot
-unresolved, and per the table above each falls back to the session default. For
+unresolved, and per the table above each falls back to the session default.
+However, this conclusion is based on the agent-level runtime probes above; no
+runtime skill probes with model observability were performed. The presence of
+raw aliases in skill files establishes the corpus state, not the runtime
+behavior when Copilot invokes a skill's `model:` key. Until skill-level probes
+with an absent-model control are added, the fallback claim for skills is
+inferred from the agent probe mechanism, not independently measured. For
 the seven `haiku` units that inverts the cost intent rule 3 exists to serve.
 
 ## Corpus state at the time of measurement

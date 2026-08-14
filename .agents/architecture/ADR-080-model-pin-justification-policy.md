@@ -47,7 +47,7 @@ ids, not to rolling aliases:
   do not retire and do not drift, so they carry none of these three costs.
 
 The pins encode a guess, not a measurement. This ADR is criterion 1 of issue
-#2840: the policy that says when a `model:` pin is allowed.
+# 2840: the policy that says when a `model:` pin is allowed.
 
 ### What measurement is actually possible
 
@@ -173,7 +173,7 @@ the rule splits by unit kind, because only agents can be measured:
 ### Alternatives Considered
 
 | Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
+| ------------- | ------ | ------ | ---------------- |
 | Keep all pins, fix only spelling drift | Smallest change | Leaves 108 guesses and the retirement class in place | Does not solve pins that no evidence justifies |
 | Strip all pins now, re-pin later | Immediately uniform | Discards correct pins; re-pinning is the same churn reversed; pre-empts measurement | Owner rejected bulk-stripping without evidence |
 | Ban versioned ids entirely; allow only no-line or rolling alias; sweeps only for rare exceptions (the pure-simpler alternative) | No eval machinery, no stale artifacts, no migration spend; kills all three drift costs | Discards the owner's measured-keep goal and the harness built for it (#2901) | Partially adopted: this IS the rule for skills and commands; agents keep the evidence path per owner direction |
@@ -217,7 +217,7 @@ frontmatter string.
 ## Impact on Dependent Components
 
 | Component | Dependency Type | Required Update | Risk |
-|-----------|----------------|-----------------|------|
+| ----------- | ---------------- | ----------------- | ------ |
 | `scripts/validation/check_model_pins.py` (new) | Direct | Scanner, manifest and rationale validation, draining baseline | Medium |
 | `.agents/governance/model-pin-evidence.json` (new) | Direct | Manifest schema and initial (empty) content | Low |
 | Copilot agent generator config | Direct | Stop injecting `model: claude-opus-4.6`; inherit unless justified | Medium |
@@ -274,10 +274,12 @@ delegation.
 **2. Severity inverts, which breaks the obvious test design.** On Copilot CLI an
 *unresolvable* value warns and falls back to the session default, so it behaves
 like the desired end state; a *resolvable* older id is honored and is the
-defect. `claude-opus-4.5`, `sonnet`, `opus`, `haiku`, and
-`Claude Opus 4.6 (anthropic)` fall back. `claude-opus-4.6`,
-`claude-sonnet-4.6`, and `Claude Opus 4.6 (copilot)` are accepted. Probing only
-invalid ids yields the opposite conclusion.
+defect. `claude-opus-4.5` and `Claude Opus 4.6 (anthropic)` were directly
+probed and fall back. `sonnet`, `opus`, and `haiku` are bare aliases that are
+not valid Copilot model ids, so they are expected to fall back by the same
+mechanism, but this was not independently measured with runtime probes.
+`claude-opus-4.6`, `claude-sonnet-4.6`, and `Claude Opus 4.6 (copilot)` are
+accepted. Probing only invalid ids yields the opposite conclusion.
 
 **3. The Retirement CI-break class is narrowed, not falsified.** On this surface
 and version, the retired `claude-opus-4.5` warns and exits 0 rather than
@@ -288,9 +290,12 @@ disproved everywhere.
 
 **4. Rule 1's bare-alias state does not survive translation on every path, so
 rule 3's cost exception has a live gap.** Bare aliases are not valid Copilot
-model ids. For **agents** this is harmless: `templates/platforms/copilot-cli.yaml`
-`model_tiers` resolves a template's `model_tier` to a versioned id before it
-ships. For **skills** there is no such translation, and
+model ids. For **generated plugin agents** this is harmless:
+`templates/platforms/copilot-cli.yaml` `model_tiers` resolves a template's
+`model_tier` to a versioned id before it ships. For **repository-level agents**
+(`.github/agents/`), bare aliases such as `model: sonnet` in
+`quality-auditor.agent.md` reach Copilot unresolved and fall back; this gap
+remains open. For **skills** there is no such translation, and
 `src/copilot-cli/skills` ships 8 raw aliases today (7 `haiku`, 1 `opus`). Those
 are precisely the units rule 3's cost exception exists for, and their cheap-tier
 intent is silently discarded in favour of the session default, which is the
