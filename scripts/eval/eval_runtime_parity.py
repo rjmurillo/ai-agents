@@ -16,7 +16,9 @@ import datetime as dt
 import hashlib
 import json
 import math
+import os
 import re
+import signal
 import subprocess
 import sys
 import uuid
@@ -168,19 +170,36 @@ def _invoke_runtime(
 ]:
     prepare_workspace(fixture, harness, workspace)
     argv = build_argv(harness, executable, model, fixture)
+    env = runtime_env(workspace, harness)
+
+    # Use a process group so timeout kills descendants, not just the
+    # direct child.  subprocess.run(timeout=...) only terminates the
+    # root process; CLI launchers can leave model-consuming children
+    # alive.  See _copilot_cli_acp.py:164-179 for the same pattern.
+    use_session = os.name != "nt"
+    proc = subprocess.Popen(
+        argv,
+        cwd=workspace,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=use_session,
+    )
     try:
-        run = runner(
-            argv,
-            cwd=workspace,
-            env=runtime_env(workspace, harness),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        # Kill the full process tree via the session leader's group.
+        if use_session:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                proc.kill()
+        else:
+            proc.kill()
+        proc.wait()
         return (
             None,
             argv,
@@ -191,6 +210,9 @@ def _invoke_runtime(
                 error="runtime timed out",
             ),
         )
+    run = subprocess.CompletedProcess(
+        argv, proc.returncode, stdout, stderr,
+    )
     return run, argv, None
 
 
