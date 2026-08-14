@@ -172,8 +172,10 @@ def _write_token(
     session: str = _SESSION,
     pr: int = 1,
     now: datetime | None = None,
+    repo_owner: str = "o",
+    repo: str = "r",
 ) -> None:
-    _mod._write_ownership_token(owner, session, pr, now or datetime.now(UTC))
+    _mod._write_ownership_token(owner, session, repo_owner, repo, pr, now or datetime.now(UTC))
 
 
 def _has_token(
@@ -181,8 +183,12 @@ def _has_token(
     session: str = _SESSION,
     pr: int = 1,
     now: datetime | None = None,
+    repo_owner: str = "o",
+    repo: str = "r",
 ) -> bool:
-    return _mod._has_valid_ownership_token(owner, session, pr, now or datetime.now(UTC))
+    return _mod._has_valid_ownership_token(
+        owner, session, repo_owner, repo, pr, now or datetime.now(UTC)
+    )
 
 
 # ===========================================================================
@@ -837,6 +843,41 @@ class TestAcquire:
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
         assert result.action == "ACT"
         assert _has_token(now=_NOW)
+
+
+class TestOwnershipTokenRepoIsolation:
+    """The durable ownership token is scoped to one repository.
+
+    The token directory is global (XDG state), so the repository identity must
+    be part of the key and payload. Otherwise a token for PR #1 in repo A would
+    authorize a token-backed renew of PR #1 in repo B during a store outage
+    (issue #4966 review finding).
+    """
+
+    def test_token_from_other_repo_does_not_satisfy_check(self):
+        # Same owner, session, and PR number, different repository: the token
+        # written for repo A must NOT prove ownership in repo B.
+        _write_token(pr=1, repo_owner="octo", repo="alpha", now=_NOW)
+        assert _has_token(pr=1, repo_owner="octo", repo="alpha", now=_NOW)
+        assert not _has_token(pr=1, repo_owner="octo", repo="beta", now=_NOW)
+        assert not _has_token(pr=1, repo_owner="acme", repo="alpha", now=_NOW)
+
+    def test_token_path_differs_by_repository(self):
+        # The hashed key includes the repository, so two repositories map to
+        # two distinct token files even for the same (owner, session, pr).
+        path_a = _mod._ownership_token_path(_OWNER, _SESSION, "octo", "alpha", 1)
+        path_b = _mod._ownership_token_path(_OWNER, _SESSION, "octo", "beta", 1)
+        assert path_a != path_b
+
+    def test_token_payload_records_repository(self):
+        # Defense in depth: the payload carries the repository identity so a
+        # relocated or hash-colliding file still fails the field match.
+        _write_token(pr=1, repo_owner="octo", repo="alpha", now=_NOW)
+        path = _mod._ownership_token_path(_OWNER, _SESSION, "octo", "alpha", 1)
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        assert data["repo_owner"] == "octo"
+        assert data["repo"] == "alpha"
 
 
 # ===========================================================================
@@ -1621,7 +1662,19 @@ class TestAuthCloseFix:
         _write_token(pr=1)
         with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
             rc = main(
-                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+                [
+                    "renew",
+                    "--pull-request",
+                    "1",
+                    "--session",
+                    _SESSION,
+                    "--owner",
+                    "o",
+                    "--repo",
+                    "r",
+                    "--output-format",
+                    "json",
+                ]
             )
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)

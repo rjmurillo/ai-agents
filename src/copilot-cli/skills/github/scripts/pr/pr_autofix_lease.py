@@ -846,11 +846,14 @@ def _warn_on_checkout_mismatch(pr: int, local_sha: str | None, base_sha: str) ->
 #
 # It is a LOCAL identity artifact, never the lease store. The lease store is
 # the PR timeline (ADR-076 part 1); this file only records "this session, on
-# this machine, won this lease at time T". It grants no push (the SHA gate
-# does) and is bounded by MAX_TTL, so an abandoned token cannot grant
-# fail-open past one lease lifetime. Acquire/renew run in the same session on
-# the same machine (ADR-076 Phase 1 is local-only), so the token is always
-# co-located with the caller that needs it.
+# this machine, won the lease for this (repository, PR) at time T". The
+# repository identity is part of the token key and payload, so a token written
+# for one repository cannot authorize a renew in another repository that
+# shares the global token directory (issue #4966 review). It grants no push
+# (the SHA gate does) and is bounded by MAX_TTL, so an abandoned token cannot
+# grant fail-open past one lease lifetime. Acquire/renew run in the same
+# session on the same machine (ADR-076 Phase 1 is local-only), so the token is
+# always co-located with the caller that needs it.
 # ---------------------------------------------------------------------------
 
 #: Override for the ownership-token directory. Tests point this at a temp dir;
@@ -868,27 +871,41 @@ def _ownership_token_dir() -> str:
     return os.path.join(base, "pr-autofix-lease")
 
 
-def _ownership_token_path(owner: str, session: str, pr: int) -> str:
-    """Return the token path for one (owner, session, pr) holder.
+def _ownership_token_path(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> str:
+    """Return the token path for one (repo, owner, session, pr) holder.
 
-    The identity is hashed so a forgeable ``owner`` (``local:pr-autofix``)
-    or ``session`` string cannot craft a path outside the token directory
-    (CWE-22).
+    The repository identity (``repo_owner``/``repo``) is part of the key so a
+    token written for PR #1 in one repository cannot authorize a token-backed
+    renew of PR #1 in a different repository sharing the same global token
+    directory (issue #4966 review). The identity is hashed so a forgeable
+    ``owner`` (``local:pr-autofix``) or ``session`` string cannot craft a path
+    outside the token directory (CWE-22).
     """
-    key = hashlib.sha256(f"{owner}\x00{session}\x00{pr}".encode()).hexdigest()
+    key = hashlib.sha256(
+        f"{repo_owner}\x00{repo}\x00{owner}\x00{session}\x00{pr}".encode()
+    ).hexdigest()
     return os.path.join(_ownership_token_dir(), f"{key}.json")
 
 
-def _write_ownership_token(owner: str, session: str, pr: int, now: datetime) -> None:
+def _write_ownership_token(
+    owner: str, session: str, repo_owner: str, repo: str, pr: int, now: datetime
+) -> None:
     """Record that this session holds the lease (called on a confirmed ACT).
 
     Best-effort: a write failure only weakens a future ``renew``'s ability to
     fail open, never correctness. The worst case of a lost token is a renew
     that fails closed to SKIP, which is the safe direction.
     """
-    path = _ownership_token_path(owner, session, pr)
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     payload = json.dumps(
-        {"owner": owner, "session": session, "pr": pr, "written_at": _to_rfc3339(now)}
+        {
+            "owner": owner,
+            "session": session,
+            "repo_owner": repo_owner,
+            "repo": repo,
+            "pr": pr,
+            "written_at": _to_rfc3339(now),
+        }
     )
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -898,23 +915,33 @@ def _write_ownership_token(owner: str, session: str, pr: int, now: datetime) -> 
         logger.warning("op=lease_token_write_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
 
 
-def _has_valid_ownership_token(owner: str, session: str, pr: int, now: datetime) -> bool:
+def _has_valid_ownership_token(
+    owner: str, session: str, repo_owner: str, repo: str, pr: int, now: datetime
+) -> bool:
     """Return True iff this session recorded a lease win within MAX_TTL.
 
     This is the ownership proof ``renew`` needs to fail open when the store
     is unreadable (issue #4966 HIGH). A caller that never acquired has no
-    token, so it fails closed to SKIP. The MAX_TTL freshness bound stops an
+    token, so it fails closed to SKIP. The token key and payload both carry
+    the repository identity, so a token from another repository cannot satisfy
+    this check (issue #4966 review). The MAX_TTL freshness bound stops an
     abandoned token from granting fail-open past one lease lifetime; a healthy
     holder rewrites it on every successful renew, well inside that window.
     """
-    path = _ownership_token_path(owner, session, pr)
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     try:
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("op=lease_token_absent pr=%d err=%s", pr, safe_log_str(str(exc)))
         return False
-    if data.get("owner") != owner or data.get("session") != session or data.get("pr") != pr:
+    if (
+        data.get("owner") != owner
+        or data.get("session") != session
+        or data.get("repo_owner") != repo_owner
+        or data.get("repo") != repo
+        or data.get("pr") != pr
+    ):
         return False
     written = _parse_rfc3339_utc(str(data.get("written_at", "")))
     if written is None:
@@ -922,14 +949,14 @@ def _has_valid_ownership_token(owner: str, session: str, pr: int, now: datetime)
     return timedelta() <= now - written <= MAX_TTL
 
 
-def _clear_ownership_token(owner: str, session: str, pr: int) -> None:
+def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> None:
     """Delete this session's ownership token (called on release).
 
     After release the session must not be able to fail-open a later renew, so
     the local proof is removed. Best-effort; a missing token is already the
     desired end state.
     """
-    path = _ownership_token_path(owner, session, pr)
+    path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     try:
         os.remove(path)
     except FileNotFoundError:
@@ -1007,7 +1034,7 @@ def acquire(
         # session wrote at acquire time, never on the command name alone
         # (issue #4966 HIGH; the `renew --session never-acquired` repro).
         logger.warning("op=lease_login_unavailable pr=%d renewing=%s", pr, renewing)
-        if renewing and _has_valid_ownership_token(owner, session, pr, now):
+        if renewing and _has_valid_ownership_token(owner, session, repo_owner, repo, pr, now):
             logger.warning("op=lease_renew_failopen_token pr=%d cause=login-unresolved", pr)
             return LeaseResult(
                 "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
@@ -1016,7 +1043,7 @@ def acquire(
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
-        if renewing and _has_valid_ownership_token(owner, session, pr, now):
+        if renewing and _has_valid_ownership_token(owner, session, repo_owner, repo, pr, now):
             # A renew whose store read fails extends in place ONLY when a
             # durable ownership token proves this session already won the
             # lease. It fails open to ACT; the SHA gate stays authoritative
@@ -1117,7 +1144,7 @@ def acquire(
     # the lease. Record the durable ownership token so a later renew can prove
     # prior ownership and fail open through a store outage (issue #4966 HIGH,
     # #4376). A token write failure is non-fatal (renew would just fail closed).
-    _write_ownership_token(owner, session, pr, now)
+    _write_ownership_token(owner, session, repo_owner, repo, pr, now)
     return LeaseResult(
         "ACT",
         verdict["reason"],
@@ -1150,10 +1177,10 @@ def release(
     """
     now = now or datetime.now(UTC)
     # Clear the local ownership proof first: once this session releases, no
-    # later renew of the same (owner, session, pr) may fail open on the token
-    # (issue #4966 HIGH). The remote tombstone below is best-effort; the token
-    # removal is local and reliable.
-    _clear_ownership_token(owner, session, pr)
+    # later renew of the same (repo, owner, session, pr) may fail open on the
+    # token (issue #4966 HIGH). The remote tombstone below is best-effort; the
+    # token removal is local and reliable.
+    _clear_ownership_token(owner, session, repo_owner, repo, pr)
     author = _gh_authenticated_login() if acting_author is None else acting_author
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
@@ -1296,7 +1323,9 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
     return release(args.lease_owner, args.session, owner, repo, args.pull_request)
 
 
-def _handle_unreachable_auth(args: argparse.Namespace, code: int, output_format: str) -> int:
+def _handle_unreachable_auth(
+    args: argparse.Namespace, code: int, output_format: str, repo_owner: str, repo: str
+) -> int:
     """Emit a verdict when auth/transport fails before any lease read.
 
     ``assert_gh_authenticated`` exits 4 on a genuine auth misconfiguration and
@@ -1308,7 +1337,9 @@ def _handle_unreachable_auth(args: argparse.Namespace, code: int, output_format:
     open to ACT because a missed tombstone is covered by TTL expiry.
     ``renew`` fails open ONLY when a durable ownership token proves this
     session already holds the lease (issue #4966 HIGH; #4376); without a token
-    it SKIPs, so the ``renew`` command name alone never mints ACT.
+    it SKIPs, so the ``renew`` command name alone never mints ACT. The token
+    check uses the resolved repository identity, so a token from another
+    repository cannot mint ACT here (issue #4966 review).
 
     The exit code is preserved in the log and human summary so an operator can
     tell a persistent auth misconfiguration (exit 4) from a transient
@@ -1318,7 +1349,7 @@ def _handle_unreachable_auth(args: argparse.Namespace, code: int, output_format:
     if args.command == "release":
         action = "ACT"
     elif args.command == "renew" and _has_valid_ownership_token(
-        args.lease_owner, args.session, args.pull_request, datetime.now(UTC)
+        args.lease_owner, args.session, repo_owner, repo, args.pull_request, datetime.now(UTC)
     ):
         action = "ACT"
     else:
@@ -1334,8 +1365,8 @@ def _handle_unreachable_auth(args: argparse.Namespace, code: int, output_format:
     result = {
         "success": True,
         "pull_request": args.pull_request,
-        "owner": args.owner or "",
-        "repo": args.repo or "",
+        "owner": repo_owner,
+        "repo": repo,
         "command": args.command,
         "action": action,
         "reason": "lease-store-unavailable",
@@ -1375,7 +1406,7 @@ def main(argv: list[str] | None = None) -> int:
         code = exc.code if isinstance(exc.code, int) else 3
         if code not in (3, 4):
             raise
-        return _handle_unreachable_auth(args, code, output_format)
+        return _handle_unreachable_auth(args, code, output_format, owner, repo)
 
     result = _run_command(args, owner, repo)
 
