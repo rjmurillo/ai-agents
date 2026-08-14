@@ -16,12 +16,18 @@ Copilot repo surface `.github/hooks/require-subagent-model.json` (native
   real session log, CLI 1.0.79, 2026-08-06, `~/.copilot/session-state/*/events.jsonl`
   `toolRequests`). Claude's `Agent` tool uses `subagent_type` and `model`.
 - Copilot CLI also reads repo `.claude/settings.json` hook blocks cross-tool,
-  so a settings-side PreToolUse entry would fire on BOTH harnesses in-repo.
-- Gate-mode plugin groups do not take the dispatcher's self-host bail, so a
-  repo `settings.json` twin of a plugin gate double-fires AND trips
-  `validate_duplicate_entries` in `scripts/validation/hook_contracts.py`
-  (same script, event, matcher). The sanctioned shape is the documented prune
-  in `tests/hooks/test_dispatch_groups_parity.py`.
+  so the repository PreToolUse entry passes `--claude-settings-only`. That
+  invocation exits before reading stdin when `COPILOT_CLI` is set. Plugin and
+  `.github/hooks` invocations omit the flag and continue to enforce Copilot.
+- Read stdin through 2 MiB plus one byte. Parse complete bounded payloads and
+  deny overflow. A smaller read can truncate valid JSON and reach the
+  malformed-input fail-open path.
+- Prefer `CLAUDE_PROJECT_DIR` over payload `cwd`, which may be a project
+  subdirectory. For namespaced agents, check active `CLAUDE_PLUGIN_ROOT` and
+  `COPILOT_PLUGIN_ROOT` directories only when the plugin manifest name matches
+  the requested namespace.
+- Reject unsafe agent and namespace path segments, including glob characters,
+  separators, control characters, extra colons, and `.` or `..`.
 - Committing ADR metric edits requires: session log staged in the same commit
   (session-policy) plus a debate log in `.agents/critique/*debate*.md`
   referencing the staged ADR IDs (adr-review-policy in

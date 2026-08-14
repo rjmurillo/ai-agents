@@ -49,7 +49,7 @@
 |powershell ps1 psm1 module pester test discovery isolation: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
 |copilot hook generation matcher shim stale cleanup NO-REGEN: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1992)
-|subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (658)
+|subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (745)
 |test exit code pytest pester error failed passed: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |mutation testing false green sed delimiter guard load-bearing: [mutation-testing-false-green](mutation-testing-false-green.md) (908)
 |find existing test coverage by mutation not by: [find-coverage-by-mutation-not-by-name](find-coverage-by-mutation-not-by-name.md) (645)
