@@ -12,6 +12,7 @@ Features:
 Exit codes follow ADR-035:
     0 - Success: No conflicts or conflicts auto-resolved
     1 - Error: Conflicts could not be auto-resolved or resolution failed
+    2 - Config error (no candidate plugin lib directory carries github_core)
     3 - External error (git command failure)
 """
 
@@ -27,18 +28,105 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
-# Add .claude/lib to path for github_core imports (synced from scripts/)
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
-    _LIB_DIR = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
-else:
-    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
-if not os.path.isdir(_LIB_DIR):
-    print(f"Plugin lib directory not found: {_LIB_DIR}", file=sys.stderr)
+# The package this script imports out of a plugin's ``lib`` directory. Its
+# presence is what tells this plugin's lib apart from a foreign plugin's lib
+# that merely exists. Used by _resolve_lib_dir below.
+_CORE_PACKAGE = "github_core"
+
+
+def _lib_dir_candidates() -> list[str]:
+    """Return candidate ``lib`` directories, highest precedence first.
+
+    1. ``COPILOT_PLUGIN_ROOT`` env (set by the Copilot CLI host; it may point
+       at whichever plugin triggered the context-mode hook, not at this one).
+    2. ``CLAUDE_PLUGIN_ROOT`` env (set by the Claude Code host; under Copilot
+       it can hold a foreign plugin path, which is issue #4961).
+    3. ``GITHUB_WORKSPACE`` env: the checkout layout on an Actions runner.
+    4. Path relative to this file: the source checkout and the installed
+       plugin both put ``lib`` three levels above ``scripts/``.
+
+    Order matches the candidate list in the canonical sibling resolver,
+    `.claude/skills/pr-comment-responder/scripts/cluster_threads.py` lines
+    518-527, quoted verbatim:
+
+        candidates = []
+        copilot_root = os.environ.get("COPILOT_PLUGIN_ROOT")
+        claude_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if copilot_root:
+            candidates.append(os.path.join(copilot_root, "lib"))
+        if claude_root:
+            candidates.append(os.path.join(claude_root, "lib"))
+        if workspace:
+            candidates.append(os.path.join(workspace, ".claude", "lib"))
+        candidates.append(relative)
+    """
+    copilot_root = os.environ.get("COPILOT_PLUGIN_ROOT")
+    claude_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    candidates: list[str] = []
+    if copilot_root:
+        candidates.append(os.path.join(copilot_root, "lib"))
+    if claude_root:
+        candidates.append(os.path.join(claude_root, "lib"))
+    if workspace:
+        candidates.append(os.path.join(workspace, ".claude", "lib"))
+    candidates.append(str(Path(__file__).resolve().parents[3] / "lib"))
+    return candidates
+
+
+def _resolve_lib_dir() -> str:
+    """Return the first candidate ``lib`` directory that carries github_core.
+
+    Each candidate is validated before use, so a plugin root belonging to
+    another plugin falls through to the next candidate instead of ending the
+    run. Issue #4961: under the Copilot CLI, ``CLAUDE_PLUGIN_ROOT`` can name
+    the context-mode plugin, and taking it as authoritative exits 2 while a
+    valid root sits later in the list.
+
+    Fail-closed is preserved: when no candidate carries the package, the
+    process exits 2 (config error per ADR-035) naming every candidate tried
+    and why each was rejected. It never imports from a foreign plugin.
+
+    Stricter/looser/different than canonical:
+    - Stricter than `.claude/skills/pr-comment-responder/scripts/cluster_threads.py`
+      lines 529-531, which accepts a candidate on directory existence alone:
+
+          for lib_dir in candidates:
+              if os.path.isdir(lib_dir):
+                  return lib_dir
+
+      A foreign plugin that ships its own ``lib`` directory satisfies that
+      test and then fails at import with a traceback instead of ADR-035
+      exit 2. This resolver requires the imported package itself, matching
+      the validation in `.claude/skills/github/scripts/issue/claim_issue.py`
+      line 26, quoted verbatim:
+
+          if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
+
+    - Stricter than that claim_issue.py line in turn: claim_issue.py collapses
+      the two plugin roots with ``or`` (line 24), so a set-but-foreign
+      COPILOT_PLUGIN_ROOT skips CLAUDE_PLUGIN_ROOT entirely. This resolver
+      validates each root separately, so neither shadows the other.
+    - Different in reporting: the failure message names the rejection reason
+      per candidate; cluster_threads.py lists the paths alone.
+    """
+    rejected: list[str] = []
+    for lib_dir in _lib_dir_candidates():
+        if not os.path.isdir(lib_dir):
+            rejected.append(f"{lib_dir} (no such directory)")
+            continue
+        if os.path.isdir(os.path.join(lib_dir, _CORE_PACKAGE)):
+            return lib_dir
+        rejected.append(f"{lib_dir} (no {_CORE_PACKAGE} package)")
+
+    print(
+        f"Plugin lib directory not found. Tried: {'; '.join(rejected)}",
+        file=sys.stderr,
+    )
     sys.exit(2)  # Config error per ADR-035
+
+
+_LIB_DIR = _resolve_lib_dir()
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
