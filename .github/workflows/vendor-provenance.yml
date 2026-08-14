@@ -33,6 +33,9 @@ jobs:
     name: Validate Vendor Provenance
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
 
     env:
       PR_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
