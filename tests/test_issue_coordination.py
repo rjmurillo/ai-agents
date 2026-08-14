@@ -281,6 +281,14 @@ class TestSelfBranchSuppression:
             "bob", "work", current_branch_name="work", current_user_login="alice"
         )
 
+    def test_helper_different_author_and_branch_returns_false(self):
+        # Truth-table cell: neither author nor branch matches. A different
+        # author on a different branch is never the current session's own PR,
+        # so suppression must not fire and the PR must surface.
+        assert not _check._is_self_branch_pr(
+            "bob", "other", current_branch_name="work", current_user_login="alice"
+        )
+
     def test_detached_head_surfaces_owner_pr(self):
         prs = [[_owner_pr(10, "work", "alice")]]
         out = _check.filter_prs_for_issue(
@@ -288,11 +296,18 @@ class TestSelfBranchSuppression:
         )
         assert [m["number"] for m in out] == [10]
 
-    def test_empty_environment_surfaces_owner_pr(self):
-        # CI without GITHUB_HEAD_REF resolves branch to "" just like detached HEAD.
+    def test_empty_environment_surfaces_owner_pr(self, monkeypatch):
+        # Regression for the duplicate-test finding: the empty branch must come
+        # from the REAL resolution path, not a hardcoded "". CI without
+        # GITHUB_HEAD_REF plus a git call that reports no branch (detached HEAD)
+        # resolves current_branch() to "", which must not suppress the owner PR.
+        monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, "\n")):
+            resolved_branch = _check.current_branch()
+        assert resolved_branch == ""
         prs = [[_owner_pr(10, "feature", "alice")]]
         out = _check.filter_prs_for_issue(
-            prs, 2477, current_branch_name="", current_user_login="alice"
+            prs, 2477, current_branch_name=resolved_branch, current_user_login="alice"
         )
         assert [m["number"] for m in out] == [10]
 
