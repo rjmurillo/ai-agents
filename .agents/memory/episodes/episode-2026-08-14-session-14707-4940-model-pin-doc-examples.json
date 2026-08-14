@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-14-session-14706",
-  "session": "2026-08-14-session-14706",
+  "id": "episode-2026-08-14-session-14707-4940-model-pin-doc-examples",
+  "session": "2026-08-14-session-14707-4940-model-pin-doc-examples",
   "timestamp": "2026-08-14T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -14,9 +14,9 @@
       "content": "Read issue #4940 discourse and confirmed no existing PR",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e002",
@@ -25,9 +25,9 @@
       "content": "Claimed issue and created external worktree from origin/main",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e003",
@@ -36,9 +36,9 @@
       "content": "Established canonical contract from source, not memory",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e004",
@@ -47,9 +47,9 @@
       "content": "Corrected all five docs so every copyable example is conformant",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e005",
@@ -58,9 +58,9 @@
       "content": "Added a regression guard and proved it non-vacuous",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e006",
@@ -69,9 +69,9 @@
       "content": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e007",
@@ -80,9 +80,9 @@
       "content": "Ran scoped validation",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e008",
@@ -91,9 +91,9 @@
       "content": "adr-review pass on the ADR-040 amendment",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e009",
@@ -102,12 +102,23 @@
       "content": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
       "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e010",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the session log after an add/add conflict with origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e011",
       "timestamp": "2026-08-14T21:29:18+00:00",
       "type": "commit",
       "content": "Commit: 1e1c9a1d0",
@@ -120,38 +131,26 @@
         "e006",
         "e007",
         "e008",
-        "e009"
-      ],
-      "leads_to": [
-        "e011"
-      ],
-      "_source_session": "2026-08-14-session-14706"
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-08-14T21:30:08+00:00",
-      "type": "commit",
-      "content": "Commit: 79dadd0c6",
-      "caused_by": [
+        "e009",
         "e010"
       ],
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e012",
-      "timestamp": "2026-08-14T21:30:37+00:00",
+      "timestamp": "2026-08-14T21:30:08+00:00",
       "type": "commit",
-      "content": "Commit: c98f24b03c5cb21ee95adbb813ba72a16eae1fdb",
+      "content": "Commit: 79dadd0c6",
       "caused_by": [
         "e011"
       ],
       "leads_to": [
         "e013"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e013",
@@ -164,7 +163,7 @@
       "leads_to": [
         "e014"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     },
     {
       "id": "e014",
@@ -175,7 +174,7 @@
         "e013"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     }
   ],
   "metrics": {
@@ -183,7 +182,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 4,
     "files_changed": 9
   },
   "lessons": []

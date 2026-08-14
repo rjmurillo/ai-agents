@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 14706,
+    "number": 14707,
     "date": "2026-08-14",
     "branch": "docs/4940-model-pin-examples",
     "startingCommit": "a225da30e1b79d1df5487a0315d215b76301cc7f",
@@ -150,6 +150,10 @@
     {
       "step": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
       "evidence": "detect_infrastructure.py CRITICAL_PATTERNS entry '.*Auth.*\\.(cs|ts|js|py)$' matches the substring 'auth' in test_skill_authoring_docs_model_pins.py; the test reads repo markdown and runs no subprocess, no network, no user input"
+    },
+    {
+      "step": "Renamed the session log after an add/add conflict with origin/main",
+      "evidence": "origin/main already carries .agents/sessions/2026-08-14-session-14706.json; merge-tree-ratchet reported the conflict, so this log moved to session 14707 with a descriptive suffix"
     }
   ],
   "endingCommit": "72c2f893484ee56e611e00bfb3aae25d0ef6792b",

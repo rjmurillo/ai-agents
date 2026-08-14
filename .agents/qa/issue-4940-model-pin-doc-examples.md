@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-14-session-14706.json
+qaSessionLog: .agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json
 qaCommit: 72c2f893484ee56e611e00bfb3aae25d0ef6792b
 ---
 
