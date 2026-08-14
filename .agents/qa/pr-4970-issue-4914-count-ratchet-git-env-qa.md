@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_.json
-qaCommit: e009b85af365b3c479765fd914cadd7088cb007c
+qaCommit: b8727c8d32ae895e1dec6027d77c718271e44a6f
 ---
 
 # PR 4970 QA Report (issue #4914)
@@ -141,3 +141,13 @@ nothing else is dropped.
 | A new git call site omits `env=` | Covered by the AST guard on both modules. A git call built outside a list literal would evade it; none exists today. |
 | Stripping `GIT_*` breaks a needed variable | All four call sites are local read-only reads (`ls-files`, `diff`, `show`, `ls-tree`, `rev-parse`). None contacts a remote, so `GIT_SSH_COMMAND` and `GIT_ASKPASS` are not load-bearing. `GIT_EXEC_PATH` falls back to git's compiled-in path, and the canonical helper already strips it in the same hook context. |
 | `ruff_count_ratchet.baseline_at_ref` is dead | It is a duplicate that only its own test calls. It was fixed rather than deleted; deleting it is out of scope and is recorded in the session log's next steps. |
+
+## Review Fix Addendum (b8727c8d3)
+
+Non-behavioral changes addressing Copilot review findings:
+
+1. Episode JSON: corrected metrics.errors from 17 to 8 (matching source session)
+2. Memory file: added non-binding disclaimer per knowledge-persistence.md
+3. PR description: fixed QA evidence path reference
+
+No code logic changes. All original test evidence remains valid.
