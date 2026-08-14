@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Repository-scoped ownership token, revocation fail-closed, ADR-090 citation, and logger-credential suppression fixes are ancestors of 82840b2cfbbb9490f5894202dad507f87fa78bf4."
+        "Evidence": "Repository-scoped ownership token with case-insensitive identity normalization, revocation fail-closed, ADR-090 citation, and Semgrep logger-credential rename fixes are ancestors of 65564af0e8cc7665b6301fe840cbff75df54ebbc."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,18 +150,22 @@
     },
     {
       "action": "Ran gates and regenerated the copilot-cli mirror",
-      "result": "152 pytest passed, ruff clean, four portability checkers pass, pre_pr.py PASS, mirror byte-identical."
+      "result": "154 pytest passed, ruff clean, four portability checkers pass, pre_pr.py PASS, mirror byte-identical."
     },
     {
       "action": "Added the PR 4987 QA report and session log",
       "result": "Unblocks the Validate PR required check that requires a PR-numbered QA report for code changes."
     },
     {
-      "action": "Suppressed four Semgrep logger-credential false positives on lease_token_* log calls",
-      "result": "Scoped inline nosemgrep with documented rationale; 152 pytest still green, mirror byte-identical, pre_pr.py PASS."
+      "action": "Fixed the Semgrep logger-credential false positives durably by renaming token-bearing log labels",
+      "result": "Renamed lease_token_* and lease_renew_failopen_token logger operation labels to lease_ownership_* and removed the ineffective nosemgrep comments; local semgrep p/python reports 0 findings; 154 pytest green, mirror byte-identical."
+    },
+    {
+      "action": "Fixed the case-insensitive repository identity in the ownership token",
+      "result": "Added _normalize_repo_identity lowercasing repo_owner and repo in the token key, payload, and validation so an acquire under Octo/Repo and a release under octo/repo resolve one token path; two case-variant tests added."
     }
   ],
-  "endingCommit": "82840b2cfbbb9490f5894202dad507f87fa78bf4",
+  "endingCommit": "65564af0e8cc7665b6301fe840cbff75df54ebbc",
   "nextSteps": [
     "Re-poll get_pr_checks.py after the QA artifact commit; confirm Validate PR and Validate Spec Coverage turn green.",
     "Confirm remote branch SHA equals local HEAD and unresolved review threads remain zero."
