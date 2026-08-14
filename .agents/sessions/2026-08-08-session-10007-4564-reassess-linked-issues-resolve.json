@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation changes committed through 462e939ee2; this log is the final atomic commit."
+        "Evidence": "Current validated implementation ends at 0ef95e344c201bf2e022c470722d890176209e55."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted tests, Ruff, generated mirrors, and pre-PR validation passed."
+        "Evidence": "Current merged implementation: 305 targeted tests, Ruff, generated mirrors, and non-session pre-PR gates passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -140,6 +140,6 @@
       "result": "79 targeted tests passed. Ruff, generated mirror check, and full pre-PR validation passed."
     }
   ],
-  "endingCommit": "a74ba994eb01c694c50b539a1cc6e1f7422dfc59",
+  "endingCommit": "0ef95e344c201bf2e022c470722d890176209e55",
   "nextSteps": []
 }

@@ -273,6 +273,19 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-14T00:19:31+00:00",
+      "type": "commit",
+      "content": "Commit: 0ef95e344c201bf2e022c470722d890176209e55",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10007-4564-reassess-linked-issues-resolve"
     }
@@ -282,7 +295,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 17,
+    "commits": 18,
     "files_changed": 28
   },
   "lessons": []
