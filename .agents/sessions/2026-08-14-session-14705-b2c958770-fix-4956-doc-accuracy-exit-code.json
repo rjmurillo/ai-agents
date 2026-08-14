@@ -145,6 +145,6 @@
       "outcome": "Removed the unrelated Serena patch, preserved it for split-pr-4956-memory, replaced repository-only citations with scripts/doc_accuracy.py, and refreshed validation at 52a1c5414a."
     }
   ],
-  "endingCommit": "9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
+  "endingCommit": "92358004b8004da624d48215c3a47b7f8ea646b2",
   "nextSteps": []
 }

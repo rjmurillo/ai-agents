@@ -145,7 +145,7 @@
       "outcome": "Reconciled all branch-created session and QA bindings with 52a1c5414a and documented the separate memory todo."
     }
   ],
-  "endingCommit": "9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
+  "endingCommit": "92358004b8004da624d48215c3a47b7f8ea646b2",
   "nextSteps": [
     "Push PR #4956 under renewed lease and late live-state protection.",
     "Reply to current review discourse with validation evidence.",

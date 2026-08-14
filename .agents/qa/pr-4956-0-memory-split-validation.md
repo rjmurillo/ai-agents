@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14710-b2c958770-split-memory-from-4956.json
-qaCommit: fadc1ef6f7c07e71856254901ab9e480dce3c2bb
+qaCommit: 92358004b8004da624d48215c3a47b7f8ea646b2
 ---
 
 # PR 4956 memory split validation
