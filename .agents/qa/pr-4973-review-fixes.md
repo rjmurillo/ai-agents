@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: 2026-08-14-session-pr4973-autofix.json
+qaSessionLog: .agents/sessions/2026-08-14-session-pr4973-autofix.json
 qaCommit: 3117d2e6fb03eacfce1c82b7406ce1e4f06a4d2e
 ---
 
