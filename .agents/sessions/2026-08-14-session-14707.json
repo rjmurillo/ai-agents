@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit b66e88638ce7b24e11d6b4d01ca76421c9757ce8; final evidence committed separately"
+        "Evidence": "Validated code commit bf5862dbea5469dec9d03c64258afc1b29ad49d4; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, and 521 final focused tests passed; Ruff and generation passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, and 586 final focused tests passed; Ruff, plugin-lib sync, and generation passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -158,9 +158,13 @@
     {
       "action": "Addressed five final suppressed review findings.",
       "outcome": "Removed the unused tuple binding, made omitted retrospective scopes host-local in both CLIs with end-to-end tests, documented exact canonical divergences, and froze the UTC validator boundary test."
+    },
+    {
+      "action": "Addressed final plugin-payload review findings.",
+      "outcome": "Moved three host-date regressions to the root tests tree, removed them from generated customer payloads, and made hook/library documentation self-contained inside the plugin."
     }
   ],
-  "endingCommit": "b66e88638ce7b24e11d6b4d01ca76421c9757ce8",
+  "endingCommit": "bf5862dbea5469dec9d03c64258afc1b29ad49d4",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
