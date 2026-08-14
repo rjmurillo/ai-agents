@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Memory Markdown frontmatter passed YAML parsing and the memory guard"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 Markdown files; memory frontmatter passed YAML and guard validation"
       },
       "qaValidation": {
         "level": "MUST",
@@ -89,12 +89,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated implementation commit e66f787ae040da620bb3807ce9434c8de98aa435; QA evidence is evidence-only"
+        "Evidence": "Validated implementation commit 10e08dcd45d3eb7908e1c17b00154a304b8a84ec; QA evidence is evidence-only"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "172 tests passed; memory index CI guard, direct YAML parse, Ruff, and taste-count ratchet passed"
+        "Evidence": "174 tests passed; memory index CI guard, direct YAML parse, Ruff, and taste-count ratchet passed"
       }
     }
   },
@@ -105,14 +105,14 @@
     },
     {
       "action": "Updated branch with origin/main",
-      "result": "Clean merge commit e66f787ae040da620bb3807ce9434c8de98aa435"
+      "result": "Clean merge commit 10e08dcd45d3eb7908e1c17b00154a304b8a84ec"
     },
     {
       "action": "Ran focused tests and guards",
       "result": "172 tests passed; 43/43 memory domains and 565 files checked; YAML and Ruff passed"
     }
   ],
-  "endingCommit": "e66f787ae040da620bb3807ce9434c8de98aa435",
+  "endingCommit": "10e08dcd45d3eb7908e1c17b00154a304b8a84ec",
   "nextSteps": [
     "Push after live-state and SHA-safety checks",
     "Run completion gate and merge only when all readiness conditions pass"
