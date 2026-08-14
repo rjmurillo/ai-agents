@@ -22,7 +22,7 @@ _scripts_dir = os.path.join(
     "..",
     ".claude",
     "skills",
-    "SkillForge",
+    "skillforge",
     "scripts",
 )
 sys.path.insert(0, os.path.abspath(_scripts_dir))
@@ -436,4 +436,62 @@ class TestTriggerPhraseRepoWideGuard:
         assert msgs, "A skill dir with no readable SKILL.md must be reported as an offender"
         assert any("not found" in m.lower() or "returned False" in m for m in msgs), (
             f"Offender message should name the load failure, got: {msgs}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Name must equal the containing directory name (Refs #4812)
+# ---------------------------------------------------------------------------
+
+
+class TestNameMatchesDirectory:
+    """Verify frontmatter name must equal the skill's directory name."""
+
+    _MISMATCH = "must match its directory name"
+
+    @staticmethod
+    def _validator_for(tmp_path: Path, dir_name: str, skill_name: str) -> _ValidatorLike:
+        skill_dir = tmp_path / dir_name
+        skill_dir.mkdir()
+        content = (
+            f"---\nname: {skill_name}\n"
+            "description: This is a valid description with enough words here\n"
+            "---\n# Title\n## Triggers\n`one` `two` `three`\n"
+            "## Process\nSteps.\n## Verification\n- [ ] a\n- [ ] b\n"
+        )
+        (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+        orig = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            validator: _ValidatorLike = SkillValidator(str(skill_dir))
+        finally:
+            os.chdir(orig)
+        return validator
+
+    def test_name_equal_to_directory_passes(self, tmp_path: Path) -> None:
+        v = self._validator_for(tmp_path, "skillforge", "skillforge")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        errs = [e for e in v.errors if self._MISMATCH in e]
+        assert not errs, f"Unexpected directory-name error: {errs}"
+
+    def test_name_differs_from_directory_fails(self, tmp_path: Path) -> None:
+        v = self._validator_for(tmp_path, "skillforge", "other-name")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any(self._MISMATCH in e for e in v.errors), (
+            f"Expected directory-name mismatch error, got: {v.errors}"
+        )
+
+    def test_case_mismatch_fails(self, tmp_path: Path) -> None:
+        # The exact #4812 defect: a capitalized directory holding a lowercase
+        # name. The guard must fire on the case difference alone.
+        v = self._validator_for(tmp_path, "SkillForge", "skillforge")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any(self._MISMATCH in e for e in v.errors), (
+            f"Expected directory-name mismatch error, got: {v.errors}"
         )
