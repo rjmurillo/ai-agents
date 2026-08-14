@@ -35,8 +35,8 @@ def host_session_date(now: Callable[[], datetime] = datetime.now) -> str:
     same host clock the creator used, or a session in a far-east timezone
     becomes invisible near midnight UTC. This is the consumer-side twin of
     :func:`session_init.date_helpers.host_session_date`; the plugin boundary
-    forbids sharing one import, so ``tests/skills/session/test_date_helpers.py``
-    pins the two copies to identical output. ``now`` is injectable for
+    forbids sharing one import, so repository parity tests pin the two copies
+    to identical output. ``now`` is injectable for
     deterministic tests and must return a naive local datetime.
     """
     return now().strftime(_ISO_DATE)

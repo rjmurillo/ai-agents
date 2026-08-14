@@ -34,7 +34,7 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
     """Return the newest readable session log from today or yesterday.
 
     Runs only when ``hook_utilities`` cannot be imported. The executable lines
-    from ``scripts/hook_utilities/utilities.py::recent_host_session_dates`` are::
+    from ``lib/hook_utilities/utilities.py::recent_host_session_dates`` are::
 
         current = now()
         today = current.strftime(_ISO_DATE)
