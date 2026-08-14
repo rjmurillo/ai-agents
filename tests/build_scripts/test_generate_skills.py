@@ -44,10 +44,10 @@ _SKILL_ROUTE_RE = re.compile(
 _SKILLFORGE_TIMEOUT_SECONDS = 20
 _ISSUE_4327_URL = "https://github.com/rjmurillo/ai-agents/issues/4327"
 _ISSUE_4327_REFERENCE_FILES = (
-    ".claude/skills/SkillForge/scripts/skill_modularity_audit.py",
-    ".claude/skills/SkillForge/references/modularity-guidelines.md",
-    "src/copilot-cli/skills/SkillForge/scripts/skill_modularity_audit.py",
-    "src/copilot-cli/skills/SkillForge/references/modularity-guidelines.md",
+    ".claude/skills/skillforge/scripts/skill_modularity_audit.py",
+    ".claude/skills/skillforge/references/modularity-guidelines.md",
+    "src/copilot-cli/skills/skillforge/scripts/skill_modularity_audit.py",
+    "src/copilot-cli/skills/skillforge/references/modularity-guidelines.md",
 )
 
 
@@ -96,7 +96,7 @@ def _skillforge_validation(skill_dir: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
-            str(REPO_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "validate-skill.py"),
+            str(REPO_ROOT / ".claude" / "skills" / "skillforge" / "scripts" / "validate-skill.py"),
             str(skill_dir.relative_to(REPO_ROOT)),
         ],
         cwd=REPO_ROOT,
