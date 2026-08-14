@@ -73,8 +73,8 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Not finalized: attribution changes remain uncommitted."
+        "Complete": true,
+        "Evidence": "All session-end MUST items completed with measured evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -88,28 +88,28 @@
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Scoped markdown validation could not run because npx is unavailable."
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 v0.23.2 ran on the changed skill Markdown; 0 issues. The repository config excludes .agents Markdown."
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
+        "Complete": true,
         "Evidence": ".agents/qa/dx-review-qa-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Attribution changes are uncommitted by request."
+        "Complete": true,
+        "Evidence": "Implementation, attribution, and QA changes committed through 8200772d9; this session log is the final commit payload."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Scoped attribution validations passed. Session-end validation is deferred until the parent commits."
+        "Complete": true,
+        "Evidence": "uv run python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14705.json passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "SQL task tracker unavailable in this session."
+        "Complete": true,
+        "Evidence": "Session SQL todos updated through implementation, review, attribution, QA, and delivery."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -154,11 +154,16 @@
       "timestamp": "2026-08-14T11:41Z",
       "action": "move-dx-attribution",
       "details": "Removed upstream provenance from dx-review, added gstack MIT attribution to the notices generator, regenerated the Copilot skill mirror and THIRD-PARTY-NOTICES.TXT, and added regression coverage. Scoped tests and validations passed. The existing QA report remains unmodified and stale until the parent replaces it after commit."
+    },
+    {
+      "timestamp": "2026-08-14T21:30Z",
+      "action": "finalize-dx-review",
+      "details": "Committed skill and license attribution changes, ran 32 tests and Ruff, bound the PASS QA report to commit f17a723b4, and ran markdownlint-cli2 v0.23.2 with 0 issues."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "8200772d9",
   "nextSteps": [
-    "Parent must commit the attribution change.",
-    "Parent must replace the stale dx-review QA report after the new commit."
+    "Push feat/dx-review and create the pull request.",
+    "Monitor checks, address review threads, and enable auto-merge."
   ]
 }

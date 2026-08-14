@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: f17a723b493ec2ef27c1e005b0baae4f0446e9de
+qaCommit: 8200772d94311558698744c876d9543567169c7e
 ---
 
 # QA Report: dx-review skill and attribution
 
 Branch: `feat/dx-review`
-Commit: `f17a723b493ec2ef27c1e005b0baae4f0446e9de`
+Commit: `8200772d94311558698744c876d9543567169c7e`
 
 ## Files in scope
 
