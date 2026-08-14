@@ -143,8 +143,12 @@
     {
       "task": "Address PR #4996 review threads",
       "outcome": "Rejected ambiguous ?file= + #file- embed selectors, replaced hardcoded .claude with COPILOT_PLUGIN_ROOT, regenerated Copilot mirror, added negative test"
+    },
+    {
+      "task": "Fix empty/control-char decoded file selectors",
+      "outcome": "Reject empty or control-char-containing decoded fragment selectors; added 2 negative tests"
     }
   ],
-  "endingCommit": "09663c0a377cdc1796e6cb0520035273a6e283e0",
+  "endingCommit": "35126cef58bd48286e8f44001abbf41b0cc5bb6b",
   "nextSteps": []
 }
