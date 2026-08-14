@@ -75,6 +75,9 @@ def _parse_page_file_selector(
         if len(query_files) > 1 or (query_files and not query_files[0]):
             return None
         if query_files:
+            # Reject ambiguous selector: ?file= and #file- both present.
+            if parsed_url.fragment.startswith("file-"):
+                return None
             return query_files[0], None, None
     if not parsed_url.fragment.startswith("file-"):
         return None, None, None
