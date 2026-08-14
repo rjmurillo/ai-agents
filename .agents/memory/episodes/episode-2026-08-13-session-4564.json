@@ -428,16 +428,42 @@
       "caused_by": [
         "e031"
       ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-14T00:25:00+00:00",
+      "type": "milestone",
+      "content": "Completed final adversarial review",
+      "caused_by": [
+        "e034"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-14T00:19:31+00:00",
+      "type": "commit",
+      "content": "Commit: 0ef95e344c201bf2e022c470722d890176209e55",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e033"
+      ],
       "_source_session": "2026-08-13-session-4564"
     }
   ],
   "metrics": {
-    "duration_minutes": 870,
+    "duration_minutes": 925,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 17,
+    "commits": 18,
     "files_changed": 23
   },
   "lessons": []

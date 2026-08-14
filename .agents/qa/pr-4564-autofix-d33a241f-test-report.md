@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-4564.json
-qaCommit: a74ba994eb01c694c50b539a1cc6e1f7422dfc59
+qaCommit: 0ef95e344c201bf2e022c470722d890176209e55
 ---
 
 # PR 4564 Autofix QA Report
@@ -16,7 +16,7 @@ implementations and their dedicated tests.
 
 ## Results
 
-- Targeted tests: PASS, 302 tests.
+- Targeted tests: PASS, 305 tests.
 
   ```text
   uv run pytest tests/test_github_pr_diagnostics.py \
@@ -68,5 +68,7 @@ implementations and their dedicated tests.
 The original test file duplicated APIs that main refactored after the PR
 branched. Removing those obsolete classes restored ownership to
 `tests/test_get_pr_checks.py` and `tests/skills/github/test_why_pr_blocked.py`.
-The retained PR tests pass against the merged implementation. Issue #4977
-records the Windows materialization defect found during this QA pass.
+The final adversarial review found that the fleet auditor trusted syntax
+without confirming GitHub's exact closing target. Commit `0ef95e344` now keys
+references by repository identity and treats absent targets as non-closing.
+Issue #4977 records the Windows materialization defect found during this pass.

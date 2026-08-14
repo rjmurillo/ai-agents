@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10007-4564-reassess-linked-issues-resolve.json
-qaCommit: a74ba994eb01c694c50b539a1cc6e1f7422dfc59
+qaCommit: 0ef95e344c201bf2e022c470722d890176209e55
 ---
 
 # PR 4564 Session 10007 QA Report
@@ -14,7 +14,7 @@ check and blocker implementations.
 
 ## Results
 
-- Targeted tests: PASS, 302 tests.
+- Targeted tests: PASS, 305 tests.
 
   ```text
   uv run pytest tests/test_github_pr_diagnostics.py \
@@ -58,5 +58,6 @@ check and blocker implementations.
 
 The recovery remains valid after current-main integration. No unresolved
 conflict markers remain, and the retained PR behavior passes its targeted
-tests. Issue #4977 records the Windows materialization defect found during
-this QA pass.
+tests. Commit `0ef95e344` also verifies closing targets against GitHub's exact
+repository identity. Issue #4977 records the Windows materialization defect
+found during this QA pass.
