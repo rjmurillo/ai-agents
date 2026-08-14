@@ -21,18 +21,60 @@ Exit codes follow ADR-035:
     3 - External: remote has advanced; push will be rejected; abort early
     4 - Auth error
 
-Usage (called by lefthook pre-push hook):
-    git push ... | python scripts/validation/push_ref_staleness.py
+Usage (lefthook pre-push job; lefthook expands "{1}" to the pushed remote):
+    uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
 
-Or for testing:
+Or for testing (the remote argument is optional and defaults to origin):
     echo "refs/heads/mybranch <local-sha> refs/heads/mybranch <remote-sha>" \\
       | python scripts/validation/push_ref_staleness.py
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
+
+_DEFAULT_REMOTE = "origin"
+
+# Lefthook substitutes a positional placeholder only when the hook received that
+# argument, and it never substitutes a name it does not know, so `{1}` (manual
+# `lefthook run pre-push` with no arguments) or `{remote}` (issue #4634) can
+# reach this script as literal text. Probed against lefthook 2.1.10, the version
+# pinned by `min_version` in lefthook.yml:
+#     run: printf 'ARG1=[{1}] ARG2=[{2}] ALL=[{0}]\n'
+#     lefthook run pre-push          -> ARG1=[{1}] ARG2=[{2}] ALL=[]
+#     lefthook run pre-push origin U -> ARG1=[origin] ARG2=[U] ALL=[origin U]
+_UNEXPANDED_PLACEHOLDER = re.compile(r"^\{[^{}]*\}$")
+
+
+def _resolve_remote(argv: list[str] | None) -> str:
+    """Return the remote to query, falling back to origin when there is none.
+
+    `lefthook.yml` passes the pre-push hook's first positional argument as
+    `"{1}"`, which git sets to the remote name or URL being pushed to. Two
+    inputs must never reach `git ls-remote` as a remote name:
+
+    - Nothing at all. Direct invocation for testing (see the module docstring).
+    - An unexpanded placeholder such as `{1}` or `{remote}`.
+
+    Both used to produce a name no remote can resolve, which `_remote_sha`
+    reports as None and `main` reads as "new branch, no race is possible", so
+    every push passed a check that examined nothing. That silent pass is issue
+    #4634. Falling back to origin keeps the check live, and the warning names
+    the misconfiguration instead of hiding it.
+    """
+    candidate = argv[0].strip() if argv else ""
+    if not candidate:
+        return _DEFAULT_REMOTE
+    if _UNEXPANDED_PLACEHOLDER.match(candidate):
+        print(
+            f"[push-ref-staleness] Hook argument {candidate!r} is an unexpanded "
+            f"placeholder, not a remote; checking {_DEFAULT_REMOTE!r} instead.",
+            file=sys.stderr,
+        )
+        return _DEFAULT_REMOTE
+    return candidate
 
 
 def _run(cmd: list[str], *, timeout: int = 10) -> subprocess.CompletedProcess[str]:
@@ -76,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         # Nothing to push or called without stdin; pass through.
         return 0
 
-    remote = argv[0] if argv else "origin"
+    remote = _resolve_remote(argv)
 
     stale_refs: list[str] = []
 

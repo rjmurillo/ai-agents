@@ -10,6 +10,8 @@ Covers:
 - Edge: multiple refs, one stale -> exit 3
 - Edge: multiple refs, all clean -> exit 0
 - Edge: malformed stdin line -> skip gracefully
+- Remote resolution: named remote, remote URL, missing argument, blank argument,
+  and unexpanded lefthook placeholders (issue #4634)
 """
 
 from __future__ import annotations
@@ -139,3 +141,58 @@ class TestMalformedInput:
         stdin = StringIO("\n\n\n")
         with patch("sys.stdin", stdin):
             assert main([]) == 0
+
+
+class TestRemoteResolution:
+    """The remote comes from the pre-push argument, never from a placeholder.
+
+    Issue #4634: the lefthook job passed `{remote}`, which lefthook does not
+    substitute. `git ls-remote "{remote}" <ref>` failed, `_remote_sha` returned
+    None, and `main` read that as "new branch, no race", so the job reported
+    success on every push while checking nothing. These tests pin both halves:
+    a real argument is queried, and a placeholder never becomes a remote name.
+    """
+
+    @staticmethod
+    def _queried_remote(argv):
+        """Run main() over one clean ref and return the remote it queried."""
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(
+                    _mod, "_remote_sha", return_value=_REMOTE_SHA_OLD
+                ) as query:
+            assert main(argv) == 0
+        assert query.call_count == 1
+        return query.call_args.args[0]
+
+    def test_named_remote_argument_is_queried(self):
+        assert self._queried_remote(["upstream"]) == "upstream"
+
+    def test_remote_url_argument_is_queried(self):
+        url = "https://github.com/rjmurillo/ai-agents.git"
+        assert self._queried_remote([url]) == url
+
+    def test_missing_argument_falls_back_to_origin(self):
+        assert self._queried_remote([]) == "origin"
+
+    def test_blank_argument_falls_back_to_origin(self):
+        assert self._queried_remote(["   "]) == "origin"
+
+    def test_unexpanded_positional_placeholder_falls_back_to_origin(self, capsys):
+        # `lefthook run pre-push` with no arguments leaves `{1}` literal.
+        assert self._queried_remote(["{1}"]) == "origin"
+        assert "unexpanded placeholder" in capsys.readouterr().err
+
+    def test_unsupported_placeholder_falls_back_to_origin(self, capsys):
+        # The exact token the broken job passed (issue #4634).
+        assert self._queried_remote(["{remote}"]) == "origin"
+        assert "'{remote}'" in capsys.readouterr().err
+
+    def test_placeholder_fallback_still_reports_a_stale_remote(self):
+        """The fallback checks origin for real; it does not degrade to a pass."""
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(
+                    _mod, "_remote_sha", return_value=_REMOTE_SHA_NEW
+                ) as query, \
+                _mock_is_ancestor(False):
+            assert main(["{remote}"]) == 3
+        assert query.call_args.args[0] == "origin"
