@@ -2,19 +2,33 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from scripts.cli_exec import resolve_executable
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-    from types import TracebackType
+_CLEANUP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
+_TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EBUSY, errno.ENOTEMPTY})
+
+
+def _make_writable_and_retry(
+    function: Callable[[str], object], path: str, exc: BaseException
+) -> None:
+    """Clear a Windows read-only attribute, then retry the failed removal."""
+    if not isinstance(exc, PermissionError):
+        raise exc
+    try:
+        os.chmod(path, os.stat(path).st_mode | stat.S_IWRITE)
+        function(path)
+    except FileNotFoundError:
+        return
 
 
 def run_git(
@@ -78,13 +92,22 @@ def isolated_git_environment(isolated_home: Path) -> dict[str, str]:
 
 def remove_tree(path: Path, label: str) -> str | None:
     """Remove one temporary tree, returning a diagnostic instead of hiding failure."""
-    try:
-        shutil.rmtree(path, onerror=_retry_readonly)
-    except FileNotFoundError:
-        return None
-    except OSError as exc:
-        return f"{label} cleanup failed: {type(exc).__name__}: {exc}"
-    return None
+    for delay in (*_CLEANUP_RETRY_DELAYS, None):
+        try:
+            shutil.rmtree(path, onexc=_make_writable_and_retry)
+            return None
+        except FileNotFoundError:
+            return None
+        except PermissionError as exc:
+            if delay is None:
+                return f"{label} cleanup failed: {type(exc).__name__}: {exc}"
+            time.sleep(delay)
+        except OSError as exc:
+            if exc.errno in _TRANSIENT_CLEANUP_ERRNOS and delay is not None:
+                time.sleep(delay)
+                continue
+            return f"{label} cleanup failed: {type(exc).__name__}: {exc}"
+    raise AssertionError("cleanup retry loop exhausted without returning")
 
 
 def _cleanup_materialization(index_path: Path, isolated_home: Path) -> bool:
@@ -114,7 +137,7 @@ def _checkout_tree(
     if read_tree.returncode != 0:
         print(f"git read-tree failed: {read_tree.stderr}", file=sys.stderr)
         return False
-    prefix = f"{destination.resolve()}{os.sep}"
+    prefix = f"{destination.resolve().as_posix()}/"
     checkout = run_git(
         repo_root,
         "-c",
@@ -152,21 +175,6 @@ def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
     if not materialized:
         print("merged-tree materialization did not complete", file=sys.stderr)
     return materialized and cleaned
-
-
-def _retry_readonly(
-    operation: Callable[[str], object],
-    path: str,
-    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
-) -> None:
-    error = exc_info[1]
-    if not isinstance(error, PermissionError):
-        raise error
-    mode = os.stat(path).st_mode
-    if mode & stat.S_IWRITE:
-        raise error
-    os.chmod(path, mode | stat.S_IWRITE)
-    operation(path)
 
 
 def _initialize_repo(scratch: Path, env: dict[str, str]) -> bool:
