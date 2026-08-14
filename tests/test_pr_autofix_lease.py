@@ -716,6 +716,8 @@ class TestAcquire:
         assert result.action == "ACT"
         assert result.reason == "lease-store-unavailable"
         post.assert_not_called()
+
+    def test_store_write_error_fails_open_to_act(self):
         with (
             _patch_list([]),
             patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")),
