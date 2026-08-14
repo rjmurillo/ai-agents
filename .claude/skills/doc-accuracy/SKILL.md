@@ -208,8 +208,7 @@ Present proposed fixes for user approval before modifying any file. Categories:
 
 ## Exit Codes
 
-Canonical source: `.claude/skills/doc-accuracy/scripts/doc_accuracy.py` module
-docstring.
+Canonical source: `scripts/doc_accuracy.py` module docstring.
 
 ```text
 Exit Codes:

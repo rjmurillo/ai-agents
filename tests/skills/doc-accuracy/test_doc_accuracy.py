@@ -47,7 +47,7 @@ _repo_relative = mod._repo_relative
 
 
 def test_exit_code_documentation_covers_the_cli_contract() -> None:
-    """Canonical skill and script docs list every executable exit code."""
+    """Canonical skill cites its bundled script and lists every exit code."""
     contract = """Exit Codes:
     0: No findings at or above severity threshold
     1: Error or inconclusive run, including no source symbols for Phase 3
@@ -55,9 +55,11 @@ def test_exit_code_documentation_covers_the_cli_contract() -> None:
     3: External dependency failure, including unavailable or failed Git
     10: Findings at or above severity threshold"""
     skill_path = Path(mod.__file__).resolve().parents[1] / "SKILL.md"
+    skill_docs = skill_path.read_text(encoding="utf-8")
 
     assert contract in (mod.__doc__ or "")
-    assert f"```text\n{contract}\n```" in skill_path.read_text(encoding="utf-8")
+    assert "Canonical source: `scripts/doc_accuracy.py` module docstring." in skill_docs
+    assert f"```text\n{contract}\n```" in skill_docs
 
 
 class TestShouldExclude:
