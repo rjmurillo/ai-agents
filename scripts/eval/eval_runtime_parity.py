@@ -85,6 +85,47 @@ MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 
+def _run_in_process_group(
+    argv: list[str] | tuple[str, ...],
+    **kwargs: object,
+) -> subprocess.CompletedProcess[str]:
+    """Drop-in replacement for subprocess.run that kills the full process tree on timeout.
+
+    subprocess.run(timeout=...) only terminates the direct child.  CLI launchers
+    can leave descendants running, consuming model quota and modifying the
+    workspace after the report says it stopped.  This function starts the child
+    in its own session (Unix) and kills the entire process group on timeout.
+    See _copilot_cli_acp.py:164-179 for the same pattern.
+    """
+    timeout = kwargs.pop("timeout", None)
+    capture_output = kwargs.pop("capture_output", False)
+    kwargs.pop("check", None)  # always check=False semantics
+
+    if capture_output:
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.PIPE
+
+    use_session = os.name != "nt"
+    proc = subprocess.Popen(
+        argv,
+        start_new_session=use_session,
+        **kwargs,  # type: ignore[arg-type]
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if use_session:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                proc.kill()
+        else:
+            proc.kill()
+        proc.wait()
+        raise
+    return subprocess.CompletedProcess(list(argv), proc.returncode, stdout, stderr)
+
+
 def _tool_args(tools: Sequence[str], harness: str) -> list[str]:
     if harness == "claude":
         names = {"question": "AskUserQuestion", "write": "Edit"}
@@ -170,36 +211,19 @@ def _invoke_runtime(
 ]:
     prepare_workspace(fixture, harness, workspace)
     argv = build_argv(harness, executable, model, fixture)
-    env = runtime_env(workspace, harness)
-
-    # Use a process group so timeout kills descendants, not just the
-    # direct child.  subprocess.run(timeout=...) only terminates the
-    # root process; CLI launchers can leave model-consuming children
-    # alive.  See _copilot_cli_acp.py:164-179 for the same pattern.
-    use_session = os.name != "nt"
-    proc = subprocess.Popen(
-        argv,
-        cwd=workspace,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        start_new_session=use_session,
-    )
     try:
-        stdout, stderr = proc.communicate(timeout=timeout)
+        run = runner(
+            argv,
+            cwd=workspace,
+            env=runtime_env(workspace, harness),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
     except subprocess.TimeoutExpired:
-        # Kill the full process tree via the session leader's group.
-        if use_session:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except OSError:
-                proc.kill()
-        else:
-            proc.kill()
-        proc.wait()
         return (
             None,
             argv,
@@ -210,9 +234,6 @@ def _invoke_runtime(
                 error="runtime timed out",
             ),
         )
-    run = subprocess.CompletedProcess(
-        argv, proc.returncode, stdout, stderr,
-    )
     return run, argv, None
 
 
@@ -425,7 +446,7 @@ def run_evaluation(
     copilot_bin: str,
     timeout: float,
     dry_run: bool,
-    runner: Runner = subprocess.run,
+    runner: Runner = _run_in_process_group,
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch."""
     fixtures = load_fixtures(fixtures_path)
@@ -471,7 +492,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) -> int:
+def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_group) -> int:
     args = _parser().parse_args(argv)
     if MODEL_ID_RE.fullmatch(args.model) is None:
         print("Error: --model has an invalid format.", file=sys.stderr)
