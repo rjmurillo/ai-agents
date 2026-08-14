@@ -73,48 +73,48 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "sessionStart and sessionEnd items recorded with per-item evidence in this file"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start and left unmodified; this branch carries no handoff edit"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena memory tasks/issue-4940-model-pin-doc-examples written with the canonical contract and the gate-ordering findings"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 docs/SKILL-AUTHORING.md -> Summary: 0 issues; .agents/** is excluded by .markdownlint-cli2.yaml"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4940-model-pin-doc-examples.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "1e1c9a1d0 guide, 79dadd0c6 architecture docs, c98f24b03 regression guard"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "pytest 17 passed; check_model_pins.py --mode warn exit 0; ruff check and ruff format clean; detect_adr_changes.py reported ADR-040 Modified and the review is recorded in .agents/critique"
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Issue #4940 claimed via claim_issue.py; PR opened from docs/4940-model-pin-examples"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Findings captured in the Serena memory and in the QA report's Known Gaps section"
       }
     }
   },
@@ -146,9 +146,13 @@
     {
       "step": "adr-review pass on the ADR-040 amendment",
       "evidence": ".agents/critique/ADR-040-amendment-2026-08-14-model-pin-examples-debate-log.md; detect_adr_changes.py --since-commit origin/main reported ADR-040 Modified; single-reviewer pass disclosed in the log (no subagent delegation available this session)"
+    },
+    {
+      "step": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
+      "evidence": "detect_infrastructure.py CRITICAL_PATTERNS entry '.*Auth.*\\.(cs|ts|js|py)$' matches the substring 'auth' in test_skill_authoring_docs_model_pins.py; the test reads repo markdown and runs no subprocess, no network, no user input"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c98f24b03c5cb21ee95adbb813ba72a16eae1fdb",
   "nextSteps": [
     "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
     "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance"

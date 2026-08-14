@@ -3,7 +3,7 @@
   "session": "2026-08-14-session-14706",
   "timestamp": "2026-08-14T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Issue #4940: correct five docs that teach ADR-080-forbidden versioned model pins",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Read issue #4940 discourse and confirmed no existing PR",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Claimed issue and created external worktree from origin/main",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Established canonical contract from source, not memory",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Corrected all five docs so every copyable example is conformant",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Added a regression guard and proved it non-vacuous",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -58,7 +68,9 @@
       "type": "test",
       "content": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -67,7 +79,9 @@
       "type": "milestone",
       "content": "Ran scoped validation",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706"
     },
     {
@@ -76,6 +90,64 @@
       "type": "milestone",
       "content": "adr-review pass on the ADR-040 amendment",
       "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T21:29:18+00:00",
+      "type": "commit",
+      "content": "Commit: 1e1c9a1d0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T21:30:08+00:00",
+      "type": "commit",
+      "content": "Commit: 79dadd0c6",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T21:30:37+00:00",
+      "type": "commit",
+      "content": "Commit: c98f24b03c5cb21ee95adbb813ba72a16eae1fdb",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14706"
     }
@@ -85,8 +157,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 8
   },
   "lessons": []
 }
