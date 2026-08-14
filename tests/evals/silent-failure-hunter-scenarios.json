@@ -1,0 +1,40 @@
+{
+  "scenarios": [
+    {
+      "id": "SFH1",
+      "desc": "Accepts a documented best-effort cleanup failure while the original error still propagates",
+      "input": "A function writes to a database, then in a finally block attempts to release an advisory lock. The lock-release call is wrapped in its own try/catch that logs 'lock release failed, safe to ignore, lock expires via TTL' and does not rethrow. Any error from the database write itself is not caught in this block and propagates normally to the caller. Decide whether the lock-release catch block is a defect.",
+      "verdict_options": [
+        "ACCEPTABLE_BEST_EFFORT",
+        "CRITICAL_SILENT_FAILURE"
+      ],
+      "expected_verdict": "ACCEPTABLE_BEST_EFFORT",
+      "expected_reason_contains": "propagate",
+      "rationale": "Reducing False Positives names cleanup best-effort paths as valid when the original error still propagates and the cleanup's own suppression is visible in a log line, exactly as described here. This is the no-over-fire guard: the agent must not flag a correct, documented fallback as a defect."
+    },
+    {
+      "id": "SFH2",
+      "desc": "Flags an empty catch block that swallows a payment API failure with no log and no propagation",
+      "input": "A function calls a payment processor API. The call is wrapped in a catch block that is completely empty: no log statement, no rethrow, no returned error value, and no user-facing message. Execution continues afterward as if the payment succeeded. Decide whether this catch block is a defect.",
+      "verdict_options": [
+        "ACCEPTABLE_BEST_EFFORT",
+        "CRITICAL_SILENT_FAILURE"
+      ],
+      "expected_verdict": "CRITICAL_SILENT_FAILURE",
+      "expected_reason_contains": "empty",
+      "rationale": "Check for Hidden Failures and the CRITICAL severity band both name the empty catch block as absolutely forbidden. Paired with SFH1, this confirms the agent distinguishes a documented best-effort path from a genuine swallowed failure instead of treating every unlogged catch the same way."
+    },
+    {
+      "id": "SFH3",
+      "desc": "Rejects a comment-only cleanup suppression with no runtime signal",
+      "input": "A finally block catches a temporary-file deletion error and contains only the comment 'best effort cleanup'. It emits no log, metric, trace, status, or returned diagnostic. The original operation succeeds. Decide whether the cleanup catch block is acceptable.",
+      "verdict_options": [
+        "ACCEPTABLE_BEST_EFFORT",
+        "CRITICAL_SILENT_FAILURE"
+      ],
+      "expected_verdict": "CRITICAL_SILENT_FAILURE",
+      "expected_reason_contains": "observable",
+      "rationale": "A comment can explain why cleanup failure is non-fatal, but it cannot reveal that a failure occurred. The cleanup exception requires a runtime signal through the repository's established observability path."
+    }
+  ]
+}

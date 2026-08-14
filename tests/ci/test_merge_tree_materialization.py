@@ -16,6 +16,7 @@ from scripts.ci import merge_tree_ratchet_check as _m
 from scripts.ci import ruff_count_ratchet as _ruff
 from tests.ci.test_merge_tree_ratchet_check import (
     _commit_all,
+    _git,
     _make_repo_with_baselines,
 )
 
@@ -77,6 +78,29 @@ def test_merge_tree_ruff_count_matches_direct_count_on_windows(tmp_path: Path) -
     assert direct_count > 0
     assert rc == _m.EXIT_OK
     assert merged_counts == [direct_count]
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_materialization_preserves_symlinks_when_git_config_disables_them(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    target = repo / "target.py"
+    target.write_text("value = 1\n", encoding="utf-8")
+    link = repo / "package_link"
+    try:
+        link.symlink_to(target.name)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    _commit_all(repo, "add symlink")
+    _git(repo, "config", "core.symlinks", "false")
+
+    destination = tmp_path / "materialized"
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    assert _mat.materialize_tree(repo, head, destination)
+    assert (destination / "package_link").is_symlink()
+    assert (destination / "package_link").read_text(encoding="utf-8") == "value = 1\n"
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -277,3 +301,14 @@ def test_make_writable_and_retry_reraises_non_permission_error(
 
     with pytest.raises(OSError, match="busy"):
         _mat._make_writable_and_retry(os.unlink, str(target), failure)
+
+
+def test_remove_tree_clears_readonly_files(tmp_path: Path) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    readonly = target / "pack.idx"
+    readonly.write_text("index\n", encoding="utf-8")
+    readonly.chmod(stat.S_IREAD)
+
+    assert _mat.remove_tree(target, "scratch") is None
+    assert not target.exists()

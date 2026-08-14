@@ -140,6 +140,8 @@ def _checkout_tree(
     prefix = f"{destination.resolve().as_posix()}/"
     checkout = run_git(
         repo_root,
+        "-c",
+        "core.symlinks=true",
         "checkout-index",
         "--all",
         "--force",
