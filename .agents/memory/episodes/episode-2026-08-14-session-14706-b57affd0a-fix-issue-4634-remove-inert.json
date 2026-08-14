@@ -94,7 +94,7 @@
         "e006"
       ],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
     },
@@ -104,14 +104,27 @@
       "type": "commit",
       "content": "Commit: 210e015a7c",
       "caused_by": [
-        "e007"
+        "e009"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T06:10:00+00:00",
+      "type": "milestone",
+      "content": "Opened pull request 4998 and renamed the QA report so the required CI check can bind it to the pull request",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
     }
   ],
   "metrics": {
-    "duration_minutes": 155,
+    "duration_minutes": 185,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

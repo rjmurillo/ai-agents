@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-14-issue-4634-duplicate-push-ref-staleness.md"
+        "Evidence": ".agents/qa/2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -153,6 +153,11 @@
       "time": "2026-08-14T05:40:00Z",
       "action": "Rebased onto the advanced origin/main, re-ran the affected suites, and wrote the QA report and per-issue handoff",
       "result": "Rebase clean with no overlap on changed files; suites green at bc179ad3a base; QA verdict PASS recorded at .agents/qa/2026-08-14-issue-4634-duplicate-push-ref-staleness.md"
+    },
+    {
+      "time": "2026-08-14T06:10:00Z",
+      "action": "Opened pull request 4998 and renamed the QA report so the required CI check can bind it to the pull request",
+      "result": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the report is now named 2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md; the qaCommit binding is unchanged"
     }
   ],
   "endingCommit": "210e015a7c",
