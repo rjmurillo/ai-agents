@@ -4,6 +4,6 @@
   "pr": 4986,
   "objective": "Respond to PR review comments, rebase to resolve merge conflicts, integrate resolve_executable from main",
   "status": "complete",
-  "endingCommit": "5bb182f6f6487c2012782cecc0ed2acf2077b9a2",
-  "commits": ["5bb182f6f6487c2012782cecc0ed2acf2077b9a2"]
+  "endingCommit": "2ec94f2bcb57e7b3f94e94ba372d926d794ea667",
+  "commits": ["2ec94f2bcb57e7b3f94e94ba372d926d794ea667"]
 }
