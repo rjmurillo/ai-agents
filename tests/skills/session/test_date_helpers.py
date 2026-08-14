@@ -109,3 +109,29 @@ def test_new_populated_session_log_uses_host_date_helper():
 
     assert "date: 2026-08-08" in populated
     assert "YYYY-MM-DD" not in populated
+
+
+@pytest.mark.parametrize(
+    ("utc_instant", "offset_hours"),
+    [
+        (datetime(2026, 8, 9, 6, 30, tzinfo=UTC), -7),  # host behind UTC (the bug)
+        (datetime(2026, 8, 8, 16, 0, tzinfo=UTC), 14),  # host ahead of UTC (Kiritimati)
+        (datetime(2026, 8, 14, 0, 0, tzinfo=UTC), 0),  # exact midnight
+        (datetime(2026, 12, 31, 23, 30, tzinfo=UTC), 14),  # year rollover, host ahead
+    ],
+)
+def test_creator_and_consumer_host_date_helpers_agree(utc_instant, offset_hours):
+    """The two physical copies of ``host_session_date`` must return the same value.
+
+    The plugin boundary forbids one shared import, so the creator-side copy in
+    ``session_init.date_helpers`` and the consumer-side copy in
+    ``scripts.hook_utilities.utilities`` are separate files. If they diverge, a
+    creator names a file the consumer cannot find (Issue #4779). Injecting one
+    clock into both pins them to identical output.
+    """
+    from session_init.date_helpers import host_session_date as creator_date
+
+    from scripts.hook_utilities.utilities import host_session_date as consumer_date
+
+    expected = _naive_local(utc_instant, offset_hours)
+    assert creator_date(now=lambda: expected) == consumer_date(now=lambda: expected)

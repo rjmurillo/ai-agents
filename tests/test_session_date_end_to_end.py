@@ -1,0 +1,115 @@
+"""End-to-end date-authority test: creator names it, every consumer finds it.
+
+Issue #4779. The unit tests inject a clock, so passing under two ``TZ`` values
+only proves test isolation. This module proves the whole pipeline: it sets a
+real ``TZ`` (both drift directions plus UTC), lets a real creator name a session
+log with the real host clock, then asserts each date-prefix consumer locates the
+same file with its own real host clock. Creator and consumers share one date
+authority, so a far-east session near midnight UTC stays visible.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SESSION_INIT_SCRIPTS = REPO_ROOT / ".claude" / "skills" / "session-init" / "scripts"
+PRECOMPACT_DIR = REPO_ROOT / ".claude" / "hooks" / "PreCompact"
+
+for _path in (str(SESSION_INIT_SCRIPTS), str(PRECOMPACT_DIR)):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
+import invoke_compact_checkpoint  # noqa: E402
+import new_session_log_json  # noqa: E402
+
+from scripts.hook_utilities.utilities import get_recent_session_log  # noqa: E402
+from scripts.validation.git_hook_policy import (  # noqa: E402
+    _recent_session_candidates,
+)
+
+# Both drift directions plus the no-offset control. Kiritimati is UTC+14, so its
+# host date runs a day ahead of UTC; Los Angeles is UTC-7/8, a day behind.
+_TIMEZONES = ["UTC", "Pacific/Kiritimati", "America/Los_Angeles"]
+
+
+@pytest.fixture(params=_TIMEZONES)
+def host_timezone(request: pytest.FixtureRequest):
+    """Set a real process timezone so ``datetime.now()`` reads host-local."""
+    original = os.environ.get("TZ")
+    os.environ["TZ"] = request.param
+    time.tzset()
+    try:
+        yield request.param
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def _create_session_log(tmp_path: Path) -> Path:
+    """Drive the real JSON creator; return the file it named."""
+    sessions_dir = tmp_path / ".agents" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    with patch.object(new_session_log_json, "_get_repo_root", return_value=str(tmp_path)), \
+         patch.object(new_session_log_json, "_get_branch", return_value="fix/4779-e2e"), \
+         patch.object(new_session_log_json, "_get_commit", return_value="abc1234"):
+        exit_code = new_session_log_json.main(
+            ["--session-number", "1", "--objective", "end to end"]
+        )
+    assert exit_code == 0
+    created = list(sessions_dir.glob("*.json"))
+    assert len(created) == 1
+    return created[0]
+
+
+def test_hook_utilities_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """``get_recent_session_log`` locates the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    result = get_recent_session_log(str(sessions_dir))
+
+    assert result is not None, f"consumer missed the log under TZ={host_timezone}"
+    assert result.name == created.name
+
+
+def test_git_hook_policy_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """``_recent_session_candidates`` includes the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    candidates = _recent_session_candidates(sessions_dir)
+
+    assert candidates is not None, f"scan returned None under TZ={host_timezone}"
+    assert created in candidates, f"candidate set missed the log under TZ={host_timezone}"
+
+
+def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """The checkpoint fallback locates the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    result = invoke_compact_checkpoint._fallback_get_recent_session_log(
+        str(sessions_dir)
+    )
+
+    assert result is not None, f"fallback missed the log under TZ={host_timezone}"
+    assert Path(result).name == created.name
+
+
+def test_created_filename_matches_host_date_not_utc(host_timezone, tmp_path):
+    """The filename date equals the host-local date the JSON payload records."""
+    created = _create_session_log(tmp_path)
+
+    payload = json.loads(created.read_text(encoding="utf-8"))
+    assert created.name == f"{payload['session']['date']}-session-1.json"
