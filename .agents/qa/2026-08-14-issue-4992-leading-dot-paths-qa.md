@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14708-bf825392c-fix-issue-4992-leading-dot-github.json
-qaCommit: b8a579ba79fd1f0fca0c2a4b6e7a7fbc9b4c2f37
+qaCommit: e10ff1c2036e5865041628f7c3916db573e69d3f
 ---
 
 # Issue 4992 Leading-Dot Path QA
