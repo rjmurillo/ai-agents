@@ -5,15 +5,30 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from scripts.cli_exec import resolve_executable
 
 _CLEANUP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 _TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EBUSY, errno.ENOTEMPTY})
+
+
+def _make_writable_and_retry(
+    function: Callable[[str], object], path: str, exc: BaseException
+) -> None:
+    """Clear a Windows read-only attribute, then retry the failed removal."""
+    if not isinstance(exc, PermissionError):
+        raise exc
+    try:
+        os.chmod(path, os.stat(path).st_mode | stat.S_IWRITE)
+        function(path)
+    except FileNotFoundError:
+        return
 
 
 def run_git(
@@ -79,7 +94,7 @@ def remove_tree(path: Path, label: str) -> str | None:
     """Remove one temporary tree, returning a diagnostic instead of hiding failure."""
     for delay in (*_CLEANUP_RETRY_DELAYS, None):
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(path, onexc=_make_writable_and_retry)
             return None
         except FileNotFoundError:
             return None

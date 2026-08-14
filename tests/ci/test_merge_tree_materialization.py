@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import errno
+import os
 import shutil
+import stat
 from pathlib import Path
 from unittest.mock import call, patch
 
@@ -133,7 +135,7 @@ def test_remove_tree_retries_transient_permission_error(tmp_path: Path) -> None:
     real_rmtree = shutil.rmtree
     attempts = 0
 
-    def remove_after_transient_lock(path: Path) -> None:
+    def remove_after_transient_lock(path: Path, **_: object) -> None:
         nonlocal attempts
         attempts += 1
         if attempts <= 4:
@@ -182,7 +184,7 @@ def test_remove_tree_retries_transient_os_error(tmp_path: Path) -> None:
     real_rmtree = shutil.rmtree
     attempts = 0
 
-    def remove_after_transient_error(path: Path) -> None:
+    def remove_after_transient_error(path: Path, **_: object) -> None:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
@@ -216,7 +218,7 @@ def test_remove_tree_reports_permanent_os_error_without_retry(tmp_path: Path) ->
         error = _mat.remove_tree(target, "scratch")
 
     assert error == "scratch cleanup failed: OSError: [Errno 5] I/O error"
-    remove.assert_called_once_with(target)
+    remove.assert_called_once_with(target, onexc=_mat._make_writable_and_retry)
     sleep.assert_not_called()
 
 
@@ -229,5 +231,49 @@ def test_remove_tree_missing_path_does_not_retry(tmp_path: Path) -> None:
         error = _mat.remove_tree(target, "scratch")
 
     assert error is None
-    remove.assert_called_once_with(target)
+    remove.assert_called_once_with(target, onexc=_mat._make_writable_and_retry)
     sleep.assert_not_called()
+
+
+def test_make_writable_and_retry_clears_readonly_attribute(tmp_path: Path) -> None:
+    target = tmp_path / "readonly"
+    target.write_text("content", encoding="utf-8")
+    target.chmod(target.stat().st_mode & ~stat.S_IWRITE)
+
+    with patch.object(_mat.os, "chmod", wraps=os.chmod) as chmod:
+        _mat._make_writable_and_retry(os.unlink, str(target), PermissionError())
+
+    assert not target.exists()
+    chmod.assert_called_once()
+
+
+@pytest.mark.parametrize("missing_step", ["stat", "retry"])
+def test_make_writable_and_retry_accepts_concurrent_removal(
+    tmp_path: Path, missing_step: str
+) -> None:
+    target = tmp_path / "disappearing"
+    target.write_text("content", encoding="utf-8")
+
+    if missing_step == "stat":
+        target.unlink()
+        _mat._make_writable_and_retry(os.unlink, str(target), PermissionError())
+    else:
+        def removed_before_retry(path: str) -> None:
+            Path(path).unlink()
+            raise FileNotFoundError(path)
+
+        _mat._make_writable_and_retry(
+            removed_before_retry, str(target), PermissionError()
+        )
+
+    assert not target.exists()
+
+
+def test_make_writable_and_retry_reraises_non_permission_error(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "locked"
+    failure = OSError(errno.EBUSY, "busy")
+
+    with pytest.raises(OSError, match="busy"):
+        _mat._make_writable_and_retry(os.unlink, str(target), failure)
