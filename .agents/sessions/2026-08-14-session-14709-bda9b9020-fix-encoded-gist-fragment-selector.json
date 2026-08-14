@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed as 6fd2fec803b018ee2137221b61947c3c40a5c8fb and memory evidence committed as b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328"
+        "Evidence": "Final implementation and review fixes committed through 250415ae96f3f83cb0411e9daf69897e97d0bbf7"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "85 targeted tests, Ruff, mypy, build_all.py --check, pre_pr.py, CWE-78 scan, code review, and security review passed"
+        "Evidence": "92 targeted tests, Ruff, mypy, build_all.py --check, CWE-78 scan, code review, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,11 +137,15 @@
       "result": "Canonical and Copilot gist routing modules contain the same reviewed implementation."
     },
     {
-      "action": "Validated and independently reviewed commits through b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328",
-      "result": "85 targeted tests, Ruff, mypy, generated-artifact checks, pre-PR validation, CWE-78 scan, code review, security review, and memory size validation passed."
+      "action": "Resolved PR 5007 line-anchor review findings",
+      "result": "Restricted anchors to positive ASCII integers, rejected malformed ranges from their first candidate, and added zero, leading-zero, Unicode-digit, and extra-endpoint negative controls."
+    },
+    {
+      "action": "Validated and independently reviewed commits through 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "result": "92 targeted tests, Ruff, mypy, generated-artifact checks, CWE-78 scan, code review, security review, and memory size validation passed."
     }
   ],
-  "endingCommit": "b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328",
+  "endingCommit": "250415ae96f3f83cb0411e9daf69897e97d0bbf7",
   "nextSteps": [
     "Push fix/5001-gist-fragment-hardening and open one PR with Fixes #5001.",
     "Add PR-numbered QA evidence, clear exact CI and review gates, merge, and confirm issue 5001 closes."

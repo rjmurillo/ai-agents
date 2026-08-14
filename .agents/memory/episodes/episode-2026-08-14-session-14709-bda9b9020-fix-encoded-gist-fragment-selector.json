@@ -61,7 +61,9 @@
         "e002",
         "e003",
         "e004",
-        "e006"
+        "e006",
+        "e008",
+        "e009"
       ],
       "leads_to": [
         "e007"
@@ -87,6 +89,41 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR 5007 line-anchor review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and independently reviewed commits through 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T23:08:10+00:00",
+      "type": "commit",
+      "content": "Commit: 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
     }
@@ -96,8 +133,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 9
   },
   "lessons": []
 }
