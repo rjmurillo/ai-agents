@@ -877,10 +877,23 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 
     return result
 
+
 # File names the canonical memory loader skips. Kept in parity with
 # scripts/memory_enhancement/serena_integration.py load_memories so this gate
 # guards exactly the files that reach the loader (PR #4985 review).
 _CANONICAL_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
+
+# Delimiter that opens and closes a frontmatter block. Copied from the parser
+# the canonical loader calls, python-frontmatter's YAMLHandler, quoted verbatim
+# from frontmatter/default_handlers.py:
+#     FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
+# THREE OR MORE dashes, not exactly three. A differential probe over both
+# implementations found the difference: `----` opened a block for the loader,
+# which then raised YAMLError and printed the #4918 warning, while a gate
+# keying on `== "---"` stayed silent. Matching the parser's own pattern closes
+# that false negative. re.MULTILINE is dropped here because this matches one
+# already-split line rather than scanning a whole document.
+_FM_BOUNDARY = re.compile(r"^-{3,}\s*$")
 
 
 def _parse_leading_frontmatter(
@@ -898,18 +911,28 @@ def _parse_leading_frontmatter(
     - ``(True, None, error)`` when the opening delimiter never closes or the
       block is not parseable YAML. ``error`` is a one-line reason.
 
-    Stricter than ``frontmatter.loads``, which silently returns empty metadata
-    for an unclosed delimiter, a list, or a scalar (issue #4918). Detection
-    keys on the first line being exactly ``---`` so a horizontal rule later in
-    the body is never misread as frontmatter.
+    Detection mirrors ``frontmatter.loads``: a block opens only when the FIRST
+    line is a ``_FM_BOUNDARY`` delimiter, so a horizontal rule later in the body
+    is never misread as frontmatter, and it closes at the next delimiter line,
+    whose dash count need not match the opening one (the canonical
+    ``FM_BOUNDARY.split(text, 2)`` does not require that either).
+
+    Stricter/looser/different than canonical:
+
+    - STRICTER on an unclosed delimiter, a list block, and a scalar block.
+      ``frontmatter.loads`` returns empty metadata for all three and warns for
+      none, which is how corruption reaches main (issue #4918).
+    - STRICTER on a leading UTF-8 BOM. ``FM_BOUNDARY.match`` fails on the BOM,
+      so the loader reads a BOM-prefixed file as plain Markdown and silently
+      drops its metadata; this gate strips the BOM and validates the block.
     """
     if text.startswith("\ufeff"):
         text = text[1:]
     lines = text.splitlines()
-    if not lines or lines[0].rstrip() != "---":
+    if not lines or not _FM_BOUNDARY.match(lines[0]):
         return False, None, None
     for idx in range(1, len(lines)):
-        if lines[idx].rstrip() == "---":
+        if _FM_BOUNDARY.match(lines[idx]):
             block = "\n".join(lines[1:idx])
             try:
                 metadata = yaml.safe_load(block)
@@ -925,9 +948,10 @@ def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
 
     Scans .md files under memory_path recursively, skipping only ``README.md``
     and ``CLAUDE.md`` to match the canonical loader's selection (see the comment
-    below). A file that opens with a frontmatter block (first line exactly
-    ``---``) must close that block and carry a YAML mapping. A file with no
-    leading frontmatter is fine: frontmatter is optional in existing Serena
+    below). A file that opens with a frontmatter block (first line matching
+    ``_FM_BOUNDARY``, three or more dashes) must close that block and carry a
+    YAML mapping. A file with no leading frontmatter is fine: frontmatter is
+    optional in existing Serena
     memories (issue #4900), so a plain-Markdown file, or one with a later
     horizontal rule, is not a violation.
 

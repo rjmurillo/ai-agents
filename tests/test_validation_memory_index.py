@@ -12,7 +12,9 @@ from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 
+import frontmatter
 import pytest
+import yaml
 
 from scripts.validation.memory_index import (
     DomainIndex,
@@ -2373,6 +2375,44 @@ _EMPTY_FRONTMATTER = """\
 # Body
 """
 
+# python-frontmatter's boundary is `^-{3,}\\s*$`, so four dashes open a real
+# block for the canonical loader: it raises YAMLError and prints the #4918
+# warning. A gate keying on `== "---"` stayed silent on these two shapes, which
+# is the false negative a differential probe found (PR #4985 review).
+_MALFORMED_FOUR_DASH = """\
+----
+description: Constraints for spec artifacts (REQ/DESIGN/TASK): read first
+----
+
+# Body
+"""
+
+_MALFORMED_FIVE_DASH = """\
+-----
+description: Constraints for spec artifacts (REQ/DESIGN/TASK): read first
+-----
+
+# Body
+"""
+
+# Opening and closing dash counts differ. The canonical split takes the next
+# boundary line whatever its width, so this parses and must not be flagged.
+_VALID_MIXED_DASH_WIDTHS = """\
+---
+title: Valid memory
+-----
+
+# Body
+"""
+
+# `--- ---` is not a boundary under `^-{3,}\\s*$`: the trailing dashes are not
+# whitespace. Plain Markdown, no frontmatter, no violation.
+_DASHES_WITH_TRAILING_TEXT = """\
+--- ---
+
+Body text with a colon: value that is not frontmatter.
+"""
+
 
 class TestCheckFrontmatterValidity:
     """Tests for YAML frontmatter validity validation (issue #4918)."""
@@ -2434,6 +2474,68 @@ class TestCheckFrontmatterValidity:
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
         assert result.invalid_files == []
+
+    def test_four_dash_delimiter_malformed_detected(self, tmp_path: Path) -> None:
+        # Four dashes open a block for python-frontmatter (`^-{3,}\s*$`), so
+        # the loader warns while a `== "---"` check stayed silent (PR #4985).
+        (tmp_path / "four-dash-memory.md").write_text(_MALFORMED_FOUR_DASH)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["four-dash-memory.md"]
+
+    def test_five_dash_delimiter_malformed_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "five-dash-memory.md").write_text(_MALFORMED_FIVE_DASH)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["five-dash-memory.md"]
+
+    def test_mixed_delimiter_widths_pass(self, tmp_path: Path) -> None:
+        # The canonical split closes at the next boundary of any width, so a
+        # `---` open with a `-----` close is valid, not an unclosed block.
+        (tmp_path / "mixed-memory.md").write_text(_VALID_MIXED_DASH_WIDTHS)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_dashes_with_trailing_text_not_frontmatter(
+        self, tmp_path: Path
+    ) -> None:
+        # Widening the delimiter must not widen it into `--- ---`, which the
+        # canonical boundary rejects because `-` is not whitespace.
+        (tmp_path / "hr-text-memory.md").write_text(_DASHES_WITH_TRAILING_TEXT)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            _MALFORMED_FRONTMATTER,
+            _MALFORMED_FOUR_DASH,
+            _MALFORMED_FIVE_DASH,
+        ],
+        ids=["three-dash", "four-dash", "five-dash"],
+    )
+    def test_gate_flags_every_shape_the_loader_warns_about(
+        self, tmp_path: Path, content: str
+    ) -> None:
+        """Differential guard: no false negative against the canonical parser.
+
+        The gate exists to stop what `memory_enhancement verify-all` only warns
+        about, so the loader raising `yaml.YAMLError` and the gate staying
+        silent is the one failure that makes it decorative. Driving the real
+        `frontmatter.loads` here means a future upstream change to
+        `FM_BOUNDARY` fails this test rather than silently reopening the gap.
+        """
+        with pytest.raises(yaml.YAMLError):
+            frontmatter.loads(content)
+
+        (tmp_path / "probe-memory.md").write_text(content)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False, (
+            "canonical loader raised YAMLError but the gate stayed silent"
+        )
+        assert result.invalid_files == ["probe-memory.md"]
 
     def test_only_malformed_flagged_in_mixed_tree(self, tmp_path: Path) -> None:
         (tmp_path / "good.md").write_text(_VALID_FRONTMATTER)
