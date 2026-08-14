@@ -7,9 +7,9 @@ and extract descriptive keywords from objectives.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 
 from .common_types import ApplicationFailedError
+from .date_helpers import host_session_date
 
 _STOP_WORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
@@ -100,7 +100,7 @@ def new_populated_session_log(
                     "Session log cannot be created."
                 )
 
-        current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        current_date = host_session_date()
 
         populated = template
         populated = re.sub(r"\bNN\b", str(user_input["session_number"]), populated)
