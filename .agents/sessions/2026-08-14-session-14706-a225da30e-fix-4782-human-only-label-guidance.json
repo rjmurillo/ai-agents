@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4782-human-only-label-guidance.md"
+        "Evidence": ".agents/qa/pr-4997-human-only-label-guidance.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -152,6 +152,6 @@
   ],
   "endingCommit": "c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
   "nextSteps": [
-    "Open one templated PR for issue #4782 and let CI settle. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
+    "PR #4997 is open. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
   ]
 }

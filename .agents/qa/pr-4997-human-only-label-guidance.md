@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-14-session-14706-a225da30e-fix-4782-human
 qaCommit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43
 ---
 
-# QA Report: issue #4782, enforcement messages naming a human-only label
+# QA Report: PR #4997, issue #4782, enforcement messages naming a human-only label
 
 ## Scope
 
