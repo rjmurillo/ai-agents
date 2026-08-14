@@ -220,6 +220,7 @@ needed.
 # Validators enforce a path-traversal guard: the target skill directory must
 # live under your current directory. Run them from an ancestor of the skill.
 ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+ROOT="$(cd "$ROOT" && pwd)"
 FORGE="$ROOT/skills/skillforge/scripts"
 cd "$ROOT/skills"
 python "$FORGE/quick_validate.py" my-skill/     # required before packaging
