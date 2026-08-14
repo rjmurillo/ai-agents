@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 481d9b8f6a195d40aea6f765b5ae30105f1d9d29"
+        "Evidence": "All non-evidence code committed through a1770dda977122c71f61af78dfc9925503db4609"
       },
       "validationPassed": {
         "level": "MUST",
@@ -166,8 +166,12 @@
     {
       "action": "Fixed project-local fallback runtime resolution",
       "result": "Resolved ROOT to an absolute path before cd; generator tests and variables-unset runtime probe passed"
+    },
+    {
+      "action": "Resolved installed-path and eval provenance findings",
+      "result": "Kept executables plugin-root anchored, targeted global skill workspace, removed cross-root reference, made base/treatment paths explicit, and passed generator/runtime checks"
     }
   ],
-  "endingCommit": "481d9b8f6a195d40aea6f765b5ae30105f1d9d29",
+  "endingCommit": "a1770dda977122c71f61af78dfc9925503db4609",
   "nextSteps": []
 }
