@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up commits b985c58bae and c636b5b315 were committed and validated; original implementation history remains intact."
+        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a were committed and validated; original implementation history remains intact."
       },
       "validationPassed": {
         "level": "MUST",
@@ -166,9 +166,9 @@
     },
     {
       "action": "Refreshed validation for the exit-code documentation follow-up.",
-      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at c636b5b315."
+      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at 52a1c5414a."
     }
   ],
-  "endingCommit": "c636b5b31559667b7bf0434421664e60d7192d7f",
+  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
   "nextSteps": []
 }
