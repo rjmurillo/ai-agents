@@ -13,24 +13,16 @@ Exit codes follow ADR-035:
     2 - Configuration invalid
     3 - Scan execution failed (CLI not found, script error)
 
-Delegate contracts (quoted verbatim from the canonical sources, per
-`.claude/rules/canonical-source-mirror.md`):
+Delegate contracts (see canonical source files for full signatures):
 
-``.codeql/scripts/test_codeql_config.py`` build_parser():
-    parser.add_argument("--config-path", ...)
-    parser.add_argument("--ci", action="store_true", ...)
-    parser.add_argument("--format", choices=["console", "json"], default="console",
-                        dest="output_format", ...)
-Its ``main()`` returns ``2`` when the config file is absent, and
-``return 0 if validation["valid"] else 1`` otherwise.
+``.codeql/scripts/test_codeql_config.py`` build_parser() (lines 35-53):
+    --config-path, --ci, --format (console|json)
+    main() returns 2 when config absent, 0 if valid else 1.
 
-``.codeql/scripts/invoke_codeql_scan.py`` build_parser():
-    parser.add_argument("--repo-path", default=os.environ.get("CODEQL_REPO_PATH", "."), ...)
-    parser.add_argument("--languages", nargs="*", default=None, ...)
-    parser.add_argument("--use-cache", action="store_true", ...)
-    parser.add_argument("--ci", action="store_true", ...)
-Its documented exit codes are ``0`` success, ``1`` logic error or findings in CI
-mode, ``2`` configuration error, ``3`` external dependency error.
+``.codeql/scripts/invoke_codeql_scan.py`` build_parser() (lines 33-78):
+    --repo-path, --config-path, --database-path, --results-path,
+    --languages, --use-cache, --ci, --format (console|sarif|json), --quick-scan
+    Exit codes: 0 success, 1 findings/error, 2 config error, 3 dependency error.
 
 ``.codeql/scripts/install_codeql.py`` build_parser():
     parser.add_argument("--add-to-path", action="store_true", ...)
