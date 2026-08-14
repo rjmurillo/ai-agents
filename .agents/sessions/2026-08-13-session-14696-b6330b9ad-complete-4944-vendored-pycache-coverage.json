@@ -180,5 +180,8 @@
     "Push test/4923-cache-exclusion-coverage.",
     "Re-check PR #4944 reviews and required checks.",
     "Merge PR #4944 after required checks pass."
-  ]
+  ],
+  "episodeMetrics": {
+    "filesChanged": 8
+  }
 }
