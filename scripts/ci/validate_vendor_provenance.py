@@ -53,6 +53,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Hook bootstrap",
     ),
     (
+        ".claude/hooks/PreToolUse/invoke_require_subagent_model.py",
+        "c81ad3d83a953b0eb5f9235395991e16825f7892ebe30582b35be585814215e6",
+        "Require explicit sub-agent model guard",
+    ),
+    (
         ".claude/hooks/PreToolUse/invoke_markdownlint_guard.py",
         "236e1310f325bbb5c6fea8d71af61a578e58e7fe72c9f2c14a6903bb9122fb76",
         "Markdownlint guard invoker",
@@ -125,13 +130,18 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/invoke_push_pr_script_identity_guard__Bash_f620ca.py",
-        "5160d7f158810339034c80d7a73f6d3fee784514f8051e4b2e0a1eb8e95cd109",
+        "03ed67c363ef927d78c2e6db3e521fbcc1cc982e1bdfcfcbf6c8a0f1d6bd972c",
         "Generated push PR script identity guard mirror",
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
-        "2016218b8e3be302820c0b0c97cd7f95370381d6b171cb244919e9a2e3215e92",
+        "1ace4b27be46dd7105430073e92eac466854fe52799f1fda19c5709ccffe3969",
         "Generated markdownlint guard mirror",
+    ),
+    (
+        "src/copilot-cli/hooks/PreToolUse/invoke_require_subagent_model__Agent_Task_456aac.py",
+        "a08cfc5d0510b44943ea9f4056b929ac1d1a458ffa8464195d5f522d279ca93b",
+        "Generated require-subagent-model guard mirror",
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_commands.py",
@@ -202,7 +212,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_hooks_body.py",
-        "93e0c7361ebb383d8c98292b3f2dd3cfac5fea6a388d1fe5d7b4883efcff9bcc",
+        "5c98f1d3b2ea457a15124bfae2d9c100a02850b65853f492394dc12c6fca74be",
         "Build script (hooks generator import)",
     ),
     (
@@ -217,7 +227,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_hooks_shim.py",
-        "d4886a88186cc03863ce3859ee18d8b97b3fb2669ab298569d359d5e16318abe",
+        "a76dd53e57dfbbcbe9391bba05f17ba1288ed94c713c405917825849b798c12a",
         "Build script (hooks generator import)",
     ),
     (
@@ -294,7 +304,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/PostToolUse/invoke_markdown_auto_lint__Write_Edit_c39898.py",
-        "c8ba3058ac761c38260ff88fa52dd128fd6f6f6487b37f82aee9656a32f0ee7c",
+        "291a1ff814d6b2597b769a3f50a292e547d5f614014c616977b5def844f7ec7c",
         "PostToolUse markdownlint guard",
     ),
     # --- Build scripts (full closure) ---
@@ -345,7 +355,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_hooks.py",
-        "4292203a0900c075fb600c49954b98d4f00f030d49c205659858cab5e3a49572",
+        "683f8f711629da35748589fabe3a8be43a72a87747f29bd7eb0eb93de392e556",
         "Build script",
     ),
     (
@@ -406,12 +416,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Hook wiring / config inputs ---
     (
         "src/copilot-cli/hooks/PreToolUse/_manifest.json",
-        "74adb01aca47b1a187b4a1314193485915a81b140e4f0f97a62b51571961c41a",
+        "6ae49c235033af22ca24395b63e248b87c3ffc9e2b2c44b353a2f477f1904eba",
         "Hook wiring manifest",
     ),
     (
         ".claude/hooks/dispatch_groups.json",
-        "d89f1bc5020d03ac03457142620697f6910a0a9e6e3ba05716271a9914cbb483",
+        "97de568309304b92387a806bb0e68a65c5aba286132afaead769b9bb0cb9dd86",
         "Hook wiring dispatch groups",
     ),
     (
@@ -426,12 +436,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".markdownlint-cli2.yaml",
-        "8c61fc716026d272d9f7847747cfb4d01b5dddd78e57d110136fe6ba321c8f1b",
+        "17c5a7d9f537f58626cd05138177a253ec06e685b1a59a53acc88be08852f863",
         "Markdownlint config (pinned safe config)",
     ),
     (
         ".claude/hooks/hooks.json",
-        "7a6be388c997cbbefbf542a281bcf5d2e695a6bbee47eb3f9ab8ed072427fba9",
+        "ec1f54f17efd974a7d05db7ab8ebb277b93c97069e4392c5e95ea5342594dd2c",
         "Hook wiring",
     ),
     (
@@ -441,7 +451,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/hooks.json",
-        "7e6d5a0a0bfb823ea967b049a5430c4f595733f808c1ca9f71243402ad7d2820",
+        "47d4ef54c7f0459083c5cbebc7952d5323c16c89dcfd80d062ff4f28c3a0c86e",
         "Hook wiring",
     ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
@@ -582,7 +592,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/hook_dispatch.py",
-        "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
+        "cc88353d58c9c6d55d684cc33be7d0dbb05d9b88dba10e9438714175dea5af20",
         "Lib: .claude/lib/hook_dispatch.py",
     ),
     (
@@ -777,7 +787,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/hook_dispatch.py",
-        "3ad0408099710eced8a30655680882ab13d99dd1cd4637a5e453cc1b7b76a92d",
+        "cc88353d58c9c6d55d684cc33be7d0dbb05d9b88dba10e9438714175dea5af20",
         "Lib: src/copilot-cli/lib/hook_dispatch.py",
     ),
     (
