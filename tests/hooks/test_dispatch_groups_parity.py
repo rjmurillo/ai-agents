@@ -157,6 +157,8 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         "invoke_markdownlint_guard.py",
         # Gate groups do not take the plugin dispatcher's self-host bail.
         "invoke_push_pr_script_identity_guard.py",
+        # ADR-085: settings.json twin removed; gate-mode groups skip self-host bail.
+        "invoke_require_subagent_model.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
