@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,7 +37,7 @@ class TestFallbackRecentSessionLog:
     def test_skips_candidate_that_disappears_during_stat(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         disappeared = tmp_path / f"{today}-session-001.json"
         readable = tmp_path / f"{today}-session-002.json"
         disappeared.write_text("{}", encoding="utf-8")
@@ -62,7 +62,7 @@ class TestFallbackRecentSessionLog:
     def test_falls_back_to_yesterday_when_today_candidates_are_unreadable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        now = datetime.now(tz=UTC)
+        now = datetime.now()
         today = now.strftime("%Y-%m-%d")
         yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         unreadable = tmp_path / f"{today}-session-001.json"

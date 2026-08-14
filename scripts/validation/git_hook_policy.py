@@ -41,6 +41,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -983,7 +984,15 @@ def _current_branch(repo_root: Path) -> str | None:
 
 
 def _recent_date_prefixes() -> tuple[str, str]:
-    """Return today's and yesterday's UTC date strings for cross-midnight tolerance."""
+    """Return today's and yesterday's UTC date strings for cross-midnight tolerance.
+
+    UTC anchor. Retains parity with the retrospective creator
+    (``run_retrospective.py``), which names retrospective files by the UTC date.
+    Session logs use a different authority: they are named by the host local
+    date (Issue #4779), so session-log scanning routes through
+    ``recent_host_session_dates`` instead. Do not merge the two; a UTC consumer
+    reading a host-local session date is exactly the bug #4779 fixes.
+    """
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
@@ -995,13 +1004,16 @@ def _recent_date_prefixes() -> tuple[str, str]:
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     """Return today's and yesterday's session logs, or None if unreadable.
 
-    The two-day window handles cross-midnight UTC sessions. Returning None
-    rather than an empty list keeps "directory unreadable" distinguishable
-    from "no logs today", because both callers fail open on the former.
+    The two-day window handles cross-midnight sessions. Dates come from
+    ``recent_host_session_dates`` (host local), the same authority the creator
+    uses to name the file (Issue #4779); a UTC anchor here would make a
+    far-east session invisible near midnight. Returning None rather than an
+    empty list keeps "directory unreadable" distinguishable from "no logs
+    today", because both callers fail open on the former.
     """
     if not sessions_dir.is_dir():
         return None
-    today, yesterday = _recent_date_prefixes()
+    today, yesterday = recent_host_session_dates()
     candidates: list[Path] = []
     try:
         candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
@@ -1127,10 +1139,11 @@ def _is_committed_here(repo_root: Path, path: Path) -> bool:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
-    Checks both today's and yesterday's UTC dates to handle cross-midnight
-    sessions gracefully. Follows hook_utilities.get_today_session_log selection
-    semantics (newest UTC-dated session log by mtime) with the per-file stat
-    resilience of hook_utilities._newest_by_mtime: a single unreadable candidate
+    Checks both today's and yesterday's host-local dates to handle
+    cross-midnight sessions gracefully (Issue #4779). Follows
+    hook_utilities.get_today_session_log selection semantics (newest dated
+    session log by mtime) with the per-file stat resilience of
+    hook_utilities._newest_by_mtime: a single unreadable candidate
     (deleted or renamed mid-scan, permission race) is skipped rather than
     blinding the check to every other valid log. An empty match or an unreadable
     directory yields None so branch-context checking fails open.

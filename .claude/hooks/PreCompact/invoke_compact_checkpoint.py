@@ -31,12 +31,19 @@ from pathlib import Path
 
 
 def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
-    """Return the newest readable session log from today or yesterday."""
+    """Return the newest readable session log from today or yesterday.
+
+    Runs only when ``hook_utilities`` cannot be imported, so it cannot route
+    through ``hook_utilities.recent_host_session_dates``. It applies the same
+    host-local date rule inline: session logs are named by the contributor's
+    host local date, not UTC (Issue #4779), so a UTC-anchored scan would miss
+    a far-east session near midnight.
+    """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
         return None
 
-    now = datetime.now(tz=UTC)
+    now = datetime.now()  # host-local date authority (Issue #4779)
     for offset in (0, 1):
         date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
         try:
