@@ -148,7 +148,7 @@
       "result": "code-review on gpt-5.6-terra returned 0 Critical and 0 High, and three accuracy findings, all adopted. It disproved my phrasing that a non-zero --left-right left count predicts the size of the lie: the count is commits, not lines, and it measured left 9 against 6924 invented deletions. It caught that 'adds three lines' sat unexplained beside a 118-insertion row, the difference being the 115-line session log. And it found the two-dot row no longer reproduced, because the branch had fallen to 9 behind while the review ran, which is the claim rather than a caveat on it, so the base SHA is now pinned and the re-measurement recorded. It confirmed from the man pages, not folklore, that git diff A..B is an alias for git diff A B and that three-dot is merge-base based, which is the semantics the entry depends on."
     }
   ],
-  "endingCommit": "0e55194e2",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Issue #4401 tracks the ADR-043 correction note."
   ]

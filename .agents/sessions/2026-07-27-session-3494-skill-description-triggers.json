@@ -150,7 +150,7 @@
       "step": "Merged current main, which had moved and had itself added a SKIP clause to the github description. Resolved four conflicts by hand so the promoted phrase sits ahead of main's SKIP clause rather than replacing it, and kept the manifests at 0.6.141 against main's 0.6.140."
     }
   ],
-  "endingCommit": "3e8de52c7e0e735c3863fc39b66f07c7c4b44018",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "19 skills still have no genuine quoted user phrase from their own trigger table. #3496 covers two of them that cannot be edited until their structural errors are fixed.",
     "#3496 tracks the observability and taste-lints structural failures, independently reproduced by the reviewer against unmodified main.",

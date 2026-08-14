@@ -337,7 +337,7 @@
       "step": "Verified: 111 gate tests, 1378 passed and 1 skipped across tests/validation plus the parser suite, live gate PASS in 2.85s, ruff clean, zero dash bytes, pre_pr.py all validations passed."
     }
   ],
-  "endingCommit": "320b38c45f",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR with Fixes #3716. The description must state plainly that this fixes the route, not merge resolution on Copilot: project-toolkit:merge-resolver still returns BLOCKED in Phase 0 because it has no shell tool (issue #3719). Bundling the toolset grant is security-relevant and stays separate.",
     "File the reviewer-evidence rule as its own atomic PR: a finding changes code only when it ships an executed fixture. Two rounds running, the reviewer that attached fixtures was right every time, and the reviewer that reasoned without them approved the exact symlink handling where two fail-opens were later confirmed. Needs the rule file, both generated mirrors, and three plugin manifest bumps.",

@@ -148,7 +148,7 @@
       "outcome": "The GOTCHAS sentence carried forward 'neither remedy proposed there has shipped'. Checked: gh issue view 3755 reports CLOSED at 2026-08-05T04:55:46Z, and its body names strict_required_status_checks_policy = False on ruleset 11104075 as the structural cause. So the strict flip is that issue's shipped remedy and the carried claim was false. Rewrote the GOTCHAS paragraph to say strict true closes the behind-main merge race and the absent merge_queue rule is what remains uncovered. Recorded the same provenance in the memory so the flip reads as issue 3755 landing rather than as drift."
     }
   ],
-  "endingCommit": "3ab4d4883157ea17ac55a6d373108c1515c2ec26",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit and push PR 4773 review fixes",
     "Reply to and resolve both review threads",

@@ -17,7 +17,7 @@
       "result": "Ran markdownlint-cli2 --fix on changed markdown files."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "session": {
     "number": 911,
     "startingCommit": "febfd71",

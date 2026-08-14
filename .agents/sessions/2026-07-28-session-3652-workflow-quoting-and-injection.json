@@ -109,7 +109,7 @@
       "step": "Inverted one pre-existing test that asserted inputs.* was safe, which was the vulnerable behavior written down. Added 40 tests covering the allowlist, taint propagation, truncation detection, and two live-tree regression pins with a did-the-scan-actually-run control. 80 pass, ruff clean."
     }
   ],
-  "endingCommit": "9e34893ba",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the pull request for issues #3652 and #3664.",
     "Comment on issue #3652: its body describes plugin path portability, not name truncation.",

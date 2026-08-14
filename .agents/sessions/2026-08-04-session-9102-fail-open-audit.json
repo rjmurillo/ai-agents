@@ -138,7 +138,7 @@
       "detail": "Merged origin/main as 919b4846796d3748bcfb163cb24db2967f2acf44, which took main's ruff count baseline of 30 and cleared the Run Python Tests failure. Added .agents/qa/pr-4645-fail-open-gates-report.md and the missing sessionEnd.qaValidation item for the Validate PR QA gate. Recorded the failure analysis in .agents/retrospective/2026-08-10-pr-4645-autofix.md."
     }
   ],
-  "endingCommit": "160b145de26026b849097f721da8fb3765a272c3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR from fix/fail-open-audit after push verification.",
     "Merge PR 4645 once the required checks pass on the refreshed base."

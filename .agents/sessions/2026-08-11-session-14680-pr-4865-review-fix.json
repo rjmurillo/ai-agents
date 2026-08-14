@@ -148,7 +148,7 @@
       "result": "Reverting the routing sentence and deleting S6 each failed a test (2 failed, 38 passed), proving the checks can fail."
     }
   ],
-  "endingCommit": "3bab13fed50f5746cae70d974e302dcedae3d7fa",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"

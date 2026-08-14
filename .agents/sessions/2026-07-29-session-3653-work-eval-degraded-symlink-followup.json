@@ -119,7 +119,7 @@
       "action": "Ran both full suites: 990 passed. ruff and mypy clean on the two changed source files. Byte-checked the commit messages for em and en dashes."
     }
   ],
-  "endingCommit": "86291512313389c97c6f4cc3078753ba0bd8fd61",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Fix the stray double period in .agents/memory/episodes/episode-2026-07-28-session-03-pr-3579-followup.json, which needs this log to clear the staged-.agents gate.",
     "Resolve the three PR #3675 review threads with the measurement evidence and re-poll mergeability.",

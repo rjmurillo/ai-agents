@@ -98,7 +98,7 @@
   "learnings": [
     "Before building a diagnostic, read the message the failure already prints. Here it already carried the path, so the whole delta was one sentence of missing runtime-contract knowledge, which is a documentation shape, not a code shape."
   ],
-  "endingCommit": "f268d1f2df",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Close issue #3332 with this reasoning."
   ]

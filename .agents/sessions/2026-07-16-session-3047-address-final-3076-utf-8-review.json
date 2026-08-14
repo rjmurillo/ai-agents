@@ -136,7 +136,7 @@
       "entry": "Committed the two-file implementation as a4a20546 before resolving either review thread."
     }
   ],
-  "endingCommit": "a4a20546",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push a4a20546 and this closeout commit to perf/batch-claude-hooks.",
     "Reply to and resolve both UTF-8 review threads only after the push is confirmed.",

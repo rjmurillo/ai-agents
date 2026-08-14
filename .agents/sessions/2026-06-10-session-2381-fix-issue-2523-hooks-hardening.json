@@ -146,7 +146,7 @@
       "entry": "Addressed follow-up review threads after CI: tightened generate_hooks_body fail-open/fail-closed detection with AST so only the try handler that directly invokes main() preserves exit policy; changed Markdown Auto-Lint fail-closed labels from WARNING to ERROR; updated hook test helper wording. Validation: ruff passed for touched Python files, mypy passed for touched hook/generator files, and targeted pytest passed (163 passed)."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR Fixes #2523 (base main; fix/2348 merged as PR #2530)",
     "No hook-hardening follow-up remains from this session; invoke_security_commit_gate.py streaming is included."

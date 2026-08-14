@@ -121,6 +121,6 @@
       "summary": "Verification: ADR-072 is a docs-only artifact. Architect agent review completed (APPROVE WITH CHANGES, 5 conditions). Dash check em+en=0. Session validation=PASS. No code changed; no test/build run applicable. PR checks will run on push."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

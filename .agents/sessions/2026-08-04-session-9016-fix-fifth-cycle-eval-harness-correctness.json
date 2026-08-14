@@ -152,7 +152,7 @@
       "outcome": "Initial run exposed #4538; after merging repair 49338f940 as e9259f8cc, final pre-PR passed 46 validations with 0 failures and 4 skips"
     }
   ],
-  "endingCommit": "5dbfe4ef0",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Route ACP process, environment, provider, and metadata boundaries to security PIV",
     "Keep #4123 open until this typed refusal branch lands",

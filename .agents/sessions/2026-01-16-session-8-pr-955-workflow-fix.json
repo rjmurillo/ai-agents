@@ -177,7 +177,7 @@
       }
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "PR #955 is now unblocked and can proceed with merge once all other checks pass",
     "Consider adding workflow retry mechanism for label changes"

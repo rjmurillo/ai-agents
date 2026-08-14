@@ -136,6 +136,6 @@
       "evidence": "Mutation proof under ~/src/scratch/deadlock-mutations: M1, M2, M3 dead; M4 cosmetic survivor."
     }
   ],
-  "endingCommit": "4e1866399f755afe042f2c37ac6da273665f53a0",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

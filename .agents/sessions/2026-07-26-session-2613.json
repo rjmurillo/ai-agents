@@ -137,7 +137,7 @@
       "outcome": "Widening the enum, restoring the old id pattern, reinstating the n001 allocator and deleting the type guard each turned the matching tests red; the tree returned to 53 green after each."
     }
   ],
-  "endingCommit": "7f20cdcae4",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "ADR-038 documents the retired writer. This branch fences its identity rather than deleting the API; if the user prefers deletion, a superseding ADR is the cheaper path.",
     "Report to the user that the open issue count is 17, not 31.",

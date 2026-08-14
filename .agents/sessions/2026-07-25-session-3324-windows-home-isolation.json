@@ -114,7 +114,7 @@
       "entry": "Pinned both subprocess captures to utf-8 with errors=replace while touching them. On Windows a bare text=True capture defaults to cp1252 and the reader thread raises on UTF-8 tool output, leaving stdout as None, which would turn the new assertion into a confusing NoneType failure on the exact platform this change targets."
     }
   ],
-  "endingCommit": "6b2a7edce834002c36ad802ad799007e0b5e54f1",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "The binary smoke test still skips wherever copilot is absent, including the new Windows leg, so the USERPROFILE path is not yet proven by CI. Proving it needs the CLI installed on a Windows runner.",
     "Contributors who already have the stale shadow must clear it by hand; this change stops new ones, it does not clean existing machines."

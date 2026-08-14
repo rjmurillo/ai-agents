@@ -124,6 +124,6 @@
       "step": "Verified the SHA against 17 workflow uses and filed issue #3995 for the actual documentation defect."
     }
   ],
-  "endingCommit": "e9bf809a645a8f5d73fb8f59c6524d77abf9ac8b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

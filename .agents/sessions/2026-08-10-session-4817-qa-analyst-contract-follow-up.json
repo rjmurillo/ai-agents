@@ -139,7 +139,7 @@
     "remediation": "Kept both strippers and documented the boundary in each docstring so a future reader does not collapse them and reintroduce the bypass. Negative controls now cover backtick, tilde, nested, and indented blockquote forms plus the closed-fence pass-through.",
     "observation": "The merge-tree-ratchet pre-push job failed twice with 'ruff could not read <scratch>/tests/skills/doc-accuracy/__init__.py' while the same command passed twice standalone against the same base. Each run materializes its own scratch tree, so the read failure points at a concurrency interaction between the merge-tree-ratchet job and the count ratchets inside pre-pr-validation, not at this branch's diff."
   },
-  "endingCommit": "e448e4a76169c67d226e1dd3feb14e1ebc72a712",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [],
   "testedCodeSha": "e448e4a76169c67d226e1dd3feb14e1ebc72a712"
 }

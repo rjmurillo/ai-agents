@@ -135,7 +135,7 @@
       "outcome": "The prior revision published the backticking as a fix and called the ADR declaration an open judgment call. Both corrected. Description gate exits 0 with zero CRITICAL findings."
     }
   ],
-  "endingCommit": "8beb505bc2",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Re-run adversarial review on the amended PR #4136 on a different model family, per the standing requirement.",
     "File the follow-up for existence validation of paths named in vendor-portability declarations, which the negative control proved is unenforced.",

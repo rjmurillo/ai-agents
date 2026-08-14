@@ -112,7 +112,7 @@
       "step": "Scope note for reviewers: issues #3549, #3545, #3546 and #3535 each named a file whose only reported violation was one of these false positives, so the scanner fix closes them without any workflow edit. Issue #3521 (agent-drift-detection.yml) has a second, genuine violation at line 149 and stays open."
     }
   ],
-  "endingCommit": "21f03d73b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR covering #3535, #3545, #3546, #3549",
     "Continue the remaining genuine ADR-006 extractions against the 66 real violations"

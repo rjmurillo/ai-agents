@@ -6,7 +6,7 @@
     "startingCommit": "e05dfd8a",
     "objective": "Follow-up to PR #3311 for #2840 (ADR-080 model-pin de-versioning). De-version the two skills deferred from that PR because they carried pre-existing banned em/en dashes: negotiation (drop opus pin) and pipeline-validator (drop sonnet pin). Clean all dashes, regenerate copilot-cli mirrors, drain the two pins from the baseline, bump both plugin manifests."
   },
-  "endingCommit": "a082e212",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {

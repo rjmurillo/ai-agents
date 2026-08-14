@@ -128,7 +128,7 @@
    ]
   }
  ],
- "endingCommit": "d967c2e8",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": [
   "Land this PR (routing_gates retirement, code-only) once CI is green and review threads are resolved.",
   "Follow-up issue: amend ADR-033 to record the routing_gates retirement via adr-review, in a Task-capable harness (Claude Code) where the 6-agent debate can run.",

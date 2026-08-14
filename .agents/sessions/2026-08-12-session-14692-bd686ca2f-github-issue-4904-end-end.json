@@ -145,6 +145,6 @@
       "result": "100 targeted tests passed. A defect-restoration control failed on missing Phase 5 as intended. Ruff, mirror comparisons, whitespace checks, scoped Markdown validation, security detection, and pre-PR validation passed. GPT-5.6 Sol review returned CLEAN. QA returned PASS."
     }
   ],
-  "endingCommit": "998dacd8b3034387ec682f32b213a95cef35faac",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

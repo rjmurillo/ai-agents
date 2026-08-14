@@ -140,7 +140,7 @@
       "entry": "Ran targeted pytest and ruff validation."
     }
   ],
-  "endingCommit": "a45125f610e280faca349c1af304e09d0c01af00",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "One survivor remains in check_test_tree_writes tempfile routing; left unfixed to keep this PR small."
   ]

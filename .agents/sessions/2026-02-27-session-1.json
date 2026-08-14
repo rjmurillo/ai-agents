@@ -124,7 +124,7 @@
       "outcome": "Removed debug/janitor/spec-generator, added backlog-generator (20 agents)"
     }
   ],
-  "endingCommit": "pending",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit fixes and push",
     "Verify CI passes"

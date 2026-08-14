@@ -39,7 +39,7 @@
     {"step": "/review architect axis", "outcome": "1 Important (ADR-040 stale enumeration), 2 Suggestions. ADR-040 amendment skipped (heavyweight adr-review consensus not justified for factual count correction); documented in PR. DESIGN-REVIEW-skill-pattern-loader.md note added."},
     {"step": "/review standards axes", "outcome": "taste-lints: 1 pre-existing file-size error (out of scope). golden-principles: 0. code-qualities: 9.7-10.0 across all 5 qualities."}
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit DESIGN-REVIEW note + this session log",
     "/ship: open PR with comprehensive description noting deferred items (ADR-040 amendment, eval scenario cleanup, incoherence/doc-accuracy overlap)",

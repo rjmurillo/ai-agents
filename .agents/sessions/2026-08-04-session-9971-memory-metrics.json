@@ -139,7 +139,7 @@
       "result": "Found the detector returns 0 on a detached HEAD for input that blocks on a branch. Filed as issue 4602 and recorded the measurement trap in GOTCHAS."
     }
   ],
-  "endingCommit": "8835cb7cfc053fd6e79a3f7ddd7197afd9f3066f",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR once git ls-remote confirms the branch reached the remote. The push log's 'All validations passed' is the pre-PR result, not push completion.",
     "Consider a .claude/rules entry for 'add the missing state instead of overloading a sentinel'. This cluster is its fourth instance."

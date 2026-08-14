@@ -133,7 +133,7 @@
     "fix(hooks): make shallow-clone error actionable and quiet explicit-refspec push warning",
     "docs(hooks): document per-ref push lock and add CI-only caveat to depth fetch"
   ],
-  "endingCommit": "b949abd17",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [],
   "workLog": [
     {

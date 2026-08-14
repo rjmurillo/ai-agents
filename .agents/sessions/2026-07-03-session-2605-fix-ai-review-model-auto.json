@@ -51,7 +51,7 @@
    "evidence": "The pre-commit dash guard scans full staged-file content, so pre-existing U+2014 in architect, high-level-advisor, pr-comment-responder (.agent and .prompt), and qa blocked the model-bump commits. Byte-verified counts, replaced each U+2014 with comma phrasing matching the already-clean src/copilot-cli mirror (convergence, not divergence). Byte-verified all touched files 0/0 dashes afterward."
   }
  ],
- "endingCommit": "52c76a8c",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": [
   "After merge, confirm Renovate PRs #2826/#2825/#2819/#2804/#2803 and PR #2793 re-run green on ai-review.",
   "Consider a follow-up implementing #2818 recommended direction: emit a NEUTRAL check conclusion (not failure) and 'did not run: Copilot CLI unavailable' aggregate wording."

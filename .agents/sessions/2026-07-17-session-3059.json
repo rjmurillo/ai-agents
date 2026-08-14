@@ -105,7 +105,7 @@
       "result": "Rewrote TestParseFindings to assert no-op on empty/whitespace/prose/invalid/non-object plus regression cases for valid and fenced findings, and added three main-level tests including an empty-stdin reproduction of run 29603691792. Bumped .claude and src/copilot-cli plugin.json to 0.6.64 (0.6.63 -> 0.6.64 after merging main, which had advanced to 0.6.63). 55 tests passed; ruff, drift check, and version-bump gate all green."
     }
   ],
-  "endingCommit": "db98500e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch fix/pr-maintenance-empty-findings and open PR against main with gh pr create (no auto-merge).",
     "Flag in the PR body that .github/scripts/invoke_pr_comment_processing.py (dormant duplicate) shares the same parse_findings shape and the skill copy still lacks the issue #2522 reaction-failure fix; both are out of scope for this fix."

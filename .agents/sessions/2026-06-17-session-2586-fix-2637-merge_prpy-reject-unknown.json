@@ -125,6 +125,6 @@
       "evidence": "GREEN: uv run pytest tests/test_merge_pr.py -> 45 passed in 0.22s. Mutation (UNKNOWN -> MUTANT) made the 2 reject tests fail (DID NOT RAISE SystemExit); restoring -> 45 passed. ruff: All checks passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

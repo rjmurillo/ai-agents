@@ -98,7 +98,7 @@
       ]
     }
   ],
-  "endingCommit": "61b8255184",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR, verify a branch that has committed a merge of main can push once this lands.",
     "Out of scope: the ADR-review evidence check in git_hook_policy.py uses the same newest-by-mtime selection and may share the defect."

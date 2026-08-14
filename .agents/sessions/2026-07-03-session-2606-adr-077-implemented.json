@@ -134,7 +134,7 @@
    "evidence": "Both plugin manifests kept origin/main plus one version at 0.5.256 after merging main."
   }
  ],
- "endingCommit": "63dda8fcf",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": [
   "Push the merge resolution.",
   "Observe auto-merge state until the pull request merges."

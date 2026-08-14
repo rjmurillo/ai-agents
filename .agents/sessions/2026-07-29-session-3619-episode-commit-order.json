@@ -129,7 +129,7 @@
       "evidence": "108 passed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "File the artifact-repair issue: 9 shipped episodes carry a chronologically false chain and neither --preserve nor --force repairs one without loss.",
     "The markdown extraction path emits commit events in document line order, which is the author's narrative order rather than committer date. Untouched here; no reported symptom."

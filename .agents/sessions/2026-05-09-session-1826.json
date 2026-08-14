@@ -119,7 +119,7 @@
     {"step": "Analyst gap review + critic pre-mortem (parallel)", "outcome": "4 gaps found: workflow copilot copy not in ACs, AC3 weak, residual ref sweep missing as AC, TASK-AC5/AC6 not in REQ. Gaps documented in commit body; spec refinement deferred to implementer."},
     {"step": "SkillForge overlap check", "outcome": "Phase 0 triage prevents duplicate creation; NOT same as pairwise redundancy detection in #1932. No overlap."}
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Fix spec gaps identified by analyst/critic: add AC for workflow copilot copy, strengthen AC3, add residual-ref-sweep AC",
     "Implementer executes TASK-006: delete 3 skills, update codebase-documenter, delete 4 dead tests, run build generator",

@@ -143,6 +143,6 @@
       "outcome": "The entry told readers to treat a local pass as a necessary condition, which contradicts the same section's point that a clean local result says nothing about the remote check, and it claimed the check cannot be reproduced locally. Both were wrong. semgrep ci --help states that when logged in it runs the rules configured on Semgrep App, so SEMGREP_APP_TOKEN=<token> semgrep ci is an exact reproduction. Also separates the taint findings, which were real defects fixed in code, from the python36 compatibility findings in 4725, which are false positives; the single citation had made the second appear to support a conclusion drawn from the first."
     }
   ],
-  "endingCommit": "e0e6291ac",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

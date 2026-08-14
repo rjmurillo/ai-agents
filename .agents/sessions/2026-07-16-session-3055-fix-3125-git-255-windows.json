@@ -135,7 +135,7 @@
       "result": "Commit d2a2cd6ba adds Git 2.55 symbolic-ref fallback and byte-precise update-ref stdin tests"
     }
   ],
-  "endingCommit": "d2a2cd6ba",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Run pre-PR validation and full review",
     "Push through the live-state and SHA safety gates",

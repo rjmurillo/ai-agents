@@ -39,7 +39,7 @@
       "evidence": "evals/spec-generator-spike/{generation,harness,heldout}-results.json; .agents/eval-results/2026-05-31-issue-2001-spec-generator-skill.json; pytest 20 passed"
     }
   ],
-  "endingCommit": "3b6f07678",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Comment on PR #2169 with the honest eval summary",
     "Optionally add a held-out negative case to the committed contract test for regression coverage"

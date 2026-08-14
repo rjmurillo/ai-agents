@@ -169,7 +169,7 @@
       "detail": "The first authenticated push attempt used scanner config isolation and lost its credential helper. A later pre-push run required retrospective evidence. Neither attempt mutated the remote branch."
     }
   ],
-  "endingCommit": "d08463638b6f986d73892bb0e54177732086a768",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 2,

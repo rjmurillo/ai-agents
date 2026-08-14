@@ -110,5 +110,5 @@
     "Watch PR CI for the new guard against the Windows runner, where buffering differs.",
     "The issue's 'only this call site has the pattern' scope claim was also wrong: test_workflow_locally.py sits in the same skill and had it too."
   ],
-  "endingCommit": ""
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

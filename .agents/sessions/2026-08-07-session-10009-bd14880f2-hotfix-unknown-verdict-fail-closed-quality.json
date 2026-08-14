@@ -132,6 +132,6 @@
       "result": "Ran the targeted pytest suite for tests/test_aggregate_quality_verdicts.py: all cases passed, including the two new regressions and the pre-existing infra downgrade cases. Committed as 84c76708c (fix(quality-gate): keep unknown verdicts blocking)."
     }
   ],
-  "endingCommit": "84c76708c",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

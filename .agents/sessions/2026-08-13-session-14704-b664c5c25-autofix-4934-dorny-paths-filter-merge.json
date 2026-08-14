@@ -149,7 +149,7 @@
       "outcome": "The QA report records the validated commit and commands."
     }
   ],
-  "endingCommit": "e498f66eb1",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the completed QA and session evidence.",
     "Refresh all four merge gates and merge only through guarded CLEAN path.",

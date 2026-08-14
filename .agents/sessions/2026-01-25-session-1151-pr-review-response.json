@@ -39,7 +39,7 @@
     "All review comments addressed",
     "All CI checks passing"
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "protocolCompliance": {
     "sessionStart": {
       "serenaInstructions": {

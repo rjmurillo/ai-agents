@@ -79,7 +79,7 @@
     "Validated changed files with json.tool and validate_session_json.py.",
     "Post-push validation flagged episode-1834 extractor fallback output as inconsistent; hand-corrected episode metadata to match this session's successful outcome and real file/commit activity."
   ],
-  "endingCommit": "5516f771",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push this follow-up correction commit."
   ]

@@ -150,7 +150,7 @@
       "detail": "The final Copilot scan found one active finding. Git show confirmed correction commit a8255a148cfd9f1e6ddd5adf012b000a611c3264 changed one file and QA commit 2860530375e0ee4ea3e4fb5d46eb9fe2f3dfbec2 added three artifacts. The QA criteria now bind each claim to its measured commit."
     }
   ],
-  "endingCommit": "0c15325cbdcceb425f29e95b129e00a58346786a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Run pre-PR and normal push hooks under a renewed lease.",
     "Update the PR body, reply to active suppressed findings, and recheck live state without merging."

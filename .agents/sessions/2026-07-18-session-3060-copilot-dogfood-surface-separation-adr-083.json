@@ -127,7 +127,7 @@
       "evidence": "Surfaced the review's two direction-touching outputs (overlay defer gate, phase reorder) via ask_user. Owner picked A: four session skills (session-init, session-end, session, session-log-fixer) stay surface:ship; initial internal partition empty; overlay deferred. ADR frontmatter status flipped proposed->accepted with debate-log evidence (ADR-073 gate satisfied). File-corruption incident during review (adr-analyst DOTALL regex hit build/scripts/build_all.py) was restored via git checkout and ast-parse verified; no corruption reached commit."
     }
   ],
-  "endingCommit": "7cebaf179",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch and open PR referencing #3222 (PR body byte-check for dashes; reference paths under ## References H2 to avoid the description-vs-diff gate)",
     "Continue the implementation chain: design + implement base-alone CI e2e (TESTING-RIGOR pos+neg+edge on the real shipped artifact), wire into nightly-cli-smoke.yml",

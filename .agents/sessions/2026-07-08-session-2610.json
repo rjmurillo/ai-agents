@@ -135,7 +135,7 @@
       "entry": "Verified PR #2958 Copilot review threads at byte level; corrected allowlist consumer references in investigation_allowlist.py and ADR-034."
     }
   ],
-  "endingCommit": "58f58a7b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR for #2941 with adversarial GPT-5.5 review.",
     "Continue autopilot backlog: eval pricing #2902, docs/ci/workspace agent clusters, plugin-source serialized issues."

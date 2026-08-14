@@ -111,6 +111,6 @@
       "step": "Learnings captured: routing rows must be sparse and request-shaped. A row earns its bytes only when a realistic request maps to a distinct installed agent and no cheaper skill-first path owns it."
     }
   ],
-  "endingCommit": "66104786",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

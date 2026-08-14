@@ -125,7 +125,7 @@
     "evidence": "Change is a documentation correction (python3 -> uv run python) in a code block. No ADR-level architectural decision. The uv run python rule is already established in PROJECT-CONSTRAINTS.md and ADR-042.",
     "decision": "No new ADR required. Change aligns with existing ADR-042 (Python migration strategy) and the documented uv run convention."
   },
-  "endingCommit": "05c6c8140",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch and create PR"
   ],

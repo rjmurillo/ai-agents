@@ -39,7 +39,7 @@
       "evidence": "pytest .claude/skills/spec-generator/tests -> 20 passed; validator rejects priority=medium/category=tooling/status=ready; install-parity OK"
     }
   ],
-  "endingCommit": "62d7c5ed0",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with Fixes #2001",
     "Post-merge: confirm /spec end-to-end produces schema-valid specs in a fresh run"

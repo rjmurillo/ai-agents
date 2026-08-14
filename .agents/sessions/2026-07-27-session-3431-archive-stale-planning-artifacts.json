@@ -191,7 +191,7 @@
       ]
     }
   ],
-  "endingCommit": "c40fc2b3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Re-run build/scripts/validate_planning_artifacts.py and scripts/validation/pre_pr.py",
     "Open the PR against #3431 and confirm CI is green"

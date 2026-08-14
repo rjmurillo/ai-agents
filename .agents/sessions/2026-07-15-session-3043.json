@@ -155,6 +155,6 @@
       "entry": "Verified source-only extraction removes the stale 6b84291e6 event, then rebuilt the episode without preserve-mode history."
     }
   ],
-  "endingCommit": "bc39fe416",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

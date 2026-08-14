@@ -153,7 +153,7 @@
       "outcome": "The focused PR closes issue #4923 and carries the reviewed cache-free fixture fix."
     }
   ],
-  "endingCommit": "658f6e040",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Clear PR #4935 checks and review threads, merge it, then retry the blocked #4871 branch push."
   ]

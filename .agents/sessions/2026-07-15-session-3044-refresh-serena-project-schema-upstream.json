@@ -143,6 +143,6 @@
       "entry": "A concurrent Cursor agent pushed commit 28a962645 with the same episode metric correction. Merged the remote branch without force and regenerated the episode from this session source so the session log remains the system of record."
     }
   ],
-  "endingCommit": "43d384af9",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

@@ -125,7 +125,7 @@
     "Round 4 (Copilot follow-up): removed double blank line + added missing --- separator in src/claude/negotiation.md; replaced unsourced unwind percentages in references/skills.md; bumped SEMANTIC_INDEX.yaml last_updated to 2026-04-27",
     "Round 5 (Copilot): bumped marketplace.json claude-agents and project-toolkit agent counts 23->24; corrected episode files_changed 0->8"
   ],
-  "endingCommit": "a6b252f9",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "prUrl": "https://github.com/rjmurillo/ai-agents/pull/1766",
   "nextSteps": []
 }

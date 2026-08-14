@@ -139,7 +139,7 @@
       "summary": "Code simplification found no removable code. Code review found no blocking defect. Security review verified the three issue invariants and identified an existing restore-failure gap, filed as issue #3389."
     }
   ],
-  "endingCommit": "61ddf65c21",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Create and merge a PR that fixes issue #3388.",
     "Track snapshot restoration failures in issue #3389."

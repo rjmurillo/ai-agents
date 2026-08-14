@@ -153,7 +153,7 @@
       ]
     }
   ],
-  "endingCommit": "d6862a6d9a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Correct ADR-008's implementation status for three deleted hooks (#3373)",
     "State in ADR-082 that dispatch group ids are opaque (#3374)"

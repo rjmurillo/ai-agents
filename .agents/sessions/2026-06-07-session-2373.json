@@ -170,7 +170,7 @@
       "evidence": "Added schemaVersion 1.0 to satisfy session schema review; accepted origin/main causal graph during latest main merge."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch after local gates pass",
     "Reply to and resolve two review threads",

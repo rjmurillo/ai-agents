@@ -139,7 +139,7 @@
       "evidence": "A1=4 A2=5 A3=4 A4=4 A5=4 A6=5 A7=5 + Reviewer notes from M3 audit = 33; was 26/35 B tier"
     }
   ],
-  "endingCommit": "fb10e436aff496221687d6543c1865b3994baedf",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Merge PR 4/10",
     "PR 5/10: qa.shared.md (A6 test-strategy reasoning + A5 coverage tool + A7)"

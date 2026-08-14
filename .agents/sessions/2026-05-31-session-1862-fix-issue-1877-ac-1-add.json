@@ -124,7 +124,7 @@
       "evidence": "20/20 successful API calls, 0 errors; summary.json verdict_variance.stable=true; FINDINGS.md lints clean"
     }
   ],
-  "endingCommit": "18628fc32",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Flip PR #2162 to Fixes #1877 (all four ACs complete)",
     "Architect ratifies the AC-10 amendment (gate on verdict variance) via adr-review, per ADR-058's ratification rule"

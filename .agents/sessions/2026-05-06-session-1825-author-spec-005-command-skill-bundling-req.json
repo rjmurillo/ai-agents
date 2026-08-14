@@ -174,7 +174,7 @@
       "summary": "Ran /review on increment 1 (orchestrator-coordinated 5-axis review). Findings: I-1 (skill count 16->13), I-2 (AC traceability matrix contradicts AC-1/AC-2 prose), I-5 (model downgrade behavior change), S-1 (test subagent existence), S-2 (test trigger count + backtick). All applied. Tests grew 17->20."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Implement TASK-005 sub-tasks T5-0 through T5-8 on a follow-up feature branch",
     "Create GitHub issue to track SPEC-005 implementation and link from REQ-005 frontmatter"

@@ -127,7 +127,7 @@
       "result": "Committed as f8e4ac1c1 after targeted ruff and pytest validation."
     }
   ],
-  "endingCommit": "f8e4ac1c1",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the committed fixes without force after a remote-SHA audit.",
     "Reply to the three unresolved Copilot threads with commit and test evidence, then resolve them.",

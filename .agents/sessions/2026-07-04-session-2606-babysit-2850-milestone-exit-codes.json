@@ -159,7 +159,7 @@
       "entry": "Aligned episode commit metrics after Copilot review thread verified two commit events."
     }
   ],
-  "endingCommit": "f8f6c30142",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push episode metric fix, resolve final PR #2850 review thread, enable auto-merge, and poll until merged."
   ]

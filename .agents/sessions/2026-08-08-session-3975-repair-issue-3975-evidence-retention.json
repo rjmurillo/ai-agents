@@ -131,6 +131,6 @@
       "detail": "Five-axis review found no blockers. CWE-78 scan covered 2 files with 0 findings. Security verdict: OK."
     }
   ],
-  "endingCommit": "883027f17",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

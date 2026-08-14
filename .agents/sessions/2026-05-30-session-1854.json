@@ -117,7 +117,7 @@
     "Replaced substring match with whole-token equality in spec.md and SKILL.md (byte-identical); added normalize_topic, entity_matches_answer, adjudicate_entity_scope to step0_5_parser.py mirroring the rule verbatim per canonical-source-mirror.",
     "Added 1 static rule-text test and 11 behavioral matcher tests; updated the pre-existing case-insensitive test to the new wording; ran the suite (145 passed); committed 4 code files as 50ba54d5; closes CWE-863."
   ],
-  "endingCommit": "50ba54d5",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "qa validation of matcher edge cases",
     "critic pre-merge review of the spec prose change"

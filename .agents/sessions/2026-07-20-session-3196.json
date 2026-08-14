@@ -144,7 +144,7 @@
       ]
     }
   ],
-  "endingCommit": "8bb7b246",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit this session log with .agents/hooks/hooks.yaml (final atomic commit).",
     "Push and open PR (Refs #3196, slice 1 of 5); byte-check body for 0 U+2014/U+2013 dashes.",

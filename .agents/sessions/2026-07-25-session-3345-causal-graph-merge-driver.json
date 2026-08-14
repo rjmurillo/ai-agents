@@ -148,7 +148,7 @@
       ]
     }
   ],
-  "endingCommit": "9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
     "File that the generator drops the version and updated keys when it writes a graph from scratch.",

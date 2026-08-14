@@ -138,7 +138,7 @@
       "entry": "Addressed two Copilot PR review threads on #3046: split the long semicolon sentence in the assumption statement for readability, and regenerated this session's episode with --force so it carries only the real documentation commit event (8964a355c), dropping a stale starting-commit event left by an earlier endingCommit update."
     }
   ],
-  "endingCommit": "8964a355c",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR (Fixes #3041) for owner review after the adversarial re-review confirms convergence.",
     "Owner decides on #3045 (capability-floor detection) and #3042 (tiered eval sweep), which build on this documented assumption."

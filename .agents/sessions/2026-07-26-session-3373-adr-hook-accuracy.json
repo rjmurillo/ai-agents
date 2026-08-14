@@ -117,7 +117,7 @@
       "outcome": "All three threads resolved with a code change, not an argument"
     }
   ],
-  "endingCommit": "a085af7add",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Merge PR #3397 once checks pass",
     "Adjudicate the remaining 24 ADR prose hook-claim sites under #3399"

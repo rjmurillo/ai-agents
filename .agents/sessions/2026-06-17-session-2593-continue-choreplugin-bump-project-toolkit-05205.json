@@ -147,7 +147,7 @@
       "action": "Verified: all 5 originally-failing tests pass; eval dry-run failure was induced by uncommitted working-tree state and resolves on commit."
     }
   ],
-  "endingCommit": "185b8fc28",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Confirm CI green on PR #2658 after push: Run Python Tests, Agent Drift Detection, Validate PR."
   ]

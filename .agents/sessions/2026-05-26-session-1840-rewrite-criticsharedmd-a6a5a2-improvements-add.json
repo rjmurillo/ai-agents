@@ -139,7 +139,7 @@
       "evidence": "A1=4 A2=5 A3=4 A4=5 A5=5 A6=5 A7=5 = 33/35; was 26/35 B tier"
     }
   ],
-  "endingCommit": "6d83b19c",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Merge PR 3/10",
     "PR 4/10: security.shared.md (A6 threat-model think-first + A2 + A7)"

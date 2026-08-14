@@ -131,7 +131,7 @@
       "outcome": "None does. Negative control: .agents/this-path-does-not-exist.md was added to both shipped copies of a declared skill and all five gates exited 0. check_skill_md_portability matched the path, then suppressed the declared file. The other four inspected skill scripts, Python, executable paths, or frontmatter, not body prose. Recorded in the memory and retrospective. After PR #4146 squash merged, the derived episode was grounded to merge commit 74be9dab99. Preservation mode restored stale event fields, so fresh regeneration staged all four session artifacts and preserved files_changed=4."
     }
   ],
-  "endingCommit": "74be9dab99",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "File the follow-up for existence validation of paths named in vendor-portability declarations.",
     "Re-run adversarial review on this PR on a different model family, per the standing requirement."

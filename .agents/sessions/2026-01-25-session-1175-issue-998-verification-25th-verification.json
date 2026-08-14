@@ -11,7 +11,7 @@
     "All exit criteria met: graph traversal works with Serena memory format"
   ],
   "schemaVersion": "1.0",
-  "endingCommit": "3bc71d5a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "workLog": [
     {
       "timestamp": "2026-01-25T17:42:00Z",

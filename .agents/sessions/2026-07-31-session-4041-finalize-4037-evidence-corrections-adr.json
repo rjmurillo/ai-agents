@@ -175,7 +175,7 @@
       "outcome": "Accepted main's project-toolkit description change, advanced both project-toolkit manifests above both parents to 0.6.5492, regenerated mirrors, and reverified both count ratchets"
     }
   ],
-  "endingCommit": "64383d51738098422cb6410ef1f49c4690526727",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Complete the fresh exact-SHA review, create a review marker, and push without force.",
     "Reply to and resolve all PR #4037 review threads, run completion gates, and merge ready PRs."

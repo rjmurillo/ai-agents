@@ -188,7 +188,7 @@
       "head": "feb0c72592b026d8eb9a72bc09f77e609f0394eb"
     }
   },
-  "endingCommit": "feb0c72592b026d8eb9a72bc09f77e609f0394eb",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Wait for CI on PR #4738, then update the branch and take the server merge before any token recount",
     "Land the memory-index duplicate-dump fix (PR pending) that removes 102 rows PR #4592 appended",

@@ -136,7 +136,7 @@
       ]
     }
   ],
-  "endingCommit": "19176c7da041cdd43cc0e90122e39175d4f4173d",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Latent defects left in place and recorded on issue #3502: the merge=ours attribute names a driver git does not provide, merge=handoff-aggregate is declared but unimplemented, and get_pr_checks.py reports AllPassing true when the merge ref cannot be built"
   ]

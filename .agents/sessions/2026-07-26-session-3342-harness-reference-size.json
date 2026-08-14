@@ -176,7 +176,7 @@
       "evidence": "The causal-graph merge driver completed without text conflicts but retained five pre-main fixture rows. Commit a2487c4ac1 removed only node n001 and patterns p001 through p004; 34 hex-id branch nodes remain and the edge count stays 57. The five committed-graph regression tests pass. Both manifests read 0.6.113, the session evidence and retrospective inventory match that shipped version, and the PR body was updated to the same value."
     }
   ],
-  "endingCommit": "199a5c04c",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR for #3342 and drive checks green.",
     "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",

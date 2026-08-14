@@ -120,6 +120,6 @@
    "evidence": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed. pytest result: 21 passed in 0.20s. Mutation of compute_priority_removals (not in -> in) caused 3 tests to fail, restored to passed. Mutation of dual-priority threshold (<=1 -> <=2) caused 1 test to fail, restored to passed."
   }
  ],
- "endingCommit": "",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": []
 }

@@ -137,6 +137,6 @@
       "result": "- Deleted orphan `mcp.json` from project root - Created `.vscode/mcp.json` with correct VS Code format (`servers` root key)"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

@@ -118,6 +118,6 @@
       "summary": "Verification: docs-only Phase 2 gap-table artifact. Audit ran via workflow (3 agents over roadmap/analyst/devops axis files); findings cite file:line. Dash check 0 em/en. No code changed; PR checks run on push."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

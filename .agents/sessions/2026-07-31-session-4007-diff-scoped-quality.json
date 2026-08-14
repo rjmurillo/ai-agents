@@ -159,6 +159,6 @@
       "git diff --unified=0 means violations anchored to structure header lines may not appear in changed-line sets when only the body is modified; document as known limitation."
     ]
   },
-  "endingCommit": "40bca0206",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

@@ -138,7 +138,7 @@
       "evidence": "skills/triage-eval-2026-05-27-agents-full-coverage"
     }
   ],
-  "endingCommit": "532e9960",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with deviation notes (\u22645-file rule bent for cohesive scaffold commits)",
     "/autofix-pr to monitor CI and fix issues",

@@ -170,7 +170,7 @@
       "result": "Removed a dead rename helper and documented staged, merge, push, type-ignore, and rename behavior"
     }
   ],
-  "endingCommit": "1ea9161081",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Issues #3792 and #3941 need focused cleanup PRs",
     "Issue #4039 tracks a separate type-ignore policy",

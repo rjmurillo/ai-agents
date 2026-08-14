@@ -121,7 +121,7 @@
       "step": "Adversarial review on a second model family (gpt-5.6-sol) found the previous commit had regressed metrics.files_changed by writing a files count into work-log prose, which _FILES_RE scrapes and which suppresses the staged-diff backfill. Reworded the entry. Filed three extractor and protocol defects the review surfaced: #3617 files_changed prose scraping, #3618 endingCommit is never revalidated and unreachable SHAs are common, #3619 multi-commit episodes get a chronologically false leads_to chain. Verified the false chain does not reach the causal graph, which seeds commit nodes without edges between them. Relabelled the retro header after review noted it disagreed with endingCommit."
     }
   ],
-  "endingCommit": "b61cf1cff3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "The saturation mechanism is unexplained: a skill past the ceiling still auto-invokes without searching. Settling it needs an instrument that inspects the serialized request rather than asking the model what it can see.",
     "None of this is verified for interactive sessions, subagents, or Copilot CLI. The subagent path is documented to inject full skill content, so it may behave differently.",

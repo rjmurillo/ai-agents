@@ -138,7 +138,7 @@
       "result": "See endingCommit below."
     }
   ],
-  "endingCommit": "55dbc844fb973b4b43fe3a02852c44c9ca40d9c7",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the branch through the pr-autofix mutation wrapper after a fresh live-state recheck.",
     "Re-run test_pr_merge_ready.py after CI settles on the pushed commit; confirm the Validate PR check passes with the new QA report.",

@@ -165,7 +165,7 @@
       "result": "Recorded in the QA report and filed issues. Session 3058 supersedes the final-state counts."
     }
   ],
-  "endingCommit": "ea562b277112b2f53c8573256cd81017ebcc0d72",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Continue in session 3058 for the 256-entry cap, final review, push, CI, and merge."
   ]

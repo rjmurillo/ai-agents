@@ -155,6 +155,6 @@
       "outcome": "Refreshed corpus baseline; fixed type-ignore ratchet failure"
     }
   ],
-  "endingCommit": "e2ffeaa68c7ed91d58e3031ab969e18d2d5cc5e3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

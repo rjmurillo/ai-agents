@@ -145,7 +145,7 @@
             "files": []
         }
     ],
-    "endingCommit": "bd63d6399",
+    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
     "nextSteps": [
         "Push PR B and validate the Windows job entirely via CI (lefthook Windows behavior is not reproducible locally).",
         "If any of the 15 cascade tests remain red after the POSIX path fix, iterate from the CI evidence.",

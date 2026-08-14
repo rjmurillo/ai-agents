@@ -122,7 +122,7 @@
       ]
     }
   ],
-  "endingCommit": "db7ab3d3de1c29f2f66b16cdc6e240970795a50a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Land PR #3240 (this work) once CI is green and review threads are resolved.",
     "Continue epic #3197 with the sequenced hook-cluster issues (#3182 foundation, then #3196, #3194, #3183, #3185, #3217, #3218).",

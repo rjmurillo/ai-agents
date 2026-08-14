@@ -135,7 +135,7 @@
       "detail": "tests/test_pr_comment_responder_check_envelope.py pins the envelope contract and scans all nine carriers. It fails 7 of 11 against the pre-fix carriers and passes 11 of 11 after."
     }
   ],
-  "endingCommit": "25e560af4",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Hold for an independent adversarial review before any merge.",
     "Decide whether issue 4465 (github skill patterns.md, same root cause, different files) should be folded in or fixed separately.",

@@ -44,7 +44,7 @@
     {"step": "Regenerate src/copilot-cli/skills/orphan-ref-validator/ via build/scripts/generate_skills.py", "outcome": "Mirror parity verified byte-for-byte via diff -q on filters.py, scan.py, test_scan.py."},
     {"step": "Run full repo pytest", "outcome": "8578 passed, 3 skipped (no regressions from filters.py denylist additions, comment changes, or path corrections in spec docs)."}
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push round 18 commit to origin/feat/issue-1939-orphan-ref-validator",
     "Reply to the 10 newly-fixed review threads via gh GraphQL with the round 18 commit SHA",

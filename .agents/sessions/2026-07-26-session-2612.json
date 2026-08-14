@@ -149,7 +149,7 @@
       "outcome": "The NUL-byte contributions keys are deliberate: _LEGACY_PREFIX reserves a byte that cannot appear in an episode id. No issue filed."
     }
   ],
-  "endingCommit": "39b754c79a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "#3356 needs the schema widened to the 7 node types the generator emits and the sequential id patterns dropped, since content-derived identity is the only form that survives a union merge.",
     "reflexion_memory._validate_schema passes 3070 real violations; use jsonschema or delete it.",

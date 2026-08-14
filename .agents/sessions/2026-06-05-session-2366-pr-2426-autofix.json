@@ -95,7 +95,7 @@
       "entry": "Process bugs observed: get_unresolved_review_threads.py exposes comment bodies as first_comment_body while the compact completion-gate view only shows database ids; build_all --check writes generated files before exiting 2; orphan-ref full scan reports existing repository drift outside this PR, so scoped targets were required."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit skill documentation, generated Copilot skill files, and this session log.",
     "Run post-commit generated checks, push after SHA lease verification, resolve review threads, poll CI, rerun completion gate, and merge if all four conditions pass."

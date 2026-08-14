@@ -160,6 +160,6 @@
       "result": "Complex YAML keys now fail as malformed definitions, and unreadable skill entry surfaces report their repository path. The final targeted suite passed 131 tests."
     }
   ],
-  "endingCommit": "c2f267acd1b983dbe44d515875752d147da06a05",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

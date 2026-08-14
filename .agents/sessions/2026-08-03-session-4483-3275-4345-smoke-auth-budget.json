@@ -139,7 +139,7 @@
       "result": "Issue closed with written justification comment at https://github.com/rjmurillo/ai-agents/issues/4345#issuecomment-5172855417"
     }
   ],
-  "endingCommit": "4607f6ce8",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/smoke-auth-budget and create PR with Fixes #4483 and Fixes #3275"
   ]

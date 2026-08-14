@@ -125,7 +125,7 @@
             ]
         }
     ],
-    "endingCommit": "3f093234",
+    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
     "nextSteps": [
         "Push and open PR (Fixes #3287); byte-check body for 0 U+2014/U+2013 dashes; reference-only paths under ## References.",
         "Drive CI green on the required Linux job; self-merge once mergeStateStatus CLEAN.",

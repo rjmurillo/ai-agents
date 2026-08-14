@@ -131,6 +131,6 @@
       "result": "Session 10009 now records endingCommit fb30c790dc50df765065317b630d6e276a5ef8c2, and its episode reports commits=1 and files_changed=6."
     }
   ],
-  "endingCommit": "b7f91e6c83b2088193b476e435f1276bc852fd0e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

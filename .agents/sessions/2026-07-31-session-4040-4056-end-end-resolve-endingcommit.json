@@ -143,7 +143,7 @@
       "outcome": "Both findings confirmed still unfixed at that head. Replayed the two unpushed commits onto it rather than merging, which keeps the push a fast-forward and needs no force. No conflicts. Full suite re-run after the replay."
     }
   ],
-  "endingCommit": "3dce9b208a640ee60ec2b399f68e9ca3358aabe4",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "The restraint gate compares round(avg, 2) against MIN_RESTRAINT_SCORE, so a true average in [3.495, 3.5) reads as a pass. Reachable only at 34 or more negative scenarios and pre-existing on the positive gate on origin/main, so it needs its own change that decides published-value versus gating-value for both pools.",
     "The negative-case gate stays vacuous on the current suite, as the session 3989 log already recorded."

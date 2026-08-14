@@ -152,7 +152,7 @@
       "summary": "Corrected the validationPassed count from 73 to 76. It was true when written and went stale when the review round added the fdopen cleanup test. sessionEnd evidence describes the shipped state rather than a moment in the session, so it carries the final number; workLog entries that were true when written keep their original figures instead."
     }
   ],
-  "endingCommit": "2796f956e5",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR for #3368 against main.",
     "Merge only after the review-thread and CI gates pass."

@@ -126,7 +126,7 @@
       "result": "Agents no longer reference repo-local .serena/memories; SESSION-PROTOCOL.md ref also simplified to inline description"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Reply to 3 unresolved threads and resolve them",
     "Push commit to remote feature branch",

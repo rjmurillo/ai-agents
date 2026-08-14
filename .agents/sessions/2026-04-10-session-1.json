@@ -96,7 +96,7 @@
       }
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Persist 4 skill candidates via skillbook: pr-stale-comment-detection, pr-batch-thread-resolution, impl-docstring-behavior-match, session-onboarding-continuity",
     "Update .serena/memories/skills-pr-review.md with stale comment pattern",

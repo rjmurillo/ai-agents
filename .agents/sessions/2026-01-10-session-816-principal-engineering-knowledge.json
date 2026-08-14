@@ -110,5 +110,5 @@
     "memories": ["usage-mandatory", "memory-index", "foundational-knowledge-index"]
   },
   "status": "COMPLETE",
-  "endingCommit": "pending"
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

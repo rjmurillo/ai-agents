@@ -144,7 +144,7 @@
       "outcome": "PR URL recorded below."
     }
   ],
-  "endingCommit": "pending",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Auto-merge will land once required checks pass.",
     "If markdownlint flags MD024 (duplicate headings) or other rules, follow up in a fix commit on the same branch."

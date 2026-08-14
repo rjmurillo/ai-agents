@@ -119,7 +119,7 @@
       "evidence": "230 ai-review tests pass (3 new in TestSecurityTruncationRegression); 48 generator tests pass; generated prompts match canonical (no drift)"
     }
   ],
-  "endingCommit": "f1b5939968a631863e7b587fcc271d5617db7706",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with Fixes #2006",
     "Security agent reviews this prompt change in CI (security-sensitive)",

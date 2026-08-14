@@ -135,7 +135,7 @@
       "evidence": "hook_contracts.py exits 0 over 12 entries through .github/workflows/hook-contract-check.yml; build/scripts/validate_planning_artifacts.py exits 0 over the current planning tree."
     }
   ],
-  "endingCommit": "c4e160ab39",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Run final validation, push branch, and open PR for issue #3360."
   ],

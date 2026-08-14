@@ -155,7 +155,7 @@
       "result": "ADR lines 80, 190-193 updated; 0 em-dashes; Validate PR re-checked"
     }
   ],
-  "endingCommit": "pending-push",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "CI re-run after push: Validate PR should pass (PR body fixed)",
     "run_completion_gate.py",

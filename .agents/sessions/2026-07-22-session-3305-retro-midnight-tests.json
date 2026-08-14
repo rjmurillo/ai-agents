@@ -140,7 +140,7 @@
       "result": "Documented the confident-wrong-diagnosis failure mode and the corrected deliverable (regression guard, not a fix, to avoid manufactured work)."
     }
   ],
-  "endingCommit": "645ec1b882663167e9bef22b43653ab4c937fffe",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the branch and open a PR referencing issue #3305.",
     "Correct issue #3305 with the accurate diagnosis and close it once the PR lands."

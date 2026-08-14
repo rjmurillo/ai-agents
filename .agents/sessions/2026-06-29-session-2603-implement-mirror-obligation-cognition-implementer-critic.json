@@ -123,6 +123,6 @@
    "evidence": "Added ADR-077 for stale contract test governance with 6-agent ADR review consensus (6 ACCEPT, 0 BLOCK). Added focused ADR-057 scenarios. Implementer eval: github-models openai/gpt-4o, before 0.0 after 1.0, gate PASS. Critic eval: claude-cli sonnet, before 0.5 after 1.0, gate PASS."
   }
  ],
- "endingCommit": "1347a02e9aae10a782558369f1b8023ccfc7fb9f",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": []
 }

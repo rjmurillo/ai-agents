@@ -120,7 +120,7 @@
       "evidence": "uv run pytest tests/validation/test_check_skill_portability.py tests/build_scripts/test_generate_agent_catalog.py -q"
     }
   ],
-  "endingCommit": "ff41f1d360e69de92a8593ba05b9d36837236316",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch, open PR closing 2702/2703/2704",
     "SkillOpt eval (API budget permitting) to record strict-greater scores"

@@ -96,7 +96,7 @@
       "detail": "Verified no unmerged files, no conflict markers, JSON parse success for causal graph, and session JSON validity. Focused hook tests were deferred until after the merge commit because MERGE_HEAD intentionally causes the LSP read gate to bypass targets during conflict resolution."
     }
   ],
-  "endingCommit": "33da0a725ff1c0e1894a231b8e7e94a7d5e14844",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Monitor PR checks and merge once all required checks pass."
   ]

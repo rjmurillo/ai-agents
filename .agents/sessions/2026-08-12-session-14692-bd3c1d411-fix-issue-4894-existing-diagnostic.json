@@ -141,7 +141,7 @@
       "result": "No duplicate issue found. Filed #4917 and restored the parent checkout before continuing."
     }
   ],
-  "endingCommit": "d5a43ccbaa9131431691ff43285c4de1285ce6bf",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Merge the focused PR to close #4894."
   ]

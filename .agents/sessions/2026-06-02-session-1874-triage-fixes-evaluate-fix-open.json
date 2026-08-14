@@ -127,7 +127,7 @@
     "2nd P1 wave: #2264 SESSION-STATE doc delta (live-instance path + update protocol)",
     "2nd P1 wave: fixing #2258 (pre-commit set -e silent death), #2259 (mechanical triage), #1726 (P0 hook infra)"
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch and open PR",
     "#2267: add generator for .claude/agents, .github/agents, src/claude",

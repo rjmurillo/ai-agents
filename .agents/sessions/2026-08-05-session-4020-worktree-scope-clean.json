@@ -157,6 +157,6 @@
       "detail": "Merged origin/main, then reran 40 targeted tests against ff68ea01d175bb74a376f7befb70c5772f9c3f7a."
     }
   ],
-  "endingCommit": "ff68ea01d175bb74a376f7befb70c5772f9c3f7a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

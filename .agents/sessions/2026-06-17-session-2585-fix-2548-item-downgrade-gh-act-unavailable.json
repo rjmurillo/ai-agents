@@ -120,6 +120,6 @@
       "evidence": "RED then GREEN via pytest. Ran: uv run pytest tests/validation/test_run_workflow_local_test.py -> 52 passed (4 new tests + 48 existing). Initial run of the 4 new tests failed (true RED). After implementing _is_remote_container/_gh_act_gap_report all 52 passed. Mutation check: forcing _is_remote_container to return False made the 2 downgrade tests fail, then restored to green. ruff check clean; taste-lints complexity clean."
     }
   ],
-  "endingCommit": "ccf20208578ef9125036b750f6c03bfcfd8f96fb",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

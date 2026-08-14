@@ -159,7 +159,7 @@
       ]
     }
   ],
-  "endingCommit": "c37476825eafbc8c70c1f1ab679cfaed3255bfd2",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with Refs #3217 (keeps the multi-task issue open), body satisfying ADR-085 Decision 2 (no git-observable invariant exists, so pre-execution blocking is retired not relocated) and Decision 6 survivor inventory.",
     "Babysit the PR to green, resolve review threads, self-merge.",

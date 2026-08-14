@@ -253,7 +253,7 @@
       "Centralizing a decision does not audit the data the decision reads. cost_basis became the single answer to which provider bills how, and the fix was correct, but the frozenset it consults still omitted two registered transports, so the defect stayed live on the provider the docs recommend most. The durable fix was not the two names, it was the test that pins every registry entry to a declared basis so omission stops being a silent classification."
     ]
   },
-  "endingCommit": "b0deadc5f",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Drive PR 4005 to closure and answer any bot review threads.",
     "eval-rule-activation.py has no --provider flag and only honors EVAL_PROVIDER, so it lacks the ergonomics parity the agent script has. Working as designed, but worth filing as a gap.",

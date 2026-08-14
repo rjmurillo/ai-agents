@@ -159,7 +159,7 @@
       "outcome": "Not filed."
     }
   ],
-  "endingCommit": "ed10ae4da01e6de644b06dcc9752c9d45e528b29",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "File the Skill: `x` documentation-placeholder false positive: 9 findings, every one in prose that documents the scanner's own pattern syntax.",
     "Close #3726, #3727, #3728 and #3753 once this merges."

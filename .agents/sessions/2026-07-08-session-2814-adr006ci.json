@@ -175,7 +175,7 @@
       "entry": "Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity."
     }
   ],
-  "endingCommit": "e11744506505b9ace330adfa8550c53dba3dc627",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]

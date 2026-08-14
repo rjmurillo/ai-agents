@@ -121,7 +121,7 @@
    "filesModified": []
   }
  ],
- "endingCommit": "aec490a0",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": [
   "Land PR #2743 (inline Copilot invocation translation) once CI is green and any review threads are resolved.",
   "If the plugin-version-bump gate flips red because another plugin-source PR merges to main first, rebump both parity manifests to new_base_max + 1 and re-run build/scripts/validate_plugin_version_bump.py.",

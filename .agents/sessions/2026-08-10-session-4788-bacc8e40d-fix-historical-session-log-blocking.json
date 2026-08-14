@@ -205,7 +205,7 @@
       "outcome": "Dropped obsolete push-pr validator changes, restored main pre-commit session behavior, and kept pre-push creation-mode for new branch logs; 913 regression tests pass"
     }
   ],
-  "endingCommit": "cf6afb684da2a4a1a5a8243f70fa3c448b972065",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the focused branch",
     "Create a PR that fixes issue #4788"

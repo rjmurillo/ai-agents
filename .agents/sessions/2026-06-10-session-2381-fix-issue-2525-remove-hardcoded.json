@@ -126,7 +126,7 @@
       "entry": "Verification: grep sweep confirms NO hardcoded counts remain in README.md or docs/skill-reference.md; markdownlint-cli2 on both files = 0 errors."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR Fixes #2525"
   ]

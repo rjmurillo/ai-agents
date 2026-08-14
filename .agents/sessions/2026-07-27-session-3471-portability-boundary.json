@@ -129,7 +129,7 @@
       "step": "Verified the reviewer's second finding before acting on it. Bare directory references that end at a word boundary are missed, but they return 0 at base commit 303f918ea as well, so the gap predates this branch. Filed as issue #3482 and left out of scope."
     }
   ],
-  "endingCommit": "661f2e665",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Issue #3465 tracks the unrelated gap that this validator only scans Markdown under .claude/skills, so shipped agents, rules, and instructions are not covered.",
     "The reproduction shapes in issue #3471 are split across two classes: the templates cases sit in TestCountUpstreamRefs and the dot-prefixed cases in TestDotPrefixedUpstreamBoundary. TestPathStartAnchor covers the anchor defects found in adversarial review.",

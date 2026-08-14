@@ -144,7 +144,7 @@
       "outcome": "PR URL recorded in prUrl below. No remaining blockers."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "prUrl": "",
   "nextSteps": [
     "Auto-merge will land the rule once required checks pass.",

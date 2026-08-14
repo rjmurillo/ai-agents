@@ -130,6 +130,6 @@
       "summary": "Added schemaVersion and evidence to session log 2379; added schemaVersion to this session log."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

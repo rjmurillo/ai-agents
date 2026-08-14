@@ -137,7 +137,7 @@
       "outcome": "Committed c06345465; reproduced the destructive advice, resolved the current-main memory-index conflict, merged current main at aae9ffddc, and passed 307 focused GC tests plus ruff"
     }
   ],
-  "endingCommit": "aae9ffddc",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push through the live-state mutation guard",
     "Reply to and resolve the occupied-path review thread",

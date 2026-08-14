@@ -122,6 +122,6 @@
       "activity": "Removed stale 'partial' outcome node fd7795c261cb for episode-2026-06-11-session-2383 from causal-graph.json (Cursor Bugbot finding: conflicting outcomes, the partial node was written when the pre-commit gate blocked the first commit attempt; episode JSON records success only). Verified no edges or patterns reference the removed node; JSON re-validated on load"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

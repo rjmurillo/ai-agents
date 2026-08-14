@@ -103,7 +103,7 @@
   "learnings": [
     "A guard with passing tests and no call site is not half-finished, it is unverified: its tests exercise the interface while the scope, which is where #3329's ratchet was wrong by a factor of two, goes unexercised until something actually runs it."
   ],
-  "endingCommit": "6cdc90a4059ae677ac79c328a1f57ecbc2147681",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Decide separately whether to add actionlint to CI, which requires a pinned download step."
   ]

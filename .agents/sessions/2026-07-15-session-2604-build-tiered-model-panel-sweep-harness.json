@@ -119,6 +119,6 @@
       "evidence": "scripts/eval/_model_panel_core.py + eval-model-panel.py + 24 tests. Reuses eval-agent-vs-baseline via #2710 --provider/--model; effect-size=recall_delta, degradation classification vs frontier band; --dry-run zero-spend; panel --panel-config-overridable. uv run pytest tests/eval/ -> 293 passed; ruff+mypy clean; no suppressions. Paid sweep owner-gated; unblocks #3045 #2840."
     }
   ],
-  "endingCommit": "79515f40df",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

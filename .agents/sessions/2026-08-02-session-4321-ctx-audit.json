@@ -125,7 +125,7 @@
       "evidence": "Measured all 6 audit areas against current main. Root AGENTS.md + CLAUDE.md = 5,473B (already lean). Never line already tightened by PR #4185. Review prompts report all findings with severity, no suppression. No double-check subagent patterns found. Analysis document written to .agents/analysis/claude5-context-engineering-audit.md."
     }
   ],
-  "endingCommit": "d4034d7d3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Areas 2, 3, and 4 from #4321 (examples vs interfaces, cross-layer conflicts, scope literalness) require a broader multi-session pass; filed as follow-up scope in the PR body.",
     "#4229 should be closed via a comment referencing PR #4280."

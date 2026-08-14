@@ -151,7 +151,7 @@
       "outcome": "Counts corrected on both trees and the counts test now reads provenance.md. 25 passed in tests/build_scripts/test_hook_contract_knowledge.py"
     }
   ],
-  "endingCommit": "6f3581992",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Two episodes were already invalid before this branch: episode-2026-06-09-session-2377 has an unsupported 'artifact' event type and episode-2026-07-25-session-3324 has a causal cycle. Both need a schema decision, not a repair.",
     "44 episodes carry commit SHAs that no longer resolve in the local object database, so their causal order is unrecoverable from this clone."

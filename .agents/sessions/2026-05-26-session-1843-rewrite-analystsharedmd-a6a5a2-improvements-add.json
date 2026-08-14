@@ -138,7 +138,7 @@
       "evidence": "A1=4 A2=5 A3=4 A4=4 A5=5 A6=5 A7=4 = 31; with strengthened A1 from explicit evidence levels = 32; was 25/35 C tier"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Merge PR 6/10",
     "PR 7/10: architect.shared.md (A6 reasoning + ADR-precedent search + A2)"

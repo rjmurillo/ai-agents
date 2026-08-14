@@ -138,7 +138,7 @@
       "entry": "Also replaced 4 pre-existing em-dashes in pr-maintenance.yml comments/strings (universal.md dash prohibition; the dash-guard rejects staged files containing them). Verification: all 3 modified workflow YAMLs parse via yaml.safe_load; remaining ${{ matrix.* }} / ${{ steps.* }} occurrences are only in name:/if:/with:/env:/outputs: contexts, which are not shell-rendered."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR Fixes #2520 stacked on fix/2519-missing-ps1 (PR #2545)",
     "Follow-up: move discover-step jq extraction into invoke_pr_maintenance.py per ADR-006"

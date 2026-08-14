@@ -124,7 +124,7 @@
       "step": "Discovered the lefthook stage-generated memory hook globs .serena/memories/**/*.md and stages the whole corpus, so per-group memory commits are impossible without --no-verify. Soft-reset an earlier 5-file commit that the hook had silently expanded to 17 files with a message describing only 5, and recommitted the corpus as one change with an accurate message."
     }
   ],
-  "endingCommit": "838ffdf70e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "The skill_name detector is unscoped for prose. Fixing it would let the memory corpus be gated, but the fix belongs in the validator, not in the memories, and needs its own change.",
     "Script references under .claude-mem/scripts/ are outside the validator's prefix set (build/scripts/, scripts/validation/, scripts/), so this scan says nothing about whether those resolve."

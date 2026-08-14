@@ -115,7 +115,7 @@
       "step": "Second review round on PR #3612. The reviewer reported a British-spelling defect ('behaviour') at tests/test_context_budget_management.py:152; case-insensitive grep found no such word anywhere in the file, so the finding is a false positive and was dismissed with evidence rather than patched. Reproducing it surfaced a real adjacent defect the reviewer did not report: the test's own docstring and one assertion message still said 'pressure signals', the exact framing FORBIDDEN_PHRASES now bans, so a maintainer reading the failure message was steered back to the removed concept. Retired both. The module docstring's historical reference and the FORBIDDEN_PHRASES entry are intentional and stay."
     }
   ],
-  "endingCommit": "a3e3f52c02",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "The same self-report shape may exist in other agent prompts and in skills. Only implementer and orchestrator carried this section; a broader sweep for rules keyed to unobservable model state has not been run.",
     "Stray scratch files remain untracked at the repo root from an earlier session: find_uris.py, find_uris_frontmatter.py, test_uri.py, test_double.py, test_prompt.py, test_remote.py, test_all_boundaries.py, test_all_boundaries2.py, test_local_uri_optout.py, plus package.json and package-lock.json. They violate the no-scratch-in-tree boundary. Left in place because they may belong to another branch."

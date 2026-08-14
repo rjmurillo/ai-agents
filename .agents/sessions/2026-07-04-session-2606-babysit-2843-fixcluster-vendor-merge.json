@@ -199,7 +199,7 @@
       "evidence": "Resolved causal graph conflict by union-preserving branch and main memory entries. Plugin manifests remain at 0.5.261, which is greater than origin/main 0.5.260."
     }
   ],
-  "endingCommit": "d4dfaccd69dca48dd9ac63a0bb025c3ffaaf4687",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit latest origin/main merge, push PR #2843, enable auto-merge, and monitor until merged."
   ]

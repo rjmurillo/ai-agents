@@ -149,7 +149,7 @@
       }
     ]
   },
-  "endingCommit": "7a760505f8",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/2840-nested-model-pins and open a PR referencing Refs #2840.",
     "Post the parser-blindness finding on #2840 so the remaining agent-track criteria are not assumed to cover it."

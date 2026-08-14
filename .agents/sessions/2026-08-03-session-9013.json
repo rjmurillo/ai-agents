@@ -151,7 +151,7 @@
       "detail": "WORKSPACE-BUDGET.md had an inline code span split across a newline so it rendered with literal backticks; reflowed it. mutation_test_proc_group.py decoded captured pytest output with errors=replace, discarding the original bytes; switched to backslashreplace. The four remaining threads all reported inconsistent episode metadata, which is an emitter defect: json_timestamp promotes a date-only session.date to midnight, and _duration_from_worklogs reads only the time key while _entry_timestamp accepts timestamp or time. Measured 967 entries under timestamp against 666 under time, zero using both, so the majority key is the one the duration function ignores. Reopened #3972 with the measurement rather than editing generated artifacts."
     }
   ],
-  "endingCommit": "c4f99626d",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the branch and refresh the #4508 body; the file list must be re-derived after every merge.",
     "Land the Copilot probe rate-limit fix so a throttled API stops blocking every push on this machine.",

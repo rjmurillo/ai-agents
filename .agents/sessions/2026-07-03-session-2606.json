@@ -135,7 +135,7 @@
       "evidence": "Before/after fixture: origin/main hook prints ERROR: Python tests failed after last streamed victim; fixed hook prints ERROR: Python tests aborted before pytest summary (exit 137, signal 9). Targeted tests: 31 passed. Full pytest after fix: 13341 passed, 20 skipped, 45 xfailed. security-review agent found no vulnerabilities."
     }
   ],
-  "endingCommit": "8c1efc10",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push was intentionally not performed per user instruction."
   ]

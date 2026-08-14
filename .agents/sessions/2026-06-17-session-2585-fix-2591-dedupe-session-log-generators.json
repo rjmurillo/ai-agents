@@ -120,7 +120,7 @@
       "evidence": "uv run pytest .claude/skills/session-init/tests/test_session_init.py -q -> 22 passed. TDD: RED (ModuleNotFoundError on session_init.session_structure) then GREEN after builder added; mutation (renamed serenaActivated key) made test_build_session_log_protocol_compliance_keys fail, restored to 22 passed."
     }
   ],
-  "endingCommit": "b522a82fe5",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR for #2591",
     "Note keystone commits in PR body until #2621 merges"

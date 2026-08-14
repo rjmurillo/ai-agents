@@ -123,7 +123,7 @@
       "entry": "Shipped PR #4886 as one stack: direct local pytest execution, all-CPU xdist partitions, combined coverage, secret-safe output, system CA support, and a root versus nested bulk split. Exact collection parity held at 27,154 tests. Fresh CI passed with a 6 minute 47 second longest job. Review fixes aligned the local fallback with CI, rejected unsupported nested ACT batches, and removed persisted checkout credentials."
     }
   ],
-  "endingCommit": "470dc44e611453cf1e5c0268d73275af0ddb7757",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Monitor PR #4886 CI job durations.",
     "Merge PR #4886 after required checks pass."

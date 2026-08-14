@@ -160,5 +160,5 @@
     "Round 6 of the adversarial review against the round-5 semgrep tokenizer rules.",
     "Continue the open-issue campaign: the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
-  "endingCommit": "3fefdcb6a"
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

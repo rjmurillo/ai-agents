@@ -6,7 +6,7 @@
     "branch": "fix/2993-2967-wire-ratchets",
     "startingCommit": "013cb0124c31e4b2acbdbb0dc7bcd8ac4d63e5f7",
     "objective": "Open-issue sweep. Close the regression-guard acceptance criterion of #2993 and the tooling gap called out in #2967: both ratchet scripts ship with tests but neither is invoked by any workflow, so both backlogs can climb back silently. Also fix the ruff count ratchet's directory-walk scope, which reports a phantom regression on any working tree that carries an untracked nested worktree.",
-    "endingCommit": "7f395790969ab4f8f2fe4cb1d542f825db40a0bf"
+    "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -111,7 +111,7 @@
       "entry": "Wired both gates. The count ratchet runs in the Python Tests workflow beside the existing changed-file ratchet, under the same python-changed gate, since ruff debt only moves when Python moves. The ADR-006 run-block ratchet runs in the PR Validation workflow at --max 87, because workflow YAML can change in any PR and the Python Tests workflow skips when no Python changed. Both are single-line invocations of a tested script, so neither adds logic to workflow YAML and the scanner still reports 87 after the edit."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Drain the 361 ruff violations opportunistically and lower the baseline with --update after each cleanup.",
     "Extract one large ADR-006 run block per PR and lower --max to match; the two biggest are in the ai-review composite action at 142 and 117 code lines.",

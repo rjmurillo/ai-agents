@@ -145,7 +145,7 @@
       "result": "Added only the required QA report and its bound session log. No product code, workflow, or unrelated PR state changed."
     }
   ],
-  "endingCommit": "8f18242df9c025af6e08e751a897dd93c9d093cd",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit and push the two QA evidence files, wait for required checks, run the completion gate, and merge only if all four Ready-to-Merge conditions hold."
   ]

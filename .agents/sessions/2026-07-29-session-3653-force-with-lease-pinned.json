@@ -121,7 +121,7 @@
       "step": "Turned the throwaway reproduction into a real two-sided concurrency regression, satisfying #3413's last acceptance criterion. A first draft pushed to a filesystem path rather than the remote name, which has no tracking ref, so bare --force-with-lease failed for an unrelated reason and the hazard control passed vacuously in the wrong direction. Corrected to push to origin."
     }
   ],
-  "endingCommit": "e674b19ea",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Consider whether .claude/skills/git-advanced-workflows/SKILL.md should stop teaching bare --force-with-lease as sufficient, given the measured defeat.",
     "ADR-076 still records implemented: false while pr_autofix_lease.py ships; reconcile the flag."

@@ -141,6 +141,6 @@
       "validation": "orphan-ref-validator still reports historical out-of-scope script_path debt, but no longer reports .claude/skills/orphan-ref-validator/SKILL.md:335."
     }
   ],
-  "endingCommit": "32c2683b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

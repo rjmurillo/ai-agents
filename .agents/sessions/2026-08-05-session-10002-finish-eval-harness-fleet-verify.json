@@ -152,6 +152,6 @@
       "outcome": "Issue #4671 records commit-file-count incorrectly treating generated mirrors as authored files after searches found no existing issue."
     }
   ],
-  "endingCommit": "1502382d8",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

@@ -172,7 +172,7 @@
       "entry": "The full pre-push suite identified failure_classification.py as a library that needed an explicit workflow-wiring rationale. Added the reasoned _NOT_WORKFLOW_INVOKED entry and passed all 122 wiring checks at code commit cc649bcf21f229d902aa3d0e1238e7e6ed9d99df."
     }
   ],
-  "endingCommit": "80236b38509475b55a2308ae1f91b68cf8ee968f",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Parent session may push the local CI-fix commits after confirming the PR lease remains live.",
     "Rerun PR #4637 checks on the new head; this worktree must not perform remote mutation."

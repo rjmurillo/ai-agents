@@ -149,7 +149,7 @@
       "result": "The change remained green. pre_pr.py stayed blocked only by issue 4859, a Windows synthetic merge-tree Ruff overcount of 42 versus the direct count of 27."
     }
   ],
-  "endingCommit": "3bab13fed50f5746cae70d974e302dcedae3d7fa",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"

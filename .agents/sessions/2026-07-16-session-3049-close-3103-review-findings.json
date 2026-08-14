@@ -147,7 +147,7 @@
       "entry": "Copilot found the module docstring still duplicated the retired /tmp path. Made the module the sole path contract, removed the stale shell excerpt, added a hard-coded-path regression test, and verified 25 passed plus Ruff, mypy, and the Python 3.10 syntax gate."
     }
   ],
-  "endingCommit": "24da6b203",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit and push the reviewed fix after the remote-SHA audit.",
     "Reply to both review threads, then resolve them only after the fix commit is on the PR head.",

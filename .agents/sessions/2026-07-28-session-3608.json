@@ -135,7 +135,7 @@
       "entry": "Serial drain of remaining queue. Notable fixes: ADR-088 reference scenarios admitted to 3576's coverage gate with baseline refresh; 3587's validator wired into workflow; 3569 catalog regen removed committed conflict markers; 3560 seven-hunk union with restored error_count validation and ADR-087 amendment; commit-limit-bypass on 3569 and 3560 for merge churn. Root-caused phantom BLOCKED to required_review_thread_resolution with outdated-flagged threads."
     }
   ],
-  "endingCommit": "f51b6b39",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "User decision on 3638: close or rebase to episode-only subset (ADR-089 removed its targets)",
     "User decision on 3647: re-scope causal-graph runbook docs post ADR-089",

@@ -200,7 +200,7 @@
       "summary": "Merged origin/main (5 commits) after #4185 re-conflicted AGENTS.md on the same plugin-bump line. Resolved by taking main's side verbatim and applying only this branch's delta, so main's removal of 'Update Serena' and its ADR citation style both survive: the clause became 'No manifest version (ADR-092)'. Also fixed a gap this branch had left: ADR-091's frontmatter said status superseded while its body still opened with 'Accepted', so the body now leads with the supersession paragraph and the four verified mechanism failures, matching how ADR-079 records the same thing. Confirmed against the adr-review skill evidence recorded earlier in this session and the six-lens debate in .agents/analysis/2026-08-01-adr-092-omit-plugin-version-debate.md; no new architectural decision was introduced by the merge, so no fresh ADR Review Protocol run was warranted."
     }
   ],
-  "endingCommit": "c59473239",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Verify Copilot CLI end to end: install the plugin from the marketplace, push a commit that changes a shipped file, run copilot plugin update, and confirm the installed file changes. This needs an authenticated CLI and a published marketplace ref, neither of which exists in this worktree.",
     "Rename validate_plugin_version_bump.py to match its inverted behavior, updating its four callers, the workflow, and the paths filter.",

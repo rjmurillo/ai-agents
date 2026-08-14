@@ -126,7 +126,7 @@
       "step": "Rebuilt .agents/memory/causality/causal-graph.json from committed episodes after repeated main and bot merges dropped the episode-2026-07-28-session-3562-safe-push-threads reference. The targeted causal graph coverage test passed before staging."
     }
   ],
-  "endingCommit": "a4487fcfd84d39ca098dcec84f36fdedd225e994",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Reply to and resolve the three Copilot threads on PR #3568, then re-arm auto-merge.",
     "Issue #3593 tracks the 60 skill test files under .claude/skills/*/tests/ that testpaths never selects.",

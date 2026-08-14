@@ -39,7 +39,7 @@
       "evidence": "pytest tests/skills/orphan-ref-validator -> 8 passed; skill-local + copilot -> 56 passed; scanner reports 0 skill-script orphans repo-wide after the cva-analysis fix"
     }
   ],
-  "endingCommit": "ac64ea12d",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with Fixes #1987 (sub-failure 1: wrong script name)",
     "Sub-failure 2 (JSON-shape: inconsistent Data envelope across github scripts) is a separate output-contract standardization, out of scope here",

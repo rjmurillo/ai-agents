@@ -140,7 +140,7 @@
       "result": "The lint-selects-nothing trap is not a new discovery; the repo's own markdown-check hook already prints that warning. The retrospective now credits the wrapper and notes that only a direct tool invocation loses the warning."
     }
   ],
-  "endingCommit": "933e34242",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Land the mutation-control rule covering both cache directions (PR #4314).",
     "Open PRs for the four branches whose pushes are still failing on python-tests.",

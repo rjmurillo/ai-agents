@@ -192,7 +192,7 @@
       "Compliance telemetry for the 95.8% -> >80% AC."
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with 'Partial: #1726' framing and auto-merge enabled.",
     "Follow-up PR: ADR-058 with architect-review artifact for full hook architecture formalization.",

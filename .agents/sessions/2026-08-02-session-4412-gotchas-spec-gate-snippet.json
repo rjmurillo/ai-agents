@@ -124,5 +124,5 @@
     "Open the PR for this one-hunk documentation correction.",
     "Delete the superseded docs/gotchas-* branch once this lands; two of its three commits are already on main as e6c387ff2."
   ],
-  "endingCommit": ""
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

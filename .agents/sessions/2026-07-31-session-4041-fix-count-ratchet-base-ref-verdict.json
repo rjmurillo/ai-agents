@@ -143,7 +143,7 @@
       "outcome": "No matches. pre_pr.py Em/en-dash Prohibition also PASS."
     }
   ],
-  "endingCommit": "98ff4f50f1446d29efe2699bcb9eb6d6502e004c",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Ruleset 11104075 still reads strict_required_status_checks_policy false, so the concurrent-merge race documented in .github/AGENTS.md stays reachable until a repository owner flips it. That is a settings change, not a code change, and is out of scope for this PR."
   ]

@@ -151,7 +151,7 @@
       "outcome": "Commit 707f016fc. One word in _OPERATOR_GETTERS plus a nine-line _keyword_site helper, because the F1 operator machinery had already landed."
     }
   ],
-  "endingCommit": "707f016fc222a8691266181171b24d4adfa90beb",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR with Refs #3422 and the differential numbers in the body.",
     "Repoint issues #3925 and #3927 from the closed #3835 to the new PR.",

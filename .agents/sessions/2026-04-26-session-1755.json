@@ -147,7 +147,7 @@
       "step": "Final: ran pytest tests/test_validation_pr_description.py -q (117 passed), pytest tests/ -q --ignore=tests/integration (7175 passed, 3 skipped), uv run ruff check (clean), uv run mypy on changed file (clean), uv run pytest --cov --cov-branch (100%/218 stmts/66 branches/0 missing); live e2e against PR #1781 with bypass label applied exits 0 with audit emission"
     }
   ],
-  "endingCommit": "3aafad26",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Re-run Session Protocol Validation workflow to confirm session 1755 is now COMPLIANT",
     "Watch PR #1781 for QA Review check completion and any further reviewer feedback",

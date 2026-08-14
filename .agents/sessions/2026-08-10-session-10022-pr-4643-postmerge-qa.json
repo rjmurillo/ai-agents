@@ -132,7 +132,7 @@
       "result": "Report records 5adfa6922d977ec9e90e03d36999a0478dd45beb as code commit under test."
     }
   ],
-  "endingCommit": "5adfa6922d977ec9e90e03d36999a0478dd45beb",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push QA report and session binding, wait for required checks, then run completion gate."
   ]

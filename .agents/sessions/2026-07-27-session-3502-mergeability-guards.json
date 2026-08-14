@@ -133,7 +133,7 @@
       "step": "Validated targeted files: 225 passed across tests/test_get_pr_checks.py, tests/validation/test_merge_causal_graph.py, and tests/skills/merge-resolver/test_resolve_pr_conflicts.py; ruff passed on changed Python files."
     }
   ],
-  "endingCommit": "1d8da02a26",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Issue #3502 should close with this PR. Environment 2 remains an architectural owner decision because a merge driver cannot run inside GitHub's merge-ref backend.",
     "Low-check-count heuristic was not added because this repository has no stable in-script measured baseline for normal check count. The mergeability signal is deterministic and cheaper to enforce."

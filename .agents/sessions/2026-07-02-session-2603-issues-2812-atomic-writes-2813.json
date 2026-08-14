@@ -122,7 +122,7 @@
     "Created and populated this session log; documented override decision to Serena memory (file fallback).",
     "Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files."
   ],
-  "endingCommit": "f13f73f",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch, open draft PR referencing #2812 and #2813 (note deferred #2812 sites: skillbook, invoke_memory_first_enforcer, invoke_skill_learning).",
     "Ship #2811 (subprocess timeouts) as its own follow-up PR.",

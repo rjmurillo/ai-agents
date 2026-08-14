@@ -144,7 +144,7 @@
       "files": []
     }
   ],
-  "endingCommit": "b612fd36",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR with Refs #3218 #3295 #3197 (first of four SAFE-DELETE push guards).",
     "Babysit the PR to green; resolve review-on-push threads; self-merge (squash).",

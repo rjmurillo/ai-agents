@@ -164,7 +164,7 @@
       "outcome": "origin/main now contains 0.5.172, so PR branch bumped Claude and Copilot manifests to 0.5.173."
     }
   ],
-  "endingCommit": "8cd15f2c1e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit latest origin/main merge",
     "Rerun validation",

@@ -133,6 +133,6 @@
       "evidence": "scan 33.9s->1.0s; pytest 5 passed; mutation-checked; fixes #2047 perf test"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

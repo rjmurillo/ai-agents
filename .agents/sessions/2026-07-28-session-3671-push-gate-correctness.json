@@ -109,7 +109,7 @@
       "step": "Wrote 47 regression tests, then ran a negative control against pre-fix source: 43 failures. Rewrote the first #3657 test, which was vacuous because pytest runs under uv, to invoke with -S so the editable-install .pth cannot mask the defect."
     }
   ],
-  "endingCommit": "440b70387",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open the PR for the four push-gate fixes and run the description validator against the live PR",
     "Run adversarial round 6 against the round-5 semgrep tokenizer rules: alias chains, |&, writer arguments, positional staging, per-interpreter code flags",

@@ -91,6 +91,6 @@
   "validation": [
     "uv run pytest tests/test_issue_coordination.py tests/workflows/test_post_pr_retrospective.py::TestAgentStepFailureIsolation::test_agent_step_keeps_sha_pinned_action -q"
   ],
-  "endingCommit": "0d8a01cdbc9e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

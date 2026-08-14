@@ -44,7 +44,7 @@
       "files": ["scripts/Validate-SessionJson.ps1"]
     }
   ],
-  "endingCommit": "def5678",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Update session-init skill to generate JSON",
     "Update CI to use JSON validator",

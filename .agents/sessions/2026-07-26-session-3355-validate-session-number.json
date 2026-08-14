@@ -165,7 +165,7 @@
       ]
     }
   ],
-  "endingCommit": "f6df9d1217",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the branch-vs-number measurement.",
     "Remaining unwired validators from issue 3360: traceability.py and consistency.py.",

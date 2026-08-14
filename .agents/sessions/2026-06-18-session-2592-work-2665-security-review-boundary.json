@@ -151,6 +151,6 @@
       "result": "Merged origin/main after the pr-comment-responder and programming-advisor branches landed; set project-toolkit manifests to 0.5.213 and accepted the generated causal graph from main."
     }
   ],
-  "endingCommit": "0936466a",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

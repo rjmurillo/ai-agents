@@ -121,7 +121,7 @@
     "Deferred: three hook sites (observation_sync, adr_review_guard, session_initialization_enforcer) whose files carry the pre-existing bootstrap assignment/no-any-return mypy debt; same deferral precedent as the #2812 hook sites. Also deferred: homework_scanner search-before-create idempotency (resumability improvement beyond the timeout scope).",
     "Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files."
   ],
-  "endingCommit": "05a16e6",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open draft PR-B referencing #2811; note deferred hook sites and homework idempotency.",
     "PR-C candidate: the three deferred hook sites once the hook-bootstrap type debt is settled."

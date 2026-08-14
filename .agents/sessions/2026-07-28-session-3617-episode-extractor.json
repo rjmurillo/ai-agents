@@ -160,5 +160,5 @@
     "Confirm PR #3688's Windows job is green on f6b7b16c3 and PR #3694's ADR-006 ratchet on 897ac7939.",
     "Continue the open-issue campaign: adversarial round 6 against the round-5 tokenizer rules, then the P1 queue and the 34 ADR-006 workflow extraction chores."
   ],
-  "endingCommit": "0a13d4fb5"
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

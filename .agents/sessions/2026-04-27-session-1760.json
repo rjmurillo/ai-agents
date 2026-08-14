@@ -122,7 +122,7 @@
       "action": "PR review follow-up: shortened description to 183 chars, fixed Phase 1 memory query sequence, added memory tooling fallback, added output self-check gate, added Verification section. Created eval suite (6 knowledge-integration prompts + 6 behavioral scenarios). Ran SkillForge analysis."
     }
   ],
-  "endingCommit": "e7b604df",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Run live eval-knowledge-integration when ANTHROPIC_API_KEY available",
     "Address remaining SkillForge warnings (anti-patterns, extension points) in future PR"

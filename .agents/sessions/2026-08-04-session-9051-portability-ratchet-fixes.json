@@ -139,7 +139,7 @@
       "detail": "gh pr view 4551 --json state,closingIssuesReferences,headRefOid: state=OPEN, headRefOid=39c4f36bb55380d089dd13df6974f4d8657021d8, closingIssuesReferences=[4211,4212,4242,4511]."
     }
   ],
-  "endingCommit": "39c4f36bb55380d089dd13df6974f4d8657021d8",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "PR #4551 is open awaiting review. closingIssuesReferences verified: #4211, #4212, #4242, #4511.",
     "Issue #4204 is closed with evidence."

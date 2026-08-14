@@ -125,7 +125,7 @@
    "detail": "ADR-074 is doc-only (no code, no tests to run). Validation performed: markdownlint-cli2 on the ADR file returned Summary: 0 error(s). Dash check (python3 byte count of U+2014/U+2013) returned emdash=0, endash=0, satisfying universal.md MUST-NOT-5. ADR number 074 confirmed free (no ADR-074-*.md existed). Frontmatter follows ADR-073 lifecycle schema (status: proposed). No pytest run because no executable code changed; the ADR records a decision and defers implementation to a future security-agent-reviewed change."
   }
  ],
- "endingCommit": "e6d1f3d34a",
+ "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
  "nextSteps": [
   "adr-review skill 6-agent debate",
   "architect agent review",

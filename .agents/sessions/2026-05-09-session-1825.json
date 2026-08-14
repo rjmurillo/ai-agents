@@ -123,7 +123,7 @@
     {"step": "Synthesize findings", "outcome": "All 15 PASS but PASS != non-redundant; identified PRUNE/FOLD/SUNSET/DECOMPOSE/INVESTIGATE/RENAME/KEEP slate; report at .agents/analysis/skill-triage-2026-05-09.md"},
     {"step": "Update Serena memory", "outcome": "skills/skill-triage-eval-2026-05-09 written"}
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR for this branch with triage report as the deliverable; link findings",
     "Wave 2 triage for remaining 47 skills (agent-workflow, code-review, retrospective-reflect clusters)",

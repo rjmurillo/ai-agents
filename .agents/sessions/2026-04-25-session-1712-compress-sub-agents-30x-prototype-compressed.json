@@ -134,7 +134,7 @@
       "outcome": "Single-PR scope respected per autonomous-mode constraint."
     }
   ],
-  "endingCommit": "643d2f10",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Build automated A/B compliance harness for the prototype set.",
     "Run controlled comparison (baseline vs compressed) for orchestrator, implementer, security on representative tasks.",

@@ -135,7 +135,7 @@
       ]
     }
   ],
-  "endingCommit": "d73ce822",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR referencing #3196 and babysit to green + self-merge once checks pass and threads resolve.",
     "Post the corrected #3196 coverage matrix as an issue comment so the retirement increments target lefthook, not the stale .githooks path, and surface the gh-pr-create coverage gap for a decision.",

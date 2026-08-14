@@ -145,7 +145,7 @@
       "result": "Root lefthook.yml changed through recovered commit dc7393d0b, so security PIV remains required before merge."
     }
   ],
-  "endingCommit": "955af9fb6",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Route lefthook.yml to security PIV before merge."
   ],

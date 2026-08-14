@@ -135,7 +135,7 @@
       "summary": "Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails."
     }
   ],
-  "endingCommit": "c195050067",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/3357-atomic-causal-graph-write and open a PR that fixes #3357.",
     "Merge only after required CI and review-thread gates pass."

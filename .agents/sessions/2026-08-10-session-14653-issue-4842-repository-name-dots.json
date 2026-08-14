@@ -153,6 +153,6 @@
       "outcome": "Kept main's 2026-08-10-session-14653.json byte for byte, moved this branch's log to 2026-08-10-session-14653-issue-4842-repository-name-dots.json, and re-ran QA on the merged tree with 251 tests passing and Ruff clean."
     }
   ],
-  "endingCommit": "42f83d67cedb87e4fe0dd27e9ea4b63f84185810",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

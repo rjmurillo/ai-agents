@@ -193,7 +193,7 @@
       "entry": "Changed range counting to unique paths from non-merge commits on the ending commit first-parent path. Preserve mode now reapplies the measured source. The affected suite passed 567 tests, and this episode now reports 9 files instead of 86 with 22 events preserved."
     }
   ],
-  "endingCommit": "60b78f3c3",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the merged-main fix, reply to and resolve both review threads after reachability, and verify final CI plus auto-merge."
   ]

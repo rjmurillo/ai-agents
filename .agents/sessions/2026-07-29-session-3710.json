@@ -140,7 +140,7 @@
       "evidence": "Verified --no-globs does not disable ignores, so the lefthook markdown-check and markdown-autofix jobs share the defect. Filed as issue #3808 with the measurement and the open question about whether lefthook surfaces the banner on a green job."
     }
   ],
-  "endingCommit": "c9eb7675",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Confirm PR closes #3710; Fixes-N auto-close has been unreliable this session.",
     "Decide #3808: whether lefthook shows the Linting banner on a green job.",

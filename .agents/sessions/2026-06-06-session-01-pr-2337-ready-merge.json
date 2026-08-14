@@ -135,7 +135,7 @@
       "evidence": "Retrospective tests passed: 63 passed in local Python 3.14 venv"
     }
   ],
-  "endingCommit": "ed410f687928eee1b2c64c2bc409be009d802c74",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push branch after safety check, poll CI, merge PR 2337 when clean"
   ]

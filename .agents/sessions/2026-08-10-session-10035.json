@@ -200,7 +200,7 @@
       "outcome": "Merge commit 51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1 imports baseline 30 from main. The local ratchet now reports 27 violations with 3 slack."
     }
   ],
-  "endingCommit": "51a03ff77aa3db6a98f1b6ee0b55fb6e6eff5bc1",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push the branch and read the CI wall clock from the workflow run; the sub-10-minute target is unproven until then.",
     "File a separate issue for the pr-autofix lease-renewal grandchild that keeps the harness pipe open.",

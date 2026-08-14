@@ -121,7 +121,7 @@
       "outcome": "Deleting the exemption turns the worktree test red; making it unconditional turns the live-log test red; forcing the worktree probe to True turns three red including the issue #3343 merged-history test."
     }
   ],
-  "endingCommit": "4ebee9f070",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "#3402 asks for three rules; two of its acceptance criteria already ship as check_skill_resolver_anchoring.py and check_skill_contract_tests.py, so only the worktree-identity rule is missing.",
     "core.worktree redirects git rev-parse --show-toplevel away from cwd, which is worth documenting because check_skill_resolver_anchoring.py mandates anchoring on exactly that command.",

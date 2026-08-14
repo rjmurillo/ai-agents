@@ -95,5 +95,5 @@
   "nextSteps": [
     "Reduce .github/copilot-instructions.md from 6351 to 3000 bytes by moving Gotchas section to .agents/governance/ (issue #3952). Update FILE_CEILING_BYTES ratchet when trimming completes."
   ],
-  "endingCommit": "76f7a4b3e"
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd"
 }

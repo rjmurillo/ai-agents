@@ -129,7 +129,7 @@
       "outcome": "A checklist item holding a bare boolean raised AttributeError. Now a reported shape error naming the section, the item, and the type found."
     }
   ],
-  "endingCommit": "8f4fb83ddd",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Issue #3383 (session-log copy-paste contamination) was blocked on this and is now unblocked",
     "The workflow's CUTOFF_DATE shell filter is logic in YAML (ADR-006) and now overlaps this rule",

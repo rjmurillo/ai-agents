@@ -156,7 +156,7 @@
       "result": "Added a 300-second subprocess timeout and exception-safe byte restoration. Narrowed the QA claim and documented both the 12.74-second measured run and 12.46-second final verification. All 7 mutation tests passed in 100.56 seconds."
     }
   ],
-  "endingCommit": "92d1fdee3b5a8b9ebecce9a869aed8a54f20f545",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open an atomic pull request that fixes Issue #4826."
   ]

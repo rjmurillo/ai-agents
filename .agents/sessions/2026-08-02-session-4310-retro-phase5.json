@@ -212,7 +212,7 @@
       }
     ]
   },
-  "endingCommit": "d51833006889",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Take issue #4285 (table-driven registry for pre_pr_sequence.py) directly.",
     "Dispatch the three idle agents onto issues #4293, #4304, #4299, #4291, #4292, #4300.",

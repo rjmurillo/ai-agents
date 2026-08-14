@@ -145,7 +145,7 @@
       "result": "337 ratchet tests passed, repeated targeted runs passed, coverage reached 91%, scoped Ruff and mypy passed, mutations were killed, security scan was clean, and pre_pr passed."
     }
   ],
-  "endingCommit": "ae246e755",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Route Lefthook and subprocess materialization changes to security PIV before merge."
   ],

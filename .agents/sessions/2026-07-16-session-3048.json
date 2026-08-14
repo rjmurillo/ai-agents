@@ -140,7 +140,7 @@
       "entry": "The session-init JSON entrypoint created this data file with executable mode 100755 because os.open omitted its mode argument. Filed issue #3114 with a deterministic umask repro and normalized this log to 100644."
     }
   ],
-  "endingCommit": "11b334d5",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit and push the bounded lock remediation before resolving the final review thread.",
     "Wait for stable PR checks and confirm Reliability Review no longer reports unbounded waits.",

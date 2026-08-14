@@ -159,7 +159,7 @@
       "summary": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts and tests/test_lefthook_integration.py. Regenerated the copilot skill mirrors with build_all.py and bumped both project-toolkit manifests to 0.6.115 after main advanced past the original 0.6.113 reservation, keeping 0.6.114 free for PR #3376 to land first."
     }
   ],
-  "endingCommit": "876fa0b06b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/3349-retired-hooks-still-fire and open a PR closing #3349.",
     "File a follow-up issue for ADR-008's two stale implementation tables and for ADR-082 gaining one sentence that group ids are opaque dispatcher keys."

@@ -168,7 +168,7 @@
       "result": "Killed mutants for unknown-as-healthy, secondary-refusal-as-indeterminate, caller ignoring indeterminate, and success property treating indeterminate as pass. Cosmetic docstring control survived."
     }
   ],
-  "endingCommit": "f90f6e6ebfa29980e97a370e7fd4594e23f57d1d",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/api-resilience-4547-4537-4536 and update PR #4621 with the final mutation table and rate-limit status evidence."
   ],

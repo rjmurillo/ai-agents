@@ -170,6 +170,6 @@
       "evidence": "Validate mode now reports the invalid ref value, extractor tests passed with 284 tests, and mutation proof still killed all behavioral mutants."
     }
   ],
-  "endingCommit": "1b177000180e56e7c3cab514ba5218d7559c1193",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

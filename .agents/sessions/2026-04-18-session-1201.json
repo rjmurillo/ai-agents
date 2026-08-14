@@ -139,7 +139,7 @@
       "evidence": "No errors in the 5 edited files"
     }
   ],
-  "endingCommit": "a5c36477",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Commit + push changes",
     "Open PR referencing Fixes #1669",

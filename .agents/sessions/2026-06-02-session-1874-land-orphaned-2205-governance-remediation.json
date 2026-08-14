@@ -118,7 +118,7 @@
       "outcome": "PR #2206 squash-merged (d6bd06d7c); the core fix landed in main but the governance layer (rule generated-artifacts.md, ADR-063, FM #11, incident retro, CI anchoring gate step, canonical-source-mirror amendment, AGENTS boundary, load-bearing test, 2 feedback memories) was orphaned on the re-created branch. Created branch fix/2205-generated-artifact-governance off origin/main and restored the orphaned governance files (verified each edited file's diff vs main was exactly my edit, no 3-way needed). Filed #2258 for the pre-commit set -e scope-detector silent-kill bug found during the original landing. Verification: validate_hook_anchoring PASS; uv run pytest runtime-contract 6 passed; build_all --platform copilot-cli --check exit 0."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR for this branch",
     "Land governance remediation in main",

@@ -287,7 +287,7 @@
       }
     ]
   },
-  "endingCommit": "f2a851b1ee458861df9c977041deaba95236ca7e",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Push fix/marketplace-mirror-gate and open the PR with Fixes #3651 and Refs #3645, #2187.",
     "PR #3638 carries 0.6.147 in src/claude/.claude-plugin/plugin.json, a cross-version-line collision. If it merges first, every open PR touching that manifest fails the strictly-greater check. Commented on the PR; unresolved.",

@@ -140,7 +140,7 @@
       "outcome": "The PR references closed issue #4923 without a closing keyword and contains no runtime changes."
     }
   ],
-  "endingCommit": "c8336cc37",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Clear PR #4944 checks and reviews, then merge."
   ]

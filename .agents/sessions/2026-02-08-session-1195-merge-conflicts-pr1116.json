@@ -73,7 +73,7 @@
       "rationale": "Test script allows absolute paths for CLI flexibility during development. Follow-up issue #1118 will add repo-root containment to all scripts consistently"
     }
   ],
-  "endingCommit": "fdef65a6",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "PR #1116 ready for final review and merge",
     "Issue #1118: Add repo-root validation (High priority)",

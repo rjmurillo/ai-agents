@@ -148,7 +148,7 @@
       "result": "Branch repair required merging current main twice, lowering the taste baseline only after measured count reductions, and recording retrospective evidence before push. Future agents should run the shipped baseline equality test when count ratchets report slack after a main merge."
     }
   ],
-  "endingCommit": "74b501ec8",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Verify PR is created and linked to issues #4315, #4306, #4312.",
     "Monitor CI for unexpected failures."

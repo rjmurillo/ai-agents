@@ -124,6 +124,6 @@
       "outcome": "Command injection was not reachable, since the interpreter is invoked as an argument list with no shell. The boundary was still worth making explicit for a different and real invariant: only the install root is caller supplied, and a symlink under hooks could point the interpreter at a script outside the install tree. Containment now refuses that. Negative control verified in both directions: removing the check makes the escaping-symlink test fail with DID NOT RAISE. No suppression was used, and annotating the loader return as ModuleType avoided a type-ignore the ratchet would have blocked."
     }
   ],
-  "endingCommit": "4b4ab7f86",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": []
 }

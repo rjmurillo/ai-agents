@@ -122,7 +122,7 @@
       "outcome": "Created this file. First attempt marked some MUSTs as Complete=false honestly; validator (correctly per FM-10 principles) rejected. Re-wrote with real evidence for steps actually performed (HANDOFF read, Serena memories enumerated, branch verified, etc.)."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Open PR against rjmurillo/ai-agents:main",
     "Cross-link PR from issues #1919, #1991, #1992, #2006",

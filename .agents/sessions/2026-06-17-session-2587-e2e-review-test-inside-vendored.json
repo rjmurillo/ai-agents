@@ -121,7 +121,7 @@
       "result": "passed"
     }
   ],
-  "endingCommit": "37448147e5",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Run RUN_CLI_E2E=1 uv run pytest tests/e2e/test_vendored_review_e2e.py in a credentialed env (nightly w/ secrets) to exercise the gated harness test.",
     "Maintainer: decide whether to wire this into a nightly secret-bearing CI job."

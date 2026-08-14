@@ -115,7 +115,7 @@
       "outcome": "Both improvements are on a branch off main rather than lost with their deleted source branches"
     }
   ],
-  "endingCommit": "af7c0a453b",
+  "endingCommit": "0023ec6b7faa74a57e5ade504fa833641a6686dd",
   "nextSteps": [
     "Resolve the two remaining threads on PR #3396 and the one on PR #3397",
     "Report the open-issue count discrepancy: the objective assumed 31, the repository had 12"
