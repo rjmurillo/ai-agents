@@ -1475,6 +1475,17 @@ def run_validation(
 # ---------------------------------------------------------------------------
 
 
+def _append_issue_section(
+    lines: list[str], title: str, issues: list[str]
+) -> None:
+    """Append a Markdown issue section when issues are present."""
+    if not issues:
+        return
+    lines.extend((f"## {title}", ""))
+    lines.extend(f"- {issue}" for issue in issues)
+    lines.append("")
+
+
 def format_markdown(report: ValidationReport) -> str:
     """Format validation report as markdown."""
     lines: list[str] = [
@@ -1528,19 +1539,15 @@ def format_markdown(report: ValidationReport) -> str:
             )
         lines.append("")
 
-    if report.naming_convention and report.naming_convention.violations:
-        lines.append("## Naming Convention Violations")
-        lines.append("")
-        for v in report.naming_convention.violations:
-            lines.append(f"- {v}")
-        lines.append("")
+    naming_issues = (
+        report.naming_convention.violations if report.naming_convention else []
+    )
+    _append_issue_section(lines, "Naming Convention Violations", naming_issues)
 
-    if report.frontmatter_validity and report.frontmatter_validity.issues:
-        lines.append("## Malformed Frontmatter")
-        lines.append("")
-        for issue in report.frontmatter_validity.issues:
-            lines.append(f"- {issue}")
-        lines.append("")
+    frontmatter_issues = (
+        report.frontmatter_validity.issues if report.frontmatter_validity else []
+    )
+    _append_issue_section(lines, "Malformed Frontmatter", frontmatter_issues)
 
     return "\n".join(lines)
 
