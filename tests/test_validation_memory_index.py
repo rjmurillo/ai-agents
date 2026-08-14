@@ -2274,6 +2274,44 @@ Intro paragraph.
 Second section after a horizontal rule.
 """
 
+# Opening delimiter with no closing '---'. frontmatter.loads accepted this as
+# empty metadata; the tightened check must flag it (issue #4918).
+_UNCLOSED_DELIMITER = """\
+---
+title: Broken memory
+description: never closed
+
+# Body that was meant to follow frontmatter
+"""
+
+# Block parses to a YAML list, not a mapping. Must flag (issue #4918).
+_LIST_METADATA = """\
+---
+- one
+- two
+---
+
+# Body
+"""
+
+# Block parses to a bare scalar, not a mapping. Must flag (issue #4918).
+_SCALAR_METADATA = """\
+---
+just a bare string scalar
+---
+
+# Body
+"""
+
+# Empty frontmatter block carries no metadata and no colon-space corruption.
+# It stays valid (issue #4900): frontmatter is optional.
+_EMPTY_FRONTMATTER = """\
+---
+---
+
+# Body
+"""
+
 
 class TestCheckFrontmatterValidity:
     """Tests for YAML frontmatter validity validation (issue #4918)."""
@@ -2300,6 +2338,38 @@ class TestCheckFrontmatterValidity:
 
     def test_later_horizontal_rule_passes(self, tmp_path: Path) -> None:
         (tmp_path / "hr-memory.md").write_text(_HR_LATER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is True
+        assert result.invalid_files == []
+
+    def test_unclosed_delimiter_detected(self, tmp_path: Path) -> None:
+        # frontmatter.loads returned empty metadata here; the tightened check
+        # must fail on the missing closing delimiter (issue #4918).
+        (tmp_path / "unclosed-memory.md").write_text(_UNCLOSED_DELIMITER)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["unclosed-memory.md"]
+        assert "unclosed" in result.issues[0]
+
+    def test_list_metadata_detected(self, tmp_path: Path) -> None:
+        # A YAML list is not a metadata mapping; must be flagged (issue #4918).
+        (tmp_path / "list-memory.md").write_text(_LIST_METADATA)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["list-memory.md"]
+        assert "must be a mapping" in result.issues[0]
+
+    def test_scalar_metadata_detected(self, tmp_path: Path) -> None:
+        # A bare scalar is not a metadata mapping; must be flagged (issue #4918).
+        (tmp_path / "scalar-memory.md").write_text(_SCALAR_METADATA)
+        result = check_frontmatter_validity(tmp_path)
+        assert result.passed is False
+        assert result.invalid_files == ["scalar-memory.md"]
+        assert "must be a mapping" in result.issues[0]
+
+    def test_empty_frontmatter_block_passes(self, tmp_path: Path) -> None:
+        # An empty block carries no corruption; optional frontmatter (#4900).
+        (tmp_path / "empty-fm-memory.md").write_text(_EMPTY_FRONTMATTER)
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
         assert result.invalid_files == []
