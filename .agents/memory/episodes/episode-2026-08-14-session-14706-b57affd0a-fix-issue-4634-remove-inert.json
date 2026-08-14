@@ -3,17 +3,120 @@
   "session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert",
   "timestamp": "2026-08-14T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 4634: remove inert duplicate push-ref-staleness lefthook job and add parsed-config regression coverage",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T03:05:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4634 and its comments, searched for prior pull requests, claimed the issue, and created an external worktree from origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T03:40:00+00:00",
+      "type": "milestone",
+      "content": "Probed the pinned lefthook 2.1.10 binary and a raw git pre-push hook to establish the placeholder and argument contracts empirically",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T04:10:00+00:00",
+      "type": "milestone",
+      "content": "Deleted the duplicate push-ref-staleness job, moved the surviving early job to the quoted positional placeholder, and hardened the script against an unexpanded placeholder",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T04:45:00+00:00",
+      "type": "milestone",
+      "content": "Added parsed-config, unit, and runtime coverage and proved each new test fails against the pre-fix tree",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T05:20:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the reported behavior before and after the fix in this repository and ran the affected suites, lefthook validate, and Ruff",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T05:20:00+00:00",
+      "type": "test",
+      "content": "Reproduced the reported behavior before and after the fix in this repository and ran the affected suites, lefthook validate, and Ruff      Before shows two summary lines for one job, a green inert pass beside a real failure; after shows one failing line naming the advanced remote SHA; 1120 passed and 2 skipped across 11 modules; lefthook validate reports All good; Ruff clean",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T05:40:00+00:00",
+      "type": "milestone",
+      "content": "Rebased onto the advanced origin/main, re-ran the affected suites, and wrote the QA report and per-issue handoff",
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T21:22:49+00:00",
+      "type": "commit",
+      "content": "Commit: 210e015a7c",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert"
+    }
+  ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 155,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 5
+    "commits": 1,
+    "files_changed": 62
   },
   "lessons": []
 }
