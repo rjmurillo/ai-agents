@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review.json
-qaCommit: 71cf10de15636c6598bda887583da3efe40aa1d6
+qaCommit: 6030df0ce0b54830cb85189518bd9d1850e109e3
 ---
 
 # QA: PR 4893 late review autofix
