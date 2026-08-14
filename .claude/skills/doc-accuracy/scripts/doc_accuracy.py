@@ -10,7 +10,9 @@ Phase 3: Compilability - verify code example symbols exist in codebase
 
 Exit Codes:
     0: No findings at or above severity threshold
-    1: Error or inconclusive run
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
     10: Findings at or above severity threshold
 """
 

@@ -208,11 +208,17 @@ Present proposed fixes for user approval before modifying any file. Categories:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | No findings at or above severity threshold |
-| 1 | Error or inconclusive run, including no source symbols for Phase 3 |
-| 10 | Findings at or above severity threshold |
+Canonical source: `.claude/skills/doc-accuracy/scripts/doc_accuracy.py` module
+docstring.
+
+```text
+Exit Codes:
+    0: No findings at or above severity threshold
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
+    10: Findings at or above severity threshold
+```
 
 ---
 

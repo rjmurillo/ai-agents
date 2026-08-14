@@ -46,6 +46,20 @@ _iter_git_files = mod._iter_git_files
 _repo_relative = mod._repo_relative
 
 
+def test_exit_code_documentation_covers_the_cli_contract() -> None:
+    """Canonical skill and script docs list every executable exit code."""
+    contract = """Exit Codes:
+    0: No findings at or above severity threshold
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
+    10: Findings at or above severity threshold"""
+    skill_path = Path(mod.__file__).resolve().parents[1] / "SKILL.md"
+
+    assert contract in (mod.__doc__ or "")
+    assert f"```text\n{contract}\n```" in skill_path.read_text(encoding="utf-8")
+
+
 class TestShouldExclude:
     def test_excludes_git(self) -> None:
         assert _should_exclude(Path(".git/config"))
