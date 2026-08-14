@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14682-b0d6e4079-fix-4893-unresolved-blocking-review.json
-qaCommit: d98888f32217ff6e75e230f607467e5e79cdca62
+qaCommit: e9e471db4c29d09fa3d986ec8ad36253a69f5eee
 ---
 
 # QA: require-subagent-model gate (issue #4874)

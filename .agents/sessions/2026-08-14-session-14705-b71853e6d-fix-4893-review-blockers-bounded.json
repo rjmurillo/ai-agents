@@ -160,7 +160,7 @@
       "result": "All four PR session logs passed; the exact merge-tree gate passed in the symlink-capable WSL clone with Ruff at 27 of 27 and every registered ratchet below its ceiling"
     }
   ],
-  "endingCommit": "d98888f32217ff6e75e230f607467e5e79cdca62",
+  "endingCommit": "e9e471db4c29d09fa3d986ec8ad36253a69f5eee",
   "nextSteps": [
     "Push only after renewed lease and late live-state checks.",
     "Rerun PR readiness and completion gate after checks and review threads settle.",
