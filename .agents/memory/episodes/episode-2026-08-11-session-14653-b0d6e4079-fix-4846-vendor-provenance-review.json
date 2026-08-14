@@ -90,7 +90,8 @@
         "e033",
         "e035",
         "e036",
-        "e037"
+        "e037",
+        "e039"
       ],
       "leads_to": [
         "e006"
@@ -503,6 +504,30 @@
       "caused_by": [
         "e034"
       ],
+      "leads_to": [
+        "e040"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed 7 commits (66a9c5fac..a58981e6b). CI polled FAILURE. Diagnosed a 3rd main-drift cycle: origin/main had advanced to 4ecc1fdf3, and bc179ad3a itself (not just its doc text) touches 15 vendor-provenance-pinned files this branch does not own (.claude/hooks/hooks.json, .claude/hooks/dispatch_groups.json, .claude/lib/hook_dispatch.py, a new hook invoke_require_subagent_model.py, per-hook mirror shims, build/scripts/generate_hooks*.py, .markdownlint-cli2.yaml), causing trust-anchor SHA-256 mismatches in CI's pull_request merge-ref (same class of failure as the 1st cycle, now recurring against a larger file set). A first attempt to sync only the 3 ADR files this test's assertions read (ADR-068/071/085) was abandoned after staging them pushed the branch's own scope-explosion count from 48/50 to 53/50, over the hard block (scripts/detect_scope_explosion.py, no non-bypass remediation available).",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-08-14T22:36:57+00:00",
+      "type": "commit",
+      "content": "Commit: fd82d92fc904ebb7cac3c7f07a4f135052586569",
+      "caused_by": [
+        "e038"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -512,8 +537,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 25,
-    "files_changed": 34
+    "commits": 26,
+    "files_changed": 51
   },
   "lessons": []
 }
