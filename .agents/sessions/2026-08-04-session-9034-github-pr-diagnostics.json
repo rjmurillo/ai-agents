@@ -160,7 +160,7 @@
       "evidence": "14 unused noqa (RUF100) removed from get_pr_checks.py, why_pr_blocked.py, audit_closing_claims.py, edit_pr_body.py"
     }
   ],
-  "endingCommit": "b04756e2ee7cce83a3b8cbcaa897cac52312a985",
+  "endingCommit": "a74ba994eb01c694c50b539a1cc6e1f7422dfc59",
   "nextSteps": [
     "Push branch and create PR",
     "Verify closing refs for #4359, #4393, #4462, #4490"
