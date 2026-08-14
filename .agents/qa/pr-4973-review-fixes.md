@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-12-session-14695-b9cdd3ff9-resolve-github-issue-4881-context.json
+qaSessionLog: 2026-08-14-session-pr4973-autofix.json
 qaCommit: 3117d2e6fb03eacfce1c82b7406ce1e4f06a4d2e
 ---
 
@@ -21,7 +21,7 @@ vendor-portability declarations. 123 context-optimizer tests pass.
 
 | Thread | Reviewer | Finding | Resolution |
 |---|---|---|---|
-| Worktree scan exclusion (x2) | copilot-pull-request-reviewer | rglob descends into worktrees | Added "worktrees" parts filter |
+| Worktree scan exclusion (x2) | copilot-pull-request-reviewer | rglob descends into worktrees | Added worktrees parts filter |
 | Frontmatter-only parsing (x2) | copilot-pull-request-reviewer | size-exception searched full body | Parse YAML frontmatter block only |
 | skill_size.py scoping (x2) | copilot-pull-request-reviewer | Output references upstream-only tool | Scoped to contributors |
 | pr-autofix upstream paths (x2) | copilot-pull-request-reviewer | test paths upstream-only | Added vendor-portability declaration |
