@@ -79,18 +79,20 @@ Use [github](../github/SKILL.md) instead when:
 |---------|---------|---------------|
 | `github.com/.../pull/` | `https://github.com/owner/repo/pull/123` | PR HTML is 5-10MB |
 | `github.com/.../pull/.../checks` | `https://github.com/owner/repo/pull/123/checks?check_run_id=...` | CI checks page bloat |
-| `github.com/.../pull/.../files` or `/changes` | `https://github.com/owner/repo/pull/123/files#r123456` | Diff view with comment fragment |
+| `github.com/.../pull/.../files` | `https://github.com/owner/repo/pull/123/files#r123456` | File view with review-comment fragment |
+| `github.com/.../pull/.../changes` | `https://github.com/owner/repo/pull/123/changes#discussion_r123456` | Diff view with review-comment fragment |
+| `github.com/.../pull/.../commits` | `https://github.com/owner/repo/pull/123/commits` | Commit list page |
 | `github.com/.../issues/` | `https://github.com/owner/repo/issues/456` | Issue HTML is 2-5MB |
+| `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
 | `github.com/.../actions/runs/` | `https://github.com/owner/repo/actions/runs/123/job/456` | Workflow run page bloat |
 | `github.com/.../blob/` | `https://github.com/owner/repo/blob/main/file.py` | File page has nav bloat |
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
 | `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
 | `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
-| `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
 | Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
+| Fragment `#r{id}` | Short review comment ID in `/files` or `/changes` URL | Extract ID, call API directly |
 | Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
 | Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
-| Fragment `#r{id}` (short form) | Review comment in `/changes#r123` | Same as `#discussion_r{id}` |
 
 ---
 
@@ -106,8 +108,25 @@ GitHub URL detected in user input
 │     Yes → get_pr_context.py --pull-request {n} --owner {o} --repo {r}
 │           (or get_pr_review_comments.py / get_pr_review_threads.py for comments)
 │
+├─ Is /pull/{n}/checks?
+│     Yes → get_pr_checks.py --pull-request {n}
+│
+├─ Is /pull/{n}/files or /pull/{n}/changes?
+│     Yes → get_pr_context.py --pull-request {n} --include-changed-files or
+│            --include-diff
+│
+├─ Is /pull/{n}/commits?
+│     Yes → get_pr_context.py --pull-request {n}
+│
 ├─ Is /issues/{n}?
 │     Yes → get_issue_context.py --issue {n} --owner {o} --repo {r}
+│
+├─ Is /discussions/{n}?
+│     Yes → gh api repos/{o}/{r}/discussions/{n}
+│
+├─ Is /actions/runs/{run_id} or /actions/runs/{run_id}/job/{job_id}?
+│     Yes → gh api repos/{o}/{r}/actions/runs/{run_id} or
+│            gh api repos/{o}/{r}/actions/jobs/{job_id}
 │
 ├─ Is /blob/{ref}/{path} or /tree/{ref}/{path}?
 │     Yes → gh api repos/{o}/{r}/contents/{path}?ref={ref}
@@ -158,13 +177,18 @@ GitHub URL detected in user input
 | URL Pattern | Script | Parameters |
 |-------------|--------|------------|
 | `/pull/{n}` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
-| `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
-| `/pull/{n}` (review comments) | `get_pr_review_comments.py` | `--pull-request {n}` |
-| `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
-| `/pull/{n}` (CI status) | `get_pr_checks.py` | `--pull-request {n}` |
+| `/pull/{n}/checks` | `get_pr_checks.py` | `--pull-request {n}` |
+| `/pull/{n}/files` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r} --include-changed-files` |
+| `/pull/{n}/changes` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r} --include-diff` |
+| `/pull/{n}/commits` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
 | `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
 
 **Script location**: `.claude/skills/github/scripts/`
+
+Related PR helper scripts:
+
+- `get_pr_review_comments.py`
+- `get_pr_review_threads.py`
 
 ### Fallback: Raw gh Commands
 
@@ -174,10 +198,10 @@ Use only when no script exists for the operation:
 |-------------|----------|
 | `/pull/{n}#pullrequestreview-{id}` | `gh api repos/{o}/{r}/pulls/{n}/reviews/{id}` |
 | `/pull/{n}#discussion_r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
-| `/pull/{n}/files#r{id}` or `/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
+| `/pull/{n}/files#r{id}` or `/pull/{n}/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
-| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `get_pr_checks.py` |
 | `/issues/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
+| `/discussions/{n}` | `gh api repos/{o}/{r}/discussions/{n}` |
 | `/actions/runs/{run_id}` | `gh api repos/{o}/{r}/actions/runs/{run_id}` |
 | `/actions/runs/{run_id}/job/{job_id}` | `gh api repos/{o}/{r}/actions/jobs/{job_id}` |
 | `/blob/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
