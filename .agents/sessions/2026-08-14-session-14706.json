@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 5bf1ab6d6e855186ed3f7e6ea203221c43fcef73; evidence committed separately"
+        "Evidence": "Validated code commit eb73b083d46fb762a10af3d042340b39fb0215e1; evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 affected tests passed; Ruff passed; skill generation produced no drift; session validator passed"
+        "Evidence": "574 affected tests and 382 focused follow-up tests passed; Ruff passed; skill generation produced no drift; session validator passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -134,9 +134,13 @@
     {
       "action": "Created session and QA evidence bound to the validated PR head.",
       "outcome": "The generated session filename and payload both use host-local date 2026-08-14."
+    },
+    {
+      "action": "Addressed two active suppressed Copilot review findings.",
+      "outcome": "Restored TestValidateSessionStart and clarified that real-timezone end-to-end tests cover agreement while controlled-instant unit tests prove host-date authority."
     }
   ],
-  "endingCommit": "5bf1ab6d6e855186ed3f7e6ea203221c43fcef73",
+  "endingCommit": "eb73b083d46fb762a10af3d042340b39fb0215e1",
   "nextSteps": [
     "Commit and push QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
