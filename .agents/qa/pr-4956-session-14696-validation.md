@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull.json
-qaCommit: ae98831ce6abdfca896296252b6a2263261c940f
+qaCommit: c636b5b31559667b7bf0434421664e60d7192d7f
 ---
 
 # PR 4956 session 14696 validation
@@ -13,9 +13,9 @@ inconclusive evidence for docs-only targets and still fails real missing
 symbols.
 
 Follow-up validation on commit
-`ae98831ce6abdfca896296252b6a2263261c940f` passed six focused positive,
+`c636b5b31559667b7bf0434421664e60d7192d7f` passed six focused positive,
 negative, and edge tests. The set covers exit codes 0, 1, 2, 3, and 10 and the
-documentation drift guard. Scoped Ruff, SkillForge validation, and
+portable-source documentation guard. Scoped Ruff, SkillForge validation, and
 `build/scripts/build_all.py --check` also exited 0.
 
 ## Evidence

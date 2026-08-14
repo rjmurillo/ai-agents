@@ -149,6 +149,32 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T04:23:51+00:00",
+      "type": "commit",
+      "content": "Commit: b985c58bae",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T04:27:09+00:00",
+      "type": "commit",
+      "content": "Commit: c636b5b31559667b7bf0434421664e60d7192d7f",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     }
@@ -158,8 +184,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 14
+    "commits": 6,
+    "files_changed": 17
   },
   "lessons": []
 }

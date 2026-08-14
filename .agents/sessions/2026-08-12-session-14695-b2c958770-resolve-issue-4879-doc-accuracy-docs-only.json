@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/ has changes"
+        "Evidence": "Flagged: the unrelated Serena patch was removed from PR #4956, preserved in authorized session storage as pr-4956-memory.patch (SHA-256 fed46127e43c501f8a2ba61fd036e19c9c88cac56a6dc5cde58e479ae865860a), and assigned to split-pr-4956-memory."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up documentation commit ae98831ce6 was committed and validated; original implementation history remains intact."
+        "Evidence": "Follow-up commits b985c58bae and c636b5b315 were committed and validated; original implementation history remains intact."
       },
       "validationPassed": {
         "level": "MUST",
@@ -166,9 +166,9 @@
     },
     {
       "action": "Refreshed validation for the exit-code documentation follow-up.",
-      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at ae98831ce6."
+      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and generated-artifact drift validation passed at c636b5b315."
     }
   ],
-  "endingCommit": "ae98831ce6abdfca896296252b6a2263261c940f",
+  "endingCommit": "c636b5b31559667b7bf0434421664e60d7192d7f",
   "nextSteps": []
 }
