@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Repository-scoped ownership token with case-insensitive identity normalization, revocation fail-closed, ADR-090 citation, and Semgrep logger-credential rename fixes are ancestors of 65564af0e8cc7665b6301fe840cbff75df54ebbc."
+        "Evidence": "Repository-scoped ownership token with case-insensitive identity normalization, strict token freshness bound, self-renew liveness-margin fail-close, revocation fail-closed, ADR-090 citation, and Semgrep logger-credential rename fixes are ancestors of 3053f9f42e8d4acd178896ae258b1127f26cd41a."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,7 +150,7 @@
     },
     {
       "action": "Ran gates and regenerated the copilot-cli mirror",
-      "result": "154 pytest passed, ruff clean, four portability checkers pass, pre_pr.py PASS, mirror byte-identical."
+      "result": "157 pytest passed, ruff clean, four portability checkers pass, pre_pr.py PASS, mirror byte-identical."
     },
     {
       "action": "Added the PR 4987 QA report and session log",
@@ -163,9 +163,17 @@
     {
       "action": "Fixed the case-insensitive repository identity in the ownership token",
       "result": "Added _normalize_repo_identity lowercasing repo_owner and repo in the token key, payload, and validation so an acquire under Octo/Repo and a release under octo/repo resolve one token path; two case-variant tests added."
+    },
+    {
+      "action": "Tightened the ownership-token freshness bound to strict expiry",
+      "result": "Changed now - written <= MAX_TTL to strict < MAX_TTL so a token exactly one TTL old no longer authorizes a fail-open renew at the instant Lease.is_live judges the remote lease dead; MAX_TTL boundary test added."
+    },
+    {
+      "action": "Gated the self-renew fail-open on a liveness margin",
+      "result": "acquire reads the lease once at entry then makes up to three 30s gh calls before a self-renew may fail open; added _self_renew_survives_store_io so a prior claim that could expire during that I/O fails CLOSED to SKIP instead of ACT; two near-expiry fail-closed tests added (write and re-read paths)."
     }
   ],
-  "endingCommit": "65564af0e8cc7665b6301fe840cbff75df54ebbc",
+  "endingCommit": "3053f9f42e8d4acd178896ae258b1127f26cd41a",
   "nextSteps": [
     "Re-poll get_pr_checks.py after the QA artifact commit; confirm Validate PR and Validate Spec Coverage turn green.",
     "Confirm remote branch SHA equals local HEAD and unresolved review threads remain zero."
