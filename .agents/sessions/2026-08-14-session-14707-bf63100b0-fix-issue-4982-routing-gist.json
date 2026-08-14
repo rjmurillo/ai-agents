@@ -73,48 +73,53 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All MUST session end items completed"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only: 4 of 8 files linted"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4982-gist-routing.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Code commits through a10fd9eaad; final QA and memory evidence staged in this commit"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before commit"
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Issue 4982 fixed; follow-up issues 4992, 4993, and 4994 filed"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -125,13 +130,17 @@
     },
     {
       "task": "Implement and mirror gist routing",
-      "outcome": "Added Gist parsing and gh api gists/{id} routing, updated skill documentation, and regenerated the Copilot skill mirror"
+      "outcome": "Added numeric, 20-character, and 32-character gist routing, preserved revision and file selectors, hardened raw paths, and regenerated the Copilot mirror"
     },
     {
       "task": "Validate and review",
-      "outcome": "Five pytest cases passed, Ruff passed, CWE-78 scan found zero findings in two files, and independent GPT-5.6 Sol re-review passed"
+      "outcome": "2,389 skill tests passed; routing modules reached 100% statement and branch coverage; Ruff, mypy, build generation, security scan, code review, and security review passed"
+    },
+    {
+      "task": "Record follow-up findings",
+      "outcome": "Filed issues 4992, 4993, and 4994 for non-gist router defects found during adversarial review"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a10fd9eaad",
   "nextSteps": []
 }
