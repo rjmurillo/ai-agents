@@ -60,11 +60,10 @@ SHIM CRASH POLICY
 -----------------
 
 The shim exits with code 0 when the matcher does not fire (no-op
-allow), 0 with the wrapped script's exit code when it does fire, and
-2 to stderr on any internal error: missing ``tool_name`` field,
-malformed JSON on stdin, regex parse failure. NEVER 0 silently on a
-malformed input; that would silently allow tool calls past a
-broken hook.
+allow) and returns the wrapped script's exit code when it does fire.
+Internal matcher errors use the wrapped hook's declared exception
+policy: fail-open hooks warn and exit 0, while every other hook warns
+and exits 2.
 
 DEBUG TRACE
 -----------
