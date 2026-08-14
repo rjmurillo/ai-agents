@@ -45,7 +45,6 @@ from pathlib import Path
 _MAX_STDIN_BYTES = 2 * 1024 * 1024
 _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
 _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
-_COPILOT_CLI_ENV = "COPILOT_CLI"
 _EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
 _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"})
 _UNQUOTED_MODEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9._ /()+-]*")
@@ -245,6 +244,16 @@ def _read_payload() -> object:
     return json.loads(raw)
 
 
+def _is_copilot_payload(payload: dict[str, object]) -> bool:
+    """Detect Copilot payloads from guaranteed schema signals.
+
+    Copilot uses lowercase ``toolName``/``toolArgs`` while Claude Code uses
+    ``tool_name``/``tool_input``.  This avoids depending on ``COPILOT_CLI``
+    which is not part of the documented hook contract.
+    """
+    return "toolName" in payload and "tool_name" not in payload
+
+
 def _project_root(payload: dict[str, object]) -> Path:
     configured = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if configured:
@@ -252,7 +261,7 @@ def _project_root(payload: dict[str, object]) -> Path:
     # Copilot hooks run with cwd set to the repository root by contract.
     # The payload cwd may be a project subdirectory, so use process cwd
     # for Copilot to avoid missing agent definitions above the subdirectory.
-    if os.environ.get(_COPILOT_CLI_ENV):
+    if _is_copilot_payload(payload):
         return Path.cwd()
     cwd = payload.get("cwd")
     return Path(cwd) if isinstance(cwd, str) and cwd.strip() else Path(".")

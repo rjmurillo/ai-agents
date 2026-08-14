@@ -225,6 +225,9 @@ class TestDefinitionSearch:
         agent = project / ".github" / "agents" / "fix-ci.agent.md"
         agent.parent.mkdir(parents=True)
         agent.write_text("---\nmodel: claude-sonnet-4.6\n---\nbody\n", encoding="utf-8")
+        # Copilot detection uses payload schema (toolName vs tool_name).
+        # Process cwd must point to the project root for Copilot payloads.
+        monkeypatch.chdir(project)
         payload = {
             "toolName": "task",
             "cwd": str(project),
