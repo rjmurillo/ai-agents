@@ -104,7 +104,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All authored files committed."
+        "Evidence": "Current validated implementation ends at f54c626f36ab560ef22be6be5170c6e96fffbcae."
       },
       "validationRun": {
         "level": "MUST",
@@ -114,7 +114,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Current merged implementation: 307 targeted tests passed at commit 7e9c055a9105ad4e2c26e967e0829556ee2bfb30."
+        "Evidence": "Current merged implementation: 307 prior targeted tests plus 107 focused final-review tests passed."
       },
       "checklistComplete": {
         "level": "MUST",
@@ -160,7 +160,7 @@
       "evidence": "14 unused noqa (RUF100) removed from get_pr_checks.py, why_pr_blocked.py, audit_closing_claims.py, edit_pr_body.py"
     }
   ],
-  "endingCommit": "7e9c055a9105ad4e2c26e967e0829556ee2bfb30",
+  "endingCommit": "f54c626f36ab560ef22be6be5170c6e96fffbcae",
   "nextSteps": [
     "Push branch and create PR",
     "Verify closing refs for #4359, #4393, #4462, #4490"
