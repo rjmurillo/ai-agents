@@ -150,7 +150,7 @@
       "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
   "nextSteps": [
     "Open one templated PR for issue #4782 and let CI settle. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
   ]

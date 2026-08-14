@@ -53,7 +53,7 @@
         "e003"
       ],
       "leads_to": [
-        "e005"
+        "e006"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
@@ -63,9 +63,22 @@
       "type": "milestone",
       "content": "Ran the four-mutant negative control.",
       "caused_by": [
-        "e004"
+        "e006"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T21:01:16+00:00",
+      "type": "commit",
+      "content": "Commit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     }
   ],
@@ -74,8 +87,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 3
+    "commits": 1,
+    "files_changed": 9
   },
   "lessons": []
 }
