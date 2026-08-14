@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-14-session-14706.json
+qaSessionLog: .agents/sessions/2026-08-14-session-14706-fix-issue-4951-close-verify.json
 qaCommit: dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d
 ---
 
