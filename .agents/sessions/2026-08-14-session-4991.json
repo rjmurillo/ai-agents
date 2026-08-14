@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 508aaa30a15258e5e8381af0a20da18fe1811dcb"
+        "Evidence": "All non-evidence code committed through a4a635fde3d0799a0c2fa58f3a384d670a0d9d46"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,8 +146,12 @@
     {
       "action": "Cleared active suppressed-review findings",
       "result": "Validated global skills regardless of verbosity, narrowed the registry/path rationale, regenerated the mirror, and passed 86 affected tests plus the taste ratchet"
+    },
+    {
+      "action": "Revalidated suppressed-finding fixes after latest main merge",
+      "result": "86 affected tests passed and taste count remained at baseline 583"
     }
   ],
-  "endingCommit": "508aaa30a15258e5e8381af0a20da18fe1811dcb",
+  "endingCommit": "a4a635fde3d0799a0c2fa58f3a384d670a0d9d46",
   "nextSteps": []
 }
