@@ -43,7 +43,7 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
         "license": "MIT",
         "url": "https://github.com/tripleyak/SkillForge",
         "author": "tripleyak",
-        "local_path": ".claude/skills/SkillForge",
+        "local_path": ".claude/skills/skillforge",
         "license_text": (
             "MIT License\n"
             "\n"

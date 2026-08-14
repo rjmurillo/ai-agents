@@ -41,7 +41,7 @@ from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 _FRONTMATTER_PATH = (
-    _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "frontmatter.py"
+    _PROJECT_ROOT / ".claude" / "skills" / "skillforge" / "scripts" / "frontmatter.py"
 )
 try:
     _spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
