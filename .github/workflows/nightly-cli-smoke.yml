@@ -96,7 +96,7 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@anthropic-ai/claude-code
-      CLAUDE_CODE_VERSION: '2.1.223'
+      CLAUDE_CODE_VERSION: '2.1.224'
       # renovate: datasource=npm depName=@github/copilot
       COPILOT_CLI_VERSION: '1.0.78'
     steps:
