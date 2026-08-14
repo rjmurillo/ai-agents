@@ -17,7 +17,7 @@ uv run python ./scripts/skill_description_budget.py --max-total-tokens 8000   # 
 ```
 
 - Current baseline (as of 2026-07-29): 98 skills, 40940 chars, ~10235 estimated tokens; top offenders `adr-generator` at 830 chars and `software-engineering-library` at 824 chars.
-- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024` at `.claude/skills/SkillForge/scripts/_constants.py:65`, enforced at `.claude/skills/SkillForge/scripts/validate-skill.py:241-242`). The copy at `validate-skill.py:185` is an `except ImportError` fallback, so change the constants file, not the validator.
+- Healthy: total flat or falling; a new skill adds roughly 350-500 chars (house style), hard cap 1024 (`DESCRIPTION_MAX_LENGTH = 1024` at `.claude/skills/skillforge/scripts/_constants.py:65`, enforced at `.claude/skills/skillforge/scripts/validate-skill.py:241-242`). The copy at `validate-skill.py:185` is an `except ImportError` fallback, so change the constants file, not the validator.
 - Unhealthy: total climbing PR over PR with no budget flag set; any single description near 1024.
 - Trap: the token figure is a chars/4 heuristic, deliberately not tiktoken. Trend it; never quote it as an exact cost.
 
@@ -30,7 +30,7 @@ uv run python ./scripts/validation/skill_size.py --path .claude/skills/<name>/SK
 ```
 
 - Limits: warn over 300 lines, block over 500. Escape: `size-exception: true` in frontmatter, justification required.
-- Current baseline (as of 2026-07-29): 98 skills, 44 warnings, 0 failures, exit 0. `.claude/skills/SkillForge/SKILL.md` is now 298 lines and only warns.
+- Current baseline (as of 2026-07-29): 98 skills, 44 warnings, 0 failures, exit 0. `.claude/skills/skillforge/SKILL.md` is now 298 lines and only warns.
 - Healthy: your skill lands under 300; overflow goes to `references/` files.
 - Unhealthy: a skill creeping from warn toward 500; that is the signal to split before the block gate bites.
 - Trap: without `--ci` the script prints FAIL but exits 0. In scripts, pass `--ci` or you will read success where there is none.

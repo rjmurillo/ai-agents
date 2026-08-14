@@ -46,7 +46,7 @@ Ground architectural findings in the project's design artifacts. All paths are u
 - `decision-critic` skill: invoke when an ADR or a DESIGN-REVIEW is staged. It stress-tests the reasoning, surfaces hidden assumptions, and generates adversarial perspectives.
 - `cva-analysis` skill: invoke when the change introduces a new abstraction. It runs Commonality/Variability Analysis so the abstraction emerges from real requirements instead of being chosen up front.
 - Conway's Law (`.claude/skills/decision-critic/references/mental-models-conways-law.md`): apply when the diff crosses a module boundary. Check that the proposed boundary follows the domain, not the org chart, and that the teams behind components that must integrate actually communicate.
-- `SkillForge` multi-lens framework (`.claude/skills/SkillForge/references/multi-lens-framework.md`): apply to cross-cutting decisions that span more than one module or context.
+- `SkillForge` multi-lens framework (`.claude/skills/skillforge/references/multi-lens-framework.md`): apply to cross-cutting decisions that span more than one module or context.
 - `software-engineering-library` references for clean architecture, domain-driven design, and enterprise patterns: cite the specific reference a finding maps to for bounded-context, anemic-domain, dependency-direction, and persistence-boundary concerns.
 - `.claude/skills/observability/references/distributed-systems-fallacies.md`: the 8 Fallacies of Distributed Computing. Use it when the change adds or restructures a call across a process boundary (HTTP, MCP, child process, queue, orchestration step). Check that the design does not assume the network is reliable, zero-latency, secure, or topologically fixed.
 
