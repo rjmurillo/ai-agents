@@ -39,6 +39,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+import frontmatter
+import yaml
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -127,6 +130,13 @@ class NamingConventionResult(ValidationIssues):
 
 
 @dataclass
+class FrontmatterResult(ValidationIssues):
+    """Result of frontmatter YAML validity validation."""
+
+    invalid_files: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Orphan:
     """An orphaned file not referenced by any index."""
 
@@ -172,6 +182,7 @@ class ValidationReport:
     domain_results: dict[str, DomainResult] = field(default_factory=dict)
     memory_index_result: MemoryIndexRefResult | None = None
     naming_convention: NamingConventionResult | None = None
+    frontmatter_validity: FrontmatterResult | None = None
     orphans: list[Orphan] = field(default_factory=list)
     summary: ValidationSummary = field(default_factory=ValidationSummary)
 
@@ -868,6 +879,47 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
     return result
 
 
+def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
+    """Validate that leading YAML frontmatter parses on every memory file.
+
+    Scans all .md files under memory_path (recursively). A file that opens
+    with a frontmatter block must contain valid YAML in that block. A file
+    with no leading frontmatter is fine: frontmatter is optional in existing
+    Serena memories (issue #4900), so a plain-Markdown file, or one with a
+    later horizontal rule, is not a violation.
+
+    The detection mirrors the ``memory_enhancement verify-all`` warning site
+    in ``scripts/memory_enhancement/serena_integration.py``: it flags exactly
+    the files that tool warns about, so a repaired tree stays repaired
+    (issue #4918). ``frontmatter.loads`` raises ``yaml.YAMLError`` only when a
+    leading block exists and fails to parse; it returns empty metadata without
+    raising for frontmatter-free content.
+    """
+    result = FrontmatterResult()
+
+    if not memory_path.exists():
+        return result
+
+    for f in sorted(memory_path.rglob("*.md")):
+        relative = f.relative_to(memory_path)
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        try:
+            frontmatter.loads(f.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            result.passed = False
+            rel_posix = relative.as_posix()
+            result.invalid_files.append(rel_posix)
+            detail = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+            result.issues.append(
+                f"Malformed YAML frontmatter: {rel_posix} ({detail}). "
+                f"Quote values that contain a colon-space, or remove the "
+                f"frontmatter block."
+            )
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # P1 validators
 # ---------------------------------------------------------------------------
@@ -1328,6 +1380,20 @@ def run_validation(
                 f"({len(naming_result.violations)}):"
             )
             for issue in naming_result.issues:
+                print(f"  - {issue}")
+
+    # P0: Frontmatter YAML validity (issue #4918)
+    frontmatter_result = check_frontmatter_validity(memory_path)
+    report.frontmatter_validity = frontmatter_result
+
+    if not frontmatter_result.passed:
+        report.passed = False
+        if output_format == "console":
+            print(
+                f"\n[P0] Malformed frontmatter "
+                f"({len(frontmatter_result.invalid_files)}):"
+            )
+            for issue in frontmatter_result.issues:
                 print(f"  - {issue}")
 
     return report
