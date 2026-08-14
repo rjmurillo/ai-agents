@@ -33,12 +33,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Python runtime and dependency resolution ---
     (
         "pyproject.toml",
-        "dff809d81ba7e3936d54d3bd23f561b304f37ea01f6ed970a17b8ad0cd861461",
+        "d2350f57b2d2836a447dab9a4dcb6ec3f46e67ea2fd9c054d09943eecc4cb553",
         "Python project configuration",
     ),
     (
         "uv.lock",
-        "967089ec12a94d57b601cda326e09d2026a3e5198b72548c584b4f531f8276d6",
+        "cab8e6e1433363e2e53264e5bc0ae2b0a482fe0c5d02f798671f2b00660ad07e",
         "Python dependency lock",
     ),
     (
@@ -243,7 +243,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/PostToolUse/invoke_memory_capture.py",
-        "4451f09219df715d35a25df7fabc87e0e9d4bbd463f084c43728cef968681dd2",
+        "985259278d6a52a8d65927f9be3282aa0b61b7b8a3346c0d1dbbb0b97d59de39",
         "Hook executable",
     ),
     (
@@ -421,7 +421,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/settings.json",
-        "df35188ace8c127177e574aada1e262cf61598e8728c7e03d93836e4ab8a3013",
+        "b86d26b12e49b75ed007f6e6c32fe428d2b6c4b17bb0da21e42bdcafaf6e3fc8",
         "Claude settings (hook wiring)",
     ),
     (
