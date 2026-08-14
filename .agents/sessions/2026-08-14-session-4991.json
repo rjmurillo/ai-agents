@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through a4a635fde3d0799a0c2fa58f3a384d670a0d9d46"
+        "Evidence": "All non-evidence code committed through 970bee672b907bfa26747293b1c683d92804ba39"
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,8 +150,12 @@
     {
       "action": "Revalidated suppressed-finding fixes after latest main merge",
       "result": "86 affected tests passed and taste count remained at baseline 583"
+    },
+    {
+      "action": "Fixed post-merge ruff ratchet",
+      "result": "Sorted installation-test imports; ruff ratchet passed for 40 changed Python files and 14 tests passed"
     }
   ],
-  "endingCommit": "a4a635fde3d0799a0c2fa58f3a384d670a0d9d46",
+  "endingCommit": "970bee672b907bfa26747293b1c683d92804ba39",
   "nextSteps": []
 }
