@@ -87,7 +87,16 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 def _run_in_process_group(
     argv: list[str] | tuple[str, ...],
-    **kwargs: object,
+    *,
+    cwd: Path | str | None = None,
+    env: Mapping[str, str] | None = None,
+    capture_output: bool = False,
+    text: bool = False,
+    encoding: str | None = None,
+    errors: str | None = None,
+    timeout: float | None = None,
+    check: bool = False,
+    **_extra: object,
 ) -> subprocess.CompletedProcess[str]:
     """Drop-in replacement for subprocess.run that kills the full process tree on timeout.
 
@@ -97,19 +106,20 @@ def _run_in_process_group(
     in its own session (Unix) and kills the entire process group on timeout.
     See _copilot_cli_acp.py:164-179 for the same pattern.
     """
-    timeout = kwargs.pop("timeout", None)
-    capture_output = kwargs.pop("capture_output", False)
-    kwargs.pop("check", None)  # always check=False semantics
-
-    if capture_output:
-        kwargs["stdout"] = subprocess.PIPE
-        kwargs["stderr"] = subprocess.PIPE
+    stdout_arg: int | None = subprocess.PIPE if capture_output else None
+    stderr_arg: int | None = subprocess.PIPE if capture_output else None
 
     use_session = os.name != "nt"
     proc = subprocess.Popen(
         argv,
+        cwd=cwd,
+        env=env,
+        stdout=stdout_arg,
+        stderr=stderr_arg,
+        text=text,
+        encoding=encoding,
+        errors=errors,
         start_new_session=use_session,
-        **kwargs,  # type: ignore[arg-type]
     )
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
