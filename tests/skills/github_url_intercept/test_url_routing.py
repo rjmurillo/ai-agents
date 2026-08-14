@@ -349,6 +349,12 @@ def test_normal_gist_query_does_not_hide_sibling_files() -> None:
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L12-L0",
         "https://gist.github.com/rjmurillo/"
+        "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L0-L1",
+        "https://gist.github.com/rjmurillo/"
+        "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L01-L2",
+        "https://gist.github.com/rjmurillo/"
+        "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L1-L2-L3",
+        "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L%D9%A1",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/unknown",

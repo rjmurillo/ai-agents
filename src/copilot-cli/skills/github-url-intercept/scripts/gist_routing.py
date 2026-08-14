@@ -36,11 +36,12 @@ def _is_valid_file_selector(selector: str) -> bool:
 def _is_valid_file_fragment(selector: str) -> bool:
     if not _is_valid_file_selector(selector):
         return False
-    if LINE_FRAGMENT_CANDIDATE_RE.search(selector):
-        line_fragment = LINE_FRAGMENT_RE.search(selector)
-        if line_fragment is None:
+    line_fragment_candidate = LINE_FRAGMENT_CANDIDATE_RE.search(selector)
+    if line_fragment_candidate:
+        line_fragment = selector[line_fragment_candidate.start() :]
+        if LINE_FRAGMENT_RE.fullmatch(line_fragment) is None:
             return False
-        selector = selector[: line_fragment.start()]
+        selector = selector[: line_fragment_candidate.start()]
     return bool(FILE_FRAGMENT_RE.fullmatch(selector))
 
 
