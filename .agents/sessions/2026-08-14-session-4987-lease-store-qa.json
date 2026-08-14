@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Repository-scoped ownership token with case-insensitive identity normalization, strict token freshness bound, self-renew liveness-margin fail-close, revocation fail-closed, ADR-090 citation, and Semgrep logger-credential rename fixes are ancestors of 3053f9f42e8d4acd178896ae258b1127f26cd41a."
+        "Evidence": "Repository-scoped ownership token with case-insensitive identity normalization, strict token freshness bound, self-renew liveness-margin fail-close, revocation fail-closed, malformed-token fail-close, ADR-090 citation, and Semgrep logger-credential rename fixes are ancestors of 5e750874ddef99fcd964d9239f536b0a57a98691."
       },
       "validationPassed": {
         "level": "MUST",
@@ -171,9 +171,13 @@
     {
       "action": "Gated the self-renew fail-open on a liveness margin",
       "result": "acquire reads the lease once at entry then makes up to three 30s gh calls before a self-renew may fail open; added _self_renew_survives_store_io so a prior claim that could expire during that I/O fails CLOSED to SKIP instead of ACT; two near-expiry fail-closed tests added (write and re-read paths)."
+    },
+    {
+      "action": "Hardened the ownership-token parse to fail closed on a malformed token",
+      "result": "A non-object token (JSON array, bare number, string) made _has_valid_ownership_token call .get and raise AttributeError, and invalid UTF-8 raised UnicodeDecodeError uncaught, crashing the CLI during the outage the fail-open path exists to survive; added an isinstance dict shape check and UnicodeDecodeError to the caught set so an unrecognizable token proves no ownership; three deterministic tests added; final gate run 160 pytest passed, ruff clean, mirror byte-identical, pre_pr.py PASS."
     }
   ],
-  "endingCommit": "3053f9f42e8d4acd178896ae258b1127f26cd41a",
+  "endingCommit": "5e750874ddef99fcd964d9239f536b0a57a98691",
   "nextSteps": [
     "Re-poll get_pr_checks.py after the QA artifact commit; confirm Validate PR and Validate Spec Coverage turn green.",
     "Confirm remote branch SHA equals local HEAD and unresolved review threads remain zero."
