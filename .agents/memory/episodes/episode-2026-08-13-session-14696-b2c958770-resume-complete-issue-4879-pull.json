@@ -14,7 +14,7 @@
       "content": "Inspected the SQL todo tree, existing branch, external worktree, issue claim, issue discussion, and PR state.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -25,7 +25,7 @@
       "content": "Read issue #4879 and its two comments, then checked the linked PR and issue history recorded by the prior session.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -36,7 +36,7 @@
       "content": "Reproduced the issue against current origin/main and compared the branch.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -47,7 +47,7 @@
       "content": "Merged current origin/main into the published branch without rewriting history.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -58,7 +58,7 @@
       "content": "Re-ran the positive, negative, and edge suite plus lint and generation checks.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -69,7 +69,7 @@
       "content": "Ran a separate GPT-5.6 Sol artifact-only adversarial review.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
@@ -80,15 +80,26 @@
       "content": "Addressed the unresolved Copilot session-evidence finding.",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-13T14:51:33+00:00",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed validation for the exit-code documentation follow-up.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T04:23:51+00:00",
       "type": "commit",
-      "content": "Commit: 7da6e607d1ade69b4ddd98500392e7e84b2e80d3",
+      "content": "Commit: b985c58bae",
       "caused_by": [
         "e001",
         "e002",
@@ -97,19 +108,6 @@
         "e005",
         "e006",
         "e007",
-        "e011"
-      ],
-      "leads_to": [
-        "e009"
-      ],
-      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-08-13T15:20:40+00:00",
-      "type": "commit",
-      "content": "Commit: 28c1bee6125306e10ef3df6cbdd5f32511337a51",
-      "caused_by": [
         "e008"
       ],
       "leads_to": [
@@ -119,74 +117,24 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-13T15:26:19+00:00",
+      "timestamp": "2026-08-14T04:42:33+00:00",
       "type": "commit",
-      "content": "Commit: 94a3b96cc06ee0aa225bb187a5ef33a044529440",
+      "content": "Commit: 52a1c5414a",
       "caused_by": [
         "e009"
       ],
       "leads_to": [
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-13T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Refreshed validation for the exit-code documentation follow-up.",
-      "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
-      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-08-14T02:45:51+00:00",
+      "timestamp": "2026-08-14T17:02:38+00:00",
       "type": "commit",
-      "content": "Commit: ae98831ce6abdfca896296252b6a2263261c940f",
+      "content": "Commit: 9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
       "caused_by": [
         "e010"
-      ],
-      "leads_to": [
-        "e013"
-      ],
-      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-08-14T04:23:51+00:00",
-      "type": "commit",
-      "content": "Commit: b985c58bae",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [
-        "e014"
-      ],
-      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-08-14T04:27:09+00:00",
-      "type": "commit",
-      "content": "Commit: c636b5b31559667b7bf0434421664e60d7192d7f",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e015"
-      ],
-      "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-08-14T04:42:33+00:00",
-      "type": "commit",
-      "content": "Commit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f",
-      "caused_by": [
-        "e014"
       ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull"
@@ -197,8 +145,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
-    "files_changed": 20
+    "commits": 3,
+    "files_changed": 23
   },
   "lessons": []
 }

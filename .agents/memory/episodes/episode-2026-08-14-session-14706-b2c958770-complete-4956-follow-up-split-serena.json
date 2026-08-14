@@ -50,10 +50,10 @@
       "type": "milestone",
       "content": "Refreshed completion evidence.",
       "caused_by": [
-        "e006"
+        "e005"
       ],
       "leads_to": [
-        "e007"
+        "e006"
       ],
       "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
     },
@@ -66,30 +66,30 @@
         "e003"
       ],
       "leads_to": [
-        "e006"
+        "e004"
       ],
       "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-14T04:27:09+00:00",
+      "timestamp": "2026-08-14T04:42:33+00:00",
       "type": "commit",
-      "content": "Commit: c636b5b31559667b7bf0434421664e60d7192d7f",
+      "content": "Commit: 52a1c5414a",
       "caused_by": [
-        "e005"
+        "e004"
       ],
       "leads_to": [
-        "e004"
+        "e007"
       ],
       "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-14T04:42:33+00:00",
+      "timestamp": "2026-08-14T17:02:38+00:00",
       "type": "commit",
-      "content": "Commit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+      "content": "Commit: 9aa3d27c1823d78b0159c1cdcf037b35898c75e1",
       "caused_by": [
-        "e004"
+        "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
@@ -101,7 +101,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 17
+    "files_changed": 20
   },
   "lessons": []
 }
