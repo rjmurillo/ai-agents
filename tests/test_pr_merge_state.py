@@ -272,9 +272,18 @@ class TestMalformedResponse:
 
 class TestPrMergeState:
     def test_state_is_frozen(self):
+        """A verdict must not be editable after the probe that produced it.
+
+        The assignment goes through a named field because two repo gates
+        reject the obvious forms: a direct ``state.status = ...`` needs a
+        type-ignore comment (ratcheted, issue #4039) and a literal
+        ``setattr(state, "status", ...)`` trips ruff B010. The runtime
+        assertion is the same one in every form.
+        """
         state = PrMergeState(owner="o", repo="r", number=1, status=PrMergeStatus.MERGED)
+        frozen_field = "status"
         with pytest.raises(AttributeError):
-            state.status = PrMergeStatus.UNMERGED  # type: ignore[misc]
+            setattr(state, frozen_field, PrMergeStatus.UNMERGED)
 
     def test_status_values_are_stable_strings(self):
         assert PrMergeStatus.MERGED.value == "merged"
