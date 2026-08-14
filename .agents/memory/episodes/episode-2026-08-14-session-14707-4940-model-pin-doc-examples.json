@@ -247,6 +247,19 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-14T23:23:49+00:00",
+      "type": "commit",
+      "content": "Commit: 21736b962851c192c855b274a48689eec30d309d",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
     }
@@ -256,7 +269,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 13
   },
   "lessons": []

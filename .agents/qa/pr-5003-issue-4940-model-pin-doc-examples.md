@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json
-qaCommit: cd65c4c06f228b66c64de8ade4a41bc12ec0a8d2
+qaCommit: 21736b962851c192c855b274a48689eec30d309d
 ---
 
 # Issue 4940 Model Pin Doc Examples QA

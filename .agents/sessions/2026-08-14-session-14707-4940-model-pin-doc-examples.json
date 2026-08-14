@@ -172,7 +172,7 @@
       "evidence": "5 findings: label window exempted the After fence (fixed, detector now finds 7 hits in SKILL-STANDARDS-RECONCILED.md on origin/main), wrong validator in the authoring checklist and in ADR-040 (skillforge job runs .claude/skills/SkillForge/scripts/validate-skill.py), model-rationale missing from the steering field inventory, ADR-040 attributed version and license to the SkillForge validator though _constants.py lists both under OPTIONAL_PROPERTIES, and the QA report overstated gate-message coverage"
     }
   ],
-  "endingCommit": "cd65c4c06f228b66c64de8ade4a41bc12ec0a8d2",
+  "endingCommit": "21736b962851c192c855b274a48689eec30d309d",
   "nextSteps": [
     "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
     "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance",
