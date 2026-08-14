@@ -164,6 +164,13 @@ class TestRemoteResolution:
         assert query.call_count == 1
         return query.call_args.args[0]
 
+    @staticmethod
+    def _exit_code_for(argv):
+        """Run main() over one clean ref and return its exit code."""
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(_mod, "_remote_sha", return_value=_REMOTE_SHA_OLD):
+            return main(argv)
+
     def test_named_remote_argument_is_queried(self):
         assert self._queried_remote(["upstream"]) == "upstream"
 
@@ -177,22 +184,24 @@ class TestRemoteResolution:
     def test_blank_argument_falls_back_to_origin(self):
         assert self._queried_remote(["   "]) == "origin"
 
-    def test_unexpanded_positional_placeholder_falls_back_to_origin(self, capsys):
+    def test_unexpanded_positional_placeholder_is_a_configuration_error(self, capsys):
         # `lefthook run pre-push` with no arguments leaves `{1}` literal.
-        assert self._queried_remote(["{1}"]) == "origin"
+        assert self._exit_code_for(["{1}"]) == 2
         assert "unexpanded placeholder" in capsys.readouterr().err
 
-    def test_unsupported_placeholder_falls_back_to_origin(self, capsys):
+    def test_unsupported_placeholder_is_a_configuration_error(self, capsys):
         # The exact token the broken job passed (issue #4634).
-        assert self._queried_remote(["{remote}"]) == "origin"
+        assert self._exit_code_for(["{remote}"]) == 2
         assert "'{remote}'" in capsys.readouterr().err
 
-    def test_placeholder_fallback_still_reports_a_stale_remote(self):
-        """The fallback checks origin for real; it does not degrade to a pass."""
+    def test_placeholder_never_queries_a_remote(self):
+        """A placeholder stops the run; it never quietly checks some other remote.
+
+        Substituting a default would compare the pushed refs against a remote
+        the caller never named, and a clean comparison there exits 0. That is
+        the same false green as issue #4634 wearing a different mask.
+        """
         with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                patch.object(
-                    _mod, "_remote_sha", return_value=_REMOTE_SHA_NEW
-                ) as query, \
-                _mock_is_ancestor(False):
-            assert main(["{remote}"]) == 3
-        assert query.call_args.args[0] == "origin"
+                patch.object(_mod, "_remote_sha") as query:
+            assert main(["{remote}"]) == 2
+        query.assert_not_called()

@@ -49,8 +49,13 @@ at `lefthook.yml` line 10 and prevents word splitting on remote URLs.
 `git ls-remote "{remote}" <ref>` fails, `push_ref_staleness.py` read the empty
 result as "new branch, no race", and the job exited 0 on every push. A check
 that cannot resolve its target must not report success:
-`scripts/validation/push_ref_staleness.py::_resolve_remote` now warns on stderr
-and falls back to `origin` when its argument is still a literal `{...}`.
+`scripts/validation/push_ref_staleness.py::_resolve_remote` now prints the
+offending token on stderr and exits 2 (ADR-035 usage/configuration error) when
+its argument is still a literal `{...}`. Substituting a default remote instead
+was rejected in review of PR #4998: comparing the pushed refs against a remote
+the caller never named produces a clean exit 0 for a comparison nobody asked
+for, which is the same false green from the other side. No argument at all
+still defaults to `origin`, since direct invocation for testing passes none.
 
 The duplicate job hid it further. `lefthook.yml` declared `push-ref-staleness`
 twice; the second copy passed no argument and worked, so the summary printed

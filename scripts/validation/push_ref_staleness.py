@@ -14,10 +14,13 @@ refs are being pushed, compares the current local HEAD against the remote
 ref RIGHT NOW (before the long hooks run), and exits 3 (external) if the
 remote has already advanced beyond the local commit's parent chain.
 
-Exit codes follow ADR-035:
+Exit codes follow ADR-035 (.agents/architecture/ADR-035-exit-code-standardization.md,
+table at line 41: "2 | Usage/configuration error | Missing required param, invalid
+argument, not in git repo"):
     0 - Remote ref matches expectation; safe to proceed
-    1 - Logic error (bad arguments, missing git)
-    2 - Not found (ref or remote does not exist - non-fatal, proceed)
+    1 - Logic error (missing git)
+    2 - Configuration error: the hook argument is an unexpanded placeholder,
+        so no remote can be identified and no check is possible
     3 - External: remote has advanced; push will be rejected; abort early
     4 - Auth error
 
@@ -48,21 +51,26 @@ _DEFAULT_REMOTE = "origin"
 _UNEXPANDED_PLACEHOLDER = re.compile(r"^\{[^{}]*\}$")
 
 
-def _resolve_remote(argv: list[str] | None) -> str:
-    """Return the remote to query, falling back to origin when there is none.
+def _resolve_remote(argv: list[str] | None) -> str | None:
+    """Return the remote to query, or None when the argument names no remote.
 
     `lefthook.yml` passes the pre-push hook's first positional argument as
     `"{1}"`, which git sets to the remote name or URL being pushed to. Two
     inputs must never reach `git ls-remote` as a remote name:
 
-    - Nothing at all. Direct invocation for testing (see the module docstring).
-    - An unexpanded placeholder such as `{1}` or `{remote}`.
+    - Nothing at all. Direct invocation for testing (see the module docstring)
+      has no hook arguments, and `origin` is the right default there.
+    - An unexpanded placeholder such as `{1}` or `{remote}`. This means the job
+      definition is wrong, so the caller gets exit 2 and no check runs.
 
     Both used to produce a name no remote can resolve, which `_remote_sha`
     reports as None and `main` reads as "new branch, no race is possible", so
     every push passed a check that examined nothing. That silent pass is issue
-    #4634. Falling back to origin keeps the check live, and the warning names
-    the misconfiguration instead of hiding it.
+    #4634. Substituting `origin` for a placeholder would reintroduce the same
+    class of defect from the other side: on a push to some other remote the
+    check would compare against an unrelated ref and exit 0, reporting a clean
+    result for a comparison nobody asked for. A misconfigured job fails loudly
+    instead.
     """
     candidate = argv[0].strip() if argv else ""
     if not candidate:
@@ -70,10 +78,11 @@ def _resolve_remote(argv: list[str] | None) -> str:
     if _UNEXPANDED_PLACEHOLDER.match(candidate):
         print(
             f"[push-ref-staleness] Hook argument {candidate!r} is an unexpanded "
-            f"placeholder, not a remote; checking {_DEFAULT_REMOTE!r} instead.",
+            "placeholder, not a remote name. The lefthook job must pass the "
+            'pre-push remote as "{1}"; see issue #4634.',
             file=sys.stderr,
         )
-        return _DEFAULT_REMOTE
+        return None
     return candidate
 
 
@@ -104,6 +113,53 @@ def _is_ancestor(older: str, newer: str) -> bool:
     return result.returncode == 0
 
 
+def _stale_refs(lines: list[str], remote: str) -> list[str]:
+    """Return one human-readable line per pushed ref the remote has moved past.
+
+    Each stdin line is `<local-ref> <local-sha> <remote-ref> <remote-sha>`,
+    where the last field is what git believed the remote held at its last
+    fetch. A ref is stale when the live remote SHA differs from that belief and
+    the local commit does not already contain it.
+    """
+    stale: list[str] = []
+
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+
+        _local_ref, local_sha, remote_ref, cached_remote_sha = parts[:4]
+
+        # Deletion push: remote_sha is zeros, skip.
+        if local_sha == "0" * 40:
+            continue
+
+        # Query the remote right now.
+        live_sha = _remote_sha(remote, remote_ref)
+
+        if live_sha is None:
+            # New branch being pushed for the first time; no race possible.
+            continue
+
+        if live_sha == cached_remote_sha:
+            # Remote hasn't moved since our last fetch; no race.
+            continue
+
+        # Remote has a SHA we haven't fetched. Check whether our local commit
+        # already contains the remote's new commit (i.e. we fetched and merged).
+        if _is_ancestor(live_sha, local_sha):
+            # Our branch is ahead of or equal to the remote; safe to push.
+            continue
+
+        # Remote advanced past us. The push will be rejected.
+        stale.append(
+            f"  {remote_ref}: remote is at {live_sha[:12]}, "
+            f"expected {cached_remote_sha[:12]}"
+        )
+
+    return stale
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check each pushed ref against its current remote state.
 
@@ -118,43 +174,15 @@ def main(argv: list[str] | None = None) -> int:
         # Nothing to push or called without stdin; pass through.
         return 0
 
+    # Drain stdin before validating the argument so the caller's write side
+    # always has a reader, and so an empty push list costs nothing.
     remote = _resolve_remote(argv)
+    if remote is None:
+        # ADR-035: 2 = usage/configuration error. Exiting nonzero here is the
+        # point; a job that cannot name its remote must not report success.
+        return 2
 
-    stale_refs: list[str] = []
-
-    for line in lines:
-        parts = line.split()
-        if len(parts) < 4:
-            continue
-
-        local_ref, local_sha, remote_ref, _cached_remote_sha = parts[:4]
-
-        # Deletion push: remote_sha is zeros, skip.
-        if local_sha == "0" * 40:
-            continue
-
-        # Query the remote right now.
-        live_sha = _remote_sha(remote, remote_ref)
-
-        if live_sha is None:
-            # New branch being pushed for the first time; no race possible.
-            continue
-
-        if live_sha == _cached_remote_sha:
-            # Remote hasn't moved since our last fetch; no race.
-            continue
-
-        # Remote has a SHA we haven't fetched. Check whether our local commit
-        # already contains the remote's new commit (i.e. we fetched and merged).
-        if _is_ancestor(live_sha, local_sha):
-            # Our branch is ahead of or equal to the remote; safe to push.
-            continue
-
-        # Remote advanced past us. The push will be rejected.
-        stale_refs.append(
-            f"  {remote_ref}: remote is at {live_sha[:12]}, "
-            f"expected {_cached_remote_sha[:12]}"
-        )
+    stale_refs = _stale_refs(lines, remote)
 
     if stale_refs:
         print(

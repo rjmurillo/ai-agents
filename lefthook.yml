@@ -390,9 +390,12 @@ pre-push:
     # script verbatim, `git ls-remote "{remote}"` resolved nothing, and the
     # check reported success on every push. Git hands pre-push the remote name
     # (or URL) as the first argument, so `{1}` is the supported spelling; the
-    # commit-message-policy job above uses the same `"{1}"` form. Keep this job
-    # ahead of the long-running groups: aborting here is the whole point, since
-    # the jobs below take 6-15 minutes before git would report the rejection.
+    # commit-message-policy job above uses the same `"{1}"` form. If a token
+    # ever reaches the script unexpanded again, it exits 2 rather than guessing
+    # a remote, so the misconfiguration fails the push instead of passing it.
+    # Keep this job ahead of the long-running groups: aborting here is the
+    # whole point, since the jobs below take 6-15 minutes before git would
+    # report the rejection.
     # The 1m timeout is the deleted copy's, which is the safer of the two: the
     # script allows `git ls-remote` 10s per pushed ref, so a push of several
     # refs on a slow link could exceed the 30s this copy carried.
