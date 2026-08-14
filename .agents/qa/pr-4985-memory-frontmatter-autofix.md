@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-pr-4985-autofix.json
-qaCommit: 10e08dcd45d3eb7908e1c17b00154a304b8a84ec
+qaCommit: c79ed6253896c201759e82adb01bfad0173b118a
 ---
 
 # PR 4985 Memory Frontmatter Autofix QA
