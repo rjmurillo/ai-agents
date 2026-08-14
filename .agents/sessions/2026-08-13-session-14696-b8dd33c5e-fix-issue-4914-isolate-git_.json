@@ -160,7 +160,7 @@
       "outcome": "tests/ci 2416 passed; all five count ratchets OK; pre_pr.py all validations passed; commit hooks green"
     }
   ],
-  "endingCommit": "e009b85af365b3c479765fd914cadd7088cb007c",
+  "endingCommit": "b8727c8d32ae895e1dec6027d77c718271e44a6f",
   "nextSteps": [
     "Monitor CI on PR #4970",
     "Consider a follow-up to delete the dead duplicate ruff_count_ratchet.baseline_at_ref, which only its own test calls; out of scope here"
