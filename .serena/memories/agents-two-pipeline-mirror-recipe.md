@@ -31,7 +31,7 @@ Editing any agent's shared behavior. See `.claude/rules/claude-agents.md` MUST-1
 
 Source: issue/PR #2707 (MERGED); `.claude/rules/claude-agents.md`; `build/scripts/detect_agent_drift.py`.
 
-## Verified application (2026-08-13)
+## Verified application (2026-08-03)
 
 The recipe above remains current. A shared agent has four hand-maintained
 surfaces and two generated surfaces:
@@ -42,10 +42,13 @@ surfaces and two generated surfaces:
 | `src/claude/<a>.md` | hand | co-change parity (`validate_install_parity.py`) |
 | `.claude/agents/<a>.md` | hand | `check_agent_content_parity.py`: byte-identical to `src/claude/` |
 | `.github/agents/<a>.agent.md` | hand | co-change parity and install drift checks |
-| `src/copilot-cli/agents/<a>.agent.md` | `build/generate_agents.py` | generator validation and drift checks |
-| `src/vs-code-agents/<a>.agent.md` | `build/generate_agents.py` | generator validation and drift checks |
+| `src/copilot-cli/agents/<a>.agent.md` | `build_all.py` | drift gate |
+| `src/vs-code-agents/<a>.agent.md` | `build_all.py` | drift gate |
 
-Issue #2707 established the recipe. Session 14695 applied it to
-`code-reviewer`, `code-simplifier`, `pr-test-analyzer`, and
-`silent-failure-hunter`. The explicit six-file install-parity check passed for
-each changed agent after regeneration.
+Also: `build/scripts/generate_agents.py` does not exist. `build_all.py` imports
+the module and calls it; invoking the path directly gives Errno 2.
+
+Evidence: PR #4069, 2026-08-03. A bare `|` inside a backticked grep pattern in a
+table cell tripped MD056 in all six copies. Running `build_all.py` fixed two of
+them. `check_agent_content_parity.py` then reported the trees byte-identical only
+after the remaining three were edited by hand.
