@@ -1,7 +1,7 @@
 ---
 name: github-url-intercept
 version: 2.1.0
-description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, gist.githubusercontent.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
 license: MIT
 metadata:
   domains:
@@ -89,7 +89,8 @@ Use [github](../github/SKILL.md) instead when:
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
 | `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
 | `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
-| `gist.github.com/...` | `https://gist.github.com/owner/abcdef123456` | Gist HTML includes page chrome |
+| `gist.github.com/...` | `https://gist.github.com/owner/0123456789abcdef0123` | Gist HTML includes page chrome |
+| `gist.githubusercontent.com/...` | `https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/file.txt` | Raw gist content |
 | Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
 | Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
 | Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
@@ -207,6 +208,8 @@ https://github.com/{owner}/{repo}/commit/{sha}
 https://github.com/{owner}/{repo}/compare/{base}...{head}
 https://gist.github.com/{owner}/{id}
 https://gist.github.com/{id}
+https://gist.github.com/{owner}/{id}.js
+https://gist.githubusercontent.com/{owner}/{id}/raw/{revision}/{path}
 ```
 
 **Fragment extraction** (when present):
@@ -255,15 +258,16 @@ Action:
 ### Gist URL
 
 ```text
-Input: "https://gist.github.com/owner/abcdef123456"
+Input: "https://gist.github.com/owner/0123456789abcdef0123"
 
 Action:
-  1. Parse: owner=owner, gist=abcdef123456, type=gist
-  2. Route: gh api "gists/abcdef123456"
+  1. Parse: owner=owner, gist=0123456789abcdef0123, type=gist
+  2. Route: gh api "gists/0123456789abcdef0123"
 ```
 
-Ownerless URLs, query strings, file fragments, and `/revisions` suffixes route
-to the same gist API resource.
+Ownerless URLs, query strings, file fragments, `.js` embed URLs, raw-content
+URLs, revision SHAs, and `/revisions` or `/raw` suffixes route through the gist
+API. Pinned revisions stay pinned. Raw file URLs return only the requested file.
 
 ### URL with Question After It
 

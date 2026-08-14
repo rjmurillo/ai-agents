@@ -23,9 +23,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 from enum import StrEnum
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit, urlunsplit
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -70,9 +71,11 @@ SCRIPT_ROUTES: dict[UrlType, dict[str, str]] = {
 SAFE_OWNER_REPO_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_.]*$")
 SAFE_REF_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./]*$")
 SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./%+@]*$")
-SAFE_GIST_ID_RE = re.compile(r"^[a-fA-F0-9]+$")
+SAFE_GIST_ID_RE = re.compile(r"(?:[0-9]+|[a-fA-F0-9]{20}|[a-fA-F0-9]{32})")
+SAFE_GIST_REVISION_RE = re.compile(r"[a-fA-F0-9]{40}")
 DANGEROUS_CHARS = set("\"'`$;&|><(){}[]!\\")
-GIST_SUFFIXES = {"raw", "revisions"}
+GIST_SUFFIXES = {"revisions"}
+GIST_HOSTS = {"gist.github.com", "gist.githubusercontent.com"}
 
 
 def is_safe_input(
@@ -100,6 +103,21 @@ def is_safe_input(
     return bool(pattern.fullmatch(value))
 
 
+def is_safe_raw_path(segments: list[str]) -> bool:
+    """Reject path forms that gh or the remote server could reinterpret."""
+    for segment in segments:
+        decoded = unquote(segment)
+        if decoded in {".", ".."}:
+            return False
+        if any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+            return False
+        if any(character in DANGEROUS_CHARS for character in decoded):
+            return False
+        if "/" in decoded or "\\" in decoded:
+            return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # URL parsing
 # ---------------------------------------------------------------------------
@@ -117,35 +135,109 @@ def parse_gist_url(url: str) -> dict[str, Any] | None:
 
     if parsed_url.scheme not in {"http", "https"}:
         return None
-    if parsed_url.netloc != "gist.github.com":
+    if parsed_url.netloc not in GIST_HOSTS:
         return None
 
     segments = [segment for segment in parsed_url.path.split("/") if segment]
     if not segments:
         return None
 
+    raw_content_url = parsed_url.netloc == "gist.githubusercontent.com"
     ownerless_with_suffix = (
         len(segments) > 1
         and is_safe_input(segments[0], SAFE_GIST_ID_RE)
-        and segments[1] in GIST_SUFFIXES
+        and (
+            segments[1] in GIST_SUFFIXES
+            or is_safe_input(segments[1], SAFE_GIST_REVISION_RE)
+        )
     )
-    if len(segments) == 1 or ownerless_with_suffix:
+    if raw_content_url:
+        if len(segments) < 2:
+            return None
+        if len(segments) < 3 or segments[2] != "raw":
+            return None
+        owner = segments[0]
+        gist_id = segments[1]
+        selector_segments = segments[2:]
+    elif len(segments) == 1 or ownerless_with_suffix:
         owner = None
         gist_id = segments[0]
+        selector_segments = segments[1:]
     else:
         owner = segments[0]
         gist_id = segments[1]
+        selector_segments = segments[2:]
 
+    embed_url = gist_id.endswith(".js")
+    gist_id = gist_id.removesuffix(".js")
     if owner is not None and not is_safe_input(owner, SAFE_OWNER_REPO_RE):
         return None
     if not is_safe_input(gist_id, SAFE_GIST_ID_RE):
         return None
+
+    raw_request = raw_content_url or (
+        bool(selector_segments) and selector_segments[0] == "raw"
+    )
+    raw_url = None
+    revision = None
+    requested_file = None
+    requested_file_slug = None
+    requested_file_base_slug = None
+    if raw_request:
+        if parsed_url.query or parsed_url.fragment:
+            return None
+        raw_selectors = selector_segments[1:]
+        if not is_safe_raw_path(raw_selectors):
+            return None
+        raw_url = urlunsplit(
+            (
+                "https",
+                parsed_url.netloc,
+                parsed_url.path,
+                parsed_url.query,
+                "",
+            )
+        )
+    elif selector_segments:
+        selector = selector_segments[0]
+        if selector == "revisions":
+            selector_segments = selector_segments[1:]
+        elif is_safe_input(selector, SAFE_GIST_REVISION_RE):
+            revision = selector
+            selector_segments = selector_segments[1:]
+        else:
+            return None
+        if selector_segments:
+            return None
+
+    if not raw_request:
+        if embed_url:
+            query_files = parse_qs(
+                parsed_url.query,
+                keep_blank_values=True,
+            ).get("file", [])
+            if len(query_files) > 1 or (query_files and not query_files[0]):
+                return None
+            if query_files:
+                requested_file = query_files[0]
+        if requested_file is None and parsed_url.fragment.startswith("file-"):
+            requested_file_slug = unquote(parsed_url.fragment.removeprefix("file-"))
+            requested_file_base_slug = re.sub(
+                r"-L\d+(?:-L\d+)?$",
+                "",
+                requested_file_slug,
+            )
 
     return {
         "owner": owner,
         "repo": None,
         "url_type": UrlType.GIST.value,
         "resource_id": gist_id,
+        "raw_url": raw_url,
+        "revision": revision,
+        "requested_file": requested_file,
+        "requested_file_slug": requested_file_slug,
+        "requested_file_base_slug": requested_file_base_slug,
         "ref": None,
         "path": None,
         "fragment_type": None,
@@ -320,8 +412,36 @@ def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
     path = parsed["path"]
     resource_id = parsed["resource_id"]
 
+    raw_url = parsed.get("raw_url")
+    gist_revision = parsed.get("revision")
+    if raw_url:
+        gist_command = f"gh api {shlex.quote(raw_url)}"
+    else:
+        gist_endpoint = f"gists/{resource_id}"
+        if gist_revision:
+            gist_endpoint = f"{gist_endpoint}/{gist_revision}"
+        gist_command = f'gh api "{gist_endpoint}"'
+
+    requested_file = parsed.get("requested_file")
+    if requested_file:
+        jq_query = f".files[{json.dumps(requested_file)}]"
+        gist_command = f"{gist_command} --jq {shlex.quote(jq_query)}"
+    requested_file_slug = parsed.get("requested_file_slug")
+    if requested_file_slug:
+        slug = json.dumps(requested_file_slug.lower())
+        base_slug = json.dumps(parsed.get("requested_file_base_slug", "").lower())
+        selected_slug = base_slug if base_slug != slug else slug
+        jq_query = (
+            'def slug: ascii_downcase | gsub("[^a-z0-9_-]+"; "-") '
+            '| sub("^-+"; "") | sub("-+$"; ""); '
+            ".files | to_entries | "
+            f'map(select((.key | slug) == {selected_slug})) | '
+            'if length == 1 then .[0].value else error("ambiguous or missing file selector") end'
+        )
+        gist_command = f"{gist_command} --jq {shlex.quote(jq_query)}"
+
     fallback_map: dict[UrlType, str] = {
-        UrlType.GIST: f'gh api "gists/{resource_id}"',
+        UrlType.GIST: gist_command,
         UrlType.BLOB: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.TREE: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.COMMIT: f'gh api "repos/{owner}/{repo}/commits/{resource_id}"',
