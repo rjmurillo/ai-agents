@@ -10,13 +10,11 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import sys
 from pathlib import Path
 from typing import Protocol
 
 import pytest
 
-# Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
     os.path.dirname(__file__),
     "..",
@@ -25,7 +23,6 @@ _scripts_dir = os.path.join(
     "SkillForge",
     "scripts",
 )
-sys.path.insert(0, os.path.abspath(_scripts_dir))
 
 # Import uses hyphenated filename, so use importlib
 _spec = importlib.util.spec_from_file_location(
