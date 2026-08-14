@@ -62,6 +62,11 @@ Stricter/looser/different than canonical
   ``NOT_FOUND`` (its documented contract), while ``close_issue.py`` treats it
   as a failed claim (exit 1). ``PrMergeState.exit_code`` is populated only for
   ``PROBE_FAILED``, where ADR-035 fixes the answer at 3 (external) or 4 (auth).
+
+Not to be confused with ``scripts/ci/check_pr_merge_state.py``. That script
+asks whether an open PR for a pushed branch *can* merge (GitHub's
+``mergeStateStatus``, DIRTY and friends). This module asks whether a PR
+*was* merged. Similar names, different questions.
 """
 
 from __future__ import annotations
