@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 307019bf3b)"
+        "Evidence": "All changes committed (HEAD: 4bb24a294b)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,10 +147,10 @@
     {
       "time": "2026-08-14T02:57:13Z",
       "action": "Completed inline security and QA review",
-      "result": "CWE-22 and CWE-400 controls verified; QA report .agents/qa/pr-4893-review-blockers-autofix.md binds PASS to 307019bf3b2041cd59cb917a69570de5fb5e6946; security PIV remains required before merge"
+      "result": "CWE-22 and CWE-400 controls verified; QA report .agents/qa/pr-4893-review-blockers-autofix.md binds PASS to 4bb24a294b16859b08050ded72f55636fb26cdb9; security PIV remains required before merge"
     }
   ],
-  "endingCommit": "307019bf3b",
+  "endingCommit": "4bb24a294b",
   "nextSteps": [
     "Push only after renewed lease and late live-state checks.",
     "Rerun PR readiness and completion gate after checks and review threads settle.",

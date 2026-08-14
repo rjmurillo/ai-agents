@@ -80,7 +80,9 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
     },
     {
@@ -95,6 +97,17 @@
         "e006"
       ],
       "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T02:59:08+00:00",
+      "type": "commit",
+      "content": "Commit: 4bb24a294b",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded"
     }
   ],
   "metrics": {
@@ -102,8 +115,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 19
+    "commits": 2,
+    "files_changed": 23
   },
   "lessons": []
 }

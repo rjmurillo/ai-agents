@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705-b71853e6d-fix-4893-review-blockers-bounded.json
-qaCommit: 307019bf3b2041cd59cb917a69570de5fb5e6946
+qaCommit: 4bb24a294b16859b08050ded72f55636fb26cdb9
 ---
 
 # QA Report: PR 4893 Review Blockers
