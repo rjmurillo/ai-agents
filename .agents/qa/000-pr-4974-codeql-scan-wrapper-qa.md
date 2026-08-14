@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14705.json
-qaCommit: f7728da1150a8085d47735527c13fa56227fb991
+qaCommit: daf3d094326ff0bae65100493010c6a23c95c9cd
 ---
 
 # Issue 4921 QA Report: codeql-scan wrapper delegates
@@ -77,3 +77,17 @@ recorded in the session log and the Serena memory:
 2. `test_codeql_config.py` derives repo root as
    `Path(config_path).parent.parent`, yielding `.github` and emitting spurious
    "Path does not exist" warnings.
+
+## Review comment fixes (daf3d09)
+
+Docstring-only and metadata changes addressing 5 copilot-pull-request-reviewer
+threads. No behavioral code changes:
+
+1. Replaced cross-root `.claude/rules/canonical-source-mirror.md` references
+   with tree-neutral wording in all 4 wrapper docstrings.
+2. Replaced summarized `parser.add_argument(...)` with path+line-range
+   references per canonical-source-mirror contract rules.
+3. Added codeql memory entry to `.serena/memories/memory-index.md`.
+
+All existing tests still pass (29/29 delegate path tests, build_all.py --check
+reports no drift).
