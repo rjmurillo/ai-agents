@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d)"
+        "Evidence": "All changes committed (HEAD: 43134500538660691e9f64b48dc3c729532217ff)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -155,9 +155,13 @@
     {
       "task": "Pin both verification headlines with tests",
       "outcome": "commit dd6ddc5ed; the docstring claimed the wording was load-bearing but nothing asserted it"
+    },
+    {
+      "task": "Merge origin/main (e60e3b896) after an add/add conflict on a same-numbered session log",
+      "outcome": "merge commit af757ed9f; my session and episode files renamed with an issue suffix, main's 14706 files kept as landed"
     }
   ],
-  "endingCommit": "dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d",
+  "endingCommit": "43134500538660691e9f64b48dc3c729532217ff",
   "nextSteps": [
     "scripts/validation/verify_issue_close.py::verify_pr_merged collapses probe failure into False the same way; its callers say \"unverified\" rather than \"not merged\", so the false-claim harm is absent, but the bool contract still hides the difference from triage automation",
     "Five scripts still carry copy-pasted _AUTH_ERROR_MARKERS tuples; github_core.api.AUTH_ERROR_MARKERS is the shared home for new callers"

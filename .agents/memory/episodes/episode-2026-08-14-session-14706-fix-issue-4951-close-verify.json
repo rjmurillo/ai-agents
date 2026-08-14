@@ -14,9 +14,9 @@
       "content": "Read issue #4951 discourse, confirm no existing PR or branch, claim the issue",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e002",
@@ -25,9 +25,9 @@
       "content": "Add github_core/pr_merge_state.py: tri-state PR merge-state reader",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e003",
@@ -36,9 +36,9 @@
       "content": "Fix close_issue.py --verify-claims to separate a failed claim from a failed check",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e004",
@@ -47,9 +47,9 @@
       "content": "Point test_pr_merged.py at the shared reader so the GraphQL contract has one home",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e005",
@@ -58,9 +58,9 @@
       "content": "Update SKILL.md and the operator memory to describe both outcomes",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e006",
@@ -69,9 +69,9 @@
       "content": "Regenerate .claude/lib and src/copilot-cli artifacts",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e007",
@@ -80,9 +80,9 @@
       "content": "Clear the type-ignore count ratchet regression (45 > 44)",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e008",
@@ -91,15 +91,26 @@
       "content": "Pin both verification headlines with tests",
       "caused_by": [],
       "leads_to": [
-        "e009"
+        "e010"
       ],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-14T21:47:09+00:00",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge origin/main (e60e3b896) after an add/add conflict on a same-numbered session log",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T22:23:46+00:00",
       "type": "commit",
-      "content": "Commit: dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d",
+      "content": "Commit: 43134500538660691e9f64b48dc3c729532217ff",
       "caused_by": [
         "e001",
         "e002",
@@ -108,10 +119,11 @@
         "e005",
         "e006",
         "e007",
-        "e008"
+        "e008",
+        "e009"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-14-session-14706"
+      "_source_session": "2026-08-14-session-14706-fix-issue-4951-close-verify"
     }
   ],
   "metrics": {
@@ -120,7 +132,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 17
+    "files_changed": 20
   },
   "lessons": []
 }

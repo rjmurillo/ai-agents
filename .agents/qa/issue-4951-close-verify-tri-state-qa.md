@@ -1,28 +1,28 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-fix-issue-4951-close-verify.json
-qaCommit: dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d
+qaCommit: 43134500538660691e9f64b48dc3c729532217ff
 ---
 
 # QA Report: Issue #4951 close-verification tri-state
 
 **Issue**: #4951 - `close_issue.py --verify-claims` reports merged PRs as not merged
 **Branch**: `fix/4951-close-verify-tri-state`
-**Base**: `bc179ad3a` (origin/main)
-**Commit under test**: `dd6ddc5ed367bb77bd7dd1823dda7ac35543b10d`
+**Base**: `bc179ad3a`, merged up to `e60e3b896` (origin/main)
+**Commit under test**: `43134500538660691e9f64b48dc3c729532217ff`
 **Date**: 2026-08-14
 
 ## Gate results
 
 | Gate | Command | Result |
 |------|---------|--------|
-| Full test suite | `uv run pytest tests/ -q -p no:randomly` | [PASS] 28329 passed, 37 skipped, 892.63s, run at this commit |
+| Full test suite | `uv run pytest tests/ -q -p no:randomly` | [PASS] 28476 passed, 37 skipped, 891.68s, run at this commit on the merged tree |
 | Pre-PR validation | `uv run python scripts/validation/pre_pr.py --skip-tests` | [PASS] exit 0, "RESULT: All validations passed" |
 | Generated artifact staleness | `uv run python build/scripts/build_all.py --check` | [PASS] exit 0, no staleness block |
 | Plugin lib mirrors | `uv run python scripts/ci/check_plugin_lib_mirrors.py` | [PASS] exit 0, "All plugin lib copies are in sync" |
 | Lint (repo) | `uv run ruff check .` | [PASS] 27 errors, all in files this branch does not touch; ruff ratchet reports 27 <= 27 |
 | Lint (touched files) | `uv run ruff check` on each changed Python file | [PASS] "All checks passed!" |
-| Count ratchets | via `pre_pr.py` | [PASS] ruff 27<=27, taste 583<=583, cli-exit-contract 27<=27, type-ignore 44<=44 |
+| Count ratchets | `uv run python scripts/ci/merge_tree_ratchet_check.py` | [PASS] against `origin/main`: ruff 27<=27, taste 582<=583, type-ignore 44<=44, memory-index 376<=378, cli-exit-contract 27<=27 |
 
 The type-ignore ratchet failed once at 45 > 44 on commit `fff4c1d1c`. The new
 `# type: ignore[misc]` was in the frozen-dataclass test; commit `235c66d9e`
