@@ -44,6 +44,20 @@ def _jobs(doc: object) -> dict[str, dict]:
     return {name: job for name, job in jobs.items() if isinstance(job, dict)}
 
 
+def _tokenize_command_line(line: str) -> list[str]:
+    """Tokenize one shell line, skipping printing/comment lines entirely.
+
+    Returns an empty token list for ``echo``/``printf``/comment lines so
+    callers never mistake a documentation string for an executed command.
+    """
+    if _PRINTING.match(line):
+        return []
+    try:
+        return shlex.split(line, comments=True)
+    except ValueError:
+        return line.split()
+
+
 def repo_paths_in_run(run: str) -> list[str]:
     """Return repo-relative paths the block actually executes or reads.
 
@@ -53,16 +67,20 @@ def repo_paths_in_run(run: str) -> list[str]:
     """
     found: list[str] = []
     for line in run.splitlines():
-        if _PRINTING.match(line):
-            continue
-        try:
-            tokens = shlex.split(line, comments=True)
-        except ValueError:
-            tokens = line.split()
-        for token in tokens:
+        for token in _tokenize_command_line(line):
             if _REPO_PATH.match(token):
                 found.append(token.lstrip("./"))
     return found
+
+
+def _line_runs_checkout_index(line: str) -> bool:
+    """True when ``line`` is a real (non-printing, non-comment) checkout-index call.
+
+    Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` or a
+    comment that merely mentions ``git checkout-index`` is never mistaken
+    for the command actually running.
+    """
+    return "checkout-index" in _tokenize_command_line(line)
 
 
 def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
@@ -75,18 +93,25 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
         if uses.startswith("actions/checkout"):
             checked_out = True
             continue
-        # git checkout-index also materializes repo files (used by vendor-provenance)
-        run_text = str(step.get("run") or "")
-        if "git checkout-index" in run_text:
-            checked_out = True
         label = str(step.get("name") or uses or "<unnamed>")
         if uses.startswith("./"):
             if not checked_out:
                 return label, uses
             continue
-        for dependency in repo_paths_in_run(str(step.get("run") or "")):
+        # Walk the run block in execution order so a dependency referenced
+        # before an in-script checkout (git checkout-index also materializes
+        # repo files, used by vendor-provenance) is still caught, and an
+        # echo/comment mentioning "git checkout-index" never short-circuits
+        # the check (issue found in PR #4846 review).
+        run_text = str(step.get("run") or "")
+        for line in run_text.splitlines():
+            tokens = _tokenize_command_line(line)
             if not checked_out:
-                return label, dependency
+                for token in tokens:
+                    if _REPO_PATH.match(token):
+                        return label, token.lstrip("./")
+            if _line_runs_checkout_index(line):
+                checked_out = True
     return None
 
 
@@ -200,3 +225,48 @@ class TestFirstUnmetRepoDependency:
 
     def test_non_mapping_steps_are_skipped(self) -> None:
         assert first_unmet_repo_dependency({"steps": ["oops", None]}) is None
+
+    def test_a_real_checkout_index_satisfies_a_later_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "git checkout-index -a -f\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) is None
+
+    def test_an_echoed_checkout_index_does_not_satisfy_a_dependency(self) -> None:
+        """The false positive that made a substring search unusable (PR #4846)."""
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": 'echo "run: git checkout-index -a -f"\npython3 scripts/ci/x.py',
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_a_commented_checkout_index_does_not_satisfy_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "# uses git checkout-index internally\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_a_dependency_before_the_checkout_index_in_the_same_step_is_flagged(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "python3 scripts/ci/x.py\ngit checkout-index -a -f",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
