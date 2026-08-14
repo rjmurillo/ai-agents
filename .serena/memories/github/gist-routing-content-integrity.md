@@ -8,6 +8,8 @@
 
 [2026-08-14] [doc:.claude/skills/github-url-intercept/scripts/gist_routing.py]: The implemented parser preserves pinned revisions, emits only selected file objects, rejects duplicate or empty selectors, and uses shell-safe quoting.
 
+[2026-08-14] [issue:#5001]: Decode the complete gist fragment before testing the `file-` prefix. Validate every percent escape as `%HH`, then reject controls, separators, leading or trailing hyphens, and slugs outside GitHub's generated filename grammar. Otherwise an encoded or malformed selector can fall through to whole-gist retrieval and widen agent context.
+
 ## Relations
 
 - **related_to**: [skills-github-cli-index]
