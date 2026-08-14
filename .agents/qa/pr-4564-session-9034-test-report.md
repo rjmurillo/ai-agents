@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-04-session-9034-github-pr-diagnostics.json
-qaCommit: b04756e2ee7cce83a3b8cbcaa897cac52312a985
+qaCommit: a74ba994eb01c694c50b539a1cc6e1f7422dfc59
 ---
 
 # PR 4564 Session 9034 QA Report
@@ -14,13 +14,17 @@ implementations and their dedicated tests.
 
 ## Results
 
-- Targeted tests: PASS, 255 tests.
+- Targeted tests: PASS, 302 tests.
 
   ```text
   uv run pytest tests/test_github_pr_diagnostics.py \
     tests/test_get_pr_checks.py \
     tests/skills/github/test_why_pr_blocked.py \
-    tests/test_merge_pr.py -q
+    tests/test_merge_pr.py \
+    tests/ci/test_merge_tree_materialization.py \
+    tests/ci/test_merge_tree_ratchet_runtime_safety.py \
+    tests/test_validation_pre_pr_markdown.py \
+    tests/validation/test_checks_common.py -q
   ```
 
 - Python lint: PASS.
@@ -29,7 +33,12 @@ implementations and their dedicated tests.
   uv run ruff check tests/test_github_pr_diagnostics.py \
     .claude/skills/github/scripts/pr/audit_closing_claims.py \
     .claude/skills/github/scripts/pr/edit_pr_body.py \
-    .claude/skills/github/scripts/pr/merge_pr.py
+    .claude/skills/github/scripts/pr/merge_pr.py \
+    scripts/ci/merge_tree_materialization.py \
+    tests/ci/test_merge_tree_materialization.py \
+    scripts/validation/checks_common.py \
+    tests/test_validation_pre_pr_markdown.py \
+    tests/validation/test_checks_common.py
   ```
 
 - Install parity: PASS.
@@ -38,8 +47,16 @@ implementations and their dedicated tests.
   uv run python build/scripts/validate_install_parity.py
   ```
 
+- Synthetic merge ratchets: PASS.
+
+  ```text
+  ruff 27 <= 27; taste 579 <= 583; type-ignore 44 <= 44;
+  memory-index 376 <= 378; CLI exit contract 27 <= 27
+  ```
+
 ## Finding
 
 The merged tree preserves the PR's closing-claim, body-editing, and merge
 diagnostics. Dedicated main tests cover the refactored check and blocker
-diagnostics.
+diagnostics. Issue #4977 records the Windows materialization defect found
+during this QA pass.

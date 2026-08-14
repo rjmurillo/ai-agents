@@ -376,17 +376,69 @@
       "caused_by": [
         "e026"
       ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-13T23:15:00+00:00",
+      "type": "milestone",
+      "content": "Corrected closing-claim audit defects",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-13T23:20:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Windows merge-tree materialization",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-13T23:30:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed QA evidence",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-13T23:53:57+00:00",
+      "type": "commit",
+      "content": "Commit: a74ba994eb01c694c50b539a1cc6e1f7422dfc59",
+      "caused_by": [
+        "e031"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-13-session-4564"
     }
   ],
   "metrics": {
-    "duration_minutes": 120,
+    "duration_minutes": 870,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 16,
-    "files_changed": 18
+    "commits": 17,
+    "files_changed": 23
   },
   "lessons": []
 }
