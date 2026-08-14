@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Hook: post_tool_call - Capture learnable failures from tool results.
+"""Hook: PostToolUseFailure - Capture learnable failures from tool results.
 
 Analyzes tool output for an error worth remembering and suggests a memory
-for it. Governed mode: suggests via stderr, never auto-creates memories.
+for it. Governed mode: emits structured ``additionalContext`` JSON on stdout
+so the host can surface the suggestion without polluting stderr.
 """
 
 from __future__ import annotations
@@ -13,29 +14,37 @@ import sys
 from ..extraction import (
     extract_error_pattern,
     format_suggestion,
-    has_error_indicators,
 )
 
 
 def main() -> int:
-    """Entry point for the post_tool_call hook."""
-    tool_name, result_text = _read_tool_result()
-    if not tool_name:
+    """Entry point for the PostToolUseFailure hook."""
+    tool_name, error_text = _read_tool_result()
+    if not tool_name or not error_text:
         return 0
 
-    suggestion = _analyze_tool_result(tool_name, result_text)
+    suggestion = _analyze_tool_result(tool_name, error_text)
     if suggestion:
-        print(suggestion, file=sys.stderr)
-        return 2
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PostToolUseFailure",
+                        "additionalContext": suggestion,
+                    }
+                }
+            )
+        )
 
     return 0
 
 
 def _read_tool_result() -> tuple[str, str]:
-    """Read tool name and result from stdin JSON.
+    """Read tool name and error from stdin JSON.
 
     Returns:
-        Tuple of (tool_name, result_text). Empty strings on parse failure.
+        Tuple of (tool_name, error_text). Empty strings when the payload is
+        not a non-interrupted PostToolUseFailure event.
     """
     try:
         raw = sys.stdin.read()
@@ -44,59 +53,45 @@ def _read_tool_result() -> tuple[str, str]:
 
     try:
         data = json.loads(raw)
-        tool_name = str(data.get("tool_name", ""))
-        result = str(data.get("result") or "")
-        if not result:
-            result = _flatten_tool_response(data.get("tool_response"))
+        if data.get("hook_event_name") != "PostToolUseFailure":
+            return "", ""
+        is_interrupt = data.get("is_interrupt")
+        if is_interrupt is not None and not isinstance(is_interrupt, bool):
+            return "", ""
+        if is_interrupt is True:
+            return "", ""
+        tool_name = data.get("tool_name", "")
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            return "", ""
+        error = data.get("error")
+        if not isinstance(error, str) or not error.strip():
+            return "", ""
     except (json.JSONDecodeError, TypeError, AttributeError):
         return "", ""
 
-    return tool_name, result
+    return tool_name, error
 
 
-# Claude Code's PostToolUse payload carries the output under "tool_response",
-# not "result", so a hook that reads only "result" is inert against the real
-# harness (issue #4011). "result" stays first for the payload shapes that do
-# send it.
-_TOOL_RESPONSE_KEYS = ("stdout", "stderr", "content", "output")
+def _analyze_tool_result(tool_name: str, error_text: str) -> str:
+    """Suggest a memory from a confirmed tool failure.
 
-
-def _flatten_tool_response(response: object) -> str:
-    """Reduce a tool_response of any shape to searchable text."""
-    if response is None:
-        return ""
-    if isinstance(response, str):
-        return response
-    if isinstance(response, dict):
-        parts = [str(response[key]) for key in _TOOL_RESPONSE_KEYS if response.get(key)]
-        return "\n".join(parts)
-    if isinstance(response, list):
-        return "\n".join(_flatten_tool_response(item) for item in response)
-    return str(response)
-
-
-def _analyze_tool_result(tool_name: str, result_text: str) -> str:
-    """Suggest a memory when the tool failed in a learnable way.
-
-    Failure is the only signal worth an interrupt. The hook is registered
-    without a matcher, so it observes every tool call; a success path that
-    fired on any output mentioning a file extension turned roughly 40% of
-    ordinary calls into a content-free suggestion in the model context
-    ("Notable output from Bash: search.py" for a bare `ls`). Errors are
-    tool-agnostic, which is why the registration stays matcher-free.
+    PostToolUseFailure is the failure signal. Do not reclassify the event by
+    sniffing its display text. Claude documents the top-level ``error`` field
+    as variable display text, and valid failures do not always contain words
+    such as "error" or "failed".
 
     Args:
         tool_name: Name of the tool that was called.
-        result_text: Output from the tool call.
+        error_text: Error text from the failed tool call.
 
     Returns:
         Formatted suggestion string, or empty string.
     """
-    if has_error_indicators(result_text):
-        pattern = extract_error_pattern(tool_name, result_text)
-        return format_suggestion(pattern)
+    if not error_text:
+        return ""
 
-    return ""
+    pattern = extract_error_pattern(tool_name, error_text)
+    return format_suggestion(pattern)
 
 
 if __name__ == "__main__":

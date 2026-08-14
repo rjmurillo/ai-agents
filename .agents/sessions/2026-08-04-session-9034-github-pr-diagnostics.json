@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9034,
+    "date": "2026-08-04",
+    "branch": "fix/github-pr-diagnostics",
+    "startingCommit": "d556f936ca",
+    "objective": "Fix #4359 (missing required checks), #4393 (why_pr_blocked), #4462 (closing-claim auditor, safe PR body editor), #4490 (merge REST quota)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in worktree; fell back to committed .serena/memories/ per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/ tree."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr/ before modifying any script."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill scripts for all GitHub calls."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current = fix/github-pr-diagnostics."
+      },
+      "memorySearched": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched for existing patterns before implementing."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded relevant memories from .serena/memories/ tree."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On branch fix/github-pr-diagnostics, not main."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      }
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "handoffKept": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP unavailable; skipped."
+      },
+      "lintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run ruff check on all authored files: all checks passed."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files authored in this session; ruff check run on all Python authored files."
+      },
+      "commitMade": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits d556f936ca (fixes), 2954f7d003 (new scripts), plus type annotation and ratchet fixes."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current validated implementation ends at f54c626f36ab560ef22be6be5170c6e96fffbcae."
+      },
+      "validationRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_github_pr_diagnostics.py: 52 passed."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current merged implementation: 307 prior targeted tests plus 107 focused final-review tests passed."
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items satisfied."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4564-session-9034-test-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Fix #4359: detect missing required checks in get_pr_checks.py",
+      "status": "done",
+      "evidence": "fetch_ruleset_required_contexts() added; set-difference logic detects never-reported checks"
+    },
+    {
+      "task": "Fix #4490: tolerate REST quota in merge_pr.py",
+      "status": "done",
+      "evidence": "validate_strategy() returns early when repo_settings is None; main() catches quota errors"
+    },
+    {
+      "task": "Fix #4393: add why_pr_blocked.py diagnostic",
+      "status": "done",
+      "evidence": "New script with diagnose() pure function, classifies MISSING/FAILING/PENDING/THREADS"
+    },
+    {
+      "task": "Fix #4462: add audit_closing_claims.py and edit_pr_body.py",
+      "status": "done",
+      "evidence": "Fleet auditor and safe PR body editor with SHA-256 stale-write guard"
+    },
+    {
+      "task": "Write 52 tests in test_github_pr_diagnostics.py",
+      "status": "done",
+      "evidence": "uv run pytest tests/test_github_pr_diagnostics.py: 52 passed"
+    },
+    {
+      "task": "Fix ruff count ratchet: remove unused noqa directives from authored files",
+      "status": "done",
+      "evidence": "14 unused noqa (RUF100) removed from get_pr_checks.py, why_pr_blocked.py, audit_closing_claims.py, edit_pr_body.py"
+    }
+  ],
+  "endingCommit": "f54c626f36ab560ef22be6be5170c6e96fffbcae",
+  "nextSteps": [
+    "Push branch and create PR",
+    "Verify closing refs for #4359, #4393, #4462, #4490"
+  ]
+}

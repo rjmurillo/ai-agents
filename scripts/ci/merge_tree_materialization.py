@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from scripts.cli_exec import resolve_executable
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from types import TracebackType
 
 
 def run_git(
@@ -73,7 +79,7 @@ def isolated_git_environment(isolated_home: Path) -> dict[str, str]:
 def remove_tree(path: Path, label: str) -> str | None:
     """Remove one temporary tree, returning a diagnostic instead of hiding failure."""
     try:
-        shutil.rmtree(path)
+        shutil.rmtree(path, onerror=_retry_readonly)
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -111,6 +117,8 @@ def _checkout_tree(
     prefix = f"{destination.resolve()}{os.sep}"
     checkout = run_git(
         repo_root,
+        "-c",
+        "core.symlinks=true",
         "checkout-index",
         "--all",
         "--force",
@@ -144,6 +152,21 @@ def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
     if not materialized:
         print("merged-tree materialization did not complete", file=sys.stderr)
     return materialized and cleaned
+
+
+def _retry_readonly(
+    operation: Callable[[str], object],
+    path: str,
+    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
+) -> None:
+    error = exc_info[1]
+    if not isinstance(error, PermissionError):
+        raise error
+    mode = os.stat(path).st_mode
+    if mode & stat.S_IWRITE:
+        raise error
+    os.chmod(path, mode | stat.S_IWRITE)
+    operation(path)
 
 
 def _initialize_repo(scratch: Path, env: dict[str, str]) -> bool:
