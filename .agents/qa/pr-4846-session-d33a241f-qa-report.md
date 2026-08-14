@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 1a5fefb6a2d80e8d1909a204d1c0d18868368fbb
+qaCommit: 1556cdbd99488c8ff65fc7b02778aad4520bc7be
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
