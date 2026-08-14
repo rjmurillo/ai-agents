@@ -18,6 +18,36 @@ from url_validation import (
 
 GIST_SUFFIXES = {"revisions"}
 GIST_HOSTS = {"gist.github.com", "gist.githubusercontent.com"}
+PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+FILE_FRAGMENT_RE = re.compile(
+    r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?"
+    r"(?:-L\d+(?:-L\d+)?)?"
+)
+
+
+def _is_valid_file_selector(selector: str) -> bool:
+    return bool(selector) and all(
+        ord(character) >= 32 and ord(character) != 127
+        for character in selector
+    )
+
+
+def _is_valid_file_fragment(selector: str) -> bool:
+    return _is_valid_file_selector(selector) and bool(
+        FILE_FRAGMENT_RE.fullmatch(selector)
+    )
+
+
+def _decode_url_component(component: str) -> str | None:
+    index = 0
+    while index < len(component):
+        if component[index] != "%":
+            index += 1
+            continue
+        if PERCENT_ESCAPE_RE.match(component, index) is None:
+            return None
+        index += 3
+    return unquote(component)
 
 
 def _parse_url(url: str) -> SplitResult | None:
@@ -67,26 +97,28 @@ def _parse_page_file_selector(
     parsed_url: SplitResult,
     embed_url: bool,
 ) -> tuple[str | None, str | None, str | None] | None:
+    decoded_fragment = _decode_url_component(parsed_url.fragment)
+    if decoded_fragment is None:
+        return None
     if embed_url:
         query_files = parse_qs(
             parsed_url.query,
             keep_blank_values=True,
         ).get("file", [])
-        if len(query_files) > 1 or (query_files and not query_files[0]):
+        if len(query_files) > 1 or (
+            query_files and not _is_valid_file_selector(query_files[0])
+        ):
             return None
         if query_files:
             # Reject ambiguous selector: ?file= and #file- both present.
-            if parsed_url.fragment.startswith("file-"):
+            if decoded_fragment.startswith("file-"):
                 return None
             return query_files[0], None, None
-    if not parsed_url.fragment.startswith("file-"):
+    if not decoded_fragment.startswith("file-"):
         return None, None, None
 
-    requested_file_slug = unquote(parsed_url.fragment.removeprefix("file-"))
-    # Reject empty or control-character-containing decoded selectors.
-    if not requested_file_slug or any(
-        ord(c) < 32 or ord(c) == 127 for c in requested_file_slug
-    ):
+    requested_file_slug = decoded_fragment.removeprefix("file-")
+    if not _is_valid_file_fragment(requested_file_slug):
         return None
     requested_file_base_slug = re.sub(
         r"-L\d+(?:-L\d+)?$",
