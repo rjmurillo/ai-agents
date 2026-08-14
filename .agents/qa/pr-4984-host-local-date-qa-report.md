@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: a5639f5ba04e4ffd3d438238fcf1c7e2e4b614b7
+qaCommit: 887f8209df00cf77988fbd4cb9751158dfc8a88d
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -28,6 +28,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Completion-gate review fixes | 382 focused tests passed; Ruff passed |
 | Review-finding disposition | Restored test class boundary and narrowed end-to-end claims to agreement |
 | Main synchronization | Merge conflict resolved by preserving main session 14706 and renumbering PR evidence to 14707 |
+| Windows portability | Module skips when `time.tzset` is unavailable; 12 Linux tests passed |
 
 ## Verdict
 
