@@ -154,11 +154,20 @@
     {
       "step": "Renamed the session log after an add/add conflict with origin/main",
       "evidence": "origin/main already carries .agents/sessions/2026-08-14-session-14706.json; merge-tree-ratchet reported the conflict, so this log moved to session 14707 with a descriptive suffix"
+    },
+    {
+      "step": "Opened PR #5003 for the five corrected documents and the regression guard",
+      "evidence": "https://github.com/rjmurillo/ai-agents/pull/5003; body validated by new_pr_validations (conventional commit PASS, 2 issue keywords, template 4/4)"
+    },
+    {
+      "step": "Recorded why the sanctioned new_pr.py path could not run here",
+      "evidence": "identity guard allows no cd and new_pr.py resolves the repo from process cwd, which is the main checkout on an unrelated branch; separately, _session_log_for_validation validates a temp copy under .agents/scratch, so the QA binding compares qaSessionLog against the temp path and fails while the same log validates [PASS] in place"
     }
   ],
   "endingCommit": "72c2f893484ee56e611e00bfb3aae25d0ef6792b",
   "nextSteps": [
     "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
-    "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance"
+    "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance",
+    "Follow-up: file an issue for new_pr_validations._session_log_for_validation, whose temp-copy path breaks the QA report session-log binding for any PR shipping a QA report"
   ]
 }
