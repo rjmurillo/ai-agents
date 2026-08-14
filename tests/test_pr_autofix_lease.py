@@ -1159,6 +1159,40 @@ class TestRelease:
         assert result.action == "ACT"
         assert result.reason == "lease-store-unavailable"
 
+    def test_release_token_revocation_failure_fails_closed_to_skip(self):
+        # The token is ownership proof, so a residual valid token must never
+        # outlive the remote relinquishment (issue #4966 review). When
+        # revocation cannot be persisted, release keeps the remote lease held
+        # (no tombstone) and reports SKIP so the surviving token still matches
+        # a live lease this session owns.
+        with (
+            patch.object(_mod, "_clear_ownership_token", return_value=False),
+            _patch_post() as post,
+        ):
+            result = release(_OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR)
+        assert result.action == "SKIP"
+        assert result.reason == "token-revocation-failed"
+        post.assert_not_called()
+
+    def test_release_token_unlink_failure_overwrites_revoked_marker(self):
+        # os.remove fails but the overwrite succeeds: the token is invalidated
+        # in place (revoked marker) so a later renew fails CLOSED, and release
+        # proceeds normally.
+        _write_token(pr=1, now=_NOW)
+        assert _has_token(pr=1, now=_NOW)
+        with patch.object(_mod.os, "remove", side_effect=OSError("unlink blocked")):
+            cleared = _mod._clear_ownership_token(_OWNER, _SESSION, "o", "r", 1)
+        assert cleared is True
+        assert not _has_token(pr=1, now=_NOW)
+
+    def test_release_token_total_revocation_failure_returns_false(self):
+        # Both os.remove and the overwrite fail (the token path is occupied by
+        # a directory), so revocation cannot be persisted and clear reports
+        # False, driving the release fail-closed branch above.
+        path = _mod._ownership_token_path(_OWNER, _SESSION, "o", "r", 1)
+        os.makedirs(path, exist_ok=True)
+        assert _mod._clear_ownership_token(_OWNER, _SESSION, "o", "r", 1) is False
+
 
 # ===========================================================================
 # status use case (read-only)

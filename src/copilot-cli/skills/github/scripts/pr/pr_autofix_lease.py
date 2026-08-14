@@ -949,20 +949,37 @@ def _has_valid_ownership_token(
     return timedelta() <= now - written <= MAX_TTL
 
 
-def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> None:
-    """Delete this session's ownership token (called on release).
+def _clear_ownership_token(owner: str, session: str, repo_owner: str, repo: str, pr: int) -> bool:
+    """Revoke this session's ownership token (called on release).
 
-    After release the session must not be able to fail-open a later renew, so
-    the local proof is removed. Best-effort; a missing token is already the
-    desired end state.
+    Returns True when the token is gone or provably invalidated, False when
+    revocation could not be persisted. Revocation is NOT best-effort. The token
+    is ownership proof, so a residual valid token would let a post-release renew
+    fail open after the lease was already relinquished (issue #4966 review).
+    This is the asymmetric opposite of the acquire WRITE, which is safe as
+    best-effort because a lost write only makes a later renew fail CLOSED.
+
+    Removal escalates: unlink, then overwrite with a revoked marker that a later
+    ``_has_valid_ownership_token`` rejects on the field match. When both fail,
+    return False; the caller then keeps the remote lease held, so the surviving
+    token still matches a live lease this session owns and its fail-open renew
+    stays correct.
     """
     path = _ownership_token_path(owner, session, repo_owner, repo, pr)
     try:
         os.remove(path)
+        return True
     except FileNotFoundError:
-        pass
+        return True
     except OSError as exc:
-        logger.warning("op=lease_token_clear_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        logger.warning("op=lease_token_unlink_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"revoked": True, "pr": pr}))
+        return True
+    except OSError as exc:
+        logger.error("op=lease_token_revoke_failed pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return False
 
 
 def acquire(
@@ -1176,11 +1193,16 @@ def release(
     ``acting_author`` are injectable for deterministic tests.
     """
     now = now or datetime.now(UTC)
-    # Clear the local ownership proof first: once this session releases, no
-    # later renew of the same (repo, owner, session, pr) may fail open on the
-    # token (issue #4966 HIGH). The remote tombstone below is best-effort; the
-    # token removal is local and reliable.
-    _clear_ownership_token(owner, session, repo_owner, repo, pr)
+    # Revoke the local ownership proof BEFORE relinquishing the remote lease.
+    # Once a tombstone is posted this session no longer holds the lease, so a
+    # residual valid token must never survive that transition (issue #4966
+    # review). If revocation cannot be persisted, keep the remote lease held by
+    # returning without posting a tombstone: the surviving token then still
+    # matches a live lease this session owns, so its fail-open renew stays
+    # correct, and TTL expiry eventually reaps the lease.
+    if not _clear_ownership_token(owner, session, repo_owner, repo, pr):
+        logger.warning("op=lease_release_token_revoke_failed pr=%d", pr)
+        return LeaseResult("SKIP", "token-revocation-failed")
     author = _gh_authenticated_login() if acting_author is None else acting_author
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
