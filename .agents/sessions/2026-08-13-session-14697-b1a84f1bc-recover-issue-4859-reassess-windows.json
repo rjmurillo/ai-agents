@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "18 focused and 66 affected merge-tree tests passed; scoped Ruff, Python syntax, generated-tree, plugin-lib, and install-parity checks passed"
+        "Evidence": "18 focused and 66 affected merge-tree tests passed; scoped Ruff, Python syntax, generated-tree, plugin-lib, install-parity, and all 51 pre-PR checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",

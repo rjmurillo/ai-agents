@@ -30,8 +30,8 @@ commit `6d52dd5907897f61947f215884548280f3838994`.
 - Main merge preserved Git symlink materialization and its read-only integration control.
 - Scoped Ruff on both changed Python files: passed.
 - Direct Ruff ratchet: 27 equals baseline 27.
-- Merge-tree ratchet: Ruff 27, taste 579, type-ignore 44,
-  memory-index 377, and CLI exit contract 27 all passed.
+- Merge-tree ratchet passed after merging current `origin/main`.
+- Repository pre-PR validation: 51 of 51 checks passed in 92.74 seconds.
 - GPT-5.6 Sol artifact-only review returned `PASS`.
 - The Windows path-contract test carries `pytest.mark.windows_path`.
   `.github/workflows/pytest.yml` runs that marker on `windows-latest`.
