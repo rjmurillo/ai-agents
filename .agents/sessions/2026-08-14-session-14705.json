@@ -113,8 +113,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "No separate retrospective for this focused closure."
+        "Complete": true,
+        "Evidence": "Learnings captured in this session work log after the retrospective workflow ran."
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -159,6 +159,15 @@
       "timestamp": "2026-08-14T21:30Z",
       "action": "finalize-dx-review",
       "details": "Committed skill and license attribution changes, ran 32 tests and Ruff, bound the PASS QA report to commit f17a723b4, and ran markdownlint-cli2 v0.23.2 with 0 issues."
+    },
+    {
+      "timestamp": "2026-08-14T21:45Z",
+      "action": "retrospective",
+      "details": [
+        "Opaque Copilot push denials require checking active installed plugin hooks, not only repository-local hooks.",
+        "The active copilot-cli-toolkit retrospective gate blocked the push until session learnings were captured.",
+        "External skill attribution belongs in the generated third-party notice source, not provenance prose inside the skill."
+      ]
     }
   ],
   "endingCommit": "8200772d9",
