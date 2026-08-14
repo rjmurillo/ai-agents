@@ -21,8 +21,9 @@ GIST_HOSTS = {"gist.github.com", "gist.githubusercontent.com"}
 PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 FILE_FRAGMENT_RE = re.compile(
     r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?"
-    r"(?:-L\d+(?:-L\d+)?)?"
 )
+LINE_FRAGMENT_RE = re.compile(r"-L[1-9][0-9]*(?:-L[1-9][0-9]*)?$")
+LINE_FRAGMENT_CANDIDATE_RE = re.compile(r"-L[0-9]")
 
 
 def _is_valid_file_selector(selector: str) -> bool:
@@ -33,9 +34,14 @@ def _is_valid_file_selector(selector: str) -> bool:
 
 
 def _is_valid_file_fragment(selector: str) -> bool:
-    return _is_valid_file_selector(selector) and bool(
-        FILE_FRAGMENT_RE.fullmatch(selector)
-    )
+    if not _is_valid_file_selector(selector):
+        return False
+    if LINE_FRAGMENT_CANDIDATE_RE.search(selector):
+        line_fragment = LINE_FRAGMENT_RE.search(selector)
+        if line_fragment is None:
+            return False
+        selector = selector[: line_fragment.start()]
+    return bool(FILE_FRAGMENT_RE.fullmatch(selector))
 
 
 def _decode_url_component(component: str) -> str | None:
