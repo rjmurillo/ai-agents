@@ -25,13 +25,13 @@ Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
     0 = Allow (model named, escape hatch set, definition file found,
         unrelated tool, or malformed input)
-    2 = Block (no model, no definition file)
+    2 = Block (no model, no definition file, or payload exceeds 2 MiB)
 
-Malformed input fails open by design: Copilot CLI treats a PreToolUse hook
-crash as deny-all for the session (#4672), so an infrastructure failure
-must never outrank the guard's own policy. This gate bounds model spend;
-it is not a security boundary, so allow-on-broken-input is the cheaper
-error.
+Malformed input within the payload limit fails open by design. Payload
+overflow fails closed before parsing. Copilot CLI treats a PreToolUse hook
+crash as deny-all for the session (#4672), so an infrastructure failure must
+never outrank the guard's own policy. This gate bounds model spend; it is not
+a security boundary, so allow-on-broken-input is the cheaper error.
 """
 
 from __future__ import annotations
@@ -42,9 +42,11 @@ import re
 import sys
 from pathlib import Path
 
-_MAX_STDIN_BYTES = 128 * 1024
+_MAX_STDIN_BYTES = 2 * 1024 * 1024
 _SUBAGENT_TOOLS = frozenset({"Agent", "Task", "task"})
 _ESCAPE_HATCH_ENV = "CLAUDE_CODE_SUBAGENT_MODEL"
+_COPILOT_CLI_ENV = "COPILOT_CLI"
+_CLAUDE_SETTINGS_ONLY_ARG = "--claude-settings-only"
 _EMPTY_MODEL_VALUES = frozenset({"", "null", "none", "~", '""', "''"})
 _NON_STRING_MODEL_VALUES = frozenset({"false", "no", "off", "on", "true", "yes"})
 _UNQUOTED_MODEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9._ /()+-]*")
@@ -57,6 +59,28 @@ def _user_root(home: Path, *, copilot: bool) -> Path:
     return Path(configured).expanduser() if configured else home / default
 
 
+def _plugin_name(root: Path) -> str | None:
+    manifest = root / ".claude-plugin" / "plugin.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    name = data.get("name") if isinstance(data, dict) else None
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
+def _active_plugin_roots(plugin: str) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    for variable in ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"):
+        configured = os.environ.get(variable, "").strip()
+        if not configured:
+            continue
+        root = Path(configured).expanduser()
+        if root not in roots and _plugin_name(root) == plugin:
+            roots.append(root)
+    return tuple(roots)
+
+
 def _definition_search_space(
     name: str,
     plugin: str | None,
@@ -67,8 +91,16 @@ def _definition_search_space(
 ) -> tuple[tuple[Path, tuple[str, ...]], ...]:
     """Glob patterns for model-pinned definitions loaded by one harness."""
     if plugin:
+        active_patterns = (
+            (f"agents/{name}.agent.md", f"agents/{name}.md")
+            if copilot
+            else (f"agents/{name}.md",)
+        )
+        active_roots = tuple(
+            (root, active_patterns) for root in _active_plugin_roots(plugin)
+        )
         if copilot:
-            return (
+            return active_roots + (
                 (
                     _user_root(home, copilot=True),
                     (
@@ -77,7 +109,7 @@ def _definition_search_space(
                     ),
                 ),
             )
-        return (
+        return active_roots + (
             (
                 _user_root(home, copilot=False),
                 (
@@ -200,8 +232,39 @@ def _has_explicit_model(value: object) -> bool:
     return value.strip().lower() not in _EMPTY_MODEL_VALUES
 
 
+def _safe_search_part(value: str) -> bool:
+    if value in {"", ".", ".."} or not value.isprintable():
+        return False
+    return not any(character in value for character in "*?[]/\\:")
+
+
+def _read_payload() -> object:
+    stream = getattr(sys.stdin, "buffer", sys.stdin)
+    raw = stream.read(_MAX_STDIN_BYTES + 1)
+    if len(raw) > _MAX_STDIN_BYTES:
+        raise OverflowError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
+    return json.loads(raw)
+
+
+def _project_root(payload: dict[str, object]) -> Path:
+    configured = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    cwd = payload.get("cwd")
+    return Path(cwd) if isinstance(cwd, str) and cwd.strip() else Path(".")
+
+
 def main() -> int:
-    payload = json.loads(sys.stdin.read(_MAX_STDIN_BYTES))
+    if (
+        _CLAUDE_SETTINGS_ONLY_ARG in sys.argv[1:]
+        and os.environ.get(_COPILOT_CLI_ENV)
+    ):
+        return 0
+    try:
+        payload = _read_payload()
+    except OverflowError as exc:
+        print(f"require-subagent-model: {exc}; refusing", file=sys.stderr)
+        return 2
     if not isinstance(payload, dict):
         return 0
     tool = payload.get("tool_name") or payload.get("toolName") or ""
@@ -218,10 +281,8 @@ def main() -> int:
     plugin_prefix, separator, name = agent.rpartition(":")
     plugin: str | None = plugin_prefix if separator else None
     searchable_parts = (name, plugin) if plugin else (name,)
-    searchable = all(
-        part and not any(ch in part for ch in "*?[]/\\") for part in searchable_parts
-    )
-    project = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
+    searchable = all(_safe_search_part(part) for part in searchable_parts)
+    project = _project_root(payload)
     copilot = (
         tool == "task"
         or "toolName" in payload

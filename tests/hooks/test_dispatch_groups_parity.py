@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 import pytest
@@ -132,13 +133,16 @@ def _group_shim_basenames(surface_is_plugin: bool) -> set[str]:
 
 
 def _settings_direct_basenames() -> set[str]:
-    return {
-        (hook.get("command") or "").rsplit("/", 1)[-1]
+    basenames = {
+        Path(token).name
         for groups in SETTINGS["hooks"].values()
         for group in groups
         for hook in group.get("hooks", [])
         if "invoke_dispatch_claude.py" not in (hook.get("command") or "")
+        for token in shlex.split(hook.get("command") or "")
+        if token.endswith((".py", ".sh"))
     }
+    return basenames
 
 
 def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
@@ -153,9 +157,6 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         "invoke_markdownlint_guard.py",
         # Gate groups do not take the plugin dispatcher's self-host bail.
         "invoke_push_pr_script_identity_guard.py",
-        # #4874: same reason, and a settings.json twin would trip the
-        # validate_duplicate_entries contract (same script, event, matcher).
-        "invoke_require_subagent_model.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)

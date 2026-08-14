@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -32,8 +33,15 @@ def _isolated_environment(monkeypatch, tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
-    for variable in ("CLAUDE_CODE_SUBAGENT_MODEL", "CLAUDE_PROJECT_DIR",
-                     "CLAUDE_CONFIG_DIR", "COPILOT_HOME"):
+    for variable in (
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+        "CLAUDE_CONFIG_DIR",
+        "CLAUDE_PLUGIN_ROOT",
+        "CLAUDE_PROJECT_DIR",
+        "COPILOT_CLI",
+        "COPILOT_HOME",
+        "COPILOT_PLUGIN_ROOT",
+    ):
         monkeypatch.delenv(variable, raising=False)
     return home
 
@@ -53,6 +61,14 @@ def _run(monkeypatch, payload: object) -> int:
 
 def _claude_payload(project: Path, **tool_input: object) -> dict:
     return {"tool_name": "Agent", "cwd": str(project), "tool_input": tool_input}
+
+
+def _large_model_less_payload(project: Path, size: int) -> dict[str, object]:
+    return _claude_payload(
+        project,
+        subagent_type="general-purpose",
+        prompt="x" * size,
+    )
 
 
 class TestAllowPaths:
@@ -81,6 +97,20 @@ class TestDefinitionSearch:
         agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
         payload = _claude_payload(project, subagent_type="orchestrator")
         assert _run(monkeypatch, payload) == 0
+
+    def test_claude_project_dir_precedes_payload_subdirectory(
+        self, monkeypatch, project
+    ):
+        agent = project / ".claude" / "agents" / "orchestrator.md"
+        agent.parent.mkdir(parents=True)
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        subdirectory = project / "packages" / "app"
+        subdirectory.mkdir(parents=True)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+
+        payload = _claude_payload(subdirectory, subagent_type="orchestrator")
+
+        assert _run(monkeypatch, payload) == 0
     def test_user_claude_agent_allows(self, monkeypatch, project, _isolated_environment):
         custom_root = _isolated_environment / "custom-claude"
         monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(custom_root))
@@ -106,6 +136,38 @@ class TestDefinitionSearch:
         payload = _claude_payload(project, subagent_type="pack:reviewer")
         assert _run(monkeypatch, payload) == 0
 
+    def test_active_claude_plugin_root_allows_namespaced_agent(
+        self, monkeypatch, project, tmp_path
+    ):
+        plugin_root = tmp_path / "active-claude-plugin"
+        manifest = plugin_root / ".claude-plugin" / "plugin.json"
+        agent = plugin_root / "agents" / "reviewer.md"
+        manifest.parent.mkdir(parents=True)
+        agent.parent.mkdir(parents=True)
+        manifest.write_text('{"name": "pack"}', encoding="utf-8")
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+
+        payload = _claude_payload(project, subagent_type="pack:reviewer")
+
+        assert _run(monkeypatch, payload) == 0
+
+    def test_active_plugin_root_with_wrong_namespace_denies(
+        self, monkeypatch, project, tmp_path
+    ):
+        plugin_root = tmp_path / "active-claude-plugin"
+        manifest = plugin_root / ".claude-plugin" / "plugin.json"
+        agent = plugin_root / "agents" / "reviewer.md"
+        manifest.parent.mkdir(parents=True)
+        agent.parent.mkdir(parents=True)
+        manifest.write_text('{"name": "other-pack"}', encoding="utf-8")
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+
+        payload = _claude_payload(project, subagent_type="pack:reviewer")
+
+        assert _run(monkeypatch, payload) == 2
+
     def test_copilot_plugin_scoped_agent_allows(
         self, monkeypatch, project, _isolated_environment
     ):
@@ -125,6 +187,26 @@ class TestDefinitionSearch:
             "cwd": str(project),
             "toolArgs": {"agent_type": "pack:reviewer"},
         }
+        assert _run(monkeypatch, payload) == 0
+
+    def test_active_copilot_plugin_root_allows_namespaced_agent(
+        self, monkeypatch, project, tmp_path
+    ):
+        plugin_root = tmp_path / "active-copilot-plugin"
+        manifest = plugin_root / ".claude-plugin" / "plugin.json"
+        agent = plugin_root / "agents" / "reviewer.agent.md"
+        manifest.parent.mkdir(parents=True)
+        agent.parent.mkdir(parents=True)
+        manifest.write_text('{"name": "pack"}', encoding="utf-8")
+        agent.write_text("---\nmodel: claude-sonnet-4.6\n---\n", encoding="utf-8")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(plugin_root))
+
+        payload = {
+            "toolName": "task",
+            "cwd": str(project),
+            "toolArgs": {"agent_type": "pack:reviewer"},
+        }
+
         assert _run(monkeypatch, payload) == 0
 
     def test_copilot_user_agent_allows(self, monkeypatch, project, _isolated_environment):
@@ -305,16 +387,18 @@ class TestDenyPaths:
         assert _run(monkeypatch, payload) == 2
         assert "general-purpose" in capsys.readouterr().err
 
-    @pytest.mark.parametrize("spoof", ["*", "**", "?", "[a]", "../me", "..\\me"])
-    def test_glob_metacharacter_names_cannot_spoof_the_search(
+    @pytest.mark.parametrize(
+        "spoof",
+        ["*", "**", "?", "[a]", "../me", "..\\me", "..:me"],
+    )
+    def test_unsafe_names_cannot_spoof_the_search(
         self, monkeypatch, project, _isolated_environment, spoof
     ):
-        # A wildcard subagent_type must not match real definition files
-        # (CWE-22/CWE-400 shape); the name is unsearchable, so the call
-        # falls through to the model requirement and denies.
+        # Unsafe subagent types must not escape or expand the definition
+        # search (CWE-22/CWE-400 shape).
         agent = _isolated_environment / ".claude" / "agents" / "me.md"
         agent.parent.mkdir(parents=True, exist_ok=True)
-        agent.write_text("body", encoding="utf-8")
+        agent.write_text("---\nmodel: sonnet\n---\n", encoding="utf-8")
         payload = _claude_payload(project, subagent_type=spoof)
         assert _run(monkeypatch, payload) == 2
 
@@ -365,6 +449,22 @@ class TestProcessBoundary:
         assert result.returncode == 2
         assert "no-such-agent" in result.stderr
 
+    def test_model_less_payload_over_128_kib_denies(self, tmp_path):
+        payload = json.dumps(_large_model_less_payload(tmp_path, 129 * 1024))
+
+        result = self._spawn(payload, tmp_path)
+
+        assert result.returncode == 2
+        assert "general-purpose" in result.stderr
+
+    def test_payload_over_two_mib_denies_instead_of_failing_open(self, tmp_path):
+        payload = json.dumps(_large_model_less_payload(tmp_path, 2 * 1024 * 1024))
+
+        result = self._spawn(payload, tmp_path)
+
+        assert result.returncode == 2
+        assert "exceeds" in result.stderr
+
 
 class TestRegistrations:
     @staticmethod
@@ -401,11 +501,58 @@ class TestRegistrations:
         assert group["surface"] == "plugin"
         assert group["shims"][0]["file"] == "PreToolUse/invoke_require_subagent_model.py"
         assert group["shims"][0]["copilotMatcher"] == "^(Agent|Task)$"
-    def test_repo_settings_carry_no_duplicate_registration(self):
+    @staticmethod
+    def _settings_hook_entry() -> dict[str, object]:
         settings = json.loads(
             (REPO_ROOT / ".claude/settings.json").read_text(encoding="utf-8")
         )
-        assert "invoke_require_subagent_model" not in json.dumps(settings)
+        matching = [
+            hook
+            for group in settings["hooks"]["PreToolUse"]
+            for hook in group["hooks"]
+            if group.get("matcher") == "Agent|Task"
+            and "invoke_require_subagent_model.py" in hook["command"]
+        ]
+        assert len(matching) == 1
+        return matching[0]
+
+    @staticmethod
+    def _run_settings_command(
+        entry: dict[str, object],
+        payload: dict[str, object],
+        home: Path,
+        *,
+        copilot: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        command = str(entry["command"])
+        argv = shlex.split(command)
+        argv[0] = sys.executable
+        env = os.environ.copy()
+        env.update({"HOME": str(home), "USERPROFILE": str(home)})
+        env.pop("COPILOT_CLI", None)
+        if copilot:
+            env["COPILOT_CLI"] = "1"
+        return subprocess.run(
+            argv,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=REPO_ROOT,
+            env=env,
+            timeout=30,
+        )
+
+    def test_repo_settings_gate_runs_only_for_claude_code(self, tmp_path):
+        entry = self._settings_hook_entry()
+        payload = _claude_payload(tmp_path, subagent_type="general-purpose")
+
+        claude = self._run_settings_command(entry, payload, tmp_path, copilot=False)
+        copilot = self._run_settings_command(entry, payload, tmp_path, copilot=True)
+
+        assert "--claude-settings-only" in entry["command"]
+        assert claude.returncode == 2
+        assert copilot.returncode == 0
     def test_plugin_hooks_json_registered(self):
         plugin_hooks = json.loads(
             (REPO_ROOT / ".claude/hooks/hooks.json").read_text(encoding="utf-8")
@@ -496,3 +643,33 @@ class TestRegistrations:
         )
         assert result.returncode == 0
         assert "malformed JSON" in result.stderr
+
+    def test_generated_copilot_shim_model_less_payload_over_128_kib_denies(
+        self, tmp_path
+    ):
+        shims = list(
+            (REPO_ROOT / "src/copilot-cli/hooks/PreToolUse").glob(
+                "invoke_require_subagent_model__*.py"
+            )
+        )
+        assert len(shims) == 1
+        env = os.environ.copy()
+        env.update({
+            "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
+            "COPILOT_PLUGIN_ROOT": str(REPO_ROOT / "src/copilot-cli"),
+        })
+        payload = _large_model_less_payload(tmp_path, 129 * 1024)
+
+        result = subprocess.run(
+            [sys.executable, str(shims[0])],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp_path,
+            env=env,
+            timeout=30,
+        )
+
+        assert result.returncode == 2
+        assert "general-purpose" in result.stderr

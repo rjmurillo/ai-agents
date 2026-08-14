@@ -37,6 +37,19 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_require_subagent_model.py --claude-settings-only",
+            "timeout": 10,
+            "statusMessage": "Requiring explicit sub-agent model (BLOCKING)"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "mcp__serena__write_memory",
