@@ -2,7 +2,8 @@
 """Aggregate PR review comment statistics by reviewer and update Serena memory.
 
 Queries all PRs (open and closed) for review comments, calculates signal quality
-metrics per reviewer, and updates the pr-comment-responder-skills memory file.
+metrics per reviewer, and updates the pr-review/pr-comment-responder-skills
+memory file.
 
 Exit codes (ADR-035):
     0 - Success
@@ -63,7 +64,7 @@ HEURISTICS: dict[str, float | int] = {
     "no_reply_threshold": 7,
 }
 
-MEMORY_PATH = ".serena/memories/pr-comment-responder-skills.md"
+MEMORY_PATH = ".serena/memories/pr-review/pr-comment-responder-skills.md"
 
 TREND_THRESHOLDS: dict[str, float] = {
     "improving": 0.05,
