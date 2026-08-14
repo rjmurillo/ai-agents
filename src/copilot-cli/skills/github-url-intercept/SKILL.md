@@ -1,7 +1,7 @@
 ---
 name: github-url-intercept
 version: 2.1.0
-description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, pull/, issues/, blob/, tree/, commit/, compare/, discussions/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
 license: MIT
 metadata:
   domains:
@@ -89,7 +89,6 @@ Use [github](../github/SKILL.md) instead when:
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
 | `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
 | `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
-| `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
 | `gist.github.com/...` | `https://gist.github.com/owner/abcdef123456` | Gist HTML includes page chrome |
 | Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
 | Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
@@ -207,6 +206,7 @@ https://github.com/{owner}/{repo}/tree/{ref}/{path}
 https://github.com/{owner}/{repo}/commit/{sha}
 https://github.com/{owner}/{repo}/compare/{base}...{head}
 https://gist.github.com/{owner}/{id}
+https://gist.github.com/{id}
 ```
 
 **Fragment extraction** (when present):
@@ -261,6 +261,9 @@ Action:
   1. Parse: owner=owner, gist=abcdef123456, type=gist
   2. Route: gh api "gists/abcdef123456"
 ```
+
+Ownerless URLs, query strings, file fragments, and `/revisions` suffixes route
+to the same gist API resource.
 
 ### URL with Question After It
 
@@ -353,7 +356,7 @@ Action:
 Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
 
 ```bash
-python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-url>
+python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py --url <github-url>
 ```
 
 ---
@@ -382,4 +385,4 @@ echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
 - [ ] Extracted fragment ID if present (#discussion_r, #issuecomment-, #pullrequestreview-)
 - [ ] Selected appropriate github skill script (primary) or gh command (fallback)
 - [ ] Did NOT use web_fetch, curl, or browser-based fetch on the URL
-- [ ] Received structured JSON response with `Success: true` (for scripts)
+- [ ] Received structured JSON response with `success: true`

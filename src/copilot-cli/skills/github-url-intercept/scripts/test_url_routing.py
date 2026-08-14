@@ -25,6 +25,7 @@ import json
 import re
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlsplit
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -69,7 +70,9 @@ SCRIPT_ROUTES: dict[UrlType, dict[str, str]] = {
 SAFE_OWNER_REPO_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_.]*$")
 SAFE_REF_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./]*$")
 SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./%+@]*$")
+SAFE_GIST_ID_RE = re.compile(r"^[a-fA-F0-9]+$")
 DANGEROUS_CHARS = set("\"'`$;&|><(){}[]!\\")
+GIST_SUFFIXES = {"raw", "revisions"}
 
 
 def is_safe_input(
@@ -94,7 +97,7 @@ def is_safe_input(
     elif ".." in value:
         return False
 
-    return bool(pattern.match(value))
+    return bool(pattern.fullmatch(value))
 
 
 # ---------------------------------------------------------------------------
@@ -102,29 +105,62 @@ def is_safe_input(
 # ---------------------------------------------------------------------------
 
 
+def parse_gist_url(url: str) -> dict[str, Any] | None:
+    """Parse a gist URL and discard suffixes that do not affect API routing."""
+    if any(ord(character) < 32 or ord(character) == 127 for character in url):
+        return None
+
+    try:
+        parsed_url = urlsplit(url)
+    except ValueError:
+        return None
+
+    if parsed_url.scheme not in {"http", "https"}:
+        return None
+    if parsed_url.netloc != "gist.github.com":
+        return None
+
+    segments = [segment for segment in parsed_url.path.split("/") if segment]
+    if not segments:
+        return None
+
+    ownerless_with_suffix = (
+        len(segments) > 1
+        and is_safe_input(segments[0], SAFE_GIST_ID_RE)
+        and segments[1] in GIST_SUFFIXES
+    )
+    if len(segments) == 1 or ownerless_with_suffix:
+        owner = None
+        gist_id = segments[0]
+    else:
+        owner = segments[0]
+        gist_id = segments[1]
+
+    if owner is not None and not is_safe_input(owner, SAFE_OWNER_REPO_RE):
+        return None
+    if not is_safe_input(gist_id, SAFE_GIST_ID_RE):
+        return None
+
+    return {
+        "owner": owner,
+        "repo": None,
+        "url_type": UrlType.GIST.value,
+        "resource_id": gist_id,
+        "ref": None,
+        "path": None,
+        "fragment_type": None,
+        "fragment_id": None,
+    }
+
+
 def parse_github_url(url: str) -> dict[str, Any] | None:
     """Parse a GitHub URL into structured components.
 
     Returns None if the URL is invalid or contains dangerous characters.
     """
-    gist_match = re.match(
-        r"^https?://gist\.github\.com/([^/]+)/([a-fA-F0-9]+)/?(?:#.*)?$",
-        url,
-    )
-    if gist_match:
-        owner, gist_id = gist_match.groups()
-        if not is_safe_input(owner, SAFE_OWNER_REPO_RE):
-            return None
-        return {
-            "owner": owner,
-            "repo": None,
-            "url_type": UrlType.GIST.value,
-            "resource_id": gist_id,
-            "ref": None,
-            "path": None,
-            "fragment_type": None,
-            "fragment_id": None,
-        }
+    gist = parse_gist_url(url)
+    if gist is not None:
+        return gist
 
     match = re.match(r"^https?://github\.com/([^/]+)/([^/]+)/?(.*)$", url)
     if not match:
