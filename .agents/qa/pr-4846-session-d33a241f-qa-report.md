@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 36e52fe607250cf8fb66035eeb5b1ac5e683b0b9
+qaCommit: e95eba07a878191b9b76fc1d4f4d97ec600ba526
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `36e52fe607250cf8fb66035eeb5b1ac5e683b0b9`
+Validated the branch at commit `e95eba07a878191b9b76fc1d4f4d97ec600ba526`
 (qaCommit, above). The previous report's PASS evidence was stale: it named
 `qaCommit: 1556cdbd99...` but its prose and test run described commit
 `63a2f9fd4...`, several commits earlier, so the recorded results did not
@@ -16,7 +16,10 @@ establish the verdict for the SHA the frontmatter claimed. This report
 re-runs every check against the actual `qaCommit` SHA and lists every
 content commit since the last commit both prose and frontmatter agreed on
 (`3d96506c5`, "refactor(ci): move gitlink and check-run logic to Python
-per ADR-006").
+per ADR-006"), including one commit landed after the prior update of this
+report (commit 11 below): a fix to the repo's own pre-push
+placeholder-identity guard, discovered while pushing this branch through
+the pr-autofix protocol.
 
 ## Test Results
 
@@ -27,11 +30,13 @@ per ADR-006").
 | `uv run ruff check scripts/ci/validate_vendor_provenance.py tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py` | All checks passed |
 | `actionlint .github/workflows/vendor-provenance.yml` | No findings |
 | YAML syntax validation | Passed |
+| `uv run pytest tests/test_lefthook_integration.py tests/test_pr_autofix_worktree_identity.py -q` (environment-limited cases requiring a `lefthook`/pinned `semgrep` binary excluded; pre-existing on `main`, unrelated to this branch) | 745 passed |
+| `uv run ruff check scripts/validation/git_hook_policy.py tests/test_lefthook_integration.py` | All checks passed |
 
 ## Changes Since Previous QA Report
 
 Content commits landed between `3d96506c5` (last commit the prior report's
-prose and frontmatter agreed on) and `36e52fe60` (this report's `qaCommit`):
+prose and frontmatter agreed on) and `e95eba07a` (this report's `qaCommit`):
 
 1. `57cd644f6` fix(ci): sort test imports (ruff I001)
 2. `d1f7d44a5` fix(security): use NUL-delimited git ls-tree for gitlink rejection
@@ -43,6 +48,7 @@ prose and frontmatter agreed on) and `36e52fe60` (this report's `qaCommit`):
 8. `1a5fefb6a` fix(ci): remove gh api fallback to comply with ADR-006
 9. `1556cdbd9` fix(ci): add explicit permissions block to provenance job
 10. `36e52fe60` fix(ci): parse checkout-index in order, not as a substring
+11. `e95eba07a` fix(hooks): scope placeholder-identity push check to new commits only
 
 ## Correctness Assessment
 
@@ -61,8 +67,17 @@ workflow-job checkout-dependency test itself no longer trusts a
 substring match: it now tokenizes each run-block line in execution order
 and skips printing/comment lines before treating a `git checkout-index`
 mention as a real checkout (commit 10), closing the false-positive this
-report's predecessor was flagged for.
+report's predecessor was flagged for. Commit 11 is unrelated to the
+vendor-provenance workflow itself: it fixes the shared pre-push
+placeholder-identity guard so it audits only commits new to a push
+(`remote_sha..local_sha` for an existing ref) instead of the full
+`merge-base(origin/main)..HEAD` branch delta, so a tainted commit that
+already reached origin (this branch has 20, landed before this fix) does
+not permanently block every later push. New regression tests confirm an
+already-remote taint is excluded while a genuinely new placeholder-identity
+commit in the push range is still rejected.
 
 ## Verdict
 
 **Status**: PASS
+

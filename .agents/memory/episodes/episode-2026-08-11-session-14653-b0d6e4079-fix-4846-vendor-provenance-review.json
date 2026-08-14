@@ -60,7 +60,8 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e025"
       ],
       "leads_to": [
         "e006"
@@ -309,6 +310,30 @@
       "caused_by": [
         "e023"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed a pre-push placeholder-identity block: 20 already-remote commits carry a Test <test@test.com> identity, and the guard's merge-base(origin/main)..HEAD range re-flagged them on every push.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-14T19:03:40+00:00",
+      "type": "commit",
+      "content": "Commit: e95eba07a",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -318,8 +343,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 20,
-    "files_changed": 8
+    "commits": 21,
+    "files_changed": 10
   },
   "lessons": []
 }
