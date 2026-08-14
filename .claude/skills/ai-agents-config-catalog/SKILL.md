@@ -126,9 +126,9 @@ all.
 Three independent registration sources serve different consumers. Do not force
 parity between them:
 
-| Surface | Consumer | Shape re-verified 2026-08-11 |
+| Surface | Consumer | Shape re-verified 2026-08-14 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 5 events, 7 groups |
+| `.claude/settings.json` | Claude Code direct in this repository | 6 events, 8 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 4 groups |
 | `.github/hooks/require-subagent-model.json` | Copilot CLI in this repository (cloud agent from the default branch) | native `preToolUse`, matcher `task`, direct registration |
 
@@ -169,7 +169,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 
 ## Provenance and Maintenance
 
-Audited 2026-08-11 against the working tree for hook registration surfaces.
+Audited 2026-08-14 against the working tree for hook registration surfaces.
 Other rows remain verified as of 2026-07-03. Sources: files and line numbers
 cited per row above. Line numbers drift; the commands below are the durable
 re-verification. Run from repo root. If a command returns nothing, the flag

@@ -73,9 +73,9 @@ Two meta-patterns bind these together:
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File | Registered (re-verified 2026-08-11) |
+| Surface | File | Registered (re-verified 2026-08-14) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 7 groups |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 8 groups |
 | Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 4 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
@@ -137,7 +137,7 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: `.claude/settings.json` has 5 events and 7 groups, `.claude/hooks/hooks.json` has 2 events and 4 groups; do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 8 groups, `.claude/hooks/hooks.json` has 2 events and 4 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
@@ -168,6 +168,6 @@ Before relying on or amending this contract:
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03, facts re-verified against the working tree on 2026-08-11. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-08-14. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
 Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.
