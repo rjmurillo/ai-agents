@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14696-b2c958770-resume-complete-issue-4879-pull.json
-qaCommit: 94a3b96cc06ee0aa225bb187a5ef33a044529440
+qaCommit: ae98831ce6abdfca896296252b6a2263261c940f
 ---
 
 # PR 4956 session 14696 validation
@@ -11,6 +11,12 @@ qaCommit: 94a3b96cc06ee0aa225bb187a5ef33a044529440
 PASS. Current `origin/main` still reproduces issue #4879. The branch returns
 inconclusive evidence for docs-only targets and still fails real missing
 symbols.
+
+Follow-up validation on commit
+`ae98831ce6abdfca896296252b6a2263261c940f` passed six focused positive,
+negative, and edge tests. The set covers exit codes 0, 1, 2, 3, and 10 and the
+documentation drift guard. Scoped Ruff, SkillForge validation, and
+`build/scripts/build_all.py --check` also exited 0.
 
 ## Evidence
 
