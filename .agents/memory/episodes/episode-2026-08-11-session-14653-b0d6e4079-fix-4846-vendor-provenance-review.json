@@ -62,7 +62,8 @@
         "e003",
         "e004",
         "e025",
-        "e027"
+        "e027",
+        "e029"
       ],
       "leads_to": [
         "e006"
@@ -359,6 +360,30 @@
       "caused_by": [
         "e026"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed 7 new commits; pre-push chain passed including Session End Validation (QA evidence rebound to 471bd50ea beforehand). After the push, copilot-pull-request-reviewer opened a new thread on .github/workflows/vendor-provenance.yml:55, flagging that the workspace-cleanup rm command masked failures (2>/dev/null || true) and used an incomplete dotfile glob (.??* misses 1-2 char dotfiles), contradicting the workflow's documented fail-closed contract.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-14T20:28:10+00:00",
+      "type": "commit",
+      "content": "Commit: 24cdcf8a3",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -368,7 +393,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 22,
+    "commits": 23,
     "files_changed": 33
   },
   "lessons": []

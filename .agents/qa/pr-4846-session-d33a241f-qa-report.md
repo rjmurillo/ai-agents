@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 471bd50eacc172e94b0bf32aeb1640584573f1ce
+qaCommit: 24cdcf8a3af90db89fe1fda08786c894a12d8880
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `471bd50eacc172e94b0bf32aeb1640584573f1ce`
+Validated the branch at commit `24cdcf8a3af90db89fe1fda08786c894a12d8880`
 (qaCommit, above). The previous report's PASS evidence was stale: it named
 `qaCommit: 1556cdbd99...` but its prose and test run described commit
 `63a2f9fd4...`, several commits earlier, so the recorded results did not
@@ -16,8 +16,8 @@ establish the verdict for the SHA the frontmatter claimed. This report
 re-runs every check against the actual `qaCommit` SHA and lists every
 content commit since the last commit both prose and frontmatter agreed on
 (`3d96506c5`, "refactor(ci): move gitlink and check-run logic to Python
-per ADR-006"), including 6 commits landed after the prior update of this
-report (commits 12-17 below): the repo's required `Run Python Tests`
+per ADR-006"), including 7 commits landed after the prior update of this
+report (commits 12-18 below): the repo's required `Run Python Tests`
 check was failing the Trust-Anchor Authentication phase for 4 pinned
 files this branch does not touch (`pyproject.toml`, `uv.lock`,
 `.claude/hooks/PostToolUse/invoke_memory_capture.py`,
@@ -27,7 +27,11 @@ advanced past this branch's pins via 2 already-merged upstream commits.
 Cherry-picked both upstream commits (split across 6 commits to respect
 this branch's 5-authored-file commit-count policy) so the branch's own
 copies match what the merge-ref contains, then refreshed the 4 stale
-SHA-256 pins to match.
+SHA-256 pins to match. After that push landed, `copilot-pull-request-
+reviewer` opened a new thread on `.github/workflows/vendor-provenance.yml`
+flagging that the workspace-cleanup step masked `rm` failures and used an
+incomplete dotfile glob, contradicting the workflow's own "fail closed"
+contract; commit 18 fixes both.
 
 ## Test Results
 
@@ -43,11 +47,15 @@ SHA-256 pins to match.
 | `uv run pytest tests/test_memory_hook_registration.py tests/test_memory_hook_capture.py tests/test_memory_extraction.py tests/ci/test_validate_vendor_provenance.py -q` | 270 passed |
 | `uv run ruff check .claude/hooks/PostToolUse/invoke_memory_capture.py scripts/memory_enhancement/extraction.py scripts/memory_enhancement/hooks/post_tool_call_memory.py scripts/ci/validate_vendor_provenance.py tests/test_memory_extraction.py tests/test_memory_hook_capture.py tests/test_memory_hook_registration.py` | All checks passed |
 | Local sha256 of the 4 refreshed pinned files vs. `_PINNED_ARTIFACTS` | All 4 match exactly |
+| `actionlint .github/workflows/vendor-provenance.yml` (re-run after commit 18) | No findings |
+| `uv run pytest tests/ci/test_validate_vendor_provenance.py tests/workflows/test_workflow_jobs_check_out_repo.py -q` (re-run after commit 18) | 343 passed |
+| `uv run pytest tests/test_validate_workflows.py tests/validation_pre_pr/test_workflow_checks.py tests/validation/test_check_ci_dependency_pins.py -q` | 183 passed |
+| Manual bash check of the new cleanup glob: empty directory, and a directory seeded with `regular.txt .a .bb ..c .hidden` plus a subdirectory | Both cases fully cleared, exit 0 |
 
 ## Changes Since Previous QA Report
 
 Content commits landed between `3d96506c5` (last commit the prior report's
-prose and frontmatter agreed on) and `471bd50ea` (this report's `qaCommit`):
+prose and frontmatter agreed on) and `24cdcf8a3` (this report's `qaCommit`):
 
 1. `57cd644f6` fix(ci): sort test imports (ruff I001)
 2. `d1f7d44a5` fix(security): use NUL-delimited git ls-tree for gitlink rejection
@@ -66,6 +74,7 @@ prose and frontmatter agreed on) and `471bd50ea` (this report's `qaCommit`):
 15. `d1c21e4ce` fix(security): refresh 4 trust-anchor pins after main drift
 16. `b700f2cf2` docs(hooks): document CLAUDE_PROJECT_DIR anchoring and PostToolUseFailure
 17. `471bd50ea` docs(hooks): reference #4870 memory-capture fix in config catalog skills
+18. `24cdcf8a3` fix(security): fail closed on vendor-provenance workspace cleanup
 
 ## Correctness Assessment
 
@@ -118,6 +127,40 @@ match, following the same pattern used by prior pin-refresh commits in
 this file's own history (`7e348666f`, `91aa78a55`). A full merge of
 `origin/main` was tried first and rejected: it pulled in 152 unrelated
 files (~15,800 insertions) far beyond the scope of this fix.
+
+Commit 18 fixes a `copilot-pull-request-reviewer` finding on the
+workspace-cleanup step of `.github/workflows/vendor-provenance.yml`
+(line 55). Threat model: this job runs `pull_request_target` (base-
+branch YAML) and materializes only `BASE_SHA` content into
+`$GITHUB_WORKSPACE` via `git read-tree` + `checkout-index`, which
+creates or overwrites index-tracked files but never deletes files
+already present that are not in that tree. The old cleanup command,
+`rm -rf ./* ./.??* 2>/dev/null || true`, redirected stderr and forced a
+zero exit regardless of outcome, so a genuine `rm` failure (permission
+denied, unusual filesystem state) would silently leave stale files
+behind instead of failing the step, directly contradicting this
+workflow's documented invariant ("Git and pipeline failures fail
+closed"). The glob was also incomplete: `.??*` requires at least two
+characters after the leading dot, so single- and two-character dotfiles
+(e.g. `.a`) were never matched and would survive the cleanup. If a
+residual file this untouched by `checkout-index`, the later base-owned
+Python validator process could read or import content that was never
+part of `BASE_SHA`, undermining the property this gate exists to
+guarantee. The fix drops the error-masking redirect and `|| true` so a
+real `rm` failure still trips `set -euo pipefail`, and replaces the glob
+with the standard three-pattern set (`*`, `.[!.]*`, `..?*`), which
+covers regular files, every dotfile length, and multi-dot names while
+never matching `.` or `..`. `rm -f` still silently ignores the
+nonexistent-file case when a pattern does not match anything (the
+common case on a fresh runner), so this is not a fail-open regression;
+it only stops masking failures that are not "nothing matched." Verified
+locally: `actionlint` clean, and a manual bash reproduction confirms
+both an empty directory and one seeded with `regular.txt .a .bb ..c
+.hidden` (plus a subdirectory) are fully cleared with exit 0.
+`tests/ci/test_validate_vendor_provenance.py::test_diff_tree_failure_
+contract` already asserted "no error suppression on git commands (rm
+cleanup is acceptable)" scoped to `git` invocations only, so it is
+unaffected by removing the `rm` suppression.
 
 ## Verdict
 

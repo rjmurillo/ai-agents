@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 471bd50ea)"
+        "Evidence": "All changes committed (HEAD: 24cdcf8a3)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,10 +147,14 @@
     {
       "action": "Diagnosed the required Run Python Tests failure: Trust-Anchor Authentication rejected 4 pinned files (pyproject.toml, uv.lock, invoke_memory_capture.py, .claude/settings.json) this branch does not touch, because the pull_request merge-ref inherits origin/main's current content for untouched paths and main had advanced past this branch's pins via 2 already-merged commits (f339cea0e deps bump, 68eea97b4 hook anchoring/PostToolUseFailure).",
       "result": "Rejected a full origin/main merge (152 unrelated files) and a partial 4-file content sync (broke test_memory_hook_registration.py's old-registration assertions). Cherry-picked both upstream commits in full, split across 6 commits for the branch's 5-authored-file limit, then refreshed the 4 stale SHA-256 pins. 270/270 targeted tests pass; ruff clean."
+    },
+    {
+      "action": "Pushed 7 new commits; pre-push chain passed including Session End Validation (QA evidence rebound to 471bd50ea beforehand). After the push, copilot-pull-request-reviewer opened a new thread on .github/workflows/vendor-provenance.yml:55, flagging that the workspace-cleanup rm command masked failures (2>/dev/null || true) and used an incomplete dotfile glob (.??* misses 1-2 char dotfiles), contradicting the workflow's documented fail-closed contract.",
+      "result": "Threat-modeled the finding: checkout-index never deletes stray untracked files, so a masked rm failure or missed dotfile could let a base-owned validator process read content outside BASE_SHA. Fixed both issues: dropped the error-masking redirect so a real rm failure still trips set -euo pipefail, and replaced the glob with the standard three-pattern set (*, .[!.]*, ..?*) covering all dotfile lengths while excluding . and ... Verified with actionlint (clean), a manual bash reproduction (empty dir and a dir seeded with regular/.a/.bb/..c/.hidden files both fully cleared, exit 0), and 343+183 targeted tests passing. Committed as 24cdcf8a3."
     }
   ],
-  "endingCommit": "471bd50ea",
+  "endingCommit": "24cdcf8a3",
   "nextSteps": [
-    "Push guarded commits, clear review threads, run completion gate, and merge only if all conditions pass."
+    "Reply to and resolve the new copilot-pull-request-reviewer thread, rebind QA/session evidence once more if needed, renew the lease, push, then re-run the full completion gate before releasing the lease."
   ]
 }
