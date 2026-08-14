@@ -38,6 +38,11 @@ from scripts.validation.git_hook_policy import (  # noqa: E402
 # host date runs a day ahead of UTC; Los Angeles is UTC-7/8, a day behind.
 _TIMEZONES = ["UTC", "Pacific/Kiritimati", "America/Los_Angeles"]
 
+pytestmark = pytest.mark.skipif(
+    not hasattr(time, "tzset"),
+    reason="process timezone switching requires time.tzset",
+)
+
 
 @pytest.fixture(params=_TIMEZONES)
 def host_timezone(request: pytest.FixtureRequest):
