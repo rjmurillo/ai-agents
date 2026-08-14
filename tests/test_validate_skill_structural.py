@@ -6,6 +6,9 @@ Covers P0 remediation items from critique review (issue #1380):
 - P0-2 (threshold): Trigger count range alignment (1-5 not 3-5)
 """
 
+# taste-lint: ignore file-size - structural regression cases intentionally stay
+# co-located to share dynamic import setup and catch collection-order interactions.
+
 from __future__ import annotations
 
 import importlib.util
