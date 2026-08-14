@@ -35,7 +35,10 @@ on 2026-07-28 after confirming `observation_sync` is absent from plugin
 registrations and vendored trees, while a Git-hook or CI re-home cannot observe
 its MCP event. Issue #3218 closed the same day after confirming the remaining
 dispatcher machinery serves live generation paths. The decision's terminal
-states are implemented. Sources:
+states are implemented. On 2026-08-11 issue #4874 added the
+`require_subagent_model` registration to the vendored inventory; section 6 and
+the repo-local `.github/hooks` surface note were updated in the same review
+(debate log `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`). Sources:
 <https://github.com/rjmurillo/ai-agents/issues/3217> and
 <https://github.com/rjmurillo/ai-agents/issues/3218>.
 
@@ -59,7 +62,7 @@ decision.
 
 ## Date
 
-2026-07-20; amended 2026-07-31
+2026-07-20; amended 2026-07-31 and 2026-08-11
 
 ## Context
 
@@ -328,9 +331,17 @@ accepted decision with dedicated tests; and each component still referenced by
 a surviving vendored hook is listed with the hook that keeps it alive. Decision
 3 is the named retention decision for the dormant generic PermissionRequest
 adapter. Removing that adapter requires superseding this decision, not treating
-zero active producers as implicit approval. The vendored source has three registrations across two events:
-`markdownlint_guard`, `push_pr_script_identity_guard`, and
-`markdown_auto_lint`. Copilot generation emits two host registrations. #3218
+zero active producers as implicit approval. The vendored source has four registrations across two events:
+`markdownlint_guard`, `push_pr_script_identity_guard`,
+`require_subagent_model`, and `markdown_auto_lint`. Copilot generation emits two host registrations. This repository also
+registers the require-subagent-model gate directly at
+`.github/hooks/require-subagent-model.json` for local Copilot runs; cloud
+agent reads only default-branch `.github/hooks/*.json`, so cloud coverage
+begins at merge. That surface is repository-local and outside the plugin
+inventory. On the Claude side this repository carries no `settings.json` twin:
+the duplicate-entry contract forbids one, and gate-mode groups skip the
+dispatcher self-host bail, so in-repo Claude enforcement arrives through the
+installed plugin as it updates. #3218
 closed after deriving its consumer list from active source registrations and
 generated manifests. Any future retirement or replacement requires reference
 search, regeneration, and artifact tests that prove no active consumer lost

@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14681,
+    "date": "2026-08-11",
+    "branch": "feat/require-subagent-model-hook",
+    "startingCommit": "2628d8c12",
+    "objective": "Vendor require-subagent-model PreToolUse hook into plugin and repo surfaces for Claude and Copilot CLI (issue 4874)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project auto-active; mcp__serena__initial_instructions returned the manual (persisted tool output toolu_019T946AD8yGgYgXTGKcazm3)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions output in context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by SessionStart context loader; read-only dashboard reviewed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "54 scripts under .claude/skills/github/scripts; 99 skills under .claude/skills; issue scripts used: new_issue.py, claim_issue.py, check_existing_pr_for_issue.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read (skill-first incident log in context)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read (retrieval-led reasoning rules in context)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Auto-recalled memory-context (hook-consolidation-3075, batch-thread-resolution) plus hooks/require-subagent-model-gate.md authored this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/require-subagent-model-hook"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/require-subagent-model-hook"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean-of-mine at branch creation from origin/main 2628d8c12"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2628d8c12"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items in this checklist carry evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (git diff shows no change; read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/hooks/require-subagent-model-gate.md plus memory-index.md row committed in 1560ee129"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on every changed markdown file: ADRs, debate log, skills, QA report; 0 issues each run"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/require-subagent-model-gate.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Original work, PR review fixes, main refresh, final hook-thread fixes, and catalog evidence through 164227594de83d26b495927414a0b05147e2901b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Revalidated at 4bb24a294b16859b08050ded72f55636fb26cdb9: focused hook and registration, generator, runtime-contract, shipped-artifact, CLI E2E, Ruff, mypy, and drift checks passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session task list: tasks 1-4 completed individually, task 5 in flight at commit time"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Six-round adr-review debate log serves as the structured review record for this session's ADR work"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-11T04:45:00Z",
+      "entry": "Created issue #4874 and claimed it; branch feat/require-subagent-model-hook."
+    },
+    {
+      "time": "2026-08-11T05:00:00Z",
+      "entry": "Authored .claude/hooks/PreToolUse/invoke_require_subagent_model.py: PreToolUse gate denying sub-agent spawns that name no model and resolve no agent definition file; fail-open on malformed input (#4672 policy); escape hatch CLAUDE_CODE_SUBAGENT_MODEL."
+    },
+    {
+      "time": "2026-08-11T05:10:00Z",
+      "entry": "Registered plugin dispatch group plugin-pretooluse-10-require_subagent_model (dispatch_groups.json, hooks.json dispatcher entry); regenerated src/copilot-cli/hooks (shim, manifest, hooks.json; host union Bash|Agent|Task)."
+    },
+    {
+      "time": "2026-08-11T05:15:00Z",
+      "entry": "Added repo-local Copilot surface .github/hooks/require-subagent-model.json (native preToolUse, matcher task). No settings.json twin: duplicate-entry contract (hook_contracts.py) forbids it; documented prune in test_dispatch_groups_parity.py."
+    },
+    {
+      "time": "2026-08-11T05:20:00Z",
+      "entry": "Tests: tests/hooks/test_require_subagent_model.py (payload matrix both harness spellings, definition search roots, process-boundary fail-open), AUTHORIZED_HOOKS ledger entry (#4874)."
+    },
+    {
+      "time": "2026-08-11T06:30:00Z",
+      "entry": "adr-review for ADR-068/ADR-071/ADR-085 converged at round 6: 2 Accept, 4 Disagree-and-Commit, 0 Block (rounds 1-5: fired re-evaluation triggers, #4706 contradiction, falsified savings claim, fail-open contract scoping, glob-spoof code fix). All dissent conditions honored in-commit. Debate log: .agents/critique/ADR-068-071-085-metric-refresh-debate-log.md."
+    },
+    {
+      "time": "2026-08-11T06:45:00Z",
+      "entry": "Synced dependent docs-of-record: agent-harness-reference, ai-agents-architecture-contract (+provenance), ai-agents-config-catalog, ai-agents-portability-campaign; hook_dispatch.py stale timeout docstring; knowledge-test pins and refutations; mirrors regenerated."
+    },
+    {
+      "time": "2026-08-13T03:03:00-07:00",
+      "entry": "PR review fixes added model-pin frontmatter validation, lowercase task matching, cross-platform runtime tests, markdown target wiring coverage, and refreshed hook inventory evidence. Targeted suite: 489 passed, 3 skipped."
+    }
+  ],
+  "endingCommit": "e9e471db4c29d09fa3d986ec8ad36253a69f5eee",
+  "nextSteps": [
+    "Push with lock and open PR Fixes #4874."
+  ]
+}

@@ -143,16 +143,6 @@ The 1.0.72-1 probe did not independently measure the effect of generated
 `cwd: "."` for plugin hooks. Generated launchers do not use `cwd` to locate
 plugin scripts. They use the documented plugin-root variables.
 
-The consolidated PreToolUse dispatcher has a host-timeout residual. The host
-owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
-timeout. No in-process watchdog is implemented. After the 2026-07-22 hook
-purge and the issue #4764 identity gate, the active manifest contains two shims
-with 100 seconds of configured timeout. The generated host entry requests 105
-seconds, including five seconds of dispatcher headroom. A hung dispatcher can
-therefore allow the tool without completing every active guard. The probe tested
-only 2 seconds. No evidence shows whether the host grants, caps, or enforces 105
-seconds.
-
 Copilot parses at most one final JSON document per command hook. The active
 observe dispatcher captures nonblank stdout from one successful PostToolUse
 shim and emits one `additionalContext` object when captured output exists. It
@@ -195,6 +185,44 @@ validation and the no-auth runtime test catch artifact path defects under the
 simulated contract. Only an executed real-CLI smoke detects vendor launcher
 drift. An escaped launcher failure stays loud. Decision item 4 re-verifies on a
 material CLI version change.
+
+### 2026-08-11 amendment: require-subagent-model gate (issue #4874)
+
+The consolidated PreToolUse dispatcher keeps a bounded host-timeout residual.
+The host owns the aggregate timeout, and the measured 1.0.72-1 host fails open
+after a timeout. Since issue #4706 each timed gate shim runs in a child
+process and a shim timeout denies, so the unbounded-hang residual is limited
+to the dispatcher process itself. After the 2026-07-22 hook purge, the issue
+#4764 identity gate, and the issue #4874 sub-agent model gate, the active
+manifest contains three shims with 110 seconds of configured timeout. The
+generated host entry requests 115 seconds, including five seconds of
+dispatcher headroom. The require-subagent-model script fails open on its own
+internal errors (issue #4672 rationale, recorded in the script header), and
+that guarantee holds end to end on the repository-local `.github/hooks` path
+and on the Claude plugin path. On the Copilot plugin path the generated matcher shim inherits the source
+hook's fail-open policy for malformed stdin and missing tool names. A timed
+shim overrun still denies (#4706). The recorded Copilot plugin contract is
+therefore deny on timeout, allow on malformed input, and allow on the script's
+own internal failures. The Claude plugin path has no
+generated shim and no per-shim timeout: the host matcher filters, the script
+runs directly, and its fail-open covers malformed input there too (measured:
+malformed stdin exits 0; the group's 60-second host entry is the bound). The generated host matcher union
+now includes `Agent` and `Task` alongside the Bash forms; empirical matcher
+probes cover only `Bash`, so Agent and Task host-matcher behavior is unprobed.
+The shim self-filter repeats the `^(Agent|Task)$` test against the payload
+tool name. The canonical script also accepts the native lowercase `task`
+spelling, but on the plugin path the shim filters lowercase out before the
+script runs; the spelling is reachable only through the repository-local
+`.github/hooks` registration, which is also the only carrier under cloud agent
+(installed plugins do not load there). A lowercase matcher variant was built,
+measured, and rejected: a runtime-name token the generator cannot reduce to a
+Claude tool name drops the host-level matcher entirely, which respawns the
+dispatcher on every tool call (the #3075 regression). The residual is a host
+that fails to map `task` to `Agent` in a PascalCase payload, which no probe
+has observed and the documented contract forbids. The probe tested only 2
+seconds. No evidence shows whether the host grants, caps, or enforces 115
+seconds.
+
 
 ## Decision
 
