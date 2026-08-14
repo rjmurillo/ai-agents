@@ -62,6 +62,19 @@
         "e003",
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T19:20:22+00:00",
+      "type": "commit",
+      "content": "Commit: 55d6347071044ef6e5d575fee23ec9f364227a0e",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
     }
@@ -71,8 +84,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 14
+    "commits": 2,
+    "files_changed": 18
   },
   "lessons": []
 }
