@@ -106,6 +106,63 @@ class TestReadToolResult:
         assert name == ""
         assert result == ""
 
+    @pytest.mark.unit
+    def test_non_bool_is_interrupt_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "real error",
+                "is_interrupt": "yes",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_numeric_tool_name_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": 42,
+                "error": "real error",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_whitespace_only_error_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "   ",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_whitespace_only_tool_name_is_rejected(self, monkeypatch):
+        payload = json.dumps(
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "  ",
+                "error": "real error",
+            }
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        name, result = _read_tool_result()
+        assert name == ""
+        assert result == ""
+
 
 class TestIsErrorResult:
     """Tests for error detection in tool output."""
@@ -259,7 +316,7 @@ class TestPostToolUseFailurePayload:
         assert "\ncommand output" not in context
 
     @pytest.mark.unit
-    def test_missing_error_returns_zero(self, monkeypatch):
+    def test_missing_error_returns_zero(self, monkeypatch, capsys):
         self._stdin(
             monkeypatch,
             {
@@ -268,6 +325,9 @@ class TestPostToolUseFailurePayload:
         )
 
         assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
 
     @pytest.mark.unit
     def test_successful_result_with_failure_text_returns_zero(
@@ -306,7 +366,7 @@ class TestPostToolUseFailurePayload:
         assert captured.err == ""
 
     @pytest.mark.unit
-    def test_missing_event_name_returns_zero(self, monkeypatch):
+    def test_missing_event_name_returns_zero(self, monkeypatch, capsys):
         monkeypatch.setattr(
             "sys.stdin",
             io.StringIO(
@@ -320,3 +380,6 @@ class TestPostToolUseFailurePayload:
         )
 
         assert main() == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""

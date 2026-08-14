@@ -2,7 +2,8 @@
 """Hook: PostToolUseFailure - Capture learnable failures from tool results.
 
 Analyzes tool output for an error worth remembering and suggests a memory
-for it. Governed mode: suggests via stderr, never auto-creates memories.
+for it. Governed mode: emits structured ``additionalContext`` JSON on stdout
+so the host can surface the suggestion without polluting stderr.
 """
 
 from __future__ import annotations
@@ -54,11 +55,16 @@ def _read_tool_result() -> tuple[str, str]:
         data = json.loads(raw)
         if data.get("hook_event_name") != "PostToolUseFailure":
             return "", ""
-        if data.get("is_interrupt") is True:
+        is_interrupt = data.get("is_interrupt")
+        if is_interrupt is not None and not isinstance(is_interrupt, bool):
             return "", ""
-        tool_name = str(data.get("tool_name", ""))
+        if is_interrupt is True:
+            return "", ""
+        tool_name = data.get("tool_name", "")
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            return "", ""
         error = data.get("error")
-        if not isinstance(error, str):
+        if not isinstance(error, str) or not error.strip():
             return "", ""
     except (json.JSONDecodeError, TypeError, AttributeError):
         return "", ""

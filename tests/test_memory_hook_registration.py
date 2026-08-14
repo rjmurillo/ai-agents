@@ -217,6 +217,7 @@ class TestRegistration:
             ["sh", "-c", _launcher_probe(command)],
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             cwd=str(tmp_path),
             env=_harness_env(),
             timeout=60,
@@ -311,6 +312,7 @@ class TestInvokerExitCodes:
 
         assert result.returncode == 0, result.stderr
         assert result.stderr == ""
+        assert result.stdout == "", f"unexpected stdout: {result.stdout!r}"
 
     @pytest.mark.unit
     def test_capture_command_handles_project_path_with_spaces(self, tmp_path):
