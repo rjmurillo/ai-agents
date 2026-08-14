@@ -60,7 +60,7 @@ _SCRIPT_NAME = "audit_closing_claims.py"
 
 # GitHub's recognised closing keywords (case-insensitive).
 _CLOSING_KEYWORDS_RE = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(?::)?\s+"
     r"(?:(?P<owner>[a-zA-Z0-9_.-]+)/(?P<repo2>[a-zA-Z0-9_.-]+))?(?P<escape>\\?)#(?P<number>\d+)",
     re.IGNORECASE,
 )
