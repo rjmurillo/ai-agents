@@ -222,10 +222,10 @@ needed.
 ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 ROOT="$(cd "$ROOT" && pwd)"
 FORGE="$ROOT/skills/skillforge/scripts"
-cd "$HOME/.claude/skills"
-python "$FORGE/quick_validate.py" my-skill/     # required before packaging
-python "$FORGE/validate-skill.py" my-skill/     # full structural validation
-python "$FORGE/package_skill.py" my-skill/ ./dist   # package for distribution
+cd "$HOME/.claude"
+python "$FORGE/quick_validate.py" skills/my-skill/     # required before packaging
+python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validation
+python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
 ```
 
 See [references/output-structure.md](references/output-structure.md) for allowed

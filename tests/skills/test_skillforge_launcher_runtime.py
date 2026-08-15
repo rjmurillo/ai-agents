@@ -92,7 +92,7 @@ def test_launcher_uses_copilot_plugin_root_from_host_worktree(tmp_path: Path) ->
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert (home / ".claude" / "skills" / "dist" / "my-skill.skill").is_file()
+    assert (home / ".claude" / "dist" / "my-skill.skill").is_file()
 
 
 def test_launcher_uses_project_local_fallback_when_roots_unset(tmp_path: Path) -> None:
@@ -102,7 +102,7 @@ def test_launcher_uses_project_local_fallback_when_roots_unset(tmp_path: Path) -
     result = _run_launcher(REPO_ROOT, home)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert (home / ".claude" / "skills" / "dist" / "my-skill.skill").is_file()
+    assert (home / ".claude" / "dist" / "my-skill.skill").is_file()
 
 
 def test_launcher_rejects_missing_plugin_root(tmp_path: Path) -> None:
