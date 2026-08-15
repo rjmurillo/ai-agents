@@ -95,11 +95,26 @@ class TestMainLive:
         assert rc == 1
         assert "DRIFT" in capsys.readouterr().out
 
-    def test_api_failure_exits_external(self):
+    def test_api_failure_exits_auth(self):
         fail = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="auth failed"
         )
         with patch("subprocess.run", return_value=fail):
+            with pytest.raises(SystemExit) as exc_info:
+                mod.main([])
+            assert exc_info.value.code == 4
+
+    def test_api_failure_exits_external(self):
+        fail = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="network timeout"
+        )
+        with patch("subprocess.run", return_value=fail):
+            with pytest.raises(SystemExit) as exc_info:
+                mod.main([])
+            assert exc_info.value.code == 3
+
+    def test_gh_not_found_exits_external(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
             with pytest.raises(SystemExit) as exc_info:
                 mod.main([])
             assert exc_info.value.code == 3

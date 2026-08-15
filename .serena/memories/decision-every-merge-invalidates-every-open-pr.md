@@ -33,8 +33,13 @@ clears violations. So **every merge invalidates every other open PR**, and a
 drain of N PRs is not N independent units of work. It is a queue that re-dirties
 itself behind you.
 
-### The strict policy flipped on, which sharpens this rather than fixing it
+### The strict policy flipped on then off (historical, 2026-08-04 to 2026-08-10)
 
+
+> **Current state (2026-08-14):** strict is `false` again. The observations
+> below describe behavior during the armed period. The serialization they
+> document is no longer enforced by the ruleset, though count ratchets still
+> impose practical freshness requirements.
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
 ever *required* to be current. That is no longer the configuration. Measured

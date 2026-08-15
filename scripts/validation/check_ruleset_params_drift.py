@@ -29,6 +29,7 @@ EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_AUTH = 4
 
 BASELINE_PATH = Path(__file__).parent / "ruleset_params_baseline.json"
 REPO = "rjmurillo/ai-agents"
@@ -51,20 +52,25 @@ def load_baseline() -> dict[str, Any]:
 
 def fetch_live_params(ruleset_id: int) -> dict[str, Any]:
     """Fetch live ruleset parameters from GitHub API via gh CLI."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{REPO}/rulesets/{ruleset_id}"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{REPO}/rulesets/{ruleset_id}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except FileNotFoundError:
+        print("ERROR: gh CLI not found on PATH", file=sys.stderr)
+        sys.exit(EXIT_EXTERNAL)
     if result.returncode != 0:
+        stderr = result.stderr.strip()
+        exit_code = EXIT_AUTH if "auth" in stderr.lower() else EXIT_EXTERNAL
         print(
-            f"ERROR: gh api failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}",
+            f"ERROR: gh api failed (exit {result.returncode}): {stderr}",
             file=sys.stderr,
         )
-        sys.exit(EXIT_EXTERNAL)
+        sys.exit(exit_code)
 
     try:
         data = json.loads(result.stdout)
