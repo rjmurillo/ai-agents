@@ -44,6 +44,34 @@ _CORE_PACKAGE = "github_core"
 _CORE_MODULE_FILE = "api.py"
 
 
+def _core_import_error(lib_dir: str) -> str | None:
+    """Return the isolated import error, or None when RepoInfo imports."""
+    try:
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                (
+                    "import sys; "
+                    f"sys.path.insert(0, {lib_dir!r}); "
+                    "from github_core.api import RepoInfo"
+                ),
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "import timed out"
+    if probe.returncode == 0:
+        return None
+    stderr_lines = probe.stderr.strip().splitlines()
+    return stderr_lines[-1] if stderr_lines else f"process exited {probe.returncode}"
+
+
 def _lib_dir_candidates() -> list[str]:
     """Return candidate ``lib`` directories, highest precedence first.
 
@@ -130,9 +158,13 @@ def _resolve_lib_dir() -> str:
         if not os.path.isdir(lib_dir):
             rejected.append(f"{lib_dir} (no such directory)")
             continue
-        if os.path.isfile(os.path.join(lib_dir, _CORE_PACKAGE, _CORE_MODULE_FILE)):
+        if not os.path.isfile(os.path.join(lib_dir, _CORE_PACKAGE, _CORE_MODULE_FILE)):
+            rejected.append(f"{lib_dir} (no {_CORE_PACKAGE}/{_CORE_MODULE_FILE})")
+            continue
+        import_error = _core_import_error(lib_dir)
+        if import_error is None:
             return lib_dir
-        rejected.append(f"{lib_dir} (no {_CORE_PACKAGE}/{_CORE_MODULE_FILE})")
+        rejected.append(f"{lib_dir} (cannot import RepoInfo: {import_error})")
 
     print(
         f"Plugin lib directory not found. Tried: {'; '.join(rejected)}",

@@ -90,6 +90,21 @@ def _make_partial_plugin_root(base: Path, name: str) -> Path:
     return root
 
 
+def _make_transitively_broken_plugin_root(base: Path, name: str) -> Path:
+    """Create a plugin root whose api.py imports a missing sibling module."""
+    root = base / name
+    package = root / "lib" / _CORE_PACKAGE_NAME
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / _CORE_MODULE_FILE_NAME).write_text(
+        "from github_core.missing_dependency import value\n"
+        "class RepoInfo:\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    return root
+
+
 def _make_foreign_plugin_root(base: Path, name: str) -> Path:
     """Create a plugin root whose lib/ exists but carries no github_core.
 
@@ -135,6 +150,27 @@ class TestLibDirCandidates:
 
 class TestResolveLibDir:
     """Each candidate is validated before use, so a wrong root falls through."""
+
+    def test_import_probe_reports_failure_without_stderr(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            mod.subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, "", ""),
+        )
+
+        assert mod._core_import_error("/candidate/lib") == "process exited 1"
+
+    def test_import_probe_reports_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def raise_timeout(*args: object, **kwargs: object) -> None:
+            raise subprocess.TimeoutExpired("python", 30)
+
+        monkeypatch.setattr(mod.subprocess, "run", raise_timeout)
+
+        assert mod._core_import_error("/candidate/lib") == "import timed out"
 
     def test_prefers_copilot_plugin_root(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -209,6 +245,19 @@ class TestResolveLibDir:
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude))
 
         assert (partial / "lib" / _CORE_PACKAGE_NAME).is_dir()
+        assert mod._resolve_lib_dir() == str(claude / "lib")
+
+    def test_api_with_missing_transitive_module_is_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The candidate must support the real RepoInfo import."""
+        _clear_plugin_env(monkeypatch)
+        broken = _make_transitively_broken_plugin_root(tmp_path, "half-installed")
+        claude = _make_plugin_root(tmp_path, "claude-plugin")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(broken))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude))
+
+        assert (broken / "lib" / _CORE_PACKAGE_NAME / _CORE_MODULE_FILE_NAME).is_file()
         assert mod._resolve_lib_dir() == str(claude / "lib")
 
     def test_uses_github_workspace_when_no_plugin_root_is_valid(
@@ -334,6 +383,24 @@ class TestResolveLibDirCli:
             script,
             {
                 "COPILOT_PLUGIN_ROOT": str(partial),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+            },
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "ModuleNotFoundError" not in result.stderr
+        assert "--branch-name" in result.stdout
+
+    def test_runs_when_api_has_a_missing_transitive_module(
+        self, tmp_path: Path
+    ) -> None:
+        """A candidate that fails the real import must fall through."""
+        script = self._install_script(tmp_path)
+        broken = _make_transitively_broken_plugin_root(tmp_path, "half-installed")
+        result = self._run(
+            script,
+            {
+                "COPILOT_PLUGIN_ROOT": str(broken),
                 "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
             },
         )
