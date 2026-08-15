@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-01-fix-4902.json
-qaCommit: 90a1d526d6f14f865048e29678672919c486030e
+qaCommit: 3a1fbe8a46f462276f1f85ef8e16cd582e712835
 ---
 # QA Report: fix(completion-gate) require disposition evidence
 

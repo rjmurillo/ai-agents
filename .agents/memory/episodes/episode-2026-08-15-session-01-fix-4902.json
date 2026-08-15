@@ -63,6 +63,19 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T09:00:29+00:00",
+      "type": "commit",
+      "content": "Commit: 3a1fbe8a46f462276f1f85ef8e16cd582e712835",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-01-fix-4902"
     }
@@ -72,7 +85,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 5
   },
   "lessons": []
