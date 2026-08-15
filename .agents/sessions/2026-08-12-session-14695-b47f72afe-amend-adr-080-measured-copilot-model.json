@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final ADR repair committed at 1e0a6a775."
+        "Evidence": "Model_tier override fix committed at 0edf6e063; prior repairs at 1e0a6a775 and earlier."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR review reached 6 of 6 ACCEPT with no P0 or P1 findings; QA report binds to 1e0a6a775."
+        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings; QA report binds to 0edf6e063."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -138,8 +138,20 @@
     {
       "action": "Repaired final review findings against the ADR, QA report, episode, and protocol evidence.",
       "result": "Restored the #2840 issue link, rebound QA to commit 1e0a6a775 after the episode repair, corrected files_changed evidence to 5, and marked two session MUST items incomplete where no Serena tool evidence exists."
+    },
+    {
+      "action": "Resolved the remaining active Copilot review finding: finding 4 called model_tier-to-versioned-id translation for generated plugin agents 'harmless', contradicting finding 1's measured override of an operator's explicit session model. Ran the full 6-agent adr-review protocol (architect, critic, independent-thinker, security, analyst, high-level-advisor) against the corrected text, not a scoped deviation.",
+      "result": "6 of 6: 3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by the high-level-advisor tie-break in favor of the proposed text verbatim (a prescriptive migration item and a line-number correction were both rejected, the latter on direct re-verification of the source file). Finding 4 now states the override is inferred from finding 1's mechanism, not separately measured for the model_tier path, and records whether it is acceptable as an open gap. Committed at 0edf6e063. Debate log updated with the full round."
     }
   ],
-  "endingCommit": "1e0a6a77500e34eae949ef4b6ceaf32ced3ba114",
-  "nextSteps": []
+  "endingCommit": "0edf6e0630ea141e7fdcacae9583fcd57695b345",
+  "nextSteps": [],
+  "episodeMetrics": {
+    "filesChanged": 6,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "90be321b3bfad576e3c1d440402d4333a87326c9",
+      "head": "0edf6e0630ea141e7fdcacae9583fcd57695b345"
+    }
+  }
 }

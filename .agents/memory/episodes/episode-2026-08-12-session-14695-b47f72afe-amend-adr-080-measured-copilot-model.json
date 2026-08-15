@@ -60,7 +60,57 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired final review findings against the ADR, QA report, episode, and protocol evidence.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the remaining active Copilot review finding: finding 4 called model_tier-to-versioned-id translation for generated plugin agents 'harmless', contradicting finding 1's measured override of an operator's explicit session model. Ran the full 6-agent adr-review protocol (architect, critic, independent-thinker, security, analyst, high-level-advisor) against the corrected text, not a scoped deviation.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T06:13:25+00:00",
+      "type": "commit",
+      "content": "Commit: 1e0a6a775",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T07:09:54+00:00",
+      "type": "commit",
+      "content": "Commit: 0edf6e0630ea141e7fdcacae9583fcd57695b345",
+      "caused_by": [
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
@@ -71,8 +121,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }
