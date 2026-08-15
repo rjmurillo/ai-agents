@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
-qaCommit: dc76248fb1d0d9560a36af5521e2c98d1cf98a90
+qaCommit: 6a120a6d024271ceb31856c6313d9ea19b633d98
 ---
 
 # QA Report: pre-push fast-fail staging (issue #5066)
@@ -69,6 +69,20 @@ pinned as a closed exception list so it cannot silently grow.
 - The single failure, `test_the_tracked_scan_fails_config_on_an_unreadable_file`, also fails on the unmodified origin/main tree in this environment (runs as root, where a chmod-000 file stays readable). Pre-existing, unrelated to ordering. A full pre-push pytest run surfaced two more of the same class (claude-mem get_count error path, orphan-ref-validator auth exit code); all three now carry the repository's established root skipif (`getattr(os, "geteuid", lambda: -1)() == 0`, the guard tests/test_agent_registry.py and ten other modules already use), with the skill-test mirror regenerated via `build_all.py`. They still run in CI, which is non-root.
 - Negative controls: the new ordering tests fail against the origin/main config (taste-count-ratchet and python-tests shared entry index 4, security-scan sat at index 3 before the ratchets), so the pins discriminate the old shape from the new one.
 - New coverage is positive (ordering holds, runtime clean-run control), negative (misordered synthetic config detected, stdin-in-parallel synthetic config detected, runtime fast-stage failure skips the expensive stage), and edge (unknown job name, config without pre-push, duration unit parsing, fast-stage timeout ceiling).
+
+## Spec-validation response (PR #5083)
+
+The AI spec validation returned PARTIAL with two pin-strength findings, both
+addressed: the fast-stage rosters are now exact two-way membership pins with a
+complement test (a new pre-push job cannot land in any stage without a roster
+decision), and the timeout ceiling splits per stage half (5m parallel, 10m
+stdin group), matching the largest cap each half already carries. The dash
+guard gap is tracked as issue #5086: promoting it stays out of this PR because
+the issue's own acceptance criteria forbid adding or re-scoping jobs. The
+requested controlled before/after clean-push A/B is not reproducible from this
+branch (the before-config no longer exists on it); the comparison stands on
+the measured historical baseline (`python-tests` 741.85s, 12-17 minute
+envelope) against this branch's measured 11-minute clean push.
 
 ## Known gaps
 
