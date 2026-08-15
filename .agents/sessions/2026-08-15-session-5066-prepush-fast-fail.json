@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-5066-prepush-fast-fail.md"
+        "Evidence": ".agents/qa/pr-5083-issue-5066-prepush-fast-fail.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -136,6 +136,6 @@
   ],
   "endingCommit": "dc76248fb1d0d9560a36af5521e2c98d1cf98a90",
   "nextSteps": [
-    "After PR creation: add QA report copy matching .agents/qa/*pr-<N>*.md and refresh endingCommit in a follow-up commit"
+    "Drive PR #5083 to green: watch CI and review threads via the PR activity subscription"
   ]
 }
