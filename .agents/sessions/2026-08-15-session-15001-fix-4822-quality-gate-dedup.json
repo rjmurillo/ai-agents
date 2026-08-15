@@ -7,7 +7,7 @@
     "startingCommit": "790d8024ff",
     "objective": "Resolve issue #4822: eliminate duplicate pytest execution in ai-pr-quality-gate.yml"
   },
-  "endingCommit": "f5455d8dcd12724df6e638b28a88b10dc72c39e7",
+  "endingCommit": "cbdc01304fa620961c68deeb5049b57d9808cf81",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
