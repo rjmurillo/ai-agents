@@ -6967,8 +6967,28 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The observation-sync-advisory lefthook job carries a 5m timeout, and a
+# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
+# the kill lands before any || branch runs), so this advisory's worst case must
+# be held under the cap from the inside. Each file costs up to ~10s when the
+# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
+# 10.0 seconds per request), and the first push of a new branch sweeps every
+# tracked observation file into {push_files}, so an unreachable MCP server
+# overruns the cap and blocks the push. 240s leaves 60s of headroom.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 240.0
+
+
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    for path in paths:
+    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
+    for index, path in enumerate(paths):
+        if time.monotonic() >= deadline:
+            print(
+                "WARNING: observation sync budget "
+                f"({int(_OBSERVATION_SYNC_BUDGET_SECONDS)}s) exhausted; "
+                f"skipped {len(paths) - index} of {len(paths)} file(s)",
+                file=sys.stderr,
+            )
+            break
         result = _run_command(
             [
                 sys.executable,

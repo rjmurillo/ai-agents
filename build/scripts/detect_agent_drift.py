@@ -114,8 +114,11 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set to the measured 20.9% so the existing
-# structure is accepted but any worsening still blocks.
+# baseline-green fix). Floor is set to the measured 20.7% so the existing
+# structure is accepted but any worsening still blocks. Re-measured for issue
+# #5074: the add/add rename-never-content-merge rule was added with identical
+# wording to both sides, which shifted the Jaccard section scores from the
+# prior 20.9% because the two shapes carry different surrounding prose.
 #
 # merge-resolver install copy (Issue #2715): the same tier-hierarchy enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
@@ -124,12 +127,12 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # reconciled by resyncing .github from the generated src/copilot-cli output, but
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
-# 20.9% (identical to the vendored floor because both compare the same enriched
+# 20.7% (identical to the vendored floor because both compare the same enriched
 # .claude body against the same leaner template-derived body). Any worsening still
 # blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.9,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.9,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.7,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.7,
 }
 
 # MCP syntax normalization patterns (compiled once)
