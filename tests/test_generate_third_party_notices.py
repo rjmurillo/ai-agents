@@ -244,6 +244,7 @@ class TestCommittedNotice:
     ) -> None:
         _write_fake_notice_repo(tmp_path)
         monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
         notice_path = tmp_path / "custom" / "THIRD-PARTY-NOTICES.TXT"
         notice_path.parent.mkdir(parents=True)
         notice_path.write_bytes(b"hand-edited notice")
@@ -265,6 +266,7 @@ class TestCommittedNotice:
     ) -> None:
         _write_fake_notice_repo(tmp_path)
         monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             sys,
             "argv",
@@ -283,6 +285,7 @@ class TestCommittedNotice:
     ) -> None:
         _write_fake_notice_repo(tmp_path)
         monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(sys, "argv", ["generate_third_party_notices.py"])
 
         assert main() == 0
@@ -330,6 +333,7 @@ class TestOutputPathContainment:
     ) -> None:
         _write_fake_notice_repo(tmp_path)
         monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             sys,
             "argv",
@@ -342,3 +346,21 @@ class TestOutputPathContainment:
 
         assert main() == 2
         assert "output path escapes project root" in capsys.readouterr().err
+
+    def test_cli_rejects_cwd_outside_project_root(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_root = tmp_path / "project"
+        outside = tmp_path / "outside"
+        _write_fake_notice_repo(project_root)
+        outside.mkdir()
+        monkeypatch.setattr(notices_mod, "PROJECT_ROOT", project_root)
+        monkeypatch.chdir(outside)
+        monkeypatch.setattr(sys, "argv", ["generate_third_party_notices.py"])
+
+        assert main() == 2
+        assert "current directory is outside project root" in capsys.readouterr().err
+        assert not (project_root / "THIRD-PARTY-NOTICES.TXT").exists()

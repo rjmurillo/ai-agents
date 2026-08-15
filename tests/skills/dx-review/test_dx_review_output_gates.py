@@ -24,6 +24,8 @@ OVERALL_DX_CALCULATION_FRAGMENTS = (
 BLOCKING_GATE_FRAGMENTS = (
     "GATE_STATUS: Evidence Gate = PASS",
     "two independent sources for each high-impact conclusion",
+    "Evidence Gate = FAIL",
+    "lacks two independent sources",
     "Record conflicting evidence",
     "GATE_STATUS: Review Gate = PASS",
     "PASS_WITH_CONCERNS",
@@ -94,6 +96,14 @@ def test_gate_contract_mutations_fail() -> None:
         ),
         (
             text.replace("GATE_STATUS: Evidence Gate = PASS", "Evidence Gate", 1),
+            _has_blocking_gates,
+        ),
+        (
+            text.replace(
+                "a high-impact conclusion lacks\n  two independent sources",
+                "a high-impact conclusion lacks optional context",
+                1,
+            ),
             _has_blocking_gates,
         ),
         (

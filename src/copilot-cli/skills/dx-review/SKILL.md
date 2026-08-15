@@ -235,7 +235,8 @@ Record `GATE_STATUS: Evidence Gate = PASS` or `FAIL`.
 - Cite a concrete evidence location for every score and recommendation.
 - Use two independent sources for each high-impact conclusion.
 - Record conflicting evidence and explain the chosen interpretation.
-- Mark missing independent evidence as a concern.
+- Set `GATE_STATUS: Evidence Gate = FAIL` when a high-impact conclusion lacks
+  two independent sources.
 - `FAIL` blocks final output.
 
 ### Review Gate

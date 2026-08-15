@@ -444,6 +444,12 @@ def main() -> int:
     args = parser.parse_args()
 
     project_root = PROJECT_ROOT
+    if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
+        print(
+            f"ERROR: current directory is outside project root: {Path.cwd()}",
+            file=sys.stderr,
+        )
+        return 2
 
     plugins = load_marketplace_config(project_root)
     shipped_paths = get_shipped_source_paths(project_root, plugins)
