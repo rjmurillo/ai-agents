@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4917,
+    "date": "2026-08-15",
+    "branch": "fix/4917-serena-worktree-scope",
+    "startingCommit": "344de6f94c",
+    "objective": "Add Serena worktree scope guard to prevent edits targeting wrong checkout"
+  },
+  "endingCommit": "cd273f463bf4670bb4864a718e43f76e3c6312d5",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not applicable for hook implementation"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Not applicable for hook implementation"
+      }
+    }
+  },
+  "qaEvidence": {
+    "testsRun": true,
+    "testsPassed": 16,
+    "testsFailed": 0,
+    "qaReportPath": ".agents/qa/000-pr-5036-qa.md"
+  }
+}

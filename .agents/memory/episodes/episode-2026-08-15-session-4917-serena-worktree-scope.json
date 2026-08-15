@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-15-session-4917-serena-worktree-scope",
+  "session": "2026-08-15-session-4917-serena-worktree-scope",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Add Serena worktree scope guard to prevent edits targeting wrong checkout",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T09:24:16+00:00",
+      "type": "commit",
+      "content": "Commit: cd273f463bf4670bb4864a718e43f76e3c6312d5",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
