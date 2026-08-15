@@ -7216,6 +7216,53 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
 
 
+def test_sync_observations_stops_at_its_internal_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The advisory must finish under its lefthook cap from the inside.
+
+    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
+    advisory job that overruns its cap blocks the push. Each file costs up to
+    the MCP client timeout when the Forgetful server is unreachable, and the
+    first push of a new branch sweeps every tracked observation file into the
+    job, so the loop needs a wall-clock deadline of its own.
+    """
+    synced: list[str] = []
+
+    def _record(command: list[str], _root: Path) -> object:
+        synced.append(command[3])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    clock = iter([0.0, 0.0, 500.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert synced == ["a.md"]
+    assert "skipped 1 of 2" in capsys.readouterr().err
+
+
+def test_sync_observations_reports_a_fully_exhausted_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline can pass before the first file is attempted."""
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
+    )
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert "skipped 2 of 2" in capsys.readouterr().err
+
+
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10435,6 +10482,10 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+@pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0,
+    reason="chmod 0 cannot make a file unreadable for root",
+)
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
