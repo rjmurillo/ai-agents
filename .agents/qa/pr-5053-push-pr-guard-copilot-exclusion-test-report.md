@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard.json
-qaCommit: 188f4b3a7b972adaf239388d92ece3032cc0f527
+qaCommit: b242577cabb3c40379060d4e003d135a991b3945
 ---
 
 # PR 5053 Review Thread QA
 
 ## Scope
 
-Validate implementation commit `188f4b3a7b972adaf239388d92ece3032cc0f527` for the six unresolved PR #5053 review threads.
+Validate implementation commit `b242577cabb3c40379060d4e003d135a991b3945` for the seven PR #5053 review threads.
 
 - `build/scripts/generate_hooks_events.py`
 - `build/scripts/generate_hooks_expand.py`
@@ -30,10 +30,10 @@ Validate implementation commit `188f4b3a7b972adaf239388d92ece3032cc0f527` for th
 | Check | Result |
 |------|--------|
 | Ruff ratchet | PASS |
-| Targeted pytest | 268 passed, 1 skipped |
-| Review replies | 6 posted |
-| Review threads | 6 resolved, 0 remaining |
+| Targeted pytest | 270 passed, 1 skipped |
+| Review replies | 7 posted |
+| Review threads | 7 resolved, 0 remaining |
 
 ## Verdict
 
-PASS. The six review-thread fixes bind to implementation commit `188f4b3a7b972adaf239388d92ece3032cc0f527`. No post-QA non-evidence paths changed before the follow-up evidence commit.
+PASS. The review-thread fixes bind to implementation commit `b242577cabb3c40379060d4e003d135a991b3945`. No post-QA non-evidence paths changed before the follow-up evidence commit.
