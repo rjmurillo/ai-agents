@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to concurrent-test merge b028055043ec79864b583d3af899c92445fa6347."
+        "Evidence": "QA evidence rebound to checkout-test simplification f4221f521b3b9aeff0222ccbc10ff26437cd5863."
       },
       "validationPassed": {
         "level": "MUST",
@@ -227,8 +227,12 @@
     {
       "action": "Merged the concurrent checkout-target test without weakening the guard.",
       "result": "Quoted workspace prefix and effective-work-tree checks both apply. 155 tests pass."
+    },
+    {
+      "action": "Simplified checkout guard helpers and consolidated duplicate test setup.",
+      "result": "The test file fell from 504 to 419 lines, new helper complexity fell below 10, and all 155 tests still pass."
     }
   ],
-  "endingCommit": "b028055043ec79864b583d3af899c92445fa6347",
+  "endingCommit": "f4221f521b3b9aeff0222ccbc10ff26437cd5863",
   "nextSteps": []
 }

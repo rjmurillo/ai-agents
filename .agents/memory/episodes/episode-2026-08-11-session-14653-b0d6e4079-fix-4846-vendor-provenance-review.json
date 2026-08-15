@@ -108,7 +108,8 @@
         "e063",
         "e065",
         "e067",
-        "e069"
+        "e069",
+        "e071"
       ],
       "leads_to": [
         "e006"
@@ -901,6 +902,30 @@
       "caused_by": [
         "e068"
       ],
+      "leads_to": [
+        "e072"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e071",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Simplified checkout guard helpers and consolidated duplicate test setup.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e072",
+      "timestamp": "2026-08-15T08:09:32+00:00",
+      "type": "commit",
+      "content": "Commit: f4221f521b3b9aeff0222ccbc10ff26437cd5863",
+      "caused_by": [
+        "e070"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -910,7 +935,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 39,
+    "commits": 40,
     "files_changed": 52
   },
   "lessons": []
