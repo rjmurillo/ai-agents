@@ -179,7 +179,9 @@
       "caused_by": [
         "e013"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     },
     {
@@ -214,6 +216,17 @@
         "e006"
       ],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T20:12:24+00:00",
+      "type": "commit",
+      "content": "Commit: 2989ad94e7b4eaf47cc24c7dbf101df5f4c0e225",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
   ],
   "metrics": {
@@ -221,7 +234,7 @@
     "tool_calls": null,
     "errors": 7,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 12
   },
   "lessons": []

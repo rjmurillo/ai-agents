@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-issue-5096-qa-report-issue-fallback.json
-qaCommit: e93af5c82d39a52102ea9e07a9c4f6fc5f361b57
+qaCommit: 2989ad94e7b4eaf47cc24c7dbf101df5f4c0e225
 ---
 
 # Issue 5096 QA Report Issue Fallback QA
