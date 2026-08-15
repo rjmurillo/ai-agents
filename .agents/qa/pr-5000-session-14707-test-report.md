@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root.json
-qaCommit: 223042927e5e158204c9a782a6fff328211de0fe
+qaCommit: ca96f2f68c04420132da984c5cb7a0b4c8629354
 ---
 
 # Issue 4961 Session 14707 QA Report
@@ -36,11 +36,11 @@ not mask the result.
 
 ## Results
 
-- Review fix tests: PASS, 18 tests.
+- Review fix tests: PASS, 20 tests.
 
   ```text
   uv run pytest tests/skills/merge-resolver/test_resolve_lib_dir.py -q
-  18 passed
+  20 passed
   ```
 
 - Scoped Ruff: PASS.
@@ -62,12 +62,13 @@ not mask the result.
 | Foreign `lib/` without `github_core` rejected | `test_foreign_plugin_lib_without_core_package_is_rejected` |
 | Partial `github_core` without `api.py` rejected | `test_partial_core_package_without_the_imported_module_is_rejected` |
 | `api.py` with a missing transitive import rejected | `test_api_with_missing_transitive_module_is_rejected` |
+| `api.py` exits zero before completing import | `test_api_that_exits_zero_before_import_completion_is_rejected` |
 | Import failure with empty stderr | `test_import_probe_reports_failure_without_stderr` |
 | Import timeout | `test_import_probe_reports_timeout` |
 | `GITHUB_WORKSPACE` checkout | `test_uses_github_workspace_when_no_plugin_root_is_valid` |
 | Repo-relative fallback | `test_falls_back_to_repository_lib_when_no_variable_is_set` |
 | Fail-closed exit 2 and message | `test_exits_2_when_no_candidate_carries_the_core_package` |
-| End to end under Copilot CLI | `TestResolveLibDirCli` (4 subprocess tests) |
+| End to end under Copilot CLI | `TestResolveLibDirCli` (5 subprocess tests) |
 
 ## Review round 1
 
@@ -85,6 +86,14 @@ an incomplete package whose imported sibling modules were absent. Fixed in
 commit 223042927: each candidate now imports `RepoInfo` in an isolated Python
 process before selection. Tests cover a missing transitive module, empty
 stderr, timeout, and the subprocess CLI path.
+
+## Review round 3
+
+Copilot found that a candidate could exit zero during import before `RepoInfo`
+completed. Fixed in commit ca96f2f68. The isolated probe now requires an
+explicit completion token printed after the import. Unit and subprocess tests
+cover an `api.py` that calls `sys.exit(0)`. The focused module has 20 passing
+tests and scoped Ruff is clean.
 
 ## Verdict
 

@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest review fix and tests committed as 223042927 on fix/4961-merge-resolver-copilot-plugin-root."
+        "Evidence": "Latest review fix and tests committed as ca96f2f68 on fix/4961-merge-resolver-copilot-plugin-root."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review fix: 18 targeted tests passed and Ruff reported no issues on both changed code files."
+        "Evidence": "Latest review fix: 20 targeted tests passed and Ruff reported no issues on both changed code files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -168,9 +168,14 @@
       "timestamp": "2026-08-15T05:46:00Z",
       "action": "Addressed the second review round on candidate importability",
       "result": "Candidate selection now imports RepoInfo in an isolated Python process. Added missing-transitive-module, empty-stderr, timeout, and CLI regression coverage. Commit 223042927; 18 targeted tests passed and Ruff was clean."
+    },
+    {
+      "timestamp": "2026-08-15T06:08:00Z",
+      "action": "Addressed the third review round on early successful process exit",
+      "result": "The isolated import probe now requires a completion token printed after RepoInfo imports. Added unit and CLI cases for api.py calling sys.exit(0). Commit ca96f2f68; 20 targeted tests passed and Ruff was clean."
     }
   ],
-  "endingCommit": "223042927e5e158204c9a782a6fff328211de0fe",
+  "endingCommit": "ca96f2f68c04420132da984c5cb7a0b4c8629354",
   "nextSteps": [
     "Watch CI on the PR for the merge-resolver skill tests.",
     "Consider a follow-up issue: other skill scripts still collapse COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with 'or', which shadows a valid root when the first is set but foreign."
