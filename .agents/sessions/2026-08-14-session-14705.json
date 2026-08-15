@@ -171,11 +171,12 @@
     }
   ],
   "episodeMetrics": {
+    "commitHead": "186c49540dfe0436e7ca8cbb96db64aa2dbb9f94",
     "filesChanged": 14,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "639eebc0f596e58437bf565b47bfc8ab01e30a72",
-      "head": "186c49540dfe0436e7ca8cbb96db64aa2dbb9f94"
+      "head": "4ad320598019617b22a48a3d70a0c5543ce21047"
     }
   },
   "endingCommit": "4ad320598019617b22a48a3d70a0c5543ce21047",

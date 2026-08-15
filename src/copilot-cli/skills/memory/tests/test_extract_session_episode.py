@@ -1008,11 +1008,12 @@ class TestCommitEventsFollowChronology:
         monkeypatch.chdir(tmp_path / "repo")
         log = _log_with_commits(shas[2], [shas[0]])
         log["episodeMetrics"] = {
+            "commitHead": shas[1],
             "filesChanged": 2,
             "comparison": {
                 "kind": "gitCommitRange",
                 "base": shas[0],
-                "head": shas[1],
+                "head": shas[2],
             },
         }
 

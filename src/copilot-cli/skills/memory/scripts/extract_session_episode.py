@@ -825,12 +825,14 @@ def _collect_shas(data: dict) -> list[str]:
 
     episode_metrics = _as_dict(data.get("episodeMetrics"))
     comparison = _as_dict(episode_metrics.get("comparison"))
+    commit_head = str(episode_metrics.get("commitHead") or "")
     comparison_head = str(comparison.get("head") or "")
 
-    # A comparison head identifies the commit range the session owns. A later
-    # endingCommit may only rebind QA evidence after another session changed
-    # the branch, so it must not contaminate this episode's commit ownership.
-    if _FULL_SHA_RE.fullmatch(comparison_head):
+    # commitHead separates episode ownership from a later comparison.head used
+    # to bind QA evidence after another session changed the branch.
+    if _FULL_SHA_RE.fullmatch(commit_head):
+        _take([commit_head])
+    elif _FULL_SHA_RE.fullmatch(comparison_head):
         _take([comparison_head])
     else:
         # endingCommit is the protocol's own field, so no prose heuristic applies.
