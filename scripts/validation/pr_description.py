@@ -845,6 +845,13 @@ def validate_pr_description(
                         # (case-insensitive match)". Naming it as the reader's
                         # own next step tells an agent to grant itself a
                         # permission it does not hold (issue #4782).
+                        #
+                        # Stricter/looser/different than canonical:
+                        # CONTRIBUTING.md:912 states only who MAY add the
+                        # label. This message additionally states who may NOT
+                        # (the reader), because the load-bearing half for an
+                        # autonomous reader is the prohibition, not the
+                        # permission alone.
                         f"For unrecoverable cases the '{DEFAULT_BYPASS_LABEL}' "
                         "label clears this CRITICAL, but CONTRIBUTING.md "
                         '("Bypassing Description Validation") requires a human '
