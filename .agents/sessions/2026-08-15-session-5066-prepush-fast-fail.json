@@ -134,7 +134,7 @@
       "evidence": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)"
     }
   ],
-  "endingCommit": "3b51153bed8767e3055f3dca8e9d794261bb63f4",
+  "endingCommit": "dc76248fb1d0d9560a36af5521e2c98d1cf98a90",
   "nextSteps": [
     "After PR creation: add QA report copy matching .agents/qa/*pr-<N>*.md and refresh endingCommit in a follow-up commit"
   ]

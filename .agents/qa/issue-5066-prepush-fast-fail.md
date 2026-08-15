@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
-qaCommit: 3b51153bed8767e3055f3dca8e9d794261bb63f4
+qaCommit: dc76248fb1d0d9560a36af5521e2c98d1cf98a90
 ---
 
 # QA Report: pre-push fast-fail staging (issue #5066)
@@ -66,7 +66,7 @@ pinned as a closed exception list so it cannot silently grow.
 ## Test evidence
 
 - `uv run --frozen pytest tests/ci/test_lefthook_prepush_fast_fail.py tests/test_lefthook_integration.py tests/ci/test_lefthook_config_integrity.py tests/ci/test_lefthook_ratchet_wiring.py tests/ci/test_worktree_gc_wiring.py tests/test_lefthook_gate_config.py tests/ci/test_pre_pr_runs_lefthook_ratchets.py`: 941 passed, 2 skipped, 1 failed.
-- The single failure, `test_the_tracked_scan_fails_config_on_an_unreadable_file`, also fails on the unmodified origin/main tree in this environment (runs as root, where a chmod-000 file stays readable). Pre-existing, unrelated to ordering.
+- The single failure, `test_the_tracked_scan_fails_config_on_an_unreadable_file`, also fails on the unmodified origin/main tree in this environment (runs as root, where a chmod-000 file stays readable). Pre-existing, unrelated to ordering. A full pre-push pytest run surfaced two more of the same class (claude-mem get_count error path, orphan-ref-validator auth exit code); all three now carry the repository's established root skipif (`getattr(os, "geteuid", lambda: -1)() == 0`, the guard tests/test_agent_registry.py and ten other modules already use), with the skill-test mirror regenerated via `build_all.py`. They still run in CI, which is non-root.
 - Negative controls: the new ordering tests fail against the origin/main config (taste-count-ratchet and python-tests shared entry index 4, security-scan sat at index 3 before the ratchets), so the pins discriminate the old shape from the new one.
 - New coverage is positive (ordering holds, runtime clean-run control), negative (misordered synthetic config detected, stdin-in-parallel synthetic config detected, runtime fast-stage failure skips the expensive stage), and edge (unknown job name, config without pre-push, duration unit parsing, fast-stage timeout ceiling).
 
