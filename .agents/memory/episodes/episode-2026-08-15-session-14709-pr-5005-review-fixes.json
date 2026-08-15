@@ -13,6 +13,19 @@
       "type": "commit",
       "content": "Commit: 2b801e7a5f",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14709-pr-5005-review-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T06:28:39+00:00",
+      "type": "commit",
+      "content": "Commit: 1a4c020dd4",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14709-pr-5005-review-fixes"
     }
@@ -22,8 +35,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 7
   },
   "lessons": []
 }
