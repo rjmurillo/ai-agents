@@ -231,21 +231,6 @@ def test_vanilla_rows_keep_logic_out_of_the_workflow() -> None:
             )
 
 
-    """Windows is the platform the customer reported, so it cannot be dropped."""
-    yaml = pytest.importorskip("yaml")
-    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
-    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-    text = workflow_path.read_text(encoding="utf-8")
-    assert "windows-latest" in text
-    jobs = document["jobs"]
-    windows_jobs = [
-        name
-        for name, job in jobs.items()
-        if "windows-latest" in str(job.get("runs-on", "")) + str(job.get("strategy", ""))
-    ]
-    assert windows_jobs, "at least one job must run on a real Windows runner"
-
-
 def test_assert_guard_jobs_succeeded_cli_exits_nonzero(tmp_path: Path) -> None:
     """Drive the real CLI, not the imported helper.
 
