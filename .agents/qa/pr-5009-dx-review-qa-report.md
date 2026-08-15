@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6
+qaCommit: e0671ceb08de8efdc89f3c9eba1426acfd33fa57
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -23,6 +23,7 @@ Validated commits:
 - `3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191`
 - `baf63b657a81a73ee8d91701ec8a7d34a7051086`
 - `2efc836aef09a1df655ec0d3d638eef48e6c72e6`
+- `e0671ceb08de8efdc89f3c9eba1426acfd33fa57`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -65,6 +66,9 @@ Sizes measured with `wc -lc` at the QA commit.
 | Task-boundary security | Read-only reviewer, untrusted-data labeling, delegated-command prohibition | Approved |
 | ReDoS timing calibration | 30 fresh runs of the 64 KiB separator cases | 30 passed; security approved |
 | Deep linearity budgets | 30 fresh runs of the 8,000-link and depth-90 cases | 30 passed |
+| Episode ownership | Extractor comparison-head regression and regenerated old episode | Passed |
+| Malformed scorecard row | Removed final delimiter mutation | Rejected |
+| Symlink containment | In-root link to outside directory | Rejected |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 
@@ -105,3 +109,8 @@ its CLI path. Process-race tests use measured fake timing windows. Semgrep uses
 one worker and a 30-second rule budget within the existing hook limits.
 The command contract assertion lives in a small dedicated test file, so the
 10,688-line integration suite is not part of the push scan target set.
+
+This PASS certifies local evidence at `qaCommit`. It does not assert remote
+merge readiness. The PR completion gate still requires current-head Python
+Security Checks, Validate Path Normalization, Plugin Hook Guard Result, and
+all other required checks before merge.

@@ -92,25 +92,12 @@
         "e006"
       ],
       "leads_to": [
-        "e009"
+        "e008"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-15T07:36:27+00:00",
-      "type": "commit",
-      "content": "Commit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": [
-        "e011"
-      ],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e009",
       "timestamp": "2026-08-15T07:25:00+00:00",
       "type": "milestone",
       "content": "isolate-semgrep-contract-test",
@@ -118,25 +105,12 @@
         "e007"
       ],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
-      "id": "e010",
-      "timestamp": "2026-08-15T08:18:33+00:00",
-      "type": "commit",
-      "content": "Commit: b485b6385173b9a5f298e624b6aa42dfb0233b42",
-      "caused_by": [
-        "e011"
-      ],
-      "leads_to": [
-        "e012"
-      ],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e011",
+      "id": "e009",
       "timestamp": "2026-08-15T08:05:00+00:00",
       "type": "milestone",
       "content": "write-retrospective",
@@ -149,12 +123,38 @@
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
-      "id": "e012",
-      "timestamp": "2026-08-15T08:58:50+00:00",
-      "type": "commit",
-      "content": "Commit: afd035053ef860735383e1551116f66beaa2faf4",
+      "id": "e010",
+      "timestamp": "2026-08-15T10:25:00+00:00",
+      "type": "milestone",
+      "content": "close-final-review-findings",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T10:55:00+00:00",
+      "type": "milestone",
+      "content": "calibrate-redos-budget",
       "caused_by": [
         "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T11:25:00+00:00",
+      "type": "milestone",
+      "content": "calibrate-linearity-budgets",
+      "caused_by": [
+        "e011"
       ],
       "leads_to": [
         "e014"
@@ -163,22 +163,20 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-08-15T10:25:00+00:00",
+      "timestamp": "2026-08-15T12:00:00+00:00",
       "type": "milestone",
-      "content": "close-final-review-findings",
+      "content": "close-latest-review-findings",
       "caused_by": [
         "e014"
       ],
-      "leads_to": [
-        "e016"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
       "id": "e014",
-      "timestamp": "2026-08-15T10:23:27+00:00",
+      "timestamp": "2026-08-15T11:54:46+00:00",
       "type": "commit",
-      "content": "Commit: 3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191",
+      "content": "Commit: e0671ceb08de8efdc89f3c9eba1426acfd33fa57",
       "caused_by": [
         "e012"
       ],
@@ -186,65 +184,15 @@
         "e013"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-08-15T10:55:00+00:00",
-      "type": "milestone",
-      "content": "calibrate-redos-budget",
-      "caused_by": [
-        "e016"
-      ],
-      "leads_to": [
-        "e018"
-      ],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-08-15T10:49:58+00:00",
-      "type": "commit",
-      "content": "Commit: baf63b657a81a73ee8d91701ec8a7d34a7051086",
-      "caused_by": [
-        "e013"
-      ],
-      "leads_to": [
-        "e015"
-      ],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-08-15T11:25:00+00:00",
-      "type": "milestone",
-      "content": "calibrate-linearity-budgets",
-      "caused_by": [
-        "e018"
-      ],
-      "leads_to": [],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
-    },
-    {
-      "id": "e018",
-      "timestamp": "2026-08-15T11:21:51+00:00",
-      "type": "commit",
-      "content": "Commit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6",
-      "caused_by": [
-        "e015"
-      ],
-      "leads_to": [
-        "e017"
-      ],
-      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     }
   ],
   "metrics": {
-    "duration_minutes": 480,
+    "duration_minutes": 515,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 419
+    "commits": 1,
+    "files_changed": 425
   },
   "lessons": []
 }

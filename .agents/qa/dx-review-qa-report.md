@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6
+qaCommit: e0671ceb08de8efdc89f3c9eba1426acfd33fa57
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6
 Branch: `feat/dx-review`
 
 Validated through commit:
-`2efc836aef09a1df655ec0d3d638eef48e6c72e6`
+`e0671ceb08de8efdc89f3c9eba1426acfd33fa57`
 
 ## Scope
 
@@ -52,6 +52,9 @@ Validated through commit:
 | Final dx-review output gates | 23 tests passed; security re-review approved |
 | ReDoS timing calibration | 30 fresh runs passed; security review approved |
 | Deep linearity budgets | 30 fresh runs passed for both fixed workloads |
+| Episode ownership | Old session owns 186c49540; current QA rebind excluded |
+| Scorecard parser | Malformed final-column mutation rejected |
+| Notice path containment | Symlink escape rejected where supported |
 
 Security-critical output confinement has no missing lines or branches across
 `scripts/generate_third_party_notices.py` lines 383 through 461.
@@ -60,3 +63,8 @@ Security-critical output confinement has no missing lines or branches across
 
 PASS. The final branch state closes the skill, attribution, review, typing,
 packaging, pre-push race, timeout, security scan, and QA findings.
+
+This PASS certifies local evidence at `qaCommit`. It does not assert remote
+merge readiness. The PR completion gate still requires current-head Python
+Security Checks, Validate Path Normalization, Plugin Hook Guard Result, and
+all other required checks before merge.

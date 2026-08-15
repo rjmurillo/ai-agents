@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, pre-push gate, retrospective, latest-main, final review, and loaded timing calibration changes committed through 2efc836aef09a1df655ec0d3d638eef48e6c72e6; evidence-only updates follow."
+        "Evidence": "All implementation, pre-push gate, retrospective, latest-main, final review, timing calibration, episode ownership, and final regression changes committed through e0671ceb08de8efdc89f3c9eba1426acfd33fa57; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-15T04:15Z",
       "action": "record-qa",
-      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit 2efc836aef09a1df655ec0d3d638eef48e6c72e6."
+      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit e0671ceb08de8efdc89f3c9eba1426acfd33fa57."
     },
     {
       "timestamp": "2026-08-15T06:20Z",
@@ -183,9 +183,14 @@
       "timestamp": "2026-08-15T11:25Z",
       "action": "calibrate-linearity-budgets",
       "details": "Raised two fixed-size linearity test budgets from 3 to 5 seconds after loaded measurements of 3.8 and 3.7 seconds. Workloads stayed at 8,000 alias links and depth 90 with width 2,000. Thirty fresh targeted runs passed."
+    },
+    {
+      "timestamp": "2026-08-15T12:00Z",
+      "action": "close-latest-review-findings",
+      "details": "Separated episode commit ownership from QA rebinding, regenerated both episodes, rejected malformed scorecard rows, added symlink-escape containment coverage, clarified local QA scope, and corrected retrospective Semgrep references. Focused QA, memory, and skill tests passed."
     }
   ],
-  "endingCommit": "2efc836aef09a1df655ec0d3d638eef48e6c72e6",
+  "endingCommit": "e0671ceb08de8efdc89f3c9eba1426acfd33fa57",
   "nextSteps": [
     "Push feat/dx-review under the lease and live-state guard.",
     "Reply to and resolve all seven review threads.",
