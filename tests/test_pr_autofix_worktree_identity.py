@@ -112,6 +112,33 @@ class TestWorktreeIdentityReset:
         result = _git(["config", "--local", "user.email"], worktree_path)
         assert result.stdout.strip() == "rjmurillo-bot@users.noreply.github.com"
 
+    def test_unset_failure_raises_for_non_missing_key(self, tmp_path: Path) -> None:
+        """A non-zero, non-5 return code from git config --unset-all raises."""
+        import subprocess as _sp
+        from unittest.mock import patch as _patch
+
+        from scripts.github_core.worktree_identity import reset_worktree_identity
+
+        worktree_path = tmp_path / "wt"
+        worktree_path.mkdir()
+        _git(["init", "-b", "main"], worktree_path)
+
+        fake_result = _sp.CompletedProcess(
+            args=["git", "config", "--local", "--unset-all", "user.name"],
+            returncode=2,
+            stdout="",
+            stderr="error: invalid key",
+        )
+        with _patch(
+            "scripts.github_core.worktree_identity._run_git_config",
+            return_value=fake_result,
+        ):
+            import pytest as _pt
+
+            with _pt.raises(_sp.CalledProcessError) as exc_info:
+                reset_worktree_identity(worktree_path, operator="rjmurillo")
+            assert exc_info.value.returncode == 2
+
 
 # ---------------------------------------------------------------------------
 # (b) Placeholder guard rejects bad commits
@@ -402,3 +429,35 @@ class TestSquashBodySanitizer:
         assert is_placeholder_identity(
             "rjmurillo-bot", "rjmurillo-bot@users.noreply.github.com"
         ) is False
+
+
+class TestCIBackstopWorkflow:
+    """Issue #5008 item 2: CI workflow exists and calls check_placeholder_identity."""
+
+    WORKFLOW = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "placeholder-identity-check.yml"
+    )
+
+    def test_workflow_file_exists(self) -> None:
+        """The CI backstop workflow must exist."""
+        assert self.WORKFLOW.is_file(), f"Missing: {self.WORKFLOW}"
+
+    def test_workflow_calls_check_script(self) -> None:
+        """The workflow must invoke check_placeholder_identity.py."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "check_placeholder_identity.py" in content
+
+    def test_workflow_uses_fetch_depth_zero(self) -> None:
+        """Full history is required to scan all commits in the PR range."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "fetch-depth: 0" in content
+
+    def test_workflow_triggers_on_pull_request(self) -> None:
+        """Must run on pull_request to catch placeholder before merge."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "pull_request:" in content
+
+

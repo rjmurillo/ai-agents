@@ -23,6 +23,7 @@
     "skills/github/scripts/pr/add_pr_review_thread_reply.py": 1,
     "skills/github/scripts/pr/audit_closing_claims.py": 1,
     "skills/github/scripts/pr/check_pr_live_state.py": 1,
+    "skills/github/scripts/pr/check_pr_round_cap.py": 1,
     "skills/github/scripts/pr/close_pr.py": 1,
     "skills/github/scripts/pr/detect_copilot_followup_pr.py": 1,
     "skills/github/scripts/pr/detect_stale_pr_comments.py": 1,

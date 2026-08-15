@@ -476,16 +476,6 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
-# lefthook.yml caps observation-sync-advisory at 5m, and a lefthook timeout
-# kill cannot be absorbed by an advisory job's own guards (ci-scripts rule:
-# the kill lands on the job's shell first). sync_observations therefore
-# bounds its whole loop below that cap so the advisory job can never be
-# turned red by the cap itself. Invariant, pinned by
-# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
-# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
-# under the lefthook cap, so even an unclamped straggler cannot outlive it;
-# the remainder is headroom for uv startup on a loaded machine.
-OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
 # sibling hook jobs, so issue #4710 adds a process-visible cap there only.
@@ -6977,6 +6967,22 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The observation-sync-advisory lefthook job carries a 5m timeout, and a
+# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
+# the kill lands before any || branch runs), so this advisory's worst case must
+# be held under the cap from the inside. Each file costs up to ~10s when the
+# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
+# 10.0 seconds per request), and the first push of a new branch sweeps every
+# tracked observation file into the job, so an unreachable MCP server
+# overruns the cap and blocks the push. Invariant, pinned by
+# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
+# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
+# under the lefthook cap, so even an unclamped straggler cannot outlive it;
+# the remainder is headroom for uv startup on a loaded machine. Each child is
+# additionally clamped to the remaining budget inside the loop.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
+
+
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
     """Import pushed observation files into forgetful, best-effort.
 
@@ -6986,20 +6992,20 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
     before any guard runs), so the loop holds an internal budget below the
     configured 5m cap. When forgetful is unreachable, each import burns one
     ~10s MCP-call timeout per observation entry, up to the 90s child cap, so
-    30+ observation files in one push otherwise outlive the lefthook cap
-    deterministically. Skipped files are named per the no-silent-caps rule;
-    they import on the next push that carries them.
+    a push whose file set carries 30+ observation files otherwise outlives
+    the lefthook cap deterministically. Skipped files are named per the
+    no-silent-caps rule; they import on the next push that carries them.
     """
-    deadline = time.monotonic() + OBSERVATION_SYNC_BUDGET_SECONDS
+    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
     for index, path in enumerate(paths):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             skipped = len(paths) - index
             print(
                 f"WARNING: observation sync budget "
-                f"({OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
-                f"{index} of {len(paths)} file(s); skipped {skipped}: "
-                + ", ".join(repr(p) for p in paths[index:]),
+                f"({_OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
+                f"{index} of {len(paths)} file(s); skipped {skipped} of "
+                f"{len(paths)}: " + ", ".join(repr(p) for p in paths[index:]),
                 file=sys.stderr,
             )
             break

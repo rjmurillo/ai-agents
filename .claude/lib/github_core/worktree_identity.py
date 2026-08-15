@@ -79,9 +79,16 @@ def reset_worktree_identity(
     """
     path = Path(worktree_path)
 
-    # Step 1-2: best-effort unset (exit code 5 = key not found, which is fine)
-    _run_git_config(["--local", "--unset-all", "user.name"], path)
-    _run_git_config(["--local", "--unset-all", "user.email"], path)
+    # Step 1-2: unset local overrides (exit code 5 = key not found, which is fine)
+    for key in ("user.name", "user.email"):
+        result = _run_git_config(["--local", "--unset-all", key], path)
+        if result.returncode not in (0, 5):
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                result.args,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
 
     if operator == "rjmurillo-bot":
         # Step 3: pin bot identity

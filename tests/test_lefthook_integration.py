@@ -690,7 +690,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
-        "build-all-check",
         "placeholder-identity",
         "branch-scope",
         "additions-advisory",
@@ -864,7 +863,14 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert "merge" not in skip
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
-    assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
+    assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "SKIP_AUTOFIX": "1",
+        # The job's own timeout in seconds, consumed by the
+        # generated-staleness gate's outer-cap clamp; the cross-check
+        # against the actual timeout lives in
+        # tests/validation/test_check_generated_staleness.py.
+        "PRE_PR_OUTER_CAP_SECONDS": "900",
+    }
     assert pre_push_jobs["python-tests"]["env"] == {
         "AI_AGENTS_PYTEST_WORKER_CAP": "4"
     }
@@ -924,14 +930,18 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "{push_files}" not in observation_run
     assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(build_run, str)
     assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert build_run.endswith("build_all.py --check")
     assert "origin/main" in branch_scope_run
+    # Issue #5079 review: the standalone build-all-check job is gone on
+    # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
+    # build_all.py --check inside the sequence; a second concurrent
+    # invocation in the same parallel group raced its snapshot/restore over
+    # the same owned prefixes, and its 15m lefthook timeout was a SIGKILL
+    # that skipped build_all's restoring finally.
+    assert "build-all-check" not in pre_push_jobs
     pre_commit_parallel = False
     for item in pre_commit["jobs"]:
         group = item.get("group")
@@ -7408,6 +7418,53 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
 
 
+def test_sync_observations_stops_at_its_internal_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The advisory must finish under its lefthook cap from the inside.
+
+    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
+    advisory job that overruns its cap blocks the push. Each file costs up to
+    the MCP client timeout when the Forgetful server is unreachable, and the
+    first push of a new branch sweeps every tracked observation file into the
+    job, so the loop needs a wall-clock deadline of its own.
+    """
+    synced: list[str] = []
+
+    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
+        synced.append(command[3])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    clock = iter([0.0, 0.0, 500.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert synced == ["a.md"]
+    assert "skipped 1 of 2" in capsys.readouterr().err
+
+
+def test_sync_observations_reports_a_fully_exhausted_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline can pass before the first file is attempted."""
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
+    )
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert "skipped 2 of 2" in capsys.readouterr().err
+
+
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8183,7 +8240,7 @@ def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
     """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
     so the loop's own budget must stop it first, name every skipped file (no
     silent caps), and still return 0."""
-    monkeypatch.setattr(policy, "OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
     calls: list[list[str]] = []
 
     def _forbidden(command, *_args, **_kwargs):
@@ -8206,10 +8263,10 @@ def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
 ) -> None:
     """Edge: the deadline passing between files keeps the files already
     imported and skips exactly the remainder, naming them."""
-    clock = iter([0.0, 0.0, policy.OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
+    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
 
     def _tick() -> float:
-        return next(clock, policy.OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
+        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
 
     monkeypatch.setattr(policy.time, "monotonic", _tick)
     commands: list[list[str]] = []
@@ -8251,7 +8308,7 @@ def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
     assert cap_text.endswith("m")
     cap_seconds = float(cap_text[:-1]) * 60
     assert (
-        policy.OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
         <= cap_seconds
     )
 
