@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit b2b8052d0c5368fdafda4120db6679a6a0406141; final evidence committed separately"
+        "Evidence": "Validated code and documentation commit e28b01db0841a5ea73533523be65b54f522572d1; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
@@ -206,9 +206,13 @@
     {
       "action": "Pinned the remaining host-date consumer wiring and corrected fallback parity documentation.",
       "outcome": "Sentinel tests distinguish host-local from UTC on UTC CI for singular and plural selectors; PreCompact now cites the full canonical selector contract; 955 tests passed."
+    },
+    {
+      "action": "Quoted the canonical rollout prefix fragment verbatim in PreCompact documentation.",
+      "outcome": "The load-bearing mirror claim now matches scripts/hook_utilities/utilities.py exactly; Ruff and diff checks pass."
     }
   ],
-  "endingCommit": "b2b8052d0c5368fdafda4120db6679a6a0406141",
+  "endingCommit": "e28b01db0841a5ea73533523be65b54f522572d1",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",

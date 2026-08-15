@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: b2b8052d0c5368fdafda4120db6679a6a0406141
+qaCommit: e28b01db0841a5ea73533523be65b54f522572d1
 ---
 
 # PR 4984 Host-Local Date QA Report
