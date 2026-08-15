@@ -115,7 +115,8 @@
         "e077",
         "e079",
         "e081",
-        "e083"
+        "e083",
+        "e085"
       ],
       "leads_to": [
         "e006"
@@ -1076,6 +1077,30 @@
       "caused_by": [
         "e082"
       ],
+      "leads_to": [
+        "e086"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e085",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the latest main subprocess encoding regression.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e086",
+      "timestamp": "2026-08-15T11:47:28+00:00",
+      "type": "commit",
+      "content": "Commit: 6df6ae35f382b9682afb0799be48dedaf4b0d982",
+      "caused_by": [
+        "e084"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1085,8 +1110,8 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 46,
-    "files_changed": 52
+    "commits": 47,
+    "files_changed": 53
   },
   "lessons": []
 }

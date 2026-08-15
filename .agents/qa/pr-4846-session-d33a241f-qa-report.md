@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96
+qaCommit: 6df6ae35f382b9682afb0799be48dedaf4b0d982
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96`
+Validated the branch at commit `6df6ae35f382b9682afb0799be48dedaf4b0d982`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -49,7 +49,7 @@ the checkout dependency guard reject external checkout-index prefixes.
 Final suites pass: 222 provenance tests, 160 workflow checkout tests, and
 25 hook-contract tests. Latest merged anchor tests pass 20 tests. Exact Python and uv
 pins and dual-channel head gating passed independent security review. Ruff,
-actionlint, and workflow validation pass.
+actionlint, workflow validation, and 16 subprocess encoding tests pass.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

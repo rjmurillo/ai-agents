@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to latest trust-pin refresh e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96."
+        "Evidence": "QA evidence rebound to UTF-8 subprocess fix 6df6ae35f382b9682afb0799be48dedaf4b0d982."
       },
       "validationPassed": {
         "level": "MUST",
@@ -255,8 +255,12 @@
     {
       "action": "Merged current main and pinned validate_install_parity plus discourse_traversal mirrors.",
       "result": "222 provenance tests, 160 workflow checkout tests, and 20 merged-anchor tests pass."
+    },
+    {
+      "action": "Fixed the latest main subprocess encoding regression.",
+      "result": "consume_pytest_signal now pins UTF-8 with replacement decoding. 16 targeted tests pass."
     }
   ],
-  "endingCommit": "e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96",
+  "endingCommit": "6df6ae35f382b9682afb0799be48dedaf4b0d982",
   "nextSteps": []
 }
