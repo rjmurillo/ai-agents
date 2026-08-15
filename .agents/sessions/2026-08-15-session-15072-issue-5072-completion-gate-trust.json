@@ -160,10 +160,13 @@
     },
     {
       "activity": "Copilot review round 2: terminal-control escaping for surfaced trust diffs (Trojan Source CVE-2021-42574) with negative-control test; narrowed pr-autofix nothing-executed guarantee to trust halts; corrected QA test-count decomposition to 82 pre-existing cases plus 28 new functions; documented trusted-ref freshness semantics; replied to stale-ref and bidi threads"
+    },
+    {
+      "activity": "CodeQL alert 168 (overly permissive regex range): replaced _TERMINAL_UNSAFE_RE ranges with unicodedata Cc/Cf category classification, widening bidi coverage and removing the flagged construct; corrected PR body test count to match QA report"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "bb75cabce88db90fa04b3cea12aa7e0e9c7123f5"
+  "endingCommit": "f0c7d3eedfd7236d96bca284815f70f88a8319bb"
 }
