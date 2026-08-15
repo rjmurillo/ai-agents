@@ -150,7 +150,7 @@
       "timestamp": "2026-08-15T10:45:00Z"
     }
   ],
-  "endingCommit": "0d0657c6be3e2659bb35b43217277958607cabe1",
+  "endingCommit": "a959d45063acd46e0ba1f3999a7f96989e2bd698",
   "nextSteps": [
     "Rewrite .agents/sessions/handoffs/2026-08-15-2840-handoff.md in a follow-up commit: remove all em/en-dashes, remove the copy-template HTML comment placeholder, correct the CI-mode claim to match this session's finding, correct the retrospective claim (now genuinely satisfied by this session log's Retrospective section below), and point the reciprocal session-log reference at this file (.agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json) instead of the Aug-12 log.",
     "If desired, open a follow-up issue to independently probe (not just infer) whether model_tier-resolved plugin agents actually override an operator's explicit session model, closing the open gap recorded in ADR-080 finding 4.",
@@ -162,7 +162,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "8f1cb1177cc136d924a77ecaa1094d5d8bc399ec",
-      "head": "0d0657c6be3e2659bb35b43217277958607cabe1"
+      "head": "a959d45063acd46e0ba1f3999a7f96989e2bd698"
     }
   },
   "retrospective": {

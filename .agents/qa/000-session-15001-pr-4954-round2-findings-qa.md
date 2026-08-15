@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json
-qaCommit: 0d0657c6be3e2659bb35b43217277958607cabe1
+qaCommit: a959d45063acd46e0ba1f3999a7f96989e2bd698
 ---
 
 # QA Report: Session 15001, PR 4954 round 2 findings
@@ -31,12 +31,13 @@ report.
 | `a573e0f32` | Removed every "session-14706" pointer from this report, the session-15001 log, and `000-session-14695-adr-080-amendment-qa.md`; replaced each with a direct reference to commit `42ce51f50` (or `9996e0905`) and the relevant file's own revision history, both durable and checkable, instead of a session log that was never created. Wording only; no claim, measurement, or QA binding changed |
 | `e8b9229b9` | Fixed a further Copilot review's 4 active findings: reworded the analysis file's runtime-contract-check section (manual scratch-copy deletion, not a generator change); fixed `000-session-14695-adr-080-amendment-qa.md`'s stale `files_changed` bullet; named `db7ead33f`/`ac53f6802` explicitly in this session log's `changesCommitted.Evidence` (the episode extractor's SHA-collection had silently omitted `db7ead33f`'s commit event because only its full-length form was previously findable); and rewrote the rolling handoff to cover rounds 3 and 4. Did not itself touch `qaCommit`/`endingCommit` (see `8d859260a` below). |
 | `8d859260a` | Rebound `endingCommit` and this report's `qaCommit` from `9996e0905` to `e8b9229b9`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, since `e8b9229b9` again edited the analysis file after the prior binding. Also corrected the prior row's unresolved "(this commit)" self-reference to name `a573e0f32` explicitly. |
-| (this commit) | A still-open review thread on the `42ce51f50` review (an inline comment, separate from that review's declared/suppressed-findings summary, which only listed the "session-14706" finding already fixed at `a573e0f32`) correctly flagged that this session's episode wrongly recorded `9996e0905` (a round-3/round-4 QA-rebind target, not a commit this session produced) as its own final commit event, inflating `metrics.commits` to 5. Removed that event (restoring `metrics.commits` to 4, matching this session's four actually-produced commits: `c860ae452`, `1301b4c09`, `db7ead33f`, `ac53f6802`); the equivalent event was also removed from the session-14695 episode. Clarified in both session logs' `changesCommitted`/`validationPassed` evidence that `endingCommit` diverging from the episode's own commit-event list is intentional: it is the QA-freshness validation target, not a session-produced-commit marker. Touches only `.agents/memory/episodes/`, `.agents/sessions/`, and `.agents/qa/` paths, so `qaCommit`/`endingCommit` remain bound to `e8b9229b9` without re-triggering staleness. |
-| `e2f487797` | Committed the round-5 fix described in the row above. |
+| `e2f487797` | A still-open review thread on the `42ce51f50` review (an inline comment, separate from that review's declared/suppressed-findings summary, which only listed the "session-14706" finding already fixed at `a573e0f32`) correctly flagged that this session's episode wrongly recorded `9996e0905` (a round-3/round-4 QA-rebind target, not a commit this session produced) as its own final commit event, inflating `metrics.commits` to 5. Removed that event (restoring `metrics.commits` to 4, matching this session's four actually-produced commits: `c860ae452`, `1301b4c09`, `db7ead33f`, `ac53f6802`); the equivalent event was also removed from the session-14695 episode. Clarified in both session logs' `changesCommitted`/`validationPassed` evidence that `endingCommit` diverging from the episode's own commit-event list is intentional: it is the QA-freshness validation target, not a session-produced-commit marker. Touches only `.agents/memory/episodes/`, `.agents/sessions/`, and `.agents/qa/` paths, so `qaCommit`/`endingCommit` remain bound to `e8b9229b9` without re-triggering staleness. |
 | `1a841d53d` | PR 4954 reached 21 authored commits, exceeding CONTRIBUTING.md's 20-commit block threshold (`Validate PR` workflow's `Enforce Blocking Issues` step). The `commit-limit-bypass` label requires a human maintainer; squashing requires a force-push; both out of scope for this session. Merged `origin/main` via `gh pr update-branch` (server-side, no local push) to supply `pr_commit_count.py`'s `contains_main_merge` evidence, raising the block ceiling to 40 (issue #3596); the merge commit does not count toward the authored total. `git merge-tree` confirmed 0 conflicts. Because `post_qa_code_changes()` walks `git log -m` (both parents of a merge), every path `origin/main` touched appears "changed" relative to the prior `e8b9229b9` binding; rebound `endingCommit` and this report's `qaCommit` to `1a841d53d`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`. The episode's own commit-event list and `metrics.commits` (4) are unaffected. |
 | `8a02c8647` | Committed the `1a841d53d` rebind above (`endingCommit` in this log, `qaCommit` in this report, and the matching fields in the session-14695 log/report). |
 | `0d0657c6b` | A review against `8a02c8647` raised 5 active findings. `_collect_shas()` (imported and run directly) confirmed both session logs' `changesCommitted.Evidence` prose named foreign rebind-target SHAs (`9996e0905`, `e8b9229b9`, `1a841d53d`) as bare hex tokens, which the extractor would misattribute as session-produced commits on regeneration regardless of `commitHead`/`comparison.head`. Added a full `episodeMetrics` object to this log (previously absent: `filesChanged: 7`, `commitHead: ac53f6802`, `comparison.head: 1a841d53d`) and `episodeMetrics.commitHead` to the session-14695 log; rewrote both logs' Evidence to name only session-owned SHAs. Re-ran `_collect_shas()` directly against both fixed logs: each now recovers exactly its own 4 real commit SHAs, matching its episode's 4 events. Also corrected this session's episode `metrics.files_changed` from 9 to 7 (`git show --stat` per commit: 1 + 3 + 2 + 1, no overlap), reproduced the analysis file's delegation probe for real against `copilot` CLI 1.0.81-0, and rewrote the per-issue handoff to cover rounds 1 through 7. Edited the analysis file again, staling both reports' `qaCommit`/`endingCommit` bindings a third time. |
-| (this commit) | Rebound `endingCommit` and this report's `qaCommit` from `1a841d53d` to `0d0657c6b`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, mirroring the `9996e0905`-then-`42ce51f50` and `e8b9229b9`-then-`8d859260a` two-commit content-fix-then-rebind pattern. |
+| `aeaa13f1c` | Rebound `endingCommit` and this report's `qaCommit` from `1a841d53d` to `0d0657c6b`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, mirroring the `9996e0905`-then-`42ce51f50` and `e8b9229b9`-then-`8d859260a` two-commit content-fix-then-rebind pattern. |
+| `a959d4506` | A review against `aeaa13f1c` raised 5 active findings: this session's own log/episode already correctly attributed `c860ae452` to itself (`commitHead: ac53f6802` plus 3 other SHAs, `metrics.commits: 4`, unaffected by this round), but session-14695's episode independently claimed the same commit `c860ae452` as its own, a genuine dual-attribution bug; this report's "current-state" bullet was stale (still citing `1a841d53d` after the `0d0657c6b` rebind); the handoff falsely claimed rounds 3-7 intentionally lacked a session log; and the analysis file's delegation-probe treatment/control invocations shared one `--log-dir`, making the transcripts non-separable. Session-14695's `commitHead`/Evidence/episode were corrected (see `000-session-14695-adr-080-amendment-qa.md`); this session's own log/episode required no content change. Reran the delegation probe with distinct `--log-dir` values and created session-14706's own session log. Edited the analysis file again (a non-`QA_EVIDENCE_PREFIXES` path), staling both reports' `qaCommit`/`endingCommit` bindings a fourth time. |
+| (this commit) | Rebound `endingCommit` and this report's `qaCommit` from `0d0657c6b` to `a959d4506`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, mirroring the established two-commit content-fix-then-rebind pattern; also corrected this table's `aeaa13f1c` row (see above), left reading "(this commit)" since that commit was pushed. |
 
 ## Evidence
 
@@ -59,11 +60,12 @@ report.
   validated directly against `episode.schema.json` via
   `jsonschema.validate`.
 - QA binding: `session_qa_binding()`/`validate_qa_report()` resolve cleanly
-  for `000-session-14695-adr-080-amendment-qa.md` against `1a841d53d`
+  for `000-session-14695-adr-080-amendment-qa.md` against `a959d4506`
   (session-14695's `endingCommit`/`episodeMetrics.comparison.head`, rebound
-  from `e8b9229b9` in round 6), and for this report against `1a841d53d`
-  (session-15001's `endingCommit`, rebound from `e8b9229b9` in round 6,
-  since the round-6 `origin/main` merge touches paths outside
+  through `1a841d53d` at round 6, `0d0657c6b` at round 8, and now
+  `a959d4506` at round 10), and for this report against `a959d4506`
+  (session-15001's `endingCommit`, rebound the same way, since each
+  content-fix round after round 6 touched paths outside
   `QA_EVIDENCE_PREFIXES` from `post_qa_code_changes()`'s `git log -m`
   perspective).
 - Round-3 staleness: `scripts/ci/validate_session_protocol.py` (which uses
@@ -131,12 +133,39 @@ report.
   to `0d0657c6b`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s
   `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, in this
   commit. Re-verified `COMPLIANT` for both logs at `PR_HEAD_SHA=0d0657c6b`
-  after this rebind.
+  after this rebind. (This session's own "4 real commit SHAs" recovered
+  here were and remain correct; round 9 found the dual-attribution bug was
+  on session-14695's side, which had independently also claimed
+  `c860ae452`. See the round-9 bullet below.)
 - Retrospective evidence: this session log's `retrospective` field and
   workLog contain matching text for
   `RETROSPECTIVE_EVIDENCE_PATTERNS` (`retrospective section`,
   `learnings captured`); a genuine `serena-write_memory` call was made
   this session (`session-protocol/ci-vs-local-mode-discrepancy`).
+- Round-9 fix: a review against `aeaa13f1c` raised 5 active findings.
+  Diffing this session's own `workLog` (entries 138-140 narrate running
+  the second full 6-agent review and committing the dash fix at
+  `c860ae452`) against session-14695's (ends at `0edf6e063`, no dash-fix
+  entry) confirmed this session is `c860ae452`'s true owner; this
+  session's own `commitHead` (`ac53f6802`) and `metrics.commits` (4)
+  needed no change. Session-14695's episode/log were corrected instead
+  (see `000-session-14695-adr-080-amendment-qa.md`'s round-9 bullet).
+  This report's own "current-state" bullet above was stale (still citing
+  `1a841d53d` after the `0d0657c6b` rebind); fixed to describe the current
+  binding. The per-issue handoff was rewritten to cover rounds 7-9 and
+  stop claiming rounds 3-7 intentionally lacked a session log. The
+  analysis file's delegation probe was rerun with distinct
+  `--log-dir ./logs-treatment`/`--log-dir ./logs-control` values
+  (previously a shared `./logs`, non-separable) against a fresh fixture
+  (`copilot` CLI 1.0.81-0). Session-14706's own session log was created.
+  Committed as `a959d4506`.
+- Round-10 fix (this commit): because `a959d4506` again edited the
+  analysis file (evidence this QA scope covers), rebound `endingCommit`
+  and this report's `qaCommit` from `0d0657c6b` to `a959d4506`, and
+  likewise `000-session-14695-adr-080-amendment-qa.md`'s
+  `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`. Also
+  corrected this table's `aeaa13f1c` row, left reading "(this commit)"
+  since that commit was pushed, to name it explicitly.
 - No source code changes; deliverables are session/QA/episode/debate-log
   documentation only.
 
@@ -167,6 +196,18 @@ session's own work, but it required rebinding both reports' `qaCommit`/
 fix (`0d0657c6b`) resolved 5 further active findings (missing
 `episodeMetrics.commitHead`/object, unreproducible delegation probe, a
 wrong `files_changed` count, a stale handoff), again editing the analysis
-file and staling both reports' bindings a third time; this commit rebinds
-both reports' `qaCommit`/`endingCommit` forward to `0d0657c6b`, which is
-now this report's `qaCommit` and the current rebind target.
+file and staling both reports' bindings a third time; the follow-up
+rebind commit, `aeaa13f1c`, set both reports' `qaCommit`/`endingCommit`
+forward to `0d0657c6b`. A round-9 fix (`a959d4506`) resolved 5 further
+active findings, the most significant being a genuine dual-attribution
+bug: session-14695's episode independently claimed commit `c860ae452` as
+its own, though it is this session's commit (this session's own
+`commitHead`/`metrics.commits` were already correct and needed no
+content change). Also fixed: both reports' stale "current-state" bullets
+(still citing `1a841d53d` after the `0d0657c6b` rebind), a handoff claim
+that rounds 3-7 intentionally lacked a session log, and a delegation-probe
+reproduction whose treatment/control runs shared one `--log-dir`. This
+round-10 rebind (this commit) sets both reports' `qaCommit`/`endingCommit`
+forward to `a959d4506`, now this report's `qaCommit` and the current
+rebind target, and corrects the revision-history table's `aeaa13f1c` row,
+left reading "(this commit)" since that commit was pushed.

@@ -145,7 +145,7 @@
       "timestamp": "2026-08-15T07:09:54Z"
     }
   ],
-  "endingCommit": "0d0657c6be3e2659bb35b43217277958607cabe1",
+  "endingCommit": "a959d45063acd46e0ba1f3999a7f96989e2bd698",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 10,
@@ -153,7 +153,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "90be321b3bfad576e3c1d440402d4333a87326c9",
-      "head": "0d0657c6be3e2659bb35b43217277958607cabe1"
+      "head": "a959d45063acd46e0ba1f3999a7f96989e2bd698"
     }
   }
 }
