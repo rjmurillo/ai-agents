@@ -79,16 +79,39 @@ def _assert_defers_to_a_maintainer(message: str, label: str, sanctioned_action: 
     assert match is None, f"reads as an instruction to apply the label: {match} in {message}"
 
 
+# Map each label to the section heading that must contain its declaration.
+_LABEL_SECTION = {
+    "commit-limit-bypass": "#### Bypassing the Limit",
+    "description-validation-bypass": "#### Bypassing Description Validation",
+}
+
+
+def _extract_section(text: str, heading: str) -> str:
+    """Return the text from *heading* up to the next heading of equal or lesser depth."""
+    level = len(heading) - len(heading.lstrip("#"))
+    pattern = re.compile(
+        rf"^{re.escape(heading)}$\n(.*?)(?=^#{{1,{level}}} |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    m = pattern.search(text)
+    assert m is not None, f"section not found: {heading}"
+    return m.group(0)
+
+
 def test_contributing_declares_both_labels_human_only() -> None:
-    """The cited authority still says what the three messages claim it says."""
+    """The cited authority still says what the three messages claim it says.
+
+    Each declaration is scoped to the section the enforcement messages cite,
+    so moving a declaration out of that section while the heading remains will
+    fail this test rather than leaving a dangling authority citation.
+    """
     text = CONTRIBUTING.read_text(encoding="utf-8")
-    for label in _HUMAN_ONLY_LABELS:
-        assert f"A human maintainer MUST add the `{label}` label" in text, (
-            f"CONTRIBUTING.md no longer declares {label} human-only; "
+    for label, heading in _LABEL_SECTION.items():
+        section = _extract_section(text, heading)
+        assert f"A human maintainer MUST add the `{label}` label" in section, (
+            f"CONTRIBUTING.md section \'{heading}\' no longer declares {label} human-only; "
             "the enforcement messages citing it are now wrong"
         )
-    for heading in ("#### Bypassing the Limit", "#### Bypassing Description Validation"):
-        assert heading in text, f"messages cite a section that no longer exists: {heading}"
 
 
 def test_contributing_never_instructs_without_naming_the_authority() -> None:
@@ -260,3 +283,27 @@ def test_description_validator_names_no_bypass_when_every_mention_is_in_the_diff
     )
 
     assert not [issue for issue in issues if DEFAULT_BYPASS_LABEL in issue.message], issues
+
+
+# ---------------------------------------------------------------------------
+# GOTCHAS.md governance wording guard
+# ---------------------------------------------------------------------------
+
+GOTCHAS = REPO_ROOT / ".agents" / "governance" / "GOTCHAS.md"
+
+
+def test_gotchas_commit_ceiling_defers_the_bypass_to_a_maintainer() -> None:
+    """The governance gotcha names the authority and the prohibition.
+
+    Added per Copilot review thread PRRT_kwDOQoWRls6ZbLuh: the QA report
+    claimed GOTCHAS.md was tested, but no guard opened it.
+    """
+    text = GOTCHAS.read_text(encoding="utf-8")
+    # The entry must name the authority
+    assert "human maintainer" in text, "GOTCHAS.md no longer names the human-maintainer authority"
+    # The entry must forbid self-application
+    assert "do not apply it yourself" in text, (
+        "GOTCHAS.md no longer forbids self-application of commit-limit-bypass"
+    )
+    # The entry must cite CONTRIBUTING.md
+    assert 'CONTRIBUTING.md' in text, "GOTCHAS.md no longer cites CONTRIBUTING.md"
