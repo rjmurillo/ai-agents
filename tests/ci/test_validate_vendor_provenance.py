@@ -793,6 +793,14 @@ class TestWorkflowContractRegression:
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 0
 
+    def test_workflow_pins_python_and_uv_versions(self) -> None:
+        workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
+            encoding="utf-8"
+        )
+
+        assert "python-version: '3.14.6'" in workflow
+        assert "version: '0.12.0'" in workflow
+
 
 # ── Relevance check (exercises production helper) ──
 

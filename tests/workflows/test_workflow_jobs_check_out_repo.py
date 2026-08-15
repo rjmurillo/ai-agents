@@ -58,6 +58,21 @@ def _tokenize_command_line(line: str) -> list[str]:
         return line.split()
 
 
+def _logical_shell_commands(run_text: str) -> list[str]:
+    commands: list[str] = []
+    current = ""
+    for line in run_text.splitlines():
+        stripped = line.rstrip()
+        if stripped.endswith("\\"):
+            current += f"{stripped[:-1]} "
+            continue
+        commands.append(f"{current}{line}")
+        current = ""
+    if current:
+        commands.append(current)
+    return commands
+
+
 def repo_paths_in_run(run: str) -> list[str]:
     """Return repo-relative paths the block actually executes or reads.
 
@@ -124,7 +139,7 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
         # echo/comment mentioning "git checkout-index" never short-circuits
         # the check (issue found in PR #4846 review).
         run_text = str(step.get("run") or "")
-        for line in run_text.splitlines():
+        for line in _logical_shell_commands(run_text):
             tokens = _tokenize_command_line(line)
             if not checked_out:
                 for token in tokens:
@@ -316,6 +331,21 @@ class TestFirstUnmetRepoDependency:
                     "run": (
                         "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
                         "--prefix=/tmp/candidate/\npython3 scripts/ci/x.py"
+                    ),
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_continued_external_prefix_does_not_satisfy_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a \\\n"
+                        "  --prefix=/tmp/candidate/\n"
+                        "python3 scripts/ci/x.py"
                     ),
                 }
             ]

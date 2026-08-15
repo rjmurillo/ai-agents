@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -622,35 +621,6 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
-    # PR #4846's 3rd origin/main-drift resync (bc179ad3a, #4893, already
-    # merged) synced .claude/hooks/hooks.json and its generated manifests to
-    # main's current content (needed for this PR's own trust-anchor pin
-    # table to have correct hashes to pin against), which changes the
-    # registration/timeout metrics this test compares against ADR-068,
-    # ADR-071, and ADR-085's prose. #4893 also updated that prose to match,
-    # but adopting the 3 ADR files here would touch 3 more files this
-    # branch does not otherwise own, pushing this branch's own file count
-    # past the 50-file scope-explosion hard limit
-    # (scripts/detect_scope_explosion.py) this session already hit once.
-    # This guard fires only when the ADRs are still on the pre-#4893 text
-    # (the one, specific, understood mismatch), before any assertion below
-    # runs, so a real future regression in the generated-metrics
-    # computation itself is not silently masked. Everything below is
-    # adopted verbatim from origin/main so this stays merge-clean and
-    # self-corrects to a passing run the moment the ADR prose next syncs,
-    # e.g. after this PR merges. Tracked for removal in #5014; remove once
-    # that issue's sync lands.
-    if "four registrations across two events" not in _normalized_text(
-        REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
-    ):
-        pytest.xfail(
-            "ADR-068/071/085 still carry pre-#4893 registration/timeout "
-            "prose; this branch adopted bc179ad3a's hooks.json/manifest "
-            "content without its ADR text to stay under the 50-file "
-            "scope-explosion hard limit. Tracked in #5014. See this "
-            "test's inline comment."
-        )
-
     hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
     source_counts: dict[str, int] = {}
     for path in hooks_root.glob("*/_manifest.json"):
