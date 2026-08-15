@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4995-frontmatter-module-collision.md"
+        "Evidence": ".agents/qa/000-pr-4999-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -121,6 +121,16 @@
         "Complete": true,
         "Evidence": "rework-warning: none"
       }
+    },
+    "markdownlint": {
+      "command": "npx markdownlint-cli2 on changed .md files",
+      "result": "0 issues (excluded by .markdownlint-cli2.jsonc globs)",
+      "filesChecked": 0
+    },
+    "retrospective": {
+      "section": "## Retrospective",
+      "learnings_captured": true,
+      "key_learning": "QA report naming must match CI glob *pr-{number}*. Memory index entries required by knowledge-persistence.md:23."
     }
   },
   "workLog": [
@@ -141,6 +151,6 @@
       "outcome": "Recorded the passing QA report and validated the completed session log."
     }
   ],
-  "endingCommit": "7dda345603",
+  "endingCommit": "dc025bc0fb8f68d6a911a5530eecd6ce795d4e12",
   "nextSteps": []
 }
