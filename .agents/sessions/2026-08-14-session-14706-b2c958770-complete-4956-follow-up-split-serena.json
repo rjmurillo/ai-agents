@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/issue-4879-doc-accuracy",
+    "startingCommit": "b61aa36d9",
+    "objective": "Complete PR 4956 follow-up and split Serena memory"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable in this harness; repository fallback memories were used."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/USAGE-MANDATORY.md and repository fallback instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and the inherited PR #4956 session summary."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed scripts for the GitHub, session, doc-accuracy, and SkillForge workflows before use."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/USAGE-MANDATORY.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read root and scaffold instructions, PR autofix protocol, project constraints, path-scoped rules, and binding ADRs."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the repository memory index and relevant PR, worktree, and validation memories through the fallback."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4879-doc-accuracy"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4879-doc-accuracy"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified a clean tracked worktree before implementation and after each committed unit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b61aa36d9"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-end items have evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md remained read-only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory committed in PR #4983 (3f913d7c9 on chore/pr-4956-memory-split). Doc-accuracy state preserved in authorized session storage (deferred to separate PR per no-bundling rule)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/pre_pr.py --markdown-lint-only exited 0."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4956-session-14706-completion-followup.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit.; memory split in 9aa3d27c182."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Six focused Linux tests, scoped Ruff, SkillForge quick validation, and build_all.py --check exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: completion gate found four suppressed findings; all four were corrected in this follow-up."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T03:30:00+00:00",
+      "action": "Reacquired PR 4956 and reviewed the four suppressed completion-gate findings.",
+      "outcome": "Verified unrelated memory scope, one inaccurate session claim, and two repository-only citation defects."
+    },
+    {
+      "timestamp": "2026-08-14T04:00:00+00:00",
+      "action": "Preserved and removed the unrelated Serena changes.",
+      "outcome": "Saved the exact 2,854-byte patch in authorized session storage with SHA-256 fed46127e43c501f8a2ba61fd036e19c9c88cac56a6dc5cde58e479ae865860a, then committed its removal as b985c58bae."
+    },
+    {
+      "timestamp": "2026-08-14T04:20:00+00:00",
+      "action": "Fixed portable citations and added a regression assertion.",
+      "outcome": "Canonical and generated skill docs now cite scripts/doc_accuracy.py; commit 52a1c5414a passed focused tests and hooks."
+    },
+    {
+      "timestamp": "2026-08-14T04:31:00+00:00",
+      "action": "Refreshed completion evidence.",
+      "outcome": "Reconciled all branch-created session and QA bindings with 52a1c5414a and documented the separate memory todo."
+    }
+  ],
+  "endingCommit": "92358004b8004da624d48215c3a47b7f8ea646b2",
+  "nextSteps": [
+    "Push PR #4956 under renewed lease and late live-state protection.",
+    "Reply to current review discourse with validation evidence.",
+    "Run readiness and completion gates, then merge only if all conditions are clean.",
+    "Complete split-pr-4956-memory from current origin/main."
+  ]
+}

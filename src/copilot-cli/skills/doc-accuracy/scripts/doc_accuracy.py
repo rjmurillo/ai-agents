@@ -10,7 +10,9 @@ Phase 3: Compilability - verify code example symbols exist in codebase
 
 Exit Codes:
     0: No findings at or above severity threshold
-    1: Error (file not found, parse error)
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
     10: Findings at or above severity threshold
 """
 
@@ -945,12 +947,23 @@ def run_compilability_check(
     claims_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Phase 3: Verify symbols in code examples exist in the codebase."""
+    source_symbols = assessment.get("source_symbols", [])
+    if not source_symbols:
+        return {
+            "status": "DID_NOT_RUN",
+            "reason": (
+                "No source symbols found; Phase 3 cannot verify "
+                "documentation references."
+            ),
+            "findings": [],
+        }
+
     findings: list[Finding] = []
     finding_counter = 0
 
     # Build symbol index from assessment
     symbol_index: dict[str, SourceSymbol] = {}
-    for sym_dict in assessment.get("source_symbols", []):
+    for sym_dict in source_symbols:
         sym = SourceSymbol(**sym_dict)
         symbol_index[sym.name] = sym
 
@@ -1056,7 +1069,10 @@ def run_compilability_check(
                     ),
                 ))
 
-    return {"findings": [f.to_dict() for f in findings]}
+    return {
+        "status": "COMPLETED",
+        "findings": [f.to_dict() for f in findings],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1077,6 +1093,19 @@ def check_gate(
     threshold_level = SEVERITY_ORDER.get(severity_threshold, 1)
     by_severity: dict[str, int] = {}
     blocking_count = 0
+
+    if (
+        compilability_data
+        and compilability_data.get("status") == "DID_NOT_RUN"
+    ):
+        return {
+            "verdict": "DID_NOT_RUN",
+            "reason": compilability_data["reason"],
+            "threshold": severity_threshold,
+            "blocking_findings": 0,
+            "total_findings": 0,
+            "by_severity": {},
+        }
 
     if compilability_data:
         for finding in compilability_data["findings"]:
@@ -1113,6 +1142,9 @@ def generate_markdown_report(
         f"(threshold: {gate_result['threshold']})"
     )
     lines.append("")
+    if reason := gate_result.get("reason"):
+        lines.append(f"**Reason:** {reason}")
+        lines.append("")
 
     if assessment:
         cs = assessment["coverage_summary"]
@@ -1186,6 +1218,8 @@ def _print_summary(
         f"Gate: {gate_result['verdict']} "
         f"(threshold: {gate_result['threshold']})"
     )
+    if reason := gate_result.get("reason"):
+        print(f"Reason: {reason}")
 
 
 def _load_json_artifact(path: Path, name: str) -> dict[str, Any] | None:
@@ -1347,11 +1381,17 @@ def main(argv: list[str] | None = None) -> int:
         (output_dir / "compilability-findings.json").write_text(
             json.dumps(compilability_data, indent=2), encoding="utf-8"
         )
-        finding_count = len(compilability_data["findings"])
-        print(
-            f"  Found {finding_count} compilability issues",
-            file=sys.stderr,
-        )
+        if compilability_data["status"] == "DID_NOT_RUN":
+            print(
+                f"  Did not run: {compilability_data['reason']}",
+                file=sys.stderr,
+            )
+        else:
+            finding_count = len(compilability_data["findings"])
+            print(
+                f"  Found {finding_count} compilability issues",
+                file=sys.stderr,
+            )
 
     # Gate evaluation
     gate_result = check_gate(compilability_data, args.severity_threshold)
@@ -1376,6 +1416,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if gate_result["verdict"] == "FAIL":
         return 10
+    if gate_result["verdict"] == "DID_NOT_RUN":
+        return 1
 
     return 0
 

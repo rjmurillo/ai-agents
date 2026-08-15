@@ -11,7 +11,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
@@ -46,6 +45,29 @@ _get_changed_files = mod._get_changed_files
 _git_env = mod._git_env
 _iter_git_files = mod._iter_git_files
 _repo_relative = mod._repo_relative
+
+
+def test_exit_code_documentation_covers_the_cli_contract() -> None:
+    """Canonical skill cites its bundled script and lists every exit code."""
+    contract = """Exit Codes:
+    0: No findings at or above severity threshold
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
+    10: Findings at or above severity threshold"""
+    skill_path = Path(mod.__file__).resolve().parents[1] / "SKILL.md"
+    skill_docs = skill_path.read_text(encoding="utf-8")
+    source_citation = (
+        "Canonical source bundled with this skill:\n\n"
+        "```text\n"
+        "scripts/doc_accuracy.py\n"
+        "```"
+    )
+
+    assert contract in (mod.__doc__ or "")
+    assert source_citation in skill_docs
+    assert (skill_path.parent / "scripts" / "doc_accuracy.py").is_file()
+    assert f"```text\n{contract}\n```" in skill_docs
 
 
 class TestShouldExclude:
@@ -1494,10 +1516,17 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert result["findings"] == []
 
     def test_finds_unresolved_symbol(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        assessment = {
+            "source_symbols": [{
+                "name": "ExistingWidget", "kind": "class",
+                "file": "a.py", "line": 1,
+                "signature": "class ExistingWidget:", "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1508,11 +1537,18 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert len(result["findings"]) == 1
         assert result["findings"][0]["category"] == "unresolved_symbol"
 
     def test_skips_framework_types(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        assessment = {
+            "source_symbols": [{
+                "name": "ExistingWidget", "kind": "class",
+                "file": "a.py", "line": 1,
+                "signature": "class ExistingWidget:", "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1523,6 +1559,33 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
+        assert result["findings"] == []
+
+    def test_does_not_run_without_source_symbols(self) -> None:
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "method_signature", "language": "",
+                "content": "MyWidget does things",
+                "symbols_referenced": ["MyWidget"],
+                "mapped_source": "",
+            }],
+        }
+
+        result = run_compilability_check({"source_symbols": []}, claims)
+
+        assert result["status"] == "DID_NOT_RUN"
+        assert result["findings"] == []
+        assert "No source symbols found" in result["reason"]
+
+    def test_does_not_run_without_source_symbols_or_claims(self) -> None:
+        result = run_compilability_check(
+            {"source_symbols": []},
+            {"claims": []},
+        )
+
+        assert result["status"] == "DID_NOT_RUN"
         assert result["findings"] == []
 
     def test_skips_powershell_code_examples(self) -> None:
@@ -1654,6 +1717,17 @@ class TestCheckGate:
         result = check_gate(None, "high")
         assert result["verdict"] == "PASS"
 
+    def test_did_not_run_is_inconclusive(self) -> None:
+        result = check_gate({
+            "status": "DID_NOT_RUN",
+            "reason": "No source symbols found.",
+            "findings": [],
+        }, "high")
+
+        assert result["verdict"] == "DID_NOT_RUN"
+        assert result["reason"] == "No source symbols found."
+        assert result["total_findings"] == 0
+
     def test_fail_critical(self) -> None:
         findings = {"findings": [{
             "severity": "critical", "id": "f1",
@@ -1712,6 +1786,21 @@ class TestGenerateMarkdownReport:
         assert "Bad symbol reference" in content
         assert "FAIL" in content
 
+    def test_includes_did_not_run_reason(self, tmp_path: Path) -> None:
+        gate = {
+            "verdict": "DID_NOT_RUN", "threshold": "high",
+            "reason": "No source symbols found.",
+            "blocking_findings": 0, "total_findings": 0,
+            "by_severity": {},
+        }
+        report_path = tmp_path / "report.md"
+
+        generate_markdown_report(None, None, None, gate, report_path)
+
+        content = report_path.read_text()
+        assert "DID_NOT_RUN" in content
+        assert "No source symbols found." in content
+
 
 class TestMain:
     def test_invalid_target(self, tmp_path: Path) -> None:
@@ -1719,28 +1808,61 @@ class TestMain:
         rc = main(["--target", str(nonexistent)])
         assert rc == 1
 
-    def test_scan_empty_repo(self, tmp_path: Path) -> None:
+    def test_scan_docs_only_repo_is_inconclusive(self, tmp_path: Path) -> None:
+        (tmp_path / "README.md").write_text(
+            "```python\nMyWidget()\n```\n",
+        )
+
         rc = main(["--target", str(tmp_path)])
-        assert rc == 0
-        # Check gate-result.json was written
-        gate_path = tmp_path / ".doc-accuracy" / "gate-result.json"
-        assert gate_path.exists()
-        gate = json.loads(gate_path.read_text())
-        assert gate["verdict"] == "PASS"
+
+        assert rc == 1
+        output_dir = tmp_path / ".doc-accuracy"
+        findings = json.loads(
+            (output_dir / "compilability-findings.json").read_text(),
+        )
+        gate = json.loads((output_dir / "gate-result.json").read_text())
+        assert findings["status"] == "DID_NOT_RUN"
+        assert findings["findings"] == []
+        assert gate["verdict"] == "DID_NOT_RUN"
+        assert gate["total_findings"] == 0
+
+    def test_scan_with_unresolved_symbol_fails(self, tmp_path: Path) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "main.py").write_text(
+            "def ExistingWidget():\n    pass\n",
+        )
+        (tmp_path / "README.md").write_text(
+            "```python\nMyWidget()\n```\n",
+        )
+
+        rc = main(["--target", str(tmp_path)])
+
+        assert rc == 10
+        gate = json.loads(
+            (tmp_path / ".doc-accuracy" / "gate-result.json").read_text(),
+        )
+        assert gate["verdict"] == "FAIL"
+        assert gate["blocking_findings"] == 1
 
     def test_markdown_format(self, tmp_path: Path) -> None:
         (tmp_path / "README.md").write_text("# Test\n")
         rc = main(["--target", str(tmp_path), "--format", "markdown"])
-        assert rc == 0
+        assert rc == 1
         report = tmp_path / ".doc-accuracy" / "report.md"
         assert report.exists()
         assert "Documentation Accuracy Report" in report.read_text()
+        assert "DID_NOT_RUN" in report.read_text()
 
     def test_summary_format(self, tmp_path: Path, capsys) -> None:
         rc = main(["--target", str(tmp_path), "--format", "summary"])
-        assert rc == 0
+        assert rc == 1
         captured = capsys.readouterr()
-        assert "Gate: PASS" in captured.out
+        assert "Gate: DID_NOT_RUN" in captured.out
+        assert "No source symbols found" in captured.out
 
     def test_custom_output_dir(self, tmp_path: Path) -> None:
         out = tmp_path / "custom-output"
@@ -1748,7 +1870,7 @@ class TestMain:
             "--target", str(tmp_path),
             "--output-dir", str(out),
         ])
-        assert rc == 0
+        assert rc == 1
         assert (out / "gate-result.json").exists()
 
     def test_phases_selection(self, tmp_path: Path) -> None:
