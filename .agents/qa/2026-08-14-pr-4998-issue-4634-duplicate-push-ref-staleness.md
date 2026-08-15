@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-b57affd0a-fix-issue-4634-remove-inert.json
-qaCommit: 08dff887792215b5589b8e324c8203d566a8288d
+qaCommit: 7daed6524f3e37a9e437d57df85fa88921529513
 ---
 
 # Issue 4634 QA Report
@@ -9,14 +9,14 @@ qaCommit: 08dff887792215b5589b8e324c8203d566a8288d
 ## Verdict
 
 PASS. One `push-ref-staleness` job remains, it reads the remote from a
-placeholder lefthook actually expands, and parsed-config tests now reject a
-duplicate job name in any hook.
+placeholder lefthook actually expands, remote lookup failures now fail closed,
+and parsed-config tests reject a duplicate job name in any hook.
 
 ## Scope
 
 - Base: `bc179ad3a31f8d1c5265aaf22ccab8409a522de2`
-- Head: `08dff887792215b5589b8e324c8203d566a8288d`
-- Last code commit: `08dff887792215b5589b8e324c8203d566a8288d`
+- Head: `7daed6524f3e37a9e437d57df85fa88921529513`
+- Last code commit: `7daed6524f3e37a9e437d57df85fa88921529513`
 - Issue: #4634
 
 ## Reproduction
@@ -83,7 +83,7 @@ URL that `git ls-remote` accepts.
 | Check | Result |
 |---|---|
 | `tests/ci/test_lefthook_config_integrity.py` (new) | 15 passed |
-| `tests/test_push_ref_staleness.py` | 17 passed |
+| `tests/test_push_ref_staleness.py` | 22 passed |
 | `tests/test_lefthook_integration.py` runtime end-to-end | 837 passed (whole module, includes the new end-to-end test) |
 | 11 lefthook, mutation, ratchet, and pushgate modules | 1120 passed, 2 skipped |
 | `tests/mutation/test_mutate_lefthook_ratchet_wiring.py` | 5 passed on a clean tree |
@@ -177,6 +177,15 @@ clean. Before adopting the stricter contract, grep across the repository found
 no `lefthook run pre-push` invocation against the real config in `scripts/`,
 `tests/`, `.claude/`, `docs/`, or `.github/`, so no legitimate caller now
 fails.
+
+## Review Round 2
+
+Copilot found that `_remote_sha` treated every failed `git ls-remote` call as
+an absent branch. Fixed in `7daed6524`. A missing ref is now only the
+successful, empty-output case. Network, unknown-remote, and timeout failures
+exit 3. Authentication failures exit 4. The focused module has 22 passing
+tests, including each failure class and the absent-ref control. Scoped Ruff is
+clean.
 
 ## Notes
 
