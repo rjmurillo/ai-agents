@@ -24,14 +24,14 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[2])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from scripts.ci.ruleset_required_contexts import (
+from scripts.ci.ruleset_required_contexts import (  # noqa: E402
     BRANCH,
     REFRESH_COMMAND,
     REPOSITORY,
     REQUIRED_CONTEXTS,
     RULESET_ID,
 )
-from scripts.github_core.checks_rollup import fetch_ruleset_required_contexts
+from scripts.github_core.checks_rollup import fetch_ruleset_required_contexts  # noqa: E402
 
 EXIT_OK = 0
 EXIT_DRIFT = 1

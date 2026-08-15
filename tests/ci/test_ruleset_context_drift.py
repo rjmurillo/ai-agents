@@ -17,7 +17,7 @@ def _capture(target: list[str], item: str) -> int:
     target.append(item)
     return 0
 
-from scripts.ci import ruleset_context_drift as drift
+from scripts.ci import ruleset_context_drift as drift  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = (
