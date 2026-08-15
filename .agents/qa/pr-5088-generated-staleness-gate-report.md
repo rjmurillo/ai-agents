@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5079.json
-qaCommit: 0c1fc3b427c450917be26d3ef6e2606f3376ce08
+qaCommit: 5b5986c2e19e4adbff231522cfa24f87ddbe03c3
 ---
 
 # QA report: generated-artifact staleness gate (PR #5088, issue #5079)
@@ -150,5 +150,18 @@ job now raced the gate's own `build_all --check` in the same parallel
 pre-push group (two unlocked snapshot/restore cycles over the same owned
 prefixes). The standalone job is removed; `tests/test_lefthook_integration.py`
 pins its absence with the rationale (847 tests pass).
+
+## Round 4: budget containment and message honesty (2026-08-15)
+
+Copilot round 4: (a) two 600s row budgets exceeded the 15m lefthook cap on
+pre-pr-validation, whose expiry kills the tree without the SIGINT path; the
+gate now shares one 420s aggregate budget (worst case + grace = 450s, half
+the cap), pinned by a test that parses the live lefthook.yml, and an
+exhausted budget reports EXTERNAL without spawning the next child. (b) The
+failure message no longer asserts staleness for every nonzero child exit;
+it directs the reader to the child's echoed output and gives both remedies,
+because the child exit contracts are ambiguous (build_all: 2 = config or
+staleness; sync: 1 = missing, unreadable, or drifted). 27 tests pass;
+ruff/mypy clean; corpus gate rc=0; ratchets unchanged.
 
 VERDICT: PASS

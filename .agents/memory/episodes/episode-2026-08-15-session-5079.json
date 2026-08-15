@@ -97,7 +97,8 @@
         "e005",
         "e006",
         "e007",
-        "e010"
+        "e010",
+        "e013"
       ],
       "leads_to": [
         "e009"
@@ -149,6 +150,30 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 4: budget containment",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T20:30:15+00:00",
+      "type": "commit",
+      "content": "Commit: 5b5986c2e19e4adbff231522cfa24f87ddbe03c3",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5079"
     }
@@ -158,7 +183,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 9
   },
   "lessons": []
