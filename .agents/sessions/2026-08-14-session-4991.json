@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code and base merges committed through d758496f4d34a60d5d7c0f359610e121ad4438f7"
+        "Evidence": "All non-evidence code committed through ed395dbc753c582278274b3b0e382e58a916a446"
       },
       "validationPassed": {
         "level": "MUST",
@@ -174,8 +174,12 @@
     {
       "action": "Merged latest origin/main and revalidated",
       "result": "Merged 841f375ca and passed 72 focused generator, structural, and installation tests"
+    },
+    {
+      "action": "Added SkillForge launcher runtime-contract coverage",
+      "result": "Three tests execute the documented block for Copilot-root, project-local fallback, and broken-root negative control; Ruff and tests pass"
     }
   ],
-  "endingCommit": "d758496f4d34a60d5d7c0f359610e121ad4438f7",
+  "endingCommit": "ed395dbc753c582278274b3b0e382e58a916a446",
   "nextSteps": []
 }
