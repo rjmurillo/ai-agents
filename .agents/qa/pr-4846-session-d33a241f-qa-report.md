@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 18725d5ded4e53cd2e27d92a06753c2299e73a06
+qaCommit: b3b3c3555717894e82d83492ecde47261ec262a3
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `18725d5ded4e53cd2e27d92a06753c2299e73a06`
+Validated the branch at commit `b3b3c3555717894e82d83492ecde47261ec262a3`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -46,8 +46,9 @@ passes 215 tests, and fail-open guard tests pass 21 tests. Ruff, mypy,
 actionlint, workflow validation, and independent security review all pass.
 The final review cleanup removes duplicate sub-agent behavior tests and makes
 the checkout dependency guard reject external checkout-index prefixes.
-The dedicated hook suites pass 85 tests. The workflow guard passes 148 tests.
-After the latest main refresh, 215 provenance tests and 87 hook tests pass.
+Final suites pass: 216 provenance tests, 149 workflow checkout tests, and
+25 hook-contract tests. Exact Python and uv pins passed independent security
+review. Ruff, actionlint, and workflow validation pass.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

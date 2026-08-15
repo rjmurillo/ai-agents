@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to trust-pin refresh commit 18725d5ded4e53cd2e27d92a06753c2299e73a06."
+        "Evidence": "QA evidence rebound to runtime-pin commit b3b3c3555717894e82d83492ecde47261ec262a3."
       },
       "validationPassed": {
         "level": "MUST",
@@ -211,8 +211,12 @@
     {
       "action": "Merged current main and refreshed three trust-anchor hashes.",
       "result": "The provenance suite passes 215 tests, and compact-checkpoint plus hook-utility tests pass 87 tests."
+    },
+    {
+      "action": "Pinned Python 3.14.6 and uv 0.12.0, joined continued shell commands, and removed the expired ADR waiver.",
+      "result": "216 provenance tests, 149 checkout tests, and 25 hook-contract tests pass. Independent security review returned PASS."
     }
   ],
-  "endingCommit": "18725d5ded4e53cd2e27d92a06753c2299e73a06",
+  "endingCommit": "b3b3c3555717894e82d83492ecde47261ec262a3",
   "nextSteps": []
 }
