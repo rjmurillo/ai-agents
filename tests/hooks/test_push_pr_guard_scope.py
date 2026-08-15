@@ -68,7 +68,7 @@ def _in_scope(command: str) -> str:
         "ls -la",
     ],
 )
-def test_dispatchers_allow_commands_outside_guard_scope(
+def test_claude_allow_commands_outside_guard_scope(
     tmp_path: Path,
     runner,
     command: str,
@@ -128,7 +128,7 @@ def test_dispatchers_allow_commands_outside_guard_scope(
         "./attacker/pr/new_pr.py",
     ],
 )
-def test_dispatchers_deny_direct_lookalike_execution(
+def test_claude_deny_direct_lookalike_execution(
     tmp_path: Path,
     runner,
     command: str,
@@ -185,7 +185,7 @@ def test_dispatchers_deny_direct_lookalike_execution(
         "echo {1..10000}",
     ],
 )
-def test_dispatchers_allow_legitimate_brace_expansion(
+def test_claude_allow_legitimate_brace_expansion(
     tmp_path: Path,
     runner,
     command: str,
@@ -224,7 +224,7 @@ def test_dispatchers_allow_legitimate_brace_expansion(
         "python3 -I attacker/pr/n{1..3..1}ew_pr.py",
     ],
 )
-def test_dispatchers_deny_range_obfuscated_new_pr(
+def test_claude_deny_range_obfuscated_new_pr(
     tmp_path: Path,
     runner,
     command: str,
@@ -262,7 +262,7 @@ def test_dispatchers_deny_range_obfuscated_new_pr(
         "python3 -c \"exec(open('attacker/pr/new_pr.py').read())\"",
     ],
 )
-def test_dispatchers_deny_commands_inside_guard_scope(
+def test_claude_deny_commands_inside_guard_scope(
     tmp_path: Path,
     runner,
     command: str,
@@ -283,7 +283,7 @@ def test_dispatchers_deny_commands_inside_guard_scope(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_dynamic_launcher_that_never_names_the_script(
+def test_claude_allow_dynamic_launcher_that_never_names_the_script(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -308,7 +308,7 @@ def test_dispatchers_allow_dynamic_launcher_that_never_names_the_script(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_unrelated_compound_bash(
+def test_claude_allow_unrelated_compound_bash(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -328,7 +328,7 @@ def test_dispatchers_allow_unrelated_compound_bash(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_compound_bash_reaching_new_pr(
+def test_claude_deny_compound_bash_reaching_new_pr(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -345,7 +345,7 @@ def test_dispatchers_deny_compound_bash_reaching_new_pr(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_unrelated_shell_expansion(
+def test_claude_allow_unrelated_shell_expansion(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -357,7 +357,7 @@ def test_dispatchers_allow_unrelated_shell_expansion(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_single_quoted_substitution_text(
+def test_claude_allow_single_quoted_substitution_text(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -369,7 +369,7 @@ def test_dispatchers_allow_single_quoted_substitution_text(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_active_parameter_expansion_in_printf(
+def test_claude_allow_active_parameter_expansion_in_printf(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -382,7 +382,7 @@ def test_dispatchers_allow_active_parameter_expansion_in_printf(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_active_parameter_expansion_in_scope(
+def test_claude_deny_active_parameter_expansion_in_scope(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -396,7 +396,7 @@ def test_dispatchers_deny_active_parameter_expansion_in_scope(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_other_python_scripts(
+def test_claude_allow_other_python_scripts(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -416,7 +416,7 @@ def test_dispatchers_allow_other_python_scripts(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_unresolvable_python_script_operand(
+def test_claude_deny_unresolvable_python_script_operand(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -431,7 +431,7 @@ def test_dispatchers_deny_unresolvable_python_script_operand(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_many_operands_without_hanging(
+def test_claude_allow_many_operands_without_hanging(
     tmp_path: Path,
     runner,
 ) -> None:
