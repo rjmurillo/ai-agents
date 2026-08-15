@@ -186,13 +186,17 @@
     {
       "action": "Read round-11's 5 findings: (1) the analysis file's Method-section summary sentence still described the delegation probe writing to a single shared --log-dir ./logs, contradicting the separated treatment/control commands documented further down in the same file; (2) QA-14695's aeaa13f1c-through-ee57202b8 revision-history row still literally reads \"(this commit)\" for the ee57202b8 row; (3) QA-15001's report has the same stale \"(this commit)\" for its ee57202b8 row; (4) QA-14706's own report has a stale \"(this commit)\" for its round-10b row, now known to be 49ea48f0d; (5) this handoff was stale, still describing round 9 as local/uncommitted after a959d4506/ee57202b8/49ea48f0d were all already pushed",
       "result": "Planned round-11 as a content-fix commit (analysis file wording, this handoff rewrite, this workLog entry) followed by a rebind split into two commits by the atomic-commit cap (session-14695+session-15001+their 2 QA reports; session-14706's own log+its own QA report), mirroring the round-10a/round-10b precedent, since the analysis-file edit is again outside QA_EVIDENCE_PREFIXES and restales all three bindings."
+    },
+    {
+      "action": "Committed the round-11 content fix as ae927ffc7 (analysis file wording, handoff rewrite, this workLog entry above). Built and committed the round-11a rebind as fd8fa1522 (session-14695/session-15001 logs' endingCommit/episodeMetrics.comparison.head, both QA reports' qaCommit, all rebound from a959d4506 to ae927ffc7; fixed both QA reports' stale ee57202b8 self-reference). Confirmed PR_HEAD_SHA=ae927ffc7 scripts/ci/validate_session_protocol.py reports COMPLIANT for session-14695 and session-15001 at that head. This same head reports NON_COMPLIANT (QA report is stale, analysis file) for this session's own log, expected until this log's own endingCommit/QA report are rebound in this same round-11b closing commit",
+      "result": "Rebinding this session's own endingCommit from a959d4506 to ae927ffc7 and this session's own QA report's qaCommit to match, fixing the round-11 finding-4 placeholder (this report's stale \"(this commit)\" for the round-10b row, now naming 49ea48f0d), in this same commit."
     }
   ],
-  "endingCommit": "a959d45063acd46e0ba1f3999a7f96989e2bd698",
+  "endingCommit": "ae927ffc735db019a97621446438b1bc89124c8d",
   "nextSteps": [
-    "Commit the round-11 content fix (analysis file, handoff, this workLog entry) with lease renewal and fresh live-state check",
-    "Rebind session-14695/session-15001/their QA reports and session-14706/its own QA report forward to the round-11 content commit, split into two commits by the atomic-commit cap, fixing the three known \"(this commit)\" placeholders with the actual known SHAs (ee57202b8, 49ea48f0d) along the way",
-    "Push, wait for CI, re-check for a round-12 active-findings cycle (has recurred after every round so far)",
+    "Push commits ae927ffc7, fd8fa1522, and this round-11b closing commit under a final lease renewal and live-state re-check",
+    "Wait for CI to reach a terminal state, renewing the lease every 2-3 minutes; re-verify PR_HEAD_SHA=<pushed HEAD> scripts/ci/validate_session_protocol.py --session-file <this log> is COMPLIANT once the real head SHA is known",
+    "Re-check for a round-12 active-findings cycle (has recurred after every round so far)",
     "Resolve the known bot-authored unresolved review threads via resolve_pr_review_thread.py once fixes are confirmed live",
     "Re-run run_completion_gate.py --pull-request 4954 for a final result and release the lease unconditionally"
   ],
