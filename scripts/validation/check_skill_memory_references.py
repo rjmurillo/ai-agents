@@ -212,7 +212,7 @@ def resolves(memories_root: Path, name: str) -> bool:
 
     # Resolve existence from git index; filesystem fallback for non-repos.
     repo_root = _find_repo_root(memories_root)
-    rel_path = str(reference_path.relative_to(repo_root))
+    rel_path = resolved_reference.relative_to(repo_root).as_posix()
     return bool(path_exists_in_repo(repo_root, rel_path))
 
 
