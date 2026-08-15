@@ -2,7 +2,7 @@
 
 ## Question
 
-`main`'s branch ruleset sets `strict_required_status_checks_policy: false`, so
+`main`'s branch ruleset sets `strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so
 being behind `main` does not formally block a merge. Nevertheless the count
 ratchets still make stale branches fail in practice. Does branch freshness
 matter even without the ruleset requiring it?

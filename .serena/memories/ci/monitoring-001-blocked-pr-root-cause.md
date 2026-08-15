@@ -65,7 +65,7 @@ gh pr checks $PR_NUMBER --repo $REPO | grep -E "(pending|fail|skipping)"
 The principle above holds. Three of its specifics no longer match the repo:
 
 1. "Needs main merge" is NOT a valid diagnosis. The main ruleset
-   sets `strict_required_status_checks_policy: false`, so being behind main
+   sets `strict_required_status_checks_policy: false` (measured 2026-08-14; reverted 2026-08-10), so being behind main
    does not block a merge. Do not refresh the branch unless a status check
    itself requires current content (e.g. count ratchets).
 2. "Awaiting review" is rarely the answer. `required_approving_review_count`
