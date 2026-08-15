@@ -69,7 +69,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-15-fix-4902-completion-gate.md"
+        "Evidence": ".agents/qa/2026-08-15-pr-5033-fix-4902-completion-gate.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -123,5 +123,8 @@
   },
   "nextSteps": [
     "Open PR, pass CI, merge"
+  ],
+  "notes": [
+    "Renamed QA report to match CI discovery pattern"
   ]
 }
