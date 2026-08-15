@@ -38,7 +38,7 @@
     {"task": "Correct .github/AGENTS.md status note", "outcome": "Updated to reflect 2026-08-14 measurement"},
     {"task": "Add drift check script with JSON baseline", "outcome": "check_ruleset_params_drift.py with 8 tests"}
   ],
-  "endingCommit": "223eb03f9d93fb01bd33d3c01772522503df3946",
+  "endingCommit": "b6f3b7c30b8925681ba573c38956e37c9e6eaf40",
   "nextSteps": [
     "Open PR with Fixes #4646, pass CI, merge"
   ],
@@ -47,7 +47,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "f92949aac3",
-      "head": "223eb03f9d93fb01bd33d3c01772522503df3946"
+      "head": "b6f3b7c30b8925681ba573c38956e37c9e6eaf40"
     }
   }
 }
