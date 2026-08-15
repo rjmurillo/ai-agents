@@ -1,0 +1,60 @@
+# Placeholder Identity Check (Issue #5008)
+#
+# CI backstop that detects placeholder identity "Test <test@test.com>" in any
+# commit on a PR branch. The pre-push hook already blocks new pushes, but
+# commits pushed by automated sessions that bypass hooks can still reach the
+# branch. This workflow catches those before merge.
+#
+# Logic lives in scripts/validation/check_placeholder_identity.py (ADR-006:
+# thin workflows). Runs on every PR unconditionally (no path filter) because
+# any commit could carry the leak.
+
+name: Placeholder Identity Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  merge_group:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-placeholder-identity:
+    name: Check placeholder identity
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Determine push range
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MG_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          MG_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          RANGE="$(python3 scripts/ci/determine_placeholder_range.py)"
+          echo "push_range=${RANGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Check for placeholder identity in commits
+        env:
+          PUSH_RANGE: ${{ steps.range.outputs.push_range }}
+        run: python3 scripts/validation/check_placeholder_identity.py --push-range "$PUSH_RANGE" --repo-root .

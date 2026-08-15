@@ -183,7 +183,11 @@ def remove_worktree(pr_number: int, worktree_root: Path, force: bool = False) ->
     return True
 
 
-def push_worktree_changes(pr_number: int, worktree_root: Path) -> bool:
+def push_worktree_changes(
+    pr_number: int,
+    worktree_root: Path,
+    operator: str = "rjmurillo-bot",
+) -> bool:
     status = get_worktree_status(pr_number, worktree_root)
     if not status.exists:
         print(f"WARNING: Worktree for PR #{pr_number} does not exist")
@@ -195,6 +199,10 @@ def push_worktree_changes(pr_number: int, worktree_root: Path) -> bool:
 
     cwd = status.path
     if not status.clean:
+        # Issue #5008: tests can poison a worktree's local git identity after
+        # setup. Re-pin immediately before the cleanup commit so the pushed
+        # commit cannot inherit a leaked placeholder identity.
+        reset_worktree_identity(cwd, operator=operator)
         print(f"PR #{pr_number}: Committing changes...")
         result = run_git("add", ".", cwd=cwd)
         if result.returncode != 0:
@@ -276,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
         if op == "cleanup":
             print("\n=== Cleaning up worktrees ===")
             for pr in args.pr_numbers:
-                push_worktree_changes(pr, args.worktree_root)
+                push_worktree_changes(pr, args.worktree_root, operator=args.operator_identity)
             for pr in args.pr_numbers:
                 remove_worktree(pr, args.worktree_root, force=args.force)
             print("\n=== Remaining worktrees ===")
