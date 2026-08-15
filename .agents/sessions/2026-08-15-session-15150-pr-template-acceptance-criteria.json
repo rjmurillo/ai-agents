@@ -74,7 +74,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-process-template-acceptance-criteria-qa.md"
+        "Evidence": ".agents/qa/pr-5095-template-acceptance-criteria-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
