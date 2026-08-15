@@ -153,7 +153,11 @@ jobs:
   aggregate-results:
     name: Aggregate Results
     needs: [test-install-and-config, test-scan-language, test-scan-json-output]
-    if: always()
+    # !cancelled() rather than always(): cancel-in-progress is true here, so
+    # every push while a run is live supersedes it, and always() would turn the
+    # cancelled dependencies into a red check on the PR head (Issue #5097).
+    # !cancelled() still runs on failed and skipped dependencies.
+    if: ${{ !cancelled() }}
     # Aggregate job can use ARM since it doesn't run CodeQL CLI
     runs-on: ubuntu-24.04-arm
     permissions:
