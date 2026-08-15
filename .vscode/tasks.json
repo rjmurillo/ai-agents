@@ -4,10 +4,9 @@
     {
       "label": "CodeQL: Full Scan",
       "type": "shell",
-      "command": "pwsh",
+      "command": "python3",
       "args": [
-        "-NoProfile",
-        ".codeql/scripts/Invoke-CodeQLScan.ps1"
+        ".codeql/scripts/invoke_codeql_scan.py"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -25,11 +24,10 @@
     {
       "label": "CodeQL: Scan Current File",
       "type": "shell",
-      "command": "pwsh",
+      "command": "python3",
       "args": [
-        "-NoProfile",
-        ".codeql/scripts/Invoke-CodeQLScan.ps1",
-        "-Languages",
+        ".codeql/scripts/invoke_codeql_scan.py",
+        "--languages",
         "${input:languageForCurrentFile}"
       ],
       "problemMatcher": "$msCompile",
@@ -45,11 +43,10 @@
     {
       "label": "CodeQL: Install CLI",
       "type": "shell",
-      "command": "pwsh",
+      "command": "python3",
       "args": [
-        "-NoProfile",
-        ".codeql/scripts/Install-CodeQL.ps1",
-        "-AddToPath"
+        ".codeql/scripts/install_codeql.py",
+        "--add-to-path"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -61,13 +58,12 @@
       }
     },
     {
-      "label": "CodeQL: Rebuild Database",
+      "label": "CodeQL: Quick Scan (cached databases)",
       "type": "shell",
-      "command": "pwsh",
+      "command": "python3",
       "args": [
-        "-NoProfile",
-        ".codeql/scripts/Invoke-CodeQLScan.ps1",
-        "-UseCache:$false"
+        ".codeql/scripts/invoke_codeql_scan.py",
+        "--use-cache"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -82,10 +78,9 @@
     {
       "label": "CodeQL: Validate Config",
       "type": "shell",
-      "command": "pwsh",
+      "command": "python3",
       "args": [
-        "-NoProfile",
-        ".codeql/scripts/Test-CodeQLConfig.ps1"
+        ".codeql/scripts/test_codeql_config.py"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -103,11 +98,10 @@
       "type": "pickString",
       "description": "Select language to scan",
       "options": [
-        "powershell",
         "python",
         "actions"
       ],
-      "default": "powershell"
+      "default": "python"
     }
   ]
 }

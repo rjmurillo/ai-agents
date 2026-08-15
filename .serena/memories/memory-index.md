@@ -186,3 +186,4 @@
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1170)
+|codeql scan wrapper delegate python issue 4921: [codeql/codeql-scan-wrapper-python-delegates](codeql/codeql-scan-wrapper-python-delegates.md) (930)
