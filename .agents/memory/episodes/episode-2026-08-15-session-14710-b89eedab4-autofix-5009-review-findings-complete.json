@@ -169,7 +169,9 @@
       "caused_by": [
         "e014"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e016"
+      ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
@@ -184,15 +186,39 @@
         "e013"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T10:55:00+00:00",
+      "type": "milestone",
+      "content": "calibrate-redos-budget",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T10:49:58+00:00",
+      "type": "commit",
+      "content": "Commit: baf63b657a81a73ee8d91701ec8a7d34a7051086",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     }
   ],
   "metrics": {
-    "duration_minutes": 420,
+    "duration_minutes": 450,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 417
+    "commits": 5,
+    "files_changed": 418
   },
   "lessons": []
 }

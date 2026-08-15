@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: 3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191
+qaCommit: baf63b657a81a73ee8d91701ec8a7d34a7051086
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -21,6 +21,7 @@ Validated commits:
 - `b485b6385173b9a5f298e624b6aa42dfb0233b42`
 - `afd035053ef860735383e1551116f66beaa2faf4`
 - `3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191`
+- `baf63b657a81a73ee8d91701ec8a7d34a7051086`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -61,6 +62,7 @@ Sizes measured with `wc -lc` at the QA commit.
 | Retrospective evidence | Placeholder and prohibited-dash scans | Passed |
 | Final output gates | `uv run pytest tests/skills/dx-review -q` | 23 passed |
 | Task-boundary security | Read-only reviewer, untrusted-data labeling, delegated-command prohibition | Approved |
+| ReDoS timing calibration | 30 fresh runs of the 64 KiB separator cases | 30 passed; security approved |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 
