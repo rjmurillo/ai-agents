@@ -85,7 +85,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-5071-mypy-diff-scope.md"
+        "Evidence": ".agents/qa/pr-5084-issue-5071-mypy-diff-scope.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -130,7 +130,7 @@
     }
   ],
   "nextSteps": [
-    "Push branch, open draft PR with Fixes #5071, drive CI to green"
+    "Drive PR #5084 to green: watch CI and review threads until mergeable"
   ],
   "episodeMetrics": {
     "filesChanged": 12,
