@@ -16,6 +16,8 @@ tools_copilot:
 
 # Merge Resolver Agent
 
+<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.agents/sessions/, .agents/qa/, .agents/retrospective/); an install without that tree has no such conflicts to classify. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+
 ## Style Guide Compliance
 
 Key requirements:
