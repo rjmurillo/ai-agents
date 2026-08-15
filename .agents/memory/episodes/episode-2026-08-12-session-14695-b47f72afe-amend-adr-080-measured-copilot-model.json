@@ -128,6 +128,19 @@
         "e007",
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T15:11:08+00:00",
+      "type": "commit",
+      "content": "Commit: 9996e0905792abb6016b38cfa1f2afc01f692fb0",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     }
@@ -137,8 +150,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 7
+    "commits": 5,
+    "files_changed": 10
   },
   "lessons": []
 }

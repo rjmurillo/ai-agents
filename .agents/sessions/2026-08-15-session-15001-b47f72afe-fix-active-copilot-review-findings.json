@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), plus this session log and the handoff rewrite committed separately"
+        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), plus this session log and the handoff rewrite committed separately. endingCommit was later rebound to 9996e0905 by session-14706-pr4954-current, a round-3 autofix that narrowed two analysis-file sentences and thereby staled this session's QA report (analysis file is evidence this QA scope covers); see that session's own log and .agents/qa/000-session-15001-pr-4954-round2-findings-qa.md revision history."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Dash guard, full-mode validate_session_json.py, retrospective evidence check, ADR change detector, episode validator, and QA binding all verified passing; see workLog and the per-issue handoff for exact commands and output"
+        "Evidence": "Dash guard, full-mode validate_session_json.py, retrospective evidence check, ADR change detector, episode validator, and QA binding all verified passing; see workLog and the per-issue handoff for exact commands and output. Re-verified after the 9996e0905 rebind that session_qa_binding()/validate_qa_report() resolve cleanly against the new endingCommit."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -150,7 +150,7 @@
       "timestamp": "2026-08-15T10:45:00Z"
     }
   ],
-  "endingCommit": "ac53f68020f20ed320ee4c61e79b3d9b1ed1f445",
+  "endingCommit": "9996e0905792abb6016b38cfa1f2afc01f692fb0",
   "nextSteps": [
     "Rewrite .agents/sessions/handoffs/2026-08-15-2840-handoff.md in a follow-up commit: remove all em/en-dashes, remove the copy-template HTML comment placeholder, correct the CI-mode claim to match this session's finding, correct the retrospective claim (now genuinely satisfied by this session log's Retrospective section below), and point the reciprocal session-log reference at this file (.agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json) instead of the Aug-12 log.",
     "If desired, open a follow-up issue to independently probe (not just infer) whether model_tier-resolved plugin agents actually override an operator's explicit session model, closing the open gap recorded in ADR-080 finding 4.",

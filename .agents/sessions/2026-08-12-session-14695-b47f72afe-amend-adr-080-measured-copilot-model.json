@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Model_tier override fix committed at 0edf6e063; prior repairs at 1e0a6a775 and earlier. A subsequent dash-only debate-log punctuation fix (required by the repository's authored-text dash ban) was committed at c860ae452; see session 15001 for that round's full repair work."
+        "Evidence": "Model_tier override fix committed at 0edf6e063; prior repairs at 1e0a6a775 and earlier. A subsequent dash-only debate-log punctuation fix (required by the repository's authored-text dash ban) was committed at c860ae452; see session 15001 for that round's full repair work. A further round-3 fix narrowing two overclaiming sentences in the analysis file (Copilot findings against the round-2 fix commits) was committed at 9996e0905; endingCommit/episodeMetrics.comparison.head and this QA report are rebound to it since it touches evidence this QA scope covers."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings on the finding-4 fix; a second full 6-agent review (6 of 6 ACCEPT) covered the subsequent dash-only punctuation fix to the same debate log. QA report binds to c860ae452 (episodeMetrics.comparison.head/endingCommit)."
+        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings on the finding-4 fix; a second full 6-agent review (6 of 6 ACCEPT) covered the subsequent dash-only punctuation fix to the same debate log. The round-3 analysis-file wording fix (9996e0905) narrows two sentences without changing any measurement, citation, or finding, so no new ADR-review pass was required (detect_adr_changes.py does not flag .agents/analysis/ paths). QA report binds to 9996e0905 (episodeMetrics.comparison.head/endingCommit)."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -145,14 +145,14 @@
       "timestamp": "2026-08-15T07:09:54Z"
     }
   ],
-  "endingCommit": "c860ae45263f20f4dbe22b3a4b3b971490b326b5",
+  "endingCommit": "9996e0905792abb6016b38cfa1f2afc01f692fb0",
   "nextSteps": [],
   "episodeMetrics": {
-    "filesChanged": 7,
+    "filesChanged": 10,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "90be321b3bfad576e3c1d440402d4333a87326c9",
-      "head": "c860ae45263f20f4dbe22b3a4b3b971490b326b5"
+      "head": "9996e0905792abb6016b38cfa1f2afc01f692fb0"
     }
   }
 }

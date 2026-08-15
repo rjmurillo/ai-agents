@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model.json
-qaCommit: c860ae45263f20f4dbe22b3a4b3b971490b326b5
+qaCommit: 9996e0905792abb6016b38cfa1f2afc01f692fb0
 ---
 
 # QA Report: Session 14695 ADR-080 Amendment
@@ -24,7 +24,8 @@ session-protocol correction.
 | `0edf6e063` | Fixed finding 4's "harmless" contradiction with finding 1 (full 6-agent adr-review, debate log round 2) |
 | `5f0b54233` | Regenerated the stale episode via `extract_session_episode.py --preserve` with an authoritative `episodeMetrics` override (6 files across all session-owned commits, `90be321b3..0edf6e063`); rebound this QA report and the session's `endingCommit` to `0edf6e063` |
 | `c860ae452` | Removed both prohibited em-dashes from the round-2 debate-log section (punctuation only, no finding/verdict/citation change); ran a second full 6-agent adr-review (6 of 6 ACCEPT) |
-| (this commit) | Demoted `sessionStart.serenaInstructions` and `sessionEnd.serenaMemoryUpdated` from MUST to SHOULD with honest justification (Aug-12 session's live window is closed; no Serena tool evidence can be retroactively fabricated); corrected the prior incorrect claim that the local `git_hook_policy.py sessions` gate is CI-equivalent; regenerated the episode again via `--preserve` to fix a causal-order bug (a workLog entry lacked a timestamp, so its extracted event inherited the session's nominal 2026-08-12 date instead of its real 2026-08-15 commit time); rebound `endingCommit`/`episodeMetrics.comparison.head` and this QA report to `c860ae452` |
+| `1301b4c09` | Demoted `sessionStart.serenaInstructions` and `sessionEnd.serenaMemoryUpdated` from MUST to SHOULD with honest justification (Aug-12 session's live window is closed; no Serena tool evidence can be retroactively fabricated); corrected the prior incorrect claim that the local `git_hook_policy.py sessions` gate is CI-equivalent; regenerated the episode again via `--preserve` to fix a causal-order bug (a workLog entry lacked a timestamp, so its extracted event inherited the session's nominal 2026-08-12 date instead of its real 2026-08-15 commit time); rebound `endingCommit`/`episodeMetrics.comparison.head` and this QA report to `c860ae452` |
+| `9996e0905` | Round-3 autofix (session-14706-pr4954-current) narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (Copilot findings against round-2's fix commits: the "everything measured" overclaim, and the "agents are translated" overgeneralization now scoped to generated plugin agents only). No measurement, citation, or finding changed, only wording. Because the analysis file is evidence this QA scope covers, `scripts/ci/validate_session_protocol.py` (which sets `--validation-head` to the live PR head, unlike the local `validate_session_json.py` invocation used earlier in this report) correctly flagged the prior binding as stale; rebound `endingCommit`/`episodeMetrics.comparison.head` (now 10 files changed against base) and this QA report's `qaCommit` to `9996e0905`. |
 
 ## Evidence
 
@@ -76,8 +77,20 @@ session-protocol correction.
   `startingCommit` picks up 3 unrelated upstream commits absorbed by a rebase
   and would overstate this).
 - `session_qa_binding()`/`validate_qa_report()` resolve cleanly end-to-end
-  against `c860ae452` (this report's `qaCommit`, the session's
+  against `9996e0905` (this report's `qaCommit`, the session's
   `endingCommit`, and `episodeMetrics.comparison.head` all agree).
+  `episodeMetrics.filesChanged` is 10, matching `git diff --stat
+  90be321b3..9996e0905` against base.
+- Round-3 fix: `scripts/ci/validate_session_protocol.py --session-file
+  <this log>` (which passes `--validation-head` from the live PR head,
+  unlike a bare `validate_session_json.py` invocation) reported "QA report
+  is stale; code changed after its commit:
+  .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md" once
+  9996e0905 landed, since that file is evidence this QA scope covers.
+  Rebound as described in the revision-history row above; re-verified with
+  `PR_HEAD_SHA` set to this rebind commit's own hash after committing (see
+  session-14706's autofix session evidence) that the staleness error no
+  longer reproduces.
 
 ## Verdict
 
