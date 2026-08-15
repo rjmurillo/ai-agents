@@ -29,6 +29,13 @@ _LEFTHOOK = _REPO_ROOT / "lefthook.yml"
 # The fast stage: every blocking gate that must fail before the expensive
 # stage starts. The stdin gates sit in the piped group; the rest sit in the
 # fast parallel group.
+# The singleton guards that run ahead of both fast-stage groups, in order.
+SINGLETON_GUARDS = (
+    "repair-packed-refs",
+    "mutation-safety",
+    "push-ref-staleness",
+)
+
 FAST_STDIN_GATES = (
     "push-ref-policy",
     "security-suppression-policy",
@@ -82,11 +89,16 @@ EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     }
 )
 
-# Pre-#5066 exception, preserved as-is: these two carry `use_stdin: true`
-# inside the expensive `parallel: true` group. They predate MUST-21 and only
-# use the payload to derive the changed-file range. Do not grow this set; a
-# new stdin consumer belongs in the piped group or at the top level.
-PARALLEL_STDIN_EXCEPTIONS = frozenset({"hook-anchoring-e2e", "plugin-load-e2e"})
+# Documented exceptions: these carry `use_stdin: true` inside the expensive
+# `parallel: true` group and only use the payload to derive the changed-file
+# range. The two e2e jobs predate MUST-21; observation-sync-advisory joined
+# on main via the issue #4492-pattern fix (stdin-derived push range replacing
+# the {push_files} fallback that overran its cap on first pushes). Do not
+# grow this set without the same range-derivation justification; a new stdin
+# consumer belongs in the piped group or at the top level.
+PARALLEL_STDIN_EXCEPTIONS = frozenset(
+    {"hook-anchoring-e2e", "plugin-load-e2e", "observation-sync-advisory"}
+)
 
 # Ceilings for jobs scheduled ahead of the expensive stage, set to the
 # largest cap each stage half already carries (session-json-validation holds
@@ -405,27 +417,39 @@ class TestFastStageMembershipIsExact:
             "surface only after pytest burned (issue #5066)."
         )
 
-    def test_every_pre_push_job_is_accounted_for_by_exactly_one_stage(self) -> None:
-        # The complement pin: with every stage exact-pinned (fast rosters
-        # above, EXPENSIVE_STAGE_ROSTER here, singleton guards enumerated), a
-        # brand-new pre-push job cannot land anywhere without a roster
-        # decision in this module.
+    def test_singleton_guards_match_the_roster_in_order(self) -> None:
+        # Deriving the singleton set from the config would auto-account any
+        # new top-level job (flagged by Copilot review on PR #5083); the
+        # roster is explicit so a new singleton is a decision too.
         config = _load_config()
         entries = _top_level_entries(config)
         scan_index = _entry_index_of(config, "security-scan")
         assert scan_index is not None
-        singleton_guards = {
+        names = [
             str(entry.get("name"))
             for entry in entries[:scan_index]
             if "group" not in entry
-        }
+        ]
+        assert names == list(SINGLETON_GUARDS), (
+            f"Top-level singleton guards are {names}, roster is "
+            f"{list(SINGLETON_GUARDS)}. Update SINGLETON_GUARDS deliberately "
+            "(issue #5066)."
+        )
+
+    def test_every_pre_push_job_is_accounted_for_by_exactly_one_stage(self) -> None:
+        # The complement pin: with every stage exact-pinned (SINGLETON_GUARDS,
+        # the fast rosters, security-scan, EXPENSIVE_STAGE_ROSTER), a
+        # brand-new pre-push job cannot land anywhere without a roster
+        # decision in this module.
+        config = _load_config()
+        entries = _top_level_entries(config)
         all_names = {
             str(job.get("name"))
             for entry in entries
             for job in _jobs_in_entry(entry)
         }
         accounted = (
-            singleton_guards
+            set(SINGLETON_GUARDS)
             | set(FAST_STDIN_GATES)
             | set(FAST_PARALLEL_GATES)
             | {"security-scan"}

@@ -27,8 +27,10 @@ The hook is `piped: true`, so a failing entry skips everything after it.
 Verified empirically on lefthook 2.1.10 in a fixture repository: a failing job
 inside a `parallel: true` group makes every later top-level entry report
 `(skip) broken pipe`, and the expensive marker job never ran.
-`tests/ci/test_lefthook_prepush_fast_fail.py::TestRuntimeFastFail` pins this
-against the real binary with a positive control.
+`tests/ci/test_lefthook_prepush_fast_fail_runtime.py::TestRuntimeFastFail` pins
+this against the real binary with a positive control. (The runtime suite split
+out of `test_lefthook_prepush_fast_fail.py` into its own module to hold the
+500-line file-size taste rule; see the round-2 spec-validation response below.)
 
 Fast-stage gates and their measured standalone wall clocks (2026-08-15, idle
 machine): taste-count-ratchet 2.5s, type-ignore 0.1s, memory-index 0.4s,
