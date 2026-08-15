@@ -819,7 +819,7 @@ def run_claim_extraction(
             line = lines[i]
 
             # Detect fenced code blocks
-            fence_match = re.match(r"^```(\w*)", line)
+            fence_match = re.match(r"^```(\S*)", line)
             if fence_match:
                 lang = _detect_language(fence_match.group(1))
                 block_start = i + 1
