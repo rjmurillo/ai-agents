@@ -33,6 +33,8 @@ _WORKSPACE_PREFIX_FORMS = (
     '--prefix "$GITHUB_WORKSPACE/"',
     '--prefix "${GITHUB_WORKSPACE}/"',
 )
+# A ``cd`` target or ``GIT_WORK_TREE`` value that names the job workspace itself.
+_WORKSPACE_REFERENCES = frozenset({".", "./", "$GITHUB_WORKSPACE", "${GITHUB_WORKSPACE}"})
 
 # A token is a repo reference when it looks like a relative path into one of
 # these trees. Anchored so an unrelated argument cannot match.
@@ -114,60 +116,60 @@ def repo_paths_in_run(run: str) -> list[str]:
     return found
 
 
-def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
-    """Return whether ``line`` checks out into the workspace and its final cwd state.
+def _is_workspace_reference(value: str) -> bool:
+    """True when *value* (a ``cd`` target or ``GIT_WORK_TREE``) names the workspace."""
+    return value in _WORKSPACE_REFERENCES
 
-    Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` or a
-    comment that merely mentions ``git checkout-index`` is never mistaken
-    for the command actually running. Requires ``checkout-index`` to be
-    immediately preceded by a ``git`` token (as in ``git checkout-index``
-    or ``GIT_INDEX_FILE=... git checkout-index``), not merely present
-    anywhere in the token list: a line such as
-    ``python3 -c '...' checkout-index`` passes the literal string
-    ``checkout-index`` as an unrelated CLI argument and must not be
-    mistaken for the git subcommand that actually materializes the repo
-    (PR #4846 review, thread on this exact substring-vs-subcommand gap).
+
+def _segment_assignments(segment: list[str]) -> dict[str, str]:
+    """Return the leading ``VAR=value`` environment assignments in *segment*."""
+    return {
+        token.split("=", 1)[0]: token.split("=", 1)[1]
+        for token in segment
+        if _ENV_ASSIGNMENT.match(token)
+    }
+
+
+def _prefixes_into_workspace(command_tokens: list[str], line: str) -> bool:
+    """True when *command_tokens* passes checkout-index a workspace-rooted ``--prefix``."""
+    for index, token in enumerate(command_tokens):
+        is_prefix_option = token.startswith("--prefix=") or (
+            token == "--prefix" and index + 1 < len(command_tokens)
+        )
+        if is_prefix_option:
+            return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
+    return False
+
+
+def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
+    """Return whether *line* checks out into the workspace and the resulting cwd state.
+
+    Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` line or a
+    comment that merely mentions ``git checkout-index`` is never mistaken for
+    the command actually running. ``checkout-index`` only counts when a
+    ``git`` token immediately precedes it (as in ``git checkout-index`` or
+    ``GIT_INDEX_FILE=... git checkout-index``), never merely present anywhere
+    in the token list: a line such as ``python3 -c '...' checkout-index``
+    passes the literal string ``checkout-index`` as an unrelated CLI
+    argument, which must not be mistaken for the git subcommand that
+    actually materializes the repo (PR #4846 review, thread on this exact
+    substring-vs-subcommand gap).
     """
     tokens = _tokenize_command_line(line)
     for segment in _shell_command_segments(tokens):
-        assignments = {
-            token.split("=", 1)[0]: token.split("=", 1)[1]
-            for token in segment
-            if _ENV_ASSIGNMENT.match(token)
-        }
+        assignments = _segment_assignments(segment)
         command = _strip_environment_assignments(segment)
         if command[:1] == ["cd"] and len(command) > 1:
-            in_workspace = command[1] in {
-                ".",
-                "./",
-                "$GITHUB_WORKSPACE",
-                "${GITHUB_WORKSPACE}",
-            }
+            in_workspace = _is_workspace_reference(command[1])
             continue
         if command[:2] != ["git", "checkout-index"]:
             continue
         work_tree = assignments.get("GIT_WORK_TREE")
-        effective_workspace = in_workspace
-        if work_tree is not None:
-            effective_workspace = work_tree in {
-                ".",
-                "./",
-                "$GITHUB_WORKSPACE",
-                "${GITHUB_WORKSPACE}",
-            }
-        command_tokens = command[2:]
-        for option_index, token in enumerate(command_tokens):
-            if token.startswith("--prefix="):
-                checks_out_workspace = effective_workspace and any(
-                    form in line for form in _WORKSPACE_PREFIX_FORMS
-                )
-                return checks_out_workspace, in_workspace
-            if token == "--prefix" and option_index + 1 < len(command_tokens):
-                checks_out_workspace = effective_workspace and any(
-                    form in line for form in _WORKSPACE_PREFIX_FORMS
-                )
-                return checks_out_workspace, in_workspace
-        return False, in_workspace
+        effective_workspace = (
+            in_workspace if work_tree is None else _is_workspace_reference(work_tree)
+        )
+        checks_out_workspace = effective_workspace and _prefixes_into_workspace(command[2:], line)
+        return checks_out_workspace, in_workspace
     return False, in_workspace
 
 
@@ -319,186 +321,99 @@ class TestFirstUnmetRepoDependency:
     def test_non_mapping_steps_are_skipped(self) -> None:
         assert first_unmet_repo_dependency({"steps": ["oops", None]}) is None
 
-    def test_workspace_checkout_index_satisfies_a_later_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"\n'
-                        "python3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) is None
-
-    def test_checkout_index_without_prefix_does_not_prove_workspace_checkout(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": "cd /tmp && git checkout-index -a\npython3 scripts/ci/x.py",
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_checkout_index_with_external_work_tree_does_not_satisfy_dependency(
+    # Each case is a single "Materialize" step's ``run`` text against the
+    # (step label, dependency) the parser must return, or ``None`` when a
+    # workspace checkout-index satisfies the later dependency. The comments
+    # preserve the false-positive history (PR #4846 review) that motivated
+    # each scenario, since a substring search once passed all of them.
+    @pytest.mark.parametrize(
+        ("run_text", "expected"),
+        [
+            (
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py',
+                None,
+            ),
+            (
+                "cd /tmp && git checkout-index -a\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "GIT_WORK_TREE=/tmp/tree git checkout-index -a\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            # The false positive that made a substring search unusable (PR #4846).
+            (
+                'echo "run: git checkout-index -a -f"\npython3 scripts/ci/x.py',
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "# uses git checkout-index internally\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "python3 scripts/ci/x.py\ngit checkout-index -a -f",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            # An exact-token substring match, not a real git subcommand (PR #4846 review).
+            (
+                "python3 -c \"print('checkout-index')\" checkout-index\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
+                "--prefix=/tmp/candidate/\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a \\\n"
+                "  --prefix=/tmp/candidate/\n"
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "true && echo git checkout-index\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "true && git checkout-index -a "
+                '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py',
+                None,
+            ),
+            (
+                'git checkout-index -a --prefix=""\npython3 scripts/ci/x.py',
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "git checkout-index -a --prefix='$GITHUB_WORKSPACE/'\npython3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
+                '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py',
+                None,
+            ),
+        ],
+        ids=[
+            "workspace_checkout_index_satisfies_a_later_dependency",
+            "checkout_index_without_prefix_does_not_prove_workspace_checkout",
+            "checkout_index_with_external_work_tree_does_not_satisfy_dependency",
+            "an_echoed_checkout_index_does_not_satisfy_a_dependency",
+            "a_commented_checkout_index_does_not_satisfy_a_dependency",
+            "a_dependency_before_the_checkout_index_in_the_same_step_is_flagged",
+            "checkout_index_as_an_unrelated_cli_argument_does_not_satisfy_a_dependency",
+            "checkout_index_with_external_prefix_does_not_satisfy_a_dependency",
+            "continued_external_prefix_does_not_satisfy_a_dependency",
+            "compound_echo_does_not_satisfy_a_dependency",
+            "compound_real_checkout_satisfies_a_dependency",
+            "empty_prefix_does_not_satisfy_a_dependency",
+            "single_quoted_workspace_prefix_does_not_satisfy_a_dependency",
+            "checkout_index_with_workspace_prefix_satisfies_a_dependency",
+        ],
+    )
+    def test_materialize_step_dependency_scenarios(
         self,
+        run_text: str,
+        expected: tuple[str, str] | None,
     ) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "GIT_WORK_TREE=/tmp/tree git checkout-index -a\npython3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_an_echoed_checkout_index_does_not_satisfy_a_dependency(self) -> None:
-        """The false positive that made a substring search unusable (PR #4846)."""
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": 'echo "run: git checkout-index -a -f"\npython3 scripts/ci/x.py',
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_a_commented_checkout_index_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": "# uses git checkout-index internally\npython3 scripts/ci/x.py",
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_a_dependency_before_the_checkout_index_in_the_same_step_is_flagged(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": "python3 scripts/ci/x.py\ngit checkout-index -a -f",
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_checkout_index_as_an_unrelated_cli_argument_does_not_satisfy_a_dependency(
-        self,
-    ) -> None:
-        """An exact-token substring match, not a real git subcommand (PR #4846 review)."""
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "python3 -c \"print('checkout-index')\" checkout-index\n"
-                        "python3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_checkout_index_with_external_prefix_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
-                        "--prefix=/tmp/candidate/\npython3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_continued_external_prefix_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a \\\n"
-                        "  --prefix=/tmp/candidate/\n"
-                        "python3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_compound_echo_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": "true && echo git checkout-index\npython3 scripts/ci/x.py",
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_compound_real_checkout_satisfies_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "true && git checkout-index -a "
-                        '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py'
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) is None
-
-    def test_empty_prefix_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": 'git checkout-index -a --prefix=""\npython3 scripts/ci/x.py',
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_single_quoted_workspace_prefix_does_not_satisfy_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "git checkout-index -a --prefix='$GITHUB_WORKSPACE/'\n"
-                        "python3 scripts/ci/x.py"
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
-
-    def test_checkout_index_with_workspace_prefix_satisfies_a_dependency(self) -> None:
-        job = {
-            "steps": [
-                {
-                    "name": "Materialize",
-                    "run": (
-                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
-                        '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py'
-                    ),
-                }
-            ]
-        }
-        assert first_unmet_repo_dependency(job) is None
+        job = {"steps": [{"name": "Materialize", "run": run_text}]}
+        assert first_unmet_repo_dependency(job) == expected
