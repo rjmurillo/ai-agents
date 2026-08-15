@@ -136,8 +136,12 @@
     {
       "action": "Pushed branch and opened draft PR #5091",
       "result": "Pre-push suite green after fixing sandbox gaps (sqlite3, ssh-keygen, root DAC caps, forgetful sync fast-fail); QA report renamed to match pr-5091"
+    },
+    {
+      "action": "Fixed Validate PR description mismatch and spec-validation defensive gaps",
+      "result": "Reworded PR body Changes bullets naming unchanged files; hardened malformed-payload handling to exit 3 and added EvidenceUrl run-id fallback; 32/32 targeted and 517/517 neighborhood tests pass"
     }
   ],
-  "endingCommit": "3f25c791819a046abd2a65033b8716dcb06fb74f",
+  "endingCommit": "e258df4ca5dc4987c6aff150f6b5c4d5742e48bc",
   "nextSteps": []
 }
