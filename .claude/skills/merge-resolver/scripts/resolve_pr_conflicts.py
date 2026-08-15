@@ -42,6 +42,7 @@ _CORE_PACKAGE = "github_core"
 # carries it: .claude/lib/github_core/api.py and
 # src/copilot-cli/lib/github_core/api.py, verified 2026-08-14.
 _CORE_MODULE_FILE = "api.py"
+_IMPORT_PROBE_OK = "repo-info-imported"
 
 
 def _core_import_error(lib_dir: str) -> str | None:
@@ -55,7 +56,8 @@ def _core_import_error(lib_dir: str) -> str | None:
                 (
                     "import sys; "
                     f"sys.path.insert(0, {lib_dir!r}); "
-                    "from github_core.api import RepoInfo"
+                    "from github_core.api import RepoInfo; "
+                    f"print({_IMPORT_PROBE_OK!r})"
                 ),
             ],
             capture_output=True,
@@ -66,8 +68,10 @@ def _core_import_error(lib_dir: str) -> str | None:
         )
     except subprocess.TimeoutExpired:
         return "import timed out"
-    if probe.returncode == 0:
+    if probe.returncode == 0 and probe.stdout.strip() == _IMPORT_PROBE_OK:
         return None
+    if probe.returncode == 0:
+        return "import exited before completion signal"
     stderr_lines = probe.stderr.strip().splitlines()
     return stderr_lines[-1] if stderr_lines else f"process exited {probe.returncode}"
 

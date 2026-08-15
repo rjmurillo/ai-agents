@@ -105,6 +105,19 @@ def _make_transitively_broken_plugin_root(base: Path, name: str) -> Path:
     return root
 
 
+def _make_early_exit_plugin_root(base: Path, name: str) -> Path:
+    """Create a plugin root whose api.py exits zero during import."""
+    root = base / name
+    package = root / "lib" / _CORE_PACKAGE_NAME
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / _CORE_MODULE_FILE_NAME).write_text(
+        "import sys\nsys.exit(0)\nclass RepoInfo:\n    pass\n",
+        encoding="utf-8",
+    )
+    return root
+
+
 def _make_foreign_plugin_root(base: Path, name: str) -> Path:
     """Create a plugin root whose lib/ exists but carries no github_core.
 
@@ -260,6 +273,17 @@ class TestResolveLibDir:
         assert (broken / "lib" / _CORE_PACKAGE_NAME / _CORE_MODULE_FILE_NAME).is_file()
         assert mod._resolve_lib_dir() == str(claude / "lib")
 
+    def test_api_that_exits_zero_before_import_completion_is_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _clear_plugin_env(monkeypatch)
+        broken = _make_early_exit_plugin_root(tmp_path, "early-exit")
+        claude = _make_plugin_root(tmp_path, "claude-plugin")
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(broken))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude))
+
+        assert mod._resolve_lib_dir() == str(claude / "lib")
+
     def test_uses_github_workspace_when_no_plugin_root_is_valid(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
@@ -407,4 +431,20 @@ class TestResolveLibDirCli:
 
         assert result.returncode == 0, result.stderr
         assert "ModuleNotFoundError" not in result.stderr
+        assert "--branch-name" in result.stdout
+
+    def test_runs_when_api_exits_zero_before_import_completion(
+        self, tmp_path: Path
+    ) -> None:
+        script = self._install_script(tmp_path)
+        broken = _make_early_exit_plugin_root(tmp_path, "early-exit")
+        result = self._run(
+            script,
+            {
+                "COPILOT_PLUGIN_ROOT": str(broken),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+            },
+        )
+
+        assert result.returncode == 0, result.stderr
         assert "--branch-name" in result.stdout
