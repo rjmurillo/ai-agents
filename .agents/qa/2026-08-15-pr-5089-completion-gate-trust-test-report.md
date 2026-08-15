@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15072-issue-5072-completion-gate-trust.json
-qaCommit: a798a60cff00198f561e935b9ccf0c478ac01138
+qaCommit: bfac0b8014da792a62f4ce04cda419034beda19a
 ---
 
 # QA Report: PR #5089 completion-gate config trust boundary (Issue #5072)
@@ -35,7 +35,7 @@ Acceptance-criteria mapping:
 
 Command: `uv run pytest tests/skills/github/test_run_completion_gate.py -q --cov=run_completion_gate --cov-report=term-missing`
 
-Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trust`, `_enforce_config_trust`, `_read_config_bytes`, `_load_config_bytes`, `_resolve_and_read_config`, `_extract_criteria`, CLI wiring) is covered; `TestVerifyConfigTrustErrorBranches` fault-injects git timeout, missing git binary, config outside the work tree, `git show` failure, and unreadable config. The only uncovered lines in the file are pre-existing branches (installed-plugin `validate_safe_path` fallback, PyYAML-missing fallback, DSL error branches, evidence-write errors, `__main__` guard), unchanged by this PR.
+Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trust`, `_enforce_config_trust`, `_read_config_bytes`, `_load_config_bytes`, `_resolve_and_read_config`, `_extract_criteria`, CLI wiring) is covered; `TestVerifyConfigTrustErrorBranches` fault-injects git timeout, missing git binary, config outside the work tree, `git cat-file --filters` failure, and unreadable config. The only uncovered lines in the file are pre-existing branches (installed-plugin `validate_safe_path` fallback, PyYAML-missing fallback, DSL error branches, evidence-write errors, `__main__` guard), unchanged by this PR.
 
 ### Static and security gates
 
@@ -47,7 +47,7 @@ Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trus
 
 ### Full suite
 
-Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `a798a60cff00198f561e935b9ccf0c478ac01138` runs the same complete pre-push hook suite before the ref moves.
+Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `bfac0b8014da792a62f4ce04cda419034beda19a` runs the same complete pre-push hook suite before the ref moves.
 
 
 ### Security-review hardening (second round)

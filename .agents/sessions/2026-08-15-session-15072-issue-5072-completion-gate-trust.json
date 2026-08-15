@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "a798a60cff00198f561e935b9ccf0c478ac01138 on claude/issue-5072-completion-gate-trust"
+        "Evidence": "bfac0b8014da792a62f4ce04cda419034beda19a on claude/issue-5072-completion-gate-trust"
       },
       "validationPassed": {
         "level": "MUST",
@@ -154,10 +154,13 @@
     },
     {
       "activity": "AI quality gate WARN round: aligned _run_git docstring with cat-file --filters, gave malformed --trusted-ref a distinct usage-error status, and named the dispatcher itself in the scope-of-guarantee note; architect follow-ups (ADR-059 amendment, TTY gate on approval flag, base-ref default) recorded on issue #5099"
+    },
+    {
+      "activity": "Copilot review round: missing-base halt now surfaces the approvable working-tree config as a full-file addition diff (with stderr assertion test); corrected the filters-never-inject docstring overclaim in module summary and _verify_config_trust; fixed stale git show reference in the QA report; replied to all four review threads including the pre-existing installed-plugin containment finding (origin/main:827)"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "a798a60cff00198f561e935b9ccf0c478ac01138"
+  "endingCommit": "bfac0b8014da792a62f4ce04cda419034beda19a"
 }
