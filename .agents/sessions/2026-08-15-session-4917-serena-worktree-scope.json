@@ -98,7 +98,7 @@
       }
     }
   },
-  "endingCommit": "0b758a43372c30e33b87fc86577e6e67493fce08",
+  "endingCommit": "ffdbb011c82491b18ae25f122f7c0497a925bb1f",
   "workLog": [
     {
       "action": "fix",
@@ -139,9 +139,9 @@
   },
   "qaEvidence": {
     "testsRun": true,
-    "testsPassed": 19,
+    "testsPassed": 21,
     "testsFailed": 1,
     "qaReportPath": ".agents/qa/000-pr-5036-qa.md",
-    "qaCommit": "0b758a43372c30e33b87fc86577e6e67493fce08"
+    "qaCommit": "ffdbb011c82491b18ae25f122f7c0497a925bb1f"
   }
 }
