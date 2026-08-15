@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: 849ecda146f33a279832b4cddc1ec6a93741d741
+qaCommit: c089d2e6f4ec3b9a40ca675f8f86339c34e8306a
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607)
@@ -61,6 +61,18 @@ repository owner can mint and store a replacement. What this change delivers
 is that every ai-review and pr-maintenance run log now prints the resolved
 identity, so the criterion is checkable from any run log: the new step reports
 MISMATCH today and will report MATCH once the owner rotates the secret.
+
+## Broken window fixed on the path
+
+The pre-push suite could not pass in this (root) container:
+`test_permission_denied_file_returns_auth_exit_code` in the
+orphan-ref-validator skill relied on `chmod 0`, which CAP_DAC_OVERRIDE
+ignores under euid 0, so the scan returned findings (exit 1) instead of the
+auth envelope (exit 4). The test now injects `PermissionError` at the
+module's read seam, making it deterministic for every euid; the
+`src/copilot-cli` mirror is byte-identical. Verified: the test and both
+bundle-tree suites pass. Unrelated to issue #4607; flagged in the PR
+description per the ownership rule.
 
 ## Residual risk
 
