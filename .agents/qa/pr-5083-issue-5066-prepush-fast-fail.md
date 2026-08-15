@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
-qaCommit: f0538c821813901e0d582b39f89e4dd0df0693dd
+qaCommit: 903277d166cbe2f4751ef63c86f7c53eb8ed53aa
 ---
 
 # QA Report: pre-push fast-fail staging (issue #5066)
@@ -72,6 +72,32 @@ pinned as a closed exception list so it cannot silently grow.
 - Runtime coverage now exercises both fast-stage halves: a failing job in the parallel half and a failing job in the piped stdin half each skip every later entry (semgrep, pytest analogues never run), and the positive control delivers a multi-line two-ref stdin payload byte-identical to both serialized consumers, the in-group gate and the late top-level job standing in for security-scan.
 - Negative controls: the new ordering tests fail against the origin/main config (taste-count-ratchet and python-tests shared entry index 4, security-scan sat at index 3 before the ratchets), so the pins discriminate the old shape from the new one.
 - New coverage is positive (ordering holds, runtime clean-run control), negative (misordered synthetic config detected, stdin-in-parallel synthetic config detected, runtime fast-stage failure skips the expensive stage), and edge (unknown job name, config without pre-push, duration unit parsing, fast-stage timeout ceiling).
+
+## Merge with main (round 4)
+
+Main advanced twice during review (through commit `2a04b4bd8`, eight commits).
+Two merges were required; the second carried a real functional conflict, not a
+cosmetic one: PR #5088 (merged to main) retired the standalone
+`build-all-check` pre-push job, folding its `build_all.py --check` into
+`pre-pr-validation`'s new Generated Artifact Staleness gate, because two
+concurrent unlocked `build_all --check` invocations in the same parallel group
+raced their snapshot/restore over the same owned prefixes. My branch had moved
+`build-all-check` into the expensive stage rather than deleting it, so the
+merge conflicted. Resolved by taking main's deletion: removed the job from
+`lefthook.yml`, from `EXPENSIVE_JOBS` in the fast-fail test module, and updated
+the module's docstring to explain why. `tests/test_lefthook_integration.py`
+had already been updated by main's own PR to assert `build-all-check` is
+absent; that assertion merged cleanly and now passes. A second merge also
+picked up main's `PRE_PR_OUTER_CAP_SECONDS: "900"` addition to
+`pre-pr-validation`'s env, preserved on the (moved) expensive-stage copy. A
+third conflict deduplicated a `memory-index.md` add/add collision where both
+branches independently indexed the same two memory files with different token
+counts; resolved to one row per file with the correct current count.
+
+Post-merge verification: job-name set diff between the merged tree and
+`origin/main` is empty in both directions (35 jobs each); 1061 passed, 1
+skipped across the ten lefthook/build_all test modules; taste count ratchet OK
+(583); merge-tree-ratchet OK against `origin/main`.
 
 ## Spec-validation response (PR #5083)
 
