@@ -7,7 +7,7 @@
     "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
     "objective": "Fix issue #5071: scope pre-push mypy file set to the merge-base diff so commit-then-revert round trips contribute nothing"
   },
-  "endingCommit": "69a31729e343b102fdbfbb7cbc7eff70927368ae",
+  "endingCommit": "6cab52609ad7eef4c2491e79e8e24a80d53a9952",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
@@ -127,6 +127,10 @@
     {
       "step": "Fixed claude-mem get_count error test",
       "outcome": "sqlite3 lazily opens a nonexistent db so SELECT 1 exits 0; test now targets a directory, which fails at open in every sqlite3 version"
+    },
+    {
+      "step": "Repaired first CI wave on PR 5084",
+      "outcome": "subprocess encoding ratchet regression (+3 in new test file, errors=replace added), fallback scope-size report added to _filter_to_merge_base_scope, real-git blocking end-to-end test added, scope-widening-only property of path normalization documented"
     }
   ],
   "nextSteps": [
@@ -137,7 +141,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "430c206d21425c178f783daf84c7a7c48591160c",
-      "head": "69a31729e343b102fdbfbb7cbc7eff70927368ae"
+      "head": "6cab52609ad7eef4c2491e79e8e24a80d53a9952"
     }
   },
   "retrospective": "## Retrospective\n\nLearning: a line-level ratchet on top of an over-broad file set still lets the file set cause blocks through its failure fallbacks (fatal invocation output, unresolvable diff base) and wastes scan time. Scoping the input set to the merge-base diff removes the round-trip class entirely, and the same base ref serves both the file scope and the line ratchet so the two filters cannot disagree."

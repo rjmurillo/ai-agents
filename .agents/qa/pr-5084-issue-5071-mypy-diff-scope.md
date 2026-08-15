@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15002-issue-5071-mypy-diff-scope.json
-qaCommit: 69a31729e343b102fdbfbb7cbc7eff70927368ae
+qaCommit: 6cab52609ad7eef4c2491e79e8e24a80d53a9952
 ---
 
 # QA Report: Issue 5071, pre-push mypy scoped to merge-base diff

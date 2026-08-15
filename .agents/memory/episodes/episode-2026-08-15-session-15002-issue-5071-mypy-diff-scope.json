@@ -63,7 +63,8 @@
         "e004",
         "e006",
         "e008",
-        "e009"
+        "e009",
+        "e011"
       ],
       "leads_to": [
         "e007"
@@ -124,6 +125,30 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired first CI wave on PR 5084",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T15:52:02+00:00",
+      "type": "commit",
+      "content": "Commit: 6cab52609ad7eef4c2491e79e8e24a80d53a9952",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     }
@@ -133,7 +158,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 12
   },
   "lessons": []
