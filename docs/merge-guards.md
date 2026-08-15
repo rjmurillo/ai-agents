@@ -1,4 +1,7 @@
-# Merge Guards and Branch Protection Recommendations
+# Merge Guards and Branch Protection
+
+> **See also:** [`docs/landing-workflow.md`](landing-workflow.md) for the serial
+> one-front auto-merge protocol that governs how PRs land.
 
 ## Overview
 

@@ -1,0 +1,172 @@
+{
+  "id": "episode-2026-08-14-session-14938",
+  "session": "2026-08-14-session-14938",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix rejected Copilot model spellings in .github/agents (issue #4938)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T23:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed all 28 model: lines from .github/agents/ files",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T23:10:00+00:00",
+      "type": "milestone",
+      "content": "Added .github/agents/*.md to check_model_pins.py _UNIT_GLOBS",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T23:15:00+00:00",
+      "type": "milestone",
+      "content": "Added 5 regression tests (positive, negative, edge)",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T06:17:43+00:00",
+      "type": "commit",
+      "content": "Commit: 144ed1d344",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T07:48:56+00:00",
+      "type": "commit",
+      "content": "Commit: 45c1a169cb",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T08:14:47+00:00",
+      "type": "commit",
+      "content": "Commit: 890870c4b9",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T10:03:23+00:00",
+      "type": "commit",
+      "content": "Commit: 0527aea1ff",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T10:09:37+00:00",
+      "type": "commit",
+      "content": "Commit: 8d0d3a59c5",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T11:05:08+00:00",
+      "type": "commit",
+      "content": "Commit: 5cc07092184bff0ae9034406a2d3431330587dd1",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-retro",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T11:50:59+00:00",
+      "type": "commit",
+      "content": "Commit: ffe11174fbca5e769e1c5d3d672ea706acab7a48",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T12:43:12+00:00",
+      "type": "commit",
+      "content": "Commit: 0c8cb9dfb673988717eac68d2cfc8b5fcfc33b55",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14938"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 15,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 36
+  },
+  "lessons": []
+}

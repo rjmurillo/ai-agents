@@ -152,7 +152,7 @@ if child_log:
             "-c",
             (
                 "import pathlib, sys, time; "
-                "time.sleep(0.3); "
+                "time.sleep(5); "
                 "pathlib.Path(sys.argv[1]).write_text('child-ran\\\\n', encoding='utf-8')"
             ),
             child_log,
