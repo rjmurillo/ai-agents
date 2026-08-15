@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: f2d54701559a1545b1758ccf8abc75b6b2640f09
+qaCommit: 8056d7caef4068f138cd517ac55cebfb10f13dc6
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607, PR #5093)
@@ -79,6 +79,13 @@ and the claude-mem `get_count` error test (sqlite3 creates
 other users got the intended error). Both now exercise their failure paths
 for every euid. Full-suite evidence: 28,856 passed with only these 3
 environmental failures before the fixes; each fixed test passes after.
+
+## Review-driven hardening
+
+Semgrep on PR #5093 flagged the dynamic urllib URL in `probe_user`
+(urllib follows `file://`). The probe now parses the scheme and refuses
+anything but https before opening, reported as UNKNOWN. Three scheme cases
+(`http`, `file`, `ftp`) added to the tests; 21 tests pass.
 
 ## Residual risk
 
