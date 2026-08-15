@@ -119,7 +119,7 @@
       "description": "Added failure-mode classification, evidence, and remediation to retrospective per retros.md"
     }
   ],
-  "endingCommit": "5cc07092184bff0ae9034406a2d3431330587dd1",
+  "endingCommit": "ffe11174fbca5e769e1c5d3d672ea706acab7a48",
   "nextSteps": [
     "Push branch and create PR.",
     "Verify CI passes.",
