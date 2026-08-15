@@ -143,8 +143,16 @@
       "timestamp": "2026-08-15",
       "action": "Fixed the prior session log's nextSteps: adr-review fires on the ADR edit per AGENTS.md:44, before human approval per ADR-073:156, not on acceptance",
       "outcome": "2026-08-15-session-14711-...json nextSteps corrected"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Corrected the aggregate job line citation (:295-604 named a comment line, not the job) and rebound qaCommit/qaSessionLog/endingCommit to the true last content commit e2b2c7ba3",
+      "outcome": "Re-ran dash and banned-vocabulary scans (0 hits both) and verified all 4 newly-cited paths (AGENTS.md:44, ADR-073:156, review/SKILL.md:47-49, ai-pr-quality-gate.yml:295/598/607) resolve at their exact lines"
     }
   ],
-  "endingCommit": "",
-  "nextSteps": []
+  "endingCommit": "e2b2c7ba3011e3bfdb2f621b39d1b500d5b33c59",
+  "nextSteps": [
+    "Reply to and resolve all 10 PR #5062 review threads now that the underlying defects are fixed",
+    "Confirm CI checks stay green and report merge-readiness; do not merge without maintainer decision"
+  ]
 }
