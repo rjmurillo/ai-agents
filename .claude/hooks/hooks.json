@@ -47,17 +47,6 @@
                     }
                 ],
                 "matcher": "^(Agent|Task)$"
-            },
-            {
-                "hooks": [
-                    {
-                        "command": "_ptr=\"${CLAUDE_PLUGIN_ROOT}\"; _warn=\"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected).\"; if [ -z \"$_ptr\" ]; then echo \"$_warn Plugin root unresolvable (CLAUDE_PLUGIN_ROOT empty). Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -d \"$_ptr\" ]; then echo \"$_warn Plugin root is not a directory: $_ptr. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; _i=\"\"; for _c in python3 python; do if command -v \"$_c\" >/dev/null 2>&1; then _ok=$(\"$_c\" -I -c \"import sys;print(int(sys.version_info>=(3,10)))\" 2>/dev/null) || _ok=\"\"; if [ \"$_ok\" = \"1\" ]; then _i=\"$_c\"; break; fi; fi; done; if [ -z \"$_i\" ]; then echo \"$_warn No suitable Python interpreter found (need >= 3.10). Install: https://www.python.org/downloads/\" >&2; exit 0; fi; if [ ! -f \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher missing or not a file: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; if [ ! -r \"$_ptr/hooks/invoke_dispatch_claude.py\" ]; then echo \"$_warn Dispatcher unreadable: $_ptr/hooks/invoke_dispatch_claude.py. Reinstall: /install-plugin rjmurillo/ai-agents\" >&2; exit 0; fi; \"$_i\" -I -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-11-serena_worktree_scope; _rc=$?; if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then echo \"$_warn Python interpreter failed to start ($_i, exit $_rc). Install Python >= 3.10: https://www.python.org/downloads/\" >&2; exit 0; fi; exit $_rc",
-                        "statusMessage": "Running plugin-pretooluse-11-serena_worktree_scope hooks (grouped, #3075)",
-                        "timeout": 10,
-                        "type": "command"
-                    }
-                ],
-                "matcher": "^serena-"
             }
         ]
     }

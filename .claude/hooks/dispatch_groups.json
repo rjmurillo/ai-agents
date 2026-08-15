@@ -63,19 +63,6 @@
                     "statusMessage": "Auto-linting markdown files"
                 }
             ]
-        },
-        "plugin-pretooluse-11-serena_worktree_scope": {
-            "event": "PreToolUse",
-            "mode": "gate",
-            "matcher": "^serena-",
-            "surface": "plugin",
-            "shims": [
-                {
-                    "file": "PreToolUse/invoke_serena_worktree_scope_guard.py",
-                    "timeout": 10,
-                    "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)"
-                }
-            ]
         }
     }
 }

@@ -218,6 +218,8 @@ AUTHORIZED_HOOKS = {
     "tool already ran, dogfood-only",
     "invoke_memory_reflection.py": "#4011 KEEP: the only live caller that "
     "persists memory confidence scores, dogfood-only",
+    "invoke_serena_worktree_scope_guard.py": "#4917: block Serena writes when "
+    "active worktree differs from Serena project root",
 }
 
 
