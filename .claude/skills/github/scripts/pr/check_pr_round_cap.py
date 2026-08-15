@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Per-PR round/time circuit breaker for pr-autofix's T3/T4 thread loop (issue #5056).
 
-pr-autofix's thread-lifecycle loop (Phase 2, T3/T4 in
-`src/copilot-cli/skills/pr-autofix/SKILL.md`) had no machine-enforced cap on
-how many fix/review rounds it runs against one PR. The lease and live-state
-gate protect against racing or acting on a stale PR; neither bounds how long
-the loop keeps acting on a PR that is still live and actionable. Evidence:
-`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` (PR #1887:
-46h wall clock, 69 commits, 11+ bot review rounds) and
-`.agents/governance/CI-FEEDBACK-SUBLOOP.md` line 11 (PRs #1965 and #1979,
-18 rounds each). Prose caps have been written down and ignored repeatedly.
+pr-autofix's thread-lifecycle loop (Phase 2, T3/T4 of the pr-autofix skill in
+this install) had no machine-enforced cap on how many fix/review rounds it
+runs against one PR. The lease and live-state gate protect against racing or
+acting on a stale PR; neither bounds how long the loop keeps acting on a PR
+that is still live and actionable. Evidence from this project's history:
+PR #1887 ran 46h wall clock, 69 commits, and 11+ bot review rounds; PRs #1965
+and #1979 ran 18 rounds each. Prose caps have been written down and ignored
+repeatedly, which is why this one is a gate rather than a sentence.
 This script follows `check_pr_live_state.py`'s shape (issue #2455): a
 machine-checked JSON envelope pr-autofix branches on, not another sentence
 in a SKILL.md.
