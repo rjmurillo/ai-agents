@@ -6,8 +6,11 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Every case here now runs through the Claude dispatcher only, which is where
+the guard still runs; invoke_dispatch_claude.py does not read
+copilotExclude.
 """
 
 from __future__ import annotations
@@ -20,19 +23,15 @@ import pytest
 
 from tests.hooks.push_pr_guard_harness import (
     CLAUDE_PLUGIN_ROOT,
-    COPILOT_PLUGIN_ROOT,
+)
+from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
 )
 from tests.hooks.push_pr_guard_harness import (
     environment as _environment,
 )
 from tests.hooks.push_pr_guard_harness import (
     repository as _repository,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_claude as _run_claude,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_copilot as _run_copilot,
 )
 
 IN_SCOPE_ASSIGNMENT = "PUSH_PR_SCRIPT=new_pr.py "
@@ -45,7 +44,7 @@ def _in_scope(command: str) -> str:
     return IN_SCOPE_ASSIGNMENT + command
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -72,7 +71,7 @@ def test_dispatchers_deny_env_split_string_launchers(
     assert "env split-string launchers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -109,7 +108,7 @@ def test_dispatchers_deny_shell_evaluator_wrappers(
     assert "shell evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_renamed_shell_executables(
     tmp_path: Path,
     runner,
@@ -139,7 +138,7 @@ def test_dispatchers_deny_renamed_shell_executables(
         assert "shell evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_executable_renamed_to_printf(
     tmp_path: Path,
     runner,
@@ -160,7 +159,7 @@ def test_dispatchers_deny_executable_renamed_to_printf(
     assert "shell evaluator wrappers are not allowed" in script_result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_home_relative_shell_wrapper(
     tmp_path: Path,
     runner,
@@ -171,11 +170,9 @@ def test_dispatchers_deny_home_relative_shell_wrapper(
     wrapper.parent.mkdir(parents=True)
     wrapper.write_text("#!/bin/sh\nid\n", encoding="utf-8")
     wrapper.chmod(0o755)
-    plugin_environment = (
-        {"CLAUDE_PLUGIN_ROOT": str(CLAUDE_PLUGIN_ROOT)}
-        if runner is _run_claude
-        else {"COPILOT_PLUGIN_ROOT": str(COPILOT_PLUGIN_ROOT)}
-    )
+    # RUNNERS is Claude-only since issue #5013 (the guard's Copilot shim was
+    # retired), so the plugin-root environment is always the Claude one.
+    plugin_environment = {"CLAUDE_PLUGIN_ROOT": str(CLAUDE_PLUGIN_ROOT)}
 
     result = runner(
         _in_scope("~/bin/update"),
@@ -187,7 +184,7 @@ def test_dispatchers_deny_home_relative_shell_wrapper(
     assert "shell evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_env_assignments_after_option_terminator(
     tmp_path: Path,
     runner,
@@ -203,7 +200,7 @@ def test_dispatchers_deny_env_assignments_after_option_terminator(
     assert "shell evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -365,7 +362,7 @@ def test_dispatchers_deny_dynamic_evaluator_wrappers(
     assert "evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [

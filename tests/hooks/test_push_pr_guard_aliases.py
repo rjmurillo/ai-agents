@@ -6,8 +6,11 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Every case here now runs through the Claude dispatcher only, which is where
+the guard still runs; invoke_dispatch_claude.py does not read
+copilotExclude.
 """
 
 from __future__ import annotations
@@ -20,18 +23,17 @@ import pytest
 
 from tests.hooks.push_pr_guard_harness import (
     CLAUDE_PLUGIN_ROOT,
-    COPILOT_PLUGIN_ROOT,
     REPOSITORY_SCRIPT,
     SCRIPT_RELATIVE,
+)
+from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
 )
 from tests.hooks.push_pr_guard_harness import (
     repository as _repository,
 )
 from tests.hooks.push_pr_guard_harness import (
     run_claude as _run_claude,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_copilot as _run_copilot,
 )
 from tests.hooks.push_pr_guard_harness import (
     write_script as _write_script,
@@ -64,13 +66,15 @@ def test_claude_denies_symlinked_repository_script(tmp_path: Path) -> None:
     assert "exact runtime new_pr.py path" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_normalized_alias_of_runtime_script(
     tmp_path: Path,
     runner,
 ) -> None:
     repository, _ = _repository(tmp_path)
-    plugin_root = CLAUDE_PLUGIN_ROOT if runner is _run_claude else COPILOT_PLUGIN_ROOT
+    # RUNNERS is Claude-only since issue #5013 (the guard's Copilot shim was
+    # retired), so the runtime script always anchors to the Claude plugin root.
+    plugin_root = CLAUDE_PLUGIN_ROOT
     script = plugin_root / SCRIPT_RELATIVE
     normalized_alias = f"{script.parent}/../pr/{script.name}"
 
@@ -80,13 +84,14 @@ def test_dispatchers_deny_normalized_alias_of_runtime_script(
     assert "exact runtime new_pr.py path" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_parent_symlink_alias_of_runtime_script(
     tmp_path: Path,
     runner,
 ) -> None:
     repository, _ = _repository(tmp_path)
-    plugin_root = CLAUDE_PLUGIN_ROOT if runner is _run_claude else COPILOT_PLUGIN_ROOT
+    # RUNNERS is Claude-only since issue #5013; see the note above.
+    plugin_root = CLAUDE_PLUGIN_ROOT
     alias = repository / "trusted-script-parent"
     try:
         alias.symlink_to(
@@ -102,7 +107,7 @@ def test_dispatchers_deny_parent_symlink_alias_of_runtime_script(
     assert "exact runtime new_pr.py path" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_symlinked_python_interpreter(
     tmp_path: Path,
     runner,
@@ -126,7 +131,7 @@ def test_dispatchers_deny_symlinked_python_interpreter(
         assert result.returncode == 2, command
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_path_resolved_python_alias(
     tmp_path: Path,
     runner,
@@ -149,7 +154,7 @@ def test_dispatchers_deny_path_resolved_python_alias(
     assert "dynamic Python -c and -m launchers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_copied_renamed_python_interpreter(
     tmp_path: Path,
     runner,
@@ -165,7 +170,7 @@ def test_dispatchers_deny_copied_renamed_python_interpreter(
     assert "dynamic Python -c" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_extensionless_python_entrypoint(
     tmp_path: Path,
     runner,
@@ -184,7 +189,7 @@ def test_dispatchers_allow_extensionless_python_entrypoint(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_expanding_path_with_trusted_literal_symlink(
     tmp_path: Path,
     runner,
@@ -207,7 +212,7 @@ def test_dispatchers_deny_expanding_path_with_trusted_literal_symlink(
     assert result.returncode == 2
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -235,7 +240,7 @@ def test_dispatchers_deny_renamed_copy_by_content(
         assert "Python execution is limited" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_renamed_copy_of_new_pr(
     tmp_path: Path,
     runner,
@@ -264,7 +269,7 @@ def test_dispatchers_deny_renamed_copy_of_new_pr(
     assert "Python execution is limited" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize("padding", [0, 40, 63, 70, 200])
 def test_dispatchers_deny_padded_renamed_copy(
     tmp_path: Path,
