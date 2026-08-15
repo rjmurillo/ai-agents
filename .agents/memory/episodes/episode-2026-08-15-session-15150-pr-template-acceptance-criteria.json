@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Researched PR process end-to-end: repo gate map, GitHub friction metrics on 8 sampled merged PRs, retrospective and memory mining",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Filed issues 5064 (evidence binding survives catch-up merges), 5065 (PR-scoped ratchet evaluation), 5066 (pre-push fast-fail stage), 5067 (CI consumes review marker), 5068 (MUST/gate alignment), 5069 (reviewer premise verification), 5070 (CodeRabbit path_instructions), 5071 (mypy diff scoping), 5072 (completion-gate config trust boundary), 5073 (measure-main-first triage probe), 5074 (merge-resolver rename rule)",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Corrected issue 5068 after verification: semantic title check is enforced by scripts/ci/classify_semantic_title_result.py; continue-on-error only absorbs the Unicorn HTML flake (issue 2616)",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Added Acceptance criteria section to .github/PULL_REQUEST_TEMPLATE.md so the template matches the Validate Spec Coverage contract documented in push-pr.md (issue 5068 item 3)",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     },
     {
@@ -49,6 +57,23 @@
       "type": "milestone",
       "content": "Dispatched five implementer sessions: issues 5066, 5071, 5072, 5073, 5074, each on its own claude/issue-NNNN branch",
       "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T14:18:25+00:00",
+      "type": "commit",
+      "content": "Commit: 2fa1d3ba05e47bdafea824e5fc9de79e189ce77c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     }
@@ -58,7 +83,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 2
   },
   "lessons": []
