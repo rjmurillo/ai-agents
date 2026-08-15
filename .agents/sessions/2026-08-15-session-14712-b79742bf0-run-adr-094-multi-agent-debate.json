@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Two commits: the ADR duplicate-axis fix plus the debate log plus this file, then an .agents-only follow-up rebinding the QA marker and endingCommit"
+        "Evidence": "Three commits: 66cf2111d (ADR duplicate-axis fix, debate log, this file, its QA report), 8b60aaabf (rebind both QA markers and both owning session logs to 66cf2111d), 5eceaef55 (give session 14711 its own QA report). Commits 2 and 3 touch only QA_EVIDENCE_PREFIXES paths, so they do not restale the markers they set"
       },
       "validationPassed": {
         "level": "MUST",
@@ -152,7 +152,12 @@
     {
       "timestamp": "2026-08-15",
       "action": "Cleared the two pre-existing red session-log checks on PR #5062: session 14711 and session 99916 both claimed the same QA report, which only one log can own, and the report's qaCommit had gone stale behind commit e137317ef",
-      "outcome": "14711 releases the claim as SKIPPED: docs-only; 99916 keeps it with qaCommit and endingCommit rebound to the final content commit"
+      "outcome": "14711 now owns .agents/qa/qa-adr-094-draft.md and 99916 keeps .agents/qa/qa-adr-094-scoped-re-review-axes.md; both reports and both logs bind to 66cf2111d. SKIPPED: docs-only is not an option: validate_session_json.py validate_qa_skip_scope rejects it unconditionally, so every session log on a branch needs its own QA report bound to the last content commit"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "A second unattributed change appeared after commit 66cf2111d: a 187-line revision of ADR-094 adding contract changes 11 and 12, a new ship.md contributor-mode section, SHA-pinned axis discovery, and decision-makers: [rjmurillo]",
+      "outcome": "Saved to the scratchpad and reverted, not committed. It is outside this session's stated commit scope, its provenance is unverified, and landing it would stale the debate log's F6, F12 and F14 findings in the same push that records them. Surfaced to the maintainer instead"
     }
   ],
   "episodeMetrics": {
@@ -167,6 +172,7 @@
   "nextSteps": [
     "Maintainer reads .agents/critique/ADR-094-debate-log.md and decides accept, revise, or reject. ADR-094 stays status: proposed",
     "Five P0 findings block acceptance: the cost citations predate the mechanism, the 24% signal figure is spliced, the marker prohibition has no writer script, the validator changes target a mirror, and two push-blocking consumers are missing from the impact table",
-    "Revising ADR-094 against the debate findings is separate work and was deliberately not done in this session"
+    "Revising ADR-094 against the debate findings is separate work and was deliberately not done in this session",
+    "Two unattributed working-tree changes appeared during this session and were reverted; a concurrent writer has access to this worktree. Diffs are in the session scratchpad"
   ]
 }

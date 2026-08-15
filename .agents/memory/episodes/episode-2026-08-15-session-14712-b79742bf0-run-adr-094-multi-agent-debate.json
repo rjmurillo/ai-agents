@@ -96,7 +96,45 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A second unattributed change appeared after commit 66cf2111d: a 187-line revision of ADR-094 adding contract changes 11 and 12, a new ship.md contributor-mode section, SHA-pinned axis discovery, and decision-makers: [rjmurillo]",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T16:17:28+00:00",
+      "type": "commit",
+      "content": "Commit: 8b60aaabf",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T16:18:49+00:00",
+      "type": "commit",
+      "content": "Commit: 5eceaef55",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
@@ -107,7 +145,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": []
