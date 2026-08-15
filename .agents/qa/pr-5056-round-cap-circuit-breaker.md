@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5056-pr-autofix-round-cap.json
-qaCommit: 820c667ef1b09c13a576cba2389a5a8d9270e2fa
+qaCommit: 4e21dd9b568aa17edc008f5a00945e1554cc25e0
 ---
 
 # Issue #5056 Round-Cap Circuit Breaker QA Report
