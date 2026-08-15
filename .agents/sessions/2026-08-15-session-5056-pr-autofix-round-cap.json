@@ -7,7 +7,7 @@
     "startingCommit": "57b3107f6",
     "objective": "Add a machine-enforced round/time circuit breaker for pr-autofix's T3/T4 thread-fix loop (issue #5056)"
   },
-  "endingCommit": "af7b6babb5e36e5a4885b5f731a9dcc57d305c43",
+  "endingCommit": "a62a2cbf6e275c328ec62d9697876c929838df04",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
@@ -139,6 +139,9 @@
     {
       "action": "verify",
       "detail": "Re-ran scripts/ci/taste_count_ratchet.py (OK, count == baseline 583), scripts/ci/merge_tree_ratchet_check.py (OK, merged tree passes all registered ratchets against origin/main), uv run mypy on the script (0 errors), uv run ruff check (clean), and the full 26-test suite (still 26 passed) after the fix"
+    },
+    {
+      "action": "Landing refresh: merged origin/main, fixed the round-cap tier source (check_pr_live_state.py has no tier field; now test_pr_merge_ready.py), regenerated the Copilot mirror via build_all, re-verified 56 tests, staleness gate, and ratchets"
     }
   ],
   "nextSteps": [

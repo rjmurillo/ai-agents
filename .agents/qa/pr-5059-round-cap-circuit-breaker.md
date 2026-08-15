@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5056-pr-autofix-round-cap.json
-qaCommit: af7b6babb5e36e5a4885b5f731a9dcc57d305c43
+qaCommit: a62a2cbf6e275c328ec62d9697876c929838df04
 ---
 
 # Issue #5056 Round-Cap Circuit Breaker QA Report
@@ -49,3 +49,7 @@ Phase 2 Step 2.5, and its mirror at `src/copilot-cli/skills/github/scripts/pr/ch
 - `check_skill_md_exec_portability.py`'s reported `[IMPROVED]` rows (`github-url-intercept`,
   `session-end`, `session-init`) are pre-existing changes on this worktree from other work,
   unrelated to this PR; not investigated further as out of scope.
+
+## Refresh note (2026-08-15, landing coordinator)
+
+Merged `origin/main` (merge commit `a62a2cbf6`) to pick up PR #5055's early lease check, PR #5088's staleness gate, and the CI-triage step, resolving two conflicts in `.claude/commands/pr-autofix.md`. The resolution also fixed a live defect in the branch: the round-cap gate read its tier from `check_pr_live_state.py` output, which carries no tier field, so `TIER` was always `UNKNOWN`, the T3/T4 gate never fired, and the auto-merge disarm gate would have treated every armed PR as non-T1. The tier now comes from `test_pr_merge_ready.py` (the authoritative source), computed once above the round-cap gate and reused by the disarm gate. The Copilot mirror was regenerated with `sync_plugin_lib.py` + `build_all.py`, not hand-edited, and `check_generated_staleness.py` reports rc=0. Re-verified on the merged tree: 56/56 pr-autofix tests (26 round-cap + 30 race-gate), taste (583), ruff (27), and type-ignore (44) ratchets unchanged.
