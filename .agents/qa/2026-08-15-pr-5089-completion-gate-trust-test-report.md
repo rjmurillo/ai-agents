@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15072-issue-5072-completion-gate-trust.json
-qaCommit: 175a820280c140ba3265cf315234e38c059c5fbe
+qaCommit: 7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117
 ---
 
 # QA Report: PR #5089 completion-gate config trust boundary (Issue #5072)
@@ -47,7 +47,7 @@ Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trus
 
 ### Full suite
 
-Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `175a820280c140ba3265cf315234e38c059c5fbe` runs the same complete pre-push hook suite before the ref moves.
+Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117` runs the same complete pre-push hook suite before the ref moves.
 
 
 ### Security-review hardening (second round)

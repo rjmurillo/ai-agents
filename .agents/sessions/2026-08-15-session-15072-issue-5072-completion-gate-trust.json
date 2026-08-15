@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "175a820280c140ba3265cf315234e38c059c5fbe on claude/issue-5072-completion-gate-trust"
+        "Evidence": "7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117 on claude/issue-5072-completion-gate-trust"
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,10 +151,13 @@
     },
     {
       "activity": "Agent Safety Review (CI) confirmed the F2/F3 fixes and raised one new finding: approval on git-error is approving blind; --approve-untrusted-config now covers diverged and missing-base only, git-error always exits 3 (negative controls added, 109 tests)"
+    },
+    {
+      "activity": "AI quality gate WARN round: aligned _run_git docstring with cat-file --filters, gave malformed --trusted-ref a distinct usage-error status, and named the dispatcher itself in the scope-of-guarantee note; architect follow-ups (ADR-059 amendment, TTY gate on approval flag, base-ref default) recorded on issue #5099"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "175a820280c140ba3265cf315234e38c059c5fbe"
+  "endingCommit": "7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117"
 }
