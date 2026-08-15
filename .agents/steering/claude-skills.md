@@ -49,7 +49,6 @@ Every SKILL.md MUST include valid YAML frontmatter:
 ---
 name: skill-name
 version: 1.0.0
-model: claude-sonnet-4-6
 description: >-
   One-paragraph description of what the skill does.
   Starts with a verb. Under 200 characters.
@@ -58,7 +57,23 @@ license: MIT
 ```
 
 Required fields: `name`, `version`, `description`.
-Optional fields: `model`, `license`.
+Optional fields: `model`, `model-rationale` (required whenever `model` is set),
+`license`.
+
+**Model policy (ADR-080)**: omit `model:` and inherit the harness model. A
+skill may not carry a versioned id (`claude-sonnet-4-6`); the eval harness
+cannot sweep a skill, so no evidence can justify one, and
+`scripts/validation/check_model_pins.py` rejects it. The only allowed pin is a
+bare rolling alias priced below the default (today `haiku`) with a
+`model-rationale:` line:
+
+```yaml
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
+```
+
+See `.agents/architecture/ADR-080-model-pin-justification-policy.md` and
+`docs/SKILL-AUTHORING.md`.
 
 ### Language Policy
 
