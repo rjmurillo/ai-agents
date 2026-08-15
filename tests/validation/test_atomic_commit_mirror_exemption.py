@@ -260,3 +260,66 @@ class TestFiveToSixBoundary:
         authored = [p for p in staged if not _is_generated(p, root)]
         assert len(authored) == 6
         assert len(authored) > MAX_AUTHORED_FILES_PER_COMMIT
+
+
+class TestMatcherShimSuffixStripping:
+    """Issue #4857: matcher-shimmed hook paths must map to their unsuffixed source."""
+
+    def test_sanitized_hex_suffix_stripped_for_hooks(self) -> None:
+        """Positive: the reported case from #4857."""
+        result = _mirror_source(
+            "src/copilot-cli/hooks/PreToolUse/"
+            "invoke_push_pr_script_identity_guard__Bash_f620ca.py"
+        )
+        assert result == (
+            ".claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py"
+        )
+
+    def test_bare_hex_suffix_stripped_for_hooks(self) -> None:
+        """Edge: a pure-punctuation matcher produces only a hex digest suffix."""
+        result = _mirror_source(
+            "src/copilot-cli/hooks/PostToolUse/my_hook__a1b2c3.py"
+        )
+        assert result == ".claude/hooks/PostToolUse/my_hook.py"
+
+    def test_companion_without_suffix_is_unchanged(self) -> None:
+        """Negative control: verbatim companions still resolve directly."""
+        result = _mirror_source(
+            "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_lex.py"
+        )
+        assert result == ".claude/hooks/PreToolUse/_push_pr_guard_lex.py"
+
+    def test_suffix_stripping_does_not_apply_to_lib(self) -> None:
+        """Negative: lib paths with suffix-like names are not stripped."""
+        result = _mirror_source("src/copilot-cli/lib/foo__bar_abc123.py")
+        assert result == ".claude/lib/foo__bar_abc123.py"
+
+    def test_suffix_stripping_does_not_apply_to_skills(self) -> None:
+        """Negative: skills paths with suffix-like names are not stripped."""
+        result = _mirror_source(
+            "src/copilot-cli/skills/review/scripts/check__Bash_deadbe.py"
+        )
+        assert result == ".claude/skills/review/scripts/check__Bash_deadbe.py"
+
+    def test_shimmed_hook_is_exempt_when_source_staged(
+        self, tmp_path: Path
+    ) -> None:
+        """Integration: the full _is_generated path exempts the shim."""
+        source = ".claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py"
+        root = _make_repo(tmp_path, (source,))
+        shim = (
+            "src/copilot-cli/hooks/PreToolUse/"
+            "invoke_push_pr_script_identity_guard__Bash_f620ca.py"
+        )
+        assert _is_generated(shim, root) is True
+
+    def test_shimmed_hook_not_exempt_when_source_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Integration: shim without staged source is NOT exempt."""
+        root = _make_repo(tmp_path, ())
+        shim = (
+            "src/copilot-cli/hooks/PreToolUse/"
+            "invoke_push_pr_script_identity_guard__Bash_f620ca.py"
+        )
+        assert _is_generated(shim, root) is False
