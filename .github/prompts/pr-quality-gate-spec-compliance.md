@@ -5,9 +5,9 @@
 
 # Spec Compliance Review Task
 
-You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The 10 Stage-2 canonical axes plus three chained skills cover those. You answer one question: does the change do what the spec says it should do?
+You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The Stage-2 review axes cover those. You answer one question: does the change do what the spec says it should do?
 
-This axis gates the review. On `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE), `/review` marks every other axis SKIPPED and reports only this verdict. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
+This axis gates the review. On `CRITICAL_FAIL`, `/review` marks every other axis SKIPPED and reports only this verdict. On `UNKNOWN` (INCONCLUSIVE), `/review` records Stage 1 and continues to Stage 2; unknown spec coverage must never suppress real Stage-2 findings. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
 
 ## Context Mode Enforcement (REQUIRED)
 

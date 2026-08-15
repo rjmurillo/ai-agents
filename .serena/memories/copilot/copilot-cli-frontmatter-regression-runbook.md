@@ -1,10 +1,10 @@
 # Copilot CLI Frontmatter Regression Runbook
 
-**Statement**: Pin Copilot CLI version and validate agent frontmatter when CLI updates break agent loading.
+**Statement**: Diagnose Copilot CLI agent-loading regressions against the configured executable version and validate affected frontmatter before changing a pin.
 
 **Context**: When Copilot CLI updates cause "No such agent" errors, the root cause is likely frontmatter field validation regression. This runbook documents the investigation and resolution process from the 0.0.398+ regression (github/copilot-cli#1195).
 
-**Evidence**: ADR-044, PR #1024, tested on 0.0.397 vs 0.0.400 (2026-02-01).
+**Evidence**: ADR-044 records the 0.0.397 workaround. ADR-094 supersedes that policy. Issue #2630 and session 2586 verified 1.0.63 on 2026-06-17.
 
 **Atomicity**: 95% | **Impact**: 9
 
@@ -22,7 +22,12 @@
 copilot --no-auto-update --version
 ```
 
-Compare with known good version (currently 0.0.397). The binary may auto-update independently of npm version.
+Compare with the version configured by the failing surface:
+
+- Required reviews: `COPILOT_VERSION` in `.github/actions/ai-review/action.yml`
+- Nightly smoke: `COPILOT_CLI_VERSION` in `.github/workflows/nightly-cli-smoke.yml`
+
+The binary may auto-update independently of the npm package.
 
 ### Step 2: Test Agent Loading with Debug Logs
 
@@ -50,13 +55,13 @@ Monitor: https://github.com/github/copilot-cli/issues/1195
 
 ## Resolution Pattern
 
-### Pin to Last Known Good Version
+### Validate a Candidate Version
 
 ```bash
-npm install -g @github/copilot@0.0.397
+npm install -g @github/copilot@X.Y.Z
 ```
 
-Always use `--no-auto-update` on all invocations to prevent binary self-update.
+Always use `--no-auto-update` during validation.
 
 ### Version Verification
 
@@ -64,7 +69,7 @@ After install, verify the binary matches:
 
 ```bash
 VERSION=$(copilot --no-auto-update --version 2>&1 | head -1)
-echo "$VERSION"  # Should match pinned version
+echo "$VERSION"
 ```
 
 ### Validate Agent Loading
@@ -79,28 +84,28 @@ done
 
 ## Key Findings
 
-### Model Field Behavior
+### Historical Model Field Behavior
 
-The frontmatter `model` field is accepted by 0.0.397 without warnings but does NOT control runtime model selection. Model must be passed via `--model` CLI flag.
+On 0.0.397, the frontmatter `model` field was accepted without warnings but did not control runtime model selection. Do not generalize that result to current versions. ADR-080 governs model pins.
 
 | Invocation | Model Used |
 |------------|-----------|
 | No `--model` flag | `claude-sonnet-4.5` (CLI default) |
 | `--model claude-opus-4.5` | `claude-opus-4.5` |
 
-CI handles this via `copilot-model` action input (default: `claude-opus-4.5`).
+Read the current action input and platform configuration before diagnosing model selection.
 
 ### Auto-Update Bypass
 
 npm-loader.js delegates to a platform-specific binary that auto-updates independently. `npm list -g` may show 0.0.382 while `copilot --version` reports 0.0.400. npm version pinning alone is insufficient; `--no-auto-update` is required.
 
-### Platform-Specific Model Values
+### Platform-Specific Model Owners
 
-| Platform | Model Value | Config File |
-|----------|------------|-------------|
-| Copilot CLI | `claude-opus-4.5` | `templates/platforms/copilot-cli.yaml` |
-| VS Code | `Claude Opus 4.5 (copilot)` | `templates/platforms/vscode.yaml` |
-| Claude Code | `opus` | Hardcoded in `.claude/agents/` |
+| Platform | Source |
+|----------|--------|
+| Copilot CLI | `templates/platforms/copilot-cli.yaml` |
+| VS Code | `templates/platforms/vscode.yaml` |
+| Claude Code | Agent frontmatter and harness defaults |
 
 ### Valid Frontmatter Fields by Platform
 
@@ -112,7 +117,8 @@ npm-loader.js delegates to a platform-specific binary that auto-updates independ
 
 ## Related Files
 
-- ADR: `.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md`
+- Current policy: `.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md`
+- Historical decision: `.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md`
 - CI action: `.github/actions/ai-review/action.yml`
 - Platform configs: `templates/platforms/copilot-cli.yaml`, `templates/platforms/vscode.yaml`
 - Build system: `build/Generate-Agents.Common.psm1`
