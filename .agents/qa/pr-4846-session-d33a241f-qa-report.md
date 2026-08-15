@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 35a22aafcc1b8c96c500c0b7aa728283c1ba396b
+qaCommit: 85dc88f93e7dd6851d9c48f2e83617dc79618f87
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `35a22aafcc1b8c96c500c0b7aa728283c1ba396b`
+Validated the branch at commit `85dc88f93e7dd6851d9c48f2e83617dc79618f87`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -28,10 +28,9 @@ pass), and an `xfail` shipped without an open tracking issue
 (`tests/build_scripts/test_hook_contract_knowledge.py:623` -- opened
 [#5014](https://github.com/rjmurillo/ai-agents/issues/5014) and cited
 it in the reason string). The 4th finding (`pyproject.toml:10`, PR
-description undersold this branch's actual 50-file scope) was addressed
-via `gh pr edit` adding a "Scope note" section itemizing every drift-
-absorbed file category; this is not a tracked-file change so it is not
-reflected in `qaCommit`. Full targeted suite (all 3 modified files):
+description undersold the branch's historical 50-file scope) was addressed
+via `gh pr edit`. That was the branch-local measurement before later base
+merges; GitHub now reports a 12-file PR diff. Full targeted suite:
 192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this
@@ -45,6 +44,9 @@ The post-merge pre-push run evaluated this code with only evidence changes
 after `qaCommit`: 28,495 tests passed and 37 skipped. The provenance suite
 passes 215 tests, and fail-open guard tests pass 21 tests. Ruff, mypy,
 actionlint, workflow validation, and independent security review all pass.
+The final review cleanup removes duplicate sub-agent behavior tests and makes
+the checkout dependency guard reject external checkout-index prefixes.
+The dedicated hook suites pass 85 tests. The workflow guard passes 148 tests.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

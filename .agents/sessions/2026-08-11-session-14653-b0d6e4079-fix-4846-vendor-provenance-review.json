@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to latest-main merge commit 35a22aafcc1b8c96c500c0b7aa728283c1ba396b."
+        "Evidence": "QA evidence rebound to final review-fix commit 85dc88f93e7dd6851d9c48f2e83617dc79618f87."
       },
       "validationPassed": {
         "level": "MUST",
@@ -203,12 +203,12 @@
     {
       "action": "Re-ran the full pre-push suite after the main merge.",
       "result": "28,495 tests passed and 37 skipped. Every blocking local gate passed on the merged code; later commits changed evidence only."
+    },
+    {
+      "action": "Removed duplicate hook behavior coverage and corrected checkout-index workspace tracking.",
+      "result": "Dedicated hook suites pass 85 tests. Workflow checkout guard passes 148 tests. Durable next steps are now empty."
     }
   ],
-  "endingCommit": "35a22aafcc1b8c96c500c0b7aa728283c1ba396b",
-  "nextSteps": [
-    "Push the pending 11th rebind commit (docs: rebind QA evidence to the suppressed-Copilot-findings fix, commit 3ec7f54ea) through the guarded run_pr_mutation_if_live wrapper (refresh EXPECTED_HEAD_SHA to the rebind commit's SHA and re-verify EXPECTED_BASE_SHA via gh pr view --json baseRefOid immediately before pushing).",
-    "After the push: poll CI to green, wait for Copilot's next review pass, then re-run check_suppressed_review_findings.py / run_completion_gate.py to confirm active_suppressed_count == 0 for all 4 findings on the new head (3 genuinely fixed should clear; verify none of the fixes triggered a new Copilot finding).",
-    "Re-run the full completion gate to confirm all_passed: true. Re-confirm autoMergeRequest/auto_merge_method remains null throughout. Release the lease once gate-clean or genuinely externally blocked (non-required semgrep-cloud-platform/scan and Review-axes drift check are pre-investigated, confirmed non-blocking/pre-existing-on-main). Produce the final evidence/blocker report to the user."
-  ]
+  "endingCommit": "85dc88f93e7dd6851d9c48f2e83617dc79618f87",
+  "nextSteps": []
 }
