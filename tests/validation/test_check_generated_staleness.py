@@ -132,7 +132,7 @@ class TestExitCodes:
             "_CHECKS",
             (
                 ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py"), 1.0),
-                ("build_all.py --check", ("build", "scripts", "build_all.py"), None),
+                ("build_all.py --check", ("build", "scripts", "build_all.py"), 600.0),
             ),
         )
 
@@ -146,38 +146,79 @@ class TestExitCodes:
         # emitted.
         root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
 
-        def fake_run(*_args: object, **_kwargs: object) -> None:
-            raise subprocess.TimeoutExpired(
-                cmd=["sync"], timeout=1.0, output=b"partial diagnosis\n", stderr=None
-            )
+        class FakeProc:
+            returncode = None
 
-        monkeypatch.setattr(check_generated_staleness.subprocess, "run", fake_run)
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise subprocess.TimeoutExpired(
+                        cmd=["sync"],
+                        timeout=timeout or 0.0,
+                        output=b"partial diagnosis\n",
+                        stderr=None,
+                    )
+                return ("late tail\n", "")
+
+            def send_signal(self, _sig: int) -> None:
+                return None
+
+            def terminate(self) -> None:
+                return None
+
+            def kill(self) -> None:
+                return None
+
+        monkeypatch.setattr(
+            check_generated_staleness.subprocess, "Popen", lambda *a, **k: FakeProc()
+        )
         code, output = check_generated_staleness._run_check(
             root / "scripts" / "sync_plugin_lib.py", root, 1.0
         )
 
         assert code is None
         assert "partial diagnosis" in output
+        assert "late tail" in output
         assert "exceeded 1.0s" in output
 
 
-class TestTimeoutAsymmetry:
-    """The per-row caps are a contract, pinned in both directions."""
+class TestBoundedGracefulTermination:
+    """Every row is bounded, and expiry preserves the child's cleanup."""
 
-    def test_build_all_carries_no_external_kill(self) -> None:
-        # SIGKILL skips build_all's snapshot-restoring finally and corrupts
-        # the caller's worktree (reproduced: 15 dirty paths). This row must
-        # never grow a cap.
-        by_label = {label: timeout for label, _, timeout in check_generated_staleness._CHECKS}
+    def test_every_row_carries_a_deadline(self) -> None:
+        # An unbounded child stalls pre_pr.py indefinitely for callers not
+        # under the lefthook job cap (reliability review on PR #5088).
+        for label, _, timeout in check_generated_staleness._CHECKS:
+            assert timeout > 0, f"{label} must carry a deadline"
 
-        assert by_label["build_all.py --check"] is None
+    def test_expiry_lets_the_child_finally_run(self, tmp_path: Path) -> None:
+        # The whole point of graceful termination: SIGKILL would skip the
+        # child's finally (which is what restores build_all's snapshot), but
+        # SIGINT raises KeyboardInterrupt so the finally runs. The stub
+        # mirrors that shape: it sleeps past the deadline and writes a marker
+        # from its finally. The marker existing proves cleanup ran.
+        if sys.platform == "win32":
+            pytest.skip("POSIX SIGINT path; non-POSIX uses terminate()")
+        child = tmp_path / "cleanup_child.py"
+        marker = tmp_path / "cleanup_ran.marker"
+        child.write_text(
+            "import sys, time\n"
+            "try:\n"
+            "    time.sleep(30)\n"
+            "finally:\n"
+            f"    open({str(marker)!r}, 'w').write('1')\n",
+            encoding="utf-8",
+        )
 
-    def test_the_dry_run_row_does_carry_a_cap(self) -> None:
-        # The control: without it, deleting every cap in the table would pass
-        # the assertion above and the reason for the asymmetry would be lost.
-        by_label = {label: timeout for label, _, timeout in check_generated_staleness._CHECKS}
+        code, output = check_generated_staleness._run_check(child, tmp_path, 1.0)
 
-        assert by_label["sync_plugin_lib.py --check"] is not None
+        assert code is None
+        assert marker.is_file(), "the child's finally never ran"
+        assert "exceeded 1.0s" in output
+        assert "honored the interrupt" in output
 
 
 class TestGeneratorOrder:

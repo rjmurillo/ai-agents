@@ -54,19 +54,25 @@ which is safe there because each step reports independently. This gate runs
 them in one process in the rule's order so the first reported failure is the
 one a contributor must fix first.
 
-Why the ``build_all`` row carries no timeout
---------------------------------------------
+Bounded deadlines with cleanup-preserving termination
+-----------------------------------------------------
 
 ``build_all.py --check`` is read-only only because its ``finally`` at
 ``build/scripts/build_all.py:1123-1128`` restores the generated trees it
-snapshotted. A ``subprocess.run(timeout=...)`` kill is SIGKILL, which never
-runs that block, so an external kill landing mid-write leaves partial
-generated writes in the caller's worktree (reproduced: 15 dirty paths when
-killed at the first observed generated write). A validation gate must not be
-able to corrupt its own subject, so that row has no external kill; the
-lefthook job cap one level up owns the whole process tree and remains the
-backstop. ``sync_plugin_lib.py --check`` writes nothing, so a kill leaves no
-partial state and its cap is safe and stays.
+snapshotted. ``subprocess.run(timeout=...)`` kills with SIGKILL, which never
+runs that block, so a kill landing mid-write leaves partial generated writes
+in the caller's worktree (reproduced: 15 dirty paths when killed at the first
+observed generated write). An unbounded child is not acceptable either: a
+hung generator would stall ``pre_pr.py`` indefinitely for every caller that
+is not under the lefthook job cap.
+
+Both constraints are honored by terminating gracefully on deadline: on
+expiry the child receives SIGINT, which Python surfaces as
+``KeyboardInterrupt``, so the ``finally`` runs and the snapshot is restored;
+only if the child ignores that for ``_TERMINATION_GRACE_SECONDS`` does the
+kill escalate, with an explicit warning that the tree may hold partial
+generated writes. Expiry reports EXTERNAL (exit 3): the tree was never
+scored.
 
 Exit codes (ADR-035):
     0 - Success (no staleness detected)
@@ -77,6 +83,8 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 from enum import IntEnum
@@ -99,16 +107,18 @@ class _Status(IntEnum):
 # seconds or None). Changing the order breaks the contract this module exists
 # to honor.
 #
-# The timeout asymmetry is deliberate (module docstring, "Why the build_all
-# row carries no timeout"): the sync check is a dry run that writes nothing,
-# so a kill leaves no partial state; its cap is sized for a loaded machine per
-# ci-scripts.md MUST 16. The build_all row MUST NOT carry an external kill,
-# because SIGKILL skips its snapshot-restoring ``finally`` and corrupts the
-# caller's worktree.
-_CHECKS: tuple[tuple[str, tuple[str, ...], float | None], ...] = (
+# Both rows carry a deadline sized for a loaded machine per ci-scripts.md
+# MUST 16, enforced by _run_check's graceful termination (SIGINT first, so
+# build_all's snapshot-restoring ``finally`` runs; see the module docstring).
+_CHECKS: tuple[tuple[str, tuple[str, ...], float], ...] = (
     ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py"), 600.0),
-    ("build_all.py --check", ("build", "scripts", "build_all.py"), None),
+    ("build_all.py --check", ("build", "scripts", "build_all.py"), 600.0),
 )
+
+# How long a child gets to honor SIGINT and finish its cleanup before the
+# kill escalates. build_all's restore is file copies measured in fractions of
+# a second; 30s is generous without turning a hang into a long stall.
+_TERMINATION_GRACE_SECONDS = 30.0
 
 _MAX_OUTPUT_LINES = 40
 
@@ -149,31 +159,56 @@ def _echo_tail(output: str) -> None:
 
 
 def _run_check(
-    script: Path, repo_root: Path, timeout: float | None
+    script: Path, repo_root: Path, timeout: float
 ) -> tuple[int | None, str]:
     """Run one generator in ``--check`` mode. Returns (exit code, output).
 
-    A timeout is an external failure, not a pass: the caller must not read a
-    killed child as a clean tree. The exit code is ``None`` on timeout so the
-    caller can distinguish "the child reported drift" from "the child was
-    never allowed to finish". Partial output the child already flushed is
-    preserved with the kill marker appended, not discarded.
+    A deadline expiry is an external failure, not a pass: the caller must not
+    read a terminated child as a clean tree. The exit code is ``None`` on
+    expiry so the caller can distinguish "the child reported drift" from "the
+    child was never allowed to finish". Partial output the child already
+    flushed is preserved with the expiry marker appended, not discarded.
+
+    Termination is graceful on purpose (module docstring, "Bounded deadlines
+    with cleanup-preserving termination"): SIGINT first so the child's
+    ``finally`` blocks run, kill only after the grace window, with a warning
+    that the tree may then hold partial generated writes. On non-POSIX hosts
+    ``terminate()`` stands in for SIGINT.
     """
+    proc = subprocess.Popen(
+        [sys.executable, str(script), "--check"],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     try:
-        result = subprocess.run(
-            [sys.executable, str(script), "--check"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return proc.returncode, (stdout or "") + (stderr or "")
     except subprocess.TimeoutExpired as exc:
         partial = _decode(exc.stdout) + _decode(exc.stderr)
-        return None, partial + f"\n{script.name} --check exceeded {timeout}s"
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+        if os.name == "posix":
+            proc.send_signal(signal.SIGINT)
+        else:
+            proc.terminate()
+        try:
+            late_out, late_err = proc.communicate(timeout=_TERMINATION_GRACE_SECONDS)
+            partial += _decode(late_out) + _decode(late_err)
+            cleanup_note = "child honored the interrupt and finished cleanup"
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            late_out, late_err = proc.communicate()
+            partial += _decode(late_out) + _decode(late_err)
+            cleanup_note = (
+                "child ignored the interrupt and was killed; the tree may "
+                "hold partial generated writes, check git status"
+            )
+        return None, (
+            partial
+            + f"\n{script.name} --check exceeded {timeout}s ({cleanup_note})"
+        )
 
 
 def check_generated_staleness(repo_root: Path) -> _Status:
