@@ -80,9 +80,25 @@ worst case is bounded below the process cap that contains it:
 and a lefthook cap kill lands on the whole process tree without the SIGINT
 path. ``_GATE_BUDGET_SECONDS + _TERMINATION_GRACE_SECONDS`` (450s) leaves
 the remaining half of the outer cap for the rest of the sequence (measured
-~130s), so the outer kill can never be the first deadline to fire during a
-generator write. ``tests/validation/test_check_generated_staleness.py``
+~130s). ``tests/validation/test_check_generated_staleness.py``
 pins that arithmetic against the live ``lefthook.yml``.
+
+The static split alone cannot guarantee the SIGINT deadline fires first: the
+gate's clock starts when the sequence reaches it, after every earlier
+validation has already spent part of the same outer timer (review round 5).
+So the lefthook job also declares the cap it runs under via
+``PRE_PR_OUTER_CAP_SECONDS``, and the gate clamps its deadline to the
+process's remaining share of that cap, minus the termination grace. If the
+earlier validations left less time than one child needs, the gate reports
+EXTERNAL without spawning rather than let the outer SIGKILL land mid-write.
+The clamp is opt-in by environment on purpose: only the lefthook job knows
+it is running under that timer, and a library caller such as pytest imports
+this module long before calling it, so an unconditional wall-clock clamp
+keyed to import time would misfire there. With the variable unset the
+aggregate budget stands alone. ``_PROCESS_START`` is captured at module
+import, which under ``pre_pr.py`` happens during process startup because the
+sequence registry imports its validators up front; the seconds of skew
+against the true process start are noise next to the 30s grace.
 
 Exit codes (ADR-035):
     0 - Success (no staleness detected)
@@ -140,6 +156,17 @@ _GATE_BUDGET_SECONDS = 420.0
 # kill escalates. build_all's restore is file copies measured in fractions of
 # a second; 30s is generous without turning a hang into a long stall.
 _TERMINATION_GRACE_SECONDS = 30.0
+
+# Set by the lefthook pre-pr-validation job to the cap it runs under, in
+# seconds. When present, the gate's deadline is clamped to this process's
+# remaining share of that cap (module docstring, "Bounded deadlines with
+# cleanup-preserving termination"). The test that parses the live
+# lefthook.yml pins the declared value to the job's actual timeout.
+_OUTER_CAP_ENV = "PRE_PR_OUTER_CAP_SECONDS"
+
+# Approximates the outer timer's start; see the module docstring for why
+# import time is close enough under pre_pr.py and why the clamp is opt-in.
+_PROCESS_START = time.monotonic()
 
 _MAX_OUTPUT_LINES = 40
 
@@ -237,6 +264,31 @@ def _remaining(deadline: float) -> float:
     return deadline - time.monotonic()
 
 
+def _clamped_budget(now: float) -> float:
+    """The aggregate budget, clamped to the outer cap's remainder when set.
+
+    A malformed value warns and disables the clamp instead of failing: the
+    clamp is a tightening of an already-bounded gate, so a typo in a hook
+    configuration must not block every contributor's push. The warning is
+    the loud part; the aggregate budget still bounds the gate.
+    """
+    raw = os.environ.get(_OUTER_CAP_ENV)
+    if raw is None:
+        return _GATE_BUDGET_SECONDS
+    try:
+        outer_cap = float(raw)
+    except ValueError:
+        print(
+            f"[WARN] {_OUTER_CAP_ENV}={raw!r} is not a number; the outer-cap"
+            f" clamp is disabled for this run and the aggregate"
+            f" {_GATE_BUDGET_SECONDS}s budget stands alone.",
+            file=sys.stderr,
+        )
+        return _GATE_BUDGET_SECONDS
+    outer_remaining = outer_cap - (now - _PROCESS_START) - _TERMINATION_GRACE_SECONDS
+    return min(_GATE_BUDGET_SECONDS, outer_remaining)
+
+
 def check_generated_staleness(repo_root: Path) -> _Status:
     """Return the gate outcome for ``repo_root``.
 
@@ -251,14 +303,17 @@ def check_generated_staleness(repo_root: Path) -> _Status:
     (.claude/rules/ci-scripts.md MUST 11 and MUST 12).
     """
     examined = 0
-    deadline = time.monotonic() + _GATE_BUDGET_SECONDS
+    start = time.monotonic()
+    deadline = start + _clamped_budget(start)
     for label, parts in _CHECKS:
         budget = _remaining(deadline)
         if budget <= 0:
             print(
-                f"[FAIL] gate budget ({_GATE_BUDGET_SECONDS}s) exhausted before"
-                f" {label} ran; the tree was never scored. Examined {examined}"
-                f" of {len(_CHECKS)} checks.",
+                f"[FAIL] gate deadline reached before {label} ran; the tree"
+                f" was never scored. The deadline is the aggregate budget"
+                f" ({_GATE_BUDGET_SECONDS}s), clamped to this process's"
+                f" remaining share of the outer cap when {_OUTER_CAP_ENV} is"
+                f" set. Examined {examined} of {len(_CHECKS)} checks.",
                 file=sys.stderr,
             )
             return _Status.EXTERNAL
@@ -309,7 +364,11 @@ def check_generated_staleness(repo_root: Path) -> _Status:
         )
         return _Status.DRIFT
 
-    print(f"generated staleness: 0 stale in {examined} generator check(s) examined")
+    elapsed = time.monotonic() - start
+    print(
+        f"generated staleness: 0 stale in {examined} generator check(s)"
+        f" examined ({elapsed:.1f}s of {_GATE_BUDGET_SECONDS:.0f}s budget)"
+    )
     return _Status.OK
 
 

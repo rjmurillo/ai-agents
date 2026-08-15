@@ -28,6 +28,7 @@ from __future__ import annotations
 import io
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -46,6 +47,13 @@ import check_generated_staleness
 import pre_pr_sequence
 
 GATE_NAME = "Generated Artifact Staleness"
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_outer_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A developer shell exporting the clamp variable must not skew tests
+    that reason about the unclamped aggregate budget."""
+    monkeypatch.delenv(check_generated_staleness._OUTER_CAP_ENV, raising=False)
 
 
 def _stub(path: Path, body: str) -> None:
@@ -226,6 +234,18 @@ class TestBoundedGracefulTermination:
             f" sequence"
         )
 
+        # The job declares its own cap to the gate so the runtime clamp can
+        # key off it (review round 5). The declaration must equal the job's
+        # actual timeout, or the clamp bounds against a fiction.
+        declared = caps[0].get("env", {}).get(
+            check_generated_staleness._OUTER_CAP_ENV
+        )
+        assert declared is not None, (
+            f"pre-pr-validation must declare"
+            f" {check_generated_staleness._OUTER_CAP_ENV}"
+        )
+        assert float(declared) == cap_seconds
+
     def test_an_exhausted_budget_reports_external_without_running_the_child(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -261,6 +281,117 @@ class TestBoundedGracefulTermination:
         assert "exceeded 1.0s" in output
         assert "honored the interrupt" in output
 
+    def test_a_child_that_ignores_the_interrupt_is_killed_with_a_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The escalation branch: a child that shrugs off SIGINT must still be
+        # bounded, and the caller must be told the tree may hold partial
+        # writes, because that is the one path where cleanup did not run.
+        if sys.platform == "win32":
+            pytest.skip("POSIX SIGINT path; non-POSIX uses terminate()")
+        child = tmp_path / "stubborn_child.py"
+        child.write_text(
+            "import signal, sys, time\n"
+            "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+            "print('armored', flush=True)\n"
+            "time.sleep(60)\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            check_generated_staleness, "_TERMINATION_GRACE_SECONDS", 1.0
+        )
+
+        code, output = check_generated_staleness._run_check(child, tmp_path, 2.0)
+
+        assert code is None
+        assert "ignored the interrupt and was killed" in output
+        assert "partial generated writes" in output
+
+    def test_a_non_posix_host_terminates_instead_of_signaling(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Windows has no SIGINT delivery to a child; the fallback is
+        # terminate(). This drives the branch with a fake so the suite pins
+        # it on every platform: on expiry the non-POSIX path must call
+        # terminate() and must not attempt a POSIX signal.
+        class FakeProc:
+            returncode = None
+
+            def __init__(self) -> None:
+                self.calls = 0
+                self.terminated = False
+                self.signals: list[int] = []
+
+            def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise subprocess.TimeoutExpired(cmd=["x"], timeout=timeout or 0.0)
+                return ("", "")
+
+            def send_signal(self, sig: int) -> None:
+                self.signals.append(sig)
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def kill(self) -> None:
+                return None
+
+        fake = FakeProc()
+        monkeypatch.setattr(
+            check_generated_staleness.subprocess, "Popen", lambda *a, **k: fake
+        )
+        monkeypatch.setattr(check_generated_staleness.os, "name", "nt")
+
+        code, _output = check_generated_staleness._run_check(
+            tmp_path / "any.py", tmp_path, 1.0
+        )
+
+        assert code is None
+        assert fake.terminated, "non-POSIX expiry must call terminate()"
+        assert fake.signals == [], "non-POSIX expiry must not send POSIX signals"
+
+    def test_a_spent_outer_share_reports_external_without_running_the_child(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The round-5 clamp: the gate's clock starts when the sequence
+        # reaches it, after earlier validations spent part of the same outer
+        # lefthook timer. When the declared cap leaves less than the grace
+        # window, spawning a child would invite the outer SIGKILL mid-write,
+        # so the gate must refuse to spawn at all.
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "1")
+
+        assert check_generated_staleness.main([str(root)]) == 3
+        assert not _build_all_ran(root)
+
+    def test_an_unspent_outer_cap_leaves_the_gate_running(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Control for the clamp test: a freshly started process under the
+        # real declared cap must behave exactly as with no clamp at all.
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "900")
+        monkeypatch.setattr(
+            check_generated_staleness, "_PROCESS_START", time.monotonic()
+        )
+
+        assert check_generated_staleness.main([str(root)]) == 0
+        assert _build_all_ran(root)
+
+    def test_a_malformed_outer_cap_warns_and_disables_the_clamp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # A typo in the hook configuration must not block every contributor's
+        # push: the clamp only tightens an already-bounded gate, so the
+        # failure mode is a loud warning plus the unclamped budget.
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "banana")
+
+        assert check_generated_staleness.main([str(root)]) == 0
+        assert "[WARN]" in capsys.readouterr().err
+
 
 class TestGeneratorOrder:
     """sync before build, per .claude/rules/generated-artifacts.md."""
@@ -287,6 +418,31 @@ class TestGeneratorOrder:
         check_generated_staleness.main([str(root)])
 
         assert _build_all_ran(root)
+
+
+class TestEchoTail:
+    """The failure echo is bounded and keeps the diagnosis, not the preamble."""
+
+    def test_long_output_is_truncated_to_the_tail_with_a_note(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # build_all writes hundreds of progress lines before the verdict, so
+        # the bound must drop the head and say how much it dropped.
+        check_generated_staleness._echo_tail(
+            "\n".join(f"line{i}" for i in range(50))
+        )
+
+        out = capsys.readouterr().out
+        assert "10 earlier line(s) omitted" in out
+        assert "line49" in out
+        assert "line0\n" not in out
+
+    def test_blank_output_prints_nothing(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        check_generated_staleness._echo_tail("  \n  ")
+
+        assert capsys.readouterr().out == ""
 
 
 def _drive(monkeypatch: pytest.MonkeyPatch) -> tuple[list[str], list[Path]]:
