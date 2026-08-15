@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to pre-materialization sentinel de56b3261348c8753192fc3e857cc4a7bb0faaa3."
+        "Evidence": "QA evidence rebound to comment-safe prefix parser e318f4c60658f1b59cd9b8529968f7526752afef."
       },
       "validationPassed": {
         "level": "MUST",
@@ -263,8 +263,12 @@
     {
       "action": "Published the pending PR-head status before any Git operation and required full checkout-index materialization.",
       "result": "222 provenance tests and 161 workflow checkout tests pass. Independent security review returned PASS."
+    },
+    {
+      "action": "Bound prefix quote evidence to the actual command and stripped unquoted comments.",
+      "result": "Decoy comments cannot authenticate a rejected prefix. 162 tests pass, and the test file remains within the 500-line ceiling."
     }
   ],
-  "endingCommit": "de56b3261348c8753192fc3e857cc4a7bb0faaa3",
+  "endingCommit": "e318f4c60658f1b59cd9b8529968f7526752afef",
   "nextSteps": []
 }

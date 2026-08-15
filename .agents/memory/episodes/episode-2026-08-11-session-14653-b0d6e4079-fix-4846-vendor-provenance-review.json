@@ -117,7 +117,8 @@
         "e081",
         "e083",
         "e085",
-        "e087"
+        "e087",
+        "e089"
       ],
       "leads_to": [
         "e006"
@@ -1126,6 +1127,30 @@
       "caused_by": [
         "e086"
       ],
+      "leads_to": [
+        "e090"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e089",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound prefix quote evidence to the actual command and stripped unquoted comments.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e090",
+      "timestamp": "2026-08-15T13:00:17+00:00",
+      "type": "commit",
+      "content": "Commit: e318f4c60658f1b59cd9b8529968f7526752afef",
+      "caused_by": [
+        "e088"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1135,7 +1160,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 48,
+    "commits": 49,
     "files_changed": 53
   },
   "lessons": []
