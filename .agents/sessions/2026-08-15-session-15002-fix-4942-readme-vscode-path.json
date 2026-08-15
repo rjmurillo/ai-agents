@@ -39,13 +39,13 @@
   ],
   "nextSteps": ["Merge PR after CI passes"],
   "episodeMetrics": {
-    "filesChanged": 2,
+    "filesChanged": 3,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "3532ac5c0a30fb183aee3f562500ec81a9d272b6",
-      "head": "22adf045082aa9c676d53398077814efd59074c0"
+      "head": "2d043bd97834f8fe98fe31ffff5117cfae4e62ea"
     }
   },
-  "endingCommit": "22adf045082aa9c676d53398077814efd59074c0",
+  "endingCommit": "2d043bd97834f8fe98fe31ffff5117cfae4e62ea",
   "retrospective": "## Retrospective\n\nDocumentation fix with regression test. Low complexity, no code changes beyond test."
 }
