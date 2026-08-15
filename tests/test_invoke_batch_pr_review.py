@@ -12,6 +12,7 @@ from scripts.invoke_batch_pr_review import (
     get_pr_branch,
     get_worktree_status,
     main,
+    push_worktree_changes,
     print_status_table,
     run_gh,
     run_git,
@@ -65,6 +66,22 @@ class TestGetWorktreeStatus:
         assert status.pr == 42
 
 
+def _prepare_pushable_worktree(root: Path) -> Path:
+    """Create a pushable worktree with bot identity and an upstream remote."""
+    origin = root / "origin.git"
+    worktree = root / "worktree-pr-1"
+
+    _git(["init", "--bare", "--initial-branch=main", str(origin)], root)
+    _git(["clone", str(origin), str(worktree)], root)
+    _git(["config", "user.name", "rjmurillo-bot"], worktree)
+    _git(["config", "user.email", "rjmurillo-bot@users.noreply.github.com"], worktree)
+    (worktree / "README.md").write_text("base\n")
+    _git(["add", "README.md"], worktree)
+    _git(["commit", "-m", "base"], worktree)
+    _git(["push", "origin", "main"], worktree)
+    return worktree
+
+
 class TestPrintStatusTable:
     def test_prints_without_error(self) -> None:
         statuses = [
@@ -95,3 +112,56 @@ class TestMain:
             "--worktree-root", "/tmp",
         ])
         assert result == 3
+
+
+class TestPushWorktreeChanges:
+    def test_repins_leaked_identity_before_cleanup_commit(self, tmp_path: Path) -> None:
+        """A leaked Test <test@test.com> identity must not reach the cleanup commit."""
+        worktree = _prepare_pushable_worktree(tmp_path)
+
+        _git(["config", "user.name", "Test"], worktree)
+        _git(["config", "user.email", "test@test.com"], worktree)
+        (worktree / "README.md").write_text("base\nchange\n")
+
+        assert push_worktree_changes(1, tmp_path) is True
+
+        author = _git(["log", "-1", "--format=%an <%ae>"], worktree).stdout.strip()
+        assert author == "rjmurillo-bot <rjmurillo-bot@users.noreply.github.com>"
+        local_email = _git(["config", "--local", "user.email"], worktree).stdout.strip()
+        assert local_email == "rjmurillo-bot@users.noreply.github.com"
+
+    def test_clean_and_pushed_worktree_skips_identity_reset(self, tmp_path: Path) -> None:
+        """A clean, already-pushed worktree must not need a reset or commit."""
+        _prepare_pushable_worktree(tmp_path)
+
+        from scripts import invoke_batch_pr_review
+
+        with patch.object(invoke_batch_pr_review, "reset_worktree_identity") as mock_reset:
+            result = push_worktree_changes(1, tmp_path)
+
+        assert result is True
+        mock_reset.assert_not_called()
+
+    def test_operator_identity_is_forwarded_to_reset(self, tmp_path: Path) -> None:
+        """The human operator mode must still forward through the cleanup path."""
+        from scripts import invoke_batch_pr_review
+
+        status = WorktreeStatus(
+            pr=1,
+            path=tmp_path / "worktree-pr-1",
+            exists=True,
+            clean=False,
+            branch="main",
+            commit=None,
+            unpushed=True,
+        )
+        with (
+            patch.object(invoke_batch_pr_review, "get_worktree_status", return_value=status),
+            patch.object(invoke_batch_pr_review, "reset_worktree_identity") as mock_reset,
+            patch.object(invoke_batch_pr_review, "run_git") as mock_run_git,
+        ):
+            mock_run_git.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = push_worktree_changes(1, tmp_path, operator="rjmurillo")
+
+        assert result is True
+        mock_reset.assert_called_once_with(status.path, operator="rjmurillo")
