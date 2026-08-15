@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -21,7 +22,7 @@ class TestCheckDrift:
 
     def test_no_drift(self):
         baseline = {"parameters": {"strict_required_status_checks_policy": False}}
-        live = {"strict_required_status_checks_policy": False, "other": "val"}
+        live = {"strict_required_status_checks_policy": False}
         assert mod.check_drift(baseline, live) == []
 
     def test_drift_detected(self):
@@ -118,3 +119,34 @@ class TestMainLive:
             with pytest.raises(SystemExit) as exc_info:
                 mod.main([])
             assert exc_info.value.code == 3
+
+
+class TestEdgeCases:
+    """Edge cases: malformed baseline, extra live params."""
+
+    def test_malformed_baseline_exits_config(self, tmp_path: Path) -> None:
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json{{{", encoding="utf-8")
+        with patch.object(mod, "BASELINE_PATH", bad):
+            with pytest.raises(SystemExit) as exc_info:
+                mod.main([])
+            assert exc_info.value.code == mod.EXIT_CONFIG
+
+    def test_missing_parameters_key_exits_config(self, tmp_path: Path) -> None:
+        no_params = tmp_path / "no_params.json"
+        no_params.write_text('{"ruleset_id": 1}', encoding="utf-8")
+        with patch.object(mod, "BASELINE_PATH", no_params):
+            with pytest.raises(SystemExit) as exc_info:
+                mod.main([])
+            assert exc_info.value.code == mod.EXIT_CONFIG
+
+    def test_extra_live_params_reported_as_drift(self) -> None:
+        baseline: dict[str, Any] = {
+            "parameters": {"strict_required_status_checks_policy": False}
+        }
+        live: dict[str, Any] = {
+            "strict_required_status_checks_policy": False,
+            "require_linear_history": True,
+        }
+        drifts = mod.check_drift(baseline, live)
+        assert any("require_linear_history" in d for d in drifts)

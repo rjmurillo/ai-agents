@@ -25,7 +25,6 @@ grep -rln merge_group .github/workflows/
 2026-08-10). Being behind main does not block merge via the ruleset.
 The `merge_group` half still holds: no workflow answers that event, and a merge
 queue cannot be enabled on this repository anyway.**
-queue cannot be enabled on this repository anyway.**
 
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main

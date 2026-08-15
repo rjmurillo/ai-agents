@@ -15,7 +15,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3645)
+|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3635)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
@@ -38,7 +38,7 @@
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
-|blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (899)
+|blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (919)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]

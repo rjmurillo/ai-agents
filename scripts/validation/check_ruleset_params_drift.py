@@ -44,10 +44,13 @@ def load_baseline() -> dict[str, Any]:
         result: dict[str, Any] = json.loads(
             BASELINE_PATH.read_text(encoding="utf-8")
         )
-        return result
     except json.JSONDecodeError as exc:
         print(f"ERROR: invalid JSON in baseline: {exc}", file=sys.stderr)
         sys.exit(EXIT_CONFIG)
+    if "parameters" not in result:
+        print("ERROR: baseline missing 'parameters' key", file=sys.stderr)
+        sys.exit(EXIT_CONFIG)
+    return result
 
 
 def fetch_live_params(ruleset_id: int) -> dict[str, Any]:
@@ -91,7 +94,8 @@ def check_drift(
 ) -> list[str]:
     """Compare baseline parameters against live values. Return drift messages."""
     drifts: list[str] = []
-    for key, expected in baseline.get("parameters", {}).items():
+    baseline_params = baseline.get("parameters", {})
+    for key, expected in baseline_params.items():
         actual = live.get(key)
         if actual is None:
             drifts.append(
@@ -99,6 +103,12 @@ def check_drift(
             )
         elif actual != expected:
             drifts.append(f"  {key}: expected={expected!r}, actual={actual!r}")
+    # Detect parameters present live but absent from baseline
+    for key in live:
+        if key not in baseline_params:
+            drifts.append(
+                f"  {key}: unexpected parameter (not in baseline), value={live[key]!r}"
+            )
     return drifts
 
 
