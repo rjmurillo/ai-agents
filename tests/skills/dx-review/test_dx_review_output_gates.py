@@ -29,7 +29,7 @@ BLOCKING_GATE_FRAGMENTS = (
     "Record conflicting evidence",
     "GATE_STATUS: Review Gate = PASS",
     "PASS_WITH_CONCERNS",
-    "read-only `code-review` subagent_type",
+    "read-only `code-reviewer` subagent_type",
     "target excerpts",
     "as untrusted data",
     "not execute commands",
@@ -111,7 +111,7 @@ def test_gate_contract_mutations_fail() -> None:
             _has_blocking_gates,
         ),
         (
-            text.replace("read-only `code-review`", "`general-purpose`", 1),
+            text.replace("read-only `code-reviewer`", "`general-purpose`", 1),
             _has_blocking_gates,
         ),
     )

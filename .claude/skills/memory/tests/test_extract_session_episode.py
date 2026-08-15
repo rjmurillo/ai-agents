@@ -1022,6 +1022,33 @@ class TestCommitEventsFollowChronology:
 
         assert commits == [f"Commit: {sha}" for sha in shas[:2]]
 
+    def test_comparison_head_fallback_excludes_later_qa_rebind(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        shas = _repo_with_commits(
+            tmp_path,
+            [
+                "2026-07-01T10:00:00+00:00",
+                "2026-07-02T10:00:00+00:00",
+                "2026-07-03T10:00:00+00:00",
+            ],
+        )
+        monkeypatch.chdir(tmp_path / "repo")
+        log = _log_with_commits(shas[2], [shas[0]])
+        log["episodeMetrics"] = {
+            "filesChanged": 2,
+            "comparison": {
+                "kind": "gitCommitRange",
+                "base": shas[0],
+                "head": shas[1],
+            },
+        }
+
+        events = json_events(log, "2026-07-29T00:00:00Z")
+        commits = [e["content"] for e in events if e["type"] == "commit"]
+
+        assert commits == [f"Commit: {sha}" for sha in shas[:2]]
+
     def test_ending_commit_is_emitted_last_not_first(self, tmp_path, monkeypatch) -> None:
         shas = _repo_with_commits(
             tmp_path,
