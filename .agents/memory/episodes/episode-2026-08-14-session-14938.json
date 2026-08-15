@@ -12,7 +12,9 @@
       "timestamp": "2026-08-14T23:00:00+00:00",
       "type": "milestone",
       "content": "Removed all 28 model: lines from .github/agents/ files",
-      "caused_by": [],
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [
         "e002"
       ],
@@ -118,6 +120,17 @@
         "e008"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-retro",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
       "_source_session": "2026-08-14-session-14938"
     }
   ],

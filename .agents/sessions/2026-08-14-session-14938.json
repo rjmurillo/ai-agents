@@ -113,6 +113,10 @@
       "timestamp": "2026-08-14T23:15:00Z",
       "action": "Added 5 regression tests (positive, negative, edge)",
       "result": "All tests pass."
+    },
+    {
+      "step": "fix-retro",
+      "description": "Added failure-mode classification, evidence, and remediation to retrospective per retros.md"
     }
   ],
   "endingCommit": "5cc07092184bff0ae9034406a2d3431330587dd1",
