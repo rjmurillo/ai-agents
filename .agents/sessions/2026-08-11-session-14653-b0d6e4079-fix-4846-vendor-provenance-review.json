@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to validated prompt-sync commit 1bec84f1534cabd9212fe2d5b2647dc19578031f."
+        "Evidence": "QA evidence rebound to validated security commit 81435955ad079765ea251cb07749e112409e8b0b."
       },
       "validationPassed": {
         "level": "MUST",
@@ -191,9 +191,13 @@
     {
       "action": "Regenerated the architect review prompt after main renamed SkillForge to skillforge.",
       "result": "The prompt now matches its canonical review reference, and the review-axis drift check is clean."
+    },
+    {
+      "action": "Closed the final stale-success and uv.toml supply-chain findings.",
+      "result": "Check-run creation now fails closed. Root uv.toml files and symlinks are rejected. 215 provenance tests and 21 fail-open tests pass, with independent security review PASS."
     }
   ],
-  "endingCommit": "1bec84f1534cabd9212fe2d5b2647dc19578031f",
+  "endingCommit": "81435955ad079765ea251cb07749e112409e8b0b",
   "nextSteps": [
     "Push the pending 11th rebind commit (docs: rebind QA evidence to the suppressed-Copilot-findings fix, commit 3ec7f54ea) through the guarded run_pr_mutation_if_live wrapper (refresh EXPECTED_HEAD_SHA to the rebind commit's SHA and re-verify EXPECTED_BASE_SHA via gh pr view --json baseRefOid immediately before pushing).",
     "After the push: poll CI to green, wait for Copilot's next review pass, then re-run check_suppressed_review_findings.py / run_completion_gate.py to confirm active_suppressed_count == 0 for all 4 findings on the new head (3 genuinely fixed should clear; verify none of the fixes triggered a new Copilot finding).",

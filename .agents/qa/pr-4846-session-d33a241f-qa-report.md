@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 1bec84f1534cabd9212fe2d5b2647dc19578031f
+qaCommit: 81435955ad079765ea251cb07749e112409e8b0b
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `1bec84f1534cabd9212fe2d5b2647dc19578031f`
+Validated the branch at commit `81435955ad079765ea251cb07749e112409e8b0b`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -36,6 +36,14 @@ reflected in `qaCommit`. Full targeted suite (all 3 modified files):
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this
 branch's diff before this commit, no new files).
+
+Commit `81435955a` closes two later security findings. Check-run creation
+now fails closed, so an edited or reopened PR cannot retain a stale green
+status when the in-progress marker fails. The validator also rejects root
+`uv.toml` files and symlinks, and treats `uv.toml`-only changes as relevant.
+The provenance suite passes 215 tests. Fail-open guard tests pass 21 tests.
+Ruff, mypy, actionlint, workflow validation, and independent security review
+all pass.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

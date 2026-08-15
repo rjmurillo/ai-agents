@@ -99,7 +99,8 @@
         "e047",
         "e048",
         "e050",
-        "e052"
+        "e052",
+        "e054"
       ],
       "leads_to": [
         "e006"
@@ -689,6 +690,30 @@
       "caused_by": [
         "e051"
       ],
+      "leads_to": [
+        "e055"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e054",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final stale-success and uv.toml supply-chain findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-08-15T03:36:06+00:00",
+      "type": "commit",
+      "content": "Commit: 81435955ad079765ea251cb07749e112409e8b0b",
+      "caused_by": [
+        "e053"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -698,7 +723,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 31,
+    "commits": 32,
     "files_changed": 52
   },
   "lessons": []
