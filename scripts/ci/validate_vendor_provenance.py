@@ -517,8 +517,13 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/api.py",
-        "c31ab8f5719295313a8ab1d71405769d72f8b417737817f97cc3163df47312b6",
+        "0f185b2f33407f460374c75326bdb09ab58d75112d53a51eea9a7d5d5f8516d5",
         "Lib: .claude/lib/github_core/api.py",
+    ),
+    (
+        ".claude/lib/github_core/pr_merge_state.py",
+        "ddb72adcc25f3439b3d19919a2dc323f01ccd3b03815e31b1b61ecc0243aaa81",
+        "Lib: .claude/lib/github_core/pr_merge_state.py",
     ),
     (
         ".claude/lib/github_core/bot_config.py",
@@ -712,8 +717,13 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/api.py",
-        "c31ab8f5719295313a8ab1d71405769d72f8b417737817f97cc3163df47312b6",
+        "0f185b2f33407f460374c75326bdb09ab58d75112d53a51eea9a7d5d5f8516d5",
         "Lib: src/copilot-cli/lib/github_core/api.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/pr_merge_state.py",
+        "ddb72adcc25f3439b3d19919a2dc323f01ccd3b03815e31b1b61ecc0243aaa81",
+        "Lib: src/copilot-cli/lib/github_core/pr_merge_state.py",
     ),
     (
         "src/copilot-cli/lib/github_core/bot_config.py",
