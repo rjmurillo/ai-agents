@@ -46,6 +46,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
+      # resolves to (expected rjmurillo-bot, id 250269933) so a mis-issued
+      # secret is visible in every run log instead of surfacing as shared
+      # rate-limit exhaustion. Non-blocking until the secret is rotated.
+      - name: Report BOT_PAT identity
+        env:
+          IDENTITY_TOKEN: ${{ secrets.BOT_PAT }}
+          EXPECTED_BOT_ID: '250269933'
+          EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
+        run: python3 scripts/ci/check_bot_identity.py
+
       - name: Check API rate limit
         id: ratelimit
         env:
