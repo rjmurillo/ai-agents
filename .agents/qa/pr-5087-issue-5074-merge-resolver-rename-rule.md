@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule.json
-qaCommit: c0d7bf451fd37e4fc2bdc01f5c0212743ed7e7b1
+qaCommit: 1eeaf012606a8e3c5418abe8f4bcc071a5a29185
 ---
 
 # Issue 5074 Merge Resolver Rename Rule QA

@@ -160,11 +160,15 @@
       "evidence": "scripts/validation/git_hook_policy.py _OBSERVATION_SYNC_BUDGET_SECONDS; skip count reported per the no-silent-caps rule; tests test_sync_observations_stops_at_its_internal_budget and test_sync_observations_reports_a_fully_exhausted_budget in tests/test_lefthook_integration.py"
     },
     {
+      "step": "Added a rebase-semantics warning to the suffix-rename recipe after spec validation flagged the side inversion",
+      "evidence": "strategies.md: the recipe assumes merge sides; during rebase --theirs is the replayed commit, so the warning points to git show REBASE_HEAD: and the rebase section; commit 1eeaf0126"
+    },
+    {
       "step": "Guarded three permission-denial tests against running as root and repaired the container environment",
       "evidence": "chmod 0 cannot deny root: root-skipif added in tests/test_lefthook_integration.py, tests/test_claude_mem_scripts.py, and both orphan-ref-validator test_scan.py mirrors; installed sqlite3 and openssh-client which tests require; hook pytest job reproduction went from 5 failed to green on affected files"
     }
   ],
-  "endingCommit": "c0d7bf451fd37e4fc2bdc01f5c0212743ed7e7b1",
+  "endingCommit": "1eeaf012606a8e3c5418abe8f4bcc071a5a29185",
   "nextSteps": [
     "Follow-up: resolve_pr_conflicts.py auto-resolves .agents/sessions/* by accept-theirs, which discards the branch's own log on add/add; the rename half is manual until the script learns it",
     "Follow-up: issue #4751 remains the allocation-time prevention for same-number session collisions"

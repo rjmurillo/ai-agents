@@ -124,7 +124,8 @@
         "e013",
         "e014",
         "e015",
-        "e016"
+        "e016",
+        "e018"
       ],
       "leads_to": [
         "e011"
@@ -209,6 +210,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a rebase-semantics warning to the suffix-rename recipe after spec validation flagged the side inversion",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T16:12:42+00:00",
+      "type": "commit",
+      "content": "Commit: 1eeaf012606a8e3c5418abe8f4bcc071a5a29185",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
     }
@@ -218,8 +243,8 @@
     "tool_calls": null,
     "errors": 5,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 21
+    "commits": 5,
+    "files_changed": 22
   },
   "lessons": []
 }
