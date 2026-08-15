@@ -4,7 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-15-session-14711-issue-4994-powershell-re
 qaCommit: 3aa8a2b395ed7901a09034fa664f1b179ffcf52f
 ---
 
-# PR 4994 QA Report
+# PR 5026 QA Report
 
 ## Scope
 

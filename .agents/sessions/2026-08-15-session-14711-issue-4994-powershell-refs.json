@@ -84,7 +84,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4994-powershell-refs-qa-report.md"
+        "Evidence": ".agents/qa/pr-5026-powershell-refs-qa-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
