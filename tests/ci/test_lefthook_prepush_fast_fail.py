@@ -4,9 +4,10 @@ The pre-push hook declares ``piped: true``, so lefthook runs its top-level
 entries in order and a failing entry (job or group) skips everything after
 it. Issue #5066 leans on that to stage the hook: cheap blocking gates run
 first, the expensive jobs (python-tests at roughly twelve minutes,
-workflow-local-run, build-all-check, python-type-check, the e2e smokes,
-pre-pr-validation) run last, so a failure that is detectable in seconds never
-costs a full pytest run.
+workflow-local-run, python-type-check, the e2e smokes, pre-pr-validation, whose
+Generated Artifact Staleness gate runs ``build_all.py --check`` internally
+since issue #5079 retired the standalone ``build-all-check`` job) run last, so
+a failure that is detectable in seconds never costs a full pytest run.
 
 Structural tests parse ``lefthook.yml`` and assert on the object graph
 (testing.md MUST 9: never substring a structured file). The runtime
@@ -67,13 +68,18 @@ FAST_PARALLEL_GATES = frozenset(
 # over; EXPENSIVE_STAGE_ROSTER is the exact membership of the expensive
 # parallel group, advisories included, so adding any pre-push job anywhere
 # requires editing a roster in this module.
+#
+# No standalone `build-all-check` here: issue #5079 (PR #5088, merged into
+# main and picked up by this branch's merge) retired it. pre-pr-validation's
+# Generated Artifact Staleness gate now runs `build_all.py --check`
+# internally; a second concurrent invocation in this same parallel group
+# raced its snapshot/restore over the same owned prefixes.
 EXPENSIVE_JOBS = frozenset(
     {
         "pre-pr-validation",
         "python-tests",
         "python-type-check",
         "workflow-local-run",
-        "build-all-check",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
     }
