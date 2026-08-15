@@ -14,10 +14,50 @@
         "Complete": true,
         "Evidence": "Continuation session"
       },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Already loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "N/A continuation"
+      },
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
         "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Already known"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Already loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Already loaded"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded from prior session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4992-leading-dot-paths"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4992-leading-dot-paths"
       }
     },
     "sessionEnd": {
@@ -59,6 +99,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "2b801e7a5f",
   "nextSteps": []
 }
