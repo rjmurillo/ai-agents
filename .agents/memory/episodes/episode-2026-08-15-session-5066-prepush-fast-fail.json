@@ -96,7 +96,9 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e017",
+        "e018"
       ],
       "leads_to": [
         "e009"
@@ -202,6 +204,41 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main (round 5, through d76f21dec, PR #5039 placeholder-identity re-pin) with git merge --no-edit; ort strategy resolved cleanly, zero conflicts",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "a5c1c5ede90699a5f9e45946730c591e3835ad78; job-name-set diff between merged lefthook.yml pre-push and origin/main:lefthook.yml is empty in both directions (35/35); 997 passed, 1 skipped across the ten lefthook/worktree-identity test modules",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T22:35:46+00:00",
+      "type": "commit",
+      "content": "Commit: a5c1c5ede90699a5f9e45946730c591e3835ad78",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
     }
@@ -211,7 +248,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 13
   },
   "lessons": []

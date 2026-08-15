@@ -132,9 +132,13 @@
     {
       "step": "Ran the seven lefthook-pinning test modules",
       "evidence": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)"
+    },
+    {
+      "step": "Merged origin/main (round 5, through d76f21dec, PR #5039 placeholder-identity re-pin) with git merge --no-edit; ort strategy resolved cleanly, zero conflicts",
+      "evidence": "a5c1c5ede90699a5f9e45946730c591e3835ad78; job-name-set diff between merged lefthook.yml pre-push and origin/main:lefthook.yml is empty in both directions (35/35); 997 passed, 1 skipped across the ten lefthook/worktree-identity test modules"
     }
   ],
-  "endingCommit": "903277d166cbe2f4751ef63c86f7c53eb8ed53aa",
+  "endingCommit": "a5c1c5ede90699a5f9e45946730c591e3835ad78",
   "nextSteps": [
     "Drive PR #5083 to green: watch CI and review threads via the PR activity subscription"
   ]

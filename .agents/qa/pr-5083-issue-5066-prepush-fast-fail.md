@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
-qaCommit: 903277d166cbe2f4751ef63c86f7c53eb8ed53aa
+qaCommit: a5c1c5ede90699a5f9e45946730c591e3835ad78
 ---
 
 # QA Report: pre-push fast-fail staging (issue #5066)
@@ -122,6 +122,36 @@ requested controlled before/after clean-push A/B is not reproducible from this
 branch (the before-config no longer exists on it); the comparison stands on
 the measured historical baseline (`python-tests` 741.85s, 12-17 minute
 envelope) against this branch's measured 11-minute clean push.
+
+## Merge with main (round 5)
+
+Main advanced one more commit during review: `d76f21dec` (PR #5039, re-pin
+worktree identity before the pr-autofix cleanup commit, plus a new
+`Placeholder Identity Check` workflow). `git merge --no-edit origin/main`
+resolved with the `ort` strategy and zero conflicts; the changed files
+(`worktree_identity.py` in three mirrored locations, the new
+`placeholder-identity-check.yml` workflow, `scripts/ci/determine_placeholder_range.py`,
+`scripts/invoke_batch_pr_review.py`, `scripts/quality_gate/consume_pytest_signal.py`,
+and their tests) do not overlap this PR's `lefthook.yml` restructure or its
+new test modules.
+
+The `sync_observations` 240s wall-clock budget and the root-guard skipif fixes
+cited when this merge was requested were already present on this branch from
+round 4 (`_OBSERVATION_SYNC_BUDGET_SECONDS = 240.0` in
+`scripts/validation/git_hook_policy.py`, unchanged by this merge; verified with
+`git diff HEAD origin/main -- scripts/validation/git_hook_policy.py` before the
+merge, which reported no diff in that file). No hunks needed resolving toward
+main in that area because there was no overlap to resolve.
+
+Post-merge verification: job-name set diff between the merged tree's
+`lefthook.yml` pre-push and `origin/main:lefthook.yml` is empty in both
+directions (35/35); 997 passed, 1 skipped across the ten lefthook and
+worktree-identity test modules (`test_lefthook_prepush_fast_fail.py`,
+`test_lefthook_prepush_fast_fail_runtime.py`, `test_lefthook_integration.py`,
+`test_lefthook_config_integrity.py`, `test_lefthook_ratchet_wiring.py`,
+`test_worktree_gc_wiring.py`, `test_lefthook_gate_config.py`,
+`test_pre_pr_runs_lefthook_ratchets.py`, `test_pr_autofix_worktree_identity.py`,
+`test_invoke_batch_pr_review.py`).
 
 ## Known gaps
 
