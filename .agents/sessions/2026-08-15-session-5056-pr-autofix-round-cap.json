@@ -85,7 +85,7 @@
       "qaValidation": {
         "complete": true,
         "level": "MUST",
-        "evidence": ".agents/qa/pr-5056-round-cap-circuit-breaker.md"
+        "evidence": ".agents/qa/pr-5059-round-cap-circuit-breaker.md"
       },
       "changesCommitted": {
         "complete": true,
