@@ -386,7 +386,7 @@ fi
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -479,15 +479,27 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 

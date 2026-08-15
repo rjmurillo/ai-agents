@@ -1,0 +1,10 @@
+{
+  "ruleset_id": 11104075,
+  "ref": "main",
+  "parameters": {
+    "strict_required_status_checks_policy": false,
+    "required_review_thread_resolution": true,
+    "required_approving_review_count": 0
+  },
+  "measured": "2026-08-14"
+}

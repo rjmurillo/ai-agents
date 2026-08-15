@@ -15,9 +15,24 @@ The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
 
+Amended 2026-08-11 (issue #4874): the require-subagent-model gate joined the
+consolidated PreToolUse path. The dated amendment section below records the
+matcher, fail-open, and fail-closed contract for that gate (debate log:
+`.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+
+Amended 2026-08-14 (issue #5013): ADR-085 Decision 7 is the policy authority
+for excluding `push_pr_script_identity_guard` from the generated Copilot
+inventory only. It records the containment incident, the eligibility test
+applied to it, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision: Claude Code
+keeps running the guard unchanged in its own canonical dispatch group, and
+Copilot excludes it from generation. The dated amendment section below records
+the corrected shim count and timeout sum. Debate log:
+`.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
 ## Date
 
-2026-06-02
+2026-06-02; amended 2026-07-19, 2026-08-11, and 2026-08-14
 
 ## Context
 
@@ -223,6 +238,31 @@ has observed and the documented contract forbids. The probe tested only 2
 seconds. No evidence shows whether the host grants, caps, or enforces 115
 seconds.
 
+### 2026-08-14 amendment: push-pr identity guard excluded from Copilot generation (issue #5013)
+
+ADR-085 Decision 7 is the policy authority for this exclusion. It records the
+containment incident, 127 unrelated Bash denials over more than 21 minutes
+caused by the guard's broad `Bash` registration combined with the Copilot
+dispatcher's timed child-process deny, the eligibility test applied to the
+exclusion, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision.
+
+Issue #5013 excluded `push_pr_script_identity_guard` from the generated
+Copilot inventory only. `.claude/hooks/dispatch_groups.json` marks that
+group `copilotExclude: true`. The same file still lists the guard in Claude
+Code's canonical dispatch group, and `.claude/hooks/hooks.json` still
+registers that group. Copilot excludes the guard from generation entirely;
+no replacement producer runs there. The active Copilot PreToolUse manifest
+now contains two
+shims, `markdownlint_guard` and `require_subagent_model`, summing to 100
+seconds of configured timeout. The generated host entry requests 105 seconds,
+the same five seconds of dispatcher headroom as before. The
+require-subagent-model fail-open and fail-closed behavior recorded in the
+prior amendment is unchanged; only the Copilot-side shim count and timeout sum
+moved. The dispatcher, its matcher union, and its per-event mode contract are
+unchanged. This is a scoped runtime-contract update that follows from ADR-085
+Decision 7, not a re-evaluation of the verified runtime contract established
+above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
 ## Decision
 
@@ -401,4 +441,11 @@ item 5.)
   Official DOCS-SAY event and behavior contract.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
   fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
-  Windows contract simulation, artifact discovery, authenticated smoke).
+  Windows contract simulation, artifact discovery, authenticated smoke),
+  #4874 (require-subagent-model gate), #5013 (Copilot-only
+  `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
+  Decision 7).
+- ADR-085. Cross-harness permission-surface asymmetry; owns the security
+  judgment behind the 2026-08-14 amendment above.
+- `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013
+  containment and exclusion review.
