@@ -189,8 +189,6 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
-                encoding="utf-8",
-                errors="replace",
                 check=True,
             )
             expected_sha = result.stdout.strip().lower()
