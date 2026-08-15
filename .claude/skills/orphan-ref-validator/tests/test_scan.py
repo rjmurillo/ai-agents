@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -840,24 +841,22 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
     assert rc == 0
 
 
-def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys, monkeypatch):
+# The precondition is built from file mode bits; root ignores them and
+# Windows does not carry them. Mirrors the idiom in
+# tests/test_gc_anchor_readers.py (_NO_PERMISSION_BARRIER).
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
+def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys):
     target = fake_repo / "docs" / "locked.md"
     write(target, "Use skill `dead-skill`.\n")
-
-    # chmod 0 cannot force the denial under euid 0: CAP_DAC_OVERRIDE lets
-    # root read the file anyway, so the scan reported findings (exit 1)
-    # instead of the auth envelope and this test failed in any root
-    # container. Inject the PermissionError at the module's read seam so
-    # the same code path fires deterministically for every euid.
-    real_read = _scan._read_supported_text
-
-    def deny(path):
-        if path == target:
-            raise PermissionError(13, "Permission denied", str(path))
-        return real_read(path)
-
-    monkeypatch.setattr(_scan, "_read_supported_text", deny)
-    rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+    original_mode = target.stat().st_mode
+    os.chmod(target, 0)
+    try:
+        rc = main(["--targets", str(target), "--repo-root", str(fake_repo)])
+    finally:
+        os.chmod(target, original_mode)
 
     out = capsys.readouterr().out
     payload = json.loads(out.split("\nVERDICT:")[0])
