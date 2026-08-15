@@ -176,10 +176,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "639eebc0f596e58437bf565b47bfc8ab01e30a72",
-      "head": "23fcb6729166c1985daee8f75f67b3b912c36af5"
+      "head": "0de4e11b46885536055b3e5ba2764da0cf3acd09"
     }
   },
-  "endingCommit": "23fcb6729166c1985daee8f75f67b3b912c36af5",
+  "endingCommit": "0de4e11b46885536055b3e5ba2764da0cf3acd09",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
     "Monitor checks, address review threads, and enable auto-merge."

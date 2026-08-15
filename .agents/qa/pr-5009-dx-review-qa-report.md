@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: 23fcb6729166c1985daee8f75f67b3b912c36af5
+qaCommit: 0de4e11b46885536055b3e5ba2764da0cf3acd09
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -27,6 +27,7 @@ Validated commits:
 - `4ad320598019617b22a48a3d70a0c5543ce21047`
 - `87d756c2437da33137b5ffd556000611b6d2d6b4`
 - `23fcb6729166c1985daee8f75f67b3b912c36af5`
+- `0de4e11b46885536055b3e5ba2764da0cf3acd09`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -75,6 +76,7 @@ Sizes measured with `wc -lc` at the QA commit.
 | Fail-closed QA binding | Divergent comparison.head and endingCommit test | Rejected |
 | Missing independent evidence | Evidence Gate contract mutation | Forced to FAIL |
 | Cwd write boundary | Main invoked outside project root | Exit 2, no file written |
+| Reviewer dispatch and ownership fallback | Focused dx-review and memory tests | Passed |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 
