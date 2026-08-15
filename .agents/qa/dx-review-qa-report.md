@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: 87d756c2437da33137b5ffd556000611b6d2d6b4
+qaCommit: 23fcb6729166c1985daee8f75f67b3b912c36af5
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: 87d756c2437da33137b5ffd556000611b6d2d6b4
 Branch: `feat/dx-review`
 
 Validated through commit:
-`87d756c2437da33137b5ffd556000611b6d2d6b4`
+`23fcb6729166c1985daee8f75f67b3b912c36af5`
 
 ## Scope
 
@@ -56,6 +56,8 @@ Validated through commit:
 | Scorecard parser | Malformed final-column mutation rejected |
 | Notice path containment | Symlink escape rejected where supported |
 | Fail-closed QA binding | comparison.head and endingCommit disagreement rejected |
+| Final evidence gate | Missing independent evidence forces FAIL |
+| Notice write boundary | Cwd outside project root exits 2 before writes |
 
 Security-critical output confinement has no missing lines or branches across
 `scripts/generate_third_party_notices.py` lines 383 through 461.

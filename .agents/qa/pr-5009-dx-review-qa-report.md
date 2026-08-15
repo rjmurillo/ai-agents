@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: 87d756c2437da33137b5ffd556000611b6d2d6b4
+qaCommit: 23fcb6729166c1985daee8f75f67b3b912c36af5
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -26,6 +26,7 @@ Validated commits:
 - `e0671ceb08de8efdc89f3c9eba1426acfd33fa57`
 - `4ad320598019617b22a48a3d70a0c5543ce21047`
 - `87d756c2437da33137b5ffd556000611b6d2d6b4`
+- `23fcb6729166c1985daee8f75f67b3b912c36af5`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -41,7 +42,7 @@ Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 | `THIRD-PARTY-NOTICES.TXT` | 80 | 3,519 |
 | `src/copilot-cli/THIRD-PARTY-NOTICES.TXT` | 80 | 3,519 |
 | `scripts/generate_third_party_notices.py` | 491 | 18,549 |
-| `tests/test_generate_third_party_notices.py` | 344 | 13,402 |
+| `tests/test_generate_third_party_notices.py` | 366 | 14,258 |
 
 Sizes measured with `wc -lc` at the QA commit.
 
@@ -49,7 +50,7 @@ Sizes measured with `wc -lc` at the QA commit.
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Focused tests | `uv run pytest tests/test_generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py -q` | 45 passed |
+| Focused tests | `uv run pytest tests/test_generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py -q` | 46 passed |
 | Ruff | `uv run ruff check scripts/generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py tests/test_generate_third_party_notices.py` | Passed |
 | Skill format | `uv run python scripts/validate_skill_format.py --path .claude/skills/dx-review` | Passed |
 | Notice drift | `uv run python scripts/generate_third_party_notices.py --check` | Passed |
@@ -72,6 +73,8 @@ Sizes measured with `wc -lc` at the QA commit.
 | Malformed scorecard row | Removed final delimiter mutation | Rejected |
 | Symlink containment | In-root link to outside directory | Rejected |
 | Fail-closed QA binding | Divergent comparison.head and endingCommit test | Rejected |
+| Missing independent evidence | Evidence Gate contract mutation | Forced to FAIL |
+| Cwd write boundary | Main invoked outside project root | Exit 2, no file written |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 
