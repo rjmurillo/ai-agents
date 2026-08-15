@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Seven commits 41d30814f..a308888cb pushed to claude/issue-4751-session-number-siblings; PR #5092 opened as draft with Fixes #4751."
+        "Evidence": "Commits 41d30814f..77aa1a14f pushed to claude/issue-4751-session-number-siblings; PR #5092 draft with Fixes #4751. 77aa1a14f adds errors=replace to the four new subprocess call sites per the encoding ratchet (issue #4261)."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py: RESULT All validations passed; full pre-push suite green on the final push (push exit 0); tests/skills/session 162 passed; tests/test_lefthook_integration.py 843 passed 1 skipped."
+        "Evidence": "pre_pr.py RESULT All validations passed; subprocess encoding ratchet re-measured OK at baseline 238 on 77aa1a14f; tests/skills/session 162 passed; test_lefthook_integration 843 passed 1 skipped; full pre-push suite green on prior push."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,9 +142,13 @@
     {
       "time": "2026-08-15T15:45:00Z",
       "activity": "Drove the push through three pre-push gate repairs: guard-corpus baseline entry for the moved subprocess call (allocation.py pins encoding utf-8), skill-portability ratchet entry moved with the code, root-skipif guards for three chmod/root-dependent tests, sqlite3 and openssh-client installed for container gaps, and an internal 200s budget with per-child clamping for sync_observations so the advisory observation-sync job cannot be killed by its own 5m lefthook cap (security agent APPROVE with required clamp fix and both LOW findings incorporated). Opened draft PR #5092 and subscribed to its activity."
+    },
+    {
+      "time": "2026-08-15T16:40:00Z",
+      "activity": "CI pytest(bulk) tripped the subprocess-encoding count ratchet (242 > 238): the four new text-mode git calls lacked errors=. Added errors='replace' to allocation.py, its mirror, and the two test helpers; ratchet back at baseline; rebound QA evidence to the fix commit."
     }
   ],
-  "endingCommit": "96ecae742848d9dbb34045cb42d83ea020b86c2b",
+  "endingCommit": "77aa1a14fc673575f752b29f9aaac541e7d8d90e",
   "nextSteps": [
     "Drive PR #5092 to green: watch CI, address review threads, keep endingCommit current after any rebase."
   ]

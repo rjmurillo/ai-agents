@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number.json
-qaCommit: 96ecae742848d9dbb34045cb42d83ea020b86c2b
+qaCommit: 77aa1a14fc673575f752b29f9aaac541e7d8d90e
 ---
 
 # QA Report: PR #5092, Issue #4751 sibling-branch session-number allocation
@@ -42,3 +42,9 @@ qaCommit: 96ecae742848d9dbb34045cb42d83ea020b86c2b
 
 - Two branches allocating before either pushes can still collide on the number; the #4561 filename discriminator keeps their filenames from colliding. The issue names the pushed-but-unmerged window as the normal case; that window is closed.
 - The sibling scan sees only refs the clone has fetched. A single-branch shallow clone sees fewer siblings; the reading is still complete over what exists locally, and the origin/main fallback path is unchanged.
+
+## Revision history
+
+| Date | Change |
+|------|--------|
+| 2026-08-15 | Rebound qaCommit to 77aa1a14f: CI subprocess-encoding ratchet (issue #4261) required errors='replace' on the four new git subprocess call sites; ratchet re-measured OK at baseline 238; 162 session tests re-passed. |
