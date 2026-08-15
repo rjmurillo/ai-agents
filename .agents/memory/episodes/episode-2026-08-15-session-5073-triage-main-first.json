@@ -84,9 +84,21 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e008"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed branch and opened draft PR #5091",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-15-session-5073-triage-main-first"
     }
   ],

@@ -104,7 +104,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-15-session-5073-triage-red-check-qa.md"
+        "Evidence": ".agents/qa/2026-08-15-pr-5091-triage-red-check-qa.md"
       }
     }
   },
@@ -131,7 +131,11 @@
     },
     {
       "action": "Ran QA",
-      "result": "25/25 targeted, 510/510 github skill suite, 5/5 offline import guard, ruff and mypy clean; report at .agents/qa/2026-08-15-session-5073-triage-red-check-qa.md"
+      "result": "25/25 targeted, 510/510 github skill suite, 5/5 offline import guard, ruff and mypy clean; report at .agents/qa/2026-08-15-pr-5091-triage-red-check-qa.md"
+    },
+    {
+      "action": "Pushed branch and opened draft PR #5091",
+      "result": "Pre-push suite green after fixing sandbox gaps (sqlite3, ssh-keygen, root DAC caps, forgetful sync fast-fail); QA report renamed to match pr-5091"
     }
   ],
   "endingCommit": "3f25c791819a046abd2a65033b8716dcb06fb74f",
