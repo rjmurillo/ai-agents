@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-15-session-1-issue-4646",
+  "session": "2026-08-15-session-1-issue-4646",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix stale strict_required_status_checks_policy assertions and add drift check",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct stale strict=true in five memories",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-1-issue-4646"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct .github/AGENTS.md status note",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-1-issue-4646"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add drift check script with JSON baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-1-issue-4646"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T07:27:50+00:00",
+      "type": "commit",
+      "content": "Commit: 6593240ff0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-1-issue-4646"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T08:46:46+00:00",
+      "type": "commit",
+      "content": "Commit: 223eb03f9d93fb01bd33d3c01772522503df3946",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-1-issue-4646"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 10
+  },
+  "lessons": []
+}
