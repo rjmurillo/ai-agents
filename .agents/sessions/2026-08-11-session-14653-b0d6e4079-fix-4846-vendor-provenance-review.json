@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to checkout-test simplification f4221f521b3b9aeff0222ccbc10ff26437cd5863."
+        "Evidence": "QA evidence rebound to GitHub-core pin refresh 334e8f422b3c8ecbf446f7e16599ec77adf2b169."
       },
       "validationPassed": {
         "level": "MUST",
@@ -231,8 +231,12 @@
     {
       "action": "Simplified checkout guard helpers and consolidated duplicate test setup.",
       "result": "The test file fell from 504 to 419 lines, new helper complexity fell below 10, and all 155 tests still pass."
+    },
+    {
+      "action": "Merged current main and pinned the changed and new GitHub core modules.",
+      "result": "216 provenance tests and 285 GitHub core tests pass."
     }
   ],
-  "endingCommit": "f4221f521b3b9aeff0222ccbc10ff26437cd5863",
+  "endingCommit": "334e8f422b3c8ecbf446f7e16599ec77adf2b169",
   "nextSteps": []
 }

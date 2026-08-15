@@ -109,7 +109,8 @@
         "e065",
         "e067",
         "e069",
-        "e071"
+        "e071",
+        "e073"
       ],
       "leads_to": [
         "e006"
@@ -926,6 +927,30 @@
       "caused_by": [
         "e070"
       ],
+      "leads_to": [
+        "e074"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e073",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and pinned the changed and new GitHub core modules.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e074",
+      "timestamp": "2026-08-15T08:37:50+00:00",
+      "type": "commit",
+      "content": "Commit: 334e8f422b3c8ecbf446f7e16599ec77adf2b169",
+      "caused_by": [
+        "e072"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -935,7 +960,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 40,
+    "commits": 41,
     "files_changed": 52
   },
   "lessons": []
