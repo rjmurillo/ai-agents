@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4857,
+    "date": "2026-08-15",
+    "branch": "fix/4857-matcher-shim-atomic-count",
+    "startingCommit": "944427e0a9",
+    "objective": "Fix atomic-commit counter treating generated Copilot hook shims as authored files"
+  },
+  "endingCommit": "9f69eec1dc1bdc81ae6b2b0ad232189d71df0d59",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "serenaInstructions": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "handoffRead": {"complete": true, "level": "MUST", "evidence": "Read HANDOFF.md, AGENTS.md, CLAUDE.md"},
+      "sessionLogCreated": {"complete": true, "level": "MUST", "evidence": "Created 2026-08-15-session-4857-matcher-shim-atomic-count.json"},
+      "skillScriptsListed": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "usageMandatoryRead": {"complete": true, "level": "MUST", "evidence": "Read AGENTS.md root"},
+      "constraintsRead": {"complete": true, "level": "MUST", "evidence": "Read project constraints from AGENTS.md"},
+      "memoriesLoaded": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "branchVerified": {"complete": true, "level": "MUST", "evidence": "fix/4857-matcher-shim-atomic-count"},
+      "notOnMain": {"complete": true, "level": "MUST", "evidence": "On fix/4857-matcher-shim-atomic-count"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"complete": true, "level": "MUST", "evidence": "All items recorded"},
+      "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
+      "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "markdownLintRun": {"complete": true, "level": "MUST", "evidence": "No markdown changes in code commit"},
+      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-4857-matcher-shim-atomic-count.md"},
+      "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed"},
+      "validationPassed": {"complete": true, "level": "MUST", "evidence": "41 tests passed, ruff clean"}
+    }
+  },
+  "workLog": [
+    {"action": "reproduce", "detail": "Confirmed _mirror_source returns wrong path for shim with matcher suffix"},
+    {"action": "implement", "detail": "Added _HOOK_MATCHER_SUFFIX_RE and conditional stripping in _mirror_source for hooks"},
+    {"action": "test", "detail": "Added 7 tests: positive, negative, edge, integration"}
+  ],
+  "nextSteps": [],
+  "outcome": {
+    "status": "COMPLETE",
+    "summary": "Strip matcher suffix from hook shim paths before canonical source lookup",
+    "filesChanged": ["scripts/validation/git_hook_policy.py", "tests/validation/test_atomic_commit_mirror_exemption.py"],
+    "testsAdded": 7,
+    "testsTotal": 41,
+    "testsPassed": true
+  }
+}
