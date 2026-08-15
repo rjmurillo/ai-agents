@@ -402,9 +402,8 @@ A prompt change passes when all three criteria hold:
 
 ### Enforcement
 
-- **Claude Code hook**: Blocks `git commit` when prompt/skill/agent files are staged without eval evidence
-- **Git pre-commit hook**: Non-blocking warning for human developers
-- **Bypass**: Set `SKIP_PROMPT_EVAL=1` and document justification in the PR
+- **CI gate**: The `/spec` eval in `.github/workflows/slash-command-quality.yml` blocks merge on regression (see ADR-057 Amendment 2026-07-22 for advisory vs blocking scope).
+- **PR review**: For prompt files without a blocking CI leg, the gate is advisory and PR review carries judgment.
 
 ### References
 

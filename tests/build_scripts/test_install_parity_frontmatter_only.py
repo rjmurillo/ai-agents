@@ -306,11 +306,11 @@ You are a constructive reviewer.
         )
         assert violations == []
 
-    def test_no_frontmatter_body_unchanged_passes(
+    def test_no_frontmatter_base_adding_frontmatter_passes(
         self, parity_repo: Path
     ) -> None:
-        """File without frontmatter: identical body is still frontmatter-only."""
-        no_fm = """\
+        """Base lacks frontmatter; adding frontmatter with identical body passes."""
+        body = """\
 Preamble text.
 
 ## Core Identity
@@ -323,15 +323,53 @@ Step 1. Review.
 """
         # Set base to no-frontmatter version
         for rel in _GENERATED_TOUCHED:
-            (parity_repo / rel).write_text(no_fm)
+            (parity_repo / rel).write_text(body)
         _run_git(parity_repo, "add", "-A")
         _run_git(parity_repo, "commit", "-m", "no-fm base")
 
-        # Working tree is identical - no violation
+        # Working tree adds frontmatter, body byte-for-byte identical
+        with_fm = "---\nname: critic\nmodel: gpt-4o\n---\n" + body
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(with_fm)
+        _run_git(parity_repo, "add", "-A")
+
         violations = vip.find_violations(
             _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
         )
-        assert violations == []
+        assert violations == [], "Adding frontmatter without body change must pass"
+
+    def test_no_frontmatter_base_adding_frontmatter_and_body_edit_blocks(
+        self, parity_repo: Path
+    ) -> None:
+        """Base lacks frontmatter; adding frontmatter AND changing body blocks."""
+        body = """\
+Preamble text.
+
+## Core Identity
+
+You are a constructive reviewer.
+
+## Workflow
+
+Step 1. Review.
+"""
+        # Set base to no-frontmatter version
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(body)
+        _run_git(parity_repo, "add", "-A")
+        _run_git(parity_repo, "commit", "-m", "no-fm base")
+
+        # Working tree adds frontmatter AND edits body
+        edited_body = body.replace("Step 1. Review.", "Step 1. Carefully review.")
+        with_fm = "---\nname: critic\nmodel: gpt-4o\n---\n" + edited_body
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(with_fm)
+        _run_git(parity_repo, "add", "-A")
+
+        violations = vip.find_violations(
+            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
+        )
+        assert violations != [], "Adding frontmatter with body edit must block"
 
     def test_unclosed_frontmatter_treated_as_body(
         self, parity_repo: Path
