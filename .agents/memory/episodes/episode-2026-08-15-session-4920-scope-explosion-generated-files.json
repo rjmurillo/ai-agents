@@ -1,0 +1,144 @@
+{
+  "id": "episode-2026-08-15-session-4920-scope-explosion-generated-files",
+  "session": "2026-08-15-session-4920-scope-explosion-generated-files",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Exclude generated files from scope explosion detector count",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reproduce",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T10:31:50+00:00",
+      "type": "commit",
+      "content": "Commit: d5ded8ef996b4f334f5d1068c9a6a1f1a922553b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T10:56:42+00:00",
+      "type": "commit",
+      "content": "Commit: a71cdaffbb3a3018f53b6c91119db47013cbf704",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T11:22:21+00:00",
+      "type": "commit",
+      "content": "Commit: 298560b6efecf7f1d6e5670a865f9769cc606416",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T11:31:18+00:00",
+      "type": "commit",
+      "content": "Commit: 654fbc8022ee99698b11261c2bb5aa03a72ac7f9",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T11:39:39+00:00",
+      "type": "commit",
+      "content": "Commit: 9a08ed139aa21004a24d53b658a6a2f46d115dce",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T11:54:16+00:00",
+      "type": "commit",
+      "content": "Commit: 72a45c444427b52c759f65fd40183b4ceba5a345",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T12:32:25+00:00",
+      "type": "commit",
+      "content": "Commit: 3a1bcace3abf399b46e0c0b7a2088aea3bd961ed",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 9
+  },
+  "lessons": []
+}

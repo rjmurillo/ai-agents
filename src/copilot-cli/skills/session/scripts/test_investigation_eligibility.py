@@ -86,42 +86,67 @@ def _changed_files(
     base_ref: str,
     head_ref: str = "",
 ) -> tuple[list[str] | None, str | None]:
-    """Return paths in a fixed range or through HEAD plus the working tree."""
+    """Return paths in a fixed range or through HEAD plus the working tree.
+
+    When both base_ref and head_ref are provided (the CI/pre-PR path), the
+    diff uses ``git log --first-parent --no-merges`` instead of a plain
+    two-dot tree diff.  This ensures that upstream changes introduced by
+    merging main into the branch are excluded from the session scope
+    (issue #4915).  A plain ``git diff base..head`` compares trees and
+    includes every file present in head that differs from base, regardless
+    of which commit introduced it.
+    """
     range_head = head_ref or "HEAD"
-    commands = [
-        [
-            "git",
-            "diff",
-            "--name-status",
-            "--find-renames",
-            "--no-ext-diff",
-            f"{base_ref}..{range_head}",
-            "--",
-        ],
-    ]
-    if not head_ref:
-        commands.extend(
+
+    if head_ref:
+        # Use git log --first-parent --no-merges to collect only files
+        # changed by the branch's own (non-merge) commits.  Merge commits
+        # bring upstream files into the tree but are not session work.
+        commands = [
             [
-                [
-                    "git",
-                    "diff",
-                    "--cached",
-                    "--name-status",
-                    "--find-renames",
-                    "--no-ext-diff",
-                    "--",
-                ],
-                [
-                    "git",
-                    "diff",
-                    "--name-status",
-                    "--find-renames",
-                    "--no-ext-diff",
-                    "--",
-                ],
-                ["git", "ls-files", "--others", "--exclude-standard"],
-            ]
-        )
+                "git",
+                "log",
+                "--first-parent",
+                "--no-merges",
+                "--name-status",
+                "--find-renames",
+                "--no-ext-diff",
+                "--format=",
+                f"{base_ref}..{range_head}",
+                "--",
+            ],
+        ]
+    else:
+        commands = [
+            [
+                "git",
+                "diff",
+                "--name-status",
+                "--find-renames",
+                "--no-ext-diff",
+                f"{base_ref}..{range_head}",
+                "--",
+            ],
+            [
+                "git",
+                "diff",
+                "--cached",
+                "--name-status",
+                "--find-renames",
+                "--no-ext-diff",
+                "--",
+            ],
+            [
+                "git",
+                "diff",
+                "--name-status",
+                "--find-renames",
+                "--no-ext-diff",
+                "--",
+            ],
+            ["git", "ls-files", "--others", "--exclude-standard"],
+        ]
+
     paths: set[str] = set()
     for command in commands:
         found, error = _run_git(command)

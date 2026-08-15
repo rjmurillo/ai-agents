@@ -80,6 +80,7 @@ LOCAL_STATUSES = frozenset({STATUS_PASS, STATUS_FAIL, STATUS_SKIPPED, "ERROR"})
 DEFAULT_WORKFLOW = "pytest.yml"
 DEFAULT_JOB_NAME = "Run Python Tests"
 EXECUTOR_STEP_NAME = "Run pytest"
+GATE_STEP_NAME = "Require test and coverage success"
 PASS_THROUGH_STEP_NAME = "Skip tests (no Python test inputs changed)"
 
 KIND_EXECUTOR = "executor"
@@ -286,6 +287,8 @@ def parse_job(item: Mapping[str, object]) -> Job:
 def classify(job: Job) -> str:
     """Classify a job as executor, pass-through, or unclassified."""
     if job.step_conclusion(EXECUTOR_STEP_NAME) is not None:
+        return KIND_EXECUTOR
+    if job.step_conclusion(GATE_STEP_NAME) is not None:
         return KIND_EXECUTOR
     if job.step_conclusion(PASS_THROUGH_STEP_NAME) is not None:
         return KIND_PASS_THROUGH

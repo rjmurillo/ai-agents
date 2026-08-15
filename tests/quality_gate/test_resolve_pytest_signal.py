@@ -32,12 +32,8 @@ SKIP_STEP = "Skip tests (no Python test inputs changed)"
 REF_PATH = f"repos/{REPO}/git/ref/pull/{PR}/head"
 _RUNS_QUERY = "actions/workflows/pytest.yml/runs?event=pull_request&head_sha="
 RUNS_PATH = f"repos/{REPO}/{_RUNS_QUERY}{HEAD}&per_page=100"
-
-
 def jobs_path(attempt: int = 1) -> str:
     return f"repos/{REPO}/actions/runs/100/attempts/{attempt}/jobs?per_page=100"
-
-
 class GhFake:
     """A ``gh`` stand-in that answers by path and records every call."""
 
@@ -51,8 +47,6 @@ class GhFake:
         assert path in self.responses, f"unstubbed gh path {path}"
         code, body = self.responses[path]
         return subprocess.CompletedProcess(["gh", *argv], code, stdout=body, stderr="")
-
-
 def run_entry(prs: tuple[int, ...] = (int(PR),), repo: str | None = REPO, **over: object) -> dict:
     """One run entry, mirroring the live list endpoint read 2026-08-10.
 
@@ -71,29 +65,19 @@ def run_entry(prs: tuple[int, ...] = (int(PR),), repo: str | None = REPO, **over
         **({} if repo is None else {"head_repository": {"full_name": repo}}),
         **over,
     }
-
-
 def executor(conclusion: str = "success", step: str = "success") -> dict:
     steps = [{"name": "Check if tests needed", "conclusion": "success"}]
     steps.append({"name": "Run pytest", "conclusion": step})
     return {"name": CHECK, "status": "completed", "conclusion": conclusion, "steps": steps}
-
-
 def pass_through(conclusion: str = "success") -> dict:
     steps = [{"name": "Harden Runner", "conclusion": "success"}]
     steps.append({"name": SKIP_STEP, "conclusion": conclusion})
     return {"name": CHECK, "status": "completed", "conclusion": conclusion, "steps": steps}
-
-
 def bare(status: str = "completed", conclusion: str | None = "success") -> dict:
     """A job holding the required check name but no step this module knows."""
     return {"name": CHECK, "status": status, "conclusion": conclusion}
-
-
 def parsed(*jobs: dict) -> list[Job]:
     return [mod.parse_job(job) for job in jobs]
-
-
 def gh_stub(
     *,
     ref: str = HEAD,
@@ -113,25 +97,17 @@ def gh_stub(
     if jobs is not None:
         responses[jobs_path(attempt)] = (0, json.dumps({"jobs": jobs}))
     return GhFake({**responses, **(raw or {})})
-
-
 def resolve_with(gh) -> Resolution:
     return mod.resolve(
         gh, repo=REPO, pr=PR, expected_sha=HEAD, workflow="pytest.yml", job_name=CHECK
     )
-
-
 def resolved(**stub: Any) -> Resolution:
     return resolve_with(gh_stub(**stub))
-
-
 def scan(*runs: dict) -> tuple[tuple[Run, ...], int]:
     """Parse a runs payload the caller expects to be usable, failing by name."""
     result = mod.parse_runs({"workflow_runs": list(runs)}, HEAD, pr=PR, repo=REPO)
     assert result is not None, "the payload should have parsed"
     return result
-
-
 @pytest.fixture
 def cli(monkeypatch: pytest.MonkeyPatch):
     """Invoke ``main`` against a stubbed ``gh``, with GITHUB_OUTPUT unset."""
@@ -142,8 +118,6 @@ def cli(monkeypatch: pytest.MonkeyPatch):
         return main(["--repo", REPO, "--pr", PR, "--expected-head-sha", HEAD, *extra])
 
     return run
-
-
 class TestFreshness:
     def test_a_head_that_is_no_longer_live_is_stale(self) -> None:
         assert resolved(ref=OTHER_HEAD) == Resolution(STATUS_STALE, mod.REASON_STALE_HEAD)
@@ -169,8 +143,6 @@ class TestFreshness:
         """The query string asks for pull_request runs; this filter guarantees."""
         bound, _ = scan(run_entry(event="push"), run_entry(id=101))
         assert [run.run_id for run in bound] == [101]
-
-
 class TestPullRequestBinding:
     # GitHub empties pull_requests[] once a pull request closes: verified live
     # 2026-08-10, where every run of the merged pull request 4819 reported an
@@ -207,8 +179,6 @@ class TestPullRequestBinding:
         """ "Someone else's run" must not read as "nothing has run yet"."""
         unbound = Resolution(STATUS_UNKNOWN, mod.REASON_RUN_NOT_BOUND)
         assert resolved(runs=[run_entry(prs=(9999,))]) == unbound
-
-
 class TestAttemptSelection:
     def test_jobs_are_read_from_the_latest_attempt(self) -> None:
         gh = gh_stub(runs=[run_entry(run_attempt=3)], jobs=[executor()], attempt=3)
@@ -229,8 +199,6 @@ class TestAttemptSelection:
         entry = run_entry()
         del entry["run_attempt"]
         assert scan(entry)[0][0].attempt == 1
-
-
 class TestJobAggregation:
     # Every job here carries the required check name, so the first non-empty
     # tier decides and a lower tier can overrule it downward but never upward.
@@ -304,8 +272,6 @@ class TestJobAggregation:
         other = {"name": "Python Security Checks", "status": "completed", "conclusion": "failure"}
         result = resolved(runs=[run_entry()], jobs=[other, executor()])
         assert result.status == STATUS_PASS
-
-
 class TestUnusableData:
     # A 403 from a missing actions scope, a malformed body, and a body of the
     # wrong shape are all "no usable data", never a verdict.
@@ -344,8 +310,6 @@ class TestUnusableData:
             raise FileNotFoundError("gh")
 
         assert resolve_with(exploding).status == STATUS_UNKNOWN
-
-
 class TestReporting:
     @pytest.mark.parametrize(
         ("status", "local", "agreement"),
@@ -438,8 +402,6 @@ class TestReporting:
         # Exactly the documented output keys, one per line, nothing smuggled in.
         keys = [line.split("=", 1)[0] for line in written.strip().splitlines()]
         assert keys == [f"shadow_pytest_{n}" for n in "status reason agreement compared".split()]
-
-
 class TestMain:
     _INVALID = {
         "missing-sha": (["--expected-head-sha", ""], "40 hex"),
@@ -486,13 +448,23 @@ class TestMain:
         assert "shadow_pytest_status=STALE" in out
         assert "shadow_pytest_agreement=UNCOMPARED" in out
 
-    def test_shadow_step_passes_missing_local_status_through(self) -> None:
+    def test_gate_step_classified_as_executor(self) -> None:
+        """Aggregate gate job with 'Require test and coverage success' step is executor."""
+        gate_job = mod.Job(
+            name="Run Python Tests",
+            status="completed",
+            conclusion="success",
+            steps=(("Require test and coverage success", "success"),),
+        )
+        assert mod.classify(gate_job) == mod.KIND_EXECUTOR
+
+    def test_consume_step_replaces_shadow_step(self) -> None:
+        """Quality gate consumes pytest.yml signal instead of running tests locally."""
         workflow = yaml.safe_load(
             (Path(__file__).parents[2] / ".github/workflows/ai-pr-quality-gate.yml").read_text(
                 encoding="utf-8"
             )
         )
         steps = workflow["jobs"]["run-tests"]["steps"]
-        shadow = next(step for step in steps if step.get("name") == "Resolve shadow pytest signal")
-        assert shadow["env"]["PR_NUMBER"] == "${{ github.event.pull_request.number }}"
-        assert shadow["env"]["LOCAL_PYTEST_STATUS"] == "${{ steps.pytest.outputs.pytest_status }}"
+        assert not [s for s in steps if "shadow" in s.get("name", "").lower()]
+        assert any("resolve pytest signal" in s.get("name", "").lower() for s in steps)
