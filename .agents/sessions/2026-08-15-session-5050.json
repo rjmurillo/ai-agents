@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5050,
+    "date": "2026-08-15",
+    "branch": "feat/5050-import-graph-test-selection",
+    "startingCommit": "dfdcbcbb1e",
+    "objective": "Implement import-graph test selection for pre-push and CI (issue 5050)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools used for memory operations."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial instructions read."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills directory inspected."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Usage mandatory memory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "5 files per commit, no force push, hooks."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project memories loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/5050-import-graph-test-selection"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/5050-import-graph-test-selection"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "dfdcbcbb1e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All acceptance criteria from #5050 met."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory updated post-implementation."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown autofix hook passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5078-import-graph-test-selection-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "9 commits on branch."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-push hooks green (402s python-tests)."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #5050 linked in PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred."
+      },
+      "ciGreen": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All 5 pytest partitions pass on CI."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Implemented scripts/test_selection/ package",
+      "result": "Graph builder, selector, runtime patterns"
+    },
+    {
+      "action": "Integrated with pre-push hook",
+      "result": "run_pytest narrows partitions"
+    },
+    {
+      "action": "Integrated with CI",
+      "result": "run_pytest_selected.py; merge_group always full"
+    },
+    {
+      "action": "Created tests",
+      "result": "tests/test_selection/ comprehensive coverage"
+    },
+    {
+      "action": "Merged origin/main",
+      "result": "Resolved allowlist conflict"
+    },
+    {
+      "action": "Fixed integration issues",
+      "result": "UTF-8, mocks, ratchets"
+    }
+  ],
+  "endingCommit": "bad7a36d817618e658330e78f366ce747f189f94",
+  "nextSteps": [
+    "Monitor CI",
+    "Address review comments"
+  ]
+}
