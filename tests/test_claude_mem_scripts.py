@@ -46,7 +46,13 @@ class TestExportDirectValidateOutputPath:
 class TestExportDirectGetCount:
     @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
     def test_returns_negative_on_error(self) -> None:
-        result = _export_direct.get_count("/nonexistent.db", "SELECT 1;")
+        # A missing FILE is not an error for the sqlite3 CLI when the caller
+        # can create it (root in web containers creates /nonexistent.db and
+        # SELECT 1 succeeds). A missing parent DIRECTORY fails to open for
+        # every uid, so the error path under test fires everywhere.
+        result = _export_direct.get_count(
+            "/nonexistent-dir/nonexistent.db", "SELECT 1;",
+        )
         assert result == -1
 
 
