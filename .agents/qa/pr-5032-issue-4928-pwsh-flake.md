@@ -15,7 +15,7 @@ Verified the batched pwsh invocation eliminates subprocess timeout flakes.
 | Check | Result |
 |---|---|
 | Single run | 1 passed in 1.66s |
-| 5x xdist runs | All pass consistently (~2s each) |
+| 30x xdist runs (-n 2) | 30/30 pass consistently |
 | Full test file | 35 passed in 1.96s |
 | No regressions | All assertions preserved |
 

@@ -527,7 +527,11 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
             check=False,
         )
         assert proc.returncode == 0, proc.stderr
-        for line in proc.stdout.splitlines():
+        lines = [ln for ln in proc.stdout.splitlines() if ln]
+        assert len(lines) == len(ps_exprs), (
+            f"pwsh emitted {len(lines)} lines, expected {len(ps_exprs)}"
+        )
+        for line in lines:
             assert line.startswith("OK:"), f"unresolved powershell path: {line}"
 
 
