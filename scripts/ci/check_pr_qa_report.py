@@ -129,9 +129,9 @@ def _linked_issues(body: str) -> list[str]:
 
 
 def _find_issue_qa_report(issue_numbers: list[str]) -> Path | None:
-    qa_dir = artifact_dir("qa", base=Path.cwd())
+    qa_dir: Path = artifact_dir("qa", base=Path.cwd())
     for issue_number in issue_numbers:
-        reports = sorted(qa_dir.glob(f"*issue-{issue_number}*.md"))
+        reports: list[Path] = sorted(qa_dir.glob(f"*issue-{issue_number}*.md"))
         if reports:
             return reports[0]
     return None
