@@ -243,11 +243,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # "invisible" skill the catalog still counts after a prune removed its
     # SKILL.md but left tracked files behind.
     _Gate("Skill Shell Detection", _root_only(validate_skill_shells)),
-    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
-    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured

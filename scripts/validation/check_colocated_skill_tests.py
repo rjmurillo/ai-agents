@@ -61,6 +61,8 @@ def existing_on_head(repo_root: Path) -> set[str]:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         return set()
@@ -96,6 +98,8 @@ def staged_additions(repo_root: Path) -> list[str]:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         return []
@@ -109,6 +113,8 @@ def branch_additions(repo_root: Path, base: str = "origin/main") -> list[str]:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         return []
