@@ -9,35 +9,124 @@
   },
   "protocolCompliance": {
     "sessionStart": {
-      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena project active"},
-      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "Read initial instructions"},
-      "handoffRead": {"level": "SHOULD", "Complete": true, "Evidence": "Read HANDOFF.md"},
-      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
-      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "session skill scripts used"},
-      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "Read usage mandatory"},
-      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "Read constraints"},
-      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "Loaded memories"},
-      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/5045-ownership-loss-race"},
-      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "fix/5045-ownership-loss-race"}
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read initial instructions"
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read HANDOFF.md"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session skill scripts used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read constraints"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/5045-ownership-loss-race"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/5045-ownership-loss-race"
+      }
     },
     "sessionEnd": {
-      "sessionLogCompleted": {"level": "MUST", "Complete": true, "Evidence": "This file"},
-      "retrospectiveWritten": {"level": "SHOULD", "Complete": true, "Evidence": "Learnings in workLog"},
-      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/000-pr-5055-qa.md"},
-      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "git status clean"},
-      "serenaMemoryUpdated": {"level": "SHOULD", "Complete": true, "Evidence": "No new memories needed"},
-      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "All items verified"},
-      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "ruff check passed"},
-      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md unchanged"},
-      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "30/30 tests pass, 50/50 race test"}
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-pr-5055-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new memories needed"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "30/30 tests pass, 50/50 race test"
+      }
     }
   },
   "workLog": [
-    {"action": "Identified race window between pgid setup and monitor while-loop"},
-    {"action": "Added early lease_renewal_failed check in both production files"},
-    {"action": "Replaced timing-based test sleep with FIFO-based deterministic block"},
-    {"action": "Verified 50/50 race test passes and 30/30 full file passes"},
-    {"action": "Fixed pre-existing encoding issue in consume_pytest_signal.py"}
+    {
+      "action": "Identified race window between pgid setup and monitor while-loop"
+    },
+    {
+      "action": "Added early lease_renewal_failed check in both production files"
+    },
+    {
+      "action": "Replaced timing-based test sleep with FIFO-based deterministic block"
+    },
+    {
+      "action": "Verified 50/50 race test passes and 30/30 full file passes"
+    },
+    {
+      "action": "Fixed pre-existing encoding issue in consume_pytest_signal.py"
+    },
+    {
+      "action": "Removed stale consume_pytest_signal.py reference from QA scope"
+    }
   ],
   "nextSteps": [
     "Monitor for flakiness reports on the race test"
