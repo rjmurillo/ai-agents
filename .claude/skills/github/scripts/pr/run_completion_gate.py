@@ -102,13 +102,15 @@ Scope of the guarantee
 
 ``config_trust: trusted`` asserts the CONFIG is the trusted ref's copy.
 It does NOT assert the verifier scripts the config's commands name
-(e.g. ``.claude/skills/github/scripts/pr/*.py``) are unmodified: those
-files live in the same checked-out PR tree and are outside this check.
-A PR that leaves the config untouched but rewrites a verifier script
-still executes attacker code with a "trusted" gate verdict. That is the
-same exposure as running any test or lint on a PR branch, but do not
-read this field as covering it. Verifier-script verification is tracked
-as follow-up work in issue #5099.
+(e.g. ``.claude/skills/github/scripts/pr/*.py``) are unmodified, and it
+does not vouch for THIS DISPATCHER either: both live in the same
+checked-out PR tree and are outside this check. A PR that leaves the
+config untouched but rewrites a verifier script, or rewrites
+``run_completion_gate.py`` itself to skip the check, still executes
+attacker code while printing a "trusted" verdict. That is the same
+exposure as running any test or lint on a PR branch, but do not read
+this field as covering it. Widening verification to the scripts is
+tracked as follow-up work in issue #5099.
 
 Substitution
 ------------
@@ -285,6 +287,11 @@ TRUST_TRUSTED = "trusted"
 TRUST_DIVERGED = "diverged"
 TRUST_MISSING_BASE = "missing-base"
 TRUST_GIT_ERROR = "git-error"
+# Usage-error status used by _enforce_config_trust before verification
+# runs: a syntactically malformed --trusted-ref is a CLI usage error
+# (exit 2), not a verification outcome, so it does not reuse
+# TRUST_GIT_ERROR (whose contract is exit 3).
+TRUST_MALFORMED_REF = "malformed-ref"
 
 # A trusted ref must look like a git revision and must not start with
 # ``-`` so it can never be parsed as a git option (argument injection).
@@ -306,7 +313,12 @@ class TrustCheck(NamedTuple):
 
 
 def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[bytes]:
-    """Run a git command, capturing raw bytes (``git show`` is binary-exact)."""
+    """Run a git command, capturing raw bytes.
+
+    Byte capture matters because ``git cat-file --filters`` output is
+    compared byte for byte against the working-tree config; decoding
+    would corrupt the comparison on non-UTF-8 content.
+    """
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
@@ -443,7 +455,7 @@ def _enforce_config_trust(
             f"Refusing malformed --trusted-ref {trusted_ref!r}",
             file=sys.stderr,
         )
-        return TrustCheck(TRUST_GIT_ERROR, "malformed trusted ref"), 2
+        return TrustCheck(TRUST_MALFORMED_REF, "malformed trusted ref"), 2
 
     trust = _verify_config_trust(config_path, trusted_ref, tree_bytes)
     if trust.status == TRUST_TRUSTED:
