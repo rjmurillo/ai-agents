@@ -128,13 +128,13 @@
   "nextSteps": [
     "Monitor for ruleset changes that invalidate the documented state"
   ],
-  "endingCommit": "36541215a29a6b1c133bb83bc93de124ebd83c6e",
+  "endingCommit": "03fcba445d6321d962b2bb6298cdb6b46271666b",
   "episodeMetrics": {
     "filesChanged": 6,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "ff2c10b1eb",
-      "head": "36541215a2"
+      "head": "03fcba445d"
     }
   }
 }
