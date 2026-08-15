@@ -45,6 +45,10 @@ class TestExportDirectValidateOutputPath:
 
 class TestExportDirectGetCount:
     @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="root can create /nonexistent.db, so the error path never fires (web containers)",
+    )
     def test_returns_negative_on_error(self) -> None:
         result = _export_direct.get_count("/nonexistent.db", "SELECT 1;")
         assert result == -1
