@@ -1,13 +1,13 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
-qaCommit: 1cbbbbfc3f315a5ba6ca4be861c9ca51bfad5ef3
+qaCommit: e0962301a3ad12dfae638308fa59e6dbb110d030
 ---
 
 # QA Report, issue 4939
 
 **Branch**: fix/4939-adr044-version-pin-conflict
-**Worktree**: /home/richard/worktrees/ai-agents/issue-4939-2
+**Worktree**: external worktree `issue-4939-2`
 
 ## Scope
 
