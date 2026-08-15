@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 41d30814f..00d5f07e9 on claude/issue-4751-session-number-siblings (PR #5092, Fixes #4751), including the origin/main merge resolving issue 5071 overlap."
+        "Evidence": "Commits 41d30814f..2d1678829 on claude/issue-4751-session-number-siblings (PR #5092, Fixes #4751): second origin/main merge reconciling sync_observations with PR 5087, plus the PR 5092 review fixes (budget clamp, docstring freshness, CWE-400 ceiling)."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Post-merge re-run on the merged tree: 1027 tests across test_lefthook_integration, test_claude_mem_scripts, and tests/skills/session passed; subprocess encoding ratchet OK at baseline 238; guard-diff and skill-portability suites 54 passed. Prior evidence: pre_pr.py all green, full pre-push suite green."
+        "Evidence": "Post-review-fix runs: tests/skills/session 166 passed; observation-sync suite 9 passed on the unified implementation; ruff clean on all touched files; encoding ratchet previously OK at 238."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -150,9 +150,13 @@
     {
       "time": "2026-08-15T17:55:00Z",
       "activity": "PR went mergeStateStatus DIRTY after main landed the issue 5071 batch touching the same four root-container test surfaces. Merged origin/main: took main's superior directory-path fix for the sqlite3 test (dropping this branch's skipif), main's equivalent root skipifs, and kept both observation-sync fixes (main's stdin-derived scope + this branch's sync_observations budget, composing as defense in depth). Re-ran 1027 affected tests and both tree ratchets on the merged tree; rebound QA to the merge commit."
+    },
+    {
+      "time": "2026-08-15T18:40:00Z",
+      "activity": "Second origin/main merge: reconciled sync_observations with PR 5087's version (main's structure and constant name, this branch's per-child clamp, named skips, CWE-117 quoting; budget 200s keeps the budget-plus-child invariant under the lefthook cap). Addressed the 7 Copilot review threads: per-ref child timeout clamped to the remaining scan budget, docstring corrected to state fetch-freshness instead of unreachable-remote failure, CWE-400 ceiling MAX_SESSION_NUMBER bounds untrusted sibling filenames (4 new tests); filed issue 5118 for the observation retry backlog gap."
     }
   ],
-  "endingCommit": "00d5f07e9a8148433345b499ee08069ce8b7e07b",
+  "endingCommit": "2d16788294e53535d587c533f91035d44f68e1e6",
   "nextSteps": [
     "Drive PR #5092 to green: watch CI, address review threads, keep endingCommit current after any rebase."
   ]
