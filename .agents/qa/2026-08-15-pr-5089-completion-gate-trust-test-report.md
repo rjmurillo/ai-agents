@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15072-issue-5072-completion-gate-trust.json
-qaCommit: b4cb52ce788b202d30ba05d18a05b552363759ff
+qaCommit: 77675fe502b967193c18aad1eacb4cffe5820c30
 ---
 
 # QA Report: PR #5089 completion-gate config trust boundary (Issue #5072)
@@ -16,7 +16,7 @@ CWE-829 fix in `.claude/skills/github/scripts/pr/run_completion_gate.py`: the di
 
 Command: `uv run pytest tests/skills/github/test_run_completion_gate.py -q`
 
-Result: 97 passed (76 pre-existing dispatcher tests unchanged, 21 new). The new tests drive `main()` end to end against real git repositories with no subprocess stubbing.
+Result: 107 passed (76 pre-existing dispatcher tests unchanged, 31 new across the trust boundary, security-review hardening, and loader branches). The new tests drive `main()` end to end against real git repositories with no subprocess stubbing.
 
 Acceptance-criteria mapping:
 
@@ -35,7 +35,7 @@ Acceptance-criteria mapping:
 
 Command: `uv run pytest tests/skills/github/test_run_completion_gate.py -q --cov=run_completion_gate --cov-report=term-missing`
 
-Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trust`, `_enforce_config_trust`, `_extract_criteria`, CLI wiring) is covered; `TestVerifyConfigTrustErrorBranches` fault-injects git timeout, missing git binary, config outside the work tree, `git show` failure, and unreadable config. The only uncovered lines in the file are pre-existing branches (installed-plugin `validate_safe_path` fallback, PyYAML-missing fallback, DSL error branches, evidence-write errors, `__main__` guard), unchanged by this PR.
+Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trust`, `_enforce_config_trust`, `_read_config_bytes`, `_load_config_bytes`, `_resolve_and_read_config`, `_extract_criteria`, CLI wiring) is covered; `TestVerifyConfigTrustErrorBranches` fault-injects git timeout, missing git binary, config outside the work tree, `git show` failure, and unreadable config. The only uncovered lines in the file are pre-existing branches (installed-plugin `validate_safe_path` fallback, PyYAML-missing fallback, DSL error branches, evidence-write errors, `__main__` guard), unchanged by this PR.
 
 ### Static and security gates
 
@@ -47,7 +47,19 @@ Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trus
 
 ### Full suite
 
-Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body; push of `b4cb52ce788b202d30ba05d18a05b552363759ff` passed the complete pre-push hook suite.
+Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `77675fe502b967193c18aad1eacb4cffe5820c30` runs the same complete pre-push hook suite before the ref moves.
+
+
+### Security-review hardening (second round)
+
+The security agent review (APPROVE-WITH-NOTES) drove four additional controls, each with tests:
+
+| Finding | Control | Test |
+|---|---|---|
+| F2 self-referential trusted ref | `--trusted-ref` must resolve under `refs/remotes/*` | `test_head_as_trusted_ref_fails_closed`, `test_local_branch_as_trusted_ref_fails_closed` |
+| F3 TOCTOU (CWE-367) | single read; verified bytes are parsed bytes | `test_config_is_read_exactly_once` |
+| F4 EOL false divergence | trusted side via `git cat-file --filters` | `test_eol_only_difference_under_autocrlf_stays_trusted` plus `test_content_tamper_under_autocrlf_still_halts` negative control |
+| F6 parser crash class | RecursionError exits 2, not a traceback | `test_deeply_nested_config_fails_config_not_crash` |
 
 ## Verdict
 
