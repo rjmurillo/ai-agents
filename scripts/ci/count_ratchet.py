@@ -34,8 +34,17 @@ recorded in ``.github/AGENTS.md`` under "Ratchet Baselines and the Concurrent
 Merge Race". The regression test that proves the gate blocks lives in
 ``tests/ci/test_count_ratchet_concurrent_merge.py``.
 
+Every git subprocess here runs under ``git_environment()``, never the ambient
+environment. A ``git push`` from a linked worktree exports ``GIT_DIR`` into the
+pre-push hook, and an exported ``GIT_DIR`` outranks the ``-C <root>`` argument,
+so the counters read the pushing worktree instead of the root they were handed
+(issue #4914). See that helper for the measurement.
+
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
-must not depend on the project's import graph.
+must not depend on the project's import graph. That is why the ``GIT_*`` strip
+below is a local copy of the rule in ``merge_tree_materialization.py`` rather
+than an import of it: that module imports ``scripts.cli_exec``, and reaching it
+from here would put the project's import graph behind every ratchet.
 
 Exit codes (AGENTS.md contract):
     0 - ok (count <= baseline, or --update records a decrease)
@@ -47,6 +56,7 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -63,19 +73,95 @@ EXIT_EXTERNAL = 3
 ARGV_BUDGET_BYTES = 24000
 
 
-def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
-    """Git-tracked paths matching ``globs``, or None when git could not run."""
+def git_environment() -> dict[str, str]:
+    """The ambient environment with every ``GIT_*`` variable removed.
+
+    ``git -C <root>`` does not win against an exported ``GIT_DIR``. Measured on
+    git 2.43.0 against a scratch repo holding only ``keep.py``, with ``GIT_DIR``
+    pointed at a linked worktree that also tracks
+    ``scripts/validation/only_on_branch.py``::
+
+        $ git -C <scratch> ls-files                        # clean environment
+        keep.py
+        $ GIT_DIR=<worktree gitdir> git -C <scratch> ls-files
+        keep.py
+        scripts/validation/only_on_branch.py               # the WRONG tree
+
+    That second listing is issue #4914. ``git push`` exports ``GIT_DIR`` into
+    the pre-push hook from a linked worktree and not from an ordinary checkout
+    (measured on git 2.43.0: ``GIT_DIR=<main>/.git/worktrees/<name>`` present in
+    the hook environment for the linked push, absent for the main-checkout
+    push). ``merge_tree_ratchet_check`` then calls ``current_count(<scratch>)``,
+    ``tracked_files`` lists the pushing worktree's index instead of the scratch
+    index, and the linter is handed scratch paths that do not exist. The
+    counter returns None and the push is blocked with a message that names a
+    file the branch legitimately carries. Five pushes on PR #4912 were spent
+    before the cause was found.
+
+    Mirrors the ``GIT_*`` half of
+    ``scripts/ci/merge_tree_materialization.py::isolated_git_environment``,
+    whose rule is verbatim::
+
+        env = os.environ.copy()
+        isolated_names = {"GNUPGHOME", "HOME", "LEFTHOOK", "USERPROFILE", "XDG_CONFIG_HOME"}
+        for name in tuple(env):
+            normalized = name.upper()
+            if normalized.startswith("GIT_") or normalized in isolated_names:
+                env.pop(name)
+
+    ``normalized = name.upper()`` is kept, so a lowercased ``git_dir`` that a
+    case-insensitive platform folds into ``GIT_DIR`` is stripped here too.
+
+    Stricter/looser/different than canonical: narrower on purpose. That helper
+    also drops ``HOME``, ``USERPROFILE``, ``XDG_CONFIG_HOME``, ``GNUPGHOME`` and
+    ``LEFTHOOK``, and repoints them at a scratch home with an empty global
+    config. It may, because it only ever runs git against a repository it just
+    created and owns. These ratchets run git against the real checkout, where
+    the global config is load-bearing: ``actions/checkout`` records
+    ``safe.directory`` there, and blanking it invites "detected dubious
+    ownership" on a runner. Measured with that helper's own environment, a
+    global ``safe.directory`` entry that ``git config --get-all`` returns under
+    the ambient environment (rc 0) is invisible under the isolated one (rc 1).
+    So this strips the variable that causes the defect and nothing else. It also
+    takes no scratch directory and needs no cleanup, which keeps a read-only
+    path free of the temporary-tree failure modes that isolation carries.
+
+    Returns a fresh dict; ``os.environ`` is never mutated.
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.upper().startswith("GIT_")
+    }
+
+
+def _git_run(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
+    """Run a git command, or None when git could not be launched."""
     try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "-z", "--", *globs],
+        return subprocess.run(
+            ["git", "-C", str(repo_root), *argv],
             capture_output=True,
             text=True,
             errors="replace",
             encoding="utf-8",
             check=False,
+            env=git_environment(),
         )
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"git could not be launched: {exc}\n")
+        return None
+
+
+def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
+    """Exit status of a git command, or None when git could not be launched."""
+    proc = _git_run(repo_root, argv)
+    return None if proc is None else proc.returncode
+
+
+def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
+    """Git-tracked paths matching ``globs``, or None when git could not run."""
+    proc = _git_run(repo_root, ["ls-files", "-z", "--", *globs])
+    if proc is None:
         return None
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
@@ -98,6 +184,7 @@ def _diff_paths(repo_root: Path, spec: str, scope: str) -> frozenset[str]:
             errors="replace",
             encoding="utf-8",
             check=False,
+            env=git_environment(),
         )
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"diagnostic ordering degraded: git could not be launched: {exc}\n")
@@ -237,28 +324,6 @@ def _baseline_rel(repo_root: Path, baseline: Path) -> str:
         return baseline.as_posix()
 
 
-def _git_run(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
-    """Run a git command, or None when git could not be launched."""
-    try:
-        return subprocess.run(
-            ["git", "-C", str(repo_root), *argv],
-            capture_output=True,
-            text=True,
-            errors="replace",
-            encoding="utf-8",
-            check=False,
-        )
-    except (FileNotFoundError, OSError) as exc:
-        sys.stderr.write(f"git could not be launched: {exc}\n")
-        return None
-
-
-def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
-    """Exit status of a git command, or None when git could not be launched."""
-    proc = _git_run(repo_root, argv)
-    return None if proc is None else proc.returncode
-
-
 def baseline_absent_at_ref(repo_root: Path, ref: str, baseline: Path) -> bool:
     """True when ``ref`` resolves but records no baseline file yet.
 
@@ -295,17 +360,8 @@ def baseline_absent_at_ref(repo_root: Path, ref: str, baseline: Path) -> bool:
 def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
     """Baseline value recorded at ``ref``, or None when it cannot be read."""
     rel = _baseline_rel(repo_root, baseline)
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
-            capture_output=True,
-            text=True,
-            errors="replace",
-            encoding="utf-8",
-            check=False,
-        )
-    except (FileNotFoundError, OSError) as exc:
-        sys.stderr.write(f"git could not be launched: {exc}\n")
+    proc = _git_run(repo_root, ["show", f"{ref}:{rel}"])
+    if proc is None:
         return None
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
