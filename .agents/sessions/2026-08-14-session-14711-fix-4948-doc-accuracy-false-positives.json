@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits."
+        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits. Resumed in a later session to close the Go/Rust/Java gap: fix commit f507b79f8 replaced the NON_COMPILABLE_LANGUAGES/tuple denylists with a SYMBOL_EXTRACTORS-based allowlist; this commit records that SHA in endingCommit and corrects the QA evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,9 +139,21 @@
     {
       "action": "Validated the fix with targeted tests and direct reproduction.",
       "outcome": "pytest passed, ruff passed, and the issue reproduction returned exit 0 with no findings."
+    },
+    {
+      "action": "Resumed the session: audited the NON_COMPILABLE_LANGUAGES denylist and the separate Phase 3 language tuple against SOURCE_EXTENSIONS and found Go, Rust, and Java fences were absent from both, so those languages were still checked for compilability with no symbol extractor to verify against.",
+      "outcome": "Confirmed the gap by reading .claude/skills/doc-accuracy/scripts/doc_accuracy.py: SYMBOL_EXTRACTORS only has csharp, python, javascript, and typescript, but go/rust/java were missing from NON_COMPILABLE_LANGUAGES and from the bash/yaml/json/xml/markdown tuple in run_compilability_check."
+    },
+    {
+      "action": "Replaced both denylist checks in run_claim_extraction (Phase 2) and run_compilability_check (Phase 3) with a single `lang not in SYMBOL_EXTRACTORS` check, and removed the now-unused NON_COMPILABLE_LANGUAGES constant.",
+      "outcome": "Added test_skips_go_fences, test_skips_rust_fences, test_skips_java_fences, test_skips_go_code_examples, test_skips_rust_code_examples, and test_skips_java_code_examples, plus one test_resolves_symbol_extractor_languages per phase parametrized over the live mod.SYMBOL_EXTRACTORS keys. Existing text/mermaid/powershell skip tests kept passing unchanged."
+    },
+    {
+      "action": "Ran the full targeted validation loop: uv run pytest tests/skills/doc-accuracy/test_doc_accuracy.py -q, uv run ruff check on the canonical script and the test file, uv run python build/scripts/build_all.py to regenerate the Copilot mirror, a byte-for-byte diff of the canonical script against the regenerated mirror, and uv run python build/scripts/build_all.py --check after committing.",
+      "outcome": "96 tests passed (up from 88 before this round), ruff reported no issues, the regenerated mirror was byte-identical to canonical, and --check exited 0 with no staleness once the fix commit (f507b79f8) was in place. Running --check before that commit correctly reports the file as uncommitted drift; that is expected pre-commit behavior, not a defect."
     }
   ],
-  "endingCommit": "42c419a68",
+  "endingCommit": "f507b79f8",
   "nextSteps": [
     "None."
   ]
