@@ -7,7 +7,7 @@
     "startingCommit": "98f34a3e6b",
     "objective": "Exclude generated files from scope explosion detector count"
   },
-  "endingCommit": "298560b6efecf7f1d6e5670a865f9769cc606416",
+  "endingCommit": "654fbc8022ee99698b11261c2bb5aa03a72ac7f9",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
