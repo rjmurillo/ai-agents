@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation and pre-push gate changes committed through 029e32ee9dddcbbd9025c67b891029dbbcb342bd; evidence-only updates follow."
+        "Evidence": "All implementation and pre-push gate changes committed through b485b6385173b9a5f298e624b6aa42dfb0233b42; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-15T04:15Z",
       "action": "record-qa",
-      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit 029e32ee9dddcbbd9025c67b891029dbbcb342bd."
+      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit b485b6385173b9a5f298e624b6aa42dfb0233b42."
     },
     {
       "timestamp": "2026-08-15T06:20Z",
@@ -158,9 +158,14 @@
       "timestamp": "2026-08-15T07:10Z",
       "action": "stabilize-security-scan",
       "details": "Set Semgrep to one worker and a 30-second rule timeout after measured allocation and rule-timeout failures. The exact seven-file gate ran 763 rules with no errors or findings, and a 100-file batch completed in 93 seconds."
+    },
+    {
+      "timestamp": "2026-08-15T07:25Z",
+      "action": "isolate-semgrep-contract-test",
+      "details": "Moved the worker and rule-budget assertions into a small dedicated test file. The large integration file returned to byte parity with remote, reducing the security scan workload without reducing command coverage."
     }
   ],
-  "endingCommit": "029e32ee9dddcbbd9025c67b891029dbbcb342bd",
+  "endingCommit": "b485b6385173b9a5f298e624b6aa42dfb0233b42",
   "nextSteps": [
     "Push feat/dx-review under the lease and live-state guard.",
     "Reply to and resolve all seven review threads.",

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd
+qaCommit: b485b6385173b9a5f298e624b6aa42dfb0233b42
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd
 Branch: `feat/dx-review`
 
 Validated through commit:
-`029e32ee9dddcbbd9025c67b891029dbbcb342bd`
+`b485b6385173b9a5f298e624b6aa42dfb0233b42`
 
 ## Scope
 
@@ -25,7 +25,7 @@ Validated through commit:
 - `tests/test_pr_autofix_late_live_state_gate.py`
 - `tests/test_validate_session_json.py`
 - `scripts/validation/git_hook_policy.py`
-- `tests/test_lefthook_integration.py`
+- `tests/validation/test_git_hook_semgrep_command.py`
 
 ## Results
 
@@ -43,6 +43,7 @@ Validated through commit:
 | Delayed-child teardown stress | 30 consecutive fresh pytest processes passed |
 | Session corpus validation | 4 class tests passed |
 | Semgrep integration | 97 tests passed |
+| Semgrep command contract | 1 focused test passed |
 | Exact security gate | 7 files, 763 rules, 0 errors, 0 findings |
 | Serial batch measurement | 100 files scanned in 93 seconds |
 | Security review | Approved |

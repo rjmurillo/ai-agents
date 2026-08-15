@@ -92,7 +92,7 @@
         "e006"
       ],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
@@ -102,19 +102,45 @@
       "type": "commit",
       "content": "Commit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd",
       "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T07:25:00+00:00",
+      "type": "milestone",
+      "content": "isolate-semgrep-contract-test",
+      "caused_by": [
         "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T08:18:33+00:00",
+      "type": "commit",
+      "content": "Commit: b485b6385173b9a5f298e624b6aa42dfb0233b42",
+      "caused_by": [
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     }
   ],
   "metrics": {
-    "duration_minutes": 225,
+    "duration_minutes": 240,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 410
+    "commits": 2,
+    "files_changed": 415
   },
   "lessons": []
 }
