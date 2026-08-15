@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-15-session-01-fix-4902",
+  "session": "2026-08-15-session-01-fix-4902",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Require disposition evidence for nonrequired failures in completion gate",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add _check_nonrequired_dispositions to test_pr_merge_ready.py",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update pass_when_python in config",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add 14 tests",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T07:11:03+00:00",
+      "type": "commit",
+      "content": "Commit: 50678f3f1b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T08:21:12+00:00",
+      "type": "commit",
+      "content": "Commit: 90a1d526d6",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-01-fix-4902"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}

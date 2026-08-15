@@ -1064,3 +1064,201 @@ class TestQuerySelectsDetailsUrl:
     def test_both_check_run_selections_request_details_url(self):
         assert "detailsUrl" in _mod._CONTEXTS_PAGE_QUERY
         assert "detailsUrl" in _mod._MERGE_READY_QUERY
+
+
+# ---------------------------------------------------------------------------
+# Tests: Non-required failure disposition (issue #4902)
+# ---------------------------------------------------------------------------
+
+_load_dispositions = _mod._load_dispositions
+_check_nonrequired_dispositions = _mod._check_nonrequired_dispositions
+_VALID_DISPOSITIONS = _mod._VALID_DISPOSITIONS
+
+
+class TestNonRequiredDispositions:
+    """Issue #4902: require evidence before accepting nonrequired failures."""
+
+    # -- Positive: disposed failures pass --
+
+    def test_no_failures_returns_empty(self):
+        assert _check_nonrequired_dispositions([], None) == []
+
+    def test_all_failures_disposed_returns_empty(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "Flaky network test tracked in #1234",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == []
+
+    # -- Negative: undisposed failures block --
+
+    def test_missing_file_returns_all_failures(self):
+        result = _check_nonrequired_dispositions(
+            ["Run Tests", "Lint"], "/nonexistent/path.json",
+        )
+        assert result == ["Run Tests", "Lint"]
+
+    def test_none_file_returns_all_failures(self):
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], None,
+        )
+        assert result == ["Run Tests"]
+
+    def test_partial_disposition_returns_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "Tracked in #1234",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests", "Lint"], str(disp_file),
+        )
+        assert result == ["Lint"]
+
+    def test_invalid_disposition_value_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "yolo",
+                "reason": "I want to merge",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_empty_reason_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    # -- Edge cases --
+
+    def test_malformed_json_returns_all_failures(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text("not json{{{")
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": "just a string",
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_all_valid_disposition_values_accepted(self, tmp_path):
+        for disp_val in _VALID_DISPOSITIONS:
+            disp_file = tmp_path / f"d_{disp_val}.json"
+            disp_file.write_text(json.dumps({
+                "Check": {"disposition": disp_val, "reason": "valid"},
+            }))
+            assert _check_nonrequired_dispositions(
+                ["Check"], str(disp_file),
+            ) == [], f"Failed for disposition={disp_val}"
+
+
+class TestMergeReadinessWithDispositions:
+    """Integration: check_merge_readiness blocks on undisposed failures."""
+
+    def _pr_with_failed_nonrequired(self):
+        """PR data: zero required checks, one failed non-required check."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "Run Python Tests",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            },
+        ]
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["state"] = "FAILURE"
+        return pr_data
+
+    def test_undisposed_nonrequired_failure_blocks_merge(self):
+        """Issue #4902 reproduction: UNSTABLE with no disposition must block."""
+        pr_data = self._pr_with_failed_nonrequired()
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert any("disposition" in r for r in result["Reasons"])
+
+    def test_disposed_nonrequired_failure_allows_merge(self, tmp_path):
+        """With valid disposition file, UNSTABLE PR can merge."""
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Python Tests": {
+                "disposition": "known-flaky",
+                "reason": "Tracked in issue #9999",
+            },
+        }))
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42,
+                dispositions_file=str(disp_file),
+            )
+        assert result["CanMerge"] is True
+        assert result["UndisposedNonRequiredFailures"] == []
+
+    def test_zero_required_base_absent_check_blocks(self):
+        """Zero required checks + failed non-required = blocked (no evidence)."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
+        # No required checks at all, one non-required failure
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "Purpose Check",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            },
+        ]
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["state"] = "FAILURE"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        # Must block: zero required checks, non-required failed, no disposition
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is True  # no required checks failed
+        assert "Purpose Check" in result["UndisposedNonRequiredFailures"]
+
+    def test_clean_state_no_failures_still_passes(self):
+        """Regression: CLEAN state with no failures should still pass."""
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True
+        assert result["UndisposedNonRequiredFailures"] == []
