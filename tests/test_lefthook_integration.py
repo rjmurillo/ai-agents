@@ -6964,8 +6964,8 @@ def test_pytest_policy_cleans_hook_environment(
         def __enter__(self) -> FakePopen:
             return self
 
-        def __exit__(self, *exc: object) -> bool:
-            return False
+        def __exit__(self, *exc: object) -> None:
+            return None
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
