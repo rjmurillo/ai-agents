@@ -74,11 +74,29 @@ kill escalate, with an explicit warning that the tree may hold partial
 generated writes. Expiry reports EXTERNAL (exit 3): the tree was never
 scored.
 
+The budget is one aggregate for the whole gate, not per row, so the gate's
+worst case is bounded below the process cap that contains it:
+``lefthook.yml`` runs ``pre-pr-validation`` under ``timeout: 15m`` (900s),
+and a lefthook cap kill lands on the whole process tree without the SIGINT
+path. ``_GATE_BUDGET_SECONDS + _TERMINATION_GRACE_SECONDS`` (450s) leaves
+the remaining half of the outer cap for the rest of the sequence (measured
+~130s), so the outer kill can never be the first deadline to fire during a
+generator write. ``tests/validation/test_check_generated_staleness.py``
+pins that arithmetic against the live ``lefthook.yml``.
+
 Exit codes (ADR-035):
     0 - Success (no staleness detected)
-    1 - Logic error (a generator check reported drift)
+    1 - Logic error (a generator check failed: staleness or a child-reported
+        error; the child's own output, echoed above the verdict, names which)
     2 - Config error (invalid repository root, or a checked script is absent)
-    3 - External error (a bounded child was killed on timeout)
+    3 - External error (a bounded child was killed on deadline expiry)
+
+The gate does not subdivide child exit codes further on purpose: the child
+contracts are ambiguous at this boundary (``build_all.py`` uses 2 for both
+configuration errors and staleness; ``sync_plugin_lib.py`` uses 1 for
+missing, unreadable, and drifted sources alike), so any per-cause mapping
+here would assert precision the children do not provide. The echoed child
+output is the discriminator, and the failure message says so.
 """
 
 from __future__ import annotations
@@ -87,6 +105,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from enum import IntEnum
 from pathlib import Path
 
@@ -103,17 +122,19 @@ class _Status(IntEnum):
 
 
 # Ordered per .claude/rules/generated-artifacts.md "Generator order: sync
-# before build". Each row is (label, repo-relative script path, timeout
-# seconds or None). Changing the order breaks the contract this module exists
-# to honor.
-#
-# Both rows carry a deadline sized for a loaded machine per ci-scripts.md
-# MUST 16, enforced by _run_check's graceful termination (SIGINT first, so
-# build_all's snapshot-restoring ``finally`` runs; see the module docstring).
-_CHECKS: tuple[tuple[str, tuple[str, ...], float], ...] = (
-    ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py"), 600.0),
-    ("build_all.py --check", ("build", "scripts", "build_all.py"), 600.0),
+# before build". Each row is (label, repo-relative script path). Changing the
+# order breaks the contract this module exists to honor.
+_CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py")),
+    ("build_all.py --check", ("build", "scripts", "build_all.py")),
 )
+
+# One aggregate budget for the whole gate, shared across the rows, sized for
+# a loaded machine per ci-scripts.md MUST 16 (measured standalone: ~4.4s for
+# build_all, ~1s for sync) while fitting inside the outer lefthook cap with
+# room for cleanup and the rest of the sequence (module docstring). A test
+# pins budget + grace against the live lefthook.yml cap.
+_GATE_BUDGET_SECONDS = 420.0
 
 # How long a child gets to honor SIGINT and finish its cleanup before the
 # kill escalates. build_all's restore is file copies measured in fractions of
@@ -211,6 +232,11 @@ def _run_check(
         )
 
 
+def _remaining(deadline: float) -> float:
+    """Seconds left before the gate's aggregate deadline."""
+    return deadline - time.monotonic()
+
+
 def check_generated_staleness(repo_root: Path) -> _Status:
     """Return the gate outcome for ``repo_root``.
 
@@ -225,7 +251,17 @@ def check_generated_staleness(repo_root: Path) -> _Status:
     (.claude/rules/ci-scripts.md MUST 11 and MUST 12).
     """
     examined = 0
-    for label, parts, timeout in _CHECKS:
+    deadline = time.monotonic() + _GATE_BUDGET_SECONDS
+    for label, parts in _CHECKS:
+        budget = _remaining(deadline)
+        if budget <= 0:
+            print(
+                f"[FAIL] gate budget ({_GATE_BUDGET_SECONDS}s) exhausted before"
+                f" {label} ran; the tree was never scored. Examined {examined}"
+                f" of {len(_CHECKS)} checks.",
+                file=sys.stderr,
+            )
+            return _Status.EXTERNAL
         script = repo_root.joinpath(*parts)
         if not script.is_file():
             print(
@@ -235,7 +271,7 @@ def check_generated_staleness(repo_root: Path) -> _Status:
             )
             return _Status.CONFIG
 
-        exit_code, output = _run_check(script, repo_root, timeout)
+        exit_code, output = _run_check(script, repo_root, budget)
         examined += 1
         if exit_code == 0:
             continue
@@ -258,14 +294,17 @@ def check_generated_staleness(repo_root: Path) -> _Status:
             )
             return _Status.EXTERNAL
         print(
-            f"[FAIL] {label} reported staleness (exit {exit_code}). "
+            f"[FAIL] {label} failed (exit {exit_code}). "
             f"Examined {examined} of {len(_CHECKS)} checks.{unrun}",
             file=sys.stderr,
         )
         print(
-            "Fix: run the generators in order, then commit the result:\n"
+            "Read the check's output above for the cause. If it reports"
+            " staleness or drift, regenerate and commit:\n"
             "  uv run python scripts/sync_plugin_lib.py\n"
-            "  uv run python build/scripts/build_all.py",
+            "  uv run python build/scripts/build_all.py\n"
+            "Otherwise fix the error the check itself reported; regenerating"
+            " is not the remedy for a configuration or source failure.",
             file=sys.stderr,
         )
         return _Status.DRIFT

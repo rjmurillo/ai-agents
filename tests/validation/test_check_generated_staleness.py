@@ -127,14 +127,7 @@ class TestExitCodes:
             root / "scripts" / "sync_plugin_lib.py",
             "import time\ntime.sleep(30)\nsys.exit(0)",
         )
-        monkeypatch.setattr(
-            check_generated_staleness,
-            "_CHECKS",
-            (
-                ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py"), 1.0),
-                ("build_all.py --check", ("build", "scripts", "build_all.py"), 600.0),
-            ),
-        )
+        monkeypatch.setattr(check_generated_staleness, "_GATE_BUDGET_SECONDS", 1.0)
 
         assert check_generated_staleness.main([str(root)]) == 3
 
@@ -186,13 +179,61 @@ class TestExitCodes:
 
 
 class TestBoundedGracefulTermination:
-    """Every row is bounded, and expiry preserves the child's cleanup."""
+    """The gate is bounded as a whole, and expiry preserves child cleanup."""
 
-    def test_every_row_carries_a_deadline(self) -> None:
+    def test_the_gate_budget_is_positive_and_shared(self) -> None:
         # An unbounded child stalls pre_pr.py indefinitely for callers not
-        # under the lefthook job cap (reliability review on PR #5088).
-        for label, _, timeout in check_generated_staleness._CHECKS:
-            assert timeout > 0, f"{label} must carry a deadline"
+        # under the lefthook job cap (reliability review on PR #5088). The
+        # budget is one aggregate so the worst case is the budget, not the
+        # budget times the row count.
+        assert check_generated_staleness._GATE_BUDGET_SECONDS > 0
+
+    def test_budget_plus_grace_fits_inside_the_lefthook_cap(self) -> None:
+        # lefthook kills the whole pre-pr-validation process tree at its cap,
+        # without the SIGINT path, so the gate's worst case (budget + grace)
+        # must leave the rest of the sequence room inside that cap. Parsed
+        # from the live lefthook.yml so a cap change breaks this loudly.
+        import yaml
+
+        config = yaml.safe_load((REPO_ROOT / "lefthook.yml").read_text())
+
+        def _jobs(node: object) -> list[dict]:
+            found: list[dict] = []
+            if isinstance(node, dict):
+                if "jobs" in node:
+                    for item in node["jobs"]:
+                        found.extend(_jobs(item))
+                if isinstance(node.get("group"), dict):
+                    found.extend(_jobs(node["group"]))
+                if "name" in node:
+                    found.append(node)
+            return found
+
+        jobs = _jobs(config.get("pre-push", {}))
+        caps = [j for j in jobs if j.get("name") == "pre-pr-validation"]
+        assert caps, "pre-pr-validation job not found in lefthook.yml"
+        timeout = caps[0]["timeout"]
+        assert isinstance(timeout, str) and timeout.endswith("m")
+        cap_seconds = int(timeout[:-1]) * 60
+
+        worst_case = (
+            check_generated_staleness._GATE_BUDGET_SECONDS
+            + check_generated_staleness._TERMINATION_GRACE_SECONDS
+        )
+        assert worst_case <= cap_seconds / 2, (
+            f"gate worst case {worst_case}s must leave at least half of the"
+            f" {cap_seconds}s pre-pr-validation cap for the rest of the"
+            f" sequence"
+        )
+
+    def test_an_exhausted_budget_reports_external_without_running_the_child(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        monkeypatch.setattr(check_generated_staleness, "_GATE_BUDGET_SECONDS", -1.0)
+
+        assert check_generated_staleness.main([str(root)]) == 3
+        assert not _build_all_ran(root)
 
     def test_expiry_lets_the_child_finally_run(self, tmp_path: Path) -> None:
         # The whole point of graceful termination: SIGKILL would skip the
@@ -225,7 +266,7 @@ class TestGeneratorOrder:
     """sync before build, per .claude/rules/generated-artifacts.md."""
 
     def test_sync_is_checked_before_build_all(self) -> None:
-        labels = [label for label, _, _ in check_generated_staleness._CHECKS]
+        labels = [label for label, _ in check_generated_staleness._CHECKS]
 
         assert labels == ["sync_plugin_lib.py --check", "build_all.py --check"]
 
