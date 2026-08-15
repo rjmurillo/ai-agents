@@ -166,7 +166,7 @@ class TestPushWorktreeChanges:
         mock_reset.assert_not_called()
 
     def test_operator_identity_is_forwarded_to_reset(self, tmp_path: Path) -> None:
-        """The human operator mode must still forward through the cleanup path."""
+        """The CLI must forward human operator mode through the cleanup path."""
         from scripts import invoke_batch_pr_review
 
         status = WorktreeStatus(
@@ -182,9 +182,15 @@ class TestPushWorktreeChanges:
             patch.object(invoke_batch_pr_review, "get_worktree_status", return_value=status),
             patch.object(invoke_batch_pr_review, "reset_worktree_identity") as mock_reset,
             patch.object(invoke_batch_pr_review, "run_git") as mock_run_git,
+            patch.object(invoke_batch_pr_review, "remove_worktree", return_value=True),
         ):
             mock_run_git.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            result = push_worktree_changes(1, tmp_path, operator="rjmurillo")
+            result = main([
+                "--pr-numbers", "1",
+                "--operation", "cleanup",
+                "--worktree-root", str(tmp_path),
+                "--operator-identity", "rjmurillo",
+            ])
 
-        assert result is True
+        assert result == 0
         mock_reset.assert_called_once_with(status.path, operator="rjmurillo")
