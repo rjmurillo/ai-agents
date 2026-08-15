@@ -141,7 +141,7 @@ class TestFailOpen:
                 assert guard.main() == 0
 
     def test_no_serena_config(self, tmp_path: Path) -> None:
-        """Fails open when no .serena/project.yml found."""
+        """Fails closed when no .serena/project.yml found (write safety)."""
         with patch.object(guard, "_git_toplevel", return_value=tmp_path):
             with patch.object(guard, "_serena_project_root", return_value=None):
                 with patch.object(
@@ -149,7 +149,7 @@ class TestFailOpen:
                     "_read_payload",
                     return_value=("serena-replace_content", tmp_path),
                 ):
-                    assert guard.main() == 0
+                    assert guard.main() == 2
 
 
 class TestEnvOverride:

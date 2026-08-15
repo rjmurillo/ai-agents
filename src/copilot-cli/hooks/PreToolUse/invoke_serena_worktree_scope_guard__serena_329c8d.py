@@ -501,8 +501,14 @@ def _original_main(stdin_bytes):
         # Determine Serena project root
         serena_root = _serena_project_root()
         if serena_root is None:
-            # Cannot determine Serena root; fail open
-            return 0
+            # Cannot determine Serena root; fail closed for write safety.
+            # If Serena isn't configured, writes should not proceed.
+            print(
+                "BLOCKED: Cannot determine Serena project root. "
+                "Set SERENA_PROJECT_ROOT or ensure .serena/project.yml exists.",
+                file=sys.stderr,
+            )
+            return 2
 
         # Compare paths
         if worktree_root == serena_root:
