@@ -177,6 +177,10 @@
       "files": [
         ".agents/qa/session-14710-issue-4939-qa.md"
       ]
+    },
+    {
+      "phase": "review-fix",
+      "description": "Address PR #5024 review threads: update ADR-064 refs, fix handoff inventory"
     }
   ],
   "endingCommit": "66eea82edc2bc82639ea5d513c149a27e6f47cd0",

@@ -60,3 +60,26 @@ None. All Round 1 blocking findings were resolved.
 ## Final Decision
 
 ADR-094 is accepted. ADR-044 is superseded and retained as historical evidence.
+
+## Round 3: Cross-Reference Correction
+
+### Change
+
+Update ADR-064 references from superseded ADR-044 to current ADR-094.
+
+### Rationale
+
+ADR-064 lines 162 and 274 referenced ADR-044 for Copilot CLI frontmatter constraints.
+Since ADR-094 supersedes ADR-044, readers following these references would land on
+retired guidance. Correcting the pointers is a mechanical cross-reference fix.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| implementer | Accept (reference-only change) |
+
+### Outcome
+
+Accepted. No decision change in ADR-064; only link targets updated.
+
