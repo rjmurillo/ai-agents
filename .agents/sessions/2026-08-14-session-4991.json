@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 3b4fde0e66cdc9c06aa6d20c1b8d0b599f304c37"
+        "Evidence": "All non-evidence code committed through 51968f2cad1de8c8e7e663f327cecb5af2d92bcc"
       },
       "validationPassed": {
         "level": "MUST",
@@ -186,8 +186,12 @@
     {
       "action": "Removed stale SkillForge exec portability allowances",
       "result": "Deleted canonical and generated modularity-guidelines baseline entries; portability ratchet passes"
+    },
+    {
+      "action": "Prevented package artifacts from breaking global skill validation",
+      "result": "Launcher now runs from ~/.claude, targets skills/my-skill, and writes ./dist outside the skills directory; 17 focused tests pass"
     }
   ],
-  "endingCommit": "3b4fde0e66cdc9c06aa6d20c1b8d0b599f304c37",
+  "endingCommit": "51968f2cad1de8c8e7e663f327cecb5af2d92bcc",
   "nextSteps": []
 }
