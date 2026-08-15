@@ -194,8 +194,8 @@ after a timeout. Since issue #4706 each timed gate shim runs in a child
 process and a shim timeout denies, so the unbounded-hang residual is limited
 to the dispatcher process itself. After the 2026-07-22 hook purge, the issue
 #4764 identity gate, and the issue #4874 sub-agent model gate, the active
-manifest contains three shims with 110 seconds of configured timeout. The
-generated host entry requests 115 seconds, including five seconds of
+manifest contains four shims with 120 seconds of configured timeout. The
+generated host entry requests 125 seconds, including five seconds of
 dispatcher headroom. The require-subagent-model script fails open on its own
 internal errors (issue #4672 rationale, recorded in the script header), and
 that guarantee holds end to end on the repository-local `.github/hooks` path

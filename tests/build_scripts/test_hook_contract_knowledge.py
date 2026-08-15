@@ -644,21 +644,21 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    assert source_counts == {"PreToolUse": 3, "PostToolUse": 1}
-    assert source_total == 4
+    assert source_counts == {"PreToolUse": 4, "PostToolUse": 1}
+    assert source_total == 5
     assert host_total == 2
-    assert round(reduction, 1) == 50.0
-    assert "four registrations across two events" in adr_068
-    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    assert round(reduction, 1) == 60.0
+    assert "five registrations across two events" in adr_068
+    assert "four PreToolUse shims and one PostToolUse shim" in adr_068
     assert "not for matched-call process savings" in adr_068
-    assert len(pretool_manifest["shims"]) == 3
-    assert timeout_total == 110
-    assert "current PreToolUse manifest has three shims" in adr_068
-    assert "110 seconds of configured timeout" in adr_068
+    assert len(pretool_manifest["shims"]) == 4
+    assert timeout_total == 120
+    assert "current PreToolUse manifest has four shims" in adr_068
+    assert "120 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
     assert "the in-process bypass is latent" in adr_068
-    assert "four registrations across two events" in adr_085
+    assert "five registrations across two events" in adr_085
     for stale in (
         "requests 105 seconds",
         "100 seconds of configured timeout",
@@ -672,8 +672,8 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     ):
         assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
     assert "requests 105 seconds" not in adr_071
-    assert "active manifest contains three shims" in adr_071
-    assert "110 seconds of configured timeout" in adr_071
+    assert "manifest contains four shims" in adr_071
+    assert "120 seconds of configured timeout" in adr_071
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 

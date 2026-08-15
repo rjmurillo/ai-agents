@@ -75,8 +75,8 @@ parity twins:
 
 | Surface | File | Registered (re-verified 2026-08-14) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 7 events, 8 groups |
-| Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 4 groups |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 7 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 5 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
 Failure policy is PER FAMILY, not global. Do not copy a policy across families:
@@ -137,7 +137,7 @@ belong to `ai-agents-generation-and-release`.
 
 State these plainly when working near them; do not design as if they were sound. The dated evidence and consequence for each are in `references/weak-points.md`.
 
-- **Hook sources serve different consumers**: `.claude/settings.json` has 7 events and 8 groups, `.claude/hooks/hooks.json` has 2 events and 4 groups; do not force parity; verify repository-only vs vendored before editing either source.
+- **Hook sources serve different consumers**: `.claude/settings.json` has 6 events and 7 groups, `.claude/hooks/hooks.json` has 2 events and 5 groups; do not force parity; verify repository-only vs vendored before editing either source.
 - **`src/claude/` manual dual-edit**: shared-template edits silently skip the Claude surface unless you make the second edit.
 - **Stale docs contradict reality**: following docs verbatim fails; quote the canonical source when correcting (FM-9).
 - **Ruff debt is ratcheted, not eliminated**: changed-file and whole-tree count gates block regressions, but existing lint debt remains.
@@ -162,7 +162,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: local settings print `7 8`, vendored source prints `2 4`, and generated Copilot config prints `2 2`
+- [ ] Confirmed event counts still match: local settings print `6 7`, vendored source prints `2 5`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: left the manifests version-free (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 

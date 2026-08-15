@@ -159,6 +159,8 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
         "invoke_push_pr_script_identity_guard.py",
         # ADR-085: settings.json twin removed; gate-mode groups skip self-host bail.
         "invoke_require_subagent_model.py",
+        # Serena MCP tools only exist in Claude Code; no settings twin needed (#4917).
+        "invoke_serena_worktree_scope_guard.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)

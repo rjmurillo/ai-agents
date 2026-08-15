@@ -38,9 +38,9 @@ made explicit.
 
 Amended 2026-08-11 (issue #4874): re-evaluation triggers 2 and 3 fired. The
 require-subagent-model gate joined the consolidated PreToolUse path, growing
-the active manifest to three shims and 110 seconds of summed timeout. A
+the active manifest to four shims and 120 seconds of summed timeout. A
 six-role adr-review re-affirmed consolidation; the dispatcher is retained and
-the trigger thresholds below now read three shims and 110 seconds. The new gate's matcher is `^(Agent|Task)$`; matcher
+the trigger thresholds below now read four shims and 120 seconds. The new gate's matcher is `^(Agent|Task)$`; matcher
 disjointness bounds which shims deny, not which spawn, because the Copilot
 dispatcher spawns every timed shim before the shim's own matcher check
 (debate log:
@@ -104,7 +104,7 @@ The proposal-era measurements were:
 Those numbers explain the original decision but do not describe the current
 tree. PR #3295 completed the hook purge on 2026-07-22. Issue #4764 later added
 the push-pr script identity gate. The vendored Claude plugin source now contains
-four registrations across two events: three PreToolUse shims and one PostToolUse
+five registrations across two events: four PreToolUse shims and one PostToolUse
 shim. Issue #4874 added the require-subagent-model gate. The generated Copilot plugin exposes one dispatcher entry for each event.
 On the Copilot dispatcher, consolidation now costs interpreter starts on
 matched calls (#4706 child processes); its retained value is registration
@@ -222,8 +222,8 @@ events and execute those shims in process through
 4. **No in-process budget watchdog.** The manifest records positive,
    non-boolean integer timeout metadata. The consolidated host entry uses the
    sum of per-shim timeout values plus five seconds of dispatcher headroom. The
-   current PreToolUse manifest has three shims with 110 seconds of configured
-   timeout, so the generated host entry requests 115 seconds. The sum spans all
+   current PreToolUse manifest has four shims with 120 seconds of configured
+   timeout, so the generated host entry requests 125 seconds. The sum spans all
    shims because the dispatcher spawns every timed shim before the shim's own
    matcher check runs, so any matched call can consume the full configured sum.
    The Copilot dispatcher enforces per-shim bounds in child processes (#4706);
@@ -300,7 +300,7 @@ untimed shims keep the in-process path.
 
 The remaining timeout boundary is therefore the host process. On the measured
 Copilot CLI 1.0.72-1 behavior, a host timeout fails open. The current
-PreToolUse manifest has three shims. On the Copilot dispatcher a shim carrying
+PreToolUse manifest has four shims. On the Copilot dispatcher a shim carrying
 timeout metadata runs in a child process and a timeout denies (issue #4706), so
 a hung timed shim cannot bypass later gates there. On the Claude side each
 PreToolUse group holds exactly one shim and registers its own host entry, so no
@@ -338,7 +338,7 @@ The current reasons to keep the dispatcher are:
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
 | Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
 | Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is three shims, every one timed, so on Copilot direct registration would start fewer interpreters per matched call than the dispatcher plus its children (#4706). The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
+| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is four shims, every one timed, so on Copilot direct registration would start fewer interpreters per matched call than the dispatcher plus its children (#4706). The dispatcher remains on the live generation path; simplification requires a new architecture decision. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -395,8 +395,8 @@ the prior three child starts, while Agent and Task calls add the sub-agent
 gate as the fourth.
   The Claude side registers the gate as its own host entry, so Bash calls gain
   no spawn there.
-- The current PreToolUse manifest sums to 110 seconds. The generated host entry
-  requests 115 seconds after five seconds of dispatcher headroom. The dispatcher
+- The current PreToolUse manifest sums to 120 seconds. The generated host entry
+  requests 125 seconds after five seconds of dispatcher headroom. The dispatcher
   spawns every timed shim before the shim's own matcher check runs, so any
   matched call can consume up to the 110-second sum: five seconds of real
   headroom. On the Claude side per-shim timeouts are dropped and each group's
@@ -467,8 +467,8 @@ Reopen this decision when any of these occurs:
 
 1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
    structured-output behavior.
-2. The active PreToolUse manifest grows beyond three shims or its summed
-   configured shim timeout grows beyond 110 seconds (the host entry requests
+2. The active PreToolUse manifest grows beyond four shims or its summed
+   configured shim timeout grows beyond 120 seconds (the host entry requests
    115), or in any state grows beyond five shims or 150 configured seconds.
    The five-shim, 150-second ceiling is absolute; amendments re-baseline the
    per-increment thresholds, never the ceiling.

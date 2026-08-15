@@ -3,8 +3,8 @@
   "session": "2026-08-15-session-4917-serena-worktree-scope",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
-  "task": "Add Serena worktree scope guard to prevent edits targeting wrong checkout",
+  "outcome": "success",
+  "task": "Fix copilot matcher union and update ADR metrics for serena worktree scope guard",
   "decisions": [],
   "events": [
     {
@@ -12,7 +12,10 @@
       "timestamp": "2026-08-15T09:24:16+00:00",
       "type": "commit",
       "content": "Commit: cd273f463bf4670bb4864a718e43f76e3c6312d5",
-      "caused_by": [],
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
       "leads_to": [
         "e002"
       ],
@@ -52,6 +55,54 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T11:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: 777d057a1fe619855a248abd359a5b3c819f5a41",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T12:51:27+00:00",
+      "type": "commit",
+      "content": "Commit: c526ee7912de66449b5a9f0ceee4a0036bc6c065",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
     }
@@ -61,8 +112,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 18
+    "commits": 6,
+    "files_changed": 24
   },
   "lessons": []
 }

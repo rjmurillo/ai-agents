@@ -331,7 +331,7 @@ accepted decision with dedicated tests; and each component still referenced by
 a surviving vendored hook is listed with the hook that keeps it alive. Decision
 3 is the named retention decision for the dormant generic PermissionRequest
 adapter. Removing that adapter requires superseding this decision, not treating
-zero active producers as implicit approval. The vendored source has four registrations across two events:
+zero active producers as implicit approval. The vendored source has five registrations across two events:
 `markdownlint_guard`, `push_pr_script_identity_guard`,
 `require_subagent_model`, and `markdown_auto_lint`. Copilot generation emits two host registrations. This repository also
 registers the require-subagent-model gate directly at

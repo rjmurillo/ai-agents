@@ -84,19 +84,6 @@
                     }
                 ]
             }
-        ],
-        "PreToolUse": [
-            {
-                "hooks": [
-                    {
-                        "command": "python3 -I -u \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/PreToolUse/invoke_serena_worktree_scope_guard.py\"",
-                        "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)",
-                        "timeout": 10,
-                        "type": "command"
-                    }
-                ],
-                "matcher": "^serena-"
-            }
         ]
     }
 }
