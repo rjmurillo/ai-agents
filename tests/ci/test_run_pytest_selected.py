@@ -113,6 +113,12 @@ def test_serial_partition_subset_has_no_parallel_flags(monkeypatch: pytest.Monke
     assert args == ["tests/test_safe_push_pr_branch.py"]
 
 
+def test_main_returns_runner_failure_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "merge_group")
+    monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 3)
+    assert mod.main(["--partition", "bulk"]) == 3
+
+
 def test_main_delegates_built_argv_to_runner(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, list[str]] = {}
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
