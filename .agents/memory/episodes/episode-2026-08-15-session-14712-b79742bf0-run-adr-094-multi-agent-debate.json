@@ -102,7 +102,8 @@
         "e013",
         "e014",
         "e015",
-        "e016"
+        "e016",
+        "e020"
       ],
       "leads_to": [
         "e017"
@@ -236,6 +237,17 @@
         "e018"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound all three session logs and all three QA reports to fa39b0200 after the origin/main merge staled every marker, then corrected the rename note that landed inside a code span",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
   ],

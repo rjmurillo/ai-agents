@@ -9,7 +9,7 @@ qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
 ## Scope
 
 Two authored files: `.agents/critique/ADR-094-debate-log.md` (new) and a
-9-line prose edit to `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`.
+9-line prose edit to `.agents/architecture/ADR-095-scoped-re-review-axes.md` (drafted as ADR-094).
 No code, no generated artifact, no shipped skill change. The verifiable surface
 is the gate contract, the factual claims in the debate log, and the repository
 text rules.

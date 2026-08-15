@@ -8,7 +8,7 @@ qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
 
 ## Scope
 
-One added file: `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`. A
+One added file: `.agents/architecture/ADR-095-scoped-re-review-axes.md` (drafted as ADR-094). A
 proposed-status ADR draft. No code, no generated artifact, no shipped skill
 change. The verifiable surface is the document's factual claims and its
 conformance to repository text rules.

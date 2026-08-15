@@ -23,7 +23,7 @@ already on PR #5062 before the adr-review debate ran. This report gives session
 
 ## Scope
 
-One added file at the time: `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`,
+One added file at the time: `.agents/architecture/ADR-095-scoped-re-review-axes.md` (drafted as ADR-094),
 a `status: proposed` ADR draft. No code, no generated artifact, no shipped skill
 change.
 
