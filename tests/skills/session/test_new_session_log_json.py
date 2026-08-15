@@ -168,6 +168,55 @@ class TestMain:
         data = json.loads(files[0].read_text())
         assert data["protocolCompliance"]["sessionStart"]["notOnMain"]["Complete"] is True
 
+    @patch("new_session_log_json.remote_max_session", return_value=2340)
+    @patch("new_session_log_json._get_repo_root")
+    @patch("new_session_log_json._get_branch")
+    @patch("new_session_log_json._get_commit")
+    def test_auto_detect_avoids_number_taken_on_remote_ref(
+        self, mock_commit, mock_branch, mock_root, mock_remote, tmp_path
+    ):
+        """The JSON creator consults remote refs, not the local tree alone.
+
+        Regression guard for issue #4751: this creation path had no
+        cross-branch consult at all, so it re-allocated numbers already taken
+        on sibling branches. With a sibling holding 2340 and the local tree at
+        5, the next number must be 2341.
+        """
+        mock_root.return_value = str(tmp_path)
+        mock_branch.return_value = "feat/test"
+        mock_commit.return_value = "abc1234"
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        (sessions_dir / "2026-01-01-session-5.json").write_text("{}")
+
+        exit_code = new_session_log_json.main(["--objective", "test"])
+        assert exit_code == 0
+        mock_remote.assert_called_once_with(str(tmp_path))
+
+        files = [f for f in sessions_dir.glob("*.json") if "session-2341" in f.name]
+        assert len(files) == 1
+
+    @patch("new_session_log_json.remote_max_session", return_value=2340)
+    @patch("new_session_log_json._get_repo_root")
+    @patch("new_session_log_json._get_branch")
+    @patch("new_session_log_json._get_commit")
+    def test_ceiling_includes_remote_max(
+        self, mock_commit, mock_branch, mock_root, mock_remote, tmp_path
+    ):
+        """A number derived from a sibling's session is not rejected as a jump,
+        while a genuine jump above the remote-aware ceiling still is."""
+        mock_root.return_value = str(tmp_path)
+        mock_branch.return_value = "main"
+        mock_commit.return_value = "abc1234"
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        (sessions_dir / "2026-01-01-session-5.json").write_text("{}")
+
+        # 2345 is within remote max 2340 + 10: accepted.
+        assert new_session_log_json.main(["--session-number", "2345"]) == 0
+        # 2360 exceeds the remote-aware ceiling: rejected.
+        assert new_session_log_json.main(["--session-number", "2360"]) == 1
+
     @patch("new_session_log_json.host_session_date", return_value="2026-08-08")
     @patch("new_session_log_json._get_repo_root")
     @patch("new_session_log_json._get_branch")
