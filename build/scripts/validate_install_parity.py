@@ -421,15 +421,18 @@ def _diff_is_frontmatter_only(root: Path, base: str, members: Iterable[str]) -> 
     """True when every member's diff touches only YAML frontmatter.
 
     The invariant this validator protects is H2 body-section agreement.
-    When every touched file's preamble and H2 sections are identical
-    between base and HEAD, the diff can only have changed YAML frontmatter
-    (the block stripped by _split_document). Frontmatter parity was never
-    an invariant -- sibling copies legitimately carry different name/model
+    When every touched file's body text (everything after the YAML
+    frontmatter block) is identical between base and HEAD, the diff can
+    only have changed YAML frontmatter. Frontmatter parity was never an
+    invariant -- sibling copies legitimately carry different name/model
     keys -- so co-change is the wrong requirement for this diff shape.
 
+    Compares the raw body text (not parsed dicts) so that section
+    reordering is correctly detected as a body change.
+
     Returns False whenever the answer cannot be established (file missing,
-    unreadable, unparseable, or has a body change), so the gate fails
-    closed. Issue #4922.
+    unreadable, or has a body change), so the gate fails closed.
+    Issue #4922, #5043.
     """
     for member in members:
         try:
@@ -439,17 +442,21 @@ def _diff_is_frontmatter_only(root: Path, base: str, members: Iterable[str]) -> 
         before_text = _git_show(base, member, root)
         if before_text is None:
             return False
-        before_doc = _split_document(before_text)
-        after_doc = _split_document(after_text)
-        if before_doc is None or after_doc is None:
-            return False
-        before_preamble, before_sections = before_doc
-        after_preamble, after_sections = after_doc
-        if before_preamble != after_preamble:
-            return False
-        if before_sections != after_sections:
+        # Strip frontmatter and compare remaining body text directly.
+        # Using _split_document's dict would miss section reordering
+        # because Python dict equality ignores insertion order.
+        if _strip_frontmatter(before_text) != _strip_frontmatter(after_text):
             return False
     return True
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Remove YAML frontmatter block, return remaining body text."""
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            return text[end + 5:]
+    return text
 
 # --- Path normalization -------------------------------------------------
 

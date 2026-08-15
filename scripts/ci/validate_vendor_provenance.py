@@ -386,7 +386,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/validate_install_parity.py",
-        "65bd11c4bc121597e25d0d8b1a5babab5bff7a03a8f0c9038cc9025089c94c8e",
+        "47022e7deb40d6ae08769d2648401b9c8d692d04d0fad432ae3a0b55dd8a3d5d",
         "Build script",
     ),
     (
