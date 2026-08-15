@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15150-pr-template-acceptance-criteria.json
-qaCommit: 46d106a5f2c6fa06b81515c0032e056a57f249f9
+qaCommit: d1d780af92b39ddb2d030d229b7a5bf76260734a
 ---
 
 # QA Report: PR Template Acceptance Criteria Section

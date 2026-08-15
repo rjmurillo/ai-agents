@@ -144,13 +144,13 @@
     "Babysit this PR and the five child-session PRs to completion",
     "Issues 5064, 5065, 5067 are design-level and await owner sequencing; 5069 and 5070 queued for a follow-up wave"
   ],
-  "endingCommit": "46d106a5f2c6fa06b81515c0032e056a57f249f9",
+  "endingCommit": "d1d780af92b39ddb2d030d229b7a5bf76260734a",
   "episodeMetrics": {
     "filesChanged": 7,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0",
-      "head": "46d106a5f2c6fa06b81515c0032e056a57f249f9"
+      "head": "d1d780af92b39ddb2d030d229b7a5bf76260734a"
     }
   }
 }
