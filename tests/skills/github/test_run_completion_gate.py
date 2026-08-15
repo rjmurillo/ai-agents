@@ -1470,6 +1470,32 @@ class TestConfigTrustBoundary:
         assert not marker.exists()
         assert "diverged" in capsys.readouterr().err
 
+    def test_bidi_controls_in_surfaced_diff_are_escaped(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # Trojan Source (CVE-2021-42574): a bidi control such as U+202E
+        # in the tampered content could make the terminal render a
+        # different command than the one approval would execute. The
+        # surfaced diff must show a visible escape, never the raw
+        # control character.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+        config_path.write_text(
+            config_path.read_text(encoding="utf-8") + "\n\u202eevil",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        err = capsys.readouterr().err
+        assert "\u202e" not in err
+        assert "\\u202e" in err
+
     def test_config_missing_from_trusted_ref_halts(
         self, git_repo, tmp_path, capsys,
     ):

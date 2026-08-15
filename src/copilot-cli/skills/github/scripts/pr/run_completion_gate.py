@@ -98,6 +98,21 @@ an unverifiable state into an execution path. Config evolution through
 normal PRs needs no flag: once the change merges to the base branch,
 working tree and trusted ref agree again.
 
+Two properties of the anchor and the surfaced text:
+
+  * Surfaced diffs and config excerpts are PR-controlled text shown to
+    the human whose inspection authorizes approval. C0/C1 control
+    characters and Unicode bidi controls in them are escaped to a
+    visible ``\\uXXXX`` form before printing, so a terminal cannot
+    render a different command than the one approval would execute
+    (Trojan Source, CVE-2021-42574).
+  * The trusted ref is a locally cached remote-tracking ref, so trust
+    is anchored to the operator's last fetch of the base branch. A
+    stale ref anchors to an OLDER base-branch state, which PR content
+    still cannot move; the residual is a rollback to previously merged
+    config. Fetch the base branch before running when freshness
+    matters.
+
 Scope of the guarantee
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -300,6 +315,24 @@ _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
 
 _GIT_TIMEOUT_SECONDS = 30
 
+# PR-controlled text (diffs, config excerpts) is rendered to a human
+# terminal to authorize --approve-untrusted-config. C0/C1 control
+# characters and Unicode bidi/zero-width controls can make a terminal
+# display a different command than the one that would execute
+# (Trojan Source, CVE-2021-42574), so everything except newline and
+# tab is escaped to a visible \\uXXXX form before printing.
+_TERMINAL_UNSAFE_RE = re.compile(
+    "[\u0000-\u0008\u000b-\u001f\u007f-\u009f"
+    "\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
+)
+
+
+def _escape_terminal_controls(text: str) -> str:
+    """Render PR-controlled text safely for the approving human's terminal."""
+    return _TERMINAL_UNSAFE_RE.sub(
+        lambda match: f"\\u{ord(match.group()):04x}", text,
+    )
+
 
 class TrustCheck(NamedTuple):
     """Outcome of comparing the on-disk config against the trusted ref.
@@ -493,7 +526,7 @@ def _enforce_config_trust(
             file=sys.stderr,
         )
         if trust.detail:
-            print(trust.detail, file=sys.stderr)
+            print(_escape_terminal_controls(trust.detail), file=sys.stderr)
         print(
             "--approve-untrusted-config does not apply when verification "
             "is impossible: there is no trustworthy diff to inspect. Fix "
@@ -510,7 +543,7 @@ def _enforce_config_trust(
             file=sys.stderr,
         )
         if trust.detail:
-            print(trust.detail, file=sys.stderr)
+            print(_escape_terminal_controls(trust.detail), file=sys.stderr)
         print(
             "If a human has inspected the diff above and approves "
             "executing this config, re-run with --approve-untrusted-config.",
@@ -525,7 +558,7 @@ def _enforce_config_trust(
         file=sys.stderr,
     )
     if trust.detail:
-        print(trust.detail, file=sys.stderr)
+        print(_escape_terminal_controls(trust.detail), file=sys.stderr)
     return trust, None
 
 
