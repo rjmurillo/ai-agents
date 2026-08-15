@@ -96,7 +96,11 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e012",
+        "e013",
+        "e014",
+        "e015"
       ],
       "leads_to": [
         "e009"
@@ -137,6 +141,63 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix E501 lint violations",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix em dashes",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add axis routing contract tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rename QA report",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T14:54:09+00:00",
+      "type": "commit",
+      "content": "Commit: 36441c75e4",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
     }
@@ -146,7 +207,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 14
   },
   "lessons": []

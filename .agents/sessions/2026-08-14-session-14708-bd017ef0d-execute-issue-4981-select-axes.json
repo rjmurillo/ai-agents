@@ -142,8 +142,24 @@
     {
       "task": "Validate session log",
       "outcome": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json passed"
+    },
+    {
+      "task": "Fix E501 lint violations",
+      "outcome": "Wrapped 2 lines exceeding 100-char limit in test_eval_skill_router.py"
+    },
+    {
+      "task": "Fix em dashes",
+      "outcome": "Replaced U+2014 with hyphens in SKILL.md, regenerated mirror"
+    },
+    {
+      "task": "Add axis routing contract tests",
+      "outcome": "4 tests verifying AC-9 risk category coverage in axis references"
+    },
+    {
+      "task": "Rename QA report",
+      "outcome": "Renamed to match pr-5010 glob pattern for CI validation"
     }
   ],
-  "endingCommit": "d3fee53337",
+  "endingCommit": "36441c75e4",
   "nextSteps": []
 }
