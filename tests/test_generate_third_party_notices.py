@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+import scripts.generate_third_party_notices as notices_mod
 from scripts.generate_third_party_notices import (
     FORKED_COMPONENTS,
     find_forked_components,
@@ -16,6 +16,7 @@ from scripts.generate_third_party_notices import (
     get_shipped_source_paths,
     load_marketplace_config,
     main,
+    resolve_output_path,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +77,22 @@ SKILLFORGE_NOTICE_BLOCK = (
     "   ------------------------------------------------------------\n"
     "\n"
 )
+
+
+def _write_fake_notice_repo(root: Path) -> None:
+    (root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    (root / ".claude-plugin" / "marketplace.json").write_text(
+        json.dumps({"plugins": []}),
+        encoding="utf-8",
+    )
+    (root / ".claude").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "copilot-cli").mkdir(parents=True, exist_ok=True)
+
+
+def _assert_notice_copies_match(root: Path) -> None:
+    root_notice = (root / "THIRD-PARTY-NOTICES.TXT").read_bytes()
+    assert (root / ".claude" / "THIRD-PARTY-NOTICES.TXT").read_bytes() == root_notice
+    assert (root / "src" / "copilot-cli" / "THIRD-PARTY-NOTICES.TXT").read_bytes() == root_notice
 
 
 class TestLoadMarketplaceConfig:
@@ -204,48 +221,31 @@ class TestSkillForgeNotice:
 
         assert notices[start:end].encode("utf-8") == SKILLFORGE_NOTICE_BLOCK.encode("utf-8")
 
-    def test_committed_skillforge_block_is_byte_identical_to_head(self) -> None:
-        head_notice = subprocess.run(
-            ["git", "show", "HEAD:THIRD-PARTY-NOTICES.TXT"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            check=True,
-        ).stdout
-        current_notice = (PROJECT_ROOT / "THIRD-PARTY-NOTICES.TXT").read_bytes()
-        entry_start = b"1. SkillForge ((fork))"
-        entry_end = b"   ------------------------------------------------------------\n\n"
-        current_start = current_notice.index(entry_start)
-        head_start = head_notice.index(entry_start)
-        current_end = current_notice.index(entry_end, current_start) + len(entry_end)
-        head_end = head_notice.index(entry_end, head_start) + len(entry_end)
-
-        assert current_notice[current_start:current_end] == head_notice[head_start:head_end]
-
 
 class TestCommittedNotice:
-    """The committed notice must be current generator output."""
+    """The committed notice artifacts must be current generator output."""
 
-    def test_committed_notice_matches_generator_output(
+    def test_committed_notice_copies_match_generator_output(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        notice_path = PROJECT_ROOT / "THIRD-PARTY-NOTICES.TXT"
         monkeypatch.setattr(
             sys,
             "argv",
-            [
-                "generate_third_party_notices.py",
-                "--check",
-                "--output",
-                str(notice_path),
-            ],
+            ["generate_third_party_notices.py", "--check"],
         )
 
         assert main() == 0
 
+    def test_packaged_notice_copies_match_root_notice(self) -> None:
+        _assert_notice_copies_match(PROJECT_ROOT)
+
     def test_check_rejects_a_stale_notice(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        notice_path = tmp_path / "THIRD-PARTY-NOTICES.TXT"
+        _write_fake_notice_repo(tmp_path)
+        monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        notice_path = tmp_path / "custom" / "THIRD-PARTY-NOTICES.TXT"
+        notice_path.parent.mkdir(parents=True)
         notice_path.write_bytes(b"hand-edited notice")
         monkeypatch.setattr(
             sys,
@@ -254,8 +254,38 @@ class TestCommittedNotice:
                 "generate_third_party_notices.py",
                 "--check",
                 "--output",
-                str(notice_path),
+                "custom/THIRD-PARTY-NOTICES.TXT",
             ],
         )
 
         assert main() == 1
+
+    def test_default_generation_writes_packaged_notice_copies(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_fake_notice_repo(tmp_path)
+        monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(sys, "argv", ["generate_third_party_notices.py"])
+
+        assert main() == 0
+        _assert_notice_copies_match(tmp_path)
+
+
+class TestOutputPathContainment:
+    """Output paths must stay within the project root."""
+
+    def test_allows_relative_output_within_project_root(self, tmp_path: Path) -> None:
+        resolved = resolve_output_path(tmp_path, "nested/THIRD-PARTY-NOTICES.TXT")
+        assert resolved == tmp_path / "nested" / "THIRD-PARTY-NOTICES.TXT"
+
+    def test_allows_absolute_output_within_project_root(self, tmp_path: Path) -> None:
+        target = tmp_path / "THIRD-PARTY-NOTICES.TXT"
+        assert resolve_output_path(tmp_path, str(target)) == target
+
+    def test_rejects_absolute_output_outside_project_root(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="escapes project root"):
+            resolve_output_path(tmp_path, "/tmp/THIRD-PARTY-NOTICES.TXT")
+
+    def test_rejects_parent_traversal_outside_project_root(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="escapes project root"):
+            resolve_output_path(tmp_path, "../THIRD-PARTY-NOTICES.TXT")
