@@ -144,6 +144,6 @@
       "outcome": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json passed"
     }
   ],
-  "endingCommit": "1759f14898",
+  "endingCommit": "d3fee53337",
   "nextSteps": []
 }
