@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-4991.json
-qaCommit: 8c3eea6824c63cabec9db9a4ecf600c29020ed47
+qaCommit: 3b4fde0e66cdc9c06aa6d20c1b8d0b599f304c37
 ---
 
 # PR 4991 Autofix QA Report

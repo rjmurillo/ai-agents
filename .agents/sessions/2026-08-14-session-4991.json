@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All non-evidence code committed through 8c3eea6824c63cabec9db9a4ecf600c29020ed47"
+        "Evidence": "All non-evidence code committed through 3b4fde0e66cdc9c06aa6d20c1b8d0b599f304c37"
       },
       "validationPassed": {
         "level": "MUST",
@@ -182,8 +182,12 @@
     {
       "action": "Corrected Copilot launcher runtime test root",
       "result": "COPILOT_PLUGIN_ROOT now targets src/copilot-cli; Ruff and all three runtime-contract cases pass"
+    },
+    {
+      "action": "Removed stale SkillForge exec portability allowances",
+      "result": "Deleted canonical and generated modularity-guidelines baseline entries; portability ratchet passes"
     }
   ],
-  "endingCommit": "8c3eea6824c63cabec9db9a4ecf600c29020ed47",
+  "endingCommit": "3b4fde0e66cdc9c06aa6d20c1b8d0b599f304c37",
   "nextSteps": []
 }
