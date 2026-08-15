@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117 on claude/issue-5072-completion-gate-trust"
+        "Evidence": "a798a60cff00198f561e935b9ccf0c478ac01138 on claude/issue-5072-completion-gate-trust"
       },
       "validationPassed": {
         "level": "MUST",
@@ -159,5 +159,5 @@
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "7e9f5ebef6f6d3c5a7709c4ddaf957c3ad8e6117"
+  "endingCommit": "a798a60cff00198f561e935b9ccf0c478ac01138"
 }
