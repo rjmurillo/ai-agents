@@ -83,7 +83,7 @@ def _in_scope(command: str) -> str:
         "printf '%s\\n' scala R julia expect bpftrace ghci",
     ],
 )
-def test_dispatchers_allow_benign_env_and_flag_text(
+def test_claude_allow_benign_env_and_flag_text(
     tmp_path: Path,
     runner,
     command: str,
@@ -106,7 +106,7 @@ def test_dispatchers_allow_benign_env_and_flag_text(
         "~/attacker",
     ],
 )
-def test_dispatchers_deny_active_expansion_in_new_pr_arguments(
+def test_claude_deny_active_expansion_in_new_pr_arguments(
     tmp_path: Path,
     runner,
     title: str,
@@ -124,7 +124,7 @@ def test_dispatchers_deny_active_expansion_in_new_pr_arguments(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
+def test_claude_allow_quoted_expansion_text_in_new_pr_title(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -243,7 +243,7 @@ def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
     ],
 )
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_unsafe_command_shapes(
+def test_claude_deny_unsafe_command_shapes(
     tmp_path: Path,
     command: str,
     runner,
@@ -278,5 +278,4 @@ def test_claude_allows_nonmatching_bash_when_group_is_called(
     result = _run_claude("git status --short", repository)
 
     assert result.returncode == 0, result.stderr
-
 

@@ -354,7 +354,7 @@ def test_guard_fails_closed_without_its_runtime_modules(tmp_path: Path) -> None:
         "--title 'fix: bypass' --body-file .agents/scratch/body.md --skip-validation",
     ],
 )
-def test_dispatchers_deny_noncanonical_new_pr_arguments(
+def test_claude_deny_noncanonical_new_pr_arguments(
     tmp_path: Path,
     runner,
     arguments: str,
@@ -372,7 +372,7 @@ def test_dispatchers_deny_noncanonical_new_pr_arguments(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_hardlinked_body_file(
+def test_claude_deny_hardlinked_body_file(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -394,5 +394,4 @@ def test_dispatchers_deny_hardlinked_body_file(
 
     assert result.returncode == 2
     assert "single-link regular file" in result.stderr
-
 

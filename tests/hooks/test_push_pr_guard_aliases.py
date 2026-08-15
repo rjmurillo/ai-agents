@@ -67,7 +67,7 @@ def test_claude_denies_symlinked_repository_script(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_normalized_alias_of_runtime_script(
+def test_claude_deny_normalized_alias_of_runtime_script(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -85,7 +85,7 @@ def test_dispatchers_deny_normalized_alias_of_runtime_script(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_parent_symlink_alias_of_runtime_script(
+def test_claude_deny_parent_symlink_alias_of_runtime_script(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -108,7 +108,7 @@ def test_dispatchers_deny_parent_symlink_alias_of_runtime_script(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_symlinked_python_interpreter(
+def test_claude_deny_symlinked_python_interpreter(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -132,7 +132,7 @@ def test_dispatchers_deny_symlinked_python_interpreter(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_path_resolved_python_alias(
+def test_claude_deny_path_resolved_python_alias(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -155,7 +155,7 @@ def test_dispatchers_deny_path_resolved_python_alias(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_copied_renamed_python_interpreter(
+def test_claude_deny_copied_renamed_python_interpreter(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -171,7 +171,7 @@ def test_dispatchers_deny_copied_renamed_python_interpreter(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_extensionless_python_entrypoint(
+def test_claude_allow_extensionless_python_entrypoint(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -190,7 +190,7 @@ def test_dispatchers_allow_extensionless_python_entrypoint(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_expanding_path_with_trusted_literal_symlink(
+def test_claude_deny_expanding_path_with_trusted_literal_symlink(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -220,7 +220,7 @@ def test_dispatchers_deny_expanding_path_with_trusted_literal_symlink(
         "bash -c 'python3 -I tools/trusted_helper.py --title fix'",
     ],
 )
-def test_dispatchers_deny_renamed_copy_by_content(
+def test_claude_deny_renamed_copy_by_content(
     tmp_path: Path,
     runner,
     command: str,
@@ -241,7 +241,7 @@ def test_dispatchers_deny_renamed_copy_by_content(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_renamed_copy_of_new_pr(
+def test_claude_deny_renamed_copy_of_new_pr(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -271,7 +271,7 @@ def test_dispatchers_deny_renamed_copy_of_new_pr(
 
 @pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize("padding", [0, 40, 63, 70, 200])
-def test_dispatchers_deny_padded_renamed_copy(
+def test_claude_deny_padded_renamed_copy(
     tmp_path: Path,
     runner,
     padding: int,
@@ -295,5 +295,4 @@ def test_dispatchers_deny_padded_renamed_copy(
 
     assert result.returncode == 2, f"padding={padding}: allowed"
     assert "Python execution is limited" in result.stderr
-
 

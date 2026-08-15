@@ -39,7 +39,7 @@ def _in_scope(command: str) -> str:
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_fail_closed_on_unknown_git_global_options(
+def test_claude_fail_closed_on_unknown_git_global_options(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -52,7 +52,7 @@ def test_dispatchers_fail_closed_on_unknown_git_global_options(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_git_commands_with_active_hooks(
+def test_claude_allow_git_commands_with_active_hooks(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -89,7 +89,7 @@ def test_dispatchers_allow_git_commands_with_active_hooks(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_in_scope_git_commands_with_active_hooks(
+def test_claude_deny_in_scope_git_commands_with_active_hooks(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -132,7 +132,7 @@ def test_dispatchers_deny_in_scope_git_commands_with_active_hooks(
         r"\\server\share\attacker.git",
     ],
 )
-def test_dispatchers_deny_local_git_push_destinations(
+def test_claude_deny_local_git_push_destinations(
     tmp_path: Path,
     runner,
     remote: str,
@@ -146,7 +146,7 @@ def test_dispatchers_deny_local_git_push_destinations(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_allow_named_https_push_remote(
+def test_claude_allow_named_https_push_remote(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -171,7 +171,7 @@ def test_dispatchers_allow_named_https_push_remote(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_named_local_push_remote(
+def test_claude_deny_named_local_push_remote(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -191,7 +191,7 @@ def test_dispatchers_deny_named_local_push_remote(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_renamed_git_executable(
+def test_claude_deny_renamed_git_executable(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -207,5 +207,4 @@ def test_dispatchers_deny_renamed_git_executable(
 
     assert result.returncode == 2
     assert "dynamic evaluator wrappers are not allowed" in result.stderr
-
 

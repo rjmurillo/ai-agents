@@ -58,7 +58,7 @@ def _in_scope(command: str) -> str:
         "timeout 5 env --split-string 'python3 -I attacker/x'",
     ],
 )
-def test_dispatchers_deny_env_split_string_launchers(
+def test_claude_deny_env_split_string_launchers(
     tmp_path: Path,
     runner,
     command: str,
@@ -95,7 +95,7 @@ def test_dispatchers_deny_env_split_string_launchers(
         "setsid busybox ash -xc 'python3 attacker/x'",
     ],
 )
-def test_dispatchers_deny_shell_evaluator_wrappers(
+def test_claude_deny_shell_evaluator_wrappers(
     tmp_path: Path,
     runner,
     command: str,
@@ -109,7 +109,7 @@ def test_dispatchers_deny_shell_evaluator_wrappers(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_renamed_shell_executables(
+def test_claude_deny_renamed_shell_executables(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -139,7 +139,7 @@ def test_dispatchers_deny_renamed_shell_executables(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_executable_renamed_to_printf(
+def test_claude_deny_executable_renamed_to_printf(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -160,7 +160,7 @@ def test_dispatchers_deny_executable_renamed_to_printf(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_home_relative_shell_wrapper(
+def test_claude_deny_home_relative_shell_wrapper(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -185,7 +185,7 @@ def test_dispatchers_deny_home_relative_shell_wrapper(
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_dispatchers_deny_env_assignments_after_option_terminator(
+def test_claude_deny_env_assignments_after_option_terminator(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -349,7 +349,7 @@ def test_dispatchers_deny_env_assignments_after_option_terminator(
         "env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0='!./p' git x",
     ],
 )
-def test_dispatchers_deny_dynamic_evaluator_wrappers(
+def test_claude_deny_dynamic_evaluator_wrappers(
     tmp_path: Path,
     runner,
     command: str,
@@ -376,7 +376,7 @@ def test_dispatchers_deny_dynamic_evaluator_wrappers(
         "env -- -x=y LD_PRELOAD=/attacker/owned.so git status --short",
     ],
 )
-def test_dispatchers_deny_dynamic_loader_environment(
+def test_claude_deny_dynamic_loader_environment(
     tmp_path: Path,
     runner,
     command: str,
@@ -387,5 +387,4 @@ def test_dispatchers_deny_dynamic_loader_environment(
 
     assert result.returncode == 2
     assert "dynamic loader environment variables are not allowed" in result.stderr
-
 
