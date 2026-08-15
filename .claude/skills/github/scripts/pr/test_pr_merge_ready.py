@@ -1162,8 +1162,8 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
         return "T2"
 
     # Edge: all checks pass, no threads, but CanMerge is False for another
-    # reason (e.g. UNKNOWN merge state).  Treat as BLOCKED.
-    return "BLOCKED"
+    # reason (e.g. UNKNOWN merge state).  Treat as T4 (needs investigation).
+    return "T4"
 
 
 # ---------------------------------------------------------------------------

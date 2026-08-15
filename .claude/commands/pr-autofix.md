@@ -386,7 +386,7 @@ fi
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
