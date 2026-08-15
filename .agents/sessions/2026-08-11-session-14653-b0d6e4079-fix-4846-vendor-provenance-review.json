@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to PATCH and prefix semantics commit 90b046cb7bcdcccd222787b30847e8ed8e9b6954."
+        "Evidence": "QA evidence rebound to dual-channel head-gate commit ddbee477979b6059ced8e127677bc9607f0be2ca."
       },
       "validationPassed": {
         "level": "MUST",
@@ -247,8 +247,12 @@
     {
       "action": "Removed head_sha from PATCH payloads and bound prefix checks to the matched command segment.",
       "result": "218 provenance tests and 157 workflow checkout tests pass."
+    },
+    {
+      "action": "Moved start and finish head-gate orchestration into Python.",
+      "result": "Both status and check channels are always attempted before failures are aggregated. 222 provenance tests pass. Independent security review returned PASS."
     }
   ],
-  "endingCommit": "90b046cb7bcdcccd222787b30847e8ed8e9b6954",
+  "endingCommit": "ddbee477979b6059ced8e127677bc9607f0be2ca",
   "nextSteps": []
 }
