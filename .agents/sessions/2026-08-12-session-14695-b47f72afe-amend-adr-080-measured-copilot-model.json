@@ -148,7 +148,7 @@
   "endingCommit": "ae927ffc735db019a97621446438b1bc89124c8d",
   "nextSteps": [],
   "episodeMetrics": {
-    "filesChanged": 10,
+    "filesChanged": 5,
     "commitHead": "0edf6e0630ea141e7fdcacae9583fcd57695b345",
     "comparison": {
       "kind": "gitCommitRange",
