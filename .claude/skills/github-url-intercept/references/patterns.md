@@ -161,8 +161,8 @@ Raw gist content:
 ### When Size Matters Most
 
 1. **Large PRs** (100+ files, 1000+ lines)
-   - Use `-DiffStat` instead of full diff
-   - Use `-IncludeChangedFiles` without `-IncludeDiff`
+   - Use `--diff-stat` instead of full diff
+   - Use `--include-changed-files` without `--include-diff`
 
 2. **Busy issues** (50+ comments)
    - Get issue context first
