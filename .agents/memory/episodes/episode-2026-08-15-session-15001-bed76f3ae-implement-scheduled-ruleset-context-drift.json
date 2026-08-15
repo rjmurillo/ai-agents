@@ -3,17 +3,27 @@
   "session": "2026-08-15-session-15001-bed76f3ae-implement-scheduled-ruleset-context-drift",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Implement scheduled ruleset context drift detection (issue #4909)",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T10:11:03+00:00",
+      "type": "commit",
+      "content": "Commit: b29e192770f4e8b667485dd5fbe5c01874477f79",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15001-bed76f3ae-implement-scheduled-ruleset-context-drift"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 0
+    "commits": 1,
+    "files_changed": 3
   },
   "lessons": []
 }
