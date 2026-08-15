@@ -278,7 +278,7 @@ prove a scoped run cannot become ship evidence.
 |---|---|---|
 | Governance promotion of the sub-loop doctrine | **Not covered. Recommend against.** | The mechanism carries the cost fix; the doctrine adds unenforceable prose and a cross-role consensus requirement |
 | Session-log `sub_loop_turns` array | **Deferred** (#2014) | Observability, not cost. Additive to the schema; can land any time without blocking this |
-| CI workflow scope-reduction on `fix(subloop):` heads | **Deferred** (#2014) | Different surface, different blast radius, needs its own ADR. `.github/workflows/ai-pr-quality-gate.yml` already runs 10 separate per-axis review jobs aggregated at `aggregate` (`:295-604`), so a host exists; what is missing is the conditional logic to skip a job based on the `fix(subloop):` commit prefix, which this ADR does not design |
+| CI workflow scope-reduction on `fix(subloop):` heads | **Deferred** (#2014) | Different surface, different blast radius, needs its own ADR. `.github/workflows/ai-pr-quality-gate.yml` already runs 10 separate per-axis review jobs aggregated at `aggregate` (`:295-598`, `aggregate:` job at `:607`), so a host exists; what is missing is the conditional logic to skip a job based on the `fix(subloop):` commit prefix, which this ADR does not design |
 | `fix(subloop):` commit convention | **Recommend dropping** | Its only stated consumer is the deferred CI change |
 | Worked retrospective example | **Deferred** | Write it after the first PR runs the scoped mode end to end |
 
