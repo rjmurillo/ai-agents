@@ -90,4 +90,3 @@ stale retrospective/reciprocal-link claims, the template placeholder, the
 causal-order bug, and the QA revision-history misattribution) are resolved
 across commits `c860ae452` (this report), plus the session-15001 commits
 documented in that session's own log and the per-issue handoff.
-
