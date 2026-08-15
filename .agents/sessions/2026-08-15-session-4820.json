@@ -52,46 +52,74 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/4915-investigation-scope-merge-base"
-      },
-      "notOnMain": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "fix/4915-investigation-scope-merge-base"
-      }
-    },
-    "sessionEnd": {
-      "qaValidation": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "QA report created"
-      },
-      "branchVerified": {
-        "level": "MUST",
-        "Complete": true,
         "Evidence": "On docs/4820-serial-landing-workflow"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Branch is not main"
+        "Evidence": "Branch is docs/4820-serial-landing-workflow, not main"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-docs-4820-landing-workflow-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed"
+        "Evidence": "git status clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Updated 2 Serena memories"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint passed in pre-commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All pre-commit hooks pass"
       }
     }
   },
   "workLog": [
     {
-      "action": "Measured live ruleset 11104075: strict_required_status_checks_policy is false"
+      "action": "Measured live ruleset 11104075 via API: strict is false"
     },
     {
       "action": "Created docs/landing-workflow.md documenting the serial one-front protocol"
     },
     {
-      "action": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md, and Serena memories"
+      "action": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md"
+    },
+    {
+      "action": "Updated 2 Serena memories to reflect current strict:false state"
     },
     {
       "action": "Added cross-reference from docs/merge-guards.md"
@@ -100,13 +128,13 @@
   "nextSteps": [
     "Monitor for ruleset changes that invalidate the documented state"
   ],
-  "endingCommit": "",
+  "endingCommit": "36541215a29a6b1c133bb83bc93de124ebd83c6e",
   "episodeMetrics": {
     "filesChanged": 6,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "ff2c10b1eb",
-      "head": "ff2c10b1eb"
+      "head": "36541215a2"
     }
   }
 }

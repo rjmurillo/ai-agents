@@ -3,7 +3,7 @@
   "session": "2026-08-15-session-4820",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Document serial auto-merge landing workflow (issue #4820)",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Measured live ruleset 11104075: strict_required_status_checks_policy is false",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-4820"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Created docs/landing-workflow.md documenting the serial one-front protocol",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-4820"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md, and Serena memories",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-4820"
     },
     {
@@ -40,6 +46,58 @@
       "type": "milestone",
       "content": "Added cross-reference from docs/merge-guards.md",
       "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured live ruleset 11104075 via API: strict is false",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated 2 Serena memories to reflect current strict:false state",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T11:10:54+00:00",
+      "type": "commit",
+      "content": "Commit: 36541215a29a6b1c133bb83bc93de124ebd83c6e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4820"
     }
@@ -49,7 +107,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
