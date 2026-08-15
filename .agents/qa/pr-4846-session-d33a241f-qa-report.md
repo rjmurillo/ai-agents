@@ -41,9 +41,10 @@ Commit `81435955a` closes two later security findings. Check-run creation
 now fails closed, so an edited or reopened PR cannot retain a stale green
 status when the in-progress marker fails. The validator also rejects root
 `uv.toml` files and symlinks, and treats `uv.toml`-only changes as relevant.
-The provenance suite passes 215 tests. Fail-open guard tests pass 21 tests.
-Ruff, mypy, actionlint, workflow validation, and independent security review
-all pass.
+The post-merge pre-push run evaluated this code with only evidence changes
+after `qaCommit`: 28,495 tests passed and 37 skipped. The provenance suite
+passes 215 tests, and fail-open guard tests pass 21 tests. Ruff, mypy,
+actionlint, workflow validation, and independent security review all pass.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

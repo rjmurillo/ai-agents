@@ -101,7 +101,8 @@
         "e050",
         "e052",
         "e054",
-        "e056"
+        "e056",
+        "e058"
       ],
       "leads_to": [
         "e006"
@@ -740,6 +741,17 @@
         "e055"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e058",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran the full pre-push suite after the main merge.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
   ],

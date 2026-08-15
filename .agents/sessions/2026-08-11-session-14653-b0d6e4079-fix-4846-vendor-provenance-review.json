@@ -199,6 +199,10 @@
     {
       "action": "Merged current main before the final push.",
       "result": "Main changed three unrelated workflow lines. The security fix stayed conflict-free and its evidence was rebound to the merge commit."
+    },
+    {
+      "action": "Re-ran the full pre-push suite after the main merge.",
+      "result": "28,495 tests passed and 37 skipped. Every blocking local gate passed on the merged code; later commits changed evidence only."
     }
   ],
   "endingCommit": "35a22aafcc1b8c96c500c0b7aa728283c1ba396b",
