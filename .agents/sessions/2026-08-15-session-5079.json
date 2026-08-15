@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5079,
+    "date": "2026-08-15",
+    "branch": "fix/5079-pre-pr-generated-staleness-gate",
+    "startingCommit": "430c206d2",
+    "objective": "Add generated-artifact staleness gate to the pre-PR sequence (issue 5079)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MCP unavailable to this worktree agent; used the AGENTS.md fallback and read .serena/memories directly (git grep over .serena/memories returned 10 files touching build_all and agent generation)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fallback path per AGENTS.md Serena Init: .serena/memories/ read directly rather than via mcp__serena__initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; it is READ-ONLY as of 2025-12-22 and directs session context to .agents/sessions/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created by .claude/skills/session-init/scripts/new_session_log_json.py"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills enumerated in the harness skill listing; github skill used for issue retrieval, session-init for this log"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded into context at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/ci-scripts.md (MUST 11, 12, 16), .claude/rules/generated-artifacts.md (Generator order: sync before build), .claude/rules/testing.md, .claude/rules/universal.md all read before editing"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git grep over .serena/memories for build_all and generated-artifacts; hook-injected corrections surfaced on every tool call"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/5079-pre-pr-generated-staleness-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/5079-pre-pr-generated-staleness-gate"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short run before and after the negative control; tree held only the four authored files"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "430c206d2"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This block"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (read-only per ADR-014); git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory written. Per .claude/rules/knowledge-persistence.md the ordering contract already lives in .claude/rules/generated-artifacts.md, and a duplicate memory would drift from it."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting gate PASSED in the full run (54 validations)"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5088-generated-staleness-gate-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "b80917d8f"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py: 54 validations, Generated Artifact Staleness PASS in 1.29s. ruff, mypy, taste/ruff/type-ignore count ratchets all OK. tests/ci/test_validation_scripts_are_reachable.py: 163 passed, 2 skipped."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 5079 closed by this PR via Fixes keyword"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-defect fix; no retrospective warranted"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Reproduce the gap",
+      "detail": "Confirmed .github/workflows/validate-generated-agents.yml:158 runs build_all.py --check and that scripts/validation/pre_pr_sequence.py:171 only passes build_all.py as a path to validate_no_orphaned_build_deferrals, which reads deferral comments in that file's source. Different question, so the local sequence never asked whether generated output was stale."
+    },
+    {
+      "step": "Scope the claim",
+      "detail": "lefthook.yml:565 already runs build-all-check at pre-push with no glob filter, so the gap is specific to pre_pr.py. That matters because AGENTS.md and .claude/rules/ci-scripts.md MUST 2 both name pre_pr.py as the gate to run before opening a PR, and PR #5059 was reported ready on pre_pr evidence before the push."
+    },
+    {
+      "step": "Honor the generator order",
+      "detail": ".claude/rules/generated-artifacts.md requires sync_plugin_lib.py before build_all.py. The new gate runs sync_plugin_lib.py --check then build_all.py --check and stops at the first failure. Both are read-only, so REQ-003-010 holds and no generator writes under .claude/. Did not make build_all invoke the sync."
+    },
+    {
+      "step": "Measure",
+      "detail": "build_all.py --check alone: 4.43s standalone. Both checks together: 3.63s standalone cold, 1.29s inside the pre_pr sequence. Full pre_pr: 304.63s over 54 validations, so the gate is roughly 0.4 percent of the run. No changed-paths filter needed; build_all --check is a whole-tree question and a path filter would manufacture a green tick."
+    },
+    {
+      "step": "Fix the output bound",
+      "detail": "First draft echoed the head of the child output, which showed generator progress and dropped the STALENESS DETECTED block that names the drifted files. Changed to a tail echo, and only on failure so a clean run adds one line to pre_pr output."
+    },
+    {
+      "step": "Clear the type-ignore ratchet",
+      "detail": "The first test draft carried three '# type: ignore' comments and tripped type_ignore_count_ratchet at 47 against baseline 44. Replaced the manual rebind with monkeypatch.setattr and typed the callback parameter as Callable[[], bool]. Count back to 44; the baseline was not raised."
+    }
+  ],
+  "endingCommit": "b80917d8f",
+  "nextSteps": [
+    "build/scripts/build_all.py:1206 prints an em dash in its STALENESS DETECTED message, which .claude/rules/universal.md MUST NOT 5 forbids in authored text. The dash validator scans markdown only, so nothing catches it. Left alone to keep this diff scoped."
+  ]
+}
