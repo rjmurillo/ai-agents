@@ -27,7 +27,7 @@
       "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": ".agents/HANDOFF.md not modified"},
       "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "Memories corrected in-tree (the fix itself)"},
       "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "markdownlint passed on all memory files in pre-commit"},
-      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/issue-4646-qa.md"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5029-issue-4646-qa.md"},
       "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "3 commits on fix/4646-ruleset-drift-v2"},
       "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "All pre-push hooks pass"},
       "retrospectiveInvoked": {"level": "SHOULD", "Complete": true, "Evidence": ".agents/retrospective/2026-08-15-ruleset-drift-fix.md"}
