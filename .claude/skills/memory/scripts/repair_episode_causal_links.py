@@ -83,7 +83,7 @@ def repair_episode(path: Path) -> dict[str, Any]:
         return {"path": str(path), "status": "unchanged", "edges": 0}
 
     before_edges = count_edges(events)
-    restamp_commit_events(events)
+    restamped = restamp_commit_events(events)
     _link_sequential_events(events)
     after_edges = count_edges(events)
 
@@ -93,7 +93,13 @@ def repair_episode(path: Path) -> dict[str, Any]:
         status = "unrepairable" if _is_flat(events, before_edges) else "unchanged"
         report = {"path": str(path), "status": status, "edges": before_edges}
         if status == "unrepairable":
-            report["reason"] = "no commit sha resolves in the local object database"
+            if restamped > 0:
+                report["reason"] = (
+                    "commits restamped but non-commit events at synthetic midnight "
+                    "are incomparable (issue #4847)"
+                )
+            else:
+                report["reason"] = "no commit sha resolves in the local object database"
         return report
 
     episode["events"] = events

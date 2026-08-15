@@ -2013,18 +2013,21 @@ def _event_order_relation(
     right_type = right["type"]
 
     # Issue #4847: an untimestamped non-commit event that fell back to midnight
-    # has unknown order relative to commits.  Return incomparable so no false
-    # causal edge is emitted.
+    # has unknown order relative to same-day commits.  Return incomparable so
+    # no false causal edge is emitted.  Cross-date ordering is still valid
+    # because unknown time-of-day cannot reverse a date boundary.
     if (
         left_type in _MIDNIGHT_INCOMPARABLE_TYPES
         and right_type == "commit"
         and _is_synthetic_midnight(left_time)
+        and left_time.date() == right_time.date()
     ):
         return None
     if (
         right_type in _MIDNIGHT_INCOMPARABLE_TYPES
         and left_type == "commit"
         and _is_synthetic_midnight(right_time)
+        and right_time.date() == left_time.date()
     ):
         return None
 

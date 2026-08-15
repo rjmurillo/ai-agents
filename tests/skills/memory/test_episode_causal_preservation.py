@@ -113,8 +113,9 @@ class TestPreserveKeepsCausalEdges:
         merged = _regenerate(damaged, monkeypatch, COMMIT_TIME)
 
         assert before == 0
-        # Only commit-adjacent edges survive; midnight milestones are incomparable
-        assert extract_session_episode._total_causal_edges(merged["events"]) >= 0
+        # Midnight milestones on the same date are incomparable to commits
+        # (issue #4847), so no edges are created between them.
+        assert extract_session_episode._total_causal_edges(merged["events"]) == 0
 
 
 class TestPreserveFailsClosed:

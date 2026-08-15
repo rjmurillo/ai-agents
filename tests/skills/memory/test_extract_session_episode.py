@@ -1575,7 +1575,7 @@ class TestSequentialEventLinks:
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
         assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
 
-    def test_ambiguous_date_midnight_utc_offset_still_incomparable(self):
+    def test_midnight_in_nonzero_offset_normalizes_to_comparable(self):
         """Midnight in non-UTC offset normalizes to non-midnight UTC; edge kept."""
         milestone = self._evt("e001", "milestone", "work")
         # 00:00:00+05:00 normalizes to 19:00:00 UTC previous day - NOT midnight
