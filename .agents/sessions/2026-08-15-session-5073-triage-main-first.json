@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5073,
+    "date": "2026-08-15",
+    "branch": "claude/issue-5073-triage-main-first",
+    "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
+    "objective": "Implement issue #5073: make measure-main-before-blaming-the-PR a tooling step (triage_red_check.py) wired into pr-autofix and pr-comment-responder CI-failure triage"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP toolset available in this remote session; initial_instructions loaded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md auto-loaded at session start (read-only dashboard)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr helpers; reused get_pr_checks.py and why_pr_blocked.py plumbing patterns"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read diagnosing-a-blocked-pr, ci/measure-main-before-blaming-the-pr, ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous, github-skill/new-script-placement"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/issue-5073-triage-main-first created from origin/main 430c206d21425c178f783daf84c7a7c48591160c"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/issue-5073-triage-main-first"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fresh clone; working tree clean before edits"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "430c206d21425c178f783daf84c7a7c48591160c (origin/main at branch creation)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new repository memory required: the convention this session encodes (measure main before blaming the PR) moved FROM memory INTO tooling and rule-governed docs per issue #5073; existing memories remain accurate and now have an executable counterpart"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on the three edited markdown files: 0 issues in 3 files (.agents/** is excluded by repo config)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All non-evidence code committed through 3f25c791819a046abd2a65033b8716dcb06fb74f"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py passed after completing this log; taste count ratchet OK at baseline 583; scripts/validate_session_json.py passed on this completed log"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-15-pr-5091-triage-red-check-qa.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue #5073 and the three cited Serena memories",
+      "result": "Requirements captured: three verdicts, main run URL as evidence, name-collision and rollup-collapse traps accounted for"
+    },
+    {
+      "action": "Surveyed github skill script conventions",
+      "result": "Chose .claude/skills/github/scripts/pr/triage_red_check.py per github-skill/new-script-placement memory; reused github_core api, checks_rollup, and output helpers"
+    },
+    {
+      "action": "Implemented triage_red_check.py with three-verdict contract",
+      "result": "GREEN_ON_MAIN exit 0, RED_ON_MAIN exit 1 with EvidenceUrl, UNKNOWN exit 3; collision, rollup-collapse, rerun, and cancellation traps handled; 25 tests pass"
+    },
+    {
+      "action": "Wired docs as CI-failure triage step 1",
+      "result": "pr-autofix.md (Scripts, Fix Patterns, Verification), pr-comment-responder gates.md Phase 8.4, github SKILL.md; Copilot mirrors regenerated"
+    },
+    {
+      "action": "Cleared taste count ratchet regression",
+      "result": "Added reasoned file-size suppression matching why_pr_blocked.py precedent; ratchet back at baseline 583"
+    },
+    {
+      "action": "Ran QA",
+      "result": "25/25 targeted, 510/510 github skill suite, 5/5 offline import guard, ruff and mypy clean; report at .agents/qa/2026-08-15-pr-5091-triage-red-check-qa.md"
+    },
+    {
+      "action": "Pushed branch and opened draft PR #5091",
+      "result": "Pre-push suite green after fixing sandbox gaps (sqlite3, ssh-keygen, root DAC caps, forgetful sync fast-fail); QA report renamed to match pr-5091"
+    },
+    {
+      "action": "Fixed Validate PR description mismatch and spec-validation defensive gaps",
+      "result": "Reworded PR body Changes bullets naming unchanged files; hardened malformed-payload handling to exit 3 and added EvidenceUrl run-id fallback; 32/32 targeted and 517/517 neighborhood tests pass"
+    }
+  ],
+  "endingCommit": "e258df4ca5dc4987c6aff150f6b5c4d5742e48bc",
+  "nextSteps": []
+}
