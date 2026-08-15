@@ -77,7 +77,7 @@ report FAIL (non-blocking). Replace the placeholder with the criteria this
 PR must satisfy.
 -->
 
-- [ ] <!-- criterion this PR must satisfy -->
+- [ ] Replace this line with a criterion this PR must satisfy
 
 ## Type of Change
 

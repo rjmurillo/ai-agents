@@ -132,19 +132,25 @@
     },
     {
       "action": "Fixed two more root-container test defects found by the pre-push suite: euid-0 skip guard on the unreadable-file scan test, real error input for the sqlite get_count test that had only ever passed by being skipped"
+    },
+    {
+      "action": "Merged origin/main; sibling PRs 5084 and others had shipped equivalent root-guard and bootstrap fixes, resolved conflicts toward main and kept only the additive sqlite non-numeric test"
+    },
+    {
+      "action": "Addressed Copilot review round: template placeholder converted from HTML comment to visible prose, added regression test parsing the shipped template through acceptance_criteria.parse_criteria, rewrote QA report so the human-readable scope matches the frontmatter binding and names the sync_observations behavior change"
     }
   ],
   "nextSteps": [
     "Babysit this PR and the five child-session PRs to completion",
     "Issues 5064, 5065, 5067 are design-level and await owner sequencing; 5069 and 5070 queued for a follow-up wave"
   ],
-  "endingCommit": "26c722ad251cd9b83151d8750e643140b3488951",
+  "endingCommit": "46d106a5f2c6fa06b81515c0032e056a57f249f9",
   "episodeMetrics": {
-    "filesChanged": 11,
+    "filesChanged": 7,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0",
-      "head": "26c722ad251cd9b83151d8750e643140b3488951"
+      "head": "46d106a5f2c6fa06b81515c0032e056a57f249f9"
     }
   }
 }
