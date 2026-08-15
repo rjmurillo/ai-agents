@@ -163,10 +163,13 @@
     },
     {
       "activity": "CodeQL alert 168 (overly permissive regex range): replaced _TERMINAL_UNSAFE_RE ranges with unicodedata Cc/Cf category classification, widening bidi coverage and removing the flagged construct; corrected PR body test count to match QA report"
+    },
+    {
+      "activity": "Copilot review round 3: narrowed printed-diff claim to diverged/missing-base in all three doc surfaces; added U+200B zero-width negative control to the terminal-escape test (already covered by Cc/Cf classification)"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "f0c7d3eedfd7236d96bca284815f70f88a8319bb"
+  "endingCommit": "8d45795d939b4c8c86ccd77140f1d50da670ad37"
 }
