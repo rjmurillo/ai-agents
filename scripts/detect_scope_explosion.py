@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size  # 526 lines; generated-file filter (issue #4920)
 """Detect scope explosion by counting files changed since branch diverged from main.
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
