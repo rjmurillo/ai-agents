@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to quoted-workspace-prefix commit beb9d64b24bd2c7040425e1bdf7e18e34d77c950."
+        "Evidence": "QA evidence rebound to concurrent-test merge b028055043ec79864b583d3af899c92445fa6347."
       },
       "validationPassed": {
         "level": "MUST",
@@ -223,8 +223,12 @@
     {
       "action": "Required a double-quoted absolute workspace prefix for checkout-index.",
       "result": "Empty, omitted, relative, and single-quoted variable prefixes fail closed. 154 tests pass."
+    },
+    {
+      "action": "Merged the concurrent checkout-target test without weakening the guard.",
+      "result": "Quoted workspace prefix and effective-work-tree checks both apply. 155 tests pass."
     }
   ],
-  "endingCommit": "beb9d64b24bd2c7040425e1bdf7e18e34d77c950",
+  "endingCommit": "b028055043ec79864b583d3af899c92445fa6347",
   "nextSteps": []
 }
