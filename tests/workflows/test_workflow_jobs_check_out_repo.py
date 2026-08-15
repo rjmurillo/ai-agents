@@ -88,9 +88,19 @@ def _line_runs_checkout_index(line: str) -> bool:
     (PR #4846 review, thread on this exact substring-vs-subcommand gap).
     """
     tokens = _tokenize_command_line(line)
-    return any(
-        tokens[i] == "git" and tokens[i + 1] == "checkout-index" for i in range(len(tokens) - 1)
-    )
+    for index in range(len(tokens) - 1):
+        if tokens[index : index + 2] != ["git", "checkout-index"]:
+            continue
+        command_tokens = tokens[index + 2 :]
+        for option_index, token in enumerate(command_tokens):
+            if token.startswith("--prefix="):
+                prefix = token.split("=", 1)[1]
+                return prefix in {"", "./", "$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"}
+            if token == "--prefix" and option_index + 1 < len(command_tokens):
+                prefix = command_tokens[option_index + 1]
+                return prefix in {"", "./", "$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"}
+        return True
+    return False
 
 
 def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
@@ -298,7 +308,7 @@ class TestFirstUnmetRepoDependency:
         }
         assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
 
-    def test_env_prefixed_git_checkout_index_still_satisfies_a_dependency(self) -> None:
+    def test_checkout_index_with_external_prefix_does_not_satisfy_a_dependency(self) -> None:
         job = {
             "steps": [
                 {
@@ -306,6 +316,20 @@ class TestFirstUnmetRepoDependency:
                     "run": (
                         "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
                         "--prefix=/tmp/candidate/\npython3 scripts/ci/x.py"
+                    ),
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_checkout_index_with_workspace_prefix_satisfies_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
+                        "--prefix=$GITHUB_WORKSPACE/\npython3 scripts/ci/x.py"
                     ),
                 }
             ]
