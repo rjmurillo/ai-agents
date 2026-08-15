@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA report compression staged with this log after validating merge commit 99f2ce4f65f4d9c164ee570ac68bd8bd128849f2."
+        "Evidence": "QA evidence rebound to validated prompt-sync commit 1bec84f1534cabd9212fe2d5b2647dc19578031f."
       },
       "validationPassed": {
         "level": "MUST",
@@ -187,9 +187,13 @@
     {
       "action": "Compressed superseded QA history before retrying the guarded push.",
       "result": "The QA report fell from 521 to 472 lines without changing the PASS verdict, tested commit, or current evidence."
+    },
+    {
+      "action": "Regenerated the architect review prompt after main renamed SkillForge to skillforge.",
+      "result": "The prompt now matches its canonical review reference, and the review-axis drift check is clean."
     }
   ],
-  "endingCommit": "99f2ce4f65f4d9c164ee570ac68bd8bd128849f2",
+  "endingCommit": "1bec84f1534cabd9212fe2d5b2647dc19578031f",
   "nextSteps": [
     "Push the pending 11th rebind commit (docs: rebind QA evidence to the suppressed-Copilot-findings fix, commit 3ec7f54ea) through the guarded run_pr_mutation_if_live wrapper (refresh EXPECTED_HEAD_SHA to the rebind commit's SHA and re-verify EXPECTED_BASE_SHA via gh pr view --json baseRefOid immediately before pushing).",
     "After the push: poll CI to green, wait for Copilot's next review pass, then re-run check_suppressed_review_findings.py / run_completion_gate.py to confirm active_suppressed_count == 0 for all 4 findings on the new head (3 genuinely fixed should clear; verify none of the fixes triggered a new Copilot finding).",
