@@ -124,7 +124,7 @@
       "description": "Registered script in reachability test"
     }
   ],
-  "endingCommit": "b0472460f466d3e24f18be9bbf9e1fac66c10e49",
+  "endingCommit": "b0472460f4f823c27a16d350bc6a2fb7c9e6ddcf",
   "nextSteps": [
     "Monitor CI and confirm merge"
   ]

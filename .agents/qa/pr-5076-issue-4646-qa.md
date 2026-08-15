@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5-issue-4646.json
-qaCommit: b0472460f466d3e24f18be9bbf9e1fac66c10e49
+qaCommit: b0472460f4f823c27a16d350bc6a2fb7c9e6ddcf
 ---
 
 # QA Report: PR #5076 (Issue #4646)
