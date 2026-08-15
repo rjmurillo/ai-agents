@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads.json
-qaCommit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8
+qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
 ---
 
 # QA: ADR-094 scoped re-review axes
 
 ## Scope
 
-One added file: `.agents/architecture/ADR-094-scoped-re-review-axes.md`. A
+One added file: `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`. A
 proposed-status ADR draft. No code, no generated artifact, no shipped skill
 change. The verifiable surface is the document's factual claims and its
 conformance to repository text rules.

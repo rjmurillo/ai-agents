@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate.json
-qaCommit: ff2493fefdb0b65ff6079ef70afdc922a81413d0
+qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
 ---
 
 # QA: ADR-094 adr-review debate log
@@ -9,7 +9,7 @@ qaCommit: ff2493fefdb0b65ff6079ef70afdc922a81413d0
 ## Scope
 
 Two authored files: `.agents/critique/ADR-094-debate-log.md` (new) and a
-9-line prose edit to `.agents/architecture/ADR-094-scoped-re-review-axes.md`.
+9-line prose edit to `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`.
 No code, no generated artifact, no shipped skill change. The verifiable surface
 is the gate contract, the factual claims in the debate log, and the repository
 text rules.
