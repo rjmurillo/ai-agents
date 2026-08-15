@@ -69,6 +69,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Skill Shell Detection',
     'Skill SKIP Clause Routing',
     'Colocated Skill Tests',
+    'Skill Memory References',
     'Rule Activation Coverage',
     'Copilot Routing Exclusions',
     'Sync Registry Provenance',

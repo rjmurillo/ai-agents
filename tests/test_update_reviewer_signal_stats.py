@@ -124,8 +124,26 @@ class TestConfiguration:
         }
         assert expected_keys == set(HEURISTICS.keys())
 
-    def test_memory_path(self) -> None:
-        assert MEMORY_PATH == ".serena/memories/pr-comment-responder-skills.md"
+    def test_memory_path_resolves_to_a_tracked_memory(self) -> None:
+        """MEMORY_PATH must name a memory Serena can already read.
+
+        Asserting the literal against itself could not fail: the constant was
+        `.serena/memories/pr-comment-responder-skills.md` for the life of the
+        script and no such file has ever existed, because the memory is scoped
+        under `pr-review/` (issue #4897). The daily workflow passes this same
+        path to `scripts/ci/commit_and_push.py --path`, so a path that resolves
+        to nothing commits nothing and the stats never land.
+        """
+        import sys as _sys
+        _script_dir = str(Path(__file__).resolve().parents[1] / "scripts" / "validation")
+        if _script_dir not in _sys.path:
+            _sys.path.insert(0, _script_dir)
+        from tracked_paths import path_exists_in_repo
+
+        repo_root = Path(__file__).resolve().parents[1]
+        assert path_exists_in_repo(repo_root, MEMORY_PATH), (
+            f"MEMORY_PATH {MEMORY_PATH!r} is not tracked in the git index"
+        )
 
     def test_trend_thresholds(self) -> None:
         assert TREND_THRESHOLDS["improving"] == 0.05
