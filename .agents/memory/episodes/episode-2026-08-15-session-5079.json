@@ -98,7 +98,8 @@
         "e006",
         "e007",
         "e010",
-        "e013"
+        "e013",
+        "e015"
       ],
       "leads_to": [
         "e009"
@@ -174,6 +175,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 5: outer-cap clamp, escalation coverage, evidence refresh",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T21:00:10+00:00",
+      "type": "commit",
+      "content": "Commit: ce88c21b80debe3e5d61d2d87ebb651a0fbef18a",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5079"
     }
@@ -183,8 +208,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 9
+    "commits": 6,
+    "files_changed": 11
   },
   "lessons": []
 }

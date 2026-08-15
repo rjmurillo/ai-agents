@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5079.json
-qaCommit: 5b5986c2e19e4adbff231522cfa24f87ddbe03c3
+qaCommit: ce88c21b80debe3e5d61d2d87ebb651a0fbef18a
 ---
 
 # QA report: generated-artifact staleness gate (PR #5088, issue #5079)
@@ -14,26 +14,27 @@ That `scripts/validation/pre_pr.py` now fails when generated output is stale aga
 
 Required by `.claude/rules/generated-artifacts.md` MUST 2. A checker that has never been seen to fail is not evidence.
 
-Appended one marker line to the generator source `.claude/commands/pr-autofix.md` without regenerating, then ran the gate:
+Appended one marker line to the generator source `.claude/commands/pr-autofix.md` without regenerating, then ran the gate. Re-run on the round-5 head (`9d2acdc87` plus the test split) after the round-4 message change, because the load-bearing evidence must quote the message the shipped code actually emits:
 
 ```text
 STALENESS DETECTED - uncommitted regen drift:
   src/copilot-cli/skills/pr-autofix/SKILL.md
-[FAIL] build_all.py --check reported staleness (exit 2). Examined 2 of 2 checks.
-Fix: run the generators in order, then commit the result:
+[FAIL] build_all.py --check failed (exit 2). Examined 2 of 2 checks.
+Read the check's output above for the cause. If it reports staleness or drift, regenerate and commit:
   uv run python scripts/sync_plugin_lib.py
   uv run python build/scripts/build_all.py
+Otherwise fix the error the check itself reported; regenerating is not the remedy for a configuration or source failure.
 rc=1
 ```
 
-The named file is the one PR #5059 shipped hand-edited, so the control reproduces the reported defect rather than an arbitrary failure.
+The dash in `STALENESS DETECTED` is transcribed as a hyphen; the source prints an em dash there (flagged in Notes for Reviewers on the PR). The named file is the one PR #5059 shipped hand-edited, so the control reproduces the reported defect rather than an arbitrary failure.
 
 ## Positive control
 
-Reverted the marker with `git checkout -- .claude/commands/pr-autofix.md`, re-ran:
+Reverted the marker with `git checkout -- .claude/commands/pr-autofix.md`, re-ran on the round-5 head:
 
 ```text
-generated staleness: 0 stale in 2 generator check(s) examined
+generated staleness: 0 stale in 2 generator check(s) examined (0.8s of 420s budget)
 rc=0
 ```
 
@@ -48,12 +49,14 @@ The examined count is printed on the clean path, so a caller can tell zero drift
 
 ## Unit suite
 
+Round-5 head (the gate tests split across two modules; see Round 5):
+
 ```text
-$ uv run pytest tests/validation/test_check_generated_staleness.py tests/validation/test_pre_pr_sequence_registry.py -q
-tests/validation/test_check_generated_staleness.py ............          [ 57%]
-tests/validation/test_pre_pr_sequence_registry.py .........              [100%]
-21 passed in 3.61s
+$ uv run pytest tests/validation/test_check_generated_staleness.py tests/validation/test_check_generated_staleness_termination.py tests/validation/test_pre_pr_sequence_registry.py -q
+34 passed in 5.86s
 ```
+
+25 gate tests (16 core + 9 termination) plus 9 registry tests.
 
 ## Full corpus
 
@@ -61,11 +64,11 @@ Required by `.claude/rules/ci-scripts.md` MUST 13. The gate's own command agains
 
 ```text
 $ uv run python scripts/validation/check_generated_staleness.py
-generated staleness: 0 stale in 2 generator check(s) examined
+generated staleness: 0 stale in 2 generator check(s) examined (0.8s of 420s budget)
 rc=0
 ```
 
-The gate ships with zero outstanding violations, so it cannot block the next contributor's push.
+The gate ships with zero outstanding violations, so it cannot block the next contributor's push. The elapsed-of-budget figure was added in round 5 so budget consumption is visible before it trips.
 
 ## Full pre-PR run
 
@@ -163,5 +166,48 @@ it directs the reader to the child's echoed output and gives both remedies,
 because the child exit contracts are ambiguous (build_all: 2 = config or
 staleness; sync: 1 = missing, unreadable, or drifted). 27 tests pass;
 ruff/mypy clean; corpus gate rc=0; ratchets unchanged.
+
+## Round 5: outer-cap clamp and evidence refresh (2026-08-15)
+
+Copilot round 5 and the spec completeness judge, fixed in `9d2acdc87` and
+`ce88c21b8`:
+
+- The static half-cap split starts the gate's clock when the sequence reaches
+  it, after earlier validations have spent part of the same 900s lefthook
+  timer, so it alone could not guarantee the SIGINT deadline fires before the
+  outer SIGKILL. The `pre-pr-validation` job now declares its cap via
+  `PRE_PR_OUTER_CAP_SECONDS` and the gate clamps its deadline to the process's
+  remaining share minus the grace, refusing to spawn a child when the share is
+  spent (`test_a_spent_outer_share_reports_external_without_running_the_child`,
+  with an unspent-cap control and a malformed-value warn-and-fall-back test).
+  The declaration is pinned equal to the job's actual timeout by the live
+  lefthook.yml parse. The clamp is opt-in by environment because pytest
+  imports the module long before calling it.
+- The two untested termination branches the completeness judge named are now
+  driven: a child that ignores SIGINT is killed after the grace with the
+  partial-writes warning
+  (`test_a_child_that_ignores_the_interrupt_is_killed_with_a_warning`), and
+  the non-POSIX `terminate()` fallback is pinned with a fake on every
+  platform (`test_a_non_posix_host_terminates_instead_of_signaling`).
+  `_echo_tail` truncation and blank-output behavior are also pinned.
+- Evidence refresh: the negative control above was re-run on this head so it
+  quotes the round-4 message the shipped code actually emits, and the unit
+  suite section now shows the current count (34). Reconciliation for round
+  2's citations: `test_build_all_carries_no_external_kill` and
+  `test_the_dry_run_row_does_carry_a_cap` were superseded when rounds 3-4
+  replaced per-row caps with the aggregate budget; their current equivalents
+  are `test_the_gate_budget_is_positive_and_shared` and
+  `test_budget_plus_grace_fits_inside_the_lefthook_cap`. Round 3's
+  `test_every_row_carries_a_deadline` was likewise absorbed by the aggregate
+  budget tests in round 4.
+- The gate tests split across two modules
+  (`test_check_generated_staleness.py`,
+  `test_check_generated_staleness_termination.py`) with shared stubs in
+  `staleness_gate_helpers.py`, because round-5 coverage pushed the single
+  module past the 500-line test file-size ceiling; the taste ratchet is back
+  at baseline 583.
+
+34 tests pass; ruff and mypy clean; corpus gate rc=0 with the elapsed figure;
+taste (583), ruff (27), and type-ignore (44) ratchets unchanged.
 
 VERDICT: PASS

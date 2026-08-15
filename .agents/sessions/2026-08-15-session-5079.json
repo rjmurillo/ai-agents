@@ -154,9 +154,13 @@
     {
       "step": "Round 4: budget containment",
       "detail": "One aggregate 420s gate budget replaces per-row 600s caps so worst case plus grace stays inside half the 15m lefthook cap (test parses live lefthook.yml); failure message stops asserting staleness for ambiguous child exits and points at the child's echoed output."
+    },
+    {
+      "step": "Round 5: outer-cap clamp, escalation coverage, evidence refresh",
+      "detail": "Copilot named the gap in the static half-cap split: the gate's clock starts after earlier validations spent part of the same 900s lefthook timer. pre-pr-validation now declares PRE_PR_OUTER_CAP_SECONDS and the gate clamps its deadline to the process's remaining share minus the grace, refusing to spawn when the share is spent; clamp opt-in by environment so pytest imports cannot misfire it. Added tests for the SIGINT-ignoring kill escalation, the non-POSIX terminate() fallback, _echo_tail truncation, and the clamp with controls; split the gate tests into two modules with shared helpers after the file crossed the 500-line taste ceiling. Re-ran the negative control on this head so the QA report quotes the shipped round-4 message, and refreshed the unit-suite count to 34."
     }
   ],
-  "endingCommit": "5b5986c2e19e4adbff231522cfa24f87ddbe03c3",
+  "endingCommit": "ce88c21b80debe3e5d61d2d87ebb651a0fbef18a",
   "nextSteps": [
     "build/scripts/build_all.py:1206 prints an em dash in its STALENESS DETECTED message, which .claude/rules/universal.md MUST NOT 5 forbids in authored text. The dash validator scans markdown only, so nothing catches it. Left alone to keep this diff scoped."
   ]
