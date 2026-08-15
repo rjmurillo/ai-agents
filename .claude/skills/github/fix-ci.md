@@ -137,6 +137,38 @@ For each failure snippet, determine:
 | `npm ERR!`, `dotnet restore failed` | Dependency | MAYBE |
 | `secret.*not found` | Missing secret | NO (blocked) |
 | `rate limit`, `timeout` | Infrastructure | RETRY |
+| `MissingRequiredChecks` (from `get_pr_checks.py`) | Never-reported checks | RECOVER |
+
+### Missing Required Checks Recovery (Issue #4359)
+
+When `get_pr_checks.py` reports `MissingRequiredChecks`, required workflow runs never
+fired (typically because GitHub dropped the `synchronize` event after a force-push or
+conflict resolution). The PR looks green to tooling but cannot merge.
+
+#### Diagnosis
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --output-format json \
+  | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('MissingRequiredChecks'))"
+```
+
+#### Recovery (no new commit needed)
+
+```bash
+gh pr close <PR_NUMBER>
+gh pr reopen <PR_NUMBER>
+```
+
+Closing and reopening fires the `reopened` event, which re-triggers all
+`pull_request` workflows. Verified on PRs #4009, #4110, #4095 (0 runs before,
+36-37 runs after). This does not consume the repository's commit cap and
+preserves review state.
+
+#### When to apply Only when `MissingRequiredChecks` is non-empty and no code
+
+change is expected to fix the situation. If checks are failing (not missing),
+use the standard fix workflow below instead.
 
 **Root Cause Analysis:**
 

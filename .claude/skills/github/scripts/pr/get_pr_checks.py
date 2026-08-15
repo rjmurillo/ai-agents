@@ -729,7 +729,9 @@ def _resolve_status(
     if missing:
         return (
             f"PR #{number}: {len(missing)} required check(s) never reported "
-            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}). "
+            "Recovery: close and reopen the PR to re-fire workflow triggers "
+            "(no new commit needed).",
             "FAIL",
         )
     if output["FailedCount"] > 0:
