@@ -143,6 +143,15 @@ report merely existing on disk.
   omits the issue link from the body still gets the old failure. That is the
   correct failure: `.claude/rules/universal.md` MUST 2 already requires the
   link.
+- `tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15]`
+  is load-sensitive and rejected the first push of this branch. It waits on a
+  signalled subprocess with a hardcoded `process.wait(timeout=30)`. Measured on
+  this container in three 30-run samples: 7 of 30 failed with 7 concurrent
+  `git push` processes running, 0 of 30 on detached `origin/main` as load fell,
+  and 0 of 30 on this branch with 1 push process. Neither this diff nor the
+  cherry-picked `d00ca216c` touches `scripts/testing/mutation_workspace.py`.
+  Worth its own issue under `.claude/rules/ci-scripts.md` MUST 16; out of scope
+  here.
 - The prior-cost evidence is one recorded instance, not a rate:
   `.agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json`
   logs the rename verbatim. No sweep counted how many PRs paid it, so the "every

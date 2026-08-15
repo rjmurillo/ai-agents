@@ -150,6 +150,10 @@
     {
       "step": "Drove the shipped gate end to end against this branch, with a negative control",
       "evidence": "With only gh api stubbed and PR_NUMBER set to a number no report names, main() returned 0 and resolved .agents/qa/issue-5096-qa-report-issue-fallback.md through the body keyword; the same driver with the keyword removed returned 1 and printed 'No QA report found for code changes'."
+    },
+    {
+      "step": "First push rejected by a load-sensitive test unrelated to this diff",
+      "evidence": "Every pre-push job passed except python-tests (779.03s), which failed only tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15] on a hardcoded process.wait(timeout=30). Three 30-run samples on this container: this branch with 7 concurrent git push processes running, 7 failed of 30; origin/main detached with load falling, 0 of 30; this branch with 1 push process, 0 of 30. Load is the variable that moves it, not branch content, and neither this diff nor the cherry-picked d00ca216c touches scripts/testing/mutation_workspace.py. Matches .claude/rules/ci-scripts.md MUST 16: a cap sized on an idle run is a cap a real push can exceed."
     }
   ],
   "endingCommit": "e93af5c82d39a52102ea9e07a9c4f6fc5f361b57",

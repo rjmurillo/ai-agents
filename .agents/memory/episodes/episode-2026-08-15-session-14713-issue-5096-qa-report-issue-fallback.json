@@ -75,7 +75,9 @@
         "e005",
         "e008",
         "e012",
-        "e015"
+        "e015",
+        "e016",
+        "e017"
       ],
       "leads_to": [
         "e007"
@@ -190,12 +192,34 @@
         "e006"
       ],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First push rejected by a load-sensitive test unrelated to this diff",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "error",
+      "content": "First push rejected by a load-sensitive test unrelated to this diff  Every pre-push job passed except python-tests (779.03s), which failed only tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15] on a hardcoded process.wait(timeout=30). Three 30-run samples on this container: this branch with 7 concurrent git push processes running, 7 failed of 30; origin/main detached with load falling, 0 of 30; this branch with 1 push process, 0 of 30. Load is the variable that moves it, not branch content, and neither this diff nor the cherry-picked d00ca216c touches scripts/testing/mutation_workspace.py. Matches .claude/rules/ci-scripts.md MUST 16: a cap sized on an idle run is a cap a real push can exceed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
   ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
-    "errors": 0,
+    "errors": 7,
     "recoveries": 0,
     "commits": 7,
     "files_changed": 12
