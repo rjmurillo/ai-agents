@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+PLUGIN_ROOT_EXPR = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+
 CANONICAL_SCRIPT = (
     Path(__file__).parents[3]
     / ".claude"
@@ -40,12 +42,12 @@ spec.loader.exec_module(repository_url_routing)
     [
         (
             "https://github.com/owner/repo/pull/123",
-            'python3 ".claude/skills/github/scripts/pr/get_pr_context.py" '
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/pr/get_pr_context.py" '
             '--pull-request "123" --owner "owner" --repo "repo"',
         ),
         (
             "https://github.com/owner/repo/issues/456",
-            'python3 ".claude/skills/github/scripts/issue/get_issue_context.py" '
+            f'python3 "{PLUGIN_ROOT_EXPR}/skills/github/scripts/issue/get_issue_context.py" '
             '--issue "456" --owner "owner" --repo "repo"',
         ),
         (
@@ -57,8 +59,8 @@ spec.loader.exec_module(repository_url_routing)
             'gh api "repos/owner/repo/contents/src?ref=main"',
         ),
         (
-            "https://github.com/owner/repo/commit/abcdef",
-            'gh api "repos/owner/repo/commits/abcdef"',
+            "https://github.com/owner/repo/commit/abcdef1",
+            'gh api "repos/owner/repo/commits/abcdef1"',
         ),
         (
             "https://github.com/owner/repo/compare/main...feat",
@@ -242,13 +244,12 @@ def test_main_returns_structured_unknown_route(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     result = repository_url_routing.main(
-        ["--url", "https://github.com/owner/repo/discussions/1"]
+        ["--url", "https://github.com/owner/repo/unknown-route/1"]
     )
 
     assert result == 1
     output = json.loads(capsys.readouterr().out)
-    assert output["parsed_url"]["url_type"] == "Unknown"
-    assert output["recommended_route"] is None
+    assert output["parsed_url"] is None
 
 
 def test_module_entrypoint_exits_with_main_result(
