@@ -47,7 +47,7 @@ ids, not to rolling aliases:
   do not retire and do not drift, so they carry none of these three costs.
 
 The pins encode a guess, not a measurement. This ADR is criterion 1 of issue
-# 2840: the policy that says when a `model:` pin is allowed.
+#2840: the policy that says when a `model:` pin is allowed.
 
 ### What measurement is actually possible
 
