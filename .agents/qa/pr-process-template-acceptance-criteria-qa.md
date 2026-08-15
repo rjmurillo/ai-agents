@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15150-pr-template-acceptance-criteria.json
-qaCommit: 2fa1d3ba05e47bdafea824e5fc9de79e189ce77c
+qaCommit: d82916ec6c42c25194f4a8ff2ae75059ab007f1c
 ---
 
 # QA Report: PR Template Acceptance Criteria Section
@@ -34,6 +34,20 @@ Spec Coverage job). Refs #5068.
    passed on the changed file (lefthook run in commit 2fa1d3b).
 4. **Dash policy**: `staged-dash-policy` passed; the new section contains no
    em or en dashes.
+
+## Additional scope: root-container push blockers (commit d82916e)
+
+5. **Bundle suite regression**: after adding the root skip-guard to
+   `orphan-ref-validator/tests/test_scan.py` (canonical and mirror kept
+   byte-identical, verified by diff), `tests/test_skill_bundle_suites_run.py`
+   passes: 8 passed.
+6. **Previously failing environment tests**: with `sqlite3` and
+   `openssh-client` installed, `tests/forgetful/`,
+   `tests/test_import_forgetful_memories.py`, and
+   `tests/validation/test_git_hook_policy_causal_restore.py` pass (41 passed,
+   then full causal-restore suite green).
+7. **bootstrap-vm.sh**: package-list edit only; script re-runs idempotently
+   (apt-get install with already-installed packages is a no-op).
 
 ## Not covered
 
