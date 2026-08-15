@@ -162,6 +162,26 @@ EXCLUDE_DIRS = {
     ".doc-accuracy",
 }
 
+NON_COMPILABLE_LANGUAGES = frozenset({
+    "text",
+    "plaintext",
+    "txt",
+    "ascii",
+    "mermaid",
+    "diff",
+    "log",
+    "output",
+    "console",
+    "csv",
+    "ini",
+    "toml",
+    "conf",
+    "nolang",
+    "powershell",
+    "ps1",
+    "pwsh",
+})
+
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
 # Environment variables that can redirect git to a foreign repository,
@@ -832,9 +852,13 @@ def run_claim_extraction(
                     i += 1
                     continue
 
+                if lang in NON_COMPILABLE_LANGUAGES:
+                    i += 1
+                    continue
+
                 identifiers = _extract_identifiers(code_content)
                 # Map identifiers to source files
-                mapped = default_source
+                mapped = ""
                 for ident in identifiers:
                     if ident in symbol_to_source:
                         mapped = symbol_to_source[ident]
@@ -943,7 +967,7 @@ def run_compilability_check(
         lang = claim_dict.get("language", "")
 
         # Skip non-code languages
-        if lang in ("bash", "shell", "yaml", "yml", "json", "xml", "markdown", ""):
+        if lang in ("bash", "shell", "yaml", "yml", "json", "xml", "markdown", "") or lang in NON_COMPILABLE_LANGUAGES:
             if claim_dict["type"] == "code_example":
                 continue
 

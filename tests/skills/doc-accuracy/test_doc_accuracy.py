@@ -1279,6 +1279,67 @@ class TestRunClaimExtraction:
         assert result["claims"][0]["type"] == "code_example"
         assert result["claims"][0]["language"] == "python"
 
+    def test_skips_text_fences(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```text\nP1 P2 P3 Evaluation READY\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_skips_mermaid_fences(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```mermaid\nflowchart TD\nA-->B\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_skips_empty_text_fence(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```text\n   \n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_leaves_unmapped_code_example_without_source(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```csharp\nConsole.WriteLine(42)\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": ["Commit.cs"],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"][0]["type"] == "code_example"
+        assert result["claims"][0]["mapped_source"] == ""
+
     def test_extracts_quantitative_claim(self, tmp_path: Path) -> None:
         md = "Performance is 99.9% uptime.\n"
         (tmp_path / "perf.md").write_text(md)
@@ -1340,6 +1401,20 @@ class TestRunCompilabilityCheck:
                 "type": "method_signature", "language": "",
                 "content": "Returns a List",
                 "symbols_referenced": ["List"],
+                "mapped_source": "",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_skips_powershell_code_examples(self) -> None:
+        assessment: dict[str, Any] = {"source_symbols": []}
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "code_example", "language": "powershell",
+                "content": "Search-WorkItems.ps1 -FailOnTruncation",
+                "symbols_referenced": ["Search-WorkItems", "FailOnTruncation"],
                 "mapped_source": "",
             }],
         }
