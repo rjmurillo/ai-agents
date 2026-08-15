@@ -78,9 +78,19 @@ def _line_runs_checkout_index(line: str) -> bool:
 
     Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` or a
     comment that merely mentions ``git checkout-index`` is never mistaken
-    for the command actually running.
+    for the command actually running. Requires ``checkout-index`` to be
+    immediately preceded by a ``git`` token (as in ``git checkout-index``
+    or ``GIT_INDEX_FILE=... git checkout-index``), not merely present
+    anywhere in the token list: a line such as
+    ``python3 -c '...' checkout-index`` passes the literal string
+    ``checkout-index`` as an unrelated CLI argument and must not be
+    mistaken for the git subcommand that actually materializes the repo
+    (PR #4846 review, thread on this exact substring-vs-subcommand gap).
     """
-    return "checkout-index" in _tokenize_command_line(line)
+    tokens = _tokenize_command_line(line)
+    return any(
+        tokens[i] == "git" and tokens[i + 1] == "checkout-index" for i in range(len(tokens) - 1)
+    )
 
 
 def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
@@ -270,3 +280,34 @@ class TestFirstUnmetRepoDependency:
             ]
         }
         assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_checkout_index_as_an_unrelated_cli_argument_does_not_satisfy_a_dependency(
+        self,
+    ) -> None:
+        """An exact-token substring match, not a real git subcommand (PR #4846 review)."""
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "python3 -c \"print('checkout-index')\" checkout-index\n"
+                        "python3 scripts/ci/x.py"
+                    ),
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_env_prefixed_git_checkout_index_still_satisfies_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
+                        "--prefix=/tmp/candidate/\npython3 scripts/ci/x.py"
+                    ),
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) is None

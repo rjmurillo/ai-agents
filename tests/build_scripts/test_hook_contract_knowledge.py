@@ -612,7 +612,8 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     # computation itself is not silently masked. Everything below is
     # adopted verbatim from origin/main so this stays merge-clean and
     # self-corrects to a passing run the moment the ADR prose next syncs,
-    # e.g. after this PR merges. Remove once that happens.
+    # e.g. after this PR merges. Tracked for removal in #5014; remove once
+    # that issue's sync lands.
     if "four registrations across two events" not in _normalized_text(
         REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
     ):
@@ -620,7 +621,8 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
             "ADR-068/071/085 still carry pre-#4893 registration/timeout "
             "prose; this branch adopted bc179ad3a's hooks.json/manifest "
             "content without its ADR text to stay under the 50-file "
-            "scope-explosion hard limit. See this test's inline comment."
+            "scope-explosion hard limit. Tracked in #5014. See this "
+            "test's inline comment."
         )
 
     hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"

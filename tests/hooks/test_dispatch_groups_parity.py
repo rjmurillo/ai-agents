@@ -12,10 +12,12 @@ call in the group.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import shlex
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -247,3 +249,108 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
         f"authorized but not running: {sorted(stale)}. Delete these entries; "
         f"the ledger records what runs, not what once did."
     )
+
+
+# Every other test in this file checks that invoke_require_subagent_model.py
+# is registered, authorized, and shipped in every manifest it must appear
+# in. None of them call the hook itself, so a regression in the actual
+# block/allow decision it exists to make (#4874: deny a sub-agent spawn
+# that would silently inherit the session model) would pass every test
+# above. These tests drive the shipped entrypoint's main() directly with
+# both harnesses' payload shapes (Copilot review finding on PR #4846,
+# tests/build_scripts... ADR-068/071/085 sibling gap notwithstanding).
+REQUIRE_SUBAGENT_MODEL_PATH = HOOKS_DIR / "PreToolUse" / "invoke_require_subagent_model.py"
+
+
+def _load_require_subagent_model() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "require_subagent_model_under_test", REQUIRE_SUBAGENT_MODEL_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def require_subagent_model() -> ModuleType:
+    return _load_require_subagent_model()
+
+
+def _write_pinned_definition(path: Path, model: str = "claude-sonnet-5") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"---\nmodel: {model}\n---\nbody\n", encoding="utf-8")
+
+
+class TestRequireSubagentModelGate:
+    """Behavioral coverage for the #4874 sub-agent model gate's main()."""
+
+    @pytest.fixture(autouse=True)
+    def _isolated_gate_env(self, monkeypatch, tmp_path):
+        # main() looks up Path.home() directly (not overridable), so
+        # without pointing CLAUDE_CONFIG_DIR/COPILOT_HOME at empty tmp
+        # directories, the deny assertions below would depend on whatever
+        # agent definitions happen to exist in the real machine's home
+        # directory.
+        monkeypatch.delenv("CLAUDE_CODE_SUBAGENT_MODEL", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "no-claude-config"))
+        monkeypatch.setenv("COPILOT_HOME", str(tmp_path / "no-copilot-home"))
+
+    def test_non_subagent_tool_is_allowed_without_inspecting_args(
+        self, require_subagent_model, monkeypatch
+    ):
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: {"tool_name": "Bash"})
+        assert require_subagent_model.main() == 0
+
+    def test_explicit_model_in_the_call_is_allowed(self, require_subagent_model, monkeypatch):
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "unregistered-agent", "model": "gpt-5"},
+        }
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        assert require_subagent_model.main() == 0
+
+    def test_escape_hatch_env_var_allows_inherit_by_default(
+        self, require_subagent_model, monkeypatch
+    ):
+        payload = {"tool_name": "Task", "tool_input": {"subagent_type": "unregistered-agent"}}
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        monkeypatch.setenv("CLAUDE_CODE_SUBAGENT_MODEL", "1")
+        assert require_subagent_model.main() == 0
+
+    def test_no_model_and_no_definition_file_is_denied(
+        self, require_subagent_model, monkeypatch, tmp_path
+    ):
+        payload = {"tool_name": "Task", "tool_input": {"subagent_type": "unregistered-agent"}}
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        assert require_subagent_model.main() == 2
+
+    def test_claude_agent_definition_with_pinned_model_is_allowed(
+        self, require_subagent_model, monkeypatch, tmp_path
+    ):
+        payload = {"tool_name": "Task", "tool_input": {"subagent_type": "pinned-agent"}}
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        _write_pinned_definition(tmp_path / ".claude" / "agents" / "pinned-agent.md")
+        assert require_subagent_model.main() == 0
+
+    def test_copilot_cli_payload_with_pinned_definition_is_allowed(
+        self, require_subagent_model, monkeypatch, tmp_path
+    ):
+        # Copilot CLI's native runtime tool is "task" with lowercase
+        # toolName/toolArgs (cross-harness payload contract, module docstring).
+        payload = {"toolName": "task", "toolArgs": {"agent_type": "pinned-agent"}}
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        monkeypatch.chdir(tmp_path)
+        _write_pinned_definition(tmp_path / ".github" / "agents" / "pinned-agent.agent.md")
+        assert require_subagent_model.main() == 0
+
+    def test_copilot_cli_payload_without_definition_is_denied(
+        self, require_subagent_model, monkeypatch, tmp_path
+    ):
+        payload = {"toolName": "task", "toolArgs": {"agent_type": "unregistered-agent"}}
+        monkeypatch.setattr(require_subagent_model, "_read_payload", lambda: payload)
+        monkeypatch.chdir(tmp_path)
+        assert require_subagent_model.main() == 2
