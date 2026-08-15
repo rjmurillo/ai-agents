@@ -157,6 +157,7 @@ import re
 import shlex
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -315,22 +316,25 @@ _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
 
 _GIT_TIMEOUT_SECONDS = 30
 
-# PR-controlled text (diffs, config excerpts) is rendered to a human
-# terminal to authorize --approve-untrusted-config. C0/C1 control
-# characters and Unicode bidi/zero-width controls can make a terminal
-# display a different command than the one that would execute
-# (Trojan Source, CVE-2021-42574), so everything except newline and
-# tab is escaped to a visible \\uXXXX form before printing.
-_TERMINAL_UNSAFE_RE = re.compile(
-    "[\u0000-\u0008\u000b-\u001f\u007f-\u009f"
-    "\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
-)
-
-
 def _escape_terminal_controls(text: str) -> str:
-    """Render PR-controlled text safely for the approving human's terminal."""
-    return _TERMINAL_UNSAFE_RE.sub(
-        lambda match: f"\\u{ord(match.group()):04x}", text,
+    """Render PR-controlled text safely for the approving human's terminal.
+
+    PR-controlled text (diffs, config excerpts) is shown to the human
+    whose inspection authorizes --approve-untrusted-config. Unicode
+    format characters (category Cf, which includes the bidi controls
+    such as U+202E) can make a terminal display a different command
+    than the one that would execute (Trojan Source, CVE-2021-42574),
+    and C0/C1 controls (category Cc, e.g. CR, ESC) can overwrite or
+    restyle previously printed lines. Every Cc/Cf character except
+    newline and tab is therefore rendered as a visible ``\\uXXXX``
+    escape.
+    """
+    return "".join(
+        ch
+        if ch in ("\n", "\t")
+        or unicodedata.category(ch) not in ("Cc", "Cf")
+        else f"\\u{ord(ch):04x}"
+        for ch in text
     )
 
 
