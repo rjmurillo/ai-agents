@@ -6,8 +6,11 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Every case here now runs through the Claude dispatcher only, which is where
+the guard still runs; invoke_dispatch_claude.py does not read
+copilotExclude.
 """
 
 from __future__ import annotations
@@ -19,13 +22,10 @@ from pathlib import Path
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
+)
+from tests.hooks.push_pr_guard_harness import (
     repository as _repository,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_claude as _run_claude,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_copilot as _run_copilot,
 )
 
 IN_SCOPE_ASSIGNMENT = "PUSH_PR_SCRIPT=new_pr.py "
@@ -38,7 +38,7 @@ def _in_scope(command: str) -> str:
     return IN_SCOPE_ASSIGNMENT + command
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_fail_closed_on_unknown_git_global_options(
     tmp_path: Path,
     runner,
@@ -51,7 +51,7 @@ def test_dispatchers_fail_closed_on_unknown_git_global_options(
     assert "unsupported Git global options are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_git_commands_with_active_hooks(
     tmp_path: Path,
     runner,
@@ -88,7 +88,7 @@ def test_dispatchers_allow_git_commands_with_active_hooks(
         assert allowed.returncode == 0, f"{command}: {allowed.stderr}"
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_in_scope_git_commands_with_active_hooks(
     tmp_path: Path,
     runner,
@@ -117,7 +117,7 @@ def test_dispatchers_deny_in_scope_git_commands_with_active_hooks(
         assert "dynamic evaluator wrappers are not allowed" in denied.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "remote",
     [
@@ -145,7 +145,7 @@ def test_dispatchers_deny_local_git_push_destinations(
     assert "dynamic evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_named_https_push_remote(
     tmp_path: Path,
     runner,
@@ -170,7 +170,7 @@ def test_dispatchers_allow_named_https_push_remote(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_named_local_push_remote(
     tmp_path: Path,
     runner,
@@ -190,7 +190,7 @@ def test_dispatchers_deny_named_local_push_remote(
     assert "dynamic evaluator wrappers are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_renamed_git_executable(
     tmp_path: Path,
     runner,

@@ -6,8 +6,11 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Every case here now runs through the Claude dispatcher only, which is where
+the guard still runs; invoke_dispatch_claude.py does not read
+copilotExclude.
 """
 
 from __future__ import annotations
@@ -18,13 +21,10 @@ from pathlib import Path
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
+)
+from tests.hooks.push_pr_guard_harness import (
     repository as _repository,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_claude as _run_claude,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_copilot as _run_copilot,
 )
 from tests.hooks.push_pr_guard_harness import (
     write_script as _write_script,
@@ -40,7 +40,7 @@ def _in_scope(command: str) -> str:
     return IN_SCOPE_ASSIGNMENT + command
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -87,7 +87,7 @@ def test_dispatchers_allow_commands_outside_guard_scope(
     assert result.returncode == 0, f"{command}: {result.stderr}"
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -152,7 +152,7 @@ def test_dispatchers_deny_direct_lookalike_execution(
     assert "push-pr script identity denied" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -204,7 +204,7 @@ def test_dispatchers_allow_legitimate_brace_expansion(
     assert result.returncode == 0, f"{command}: {result.stderr}"
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -243,7 +243,7 @@ def test_dispatchers_deny_range_obfuscated_new_pr(
     assert "push-pr script identity denied" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "command",
     [
@@ -282,7 +282,7 @@ def test_dispatchers_deny_commands_inside_guard_scope(
     assert "push-pr script identity denied" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_dynamic_launcher_that_never_names_the_script(
     tmp_path: Path,
     runner,
@@ -307,7 +307,7 @@ def test_dispatchers_allow_dynamic_launcher_that_never_names_the_script(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_unrelated_compound_bash(
     tmp_path: Path,
     runner,
@@ -327,7 +327,7 @@ def test_dispatchers_allow_unrelated_compound_bash(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_compound_bash_reaching_new_pr(
     tmp_path: Path,
     runner,
@@ -344,7 +344,7 @@ def test_dispatchers_deny_compound_bash_reaching_new_pr(
     assert "shell operators are not allowed" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_unrelated_shell_expansion(
     tmp_path: Path,
     runner,
@@ -356,7 +356,7 @@ def test_dispatchers_allow_unrelated_shell_expansion(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_single_quoted_substitution_text(
     tmp_path: Path,
     runner,
@@ -368,7 +368,7 @@ def test_dispatchers_allow_single_quoted_substitution_text(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_active_parameter_expansion_in_printf(
     tmp_path: Path,
     runner,
@@ -381,7 +381,7 @@ def test_dispatchers_allow_active_parameter_expansion_in_printf(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_active_parameter_expansion_in_scope(
     tmp_path: Path,
     runner,
@@ -395,7 +395,7 @@ def test_dispatchers_deny_active_parameter_expansion_in_scope(
     assert "exact allowlist" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_other_python_scripts(
     tmp_path: Path,
     runner,
@@ -415,7 +415,7 @@ def test_dispatchers_allow_other_python_scripts(
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_deny_unresolvable_python_script_operand(
     tmp_path: Path,
     runner,
@@ -430,7 +430,7 @@ def test_dispatchers_deny_unresolvable_python_script_operand(
     assert "Python script paths cannot use shell expansion" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatchers_allow_many_operands_without_hanging(
     tmp_path: Path,
     runner,
