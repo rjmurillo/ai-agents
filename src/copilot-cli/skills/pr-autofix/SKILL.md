@@ -460,7 +460,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 cleanup_pr_autofix
 ```
 
-Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). Exits 2 and 3 mean NO criterion command was executed. Neither is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. Surface the stderr diff to a human and skip the PR.
+Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). Exits 2 and 3 mean NO criterion command was executed. Neither is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. The flag only applies to exit 2 (diverged or missing-at-base); an exit-3 halt cannot be overridden at all. Surface the stderr diff to a human and skip the PR.
 
 ## Workflow
 
@@ -690,7 +690,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --pull-request {pr} --json
 ```
 
-The dispatcher enforces the Issue #5072 trust boundary before dispatching anything: exit 2 also means the config diverges from or is absent at `origin/main`, and exit 3 means trust verification was impossible; in both cases no criterion command ran, the failure is not transient, and `--approve-untrusted-config` requires a human who has read the surfaced diff.
+The dispatcher enforces the Issue #5072 trust boundary before dispatching anything: exit 2 also means the config diverges from or is absent at `origin/main`, and exit 3 means trust verification was impossible; in both cases no criterion command ran and the failure is not transient. `--approve-untrusted-config` requires a human who has read the surfaced diff and applies only to exit 2; an exit-3 halt (verification impossible) cannot be overridden.
 
 ## Verification
 
