@@ -256,3 +256,120 @@ class TestFrontmatterOnlyFailsClosed:
             _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
         )
         assert len(violations) == 1
+
+
+class TestSectionReorderDetection:
+    """Verify that section reordering is NOT classified as frontmatter-only.
+
+    Issue #5043: dict equality ignores insertion order, so reordering H2
+    sections was incorrectly classified as frontmatter-only.
+    """
+
+    def test_section_reorder_blocks_bypass(self, parity_repo: Path) -> None:
+        """Reordering H2 sections is a body change, not frontmatter-only."""
+        reordered = """\
+---
+name: critic
+description: Review critic agent
+model: claude-sonnet-4.6
+---
+
+Preamble text.
+
+## Workflow
+
+Step 1. Review.
+
+## Core Identity
+
+You are a constructive reviewer.
+"""
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(reordered)
+        _run_git(parity_repo, "add", "-A")
+
+        violations = vip.find_violations(
+            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
+        )
+        assert violations != [], "Section reorder must be detected as body change"
+
+    def test_identical_body_different_frontmatter_still_passes(
+        self, parity_repo: Path
+    ) -> None:
+        """Frontmatter-only change with unchanged body order still passes."""
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(FRONTMATTER_WITHOUT_MODEL)
+        _run_git(parity_repo, "add", "-A")
+
+        violations = vip.find_violations(
+            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
+        )
+        assert violations == []
+
+    def test_no_frontmatter_body_unchanged_passes(
+        self, parity_repo: Path
+    ) -> None:
+        """File without frontmatter: identical body is still frontmatter-only."""
+        no_fm = """\
+Preamble text.
+
+## Core Identity
+
+You are a constructive reviewer.
+
+## Workflow
+
+Step 1. Review.
+"""
+        # Set base to no-frontmatter version
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(no_fm)
+        _run_git(parity_repo, "add", "-A")
+        _run_git(parity_repo, "commit", "-m", "no-fm base")
+
+        # Working tree is identical - no violation
+        violations = vip.find_violations(
+            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
+        )
+        assert violations == []
+
+    def test_unclosed_frontmatter_treated_as_body(
+        self, parity_repo: Path
+    ) -> None:
+        """Unclosed frontmatter (no closing ---) is treated as body text."""
+        unclosed_before = """\
+---
+name: critic
+model: old
+
+Preamble text.
+
+## Core Identity
+
+You are a constructive reviewer.
+"""
+        unclosed_after = """\
+---
+name: critic
+model: new
+
+Preamble text.
+
+## Core Identity
+
+You are a constructive reviewer.
+"""
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(unclosed_before)
+        _run_git(parity_repo, "add", "-A")
+        _run_git(parity_repo, "commit", "-m", "unclosed fm base")
+
+        for rel in _GENERATED_TOUCHED:
+            (parity_repo / rel).write_text(unclosed_after)
+        _run_git(parity_repo, "add", "-A")
+
+        violations = vip.find_violations(
+            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
+        )
+        # Unclosed frontmatter means entire text is "body", so a change blocks
+        assert violations != []
