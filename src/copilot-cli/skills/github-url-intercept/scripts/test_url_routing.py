@@ -89,6 +89,15 @@ CHECKS_SCRIPT_PATH = (
     "/skills/github/scripts/pr/get_pr_checks.py"
 )
 
+ResourceParseResult = tuple[
+    UrlType,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+    str | None,
+]
+
 # ---------------------------------------------------------------------------
 # URL parsing
 # ---------------------------------------------------------------------------
@@ -114,7 +123,7 @@ def _parse_fragment(fragment: str, rest: str) -> tuple[str, str | None, str | No
 
 def _parse_blob(
     match: re.Match[str],
-) -> tuple[UrlType, str | None, str | None, str | None, str | None] | None:
+) -> ResourceParseResult | None:
     ref, path = match.groups()
     if not is_safe_input(ref, SAFE_REF_RE):
         return None
@@ -125,7 +134,7 @@ def _parse_blob(
 
 def _parse_tree(
     match: re.Match[str],
-) -> tuple[UrlType, str | None, str | None, str | None, str | None] | None:
+) -> ResourceParseResult | None:
     ref, path = match.groups()
     if not is_safe_input(ref, SAFE_REF_RE):
         return None
@@ -136,7 +145,7 @@ def _parse_tree(
 
 def _parse_resource(
     rest: str,
-) -> tuple[UrlType, str | None, str | None, str | None, str | None] | None:
+) -> ResourceParseResult | None:
     pull_match = re.fullmatch(r"pull/(\d+)(?:/(checks|files|changes|commits))?", rest)
     if pull_match:
         return UrlType.PULL, pull_match.group(1), pull_match.group(2), None, None, None
@@ -209,13 +218,14 @@ def _parse_repo_path(split: SplitResult) -> tuple[str, str, str] | None:
 
 
 def _fragment_matches_url_type(fragment_type: str | None, url_type: UrlType) -> bool:
+    if fragment_type is None:
+        return True
+
     expected_url_type = {
         "pullrequestreview": UrlType.PULL,
         "discussion_r": UrlType.PULL,
         "issuecomment": UrlType.ISSUE,
     }.get(fragment_type)
-    if expected_url_type is None:
-        return fragment_type is None
     return expected_url_type == url_type
 
 
