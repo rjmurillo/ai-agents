@@ -310,13 +310,18 @@ def agent_name_from_path(path: str) -> str:
 
 
 def is_agent_path(path: str) -> bool:
-    """True when the path is an agent definition (not metadata, not a skill)."""
+    """True when the path is an agent definition (not metadata, not a skill).
+
+    Excludes reference documentation under ``agents/*/references/`` (#4813).
+    """
     norm = path.replace("\\", "/")
     name = agent_name_from_path(norm)
     if name in _NON_AGENT_NAMES:
         return False
     if norm.endswith(".shared.md"):
         return "templates/agents/" in norm
+    if "/references/" in norm:
+        return False
     return "/.claude/agents/" in f"/{norm}" and norm.endswith(".md")
 
 
