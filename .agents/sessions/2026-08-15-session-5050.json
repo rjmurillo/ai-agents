@@ -5,7 +5,7 @@
     "date": "2026-08-15",
     "branch": "feat/5050-import-graph-test-selection",
     "startingCommit": "dfdcbcbb1e",
-    "objective": "Implement import-graph test selection for pre-push and CI (issue 5050)"
+    "objective": "Fix dynamic import detection in test selection (issue 5050)"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "9 commits on branch."
+        "Evidence": "236ee457c2b4d09fe8a8a44a27aa28c8d7275bd4 fix(test-selection): track dynamic imports"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-push hooks green (402s python-tests)."
+        "Evidence": "uv run --frozen pytest tests/test_selection/ -v passed (39 tests); uv run --frozen ruff check scripts/test_selection/import_graph.py scripts/test_selection/select_tests.py tests/test_selection/test_import_graph.py tests/test_selection/test_select_tests.py passed; uv run python scripts/validation/pre_pr.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -125,31 +125,19 @@
   },
   "workLog": [
     {
-      "action": "Implemented scripts/test_selection/ package",
-      "result": "Graph builder, selector, runtime patterns"
+      "action": "Extended import graph builder",
+      "result": "Literal dynamic imports add edges; variable dynamic imports mark wildcard dependents"
     },
     {
-      "action": "Integrated with pre-push hook",
-      "result": "run_pytest narrows partitions"
+      "action": "Updated test selector",
+      "result": "Wildcard dependents and their importing tests are included for any Python change"
     },
     {
-      "action": "Integrated with CI",
-      "result": "run_pytest_selected.py; merge_group always full"
-    },
-    {
-      "action": "Created tests",
-      "result": "tests/test_selection/ comprehensive coverage"
-    },
-    {
-      "action": "Merged origin/main",
-      "result": "Resolved allowlist conflict"
-    },
-    {
-      "action": "Fixed integration issues",
-      "result": "UTF-8, mocks, ratchets"
+      "action": "Validated regression coverage",
+      "result": "39 test-selection tests passed; pre_pr.py passed"
     }
   ],
-  "endingCommit": "bad7a36d817618e658330e78f366ce747f189f94",
+  "endingCommit": "236ee457c2b4d09fe8a8a44a27aa28c8d7275bd4",
   "nextSteps": [
     "Monitor CI",
     "Address review comments"

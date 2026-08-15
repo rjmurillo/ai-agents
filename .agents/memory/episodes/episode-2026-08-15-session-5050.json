@@ -4,7 +4,7 @@
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Implement import-graph test selection for pre-push and CI (issue 5050)",
+  "task": "Fix dynamic import detection in test selection (issue 5050)",
   "decisions": [],
   "events": [
     {
@@ -84,7 +84,56 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extended import graph builder",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated test selector",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated regression coverage",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5050"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T17:06:12+00:00",
+      "type": "commit",
+      "content": "Commit: 236ee457c2b4d09fe8a8a44a27aa28c8d7275bd4",
+      "caused_by": [
+        "e007"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5050"
@@ -95,8 +144,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 0
+    "commits": 2,
+    "files_changed": 8
   },
   "lessons": []
 }
