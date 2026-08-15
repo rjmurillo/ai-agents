@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate.json
-qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
+qaCommit: 56237643c5951dc17e4a853b5e27f4c645061015
 ---
 
 # QA: ADR-094 adr-review debate log

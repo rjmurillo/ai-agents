@@ -164,6 +164,19 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T17:00:33+00:00",
+      "type": "commit",
+      "content": "Commit: 56237643c5951dc17e4a853b5e27f4c645061015",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
     }
@@ -173,7 +186,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 16
   },
   "lessons": []
