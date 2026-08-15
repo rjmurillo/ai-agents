@@ -129,19 +129,22 @@
     },
     {
       "action": "Fixed remote-container push blockers found during pre-push: added sqlite3 and openssh-client to scripts/bootstrap-vm.sh prerequisites, added root skip-guard to orphan-ref-validator permission-denied test (chmod 0 cannot deny read to root) in canonical and mirror copies"
+    },
+    {
+      "action": "Fixed two more root-container test defects found by the pre-push suite: euid-0 skip guard on the unreadable-file scan test, real error input for the sqlite get_count test that had only ever passed by being skipped"
     }
   ],
   "nextSteps": [
     "Babysit this PR and the five child-session PRs to completion",
     "Issues 5064, 5065, 5067 are design-level and await owner sequencing; 5069 and 5070 queued for a follow-up wave"
   ],
-  "endingCommit": "8b1247ce1d6261fef6d9664bc913b3c60883591a",
+  "endingCommit": "26c722ad251cd9b83151d8750e643140b3488951",
   "episodeMetrics": {
-    "filesChanged": 9,
+    "filesChanged": 11,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0",
-      "head": "8b1247ce1d6261fef6d9664bc913b3c60883591a"
+      "head": "26c722ad251cd9b83151d8750e643140b3488951"
     }
   }
 }

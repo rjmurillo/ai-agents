@@ -74,7 +74,8 @@
         "e004",
         "e005",
         "e007",
-        "e008"
+        "e008",
+        "e011"
       ],
       "leads_to": [
         "e009"
@@ -124,6 +125,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed two more root-container test defects found by the pre-push suite: euid-0 skip guard on the unreadable-file scan test, real error input for the sqlite get_count test that had only ever passed by being skipped",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T15:34:11+00:00",
+      "type": "commit",
+      "content": "Commit: 26c722ad251cd9b83151d8750e643140b3488951",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     }
@@ -133,8 +158,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 9
+    "commits": 4,
+    "files_changed": 11
   },
   "lessons": []
 }

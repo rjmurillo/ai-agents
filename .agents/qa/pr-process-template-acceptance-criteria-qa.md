@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15150-pr-template-acceptance-criteria.json
-qaCommit: 8b1247ce1d6261fef6d9664bc913b3c60883591a
+qaCommit: 26c722ad251cd9b83151d8750e643140b3488951
 ---
 
 # QA Report: PR Template Acceptance Criteria Section
@@ -55,6 +55,18 @@ Spec Coverage job). Refs #5068.
    import spawn pays a 10s handshake timeout when Forgetful is absent; a
    new-branch push matched 43 observation files and exceeded the 5m job cap
    twice (302.93s, 304.23s in recorded push logs).
+
+## Additional scope: root/skip test repairs (commit 26c722a)
+
+9. **Unreadable-file scan test**: gains the same euid-0 skip guard as the
+   orphan-ref test (chmod 0 cannot deny read to root); skips here, runs
+   unchanged on non-root machines. Suite result: 14 passed, 1 skipped across
+   the two touched files.
+10. **get_count error test**: previously passed only by being skipped;
+    sqlite3 lazily creates a missing .db and answered SELECT 1 with exit 0
+    (a stray /nonexistent.db at the filesystem root confirmed it). Rewritten
+    against a nonexistent parent directory (fails open for any query) plus a
+    non-numeric-output case; both pass with sqlite3 installed.
 
 ## Not covered
 
