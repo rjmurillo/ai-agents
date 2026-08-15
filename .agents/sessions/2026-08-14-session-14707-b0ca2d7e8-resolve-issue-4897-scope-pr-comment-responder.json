@@ -177,11 +177,25 @@
       "outcome": "pytest tests/validation plus stats tests: 3090 passed, 1 skipped. pre_pr.py: 52 of 52 PASS, exit 0, including the new Skill Memory References gate. ruff clean, mypy clean, golden-principles no violations, taste-lints 0 errors, actionlint PASS on the changed workflow with the act run skipped for absent secrets, which the gate treats as non-blocking."
     }
   ],
-  "endingCommit": "d1af9b6646",
+  "endingCommit": "7cb644c542",
   "nextSteps": [
     "Push the branch and open one PR against main quoting the full-corpus gate output, the negative control, and the mutation sweep, per .claude/rules/ci-scripts.md MUST 13.",
     "Watch CI for a count-ratchet trip from the two new files; re-measure against a refreshed origin/main before touching any baseline.",
     "Acknowledged, not acted on: code-qualities-assessment scores the new gate cohesion 5.1 against a min of 7. Every sibling validator scores 1.0 to 4.2 on the same 0.4-confidence size heuristic, so splitting a 320-line single-purpose gate to satisfy it would break the one-script-per-gate convention.",
     "No SHA-bound review marker was written: the 11 LLM review axes and the Stage-1 spec-compliance gate need Task subagents this session could not dispatch. Run /review before /ship."
-  ]
+  ],
+  "retrospective": {
+    "learnings": [
+      "Git index resolution over filesystem: is_file() creates machine-dependent results; tracked_paths.py resolves via git index",
+      "Fail closed on decode errors: silent skips hide defects; sibling validators use nonzero exit",
+      "Separate code commits from metadata commits so code SHA is stable for QA binding"
+    ],
+    "wentWell": [
+      "All six threads addressed in single pass",
+      "Existing tracked_paths.py provided exact capability needed"
+    ],
+    "couldImprove": [
+      "Session/QA commit binding creates friction with self-referencing commits"
+    ]
+  }
 }

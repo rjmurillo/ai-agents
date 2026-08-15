@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder.json
-qaCommit: d1af9b66465c182453687c16cad99dd74600178a
+qaCommit: 7cb644c5420617cbbdead5fc6cfe421ed9db1021
 ---
 
 # Issue 4897 QA Report: Scoped Serena Memory References
