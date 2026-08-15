@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: 4ad320598019617b22a48a3d70a0c5543ce21047
+qaCommit: 87d756c2437da33137b5ffd556000611b6d2d6b4
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: 4ad320598019617b22a48a3d70a0c5543ce21047
 Branch: `feat/dx-review`
 
 Validated through commit:
-`4ad320598019617b22a48a3d70a0c5543ce21047`
+`87d756c2437da33137b5ffd556000611b6d2d6b4`
 
 ## Scope
 
@@ -55,6 +55,7 @@ Validated through commit:
 | Episode ownership | Old session owns 186c49540; current QA rebind excluded |
 | Scorecard parser | Malformed final-column mutation rejected |
 | Notice path containment | Symlink escape rejected where supported |
+| Fail-closed QA binding | comparison.head and endingCommit disagreement rejected |
 
 Security-critical output confinement has no missing lines or branches across
 `scripts/generate_third_party_notices.py` lines 383 through 461.

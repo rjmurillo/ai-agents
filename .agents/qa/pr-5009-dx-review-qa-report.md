@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: 4ad320598019617b22a48a3d70a0c5543ce21047
+qaCommit: 87d756c2437da33137b5ffd556000611b6d2d6b4
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -25,6 +25,7 @@ Validated commits:
 - `2efc836aef09a1df655ec0d3d638eef48e6c72e6`
 - `e0671ceb08de8efdc89f3c9eba1426acfd33fa57`
 - `4ad320598019617b22a48a3d70a0c5543ce21047`
+- `87d756c2437da33137b5ffd556000611b6d2d6b4`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -34,13 +35,13 @@ Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 |------|------:|------:|
 | `.claude/skills/dx-review/SKILL.md` | 250 | 9,028 |
 | `src/copilot-cli/skills/dx-review/SKILL.md` | 250 | 9,028 |
-| `tests/skills/dx-review/test_dx_review_contracts.py` | 439 | 14,494 |
+| `tests/skills/dx-review/test_dx_review_contracts.py` | 464 | 15,543 |
 | `tests/evals/skill-scenarios/dx-review.json` | 28 | 1,557 |
 | `.claude/THIRD-PARTY-NOTICES.TXT` | 80 | 3,519 |
 | `THIRD-PARTY-NOTICES.TXT` | 80 | 3,519 |
 | `src/copilot-cli/THIRD-PARTY-NOTICES.TXT` | 80 | 3,519 |
 | `scripts/generate_third_party_notices.py` | 491 | 18,549 |
-| `tests/test_generate_third_party_notices.py` | 330 | 12,830 |
+| `tests/test_generate_third_party_notices.py` | 344 | 13,402 |
 
 Sizes measured with `wc -lc` at the QA commit.
 
@@ -48,7 +49,7 @@ Sizes measured with `wc -lc` at the QA commit.
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Focused tests | `uv run pytest tests/test_generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py -q` | 43 passed |
+| Focused tests | `uv run pytest tests/test_generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py -q` | 45 passed |
 | Ruff | `uv run ruff check scripts/generate_third_party_notices.py tests/skills/dx-review/test_dx_review_contracts.py tests/test_generate_third_party_notices.py` | Passed |
 | Skill format | `uv run python scripts/validate_skill_format.py --path .claude/skills/dx-review` | Passed |
 | Notice drift | `uv run python scripts/generate_third_party_notices.py --check` | Passed |
@@ -70,6 +71,7 @@ Sizes measured with `wc -lc` at the QA commit.
 | Episode ownership | Extractor comparison-head regression and regenerated old episode | Passed |
 | Malformed scorecard row | Removed final delimiter mutation | Rejected |
 | Symlink containment | In-root link to outside directory | Rejected |
+| Fail-closed QA binding | Divergent comparison.head and endingCommit test | Rejected |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 

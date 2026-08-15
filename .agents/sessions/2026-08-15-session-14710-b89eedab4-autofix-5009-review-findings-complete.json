@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, pre-push gate, retrospective, latest-main, final review, timing calibration, episode ownership, and final review evidence committed through 4ad320598019617b22a48a3d70a0c5543ce21047; evidence-only updates follow."
+        "Evidence": "All implementation, pre-push gate, retrospective, latest-main, final review, timing calibration, episode ownership, and fail-closed QA binding changes committed through 87d756c2437da33137b5ffd556000611b6d2d6b4; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-15T04:15Z",
       "action": "record-qa",
-      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit 4ad320598019617b22a48a3d70a0c5543ce21047."
+      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit 87d756c2437da33137b5ffd556000611b6d2d6b4."
     },
     {
       "timestamp": "2026-08-15T06:20Z",
@@ -188,9 +188,14 @@
       "timestamp": "2026-08-15T12:00Z",
       "action": "close-latest-review-findings",
       "details": "Separated episode commit ownership from QA rebinding, regenerated both episodes, rejected malformed scorecard rows, added symlink-escape containment coverage, clarified local QA scope, and corrected retrospective Semgrep references. Focused QA, memory, and skill tests passed."
+    },
+    {
+      "timestamp": "2026-08-15T12:25Z",
+      "action": "restore-fail-closed-qa-binding",
+      "details": "Restored comparison.head and endingCommit equality for QA binding, added episodeMetrics.commitHead for independent episode ownership, regenerated both episodes, and passed 468 targeted QA and memory tests."
     }
   ],
-  "endingCommit": "4ad320598019617b22a48a3d70a0c5543ce21047",
+  "endingCommit": "87d756c2437da33137b5ffd556000611b6d2d6b4",
   "nextSteps": [
     "Push feat/dx-review under the lease and live-state guard.",
     "Reply to and resolve all seven review threads.",
