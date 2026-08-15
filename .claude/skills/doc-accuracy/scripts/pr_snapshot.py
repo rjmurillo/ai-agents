@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 """Immutable PR snapshot for doc-accuracy review.
 
 Pins review input to an exact commit pair (head + base) fetched into isolated

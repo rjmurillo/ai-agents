@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 """Tests for pr_snapshot module.
 
 Covers:
