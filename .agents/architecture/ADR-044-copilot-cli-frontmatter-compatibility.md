@@ -4,6 +4,8 @@
 
 Accepted
 
+Status note: The `0.0.397` pin in Decision 1 is historical. `scripts/validation/check_copilot_version_pin.py` is the live authority for acceptable Copilot CLI versions, and it blocks the retired pin via `KNOWN_BAD_VERSIONS: frozenset[str] = frozenset({"0.0.397"})`.
+
 ## Date
 
 2026-02-01
@@ -61,7 +63,7 @@ These warnings appear only with `--log-level all` flag. Default output shows no 
 
 ## Decision
 
-1. **Pin Copilot CLI to 0.0.397** in CI (`npm install -g @github/copilot@0.0.397`) with `--no-auto-update` flag on all invocations. This is the last version before the frontmatter regression.
+1. **Historical pin, now retired**: The `0.0.397` pin is retired. See `scripts/validation/check_copilot_version_pin.py` for the live authority on acceptable Copilot CLI versions.
 2. **Fix `model` field value** from VS Code format (`Claude Opus 4.5 (anthropic)`) to Copilot CLI format (`claude-opus-4.5`). Update `templates/platforms/copilot-cli.yaml` to generate correct values.
 3. **Retain `argument-hint` and `model` fields** in all agent frontmatter. These are valid Copilot CLI fields broken by an upstream regression, not unsupported features.
 4. **Add version verification** to CI. After install, verify `copilot --no-auto-update --version` matches the pinned version and warn if the binary auto-updated.
