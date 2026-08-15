@@ -28,7 +28,9 @@ session-protocol correction.
 | `9996e0905` | Round-3 autofix narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (Copilot findings against round-2's fix commits: the "everything measured" overclaim, and the "agents are translated" overgeneralization now scoped to generated plugin agents only). No measurement, citation, or finding changed, only wording. Because the analysis file is evidence this QA scope covers, `scripts/ci/validate_session_protocol.py` (which sets `--validation-head` to the live PR head, unlike the local `validate_session_json.py` invocation used earlier in this report) correctly flagged the prior binding as stale; rebound `endingCommit`/`episodeMetrics.comparison.head` (now 10 files changed against base) and this QA report's `qaCommit` to `9996e0905`. |
 | `42ce51f50` | Committed the `9996e0905` rebind above. Introduced its own new finding: this report and the session-15001 log/QA report referred to the rebind work as authored by "session-14706-pr4954-current" without any corresponding `.agents/sessions/*14706*` log existing in the repository, so a subsequent Copilot review correctly flagged the provenance as unauditable. |
 | `a573e0f32` | Removed every "session-14706" pointer from this report, the session-15001 log, and its QA report; replaced each with a direct reference to commit `42ce51f50` (or `9996e0905`) and this file's own revision history, which are durable, checkable artifacts, instead of a session log that was never created. No claim, measurement, or QA binding changed; wording only. |
-| `e8b9229b9` | Fixed a subsequent Copilot review's 4 active findings: reworded the analysis file's runtime-contract-check section (a manual scratch-copy `model:` deletion, not a generator change; both shipped files still carry the pin unchanged); fixed this report's own stale `files_changed` bullet (below) to explain the 7-to-10 history instead of contradicting itself; named `db7ead33f`/`ac53f6802` explicitly in the session-15001 log's `changesCommitted.Evidence` so the episode extractor's SHA-collection can find `db7ead33f` (previously silently omitted from the episode); and rewrote the rolling handoff, which had stopped at the round-2 state, to cover rounds 3 and 4. Because the analysis file is evidence this QA scope covers, this again staled the prior `9996e0905` binding; rebound `endingCommit`/`episodeMetrics.comparison.head` (still 10 files changed against base; the analysis file was already among the 10) and this QA report's `qaCommit` to `e8b9229b9`. Also corrected this row's own predecessor: the prior row read "(this commit)" instead of naming `a573e0f32`, an unresolved self-reference left in place after that commit was already pushed. |
+| `e8b9229b9` | Fixed a subsequent Copilot review's 4 active findings: reworded the analysis file's runtime-contract-check section (a manual scratch-copy `model:` deletion, not a generator change; both shipped files still carry the pin unchanged); fixed this report's own stale `files_changed` bullet (below) to explain the 7-to-10 history instead of contradicting itself; named `db7ead33f`/`ac53f6802` explicitly in the session-15001 log's `changesCommitted.Evidence` so the episode extractor's SHA-collection can find `db7ead33f` (previously silently omitted from the episode); and rewrote the rolling handoff, which had stopped at the round-2 state, to cover rounds 3 and 4. Did not itself touch `qaCommit`/`endingCommit` (see `8d859260a` below). |
+| `8d859260a` | Rebound `endingCommit`/`episodeMetrics.comparison.head` (still 10 files changed against base; the analysis file was already among the 10) and this QA report's `qaCommit` from `9996e0905` to `e8b9229b9`, since `e8b9229b9` again edited the analysis file after the prior binding. Also corrected this table's own predecessor row: it previously read "(this commit)" instead of naming `a573e0f32`, an unresolved self-reference left in place after that commit was already pushed. |
+| (this commit) | A still-open review thread on the `42ce51f50` review (separate from that review's declared/suppressed-findings summary, which only listed the "session-14706" finding already fixed at `a573e0f32`) correctly flagged that this session's episode wrongly recorded `9996e0905` (a round-3/round-4 QA-rebind target, not a commit this session produced) as its own final commit event, inflating `metrics.commits` to 5. Removed that event from the episode (restoring `metrics.commits` to 4, matching the session's four actually-produced commits: `c803be2e8`, `1e0a6a775`, `0edf6e063`, `c860ae452`); the equivalent event was also removed from the session-15001 episode. Clarified in both session logs' `changesCommitted`/`validationPassed` evidence that `endingCommit` diverging from the episode's own commit-event list is intentional: it serves as the QA-freshness validation target (per `session_qa_binding()`), not a session-produced-commit marker the extractor's `_collect_shas` should ever re-absorb. |
 
 ## Evidence
 
@@ -100,10 +102,26 @@ session-protocol correction.
 - Round-4 fix: the same staleness check reported the identical error once
   `e8b9229b9` (which again edits the analysis file, see revision-history
   row above) landed on top of the `9996e0905` binding. Rebound at
-  `e8b9229b9` itself for both this log and the session-15001 log/QA
-  report; re-verified with `PR_HEAD_SHA` set to `e8b9229b9`'s own hash
-  after committing that the staleness error no longer reproduces for
+  `8d859260a` (a separate follow-up commit, mirroring the `9996e0905`/
+  `42ce51f50` two-commit pattern) for both this log and the session-15001
+  log/QA report; re-verified with `PR_HEAD_SHA` set to `8d859260a`'s own
+  hash after committing that the staleness error no longer reproduces for
   either QA report.
+- Round-5 fix: a still-open review thread on the `42ce51f50` review (an
+  inline comment, not part of that review's declared/suppressed-findings
+  summary) correctly identified that this episode's `e011` commit event
+  wrongly attributed `9996e0905`, a QA-rebind target, as a commit this
+  session produced, inflating `metrics.commits` to 5. Removed `e011`
+  (restoring `metrics.commits` to 4, matching this session's four
+  actually-produced commits) and clarified in this session log's
+  `changesCommitted`/`validationPassed` evidence that `endingCommit`
+  diverging from the episode's own event list is intentional. Re-verified
+  `extract_session_episode.py --validate` (`{"Validated": 1, "Violations":
+  0}`) and `jsonschema.validate` against `episode.schema.json`, both clean.
+  This fix touches only `.agents/memory/episodes/`, `.agents/sessions/`,
+  and `.agents/qa/` paths (all `QA_EVIDENCE_PREFIXES`), so it does not
+  re-trigger staleness; `qaCommit`/`endingCommit` remain bound to
+  `e8b9229b9`.
 
 ## Verdict
 
@@ -115,4 +133,11 @@ the session-protocol honesty gap, the checklistComplete inconsistency, the
 stale retrospective/reciprocal-link claims, the template placeholder, the
 causal-order bug, and the QA revision-history misattribution) are resolved
 across commits `c860ae452` (this report), plus the session-15001 commits
-documented in that session's own log and the per-issue handoff.
+documented in that session's own log and the per-issue handoff. Three
+further rounds followed: round 3 (`9996e0905`, analysis-file wording,
+rebound at `42ce51f50`, corrected at `a573e0f32`), round 4 (`e8b9229b9`,
+analysis-file/QA/handoff wording, rebound at `8d859260a`), and round 5
+(this commit, removing an episode commit event that wrongly attributed the
+`9996e0905` rebind target as a session-produced commit). `qaCommit` is
+`e8b9229b9`; round 5 touches only evidence-prefix paths and required no
+further rebind.
