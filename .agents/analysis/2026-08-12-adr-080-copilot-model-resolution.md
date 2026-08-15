@@ -63,25 +63,77 @@ display-name shape, decides acceptance.
 
 ## Delegation probe, with control
 
-Parent agent carries no `model:`. Worker `pinnedworker` pinned
-`claude-opus-4.6`. Session launched `--model claude-opus-5`.
+Exact fixture, so another reviewer can rerun the override measurement without
+guessing at the missing pieces. Two agent files in a throwaway repository's
+`.github/agents/`:
 
-Treatment:
+Parent (`parent.agent.md`, carries no `model:`):
+
+```text
+---
+description: probe parent, delegates to pinnedworker via the task tool
+---
+Use the task tool to delegate to the pinnedworker agent with the instruction
+"say PROBE". Report back exactly what pinnedworker replied.
+```
+
+Worker (`pinnedworker.agent.md`, pinned `claude-opus-4.6`):
+
+```text
+---
+description: probe worker, pinned model
+model: claude-opus-4.6
+---
+Reply: PROBE
+```
+
+Invocation:
+
+```bash
+copilot -p "delegate to pinnedworker: say PROBE" --agent parent \
+  --allow-all-tools --model claude-opus-5 \
+  --log-dir ./logs --log-level debug --no-color
+```
+
+Log extraction:
+
+```bash
+grep -E "Using model|definitionModel|resolved to candidate|capabilities override" \
+  logs/process-*.log
+```
+
+Treatment (worker's `model:` line present):
 
 ```text
 [DEBUG] Using model: claude-opus-5
-[DEBUG] Agent "pinnedworker": definitionModel="claude-opus-4.6"
-[DEBUG] Agent "pinnedworker": resolved to candidate "claude-opus-4.6"
+[DEBUG] Applied model capabilities override: {"family":"claude-opus-5", ...}
+[DEBUG] Using model: claude-opus-5
+[DEBUG] Agent "pinnedworker": definitionModel="claude-opus-4.6", sessionModel="claude-opus-5", availableModels=[...]
+[DEBUG] Agent "pinnedworker": resolved to candidate "claude-opus-4.6" → "claude-opus-4.6"
 [DEBUG] Using model: claude-opus-4.6
 [DEBUG] Applied model capabilities override: {"family":"claude-opus-4.6", ...}
+[DEBUG] Using model: claude-opus-4.6
 ```
 
-Control, identical command, worker's `model:` line deleted:
+Control, identical command, worker's `model:` line deleted (`sed -i
+'/^model:/d' pinnedworker.agent.md`):
 
 ```text
-[DEBUG] Agent "pinnedworker": definitionModel=
+[DEBUG] Using model: claude-opus-5
+[DEBUG] Applied model capabilities override: {"family":"claude-opus-5", ...}
+[DEBUG] Using model: claude-opus-5
+[DEBUG] Agent "pinnedworker": definitionModel=(none), sessionModel="claude-opus-5", availableModels=[...]
+[DEBUG] Using model: claude-opus-5
+[DEBUG] Applied model capabilities override: {"family":"claude-opus-5", ...}
 [DEBUG] Using model: claude-opus-5     (all four resolutions)
 ```
+
+Both transcripts above were reproduced against this exact fixture on
+2026-08-15 (`GitHub Copilot CLI 1.0.81-0`), confirming the original
+1.0.79 run: the treatment resolves to `claude-opus-4.6` once
+(`resolved to candidate`) and the control resolves to `claude-opus-5`
+for every one of the four logged resolutions, with no other change to
+either transcript's shape.
 
 ## Runtime-contract check on a shipped artifact
 
