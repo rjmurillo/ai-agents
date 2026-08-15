@@ -140,13 +140,38 @@ class TestEdgeCases:
                 mod.main([])
             assert exc_info.value.code == mod.EXIT_CONFIG
 
-    def test_extra_live_params_reported_as_drift(self) -> None:
+    def test_extra_live_params_ignored(self) -> None:
+        """Extra live params not in baseline are not flagged as drift."""
         baseline: dict[str, Any] = {
             "parameters": {"strict_required_status_checks_policy": False}
         }
         live: dict[str, Any] = {
             "strict_required_status_checks_policy": False,
             "require_linear_history": True,
+            "do_not_enforce_on_create": False,
         }
         drifts = mod.check_drift(baseline, live)
-        assert any("require_linear_history" in d for d in drifts)
+        assert drifts == []
+
+
+    def test_realistic_multi_rule_payload(self) -> None:
+        """Baseline subset matches despite many extra live params (real API shape)."""
+        baseline: dict[str, Any] = {
+            "parameters": {
+                "strict_required_status_checks_policy": False,
+                "required_review_thread_resolution": True,
+                "required_approving_review_count": 0,
+            }
+        }
+        live: dict[str, Any] = {
+            "strict_required_status_checks_policy": False,
+            "required_review_thread_resolution": True,
+            "required_approving_review_count": 0,
+            "do_not_enforce_on_create": False,
+            "required_status_checks": [{"context": "Validate PR"}],
+            "dismiss_stale_reviews_on_push": True,
+            "require_code_owner_review": False,
+            "allowed_merge_methods": ["squash"],
+        }
+        drifts = mod.check_drift(baseline, live)
+        assert drifts == []

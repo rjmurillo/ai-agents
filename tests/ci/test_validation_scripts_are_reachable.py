@@ -27,7 +27,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield three unreachable, each of which is a
+Under that model the same 89 scripts yield two unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -94,11 +94,7 @@ _NO_CALLER: dict[str, str] = {
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
     ),
-    "scripts/validation/check_ruleset_params_drift.py": (
-        "Queries the live GitHub API for ruleset parameters, so it needs gh "
-        "auth and network. A PR cannot change a ruleset setting. Designed for "
-        "on-demand and scheduled use to detect server-side drift (#4646)."
-    ),
+
 }
 
 

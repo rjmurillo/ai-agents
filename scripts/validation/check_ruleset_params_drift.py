@@ -103,12 +103,7 @@ def check_drift(
             )
         elif actual != expected:
             drifts.append(f"  {key}: expected={expected!r}, actual={actual!r}")
-    # Detect parameters present live but absent from baseline
-    for key in live:
-        if key not in baseline_params:
-            drifts.append(
-                f"  {key}: unexpected parameter (not in baseline), value={live[key]!r}"
-            )
+
     return drifts
 
 
