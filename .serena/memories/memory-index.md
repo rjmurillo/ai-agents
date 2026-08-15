@@ -51,6 +51,7 @@
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
 |copilot hook generation matcher shim stale cleanup NO-REGEN: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1992)
 |subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (783)
+|lefthook placeholder remote positional arg duplicate job name inert push-ref-staleness: [hooks/lefthook-substitutes-positional-args-not-names](hooks/lefthook-substitutes-positional-args-not-names.md) (788)
 |test exit code pytest pester error failed passed: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |mutation testing false green sed delimiter guard load-bearing: [mutation-testing-false-green](mutation-testing-false-green.md) (908)
 |find existing test coverage by mutation not by: [find-coverage-by-mutation-not-by-name](find-coverage-by-mutation-not-by-name.md) (645)

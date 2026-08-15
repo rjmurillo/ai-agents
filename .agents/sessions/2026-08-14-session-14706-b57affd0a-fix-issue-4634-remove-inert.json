@@ -1,0 +1,184 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/4634-duplicate-push-ref-staleness",
+    "startingCommit": "a225da30e",
+    "objective": "Fix issue 4634: remove inert duplicate push-ref-staleness lefthook job and add parsed-config regression coverage"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools available; project scoped to the main checkout, worktree edits used built-in file tools"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/canonical-source-mirror.md, .claude/rules/session-logs.md, .claude/rules/python.md, .claude/rules/testing.md"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; no .agents/sessions/handoffs/*-4634-handoff.md existed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/session-init/scripts/new_session_log.py and .claude/skills/session-end/scripts/complete_session_log.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, .agents/CLAUDE.md, .agents/SESSION-PROTOCOL.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md session gates and .agents/AGENT-INSTRUCTIONS.md constraints"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched Serena memories for lefthook and push-ref-staleness context before implementing"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4634-duplicate-push-ref-staleness"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4634-duplicate-push-ref-staleness"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree created with git worktree add from origin/main at a225da30e"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a225da30e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified after the PR 4998 review round"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Measured, not assumed. complete_session_log.py --markdown-files ran pre_pr.py --markdown-lint-only over the 4 changed .md files (.agents/qa/2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md, .agents/sessions/handoffs/2026-08-14-4634-handoff.md, .serena/memories/hooks/lefthook-substitutes-positional-args-not-names.md, .serena/memories/memory-index.md) and reported: 'NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 4 files'. Direct run prints the reason: '[WARNING] Markdown linting selected 0 of 4 target(s): each is excluded by .markdownlint-cli2.yaml', rc 0. The cause is the ignores entries '.agents/**' (line 138) and '.serena/**' (line 139) in .markdownlint-cli2.yaml, so this change contains no lintable markdown. Marked complete by hand: the tool returns Complete only for an empty auto-discovered scope (_run_markdown_lint returns 'markdown_files is None' when 0 of N are selected), and the earlier auto-discovered run said 'no changed markdown files' only because git diff cannot see untracked files. This wording states what actually ran."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Latest review fix committed as 7daed6524."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Review fix: 22 targeted tests passed and Ruff reported no issues on both changed Python files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-14T03:05:00Z",
+      "action": "Read issue 4634 and its comments, searched for prior pull requests, claimed the issue, and created an external worktree from origin/main",
+      "result": "Only merged PR 4651 referenced 4634 and it tracked the finding without fixing it; issue assigned to rjmurillo; worktree created at a225da30e on fix/4634-duplicate-push-ref-staleness"
+    },
+    {
+      "time": "2026-08-14T03:40:00Z",
+      "action": "Probed the pinned lefthook 2.1.10 binary and a raw git pre-push hook to establish the placeholder and argument contracts empirically",
+      "result": "Supported file templates are {all_files}, {files}, {push_files}, {staged_files}; {0} and {1}..{n} expand; unknown names such as {remote} pass through verbatim; git passes the remote name or URL as argument 1 for named, tracking, and URL pushes"
+    },
+    {
+      "time": "2026-08-14T04:10:00Z",
+      "action": "Deleted the duplicate push-ref-staleness job, moved the surviving early job to the quoted positional placeholder, and hardened the script against an unexpanded placeholder",
+      "result": "One job remains before the long-running groups; the job passes \"{1}\"; _resolve_remote warns on stderr and checks origin when a literal {token} arrives instead of treating it as a remote name"
+    },
+    {
+      "time": "2026-08-14T04:45:00Z",
+      "action": "Added parsed-config, unit, and runtime coverage and proved each new test fails against the pre-fix tree",
+      "result": "15 config tests reject duplicate job names across nested groups and unsupported placeholder tokens; 7 unit tests pin remote resolution; a real lefthook run over two file-backed remotes proves the named remote reaches git ls-remote; negative controls fail 4 of 7 unit, 4 of 15 config, and the runtime test"
+    },
+    {
+      "time": "2026-08-14T05:20:00Z",
+      "action": "Reproduced the reported behavior before and after the fix in this repository and ran the affected suites, lefthook validate, and Ruff",
+      "result": "Before shows two summary lines for one job, a green inert pass beside a real failure; after shows one failing line naming the advanced remote SHA; 1120 passed and 2 skipped across 11 modules; lefthook validate reports All good; Ruff clean"
+    },
+    {
+      "time": "2026-08-14T05:40:00Z",
+      "action": "Rebased onto the advanced origin/main, re-ran the affected suites, and wrote the QA report and per-issue handoff",
+      "result": "Rebase clean with no overlap on changed files; suites green at bc179ad3a base; QA verdict PASS recorded at .agents/qa/2026-08-14-issue-4634-duplicate-push-ref-staleness.md"
+    },
+    {
+      "time": "2026-08-14T06:10:00Z",
+      "action": "Opened pull request 4998 and renamed the QA report so the required CI check can bind it to the pull request",
+      "result": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-<number>*.md, so the report is now named 2026-08-14-pr-4998-issue-4634-duplicate-push-ref-staleness.md; the qaCommit binding is unchanged"
+    },
+    {
+      "time": "2026-08-14T07:10:00Z",
+      "action": "Triaged three Copilot review threads on pull request 4998 and answered each with a code or evidence change rather than a reply alone",
+      "result": "Thread 1: replaced the markdownLintRun evidence with the measured command and its verbatim WARNING that 0 of 4 targets were selected because .agents/** and .serena/** sit in the .markdownlint-cli2.yaml ignores block at lines 138 and 139. Thread 2: the QA report cited four test names that do not exist; replaced them with names copied from the files. Thread 3: adopted the reviewer's fail-closed contract, so an unexpanded placeholder now exits 2 (ADR-035 usage or configuration error) instead of falling back to origin, and the three unit tests pinning the old contract are flipped in the same commit"
+    },
+    {
+      "time": "2026-08-14T07:30:00Z",
+      "action": "Verified no caller depends on the removed fallback before adopting the stricter contract",
+      "result": "grep across the repository found no lefthook run pre-push invocation against the real config in scripts/, tests/, .claude/, docs/, or .github/; the only matches are prose. 62 focused tests and 837 lefthook integration tests pass; 4 of 7 remote-resolution tests fail against the origin/main script"
+    },
+    {
+      "time": "2026-08-15T05:58:00Z",
+      "action": "Addressed the second review round on failed remote lookups",
+      "result": "git ls-remote failures now differ from an absent ref. Network, unknown-remote, and timeout failures return 3; authentication failures return 4. Commit 7daed6524; 22 targeted tests passed and Ruff was clean."
+    }
+  ],
+  "endingCommit": "7daed6524",
+  "nextSteps": [
+    "Open one pull request against main and link it to issue 4634.",
+    "Re-run the placeholder enumeration from the pinned binary before widening the supported-token allowlist on any lefthook upgrade.",
+    "Keep _walk_jobs list-based; a dict keyed by job name cannot observe the duplicate this issue fixed."
+  ]
+}
