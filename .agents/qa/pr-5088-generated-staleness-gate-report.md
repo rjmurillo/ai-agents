@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5079.json
-qaCommit: b80917d8f179fe8de4c6ab33f4c9645d17812870
+qaCommit: 5f8fe6262d2af2530f023c823010f6684cafa621
 ---
 
 # QA report: generated-artifact staleness gate (PR #5088, issue #5079)
@@ -104,9 +104,32 @@ tests/ci/test_validation_scripts_are_reachable.py            163 passed, 2 skipp
 
 Roughly 0.4 percent of the run. It stays in the default sequence with no changed-paths filter, which would be wrong regardless of cost: `build_all --check` scores the whole tree, and a path filter on a whole-tree check manufactures a green tick.
 
+## Round 2: review-finding remediation (2026-08-15)
+
+Three copilot-pull-request-reviewer findings, each verified then fixed:
+
+- The external 600s kill on `build_all.py --check` could skip its
+  snapshot-restoring `finally` (SIGKILL) and leave partial generated writes in
+  the caller's worktree. The `build_all` row now carries no external kill; the
+  sync row keeps its cap (dry run, no partial state).
+  `test_build_all_carries_no_external_kill` and
+  `test_the_dry_run_row_does_carry_a_cap` pin the asymmetry both ways.
+- Exit codes now follow ADR-035 via a `_Status` IntEnum: drift 1, absent
+  script or bad root 2 (config), killed child 3 (external). Asserted on
+  `main(argv)`: `test_an_absent_script_is_a_config_error_not_drift`,
+  `test_a_killed_child_is_an_external_error`. The timeout branch preserves
+  partial child output (`test_a_killed_child_keeps_the_output_it_already_flushed`).
+- The registry-contract docstring now cites
+  `scripts/validation/pre_pr_sequence.py:147` and quotes the adapter signature
+  byte for byte, with the divergence section canonical-source-mirror requires.
+
+Re-verified after merging origin/main: 25 tests pass; ruff and mypy clean;
+`check_generated_staleness.py` against the full corpus prints
+`0 stale in 2 generator check(s) examined`, rc=0; taste (583), ruff (27),
+type-ignore (44), and cli-exit-contract (27) ratchets unchanged.
+
 ## Not verified
 
 - Behavior on a machine where `sync_plugin_lib.py --check` reports drift. No such state was reachable on this branch, so the short-circuit was exercised against stubs rather than against real sync drift.
-- The 600s per-check timeout was not exercised. It is sized against a 4.43s standalone measurement under `.claude/rules/ci-scripts.md` MUST 16, not against an observed slow run.
 
 VERDICT: PASS

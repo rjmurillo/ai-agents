@@ -142,9 +142,13 @@
     {
       "step": "Clear the type-ignore ratchet",
       "detail": "The first test draft carried three '# type: ignore' comments and tripped type_ignore_count_ratchet at 47 against baseline 44. Replaced the manual rebind with monkeypatch.setattr and typed the callback parameter as Callable[[], bool]. Count back to 44; the baseline was not raised."
+    },
+    {
+      "step": "Review round 2 remediation",
+      "detail": "Removed the external kill from the build_all row (SIGKILL skips the snapshot-restoring finally; reproduced corruption), added _Status IntEnum so absent script exits 2 and a killed child exits 3 per ADR-035, preserved TimeoutExpired partial output, and cited pre_pr_sequence.py:147 verbatim per canonical-source-mirror. 25 tests pass; corpus gate rc=0; ratchets unchanged."
     }
   ],
-  "endingCommit": "b80917d8f",
+  "endingCommit": "5f8fe6262d2af2530f023c823010f6684cafa621",
   "nextSteps": [
     "build/scripts/build_all.py:1206 prints an em dash in its STALENESS DETECTED message, which .claude/rules/universal.md MUST NOT 5 forbids in authored text. The dash validator scans markdown only, so nothing catches it. Left alone to keep this diff scoped."
   ]
