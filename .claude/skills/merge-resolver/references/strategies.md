@@ -293,4 +293,10 @@ git add .agents/sessions/<date>-session-<N>.json \
 git grep -l "session-<N>" -- ".agents/qa/*.md"
 ```
 
+This recipe assumes a merge in progress (`git merge`), where `--theirs` is the
+base branch and `HEAD` is your branch. During a rebase the sides invert:
+`--theirs` is the commit being replayed (your branch's record) and `HEAD`
+carries the base, so extract your record with `git show REBASE_HEAD:<path>`
+instead; see Rebase Add/Add Conflicts above.
+
 <!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json, QA reports under .agents/qa/, retrospectives under .agents/retrospective/) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) and the filename number parser note (scripts/validate_session_json.py) are upstream paths in the rjmurillo/ai-agents repository. Issue #2050. -->
