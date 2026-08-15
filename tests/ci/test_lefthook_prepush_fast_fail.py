@@ -56,6 +56,10 @@ FAST_PARALLEL_GATES = frozenset(
 )
 
 # The expensive stage: nothing here may start until every fast gate passed.
+# EXPENSIVE_JOBS are the blocking heavyweights the ordering tests quantify
+# over; EXPENSIVE_STAGE_ROSTER is the exact membership of the expensive
+# parallel group, advisories included, so adding any pre-push job anywhere
+# requires editing a roster in this module.
 EXPENSIVE_JOBS = frozenset(
     {
         "pre-pr-validation",
@@ -65,6 +69,16 @@ EXPENSIVE_JOBS = frozenset(
         "build-all-check",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
+    }
+)
+EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
+    {
+        "worktree-gc-report",
+        "python-lint-advisory",
+        "infrastructure-advisory",
+        "additions-advisory",
+        "observation-sync-advisory",
+        "bot-cascade-advisory",
     }
 )
 
@@ -371,10 +385,31 @@ class TestFastStageMembershipIsExact:
             "is piped, so members run in sequence."
         )
 
+    def test_expensive_group_membership_matches_the_roster(self) -> None:
+        # Without this pin, a new job dropped into the expensive group would
+        # be auto-accounted and never face a roster decision (flagged by the
+        # spec validation on PR #5083).
+        config = _load_config()
+        entries = _top_level_entries(config)
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None
+        names = {
+            str(job.get("name"))
+            for entry in entries[scan_index + 1 :]
+            for job in _jobs_in_entry(entry)
+        }
+        assert names == set(EXPENSIVE_STAGE_ROSTER), (
+            f"Expensive stage is {sorted(names)}, roster is "
+            f"{sorted(EXPENSIVE_STAGE_ROSTER)}. Update EXPENSIVE_STAGE_ROSTER "
+            "deliberately: a cheap blocking gate placed here would again "
+            "surface only after pytest burned (issue #5066)."
+        )
+
     def test_every_pre_push_job_is_accounted_for_by_exactly_one_stage(self) -> None:
-        # The complement pin: any job not in a fast roster, not a singleton
-        # guard, and not security-scan must sit in the expensive group, so a
-        # brand-new job cannot land anywhere without a roster decision.
+        # The complement pin: with every stage exact-pinned (fast rosters
+        # above, EXPENSIVE_STAGE_ROSTER here, singleton guards enumerated), a
+        # brand-new pre-push job cannot land anywhere without a roster
+        # decision in this module.
         config = _load_config()
         entries = _top_level_entries(config)
         scan_index = _entry_index_of(config, "security-scan")
@@ -383,11 +418,6 @@ class TestFastStageMembershipIsExact:
             str(entry.get("name"))
             for entry in entries[:scan_index]
             if "group" not in entry
-        }
-        expensive_names = {
-            str(job.get("name"))
-            for entry in entries[scan_index + 1 :]
-            for job in _jobs_in_entry(entry)
         }
         all_names = {
             str(job.get("name"))
@@ -399,7 +429,7 @@ class TestFastStageMembershipIsExact:
             | set(FAST_STDIN_GATES)
             | set(FAST_PARALLEL_GATES)
             | {"security-scan"}
-            | expensive_names
+            | set(EXPENSIVE_STAGE_ROSTER)
         )
         unaccounted = all_names - accounted
         assert unaccounted == set(), (
