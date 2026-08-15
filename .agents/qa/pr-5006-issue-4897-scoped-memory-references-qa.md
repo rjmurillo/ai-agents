@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-b0ca2d7e8-resolve-issue-4897-scope-pr-comment-responder.json
-qaCommit: c6eb9b9b35c04efaa5bb18dcdc5749c370018dc4
+qaCommit: d1af9b66465c182453687c16cad99dd74600178a
 ---
 
 # Issue 4897 QA Report: Scoped Serena Memory References
@@ -69,14 +69,21 @@ $ echo $?
 
 Restoring the pre-fix file and re-running:
 
+**Abbreviated summary** (arrow notation condenses the checker's multi-line
+output into one line per finding for readability):
+
 ```text
 $ git checkout origin/main -- .claude/skills/pr-comment-responder/references/workflow.md
 $ python scripts/validation/check_skill_memory_references.py; echo $?
-[FAIL] 4 unresolved reference(s) ...
-  workflow.md:82  pr-comment-responder-skills -> did you mean pr-review/pr-comment-responder-skills?
-  workflow.md:132 cursor-bot-review-patterns  -> did you mean pr-review/cursor-bot-review-patterns?
-  workflow.md:134 copilot-pr-review-patterns  -> did you mean copilot/copilot-pr-review-patterns?
-  workflow.md:287 pr-comment-responder-skills -> did you mean pr-review/pr-comment-responder-skills?
+[FAIL] 4 unresolved read_memory names in 1 file(s):
+  .claude/skills/pr-comment-responder/references/workflow.md:82
+    "pr-comment-responder-skills" -- tracked memory with that basename: pr-review/pr-comment-responder-skills
+  .claude/skills/pr-comment-responder/references/workflow.md:132
+    "cursor-bot-review-patterns" -- tracked memory with that basename: pr-review/cursor-bot-review-patterns
+  .claude/skills/pr-comment-responder/references/workflow.md:134
+    "copilot-pr-review-patterns" -- tracked memory with that basename: copilot/copilot-pr-review-patterns
+  .claude/skills/pr-comment-responder/references/workflow.md:287
+    "pr-comment-responder-skills" -- tracked memory with that basename: pr-review/pr-comment-responder-skills
 1
 ```
 

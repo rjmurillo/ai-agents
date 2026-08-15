@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/ has changes"
+        "Evidence": ".serena/memories/ edit attempted (decision record appended) then reverted in c6eb9b9b3; no net memory change on this branch"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4897-scoped-memory-references-qa.md"
+        "Evidence": ".agents/qa/pr-5006-issue-4897-scoped-memory-references-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -177,7 +177,7 @@
       "outcome": "pytest tests/validation plus stats tests: 3090 passed, 1 skipped. pre_pr.py: 52 of 52 PASS, exit 0, including the new Skill Memory References gate. ruff clean, mypy clean, golden-principles no violations, taste-lints 0 errors, actionlint PASS on the changed workflow with the act run skipped for absent secrets, which the gate treats as non-blocking."
     }
   ],
-  "endingCommit": "c6eb9b9b35",
+  "endingCommit": "d1af9b6646",
   "nextSteps": [
     "Push the branch and open one PR against main quoting the full-corpus gate output, the negative control, and the mutation sweep, per .claude/rules/ci-scripts.md MUST 13.",
     "Watch CI for a count-ratchet trip from the two new files; re-measure against a refreshed origin/main before touching any baseline.",
