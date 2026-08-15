@@ -146,9 +146,17 @@
     {
       "step": "Corrected the Serena memory that prescribed the defect",
       "evidence": "ci/ci-infrastructure-aggregate-job-always-pattern told future sessions to write if: always() && <conditions> on aggregate jobs (Issue #856). Added a correction section citing the vendor's !cancelled() recommendation and the new sweep test. Noted: that memory carries no row in .serena/memories/memory-index.md, so keyword retrieval cannot reach it; left as a follow-up rather than widening this diff."
+    },
+    {
+      "step": "Removed a def-less duplicate of the Windows-runner assertions glued onto the vanilla-rows test",
+      "evidence": "tests/test_plugin_hook_guard_aggregate.py: dead block executed inside test_vanilla_rows_keep_logic_out_of_the_workflow, flagged by spec validation run 31906664829; 22 tests pass after removal; commit aeac58151"
+    },
+    {
+      "step": "Clamped each observation-sync child's subprocess timeout to the remaining budget",
+      "evidence": "scripts/validation/git_hook_policy.py sync_observations: timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining); AI gate DevOps finding (240s check + 90s child = 330s past the 300s lefthook cap); test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget asserts [50.0, 1.0]; commit 358e756b0"
     }
   ],
-  "endingCommit": "370ed63034b0f0383928f5f75941309f9e543a50",
+  "endingCommit": "358e756b076b8c382ebf70e4853cb7310592745a",
   "nextSteps": [
     "Follow-up: codeql-analysis.yml check-blocking-issues carries if: always() and downloads SARIF artifacts from a cancelled analyze job. It never reads needs.<job>.result, so it is outside this fix's shape, but a cancelled run can still leave it red on missing artifacts. Worth its own issue.",
     "Follow-up: ai-pr-quality-gate.yml aggregate and ai-session-protocol.yml aggregate still carry the redundant always() && !cancelled() spelling from the #2347 fix. The always() term is dead weight under the vendor recommendation; a cosmetic cleanup would leave one spelling in the repo.",

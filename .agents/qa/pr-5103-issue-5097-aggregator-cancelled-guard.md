@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard.json
-qaCommit: 370ed63034b0f0383928f5f75941309f9e543a50
+qaCommit: 358e756b076b8c382ebf70e4853cb7310592745a
 ---
 # QA Report: Aggregator Cancellation Guard (Issue #5097)
 
@@ -83,6 +83,7 @@ not touched. Those are correct uses.
 | tests/test_plugin_hook_guard_aggregate.py | 22 | PASS |
 | tests/workflows/test_quality_gate_aggregate_cancel_skip.py | 6 | PASS |
 | tests/ci/test_merge_group_readiness.py | 15 | PASS |
+| tests/test_lefthook_integration.py -k sync_observations | 4 | PASS |
 
 The last two are not modified by this change. They are the two suites most
 likely to break on an aggregate `if` edit: one pins the #2347 guard, the other
@@ -126,6 +127,23 @@ tests, all naming that job:
 The remaining 30 tests passed, so the failure is attributable to the mutated
 job rather than to a harness that fails unconditionally. The mutation was
 reverted and the suite returned to 33 passed.
+
+## Post-review fixes on this branch
+
+- Removed a def-less duplicate of the Windows-runner assertions that a bad
+  resolution had glued onto `test_vanilla_rows_keep_logic_out_of_the_workflow`
+  in `tests/test_plugin_hook_guard_aggregate.py` (spec validation finding, run
+  31906664829). Dead code only; the real test at its original location matches
+  main and stays. 22 tests pass after removal.
+- Clamped each observation-sync child's subprocess timeout to the remaining
+  budget in `scripts/validation/git_hook_policy.py::sync_observations`
+  (`timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining)`).
+  AI gate DevOps finding: the 240s deadline was checked only between spawns
+  while each child kept the 90s default, so a child spawned at 239.9s carried
+  the advisory to ~330s, past the 300s lefthook cap whose kill a shell guard
+  cannot absorb. `test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget`
+  asserts the passed timeouts are `[50.0, 1.0]` under a 200s budget with a
+  fake clock; the exhausted-budget and mid-list-stop tests still pass.
 
 ## Mirror obligation
 

@@ -96,7 +96,9 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e012",
+        "e013"
       ],
       "leads_to": [
         "e009"
@@ -137,6 +139,41 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed a def-less duplicate of the Windows-runner assertions glued onto the vanilla-rows test",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clamped each observation-sync child's subprocess timeout to the remaining budget",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T20:43:46+00:00",
+      "type": "commit",
+      "content": "Commit: 358e756b076b8c382ebf70e4853cb7310592745a",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
@@ -146,7 +183,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 17
   },
   "lessons": []
