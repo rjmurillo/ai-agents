@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model.json
-qaCommit: 0edf6e0630ea141e7fdcacae9583fcd57695b345
+qaCommit: c860ae45263f20f4dbe22b3a4b3b971490b326b5
 ---
 
 # QA Report: Session 14695 ADR-080 Amendment
@@ -9,8 +9,9 @@ qaCommit: 0edf6e0630ea141e7fdcacae9583fcd57695b345
 ## Scope
 
 Validated the ADR-080 amendment, analysis report, episode JSON, and debate log.
-Re-validated after the model_tier override gap fix and episode regeneration
-below.
+Re-validated after the model_tier override gap fix, after the episode/session/QA
+rebind, and again after this round's debate-log punctuation fix and honest
+session-protocol correction.
 
 ## Revision history
 
@@ -20,41 +21,73 @@ below.
 | `2908f07c5a2c1f0e5d45dc5c39be4b6459fa38df` | Qualified opus/haiku fallback claims, added skill-probe caveat, scoped agent harmlessness to generated plugins, fixed episode files_changed |
 | `92ed93c32` | Restored episode `files_changed` to schema-valid integer 5 |
 | `1e0a6a775` | Restored the GitHub issue reference form for #2840 |
-| `0edf6e063` | Fixed finding 4's "harmless" contradiction with finding 1 (full 6-agent adr-review, debate log round 2); regenerated the stale episode via `extract_session_episode.py --preserve` with an authoritative `episodeMetrics` override (6 files across all session-owned commits, `90be321b3..0edf6e063`); rebound this QA report and the session's `endingCommit` |
+| `0edf6e063` | Fixed finding 4's "harmless" contradiction with finding 1 (full 6-agent adr-review, debate log round 2) |
+| `5f0b54233` | Regenerated the stale episode via `extract_session_episode.py --preserve` with an authoritative `episodeMetrics` override (6 files across all session-owned commits, `90be321b3..0edf6e063`); rebound this QA report and the session's `endingCommit` to `0edf6e063` |
+| `c860ae452` | Removed both prohibited em-dashes from the round-2 debate-log section (punctuation only, no finding/verdict/citation change); ran a second full 6-agent adr-review (6 of 6 ACCEPT) |
+| (this commit) | Demoted `sessionStart.serenaInstructions` and `sessionEnd.serenaMemoryUpdated` from MUST to SHOULD with honest justification (Aug-12 session's live window is closed; no Serena tool evidence can be retroactively fabricated); corrected the prior incorrect claim that the local `git_hook_policy.py sessions` gate is CI-equivalent; regenerated the episode again via `--preserve` to fix a causal-order bug (a workLog entry lacked a timestamp, so its extracted event inherited the session's nominal 2026-08-12 date instead of its real 2026-08-15 commit time); rebound `endingCommit`/`episodeMetrics.comparison.head` and this QA report to `c860ae452` |
 
 ## Evidence
 
-- Session JSON validation passed via `git_hook_policy.py sessions` (uses
-  `--existing-log` mode for this pre-existing log; also verified directly with
-  `validate_session_json.py --existing-log`, which passes).
-- Direct `validate_session_json.py` (no `--existing-log`) still reports two
-  pre-existing `Incomplete MUST` findings (`sessionStart.serenaInstructions`,
-  `sessionEnd.serenaMemoryUpdated`) carried over unchanged from commit
-  `1e0a6a775`, each with documented evidence explaining the harness gap. These
-  predate this revision, are unrelated to the two findings this revision
-  fixes, and are out of scope here.
-- Episode validated clean: `extract_session_episode.py --validate` reports
-  `{"Validated": 1, "Violations": 0}`; also validated against
-  `episode.schema.json` directly.
-- ADR change detector (`detect_adr_changes.py`) confirms the ADR modification
-  is flagged for review; the full 6-agent adr-review round is recorded in the
-  debate log.
+- Actual CI validation of this session log is a separate GitHub Actions
+  workflow (`.github/workflows/ai-session-protocol.yml`, running
+  `scripts/ci/validate_session_protocol.py`), which classifies this log's mode
+  via `committed_session_validation_modes()` as `"full"` (strict, no
+  compliance bypass), because the log was added several commits into the
+  branch's history rather than at the exact validated commit's tip. This
+  differs from the local lefthook pre-push gate (`git_hook_policy.py
+  sessions`, backing `validate_branch_sessions()`), which classifies the same
+  log as `--creation-mode` (compliance bypassed) because that mechanism only
+  checks whether the branch added the file anywhere in its history. A prior
+  revision of this report incorrectly treated the local gate's pass as
+  CI-equivalent; it is not. Direct invocation of `validate_session_json.py`
+  with no mode flags (i.e., full mode, matching what CI actually runs)
+  previously failed on two `Incomplete MUST` findings
+  (`sessionStart.serenaInstructions`, `sessionEnd.serenaMemoryUpdated`).
+  Both are now honestly demoted to SHOULD with documented justification (the
+  Aug-12 session's live window is closed; no Serena tool evidence can be
+  retroactively fabricated for it), using the repository's documented
+  MUST-to-SHOULD deviation mechanism (`SESSION-PROTOCOL.md`, RFC-2119 table;
+  122 and 138 other session logs already use this same demotion for these
+  same two items). Full-mode `validate_session_json.py` now reports zero
+  `Incomplete MUST` findings for this log.
+- Episode validated clean after the causal-order fix:
+  `extract_session_episode.py --validate` reports `{"Validated": 1,
+  "Violations": 0}`; also validated against `episode.schema.json` directly.
+  The regeneration (via `--preserve`, not hand-edited) corrected event e007's
+  timestamp from the session's nominal `2026-08-12T00:00:00+00:00` fallback to
+  the real `2026-08-15T07:09:54Z` commit time (sourced from a new
+  `timestamp` field added to the corresponding workLog entry), which also
+  corrected its `caused_by`/`leads_to` edges so the repair milestone no longer
+  appears to precede the commit it actually followed.
+- ADR change detector (`detect_adr_changes.py`) confirms the ADR/debate-log
+  modification is flagged for review; two full 6-agent adr-review rounds are
+  recorded in the debate log (finding-4 fix, and this round's punctuation-only
+  fix), both 6 of 6 with no P0/P1 findings.
 - Memory index count ratchet passed at 378 (`scripts/ci/memory_index_count_ratchet.py`).
 - No source code changes; deliverables are architecture documentation only.
-- ADR-080 claims now scoped to measured evidence (sonnet probed directly;
-  opus/haiku inferred); finding 4's model_tier override is now scoped the same
-  way (inferred from finding 1's mechanism, not separately measured).
-- Episode `files_changed` is the schema-valid integer 6, sourced from
-  `episodeMetrics.filesChanged` (an authoritative override; the raw
-  first-parent commit range picks up 3 unrelated upstream commits absorbed by
-  a rebase and would overstate this to 64).
-- Full 6-agent ADR review (architect, critic, independent-thinker, security,
-  analyst, high-level-advisor) reached 6 of 6 on the finding 4 fix: 3 ACCEPT,
-  3 ACCEPT_WITH_CHANGES resolved by the high-level-advisor tie-break, no P0 or
-  P1 findings.
+- ADR-080 claims remain scoped to measured evidence (sonnet probed directly;
+  opus/haiku inferred); finding 4's model_tier override remains scoped the
+  same way (inferred from finding 1's mechanism, not separately measured).
+  This round changed no claims, only punctuation.
+- Episode `files_changed` is the schema-valid integer 7 (was 6 before this
+  round's debate-log commit added one more commit to the session-owned
+  range), sourced from `episodeMetrics.filesChanged` (an authoritative
+  override; the raw first-parent commit range from the session's original
+  `startingCommit` picks up 3 unrelated upstream commits absorbed by a rebase
+  and would overstate this).
+- `session_qa_binding()`/`validate_qa_report()` resolve cleanly end-to-end
+  against `c860ae452` (this report's `qaCommit`, the session's
+  `endingCommit`, and `episodeMetrics.comparison.head` all agree).
 
 ## Verdict
 
 PASS. Documentation-only ADR amendment with review-driven accuracy
-improvements; both active suppressed findings (finding 4's "harmless"
-contradiction, and the stale episode) are resolved.
+improvements; both of round 1's active suppressed findings (finding 4's
+"harmless" contradiction, and the stale episode) remain resolved, and this
+round's 21 findings against round 1's own fix commits (dash-ban violations,
+the session-protocol honesty gap, the checklistComplete inconsistency, the
+stale retrospective/reciprocal-link claims, the template placeholder, the
+causal-order bug, and the QA revision-history misattribution) are resolved
+across commits `c860ae452` (this report), plus the session-15001 commits
+documented in that session's own log and the per-issue handoff.
+

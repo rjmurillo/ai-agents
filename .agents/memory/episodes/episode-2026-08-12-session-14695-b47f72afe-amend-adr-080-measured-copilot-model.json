@@ -61,8 +61,7 @@
         "e002",
         "e003",
         "e004",
-        "e006",
-        "e007"
+        "e006"
       ],
       "leads_to": [
         "e008"
@@ -82,12 +81,14 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-12T00:00:00+00:00",
+      "timestamp": "2026-08-15T07:09:54+00:00",
       "type": "milestone",
       "content": "Resolved the remaining active Copilot review finding: finding 4 called model_tier-to-versioned-id translation for generated plugin agents 'harmless', contradicting finding 1's measured override of an operator's explicit session model. Ran the full 6-agent adr-review protocol (architect, critic, independent-thinker, security, analyst, high-level-advisor) against the corrected text, not a scoped deviation.",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
-        "e005"
+        "e011"
       ],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     },
@@ -100,6 +101,7 @@
         "e005"
       ],
       "leads_to": [
+        "e007",
         "e009"
       ],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
@@ -112,6 +114,33 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T07:09:54+00:00",
+      "type": "commit",
+      "content": "Commit: 0edf6e063",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T10:33:10+00:00",
+      "type": "commit",
+      "content": "Commit: c860ae45263f20f4dbe22b3a4b3b971490b326b5",
+      "caused_by": [
+        "e007",
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     }
@@ -121,8 +150,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 7
   },
   "lessons": []
 }
