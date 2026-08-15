@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-99915.json
-qaCommit: 98bdcc1e3e18e625fc110d1c10bb955e14bf2381
+qaCommit: af3c7288805c7f6cbc937066557d3549773b783c
 ---
 
 # QA Report: Investigation Scope Gate Fix (#4915)

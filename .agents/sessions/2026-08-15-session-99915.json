@@ -128,13 +128,13 @@
   "nextSteps": [
     "Monitor CI for regressions in investigation-only sessions"
   ],
-  "endingCommit": "98bdcc1e3e18e625fc110d1c10bb955e14bf2381",
+  "endingCommit": "af3c7288805c7f6cbc937066557d3549773b783c",
   "episodeMetrics": {
     "filesChanged": 5,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "57b3107f6a",
-      "head": "98bdcc1e3e18e625fc110d1c10bb955e14bf2381"
+      "head": "af3c7288805c7f6cbc937066557d3549773b783c"
     }
   }
 }
