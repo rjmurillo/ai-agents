@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/4967-set-issue-labels-docs",
+    "startingCommit": "40a26590a4857cb4c5788883722270cccdbc271d",
+    "objective": "Autofix PR 4988 required CI and complete merge readiness"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called Serena initial_instructions and read the returned operating manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions were loaded before creating QA evidence."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Existing branch state, PR metadata, full failing check logs, and prior QA report patterns were read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-autofix, session-log-fixer, and session-init; used the GitHub PR scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed the repository GitHub-script and external-worktree requirements."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied the PR live-state, SHA safety, required-CI, and four-condition merge constraints."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant GitHub, CI, session protocol, and testing memories were supplied by the memory hook."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4967-set-issue-labels-docs"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4967-set-issue-labels-docs"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Dedicated external worktree was clean before QA evidence creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "40a26590a4857cb4c5788883722270cccdbc271d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end entries contain concrete evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Extracted .agents/memory/episodes/episode-2026-08-14-session-14706.json from the completed session."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The PR-specific QA Markdown report passed markdownlint-cli2."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4988-set-issue-labels-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Source and test changes are committed through 27fa3cbd37c5f5f74bac81fb31ebad1ca833c1f5."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "31 focused tests passed and build/scripts/build_all.py completed with a clean worktree."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Autofix workflow todos track triage, logs, worktree, validation, push, and completion."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not required for this narrow CI evidence repair."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fetched full Validate PR failure logs after a live-state gate.",
+      "outcome": "The only required failure was No QA report found for code changes."
+    },
+    {
+      "action": "Validated the PR implementation in a dedicated external worktree.",
+      "outcome": "31 focused tests passed and generated mirrors remained clean after build_all.py."
+    },
+    {
+      "action": "Created SHA-bound QA evidence for the validated source commit.",
+      "outcome": "QA report binds this session to 27fa3cbd37c5f5f74bac81fb31ebad1ca833c1f5."
+    }
+  ],
+  "endingCommit": "27fa3cbd37c5f5f74bac81fb31ebad1ca833c1f5",
+  "nextSteps": []
+}

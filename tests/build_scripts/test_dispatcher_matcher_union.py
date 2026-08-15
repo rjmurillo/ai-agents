@@ -79,7 +79,7 @@ def test_committed_matcher_capable_entries_have_matchers():
         )
     )["hooks"]
     expected = {
-        "PreToolUse": {"Bash"},
+        "PreToolUse": {"Bash", "Agent", "Task"},
         "PostToolUse": {"Write", "Edit"},
     }
 

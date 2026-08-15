@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14708,
+    "date": "2026-08-14",
+    "branch": "fix/4918-frontmatter-gate-parity",
+    "startingCommit": "e60e3b896",
+    "objective": "Resolve issue 4918 end to end: repair implementation-008 frontmatter and close the frontmatter gate parity gap"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools responded for this project; activate_project is not exposed by this registration"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only context (never edited)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created by .claude/skills/session/scripts/session_init.py"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/check_skill_exists.py --list-available completed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/GENERATOR-FILES.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, skills-validation-index, and memory-tier memories loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4918-frontmatter-gate-parity in worktree ai-agents-worktrees/issue-4918-clean, created from origin/main e60e3b896"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4918-frontmatter-gate-parity"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean at worktree creation (HEAD e60e3b896)"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e60e3b896"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST start and end items recorded with evidence in this file"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only; not modified in any commit on this branch"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/validation/validation-frontmatter-gate-parity.md added and indexed in skills-validation-index.md (commit ab659dbf5)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 config excludes .serena/**; the only other markdown is under .agents/qa/, checked by the pre-commit markdown job"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5004-issue-4918-frontmatter-gate.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fbec84e94 (frontmatter repair), 8f7b685db (unclosed/list/scalar gaps), cd0e9c38a (canonical alignment), f8caac4b0 (delimiter parity), ab659dbf5 (memory + index mirrors), d0becf519 (formatter decomposition), 8972531ef (strip parity), 5b51f5b98 (review findings)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre-push jobs passed with no bypass: pre-pr-validation, python-tests (348s), taste-count-ratchet, merge-tree-ratchet, python-type-check"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4918 claimed via .claude/skills/github/scripts/issue/claim_issue.py; PR 5004 opened; PR 4985 closed as superseded"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Lesson captured as a Serena memory instead of a retrospective document"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Read issue 4918 discourse and check for an existing PR",
+      "outcome": "Found open PR 4985 already linked to the issue (closingIssuesReferences 4918) and extended it first. check_existing_pr_for_issue.py reported 0 competing PRs because it self-excludes the current branch's own PR."
+    },
+    {
+      "task": "Verify the frontmatter repair against the canonical loader",
+      "outcome": "memory_enhancement verify-all emits zero malformed-frontmatter warnings; a negative control replaying the pre-fix content still reproduces the warning, and the parsed description string is byte-identical to the original meaning."
+    },
+    {
+      "task": "Probe the gate for parity with python-frontmatter",
+      "outcome": "A 16-shape differential probe found 3 false negatives: 4-dash boundaries, 5-dash boundaries, and leading blank lines. The loader's YAMLHandler.FM_BOUNDARY is re.compile(r'^-{3,}\\s*$', re.MULTILINE) and frontmatter.parse strips first, while the gate keyed on line == '---' over unstripped text."
+    },
+    {
+      "task": "Close the parity gap and document the divergences",
+      "outcome": "Added _FM_BOUNDARY mirroring the canonical constant verbatim plus the canonical strip, with 6 tests including a parametrized differential test that drives the real frontmatter.loads. Probe now reports zero false negatives; the real memory tree still passes, so no false positives."
+    },
+    {
+      "task": "Clear the taste count ratchet regression the branch carried",
+      "outcome": "format_markdown had reached complexity 12 (ceiling 10) when the frontmatter section was added. Extracted _bullet_section and _domain_section, added 4 formatter tests that were missing entirely. Count is 582 against baseline 583."
+    },
+    {
+      "task": "Integrate the concurrent autofix session that pushed to the same branch",
+      "outcome": "origin had diverged twice with an autofix session fixing the same false negative. Merged rather than force-pushed, resolving conflicts as a union: kept the documented _FM_BOUNDARY constant and the decomposed formatter, adopted their text.strip() after verifying with inspect.getsource that frontmatter.parse strips before detecting, and kept their leading-whitespace test."
+    },
+    {
+      "task": "Replace the branch after the placeholder-identity guard blocked every push",
+      "outcome": "Nine commits on fix/4918-implementation-008-frontmatter were authored as 'Test <test@test.com>' by that autofix session, and the pre-push guard evaluates the whole branch delta, so no compliant push was possible. Owner chose a clean branch over a history rewrite. Cherry-picked the six compliant commits onto origin/main e60e3b896, replayed the autofix session's strip parity as one attributed commit, and confirmed the resulting tree is byte-identical to the verified tree on the old branch."
+    },
+    {
+      "task": "Address the independent review on PR 5004",
+      "outcome": "Copilot raised three findings and all three held on inspection: a BOM in front of a VALID block also loses metadata silently and the gate passed it, str.splitlines() invents line boundaries that re.MULTILINE does not anchor, and fixed-input differential tests cannot catch upstream pattern drift. Fixed all three in one commit with the inverse cases covered: BOM+valid, BOM+malformed, BOM+plain, a \\u2028 regression, and a direct assertion that _FM_BOUNDARY.pattern equals YAMLHandler.FM_BOUNDARY.pattern. 190 tests pass."
+    }
+  ],
+  "endingCommit": "5b51f5b98d97f40fe56096b75fc078780d5c801e",
+  "nextSteps": [
+    "Watch PR 5004 CI, especially Validate PR (QA report gate) and the session protocol job",
+    "File a defect for the pr-autofix session committing as 'Test <test@test.com>' (issue #2466 pattern); no CI check catches it, so the identity reaches main when such a PR merges",
+    "Consider decomposing scripts/validation/memory_index.py (1726 lines) and main() (complexity 14); both are pre-existing taste errors outside this issue's scope"
+  ]
+}

@@ -123,6 +123,7 @@ _evidence_mod = _load_sibling("extract_evidence")
 _score_mod = _load_sibling("score_atomicity")
 
 gather_evidence = _evidence_mod.gather_evidence
+host_session_date = _evidence_mod.host_session_date
 score_learning = _score_mod.score_learning
 PERSISTENCE_THRESHOLD = _score_mod.PERSISTENCE_THRESHOLD
 
@@ -432,7 +433,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scope",
-        default=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+        default=host_session_date(),
         help="Retrospective scope label (default: today's date).",
     )
     parser.add_argument(

@@ -176,7 +176,7 @@ uv run python build/scripts/build_all.py
 Current inventories:
 
 - Local `.claude/settings.json`: six events, seven registrations.
-- Vendored `.claude/hooks/hooks.json`: two events, three registrations.
+- Vendored `.claude/hooks/hooks.json`: two events, four registrations.
 - Generated `src/copilot-cli/hooks/hooks.json`: two events, two dispatcher
   registrations.
 
@@ -268,7 +268,7 @@ tests, shipped-artifact tests, real CLI probe, and generated mirrors together.
 
 ## Provenance and Maintenance
 
-Verified 2026-07-22 against `.claude/settings.json`,
+Verified 2026-08-14 against `.claude/settings.json`,
 `.claude/hooks/hooks.json`, generated Copilot manifests, ADR-068, ADR-071,
 ADR-085, `agent-harness-reference`, and the hook contract knowledge tests.
 

@@ -3772,3 +3772,45 @@ def test_shim_preserves_fail_open_via_runtime_behavior() -> None:
     )
     assert proc.returncode == 0
     assert "boom" in proc.stderr
+
+
+def test_fail_open_source_shim_allows_malformed_input() -> None:
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    except Exception as err:\n"
+        "        sys.stderr.write(str(err))\n"
+        "        sys.exit(0)\n"
+    )
+    transformed = generate_hooks.inject_shim(body, "Task")
+
+    proc = _run_shim_raw(transformed, b"not json")
+
+    assert proc.returncode == 0
+    assert b"malformed JSON" in proc.stderr
+
+
+def test_system_exit_fail_open_source_shim_allows_malformed_input() -> None:
+    body = (
+        "#!/usr/bin/env python3\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        raise SystemExit(main())\n"
+        "    except SystemExit:\n"
+        "        raise\n"
+        "    except Exception as err:\n"
+        "        raise SystemExit(0) from err\n"
+    )
+    transformed = generate_hooks.inject_shim(body, "Task")
+
+    proc = _run_shim_raw(transformed, b"not json")
+
+    assert proc.returncode == 0
+    assert b"malformed JSON" in proc.stderr

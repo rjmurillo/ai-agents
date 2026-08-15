@@ -10,11 +10,14 @@ Covers:
 - Edge: multiple refs, one stale -> exit 3
 - Edge: multiple refs, all clean -> exit 0
 - Edge: malformed stdin line -> skip gracefully
+- Remote resolution: named remote, remote URL, missing argument, blank argument,
+  and unexpanded lefthook placeholders (issue #4634)
 """
 
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from io import StringIO
 from pathlib import Path
@@ -83,6 +86,49 @@ class TestRemoteUnchanged:
             assert main([]) == 0
 
 
+class TestRemoteLookupFailure:
+    def test_absent_remote_ref_returns_none(self):
+        result = subprocess.CompletedProcess(["git"], 0, "", "")
+        with patch.object(_mod, "_run", return_value=result):
+            assert _mod._remote_sha("origin", _REF) is None
+
+    def test_network_failure_exits_three(self, capsys):
+        error = _mod.RemoteLookupError("network is unreachable", 3)
+        with patch("sys.stdin", _make_stdin()), \
+                patch.object(_mod, "_remote_sha", side_effect=error):
+            assert main(["origin"]) == 3
+        assert "Remote lookup failed: network is unreachable" in capsys.readouterr().err
+
+    def test_authentication_failure_exits_four(self, capsys):
+        result = subprocess.CompletedProcess(
+            ["git"], 128, "", "fatal: Authentication failed for remote"
+        )
+        with patch.object(_mod, "_run", return_value=result), \
+                patch("sys.stdin", _make_stdin()):
+            assert main(["origin"]) == 4
+        assert "Remote lookup failed: fatal: Authentication failed" in (
+            capsys.readouterr().err
+        )
+
+    def test_unknown_remote_failure_exits_three(self, capsys):
+        result = subprocess.CompletedProcess(
+            ["git"], 2, "", "fatal: 'missing' does not appear to be a git repository"
+        )
+        with patch.object(_mod, "_run", return_value=result), \
+                patch("sys.stdin", _make_stdin()):
+            assert main(["missing"]) == 3
+        assert "does not appear to be a git repository" in capsys.readouterr().err
+
+    def test_remote_timeout_exits_three(self, capsys):
+        with patch.object(
+            _mod,
+            "_run",
+            side_effect=subprocess.TimeoutExpired(["git", "ls-remote"], 10),
+        ), patch("sys.stdin", _make_stdin()):
+            assert main(["origin"]) == 3
+        assert "git ls-remote timed out after 10 seconds" in capsys.readouterr().err
+
+
 class TestRemoteAdvanced:
     def test_remote_advanced_and_not_merged_exits_three(self):
         # live != cached, and local does NOT contain the new remote commit
@@ -139,3 +185,67 @@ class TestMalformedInput:
         stdin = StringIO("\n\n\n")
         with patch("sys.stdin", stdin):
             assert main([]) == 0
+
+
+class TestRemoteResolution:
+    """The remote comes from the pre-push argument, never from a placeholder.
+
+    Issue #4634: the lefthook job passed `{remote}`, which lefthook does not
+    substitute. `git ls-remote "{remote}" <ref>` failed, `_remote_sha` returned
+    None, and `main` read that as "new branch, no race", so the job reported
+    success on every push while checking nothing. These tests pin both halves:
+    a real argument is queried, and a placeholder never becomes a remote name.
+    """
+
+    @staticmethod
+    def _queried_remote(argv):
+        """Run main() over one clean ref and return the remote it queried."""
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(
+                    _mod, "_remote_sha", return_value=_REMOTE_SHA_OLD
+                ) as query:
+            assert main(argv) == 0
+        assert query.call_count == 1
+        return query.call_args.args[0]
+
+    @staticmethod
+    def _exit_code_for(argv):
+        """Run main() over one clean ref and return its exit code."""
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(_mod, "_remote_sha", return_value=_REMOTE_SHA_OLD):
+            return main(argv)
+
+    def test_named_remote_argument_is_queried(self):
+        assert self._queried_remote(["upstream"]) == "upstream"
+
+    def test_remote_url_argument_is_queried(self):
+        url = "https://github.com/rjmurillo/ai-agents.git"
+        assert self._queried_remote([url]) == url
+
+    def test_missing_argument_falls_back_to_origin(self):
+        assert self._queried_remote([]) == "origin"
+
+    def test_blank_argument_falls_back_to_origin(self):
+        assert self._queried_remote(["   "]) == "origin"
+
+    def test_unexpanded_positional_placeholder_is_a_configuration_error(self, capsys):
+        # `lefthook run pre-push` with no arguments leaves `{1}` literal.
+        assert self._exit_code_for(["{1}"]) == 2
+        assert "unexpanded placeholder" in capsys.readouterr().err
+
+    def test_unsupported_placeholder_is_a_configuration_error(self, capsys):
+        # The exact token the broken job passed (issue #4634).
+        assert self._exit_code_for(["{remote}"]) == 2
+        assert "'{remote}'" in capsys.readouterr().err
+
+    def test_placeholder_never_queries_a_remote(self):
+        """A placeholder stops the run; it never quietly checks some other remote.
+
+        Substituting a default would compare the pushed refs against a remote
+        the caller never named, and a clean comparison there exits 0. That is
+        the same false green as issue #4634 wearing a different mask.
+        """
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                patch.object(_mod, "_remote_sha") as query:
+            assert main(["{remote}"]) == 2
+        query.assert_not_called()

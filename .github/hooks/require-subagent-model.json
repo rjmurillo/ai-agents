@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "task",
+        "cwd": ".",
+        "bash": "python3 .claude/hooks/PreToolUse/invoke_require_subagent_model.py",
+        "powershell": "python .claude/hooks/PreToolUse/invoke_require_subagent_model.py; exit $LASTEXITCODE",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}
