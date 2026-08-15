@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15001,
+    "date": "2026-08-15",
+    "branch": "fix/4928-pwsh-runtime-contract-flake",
+    "startingCommit": "5bb3a54004",
+    "objective": "Fix issue #4928: PowerShell runtime contract test flakes under xdist"
+  },
+  "endingCommit": "e94ffd1c20d5ca080df9b04d3d0a062c0fe48903",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena tools active via MCP"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "initial_instructions read"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": ".agents/HANDOFF.md read; read-only reference"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "scripts/check_skill_exists.py --list-available executed earlier in session"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "usage-mandatory memory read via serena-read_memory"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "usage-mandatory memory loaded"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/4928-pwsh-runtime-contract-flake"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "On fix/4928-pwsh-runtime-contract-flake"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "All session items completed"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No memory updates required for this test fix"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "lefthook pre-commit ran; no markdown files changed"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5018-issue-4928-pwsh-flake.md"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "e94ffd1c20 fix(test): batch pwsh invocations to eliminate xdist timeout flake"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "35 tests pass; 5 xdist repetitions stable at ~2s each"}
+    }
+  },
+  "workLog": [
+    {"step": "Identified root cause", "outcome": "N pwsh subprocess spawns per scenario cause contention under xdist"},
+    {"step": "Applied fix", "outcome": "Batched all Test-Path checks into single pwsh invocation per scenario"},
+    {"step": "Verified stability", "outcome": "5 consecutive xdist runs pass consistently in ~2s"}
+  ],
+  "nextSteps": ["Merge PR after CI passes"],
+  "episodeMetrics": {
+    "filesChanged": 1,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "5bb3a54004e4b6fcbed0f2e88e4f884c9dc6a1bf",
+      "head": "e94ffd1c20d5ca080df9b04d3d0a062c0fe48903"
+    }
+  },
+  "retrospective": "## Retrospective\n\nLearning: subprocess-heavy tests that spawn one process per iteration are inherently fragile under parallel test runners. Batching multiple checks into a single process invocation eliminates the contention category entirely and also improves test speed by an order of magnitude."
+}
