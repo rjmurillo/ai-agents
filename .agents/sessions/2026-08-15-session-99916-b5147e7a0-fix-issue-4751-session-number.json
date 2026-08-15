@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 41d30814f..77aa1a14f pushed to claude/issue-4751-session-number-siblings; PR #5092 draft with Fixes #4751. 77aa1a14f adds errors=replace to the four new subprocess call sites per the encoding ratchet (issue #4261)."
+        "Evidence": "Commits 41d30814f..00d5f07e9 on claude/issue-4751-session-number-siblings (PR #5092, Fixes #4751), including the origin/main merge resolving issue 5071 overlap."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py RESULT All validations passed; subprocess encoding ratchet re-measured OK at baseline 238 on 77aa1a14f; tests/skills/session 162 passed; test_lefthook_integration 843 passed 1 skipped; full pre-push suite green on prior push."
+        "Evidence": "Post-merge re-run on the merged tree: 1027 tests across test_lefthook_integration, test_claude_mem_scripts, and tests/skills/session passed; subprocess encoding ratchet OK at baseline 238; guard-diff and skill-portability suites 54 passed. Prior evidence: pre_pr.py all green, full pre-push suite green."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -146,9 +146,13 @@
     {
       "time": "2026-08-15T16:40:00Z",
       "activity": "CI pytest(bulk) tripped the subprocess-encoding count ratchet (242 > 238): the four new text-mode git calls lacked errors=. Added errors='replace' to allocation.py, its mirror, and the two test helpers; ratchet back at baseline; rebound QA evidence to the fix commit."
+    },
+    {
+      "time": "2026-08-15T17:55:00Z",
+      "activity": "PR went mergeStateStatus DIRTY after main landed the issue 5071 batch touching the same four root-container test surfaces. Merged origin/main: took main's superior directory-path fix for the sqlite3 test (dropping this branch's skipif), main's equivalent root skipifs, and kept both observation-sync fixes (main's stdin-derived scope + this branch's sync_observations budget, composing as defense in depth). Re-ran 1027 affected tests and both tree ratchets on the merged tree; rebound QA to the merge commit."
     }
   ],
-  "endingCommit": "77aa1a14fc673575f752b29f9aaac541e7d8d90e",
+  "endingCommit": "00d5f07e9a8148433345b499ee08069ce8b7e07b",
   "nextSteps": [
     "Drive PR #5092 to green: watch CI, address review threads, keep endingCommit current after any rebase."
   ]

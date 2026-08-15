@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number.json
-qaCommit: 77aa1a14fc673575f752b29f9aaac541e7d8d90e
+qaCommit: 00d5f07e9a8148433345b499ee08069ce8b7e07b
 ---
 
 # QA Report: PR #5092, Issue #4751 sibling-branch session-number allocation
@@ -48,3 +48,4 @@ qaCommit: 77aa1a14fc673575f752b29f9aaac541e7d8d90e
 | Date | Change |
 |------|--------|
 | 2026-08-15 | Rebound qaCommit to 77aa1a14f: CI subprocess-encoding ratchet (issue #4261) required errors='replace' on the four new git subprocess call sites; ratchet re-measured OK at baseline 238; 162 session tests re-passed. |
+| 2026-08-15 | Rebound qaCommit to 00d5f07e9: merged origin/main (issue 5071 overlap on four root-container test surfaces; main's fixes taken, both observation-sync fixes kept). Post-merge: 1027 affected tests passed, encoding ratchet OK at 238, guard-diff and portability suites 54 passed. |

@@ -52,16 +52,29 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T19:36:19+00:00",
+      "type": "commit",
+      "content": "Commit: 00d5f07e9a8148433345b499ee08069ce8b7e07b",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
     }
   ],
   "metrics": {
-    "duration_minutes": 1000,
+    "duration_minutes": 1075,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 20
   },
   "lessons": []
