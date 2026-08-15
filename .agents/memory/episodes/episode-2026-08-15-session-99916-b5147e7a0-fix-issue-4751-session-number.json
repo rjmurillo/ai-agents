@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number",
+  "session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4751 session number allocation scans unmerged sibling branches",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T14:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 41d30814f",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T15:31:08+00:00",
+      "type": "commit",
+      "content": "Commit: a308888cb",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 945,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}
