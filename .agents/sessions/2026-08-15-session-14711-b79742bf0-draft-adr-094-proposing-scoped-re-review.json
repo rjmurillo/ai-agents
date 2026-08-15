@@ -150,7 +150,7 @@
       "outcome": "PASS, recorded at .agents/qa/qa-adr-094-scoped-re-review-axes.md"
     }
   ],
-  "endingCommit": "4161987600aa31d32bdcea5c4be0f66e489e3e18",
+  "endingCommit": "f18efba357185f4663806d5394c3d6d510dd51db",
   "nextSteps": [
     "adr-review skill runs on this ADR edit per AGENTS.md:44, before human approval per ADR-073:156, not after",
     "Human maintainer reviews the adr-review consensus evidence and decides accept, revise, or reject (governance.md MUST-1)",
