@@ -27,6 +27,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _PRINTING = re.compile(r"^\s*(echo|printf|cat\s+<<|#)")
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
+_WORKSPACE_PREFIX_FORMS = (
+    '--prefix="$GITHUB_WORKSPACE/"',
+    '--prefix="${GITHUB_WORKSPACE}/"',
+    '--prefix "$GITHUB_WORKSPACE/"',
+    '--prefix "${GITHUB_WORKSPACE}/"',
+)
 
 # A token is a repo reference when it looks like a relative path into one of
 # these trees. Anchored so an unrelated argument cannot match.
@@ -130,12 +136,10 @@ def _line_runs_checkout_index(line: str) -> bool:
         command_tokens = command[2:]
         for option_index, token in enumerate(command_tokens):
             if token.startswith("--prefix="):
-                prefix = token.split("=", 1)[1]
-                return prefix in {"", "./", "$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"}
+                return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
             if token == "--prefix" and option_index + 1 < len(command_tokens):
-                prefix = command_tokens[option_index + 1]
-                return prefix in {"", "./", "$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"}
-        return True
+                return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
+        return False
     return False
 
 
@@ -282,16 +286,30 @@ class TestFirstUnmetRepoDependency:
     def test_non_mapping_steps_are_skipped(self) -> None:
         assert first_unmet_repo_dependency({"steps": ["oops", None]}) is None
 
-    def test_a_real_checkout_index_satisfies_a_later_dependency(self) -> None:
+    def test_workspace_checkout_index_satisfies_a_later_dependency(self) -> None:
         job = {
             "steps": [
                 {
                     "name": "Materialize",
-                    "run": "git checkout-index -a -f\npython3 scripts/ci/x.py",
+                    "run": (
+                        'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"\n'
+                        "python3 scripts/ci/x.py"
+                    ),
                 }
             ]
         }
         assert first_unmet_repo_dependency(job) is None
+
+    def test_checkout_index_without_prefix_does_not_prove_workspace_checkout(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "cd /tmp && git checkout-index -a\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
 
     def test_an_echoed_checkout_index_does_not_satisfy_a_dependency(self) -> None:
         """The false positive that made a substring search unusable (PR #4846)."""
@@ -389,11 +407,39 @@ class TestFirstUnmetRepoDependency:
             "steps": [
                 {
                     "name": "Materialize",
-                    "run": "true && git checkout-index -a\npython3 scripts/ci/x.py",
+                    "run": (
+                        "true && git checkout-index -a "
+                        '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py'
+                    ),
                 }
             ]
         }
         assert first_unmet_repo_dependency(job) is None
+
+    def test_empty_prefix_does_not_satisfy_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": 'git checkout-index -a --prefix=""\npython3 scripts/ci/x.py',
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_single_quoted_workspace_prefix_does_not_satisfy_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "git checkout-index -a --prefix='$GITHUB_WORKSPACE/'\n"
+                        "python3 scripts/ci/x.py"
+                    ),
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
 
     def test_checkout_index_with_workspace_prefix_satisfies_a_dependency(self) -> None:
         job = {
@@ -402,7 +448,7 @@ class TestFirstUnmetRepoDependency:
                     "name": "Materialize",
                     "run": (
                         "GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a "
-                        "--prefix=$GITHUB_WORKSPACE/\npython3 scripts/ci/x.py"
+                        '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py'
                     ),
                 }
             ]
