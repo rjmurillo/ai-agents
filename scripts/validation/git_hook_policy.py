@@ -6974,14 +6974,19 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
 # Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
 # 10.0 seconds per request), and the first push of a new branch sweeps every
 # tracked observation file into {push_files}, so an unreachable MCP server
-# overruns the cap and blocks the push. 240s leaves 60s of headroom.
+# overruns the cap and blocks the push. 240s leaves 60s of headroom, and each
+# child's subprocess timeout is clamped to the remaining budget: the deadline
+# check runs between spawns, so an unclamped child started just under the
+# deadline would keep the DEFAULT_SUBPROCESS_TIMEOUT_SECONDS (90s) cap and
+# carry the job to ~330s, past the lefthook kill this budget exists to avoid.
 _OBSERVATION_SYNC_BUDGET_SECONDS = 240.0
 
 
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
     deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
     for index, path in enumerate(paths):
-        if time.monotonic() >= deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             print(
                 "WARNING: observation sync budget "
                 f"({int(_OBSERVATION_SYNC_BUDGET_SECONDS)}s) exhausted; "
@@ -7000,6 +7005,7 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
                 "MED",
             ],
             repo_root,
+            timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining),
         )
         _print_process_output(result)
         if result.returncode != 0:
