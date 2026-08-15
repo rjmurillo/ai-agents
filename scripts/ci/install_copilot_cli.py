@@ -78,7 +78,7 @@ def install_copilot_cli(
             f"::warning::Expected version {copilot_version} but got {version}. "
             "Binary may have auto-updated."
         )
-        print("::warning::See ADR-044 for auto-update bypass details.")
+        print("::warning::See ADR-094 for version-drift diagnostics and runbook.")
     return EXIT_OK
 
 
