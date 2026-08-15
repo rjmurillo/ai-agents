@@ -88,7 +88,7 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Evidence": "commits 4f0396e (module + tests) and f6ec064 (wiring)",
+        "Evidence": "commits 6695b28 (module + tests) and 849ecda (wiring), re-signed",
         "Complete": true
       },
       "validationPassed": {
@@ -120,7 +120,7 @@
       "description": "QA report at .agents/qa/2026-08-15-issue-4607-bot-identity.md; acceptance criterion cannot pass until the owner rotates BOT_PAT, stated plainly"
     }
   ],
-  "endingCommit": "f6ec064112fb172e9d873c98b3680be6989cedd7",
+  "endingCommit": "849ecda146f33a279832b4cddc1ec6a93741d741",
   "nextSteps": [
     "Owner: mint BOT_PAT from rjmurillo-bot (id 250269933), store as repository secret, confirm the identity step reports MATCH"
   ]

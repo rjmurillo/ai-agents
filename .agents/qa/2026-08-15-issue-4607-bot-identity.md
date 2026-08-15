@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: f6ec064112fb172e9d873c98b3680be6989cedd7
+qaCommit: 849ecda146f33a279832b4cddc1ec6a93741d741
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607)
