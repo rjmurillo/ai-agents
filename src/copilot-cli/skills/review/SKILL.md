@@ -117,19 +117,19 @@ Findings table with one row per axis:
 |------|---------|-----------|-------|---------|
 | spec-compliance | PASS | always-on | (from get_verdict_emoji) | (Stage-1 gate; SKIPPED rows below when it short-circuits) |
 | analyst | PASS | always-on | (from get_verdict_emoji) | (one-line summary) |
-| architect | WARN | selected / skipped — reason | ... | ... |
-| qa | ... | selected / skipped — reason | ... | ... |
-| security | ... | selected / skipped — reason | ... | ... |
-| devops | ... | selected / skipped — reason | ... | ... |
-| roadmap | ... | selected / skipped — reason | ... | ... |
-| reliability | ... | selected / skipped — reason | ... | ... |
-| observability | ... | selected / skipped — reason | ... | ... |
-| agent-safety | ... | selected / skipped — reason | ... | ... |
-| decision-rigor | ... | selected / skipped — reason | ... | ... |
-| code-quality | ... | selected / skipped — reason | ... | ... |
-| code-qualities-assessment | ... | selected / skipped — reason | ... | ... |
-| golden-principles | ... | selected / skipped — reason | ... | ... |
-| taste-lints | ... | selected / skipped — reason | ... | ... |
+| architect | WARN | selected / skipped - reason | ... | ... |
+| qa | ... | selected / skipped - reason | ... | ... |
+| security | ... | selected / skipped - reason | ... | ... |
+| devops | ... | selected / skipped - reason | ... | ... |
+| roadmap | ... | selected / skipped - reason | ... | ... |
+| reliability | ... | selected / skipped - reason | ... | ... |
+| observability | ... | selected / skipped - reason | ... | ... |
+| agent-safety | ... | selected / skipped - reason | ... | ... |
+| decision-rigor | ... | selected / skipped - reason | ... | ... |
+| code-quality | ... | selected / skipped - reason | ... | ... |
+| code-qualities-assessment | ... | selected / skipped - reason | ... | ... |
+| golden-principles | ... | selected / skipped - reason | ... | ... |
+| taste-lints | ... | selected / skipped - reason | ... | ... |
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
