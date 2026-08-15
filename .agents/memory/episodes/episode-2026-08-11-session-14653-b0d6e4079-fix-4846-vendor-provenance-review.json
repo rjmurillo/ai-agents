@@ -118,7 +118,8 @@
         "e083",
         "e085",
         "e087",
-        "e089"
+        "e089",
+        "e091"
       ],
       "leads_to": [
         "e006"
@@ -1151,6 +1152,30 @@
       "caused_by": [
         "e088"
       ],
+      "leads_to": [
+        "e092"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e091",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected compound checkout-index commands with skipped or swallowed execution.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e092",
+      "timestamp": "2026-08-15T13:56:24+00:00",
+      "type": "commit",
+      "content": "Commit: 3bff6871aab50f309edf7c118b93fd37fc619587",
+      "caused_by": [
+        "e090"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1160,7 +1185,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 49,
+    "commits": 50,
     "files_changed": 53
   },
   "lessons": []

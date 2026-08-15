@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to comment-safe prefix parser e318f4c60658f1b59cd9b8529968f7526752afef."
+        "Evidence": "QA evidence rebound to compound-checkout rejection 3bff6871aab50f309edf7c118b93fd37fc619587."
       },
       "validationPassed": {
         "level": "MUST",
@@ -267,8 +267,12 @@
     {
       "action": "Bound prefix quote evidence to the actual command and stripped unquoted comments.",
       "result": "Decoy comments cannot authenticate a rejected prefix. 162 tests pass, and the test file remains within the 500-line ceiling."
+    },
+    {
+      "action": "Rejected compound checkout-index commands with skipped or swallowed execution.",
+      "result": "Only unconditional full checkout commands satisfy later repository dependencies. 164 tests pass."
     }
   ],
-  "endingCommit": "e318f4c60658f1b59cd9b8529968f7526752afef",
+  "endingCommit": "3bff6871aab50f309edf7c118b93fd37fc619587",
   "nextSteps": []
 }
