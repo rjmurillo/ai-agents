@@ -127,7 +127,7 @@ class TestScopeMismatch:
                     assert guard.main() == 2
 
 
-class TestFailOpen:
+class TestEdgeCases:
     """Guard fails open when it cannot determine scope."""
 
     def test_no_git_repo(self, tmp_path: Path) -> None:
@@ -314,3 +314,53 @@ class TestIntegrationWorktreeIsolation:
 
         # Guard should allow (exit 0)
         assert result.returncode == 0
+
+    def test_guard_blocks_even_when_marker_exists_in_worktree(
+        self, fake_git_repo: Path, external_worktree: Path
+    ) -> None:
+        """Guard blocks writes in external worktree even when .serena/project.yml
+        exists there (as happens when the marker is tracked in git).
+
+        This proves the guard uses CLAUDE_PROJECT_DIR's git toplevel, not
+        .serena/project.yml discovery, to determine the canonical root.
+        """
+        # Place .serena/project.yml in BOTH trees (mirrors real repo behavior)
+        serena_dir = external_worktree / ".serena"
+        serena_dir.mkdir(exist_ok=True)
+        (serena_dir / "project.yml").write_text('project_name: "test"\n')
+        assert (fake_git_repo / ".serena" / "project.yml").is_file()
+        assert (external_worktree / ".serena" / "project.yml").is_file()
+
+        payload = json.dumps({
+            "tool_name": "serena-replace_content",
+            "tool_input": {"relative_path": "x.py", "needle": "a", "repl": "b", "mode": "literal"},
+            "cwd": str(external_worktree),
+        })
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / ".claude"
+                    / "hooks"
+                    / "PreToolUse"
+                    / "invoke_serena_worktree_scope_guard.py"
+                ),
+            ],
+            input=payload,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(external_worktree),
+            env={
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": str(fake_git_repo),
+            },
+        )
+
+        # Must still block: CLAUDE_PROJECT_DIR toplevel != external worktree toplevel
+        assert result.returncode == 2, (
+            f"Expected block (exit 2) even with .serena in worktree, got {result.returncode}. "
+            f"stderr: {result.stderr}"
+        )

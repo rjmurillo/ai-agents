@@ -12,8 +12,9 @@ Exit Codes (Claude Hook Semantics):
     0 = Allow (read-only tool, or scope matches)
     2 = Block (write tool and scope mismatch)
 
-Fail-open: Infrastructure errors (no git, no .serena/) allow the call.
-The guard cannot prove a mismatch when it cannot determine both paths.
+Fail-closed for writes: If the session project root (CLAUDE_PROJECT_DIR)
+cannot be determined, write tools are blocked. Read tools always pass.
+Only git toplevel errors on CWD fail open (not in a git repo).
 """
 
 from __future__ import annotations
@@ -62,28 +63,28 @@ def _git_toplevel(cwd: Path) -> Path | None:
 
 
 def _serena_project_root() -> Path | None:
-    """Determine Serena's active project root.
+    """Determine Serena's canonical project root (session origin).
 
     Strategy:
     1. SERENA_PROJECT_ROOT env var (explicit override for worktree switching)
-    2. Walk up from CLAUDE_PROJECT_DIR (or CWD) looking for .serena/project.yml
+    2. CLAUDE_PROJECT_DIR git toplevel (where the session started)
+
+    Note: We use git toplevel rather than walking for .serena/project.yml
+    because .serena/project.yml is tracked in git and exists in ALL worktrees.
+    Walking up from CWD would always find the local copy, defeating isolation.
     """
     explicit = os.environ.get("SERENA_PROJECT_ROOT", "").strip()
     if explicit:
         p = Path(explicit).resolve()
         if (p / _SERENA_MARKER).is_file():
-            return p
+            return _git_toplevel(p) or p
 
-    # Walk up from project dir
-    start = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-    current = Path(start).resolve() if start else Path.cwd().resolve()
-    while True:
-        if (current / _SERENA_MARKER).is_file():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
+    # Use CLAUDE_PROJECT_DIR (set by Claude Code to the session's project dir)
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if project_dir:
+        p = Path(project_dir).resolve()
+        return _git_toplevel(p)
+
     return None
 
 
