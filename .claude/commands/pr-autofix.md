@@ -232,6 +232,13 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    if lease_renewal_failed; then
+        stop_mutation_group "$mutation_pid"
+        wait "$mutation_pid" 2>/dev/null || true
+        echo "Stopping mutation for #$PR: lease ownership lost"
+        cleanup_pr_autofix
+        return 75
+    fi
     while kill -0 "$mutation_pid" 2>/dev/null; do
         if lease_renewal_failed; then
             sleep 0.02

@@ -164,7 +164,13 @@ if child_log:
     started_log = os.environ.get("MUTATION_STARTED_LOG")
     if started_log:
         Path(started_log).write_text("started\\n", encoding="utf-8")
-time.sleep(float(os.environ.get("MUTATION_SLEEP_SECONDS", "0")))
+block_fifo = os.environ.get("MUTATION_BLOCK_FIFO", "")
+if block_fifo:
+    # Block deterministically until killed by SIGTERM (no timing dependency)
+    with open(block_fifo) as f:
+        f.read()
+else:
+    time.sleep(float(os.environ.get("MUTATION_SLEEP_SECONDS", "0")))
 Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 """,
         encoding="utf-8",
@@ -257,7 +263,11 @@ def _run_race(
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
-    mutation_sleep = "0.5" if renewal_failure else "0"
+    mutation_sleep = "0" if renewal_failure else "0"
+    mutation_block_fifo = ""
+    if renewal_failure:
+        mutation_block_fifo = str(tmp_path / "mutation-block-fifo")
+        os.mkfifo(mutation_block_fifo)
     if immediate_lease_failure and spawn_delayed_child:
         lease_failure_override = 'lease_renewal_failed() {\n    [ -e "$MUTATION_STARTED_LOG" ]\n}\n'
     elif immediate_lease_failure:
@@ -318,6 +328,7 @@ fi
         "LEASE_RENEW_COUNT_FILE": str(renew_count),
         "LEASE_RENEW_FAIL_AFTER": renewal_fail_after,
         "MUTATION_SLEEP_SECONDS": mutation_sleep,
+        "MUTATION_BLOCK_FIFO": mutation_block_fifo,
         "MUTATION_CHILD_LOG": str(mutation_child_log)
         if renewal_failure or spawn_delayed_child
         else "",
