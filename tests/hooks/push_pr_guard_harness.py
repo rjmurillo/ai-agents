@@ -45,11 +45,13 @@ PLUGIN_SCRIPT_REFERENCE = (
 CLAUDE_GUARD = (
     REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py"
 )
+_COPILOT_SHIM = (
+    "invoke_push_pr_script_identity_guard"
+    "__Bash_new_pr_push_pr_push_pr_python_pypy_pr_py_uv_237ef7.py"
+)
+
 COPILOT_GUARD = (
-    COPILOT_PLUGIN_ROOT
-    / "hooks"
-    / "PreToolUse"
-    / "invoke_push_pr_script_identity_guard__Bash_f620ca.py"
+    COPILOT_PLUGIN_ROOT / "hooks" / "PreToolUse" / _COPILOT_SHIM
 )
 
 

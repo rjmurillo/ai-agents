@@ -2,18 +2,30 @@
 
 Demonstrates:
 1. Timeout on the shared timed-shim path returns 0 (allow), not 2 (deny).
-2. Unrelated commands pass through the identity guard in-process without timeout.
+2. Unrelated commands do not fire the narrowed identity guard matcher.
 3. Canonical new_pr.py invocations remain allowed.
 4. Repository lookalikes remain denied.
+5. Concurrent unrelated commands all pass without contention denial.
 """
 
 from __future__ import annotations
 
+import concurrent.futures
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+from tests.hooks.push_pr_guard_harness import (
+    REPO_ROOT,
+    run_claude,
+    run_copilot,
+)
+from tests.hooks.push_pr_guard_harness import (
+    repository as _repository,
+)
 
 # ---------------------------------------------------------------------------
 # Shared-path timeout policy (hook_dispatch_timeout.py)
@@ -28,7 +40,7 @@ class TestTimedShimTimeoutPolicy:
         shim = tmp_path / "slow.py"
         shim.write_text("import time\ntime.sleep(60)\n")
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch_timeout import run_timed_shim
 
@@ -43,7 +55,7 @@ class TestTimedShimTimeoutPolicy:
         shim = tmp_path / "slow.py"
         shim.write_text("import time\ntime.sleep(60)\n")
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch_timeout import run_timed_shim
 
@@ -62,7 +74,7 @@ class TestTimedShimTimeoutPolicy:
         shim = tmp_path / "nonexistent.py"
         shim.write_text("pass\n")
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch_timeout import run_timed_shim
 
@@ -78,7 +90,7 @@ class TestTimedShimTimeoutPolicy:
         shim = tmp_path / "deny.py"
         shim.write_text("import sys\nsys.exit(2)\n")
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch_timeout import run_timed_shim
 
@@ -90,70 +102,176 @@ class TestTimedShimTimeoutPolicy:
 
 
 # ---------------------------------------------------------------------------
-# Identity guard in-process execution (no timeout path)
+# Relevance boundary: unrelated commands do not fire the guard
 # ---------------------------------------------------------------------------
 
 
-class TestTimeoutPolicyIsAllowNotDeny:
-    """The shared timeout path now returns 0 (allow), not 2 (deny).
+_UNRELATED_COMMANDS = [
+    "git status",
+    "git log --oneline -5",
+    "git fetch origin",
+    "git push origin HEAD",
+    "ls -la",
+    'bash -c "echo hello"',
+    "node -e 'console.log(1)'",
+    "cat README.md",
+    "grep -r TODO src/",
+    "curl --version",
+]
 
-    This is the containment for issue #5013: even if the identity guard
-    times out under contention, it cannot deny unrelated commands.
+
+class TestRelevanceBoundary:
+    """Unrelated commands exit 0 without launching the identity guard.
+
+    Issue #5013 acceptance criterion 2: unrelated commands do not launch
+    the identity shim. The narrowed matcher Bash(*new_pr*|*push_pr*|*push-pr*)
+    ensures the shim self-filters at the matcher level.
     """
 
-    def test_timeout_module_exports_allow_exit(self) -> None:
-        """The module must export ALLOW_EXIT = 0 for the timeout path."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
-        try:
-            from hook_dispatch_timeout import ALLOW_EXIT
+    @pytest.fixture()
+    def repo(self, tmp_path: Path) -> Path:
+        return _repository(tmp_path)[0]
 
-            assert ALLOW_EXIT == 0
-        finally:
-            sys.path.pop(0)
-
-    def test_identity_guard_timeout_cannot_deny(self) -> None:
-        """Even with timeout metadata, the guard cannot deny on timeout."""
-        import json
-
-        groups_path = (
-            Path(__file__).resolve().parents[2]
-            / ".claude" / "hooks" / "dispatch_groups.json"
+    @pytest.mark.parametrize("command", _UNRELATED_COMMANDS)
+    def test_claude_dispatcher_allows_unrelated(self, repo: Path, command: str) -> None:
+        """Claude dispatcher returns 0 for unrelated commands."""
+        result = run_claude(command, repo)
+        assert result.returncode == 0, (
+            f"unrelated command {command!r} denied (exit {result.returncode}): "
+            f"{result.stderr}"
         )
+
+    @pytest.mark.parametrize("command", _UNRELATED_COMMANDS)
+    def test_copilot_dispatcher_allows_unrelated(self, repo: Path, command: str) -> None:
+        """Copilot dispatcher returns 0 for unrelated commands."""
+        result = run_copilot(command, repo)
+        assert result.returncode == 0, (
+            f"unrelated command {command!r} denied (exit {result.returncode}): "
+            f"{result.stderr}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Concurrency: no contention denial under parallel load
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrencyRegression:
+    """32+ unrelated commands with 8 workers must all pass (issue #5013 AC 6).
+
+    The original bug manifested as contention denial: multiple unrelated
+    shell commands hitting the 10-second timeout simultaneously, all denied.
+    """
+
+    @pytest.fixture()
+    def repo(self, tmp_path: Path) -> Path:
+        return _repository(tmp_path)[0]
+
+    def test_concurrent_unrelated_commands_all_allow(self, repo: Path) -> None:
+        """32 concurrent unrelated commands via Claude dispatcher all exit 0."""
+        commands = _UNRELATED_COMMANDS * 4  # 40 commands total (>32)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            futures = [
+                pool.submit(run_claude, cmd, repo)
+                for cmd in commands
+            ]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        denied = [
+            (r.returncode, r.stderr[:100])
+            for r in results
+            if r.returncode != 0
+        ]
+        assert not denied, (
+            f"{len(denied)} of {len(commands)} concurrent commands denied: "
+            f"{denied[:3]}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Matcher narrowing verification
+# ---------------------------------------------------------------------------
+
+
+class TestMatcherNarrowing:
+    """The identity guard matcher is narrow, not plugin-wide (issue #5013 AC 2)."""
+
+    def test_dispatch_groups_matcher_is_narrow(self) -> None:
+        """dispatch_groups.json matcher must not be bare 'Bash'."""
+        groups_path = REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json"
         with open(groups_path) as f:
             data = json.load(f)
         key = "plugin-pretooluse-9-push_pr_script_identity"
-        if key not in data:
-            pytest.skip("identity guard not registered")
-        # The guard may have a timeout, but the timeout policy is allow (0)
-        # so it can never deny unrelated commands (issue #5013)
+        group = data["groups"][key]
+        matcher = group["matcher"]
+        assert matcher != "Bash", (
+            "identity guard matcher must be narrow, got bare 'Bash' "
+            "(issue #5013: unrelated commands must not launch the shim)"
+        )
+        assert "new_pr" in matcher, "matcher must include new_pr pattern"
+        assert "python" in matcher, "matcher must include python pattern for content detection"
+
+    def test_copilot_shim_matcher_is_narrow(self) -> None:
+        """Generated Copilot shim must use the narrowed matcher."""
+        shim_dir = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+        shims = list(shim_dir.glob("invoke_push_pr_script_identity_guard__*.py"))
+        assert len(shims) == 1, f"expected 1 identity guard shim, found {len(shims)}"
+        content = shims[0].read_text()
+        # The shim must NOT have bare Bash matcher
+        assert "_MATCHER = 'Bash'" not in content, (
+            "Copilot shim still has plugin-wide Bash matcher"
+        )
+        assert "new_pr" in content, "shim matcher must include new_pr pattern"
+        assert "python" in content, "shim matcher must include python for content detection"
+
+    def test_claude_hooks_json_matcher_is_narrow(self) -> None:
+        """Claude hooks.json must not register identity guard on bare Bash."""
+        hooks_path = REPO_ROOT / ".claude" / "hooks" / "hooks.json"
+        with open(hooks_path) as f:
+            data = json.load(f)
+        ptu_entries = data["hooks"]["PreToolUse"]
+        identity_entry = None
+        for entry in ptu_entries:
+            hooks = entry.get("hooks", [])
+            for h in hooks:
+                cmd = h.get("command", "")
+                if "push_pr_script_identity" in cmd:
+                    identity_entry = entry
+                    break
+        assert identity_entry is not None, "identity guard not found in hooks.json"
+        matcher = identity_entry.get("matcher", "")
+        assert matcher != "Bash", (
+            "hooks.json identity guard matcher is bare 'Bash' (must be narrow)"
+        )
 
 
 # ---------------------------------------------------------------------------
-# Edge cases
+# Edge cases: timeout validation
 # ---------------------------------------------------------------------------
 
 
 class TestEdgeCases:
     """Edge cases around the timeout boundary."""
 
-    def test_zero_timeout_is_rejected_by_validate_timeout(self) -> None:
-        """Invalid timeout (<=0) is caught by _validate_timeout, not run_timed_shim."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+    def test_zero_timeout_returns_deny_exit_code(self) -> None:
+        """Invalid timeout (<=0) is caught by _validate_timeout, returns exit 2."""
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch import _validate_timeout
 
             result = _validate_timeout("test.py", 0)
-            assert result == 2, "invalid timeout must deny via _validate_timeout"
+            assert result == 2, "invalid timeout must deny via exit code 2"
         finally:
             sys.path.pop(0)
 
-    def test_negative_timeout_is_rejected_by_validate_timeout(self) -> None:
-        """Negative timeout is caught by _validate_timeout."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "copilot-cli" / "lib"))
+    def test_negative_timeout_returns_deny_exit_code(self) -> None:
+        """Negative timeout is caught by _validate_timeout, returns exit code 2."""
+        sys.path.insert(0, str(REPO_ROOT / "src" / "copilot-cli" / "lib"))
         try:
             from hook_dispatch import _validate_timeout
 
             result = _validate_timeout("test.py", -1)
-            assert result == 2
+            assert result == 2, "negative timeout must deny via exit code 2"
         finally:
             sys.path.pop(0)

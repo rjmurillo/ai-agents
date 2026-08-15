@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from tests.hooks.push_pr_guard_harness import (
+    _COPILOT_SHIM,
     CLAUDE_PLUGIN_ROOT,
     COPILOT_PLUGIN_ROOT,
     PLUGIN_SCRIPT_REFERENCE,
@@ -159,7 +160,7 @@ def _minimum_supported_interpreter() -> str | None:
             COPILOT_PLUGIN_ROOT
             / "hooks"
             / "PreToolUse"
-            / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+            / _COPILOT_SHIM,
             COPILOT_PLUGIN_ROOT,
         ),
     ],
@@ -219,7 +220,7 @@ def test_guards_run_on_the_minimum_supported_interpreter(
         COPILOT_PLUGIN_ROOT
         / "hooks"
         / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+        / _COPILOT_SHIM,
     ],
     ids=["claude", "copilot"],
 )
@@ -272,7 +273,7 @@ def test_trusted_digests_match_the_shipped_bundle() -> None:
         COPILOT_PLUGIN_ROOT
         / "hooks"
         / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+        / _COPILOT_SHIM,
     )
 
     for guard in guards:
