@@ -74,6 +74,19 @@
         "e004",
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5055-ownership-race-fix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T15:01:50+00:00",
+      "type": "commit",
+      "content": "Commit: e11d7a72ab568f24e95a0e601e15cfb249f5e22c",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5055-ownership-race-fix"
     }
@@ -83,7 +96,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []
