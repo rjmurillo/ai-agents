@@ -54,6 +54,13 @@ finds references itself, and it only looks at ``read_memory`` and
 purpose: it names a memory to create, so a name that does not resolve yet is
 its normal case, not a defect.
 
+Stricter (existence): canonical resolves any safe in-root path without
+requiring the target to exist (``memory_index.py:244-247``). This gate adds an
+existence requirement: the resolved path must be present in the git index (or,
+outside a repository, on the filesystem). A reference that would resolve
+canonically but names no tracked file still fails, because an agent issuing
+``read_memory`` against it will receive an error at runtime.
+
 What counts as a reference
 --------------------------
 A ``read_memory`` or ``edit_memory`` call, with or without the
@@ -78,6 +85,9 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tracked_paths import path_exists_in_repo
 
 EXIT_OK = 0
 EXIT_UNRESOLVED = 1
@@ -164,12 +174,27 @@ def extract_references(path: Path, text: str) -> list[MemoryReference]:
     return references
 
 
+def _find_repo_root(start: Path) -> Path:
+    """Walk up from start to find the git repository root."""
+    current = start.resolve()
+    while current != current.parent:
+        if (current / ".git").exists():
+            return current
+        current = current.parent
+    return start.resolve()
+
+
 def resolves(memories_root: Path, name: str) -> bool:
-    """Return whether ``name`` resolves to a readable memory file.
+    """Return whether ``name`` resolves to a tracked memory file.
 
     Mirrors ``memory_index.py::_resolve_memory_reference``: a backslash is
     normalized to a forward slash, ``.md`` is appended, no path component may
     be a symlink, and the resolved path must stay inside the memories root.
+
+    Existence is resolved from the git index so that untracked or ignored
+    working-tree files cannot make the gate pass on a developer machine while
+    the same commit fails in CI. Falls back to the filesystem only when the
+    repository root is not a git checkout (scratch directories in tests).
     """
     normalized = name.replace("\\", "/")
     reference_path = memories_root / f"{normalized}.md"
@@ -184,7 +209,11 @@ def resolves(memories_root: Path, name: str) -> bool:
     resolved_reference = reference_path.resolve()
     if not resolved_reference.is_relative_to(resolved_root):
         return False
-    return resolved_reference.is_file()
+
+    # Resolve existence from git index; filesystem fallback for non-repos.
+    repo_root = _find_repo_root(memories_root)
+    rel_path = str(reference_path.relative_to(repo_root))
+    return bool(path_exists_in_repo(repo_root, rel_path))
 
 
 def index_by_basename(memories_root: Path) -> dict[str, list[str]]:
@@ -211,8 +240,18 @@ def collect_findings(
     for path in files:
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
+        except UnicodeDecodeError as exc:
+            print(
+                f"[FAIL] Cannot decode {path.relative_to(repo_root)}: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(EXIT_CONFIG) from exc
+        except OSError as exc:
+            print(
+                f"[FAIL] Cannot read {path.relative_to(repo_root)}: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(EXIT_CONFIG) from exc
         for reference in extract_references(path, text):
             reference_count += 1
             if resolves(memories_root, reference.name):

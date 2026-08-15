@@ -389,15 +389,18 @@ class TestAbsentInputs:
     ) -> None:
         assert _run(tmp_path / "does-not-exist") == csmr.EXIT_CONFIG
 
-    def test_an_unreadable_instruction_file_does_not_crash(
+    def test_an_unreadable_instruction_file_fails_closed(
         self, tmp_path: Path
     ) -> None:
+        """Decode errors are configuration failures, not silent skips."""
         repo = _make_repo(tmp_path, memories=("pr-review/target",))
         _write(repo / _SKILL, _call("pr-review/target"))
         (repo / ".claude" / "skills" / "example" / "binary.md").write_bytes(
             b"\xff\xfe not utf-8"
         )
-        assert _run(repo) == csmr.EXIT_OK
+        with pytest.raises(SystemExit) as exc_info:
+            _run(repo)
+        assert exc_info.value.code == csmr.EXIT_CONFIG
 
 
 # --- Real corpus -----------------------------------------------------------
