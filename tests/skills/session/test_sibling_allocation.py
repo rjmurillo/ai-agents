@@ -233,6 +233,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=True,
     )
@@ -245,6 +246,7 @@ def _git_available() -> bool:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
