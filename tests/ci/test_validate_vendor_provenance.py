@@ -808,6 +808,9 @@ class TestWorkflowContractRegression:
 
         assert "group: vendor-provenance-" in workflow
         assert "cancel-in-progress: true" in workflow
+        assert "statuses: write" in workflow
+        assert "--start-head-gates" in workflow
+        assert "--finish-head-gates" in workflow
 
 
 # ── Relevance check (exercises production helper) ──
@@ -2602,6 +2605,81 @@ class TestCreateCheckRun:
             mock_run.return_value.stdout = "not json"
             result = _create_check_run("owner/repo", "abc123")
         assert result is None
+
+
+class TestPublishCommitStatus:
+    def test_pending_status_targets_head_sha(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _publish_commit_status
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "{}"
+            result = _publish_commit_status("owner/repo", "abc123", "pending")
+        assert result == 0
+        args = mock_run.call_args.args[0]
+        assert args[2] == "repos/owner/repo/statuses/abc123"
+        payload = json.loads(mock_run.call_args.kwargs["input"])
+        assert payload["state"] == "pending"
+        assert payload["context"] == "Validate Vendor Provenance"
+
+    def test_invalid_state_fails_before_api_call(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _publish_commit_status
+
+        with patch("subprocess.run") as mock_run, pytest.raises(SystemExit):
+            _publish_commit_status("owner/repo", "abc123", "neutral")
+        mock_run.assert_not_called()
+
+
+class TestHeadGateOrchestration:
+    def test_start_attempts_both_channels_when_status_fails(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _start_head_gates
+
+        with (
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_commit_status",
+                return_value=1,
+            ) as publish_status,
+            patch(
+                "scripts.ci.validate_vendor_provenance._create_check_run",
+                return_value="999",
+            ) as create_check,
+        ):
+            check_run_id, result = _start_head_gates("owner/repo", "abc123")
+        assert check_run_id == "999"
+        assert result == 1
+        publish_status.assert_called_once()
+        create_check.assert_called_once()
+
+    def test_finish_attempts_status_when_check_update_fails(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _finish_head_gates
+
+        with (
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_check_run",
+                return_value=1,
+            ) as publish_check,
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_commit_status",
+                return_value=0,
+            ) as publish_status,
+        ):
+            result = _finish_head_gates(
+                "owner/repo",
+                "abc123",
+                "failure",
+                "999",
+            )
+        assert result == 1
+        publish_check.assert_called_once()
+        publish_status.assert_called_once_with("owner/repo", "abc123", "failure")
 
 
 class TestCheckRunArgValidation:

@@ -1795,6 +1795,60 @@ def _publish_check_run(
     return 0
 
 
+def _publish_commit_status(
+    repo: str,
+    head_sha: str,
+    state: str,
+) -> int:
+    import json as _json
+
+    repo = _validate_repo_slug(repo)
+    if state not in {"pending", "success", "failure"}:
+        raise SystemExit(f"refusing invalid commit-status state: {state!r}")
+    payload = _json.dumps({
+        "state": state,
+        "context": "Validate Vendor Provenance",
+        "description": f"Vendor provenance is {state}",
+    })
+    result = _run_gh_api(
+        [
+            "gh", "api", f"repos/{repo}/statuses/{head_sha}",
+            "-X", "POST",
+            "--input", "-",
+        ],
+        payload,
+    )
+    if result is None:
+        return 1
+    if result.returncode != 0:
+        print(f"ERROR: commit-status publication failed: {result.stderr}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _start_head_gates(repo: str, head_sha: str) -> tuple[str | None, int]:
+    status_result = _publish_commit_status(repo, head_sha, "pending")
+    check_run_id = _create_check_run(repo, head_sha)
+    return check_run_id, 0 if status_result == 0 and check_run_id else 1
+
+
+def _finish_head_gates(
+    repo: str,
+    head_sha: str,
+    conclusion: str,
+    check_run_id: str | None,
+) -> int:
+    check_result = _publish_check_run(
+        repo,
+        head_sha,
+        conclusion,
+        f"Vendor provenance is {conclusion}",
+        check_run_id=check_run_id,
+    )
+    status_result = _publish_commit_status(repo, head_sha, conclusion)
+    return 0 if check_result == 0 and status_result == 0 else 1
+
+
 def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
     check = vendor_dir
     errors: list[str] = []
@@ -2095,6 +2149,24 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--publish-commit-status",
+        nargs=3,
+        metavar=("REPO", "HEAD_SHA", "STATE"),
+        help="Publish pending|success|failure status on the PR head SHA",
+    )
+    parser.add_argument(
+        "--start-head-gates",
+        nargs=2,
+        metavar=("REPO", "HEAD_SHA"),
+        help="Publish pending commit status and create the in-progress check run",
+    )
+    parser.add_argument(
+        "--finish-head-gates",
+        nargs=3,
+        metavar=("REPO", "HEAD_SHA", "CONCLUSION"),
+        help="Finish the check run and commit status, attempting both channels",
+    )
+    parser.add_argument(
         "--reject-gitlinks",
         metavar="SHA",
         help="Check tree SHA for gitlink entries and exit 0/1",
@@ -2119,6 +2191,26 @@ def main() -> int:
             return 1
         print(check_run_id)
         return 0
+
+    if args.publish_commit_status:
+        repo, head_sha, state = args.publish_commit_status
+        return _publish_commit_status(repo, head_sha, state)
+
+    if args.start_head_gates:
+        repo, head_sha = args.start_head_gates
+        check_run_id, result = _start_head_gates(repo, head_sha)
+        if check_run_id:
+            print(check_run_id)
+        return result
+
+    if args.finish_head_gates:
+        repo, head_sha, conclusion = args.finish_head_gates
+        return _finish_head_gates(
+            repo,
+            head_sha,
+            conclusion,
+            args.check_run_id or None,
+        )
 
     # Check-run publication mode
     if args.publish_check_run:

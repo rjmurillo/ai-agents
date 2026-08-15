@@ -23,6 +23,7 @@ concurrency:
 permissions:
   contents: read
   checks: write
+  statuses: write
 
 on:
   pull_request_target:
@@ -40,6 +41,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      statuses: write
 
     env:
       PR_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
@@ -90,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           CHECK_RUN_ID=$(python3 scripts/ci/validate_vendor_provenance.py \
-            --create-check-run "${{ github.repository }}" "$PR_SHA")
+            --start-head-gates "${{ github.repository }}" "$PR_SHA")
           echo "check_run_id=$CHECK_RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Materialize candidate and comparison trees
@@ -166,5 +168,5 @@ jobs:
           set -euo pipefail
           CONCLUSION=${{ job.status == 'success' && 'success' || 'failure' }}
           python3 scripts/ci/validate_vendor_provenance.py \
-            --publish-check-run "${{ github.repository }}" "$PR_SHA" "$CONCLUSION" \
+            --finish-head-gates "${{ github.repository }}" "$PR_SHA" "$CONCLUSION" \
             --check-run-id "$CHECK_RUN_ID"
