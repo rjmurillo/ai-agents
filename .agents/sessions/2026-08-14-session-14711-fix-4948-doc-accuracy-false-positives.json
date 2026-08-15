@@ -39,6 +39,11 @@
         "Complete": true,
         "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and path-scoped rules for Python, testing, code quality, and canonical source mirroring."
       },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and used the skill-first convention for repository operations."
+      },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
@@ -68,53 +73,53 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Session start, implementation, validation, memory update, and commit steps are recorded."
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and not modified."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "project/doc-accuracy/issue-4948-false-positives written."
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "No markdown files changed in this fix, so no markdownlint autofix was needed."
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4948-doc-accuracy-false-positives.md"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Initial fix commit 42c419a68 created; this follow-up session-log commit records the ending SHA."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4948-doc-accuracy-false-positives.md"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "No follow-up task tracking change was needed for this one-issue fix."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "Not needed for this small scoped fix."
       },
       "reworkWarning": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
@@ -130,12 +135,14 @@
     {
       "action": "Created the external worktree and feature branch.",
       "outcome": "/home/richard/worktrees/ai-agents/issue-4948-2 on fix/4948-doc-accuracy-false-positives."
+    },
+    {
+      "action": "Validated the fix with targeted tests and direct reproduction.",
+      "outcome": "pytest passed, ruff passed, and the issue reproduction returned exit 0 with no findings."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "42c419a68",
   "nextSteps": [
-    "Patch doc_accuracy.py and the matching generated mirror.",
-    "Add regression tests for text, PowerShell, and unmapped claim behavior.",
-    "Run targeted pytest and script validation before committing."
+    "None."
   ]
 }
