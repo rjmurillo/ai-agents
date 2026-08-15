@@ -1502,6 +1502,64 @@ class TestConfigTrustBoundary:
         assert "\x1b" not in err
         assert "\\u001b" in err
 
+    def test_symlinked_config_is_rejected_without_reading_target(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # CWE-59/CWE-200: validate_safe_path resolves symlinks, so a
+        # PR-committed symlink at the config path would redirect the
+        # trust check to its target, and a local-only target (untracked
+        # .env, .git/config) would be printed in full by the
+        # missing-base approval diff. The gate must reject the symlink
+        # before reading; the secret must never reach stderr.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+        secret = tmp_path / ".env"
+        secret.write_text("SECRET_TOKEN=hunter2\n", encoding="utf-8")
+        config_path.unlink()
+        try:
+            config_path.symlink_to(secret)
+        except OSError:
+            pytest.skip("filesystem does not support symlinks")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        err = capsys.readouterr().err
+        assert "symlink" in err
+        assert "hunter2" not in err
+
+    def test_symlinked_parent_directory_is_rejected(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # Parent-directory variant of the same redirect: the final
+        # component is a regular file but a directory on the path is a
+        # PR-controlled symlink.
+        target_dir = tmp_path / "real"
+        target_dir.mkdir()
+        local_only = target_dir / "pr-review-config.yaml"
+        local_only.write_text("LOCAL_ONLY: yes\n", encoding="utf-8")
+        link_dir = tmp_path / "linkdir"
+        try:
+            link_dir.symlink_to(target_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("filesystem does not support symlinks")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(link_dir / "pr-review-config.yaml"),
+                "--pull-request", "1",
+            ],
+        )
+
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "symlink" in err
+        assert "LOCAL_ONLY" not in err
+
     def test_config_missing_from_trusted_ref_halts(
         self, git_repo, tmp_path, capsys,
     ):

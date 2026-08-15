@@ -1201,16 +1201,58 @@ def _try_write_evidence(path_arg: str, payload: dict[str, Any]) -> bool:
     return True
 
 
+def _symlinked_config_component(config_arg: str) -> Path | None:
+    """First symlinked component of the config path under the project
+    root, or ``None`` when the path has no PR-controlled symlink.
+
+    ``validate_safe_path`` RESOLVES symlinks before its containment
+    check, so a PR-committed symlink at ``pr-review-config.yaml`` (or a
+    symlinked parent directory) passes containment while redirecting
+    every later read to its target. The trust check then verifies the
+    TARGET's path, and a local-only target such as an untracked
+    ``.env`` or ``.git/config`` is absent from the trusted ref, so the
+    missing-base halt would print the target file in full as the
+    approval diff (CWE-59 link following; CWE-200 exposure). Only
+    components at or below the project root are checked: those are the
+    ones PR content can create, while a symlink above the root (for
+    example a symlinked home directory) is the operator's own
+    environment and must not false-halt the gate.
+    """
+    candidate = Path(config_arg)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    probe = Path(candidate.parts[0])
+    for part in candidate.parts[1:]:
+        probe = probe / part
+        try:
+            probe.relative_to(_PROJECT_ROOT)
+        except ValueError:
+            continue
+        if probe.is_symlink():
+            return probe
+    return None
+
+
 def _resolve_and_read_config(
     config_arg: str,
 ) -> tuple[Path, bytes] | tuple[None, None]:
     """Validate the config path and read it exactly once.
 
     Returns ``(None, None)`` after printing to stderr when the path is
-    unsafe (CWE-22 containment) or unreadable; the caller exits 2. The
-    returned buffer is the single read that gets trust-verified and then
-    parsed (CWE-367).
+    unsafe (CWE-22 containment), reaches through a repo-local symlink
+    (CWE-59), or is unreadable; the caller exits 2. The returned buffer
+    is the single read that gets trust-verified and then parsed
+    (CWE-367).
     """
+    symlink = _symlinked_config_component(config_arg)
+    if symlink is not None:
+        print(
+            f"Refusing config path with symlinked component {symlink}: "
+            f"a repo-local symlink would redirect trust verification to "
+            f"its target and surface that file in the approval diff.",
+            file=sys.stderr,
+        )
+        return None, None
     try:
         config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
     except (FileNotFoundError, ValueError) as exc:
