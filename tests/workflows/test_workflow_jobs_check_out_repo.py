@@ -176,6 +176,8 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
     tokens = _tokenize_command_line(line)
     token_segments = _shell_command_segments(tokens)
     raw_segments = _raw_shell_segments(line)
+    if len(token_segments) != len(raw_segments):
+        return False, in_workspace
     for segment, raw_segment in zip(token_segments, raw_segments, strict=False):
         assignments = _segment_assignments(segment)
         command = _strip_environment_assignments(segment)
@@ -427,6 +429,12 @@ class TestFirstUnmetRepoDependency:
                 "python3 scripts/ci/x.py",
                 ("Materialize", "scripts/ci/x.py"),
             ),
+            (
+                "true 'x|--prefix=\"$GITHUB_WORKSPACE/\"' && "
+                "git checkout-index -a --prefix='$GITHUB_WORKSPACE/'\n"
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
@@ -445,6 +453,7 @@ class TestFirstUnmetRepoDependency:
             "checkout_index_with_workspace_prefix_satisfies_a_dependency",
             "later_print_segment_cannot_supply_workspace_prefix",
             "nonleading_work_tree_assignment_is_not_environment",
+            "quoted_pipe_segment_mismatch_fails_closed",
         ],
     )
     def test_materialize_step_dependency_scenarios(
