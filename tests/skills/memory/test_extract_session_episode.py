@@ -1575,6 +1575,28 @@ class TestSequentialEventLinks:
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
         assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
 
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_to_commit(self, event_type):
+        """Each _MIDNIGHT_INCOMPARABLE_TYPES member is guarded, not only milestone."""
+        other = self._evt("e001", event_type, "pre-commit work")
+        commit = self._evt("e002", "commit", "Commit: ccc3333")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events = [other, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_reversed_order(self, event_type):
+        """Symmetric direction for the non-milestone incomparable types."""
+        commit = self._evt("e001", "commit", "Commit: ddd4444")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        other = self._evt("e002", event_type, "post-commit work")
+        events = [commit, other]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
     def test_midnight_in_nonzero_offset_normalizes_to_comparable(self):
         """Midnight in non-UTC offset normalizes to non-midnight UTC; edge kept."""
         milestone = self._evt("e001", "milestone", "work")
