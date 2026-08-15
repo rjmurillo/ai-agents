@@ -234,16 +234,15 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
     assert binding == QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
 
 
-def test_ending_commit_owns_qa_binding_when_episode_head_differs() -> None:
-    binding = session_qa_binding(
-        {
-            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
-            "endingCommit": "b" * 40,
-        },
-        session_log=QA_SESSION_LOG,
-    )
-
-    assert binding == QaBinding(session_log=QA_SESSION_LOG, commit="b" * 40)
+def test_rejects_qa_commit_disagreement() -> None:
+    with pytest.raises(ValueError, match="different commits"):
+        session_qa_binding(
+            {
+                "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+                "endingCommit": "b" * 40,
+            },
+            session_log=QA_SESSION_LOG,
+        )
 
 
 def test_resolves_abbreviated_qa_ending_commit() -> None:

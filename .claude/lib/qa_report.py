@@ -167,12 +167,17 @@ def session_qa_binding(
         if isinstance(resolved, str) and _FULL_COMMIT_PATTERN.fullmatch(resolved):
             resolved_ending = resolved
 
-    if resolved_ending is not None:
-        return QaBinding(session_log=session_log, commit=resolved_ending)
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
         comparison_head
     ):
+        if resolved_ending is not None and comparison_head != resolved_ending:
+            raise ValueError(
+                "Session log comparison head and endingCommit resolve to "
+                "different commits"
+            )
         return QaBinding(session_log=session_log, commit=comparison_head)
+    if resolved_ending is not None:
+        return QaBinding(session_log=session_log, commit=resolved_ending)
 
     raise ValueError("Session log must resolve a full 40-character QA commit")
 
