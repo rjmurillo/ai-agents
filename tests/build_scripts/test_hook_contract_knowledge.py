@@ -540,6 +540,13 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
+    assert (
+        f"vendored source prints `{len(plugin)} {sum(map(len, plugin.values()))}`" in architecture
+    )
+    assert "Three independent registration sources" in catalog
+    assert ".github/hooks/require-subagent-model.json" in _section_after(
+        catalog, "## Provenance and Maintenance", REPO_ROOT
+    )
     _refute(
         architecture,
         "registers 7 events",
@@ -573,9 +580,7 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     # discredits every other row in the skill's evidence layer. Pin both trees.
     settings_slash = f"{len(settings)} events / {sum(map(len, settings.values()))} groups"
     plugin_slash = f"{len(plugin)} events / {sum(map(len, plugin.values()))} groups"
-    copilot_slash = (
-        f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
-    )
+    copilot_slash = f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
     provenance_paths = (
         REPO_ROOT
         / ".claude"
@@ -583,16 +588,37 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         / "ai-agents-architecture-contract"
         / "references"
         / "provenance.md",
-        COPILOT_SKILL_ROOT
-        / "ai-agents-architecture-contract"
-        / "references"
-        / "provenance.md",
+        COPILOT_SKILL_ROOT / "ai-agents-architecture-contract" / "references" / "provenance.md",
     )
     for path in provenance_paths:
         surface = path.read_text(encoding="utf-8")
         assert settings_slash in surface, path
         assert plugin_slash in surface, path
         assert copilot_slash in surface, path
+
+    provenance = provenance_paths[0].read_text(encoding="utf-8")
+    weak_points = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "ai-agents-architecture-contract"
+        / "references"
+        / "weak-points.md"
+    ).read_text(encoding="utf-8")
+    date_patterns = (
+        (architecture, r"Registered \(re-verified (\d{4}-\d{2}-\d{2})\)"),
+        (architecture, r"facts re-verified against the working tree on (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Shape re-verified (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Audited (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (provenance, r"Verified (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (weak_points, r"Evidence \(as of (\d{4}-\d{2}-\d{2})\)"),
+    )
+    verified_dates: set[str] = set()
+    for text, pattern in date_patterns:
+        match = re.search(pattern, text)
+        assert match is not None, pattern
+        verified_dates.add(match.group(1))
+    assert len(verified_dates) == 1, verified_dates
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:

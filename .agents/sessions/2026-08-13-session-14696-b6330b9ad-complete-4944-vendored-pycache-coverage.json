@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: no changed markdown files"
+        "Evidence": "NOT LINTED by session-end: its eligible-file selection read 0 Markdown files because the changed agent artifacts are excluded by .markdownlint-cli2.yaml. Post-merge explicit lint ran markdownlint-cli2@0.23.1 outside repository ignore discovery with --configPointer /config on the plan, retrospective, and sessions 14696/14697 QA Markdown; output was 'Linting: 4 files' and 'Summary: 0 issues in 0 files', exit 0."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Nested cache coverage committed at 374a580ea; QA, session, and retrospective evidence were refreshed after validation."
+        "Evidence": "Post-merge evidence repair was tested at 9093705a61a8c030d039cb29ee56605c133abcd3."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed"
+        "Evidence": "validate_session_json.py passed after rebinding the squash-orphaned ending and QA commits."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -175,10 +175,18 @@
       "outcome": "The test now covers nested package caches, session evidence states why no memory was needed, and the retrospective classifies the failure with owned remediation."
     }
   ],
-  "endingCommit": "c8336cc37",
+  "endingCommit": "9093705a61a8c030d039cb29ee56605c133abcd3",
   "nextSteps": [
     "Push test/4923-cache-exclusion-coverage.",
     "Re-check PR #4944 reviews and required checks.",
     "Merge PR #4944 after required checks pass."
-  ]
+  ],
+  "episodeMetrics": {
+    "filesChanged": 8,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "5dbc09bf1",
+      "head": "9093705a61a8c030d039cb29ee56605c133abcd3"
+    }
+  }
 }

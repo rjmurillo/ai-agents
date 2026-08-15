@@ -42,6 +42,7 @@ from scripts.ci.count_ratchet import (
     EXIT_REGRESSION,
     build_parser,
     chunk,
+    git_environment,
     run,
     tracked_files,
 )
@@ -137,6 +138,11 @@ def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
     exceeds the baseline, so raising the baseline in the same PR that adds the
     violations passes as an improvement. Comparing against the base branch is
     what makes the baseline monotonic rather than merely advisory.
+
+    Runs under ``git_environment()`` for the reason recorded there: an exported
+    ``GIT_DIR`` outranks ``-C <root>``, so a push from a linked worktree would
+    resolve ``ref`` in the pushing worktree rather than in ``repo_root``
+    (issue #4914).
     """
     try:
         rel = baseline.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -151,6 +157,7 @@ def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
             errors="replace",
             encoding="utf-8",
             check=False,
+            env=git_environment(),
         )
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"git could not be launched: {exc}\n")

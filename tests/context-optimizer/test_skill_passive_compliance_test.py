@@ -12,12 +12,12 @@ scripts_dir = repo_root / ".claude" / "skills" / "context-optimizer" / "scripts"
 sys.path.insert(0, str(scripts_dir))
 
 from test_skill_passive_compliance import (  # noqa: E402
-    check_claude_md_line_count,
     check_imported_files_exist,
     check_no_duplicate_content,
     check_passive_context_knowledge_only,
     check_skill_frontmatter,
     check_skill_has_actions,
+    measure_claude_md_single_file,
     run_compliance_checks,
 )
 
@@ -31,43 +31,47 @@ def temp_repo():
         yield repo_path
 
 
-def test_claude_md_line_count_under_150(temp_repo):
-    """Test CLAUDE.md with under 150 lines passes."""
+def test_claude_md_single_file_measurement_reports_line_count(temp_repo):
+    """A single-file measurement reports its observed line count."""
     claude_md = temp_repo / "CLAUDE.md"
     claude_md.write_text("# Test\n" + ("line\n" * 100))
 
-    result = check_claude_md_line_count(claude_md)
+    result = measure_claude_md_single_file(claude_md)
 
     assert result.passed
     assert result.severity == "none"
+    assert result.details["lineCount"] == 101
+    assert "No vendor line limit was applied" in result.message
 
 
-def test_claude_md_line_count_150_to_200(temp_repo):
-    """Test CLAUDE.md between 150-200 lines warns."""
+def test_claude_md_single_file_measurement_ignores_imported_lines(temp_repo):
+    """The measurement does not add lines from an imported file."""
+    imported = temp_repo / "AGENTS.md"
+    imported.write_text("# Imported\n" + ("line\n" * 300))
     claude_md = temp_repo / "CLAUDE.md"
-    claude_md.write_text("# Test\n" + ("line\n" * 160))
+    claude_md.write_text("# Test\n\n@AGENTS.md\n")
 
-    result = check_claude_md_line_count(claude_md)
+    result = measure_claude_md_single_file(claude_md)
 
     assert result.passed
-    assert result.severity == "warning"
+    assert result.details["lineCount"] == 3
 
 
-def test_claude_md_line_count_over_200(temp_repo):
-    """Test CLAUDE.md over 200 lines fails."""
+def test_claude_md_single_file_measurement_has_no_200_line_failure(temp_repo):
+    """A large CLAUDE.md remains a measurement, not a vendor violation."""
     claude_md = temp_repo / "CLAUDE.md"
     claude_md.write_text("# Test\n" + ("line\n" * 250))
 
-    result = check_claude_md_line_count(claude_md)
+    result = measure_claude_md_single_file(claude_md)
 
-    assert not result.passed
-    assert result.severity == "error"
-    assert "exceeds 200 limit" in result.message
+    assert result.passed
+    assert result.severity == "none"
+    assert result.details["lineCount"] == 251
 
 
 def test_claude_md_not_found():
     """Test missing CLAUDE.md fails."""
-    result = check_claude_md_line_count(Path("/nonexistent/CLAUDE.md"))
+    result = measure_claude_md_single_file(Path("/nonexistent/CLAUDE.md"))
 
     assert not result.passed
     assert result.severity == "error"
@@ -90,9 +94,7 @@ def test_imports_exist(temp_repo):
     (temp_repo / "SKILL-QUICK-REF.md").write_text("# Skills")
 
     claude_md = temp_repo / "CLAUDE.md"
-    claude_md.write_text(
-        "# Test\n@CRITICAL-CONTEXT.md\n@SKILL-QUICK-REF.md"
-    )
+    claude_md.write_text("# Test\n@CRITICAL-CONTEXT.md\n@SKILL-QUICK-REF.md")
 
     result = check_imported_files_exist(claude_md, temp_repo)
 
@@ -321,9 +323,7 @@ This skill does something unique.
 
 def test_duplicate_content_found(temp_repo):
     """Test duplicate phrases are detected."""
-    duplicate_phrase = (
-        "This is a very specific and unique phrase that appears in both documents"
-    )
+    duplicate_phrase = "This is a very specific and unique phrase that appears in both documents"
 
     skill_dir = temp_repo / ".claude" / "skills" / "test-skill"
     skill_dir.mkdir(parents=True)
@@ -373,12 +373,21 @@ Execute: pwsh ./Deploy.ps1
     assert results.summary["failed"] == 0
 
 
-def test_full_compliance_check_violations(temp_repo, monkeypatch):
-    """Test full compliance check with violations."""
+def test_full_compliance_check_does_not_fail_large_claude_md(temp_repo, monkeypatch):
+    """A large CLAUDE.md is measured without a vendor-limit violation."""
     monkeypatch.chdir(temp_repo)
+    (temp_repo / "CLAUDE.md").write_text("# Test\n" + ("line\n" * 250))
 
-    claude_md = temp_repo / "CLAUDE.md"
-    claude_md.write_text("# Test\n" + ("line\n" * 250))
+    results = run_compliance_checks(Path(".claude"), Path("CLAUDE.md"))
+
+    assert results.summary["failed"] == 0
+    assert results.summary["measurements"] == 1
+    assert results.scope["claudeMdMeasurementResult"]["lineCount"] == 251
+
+
+def test_full_compliance_check_missing_claude_md_fails(temp_repo, monkeypatch):
+    """A missing CLAUDE.md remains a compliance violation."""
+    monkeypatch.chdir(temp_repo)
 
     results = run_compliance_checks(Path(".claude"), Path("CLAUDE.md"))
 
@@ -422,9 +431,7 @@ def test_action_light_skill_is_never_recommended_for_an_always_on_slot(temp_repo
     assert promotions == []
 
     advice = [
-        rec
-        for rec in results.recommendations
-        if "quiet-skill" in rec and "no actions" in rec
+        rec for rec in results.recommendations if "quiet-skill" in rec and "no actions" in rec
     ]
     assert len(advice) == 1
     assert "progressive disclosure" in advice[0]

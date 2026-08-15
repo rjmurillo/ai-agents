@@ -1,0 +1,104 @@
+{
+  "id": "episode-2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist",
+  "session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4982 by routing gist URLs through the GitHub API with CLI contract tests",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce gist routing failure",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement and mirror gist routing",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate and review",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record follow-up findings",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T19:15:45+00:00",
+      "type": "commit",
+      "content": "Commit: a10fd9eaad",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T19:20:22+00:00",
+      "type": "commit",
+      "content": "Commit: 55d6347071044ef6e5d575fee23ec9f364227a0e",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T19:26:44+00:00",
+      "type": "commit",
+      "content": "Commit: 5d6b3bf0f39932f7f6a8dfd25fb644191d5ed497",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-bf63100b0-fix-issue-4982-routing-gist"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 18
+  },
+  "lessons": []
+}

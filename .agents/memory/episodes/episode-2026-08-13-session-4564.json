@@ -1,0 +1,509 @@
+{
+  "id": "episode-2026-08-13-session-4564",
+  "session": "2026-08-13-session-4564",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Execute single-PR autofix for PR 4564, resolve conflicts, fix CI, validate, and merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T09:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired PR lease and rebound live state",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T09:10:00+00:00",
+      "type": "milestone",
+      "content": "Protected existing dirty work",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T09:30:00+00:00",
+      "type": "milestone",
+      "content": "Proved and resolved real conflicts",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T10:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled obsolete duplicate tests",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T10:30:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and repaired QA evidence",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed local validation",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      243 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T10:42:35+00:00",
+      "type": "commit",
+      "content": "Commit: 200648b0167c2bec029f63b50a61bf6bd26d3a6c",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:54:04+00:00",
+      "type": "commit",
+      "content": "Commit: 219cf4e4575d8e3befd84034ace250ca27954d7a",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e006",
+        "e007",
+        "e014",
+        "e019",
+        "e021",
+        "e024",
+        "e027"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:15:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2c96004043df67998269545698661f01a8c122f6",
+      "caused_by": [
+        "e006",
+        "e007",
+        "e014",
+        "e019",
+        "e021",
+        "e024",
+        "e027"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T11:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 690dbd5bac442c54e621e077965c15c012590384",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T11:31:29+00:00",
+      "type": "commit",
+      "content": "Commit: dc4eee3c560677c7b757a3eaccdb850084501cda",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T11:49:57+00:00",
+      "type": "commit",
+      "content": "Commit: 964e774b667ef79bace5c19211b640735743a904",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      247 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T12:12:43+00:00",
+      "type": "commit",
+      "content": "Commit: 3112bc8e477d312014c4fa833f92a657bc18c091",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-13T12:21:34+00:00",
+      "type": "commit",
+      "content": "Commit: 39b49306bd46ae8080b1536eddeee43f74612fff",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-13T12:49:27+00:00",
+      "type": "commit",
+      "content": "Commit: 45c48770693eb9678fa4897f943535bab3e1f465",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-13T13:23:39+00:00",
+      "type": "commit",
+      "content": "Commit: 9dfb21b53878e3766b1dd8fe2debf4a3ab058d59",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      251 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-13T14:01:13+00:00",
+      "type": "commit",
+      "content": "Commit: 9c191c9965add267b791afc1c91705bdfc4938ab",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      252 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-13T14:27:15+00:00",
+      "type": "commit",
+      "content": "Commit: 818708041c6218ef133da6cb8b41f1cffaf3e487",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-13T14:39:37+00:00",
+      "type": "commit",
+      "content": "Commit: 9e1e416b82ef9685288f3b0fe78b289cba2c67d8",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      253 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-13T15:20:26+00:00",
+      "type": "commit",
+      "content": "Commit: 414edd86d7cc28385f4500e3ed968ff4d6606427",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-13T15:38:35+00:00",
+      "type": "commit",
+      "content": "Commit: 99f73437606a6318ff7f20299708fe59ef91ee5e",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-13T11:00:00+00:00",
+      "type": "test",
+      "content": "Completed local validation      255 tests passed; Ruff, parity, conflict scan, markdownlint, and pre_pr 51 of 51 passed.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-13T16:23:28+00:00",
+      "type": "commit",
+      "content": "Commit: b04756e2ee7cce83a3b8cbcaa897cac52312a985",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-13T23:15:00+00:00",
+      "type": "milestone",
+      "content": "Corrected closing-claim audit defects",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-13T23:20:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Windows merge-tree materialization",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-13T23:30:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed QA evidence",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e032"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-13T23:53:57+00:00",
+      "type": "commit",
+      "content": "Commit: a74ba994eb01c694c50b539a1cc6e1f7422dfc59",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-14T00:25:00+00:00",
+      "type": "milestone",
+      "content": "Completed final adversarial review",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e036"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-14T00:19:31+00:00",
+      "type": "commit",
+      "content": "Commit: 0ef95e344c201bf2e022c470722d890176209e55",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-14T01:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed final Markdown parser findings",
+      "caused_by": [
+        "e036"
+      ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-14T00:58:45+00:00",
+      "type": "commit",
+      "content": "Commit: 7e9c055a9105ad4e2c26e967e0829556ee2bfb30",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e035"
+      ],
+      "_source_session": "2026-08-13-session-4564"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-14T02:14:10+00:00",
+      "type": "commit",
+      "content": "Commit: f54c626f36ab560ef22be6be5170c6e96fffbcae",
+      "caused_by": [
+        "e035"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-4564"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 960,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 20,
+    "files_changed": 27
+  },
+  "lessons": []
+}

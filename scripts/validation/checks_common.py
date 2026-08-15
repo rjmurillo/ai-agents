@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from scripts.cli_exec import resolve_executable
+
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
     """Raised by a validation when a referenced script is absent on disk.
@@ -38,15 +40,12 @@ def _run_subprocess(
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    """Run a subprocess and return (exit_code, stdout, stderr).
-
-    When ``env`` is provided it replaces the child environment entirely, so
-    callers that only want to add a variable should merge it with
-    ``os.environ`` themselves before passing it in.
-    """
+    """Run a subprocess after resolving its executable for the target platform."""
     try:
+        executable = args[0] if os.path.dirname(args[0]) else resolve_executable(args[0], env=env)
+        command = [executable, *args[1:]]
         result = subprocess.run(
-            args,
+            command,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
