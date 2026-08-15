@@ -248,12 +248,13 @@ after the work is committed, not while it accumulates. Check it mid-session:
 git rev-list --count HEAD ^origin/main
 ```
 
-Relief is the `commit-limit-bypass` label on the PR, and nothing else, and a
-human maintainer is the only party who may add it (CONTRIBUTING.md, "Bypassing
-the Limit"): ask for it, and do not apply it yourself. Refs #4782. Squashing
-is often the wrong repair, because the five-file atomic-commit rule then makes
-the collapsed commit a violation of a different rule. Ask for the label when the
-branch is one coherent thread, and split into a second PR when it is not.
+Relief is one of two sanctioned paths (CONTRIBUTING.md:857): split the PR,
+or ask a human maintainer to decide on the `commit-limit-bypass` label; only
+that maintainer may add it (CONTRIBUTING.md, "Bypassing the Limit"): ask for
+it, and do not apply it yourself. Refs #4782. Squashing is often the wrong repair,
+because the five-file atomic-commit rule then makes the collapsed commit a
+violation of a different rule. Ask for the label when the branch is one
+coherent thread, and split into a second PR when it is not.
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
