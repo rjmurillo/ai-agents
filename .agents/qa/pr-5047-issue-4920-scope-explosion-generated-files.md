@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4920-scope-explosion-generated-files.json
-qaCommit: 654fbc8022ee99698b11261c2bb5aa03a72ac7f9
+qaCommit: 9a08ed139aa21004a24d53b658a6a2f46d115dce
 ---
 
 # Issue 4920 Scope Explosion Generated Files QA Report
