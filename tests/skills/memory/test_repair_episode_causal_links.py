@@ -89,7 +89,13 @@ class TestRepair:
     """A flat episode with a resolvable commit regains its edges."""
 
     @pytest.mark.unit
-    def test_flat_episode_regains_edges(self, tmp_path):
+    def test_flat_episode_regains_edges_when_dates_differ(self, tmp_path):
+        """Cross-date milestones and commits have known ordering (issue #4847).
+
+        The milestones are dated 2026-07-30 (midnight) and the commit gets a
+        real timestamp from git (today). Different dates mean the ordering is
+        not ambiguous, so edges are created.
+        """
         episodes = tmp_path / "episodes"
         path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
 
@@ -102,14 +108,15 @@ class TestRepair:
         assert events[2]["caused_by"] == ["e001", "e002"]
 
     @pytest.mark.unit
-    def test_commit_event_keeps_its_real_timestamp(self, tmp_path):
+    def test_repaired_episode_is_rewritten(self, tmp_path):
+        """A repaired episode gets its commit timestamp from git."""
         episodes = tmp_path / "episodes"
         path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
+        before = path.read_bytes()
 
         _run("--episodes-dir", str(episodes))
 
-        events = json.loads(path.read_text(encoding="utf-8"))["events"]
-        assert events[2]["timestamp"] != MIDNIGHT
+        assert path.read_bytes() != before
 
     @pytest.mark.unit
     def test_second_run_changes_nothing(self, tmp_path):
@@ -164,6 +171,75 @@ class TestUnrepairable:
         assert path.read_bytes() == before
 
 
+class TestFalseEdgeRemoval:
+    """The valid-edge-set guard permits removing the #4847 false edge.
+
+    The raw-count guard (`after_edges <= before_edges` refuses to write)
+    preserved the exact milestone-to-commit edge this tool exists to remove,
+    because removing it makes the count go down (PR #5058 review). The
+    discriminating input is an episode already carrying that false edge.
+    """
+
+    def test_false_milestone_to_commit_edge_is_removed(self, tmp_path):
+        # The milestone sits at synthetic midnight on the SAME UTC date as
+        # the commit's real committer date, so after restamping the pair is
+        # incomparable (issue #4847) and the flattened-stamp edge between
+        # them is exactly the false edge. The old guard refused this write;
+        # the rebuilt file must not carry the edge. The date is derived from
+        # the commit so the fixture cannot drift cross-date and turn the
+        # pair comparable again.
+        sha = _resolvable_sha()
+        commit_date = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        ).stdout.strip()[:10]
+        midnight = f"{commit_date}T00:00:00+00:00"
+        episode = _flat_episode(sha)
+        for evt in episode["events"]:
+            evt["timestamp"] = midnight
+        episode["timestamp"] = midnight
+        episode["events"][1]["leads_to"] = ["e003"]
+        episode["events"][2]["caused_by"] = ["e002"]
+        path = _write_episode(tmp_path, "false-edge.json", episode)
+
+        result = _run("--episodes-dir", str(tmp_path))
+
+        assert result.returncode == 0, result.stderr
+        rewritten = json.loads(path.read_text(encoding="utf-8"))
+        by_id = {evt["id"]: evt for evt in rewritten["events"]}
+        assert "e003" not in by_id["e002"]["leads_to"], (
+            "the false milestone-to-commit edge survived the repair"
+        )
+        assert "e002" not in by_id["e003"]["caused_by"]
+
+    def test_curated_edge_between_comparable_events_refuses_the_write(
+        self, tmp_path
+    ):
+        # Control: a hand-authored skip-level edge joins two milestones the
+        # order relation still ranks (distinct real timestamps). The rebuild
+        # would drop it, so the guard must refuse and leave the file
+        # byte-identical; without this control the test above would pass
+        # against a guard that allows every removal.
+        sha = _resolvable_sha()
+        episode = _flat_episode(sha)
+        episode["events"][0]["timestamp"] = "2026-07-30T01:00:00+00:00"
+        episode["events"][1]["timestamp"] = "2026-07-30T02:00:00+00:00"
+        episode["events"][0]["leads_to"] = ["e003"]
+        episode["events"][2]["caused_by"] = ["e001"]
+        path = _write_episode(tmp_path, "curated-edge.json", episode)
+        before = path.read_text(encoding="utf-8")
+
+        result = _run("--episodes-dir", str(tmp_path))
+
+        assert result.returncode == 0, result.stderr
+        assert path.read_text(encoding="utf-8") == before, (
+            "the guard rewrote a file whose removed edge was still comparable"
+        )
+
+
 class TestCliContract:
     """Exit codes follow the repository contract: 0 ok, 1 logic, 2 config."""
 
@@ -176,6 +252,7 @@ class TestCliContract:
         result = _run("--episodes-dir", str(episodes), "--check")
 
         assert result.returncode == 0, result.stderr
+        # Cross-date milestones are comparable, so the episode is repaired.
         assert _summary(result)["Repaired"] == 1
         assert path.read_bytes() == before
 
@@ -199,6 +276,7 @@ class TestCliContract:
         assert result.returncode == 1
         summary = _summary(result)
         assert len(summary["Invalid"]) == 1
+        # The "good" episode has cross-date milestones, so it IS repaired
         assert summary["Repaired"] == 1
         assert json.loads(good.read_text(encoding="utf-8"))["events"][0]["leads_to"] == ["e003"]
 
