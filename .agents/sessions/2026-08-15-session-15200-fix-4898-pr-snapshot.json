@@ -120,7 +120,7 @@
       "detail": "All ratchets pass: ruff, encoding, taste, subprocess"
     }
   ],
-  "endingCommit": "8e0e6117e0c878ab80e74e1be8cd3b00d253a182",
+  "endingCommit": "93a9622b1a1ff6159f7372e2d8bb36db72bb67f5",
   "nextSteps": [
     "Integration with doc_accuracy.py --target flag (Phase 2)",
     "End-to-end test with real GitHub PR (requires network)"
