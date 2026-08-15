@@ -65,19 +65,27 @@ the reviewer's machine (CWE-829: inclusion of functionality from
 untrusted control sphere). ``validate_safe_path`` keeps the file
 inside the repo; it does NOT make the file trusted.
 
-The dispatcher therefore enforces the boundary itself, before any
+The dispatcher therefore verifies the CONFIG FILE itself, before any
 criterion is dispatched: :func:`_verify_config_trust` compares the
 working-tree config byte for byte against the copy at ``--trusted-ref``
-(default ``origin/main``) via ``git show <ref>:<path>``. The outcomes:
+(default ``origin/main``; must resolve to a remote-tracking ref under
+``refs/remotes/*``, because ``HEAD`` or a local branch can be moved by
+the checked-out PR and cannot anchor trust). The single buffer that is
+verified is the same buffer that is parsed and dispatched (no CWE-367
+window). The outcomes:
 
-  * **trusted** -- bytes identical; dispatch proceeds.
+  * **trusted** -- bytes identical to the trusted blob after checkout
+    filters (``git cat-file --filters``, so ``core.autocrlf`` consumers
+    do not false-halt on line endings; filters can re-encode trusted
+    content but never inject bytes into it); dispatch proceeds.
   * **diverged** -- bytes differ (whitespace included; byte identity is
     the contract). The gate halts with exit 2 before executing any
     command and prints a unified diff to stderr.
   * **missing-base** -- the config does not exist at the trusted ref, so
     tampering is indistinguishable from a new file. Halt, exit 2.
   * **git-error** -- verification itself is impossible (not a git work
-    tree, trusted ref absent, git missing or timing out). Halt, exit 3.
+    tree, trusted ref absent or not remote-tracking, git missing or
+    timing out). Halt, exit 3.
 
 A human who has inspected the surfaced diff can approve execution
 explicitly by re-running with ``--approve-untrusted-config``, which
@@ -85,6 +93,19 @@ proceeds through every non-trusted outcome with a loud stderr warning
 and records the trust status in the JSON payload. Config evolution
 through normal PRs needs no flag: once the change merges to the base
 branch, working tree and trusted ref agree again.
+
+Scope of the guarantee
+~~~~~~~~~~~~~~~~~~~~~~
+
+``config_trust: trusted`` asserts the CONFIG is the trusted ref's copy.
+It does NOT assert the verifier scripts the config's commands name
+(e.g. ``.claude/skills/github/scripts/pr/*.py``) are unmodified: those
+files live in the same checked-out PR tree and are outside this check.
+A PR that leaves the config untouched but rewrites a verifier script
+still executes attacker code with a "trusted" gate verdict. That is the
+same exposure as running any test or lint on a PR branch, but do not
+read this field as covering it. Verifier-script verification is tracked
+as follow-up work in issue #5099.
 
 Substitution
 ------------
@@ -199,34 +220,56 @@ _DEFAULT_CONFIG_PATH = (
 class ConfigError(Exception):
     """Schema or load error in the completion-gate config.
 
-    Raised by :func:`_load_config` and :func:`_evaluate_criterion` to
+    Raised by :func:`_read_config_bytes`, :func:`_load_config_bytes`,
+    and :func:`_evaluate_criterion` to
     distinguish a config bug (which the dispatcher exits 2 for, per
     ADR-035) from a criterion that legitimately failed (exit 1).
     """
 
 
-def _load_config(path: Path) -> dict:
-    """Load a YAML config file. Raises ConfigError on any failure mode."""
+def _read_config_bytes(path: Path) -> bytes:
+    """Read the config exactly once. Raises ConfigError on any failure mode.
+
+    The returned buffer is what gets trust-verified AND parsed, so there
+    is no window for the file to change between the two (CWE-367).
+    """
     if not path.is_file():
         raise ConfigError(f"Config file not found: {path}")
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise ConfigError(f"Cannot read config {path}: {exc}") from exc
+
+
+def _load_config_bytes(raw: bytes, path: Path) -> dict[str, Any]:
+    """Parse config bytes as YAML. Raises ConfigError on any failure mode.
+
+    ``RecursionError`` is caught alongside ``yaml.YAMLError`` because it
+    is not a YAMLError subclass: deeply nested untrusted input would
+    otherwise escape as a traceback and exit 1, which this script's
+    ADR-035 contract reserves for "a criterion failed", not "the config
+    could not be parsed".
+    """
     if not _HAVE_YAML:
         raise ConfigError(
             "PyYAML is required to parse the completion-gate config; "
             "install it via `pip install pyyaml`.",
         )
     try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ConfigError(f"Cannot read config {path}: {exc}") from exc
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"Config {path} is not valid UTF-8: {exc}") from exc
     try:
         data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, RecursionError) as exc:
         raise ConfigError(f"Cannot parse config {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ConfigError(
             f"Config root must be a mapping, got {type(data).__name__}",
         )
     return data
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -270,14 +313,34 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[bytes]:
     )
 
 
-def _verify_config_trust(config_path: Path, trusted_ref: str) -> TrustCheck:
-    """Compare ``config_path`` byte for byte against its trusted-ref copy.
+def _verify_config_trust(
+    config_path: Path,
+    trusted_ref: str,
+    tree_bytes: bytes,
+) -> TrustCheck:
+    """Compare ``tree_bytes`` byte for byte against the trusted-ref copy.
+
+    ``tree_bytes`` is the single read of the config the caller will also
+    parse and dispatch from, so the bytes verified ARE the bytes executed
+    (no TOCTOU window between verification and parse; CWE-367).
 
     Byte identity is deliberate: a whitespace-only or comment-only edit
     still halts, because "close enough" comparison is exactly where a
-    tampered ``completion_criteria.command`` would hide. The caller
-    decides what each status means for the exit code; this function
-    never raises.
+    tampered ``completion_criteria.command`` would hide. The trusted side
+    is read with ``git cat-file --filters``, which applies the same
+    checkout conversion (EOL, working-tree-encoding) the working tree
+    received, so a consumer repo with ``core.autocrlf`` does not
+    false-halt on line endings alone. Those filters can only re-encode
+    the trusted content, never inject new bytes into it, so a match still
+    proves the working tree carries the trusted content.
+
+    The trusted ref must resolve to a remote-tracking ref
+    (``refs/remotes/*``). ``HEAD``, a local branch, a tag, or a bare SHA
+    is refused: after ``gh pr checkout`` those can point at or be moved
+    by the PR's own history, so "trusted" would be self-referential.
+
+    The caller decides what each status means for the exit code; this
+    function never raises.
     """
     try:
         proc = _run_git(["rev-parse", "--show-toplevel"], config_path.parent)
@@ -294,6 +357,20 @@ def _verify_config_trust(config_path: Path, trusted_ref: str) -> TrustCheck:
             return TrustCheck(
                 TRUST_GIT_ERROR,
                 f"config {config_path} resolves outside git work tree {toplevel}",
+            )
+
+        proc = _run_git(
+            ["rev-parse", "--symbolic-full-name", trusted_ref], toplevel,
+        )
+        full_name = proc.stdout.decode(errors="replace").strip()
+        if proc.returncode != 0 or not full_name.startswith("refs/remotes/"):
+            return TrustCheck(
+                TRUST_GIT_ERROR,
+                f"trusted ref {trusted_ref!r} must resolve to a "
+                f"remote-tracking ref (refs/remotes/*), got "
+                f"{full_name or 'a local, detached, or unknown revision'}; "
+                f"HEAD and local branches can be moved by the checked-out "
+                f"PR and cannot anchor trust",
             )
 
         proc = _run_git(
@@ -317,15 +394,14 @@ def _verify_config_trust(config_path: Path, trusted_ref: str) -> TrustCheck:
                 f"tampered one",
             )
 
-        proc = _run_git(["show", spec], toplevel)
+        proc = _run_git(["cat-file", "--filters", spec], toplevel)
         if proc.returncode != 0:
             return TrustCheck(
                 TRUST_GIT_ERROR,
-                f"git show {spec} failed: "
+                f"git cat-file --filters {spec} failed: "
                 f"{proc.stderr.decode(errors='replace').strip()}",
             )
         trusted_bytes = proc.stdout
-        tree_bytes = config_path.read_bytes()
     except (OSError, subprocess.TimeoutExpired) as exc:
         return TrustCheck(TRUST_GIT_ERROR, f"trust verification failed: {exc}")
 
@@ -345,6 +421,7 @@ def _enforce_config_trust(
     config_path: Path,
     trusted_ref: str,
     approved: bool,
+    tree_bytes: bytes,
 ) -> tuple[TrustCheck, int | None]:
     """Gate dispatch on config trust; returns ``(trust, exit_code_or_None)``.
 
@@ -360,7 +437,7 @@ def _enforce_config_trust(
         )
         return TrustCheck(TRUST_GIT_ERROR, "malformed trusted ref"), 2
 
-    trust = _verify_config_trust(config_path, trusted_ref)
+    trust = _verify_config_trust(config_path, trusted_ref, tree_bytes)
     if trust.status == TRUST_TRUSTED:
         return trust, None
 
@@ -1008,6 +1085,31 @@ def _try_write_evidence(path_arg: str, payload: dict) -> bool:
     return True
 
 
+def _resolve_and_read_config(
+    config_arg: str,
+) -> tuple[Path, bytes] | tuple[None, None]:
+    """Validate the config path and read it exactly once.
+
+    Returns ``(None, None)`` after printing to stderr when the path is
+    unsafe (CWE-22 containment) or unreadable; the caller exits 2. The
+    returned buffer is the single read that gets trust-verified and then
+    parsed (CWE-367).
+    """
+    try:
+        config_path = validate_safe_path(config_arg, _PROJECT_ROOT)
+    except (FileNotFoundError, ValueError) as exc:
+        print(
+            f"Refusing to load config from unsafe path {config_arg!r}: {exc}",
+            file=sys.stderr,
+        )
+        return None, None
+    try:
+        return config_path, _read_config_bytes(config_path)
+    except ConfigError as exc:
+        print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
+        return None, None
+
+
 def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
     """Return the completion_criteria list, or None (with stderr) if invalid.
 
@@ -1036,29 +1138,27 @@ def main(argv: list[str] | None = None) -> int:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
 
-    try:
-        config_path = validate_safe_path(args.config, _PROJECT_ROOT)
-    except (FileNotFoundError, ValueError) as exc:
-        print(
-            f"Refusing to load config from unsafe path {args.config!r}: {exc}",
-            file=sys.stderr,
-        )
-        return 2
-
-    try:
-        config = _load_config(config_path)
-    except ConfigError as exc:
-        print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
+    config_path, raw_config = _resolve_and_read_config(args.config)
+    if config_path is None or raw_config is None:
         return 2
 
     # CWE-829 trust boundary: no criterion command runs unless the
     # working-tree config is byte-identical to the trusted-ref copy or a
     # human has explicitly approved the divergence.
     trust, halt_code = _enforce_config_trust(
-        config_path, args.trusted_ref, args.approve_untrusted_config,
+        config_path,
+        args.trusted_ref,
+        args.approve_untrusted_config,
+        raw_config,
     )
     if halt_code is not None:
         return halt_code
+
+    try:
+        config = _load_config_bytes(raw_config, config_path)
+    except ConfigError as exc:
+        print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
+        return 2
 
     criteria = _extract_criteria(config)
     if criteria is None:

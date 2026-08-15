@@ -1625,7 +1625,7 @@ class TestVerifyConfigTrustErrorBranches:
         config = tmp_path / "c.yaml"
         config.write_text("{}", encoding="utf-8")
 
-        result = _dispatcher._verify_config_trust(config, "origin/main")
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
         assert "trust verification failed" in result.detail
@@ -1638,7 +1638,7 @@ class TestVerifyConfigTrustErrorBranches:
         config = tmp_path / "c.yaml"
         config.write_text("{}", encoding="utf-8")
 
-        result = _dispatcher._verify_config_trust(config, "origin/main")
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
 
@@ -1660,16 +1660,23 @@ class TestVerifyConfigTrustErrorBranches:
         config = tmp_path / "c.yaml"
         config.write_text("{}", encoding="utf-8")
 
-        result = _dispatcher._verify_config_trust(config, "origin/main")
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
         assert "outside git work tree" in result.detail
 
-    def test_git_show_failure_reports_git_error(self, tmp_path, monkeypatch):
+    def test_cat_file_filters_failure_reports_git_error(
+        self, tmp_path, monkeypatch,
+    ):
         def _fake(args, cwd):
-            if args[0] == "show":
+            if args[:2] == ["cat-file", "--filters"]:
                 return subprocess.CompletedProcess(
                     args=args, returncode=128, stdout=b"", stderr=b"boom",
+                )
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
                 )
             return subprocess.CompletedProcess(
                 args=args, returncode=0,
@@ -1680,13 +1687,198 @@ class TestVerifyConfigTrustErrorBranches:
         config = tmp_path / "c.yaml"
         config.write_text("{}", encoding="utf-8")
 
-        result = _dispatcher._verify_config_trust(config, "origin/main")
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
-        assert "git show" in result.detail
+        assert "cat-file --filters" in result.detail
 
-    def test_unreadable_config_reports_git_error(self, tmp_path, monkeypatch):
+
+class TestTrustBoundaryHardening:
+    """Findings from the PR #5089 security review: self-referential
+    trusted refs, TOCTOU, EOL normalization, and parser crash classes.
+    """
+
+    def test_head_as_trusted_ref_fails_closed(self, git_repo, tmp_path, capsys):
+        # F2: `--trusted-ref HEAD` would make the PR's own tampered config
+        # "trusted". HEAD is not a remote-tracking ref, so it must be
+        # refused before any dispatch.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "attacker controls HEAD")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1",
+             "--trusted-ref", "HEAD"],
+        )
+
+        assert rc == 3
+        assert not marker.exists(), "HEAD-anchored trust must never dispatch"
+        err = capsys.readouterr().err
+        assert "remote-tracking" in err
+
+    def test_local_branch_as_trusted_ref_fails_closed(
+        self, git_repo, tmp_path, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "local branch is PR-movable")
+        _git(git_repo, "branch", "pr-branch")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1",
+             "--trusted-ref", "pr-branch"],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
+        assert "remote-tracking" in capsys.readouterr().err
+
+    def test_eol_only_difference_under_autocrlf_stays_trusted(
+        self, git_repo, tmp_path,
+    ):
+        # F4: a consumer repo with core.autocrlf=true checks the config out
+        # with CRLF while the trusted blob stores LF. The comparison uses
+        # `git cat-file --filters`, so an EOL-only difference is not a
+        # divergence and the gate does not train operators to bypass.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+        _git(git_repo, "config", "core.autocrlf", "true")
+        lf_bytes = config_path.read_bytes()
+        assert b"\r\n" not in lf_bytes
+        config_path.write_bytes(lf_bytes.replace(b"\n", b"\r\n"))
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+
+    def test_content_tamper_under_autocrlf_still_halts(
+        self, git_repo, tmp_path,
+    ):
+        # Negative control for the EOL allowance: CRLF conversion plus a
+        # real content change must still halt without executing.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Benign",
+                    "verification": "command",
+                    "command": "echo benign",
+                    "pass_when": "stdout-json.ok == true",
+                },
+            ],
+        )
+        _commit_as_trusted(git_repo, config_path)
+        _git(git_repo, "config", "core.autocrlf", "true")
+        marker = tmp_path / "pwned.txt"
+        _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        crlf = config_path.read_bytes().replace(b"\n", b"\r\n")
+        config_path.write_bytes(crlf)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+
+    def test_deeply_nested_config_fails_config_not_crash(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # F6: RecursionError is not a yaml.YAMLError subclass; a nesting
+        # bomb must exit 2 (config error), not escape as a traceback with
+        # exit 1 ("a criterion failed").
+        config_path = tmp_path / "pr-review-config.yaml"
+        config_path.write_bytes(b"[" * 200000 + b"]" * 200000)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert "Failed to load config" in capsys.readouterr().err
+
+    def test_config_is_read_exactly_once(self, git_repo, tmp_path, monkeypatch):
+        # F3 (CWE-367): the bytes that were trust-verified must be the
+        # bytes that are parsed and dispatched. One read, one buffer.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+
+        reads: list[Path] = []
+        original_read_bytes = Path.read_bytes
+
+        def _counting_read_bytes(self: Path) -> bytes:
+            if self == config_path:
+                reads.append(self)
+            return original_read_bytes(self)
+
+        monkeypatch.setattr(Path, "read_bytes", _counting_read_bytes)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 0
+        assert len(reads) == 1, (
+            f"config read {len(reads)} times; a second read reopens the "
+            f"TOCTOU window between verification and dispatch"
+        )
+
+
+class TestConfigLoaderBranches:
+    """Unit coverage for the split read/parse loader (100% requirement)."""
+
+    def test_unreadable_existing_config_reports_config_error(
+        self, tmp_path, monkeypatch,
+    ):
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        def _boom(self: Path) -> bytes:
+            raise OSError("io broke")
+
+        monkeypatch.setattr(Path, "read_bytes", _boom)
+        with pytest.raises(_dispatcher.ConfigError, match="Cannot read config"):
+            _dispatcher._read_config_bytes(config)
+
+    def test_missing_pyyaml_reports_config_error(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(_dispatcher, "_HAVE_YAML", False)
+        with pytest.raises(_dispatcher.ConfigError, match="PyYAML is required"):
+            _dispatcher._load_config_bytes(b"{}", tmp_path / "c.yaml")
+
+    def test_non_utf8_config_reports_config_error(self, tmp_path):
+        with pytest.raises(_dispatcher.ConfigError, match="not valid UTF-8"):
+            _dispatcher._load_config_bytes(b"\xff\xfe\x00A", tmp_path / "c.yaml")
+
+    def test_non_mapping_root_reports_config_error(self, tmp_path):
+        with pytest.raises(_dispatcher.ConfigError, match="must be a mapping"):
+            _dispatcher._load_config_bytes(b"[1, 2]", tmp_path / "c.yaml")
+
+
+class TestVerifyRefCommitBranch:
+    """The ^{commit} verify after the symbolic check: defense in depth for
+    a remote-tracking ref that resolves symbolically but not to a commit.
+    """
+
+    def test_symbolic_ok_but_verify_fails_reports_git_error(
+        self, tmp_path, monkeypatch,
+    ):
         def _fake(args, cwd):
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
+                )
+            if args[:2] == ["rev-parse", "--verify"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=1, stdout=b"", stderr=b"",
+                )
             return subprocess.CompletedProcess(
                 args=args, returncode=0,
                 stdout=str(tmp_path).encode() + b"\n", stderr=b"",
@@ -1694,8 +1886,9 @@ class TestVerifyConfigTrustErrorBranches:
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
         config = tmp_path / "c.yaml"
-        # Never created on disk: read_bytes raises OSError.
+        config.write_text("{}", encoding="utf-8")
 
-        result = _dispatcher._verify_config_trust(config, "origin/main")
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
+        assert "not found" in result.detail
