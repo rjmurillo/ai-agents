@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to final review-fix commit 85dc88f93e7dd6851d9c48f2e83617dc79618f87."
+        "Evidence": "QA evidence rebound to trust-pin refresh commit 18725d5ded4e53cd2e27d92a06753c2299e73a06."
       },
       "validationPassed": {
         "level": "MUST",
@@ -207,8 +207,12 @@
     {
       "action": "Removed duplicate hook behavior coverage and corrected checkout-index workspace tracking.",
       "result": "Dedicated hook suites pass 85 tests. Workflow checkout guard passes 148 tests. Durable next steps are now empty."
+    },
+    {
+      "action": "Merged current main and refreshed three trust-anchor hashes.",
+      "result": "The provenance suite passes 215 tests, and compact-checkpoint plus hook-utility tests pass 87 tests."
     }
   ],
-  "endingCommit": "85dc88f93e7dd6851d9c48f2e83617dc79618f87",
+  "endingCommit": "18725d5ded4e53cd2e27d92a06753c2299e73a06",
   "nextSteps": []
 }

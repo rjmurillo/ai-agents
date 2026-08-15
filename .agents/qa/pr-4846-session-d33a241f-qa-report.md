@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 85dc88f93e7dd6851d9c48f2e83617dc79618f87
+qaCommit: 18725d5ded4e53cd2e27d92a06753c2299e73a06
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `85dc88f93e7dd6851d9c48f2e83617dc79618f87`
+Validated the branch at commit `18725d5ded4e53cd2e27d92a06753c2299e73a06`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -47,6 +47,7 @@ actionlint, workflow validation, and independent security review all pass.
 The final review cleanup removes duplicate sub-agent behavior tests and makes
 the checkout dependency guard reject external checkout-index prefixes.
 The dedicated hook suites pass 85 tests. The workflow guard passes 148 tests.
+After the latest main refresh, 215 provenance tests and 87 hook tests pass.
 
 Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required

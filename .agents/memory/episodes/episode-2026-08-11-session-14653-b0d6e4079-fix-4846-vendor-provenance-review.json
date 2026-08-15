@@ -103,7 +103,8 @@
         "e054",
         "e056",
         "e058",
-        "e059"
+        "e059",
+        "e061"
       ],
       "leads_to": [
         "e006"
@@ -776,6 +777,30 @@
       "caused_by": [
         "e057"
       ],
+      "leads_to": [
+        "e062"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e061",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and refreshed three trust-anchor hashes.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-08-15T04:54:31+00:00",
+      "type": "commit",
+      "content": "Commit: 18725d5ded4e53cd2e27d92a06753c2299e73a06",
+      "caused_by": [
+        "e060"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -785,7 +810,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 34,
+    "commits": 35,
     "files_changed": 52
   },
   "lessons": []
