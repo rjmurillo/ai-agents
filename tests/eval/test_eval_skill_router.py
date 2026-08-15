@@ -286,3 +286,97 @@ class TestReviewRoutingCoverage:
             assert fixture_id in fixtures
             assert fixtures[fixture_id]["correct"] == correct
             assert correct in fixtures[fixture_id]["candidates"]
+
+
+class TestReviewAxisRoutingContract:
+    """AC-9: Verify axis routing guidance covers all required risk categories.
+
+    The SKILL.md routes changes to specialist axes based on each reference
+    file's applicability guidance. This test verifies the contract: for each
+    risk category in issue #4981's routing table, a matching axis reference
+    exists with analysis focus areas covering that category.
+    """
+
+    _REVIEW_REFS = (
+        Path(__file__).resolve().parents[2]
+        / ".claude"
+        / "skills"
+        / "review"
+        / "references"
+    )
+
+    # Issue #4981 routing table requirements:
+    # Change surface -> required specialist axis
+    REQUIRED_ROUTING = {
+        "security": {
+            "axis": "security",
+            "keywords": ["vulnerability", "secret", "auth"],
+        },
+        "dependency": {
+            "axis": "security",
+            "keywords": ["dependency", "dependencies"],
+        },
+        "ci_deploy": {
+            "axis": "devops",
+            "keywords": ["pipeline", "ci", "build"],
+        },
+        "types_api": {
+            "axis": "architect",
+            "keywords": ["api", "interface", "design"],
+        },
+        "tests": {
+            "axis": "qa",
+            "keywords": ["test", "coverage", "assertion"],
+        },
+        "error_handling": {
+            "axis": "qa",
+            "keywords": ["error", "exception", "failure"],
+        },
+    }
+
+    def test_axis_reference_files_exist(self) -> None:
+        """Each required axis has a reference prompt file."""
+        required_axes = {
+            "security", "devops", "architect", "qa",
+            "analyst", "spec-compliance",
+        }
+        existing = {p.stem for p in self._REVIEW_REFS.glob("*.md")}
+        missing = required_axes - existing
+        assert not missing, f"Missing axis references: {missing}"
+
+    def test_routing_categories_have_matching_axes(self) -> None:
+        """Each risk category maps to an axis with relevant focus areas."""
+        for category, spec in self.REQUIRED_ROUTING.items():
+            axis_file = self._REVIEW_REFS / f"{spec['axis']}.md"
+            assert axis_file.exists(), (
+                f"Category '{category}' requires axis '{spec['axis']}'"
+            )
+            content = axis_file.read_text(encoding="utf-8").lower()
+            matched = [
+                kw for kw in spec["keywords"]
+                if kw in content
+            ]
+            assert matched, (
+                f"Axis '{spec['axis']}' has no keyword matches "
+                f"for category '{category}': {spec['keywords']}"
+            )
+
+    def test_skill_md_documents_risk_selection(self) -> None:
+        """SKILL.md contains risk-selection process documentation."""
+        skill_md = self._REVIEW_REFS.parent / "SKILL.md"
+        content = skill_md.read_text(encoding="utf-8")
+        assert "selected / skipped" in content, (
+            "Output table must show selection status"
+        )
+        assert "change risk" in content.lower() or (
+            "risk" in content.lower()
+            and "select" in content.lower()
+        ), "SKILL.md must document risk-based selection"
+
+    def test_fail_closed_documented(self) -> None:
+        """Unknown changes run full set (fail-closed)."""
+        skill_md = self._REVIEW_REFS.parent / "SKILL.md"
+        content = skill_md.read_text(encoding="utf-8")
+        assert "cannot be classified" in content or (
+            "full set" in content
+        ), "SKILL.md must document fail-closed behavior"
