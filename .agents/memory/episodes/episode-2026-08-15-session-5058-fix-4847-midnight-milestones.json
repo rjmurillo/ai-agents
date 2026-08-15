@@ -129,6 +129,28 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round addendum: encoding ratchet fix on the fixture call plus handoff/tool_call both-direction incomparability tests",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T22:53:08+00:00",
+      "type": "commit",
+      "content": "Commit: 91e520df0c01b8fdbc8f5236aee269a5b32e3c63",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
     }
@@ -138,7 +160,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 11
   },
   "lessons": []

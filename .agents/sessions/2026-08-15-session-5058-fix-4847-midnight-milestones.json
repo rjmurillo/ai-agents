@@ -135,8 +135,11 @@
     },
     {
       "action": "Landing refresh: merged origin/main, replaced the raw edge-count guard with a valid-edge-set guard so the repair can remove now-incomparable false edges (review finding, both copies), added removal + evidence-control tests with a mutation check"
+    },
+    {
+      "action": "Round addendum: encoding ratchet fix on the fixture call plus handoff/tool_call both-direction incomparability tests"
     }
   ],
   "nextSteps": [],
-  "endingCommit": "9b156bd6cf7b032618bc01b769456fe2d202e094"
+  "endingCommit": "91e520df0c01b8fdbc8f5236aee269a5b32e3c63"
 }
