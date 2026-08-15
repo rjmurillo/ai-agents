@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15072-issue-5072-completion-gate-trust.json
-qaCommit: 8d45795d939b4c8c86ccd77140f1d50da670ad37
+qaCommit: 4aec03675cc966e8dc8d8d15e2bcf56acf415bbc
 ---
 
 # QA Report: PR #5089 completion-gate config trust boundary (Issue #5072)
@@ -16,7 +16,7 @@ CWE-829 fix in `.claude/skills/github/scripts/pr/run_completion_gate.py`: the di
 
 Command: `uv run pytest tests/skills/github/test_run_completion_gate.py -q`
 
-Result: 110 passed (82 pre-existing cases from 76 unchanged test functions, one of which is a seven-row parametrization contributing six extra cases; 28 new test functions across the trust boundary, security-review hardening, approval-scope, loader branches, and terminal-escape control). The new tests drive `main()` end to end against real git repositories with no subprocess stubbing.
+Result: 111 passed (82 pre-existing cases from 76 unchanged test functions, one of which is a seven-row parametrization contributing six extra cases; 29 new test functions across the trust boundary, security-review hardening, approval-scope, loader branches, and terminal-escape control). The trust-boundary and hardening integration subsets (`TestConfigTrustBoundary`, `TestTrustBoundaryHardening`, `TestApprovalDoesNotCoverGitError`) drive `main()` end to end against real git repositories with no subprocess stubbing; the fault-injection class (`TestVerifyConfigTrustErrorBranches`) replaces `_run_git` with argv-dispatched fakes by design, and the loader-branch tests call the helpers directly.
 
 Acceptance-criteria mapping:
 
@@ -47,7 +47,7 @@ Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trus
 
 ### Full suite
 
-Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `8d45795d939b4c8c86ccd77140f1d50da670ad37` runs the same complete pre-push hook suite before the ref moves.
+Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `4aec03675cc966e8dc8d8d15e2bcf56acf415bbc` runs the same complete pre-push hook suite before the ref moves.
 
 
 ### Security-review hardening (second round)

@@ -166,10 +166,13 @@
     },
     {
       "activity": "Copilot review round 3: narrowed printed-diff claim to diverged/missing-base in all three doc surfaces; added U+200B zero-width negative control to the terminal-escape test (already covered by Cc/Cf classification)"
+    },
+    {
+      "activity": "Copilot review round 4: existence check moved from cat-file -e to ls-tree so object-store errors map to non-approvable git-error instead of approvable missing-base (probed git 2.54 exit semantics); ESC Cc negative control added to the escape test; QA report qualified to name which test classes stub _run_git"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "8d45795d939b4c8c86ccd77140f1d50da670ad37"
+  "endingCommit": "4aec03675cc966e8dc8d8d15e2bcf56acf415bbc"
 }

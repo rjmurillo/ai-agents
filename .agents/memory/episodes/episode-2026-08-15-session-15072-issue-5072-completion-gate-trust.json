@@ -117,6 +117,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-15072-issue-5072-completion-gate-trust"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T21:15:35+00:00",
+      "type": "commit",
+      "content": "Commit: 4aec03675cc966e8dc8d8d15e2bcf56acf415bbc",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15072-issue-5072-completion-gate-trust"
     }
@@ -126,7 +139,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 15
   },
   "lessons": []
