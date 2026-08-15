@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/2026-08-14-session-14708-risk-based-review-axes.md"
+        "Evidence": ".agents/qa/2026-08-15-pr-5010-risk-based-review-axes.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -144,6 +144,6 @@
       "outcome": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json passed"
     }
   ],
-  "endingCommit": "bd398324901f268f1558e87512923c562e4d7abb",
+  "endingCommit": "e10f7f433a",
   "nextSteps": []
 }
