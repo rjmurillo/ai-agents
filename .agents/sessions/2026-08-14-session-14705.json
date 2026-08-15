@@ -178,7 +178,7 @@
       "head": "186c49540dfe0436e7ca8cbb96db64aa2dbb9f94"
     }
   },
-  "endingCommit": "e0671ceb08de8efdc89f3c9eba1426acfd33fa57",
+  "endingCommit": "4ad320598019617b22a48a3d70a0c5543ce21047",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
     "Monitor checks, address review threads, and enable auto-merge."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: e0671ceb08de8efdc89f3c9eba1426acfd33fa57
+qaCommit: 4ad320598019617b22a48a3d70a0c5543ce21047
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: e0671ceb08de8efdc89f3c9eba1426acfd33fa57
 Branch: `feat/dx-review`
 
 Validated through commit:
-`e0671ceb08de8efdc89f3c9eba1426acfd33fa57`
+`4ad320598019617b22a48a3d70a0c5543ce21047`
 
 ## Scope
 
