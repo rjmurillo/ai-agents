@@ -15,8 +15,11 @@ implemented: false
 
 Proposed
 
-Draft for human maintainer review. Not accepted, not enacted. Promotion requires
-the approval and ADR path in `.claude/rules/governance.md` MUST-1 and MUST-2.
+Draft for human maintainer review. Not accepted, not enacted. `AGENTS.md:44`
+triggers the `adr-review` skill on any `ADR-*.md` edit, and `ADR-073:156`
+places that debate before human approval, not after. `.claude/rules/governance.md`
+MUST-1 (human approval) states the general principle but is scoped to
+`.agents/governance/**`, so it does not itself define this ADR's acceptance path.
 
 ## Date
 
@@ -80,11 +83,14 @@ axes, marks every other axis `SKIPPED`, and **MUST NOT write a review marker**.
 The full run stays the default and stays unchanged. `/review` with no `--axes`
 runs all 15 axes and remains the only thing that can satisfy `/ship`.
 
-The intended workflow: during the fix loop, re-run only the axes that flagged,
-paying k axes per round instead of 15. Run the full `/review` once at the end to
-earn the marker. At 5 fix rounds with 2 flagged axes, that is 5x2 + 15 = 25 axis
-invocations against 6x15 = 90 today, a 72% reduction, with the merge gate exactly
-as strong as it is now.
+The intended workflow: an initial full run finds the flagged axes, since nothing
+is known to scope against yet. Each subsequent fix round re-runs Stage-1 (which
+always runs on a scoped invocation, per contract change 7 below) plus the k
+flagged axes, paying k+1 axes per round instead of 15. Run the full `/review`
+once at the end to earn the marker. At 6 total rounds (1 initial full run, 4
+scoped fix rounds, 1 final full run) and 2 flagged axes, that is
+15 + 4x(1+2) + 15 = 42 axis invocations against 6x15 = 90 today, a 53%
+reduction, with the merge gate exactly as strong as it is now.
 
 This ADR does **not** promote `.agents/governance/CI-FEEDBACK-SUBLOOP.md` to
 normative. See Alternatives.
@@ -138,7 +144,7 @@ running the full pass. The marker prohibition is the structural answer, because
 
 | Alternative | Pros | Cons | Why not chosen |
 |---|---|---|---|
-| Promote CI-FEEDBACK-SUBLOOP.md whole (5 phases, `fix(subloop):` convention, session schema, CI scoping) | Names the whole procedure; already written | Four of five parts are not the cost driver; touches commit-format allowlist, session schema, and CI, so it needs the `CONSENSUS.md` cross-role vote per governance MUST-3 | Largest approval surface for the same latency win |
+| Promote CI-FEEDBACK-SUBLOOP.md whole (5 phases, `fix(subloop):` convention, session schema, CI scoping) | Names the whole procedure; already written | Four of five parts are not the cost driver; `fix(subloop):` already fits the existing `fix` type (`CI-FEEDBACK-SUBLOOP.md:58`), so no commit-format allowlist change is needed, but promoting the doctrine to normative governance still needs the `CONSENSUS.md` cross-role vote per governance MUST-3, plus the deferred session-schema and CI-scoping follow-ups | Largest approval surface for the same latency win |
 | `/review --axes=<list>`, marker-free (chosen) | One skill contract, testable, no governance surface, keeps `/ship` gate strength | Author must pick the axis list; no automatic invalidation | Smallest change that removes the measured cost |
 | Cache per-axis verdicts keyed on diff hash | Fully automatic; no caller decision | Needs a per-axis file-scope map that does not exist (axes are prompts, not filters); cache invalidation is the hard half | Inventing an axis-to-path mapping is speculative and unfalsifiable today |
 | Run the 15 axes in parallel instead of sequentially | No contract change; large wall-clock win | Does not reduce token spend, which is the reported driver; 15 concurrent subagents may exceed harness limits | Orthogonal. Worth doing separately; does not fix cost |
@@ -184,7 +190,7 @@ pipeline and MUST NOT be hand-edited; regenerate it in the same change per
 | 1 | Frontmatter `argument-hint` (line 5) | `branch-or-pr-number [--axes=<comma-list>]` |
 | 2 | Triggers table (lines 19-23) | Add row: `/review --axes=a,b` runs the Stage-1 gate plus only the named axes, writes no marker |
 | 3 | Convergence contract, REQ-008-04 (lines 27-31) | State that the strict-superset-of-CI guarantee holds for a full run only. A scoped run is a declared subset, is not a superset of CI, and cannot satisfy `/ship`. |
-| 4 | Process, new step 0 | Parse `--axes`. Validate each name against the stems discovered from `references/*.md`. An unknown name is a config error: exit 2 before any axis runs. Empty or absent means full run. |
+| 4 | Process, new step 0 | Parse `--axes`. Validate each name against the union of the stems discovered from `references/*.md` (the 11 Stage-2 canonical axes) and the three chained skill names (`code-qualities-assessment`, `golden-principles`, `taste-lints`), since the latter are sibling skills, not `references/` files (`review/SKILL.md:47-49`). An unknown name is a config error: exit 2 before any axis runs. Empty or absent means full run. |
 | 5 | Process step 4 (line 71) | "Run every Stage-2 canonical axis" becomes "Run every Stage-2 canonical axis in the active set", where the active set is the discovered set filtered by `--axes` when present |
 | 6 | Process step 5 (lines 85-89) | The 3 chained skill axes run only when named in `--axes`, or always on a full run |
 | 7 | Process step 7 (line 92) | Axes outside the active set are recorded `SKIPPED (not in --axes scope)` and excluded from the `merge_verdicts` input. They are not `UNKNOWN` (which means "ran, unparseable") and never `PASS`. |
@@ -195,10 +201,13 @@ pipeline and MUST NOT be hand-edited; regenerate it in the same change per
 `spec-compliance` always runs regardless of `--axes`. It is the Stage-1 gate and
 its `CRITICAL_FAIL` short-circuit is the cheapest correctness check in the run.
 
-`validate_review_marker.py` gains one rule: a trailer whose axis list is a strict
-subset of the discovered axis set exits 1. This is defense in depth. A scoped run
-should never write a marker in the first place, and a hand-written or
-partially-updated marker must not pass.
+`validate_review_marker.py` gains one rule: a trailer whose axis list is not an
+exact match (set equality) of the discovered axis set exits 1. This catches a
+missing axis, an unknown axis, and a duplicate axis alike; a strict-subset check
+alone would miss a list that mixes one real axis with one unknown name, because
+that list is not a subset of the discovered set at all. This is defense in
+depth. A scoped run should never write a marker in the first place, and a
+hand-written or partially-updated marker must not pass.
 
 ## Required tests
 
@@ -215,7 +224,7 @@ New tests under `tests/skills/review/`:
 | `--axes=architect,security` | positive | Active set is those two plus `spec-compliance`; the other 12 are absent |
 | No `--axes` | positive | Active set is all 15 discovered axes |
 | `--axes=nonexistent` | negative | Exit 2, no axis runs, error names the unknown stem |
-| `--axes=` empty, duplicates, surrounding whitespace, mixed case | edge | Each resolves deterministically or exits 2; no silent coercion |
+| `--axes=` empty, duplicates, surrounding whitespace, mixed case | edge | Whitespace around each name is trimmed. Matching is exact-case against the lowercase-hyphenated axis stems; mixed case is an unknown name, exit 2. A duplicate name in the list is a config error, exit 2. `--axes=` present but empty is a config error, exit 2, distinct from `--axes` absent (full run) |
 | Marker on a scoped run | negative control | No `Reviewed-By` trailer is written on any verdict, including PASS |
 | `validate_review_marker.py` with a subset axis list | negative | Exit 1 |
 | `validate_review_marker.py` with the full axis list on a valid SHA binding | positive control | Exit 0, proving the subset test fails for the right reason |
@@ -228,8 +237,9 @@ prove a scoped run cannot become ship evidence.
 
 ### Positive
 
-- Fix rounds cost k axes instead of 15. At 5 rounds and 2 flagged axes, 25 axis
-  invocations against 90.
+- Fix rounds cost k+1 axes instead of 15 (Stage-1 always runs). At 6 total
+  rounds (1 initial full run, 4 scoped fix rounds, 1 final full run) and 2
+  flagged axes, 42 axis invocations against 90.
 - `/ship` gate strength is unchanged: a full run is still the only marker source.
 - No new governance surface. No commit-format change, no session-schema change,
   no CI change.
@@ -268,7 +278,7 @@ prove a scoped run cannot become ship evidence.
 |---|---|---|
 | Governance promotion of the sub-loop doctrine | **Not covered. Recommend against.** | The mechanism carries the cost fix; the doctrine adds unenforceable prose and a cross-role consensus requirement |
 | Session-log `sub_loop_turns` array | **Deferred** (#2014) | Observability, not cost. Additive to the schema; can land any time without blocking this |
-| CI workflow scope-reduction on `fix(subloop):` heads | **Deferred** (#2014) | Different surface, different blast radius, needs its own ADR. This repository has no per-axis review workflow under `.github/workflows/` today, so the change has no host yet |
+| CI workflow scope-reduction on `fix(subloop):` heads | **Deferred** (#2014) | Different surface, different blast radius, needs its own ADR. `.github/workflows/ai-pr-quality-gate.yml` already runs 10 separate per-axis review jobs aggregated at `aggregate` (`:295-604`), so a host exists; what is missing is the conditional logic to skip a job based on the `fix(subloop):` commit prefix, which this ADR does not design |
 | `fix(subloop):` commit convention | **Recommend dropping** | Its only stated consumer is the deferred CI change |
 | Worked retrospective example | **Deferred** | Write it after the first PR runs the scoped mode end to end |
 
