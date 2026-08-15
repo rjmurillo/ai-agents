@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-15-session-15072-issue-5072-completion-gate-trust",
+  "session": "2026-08-15-session-15072-issue-5072-completion-gate-trust",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Close the CWE-829 trust boundary in the /pr-review completion gate dispatcher: require the working-tree pr-review-config.yaml to be byte-identical to the trusted-ref copy before any completion_criteria.command executes (Issue #5072, option 2)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T15:23:39+00:00",
+      "type": "commit",
+      "content": "Commit: b4cb52ce788b202d30ba05d18a05b552363759ff",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15072-issue-5072-completion-gate-trust"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 10
+  },
+  "lessons": []
+}
