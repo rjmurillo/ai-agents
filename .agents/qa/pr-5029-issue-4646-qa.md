@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-1-issue-4646.json
-qaCommit: b6f3b7c30b8925681ba573c38956e37c9e6eaf40
+qaCommit: 9207def8a945222b479199c6fd5420673acbe05b
 ---
 # QA Report: Issue #4646 Ruleset Drift Fix
 
