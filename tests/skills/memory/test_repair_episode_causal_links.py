@@ -193,6 +193,7 @@ class TestFalseEdgeRemoval:
             ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             check=True,
         ).stdout.strip()[:10]
         midnight = f"{commit_date}T00:00:00+00:00"
