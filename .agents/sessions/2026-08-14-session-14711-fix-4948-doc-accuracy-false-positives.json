@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits. Resumed in a later session to close the Go/Rust/Java gap: fix commit f507b79f8 replaced the NON_COMPILABLE_LANGUAGES/tuple denylists with a SYMBOL_EXTRACTORS-based allowlist; this commit records that SHA in endingCommit and corrects the QA evidence."
+        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits. Resumed in a later session to close the Go/Rust/Java gap: fix commit f507b79f8 replaced the NON_COMPILABLE_LANGUAGES/tuple denylists with a SYMBOL_EXTRACTORS-based allowlist. Resumed again after a Sol review found the allowlist regressed ```c# fences (fence regex truncated 'c#' to 'c'): fix commit aed5d0c14 broadened the capture group to \\S*; this commit records that SHA in endingCommit and corrects the QA evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,9 +151,21 @@
     {
       "action": "Ran the full targeted validation loop: uv run pytest tests/skills/doc-accuracy/test_doc_accuracy.py -q, uv run ruff check on the canonical script and the test file, uv run python build/scripts/build_all.py to regenerate the Copilot mirror, a byte-for-byte diff of the canonical script against the regenerated mirror, and uv run python build/scripts/build_all.py --check after committing.",
       "outcome": "96 tests passed (up from 88 before this round), ruff reported no issues, the regenerated mirror was byte-identical to canonical, and --check exited 0 with no staleness once the fix commit (f507b79f8) was in place. Running --check before that commit correctly reports the file as uncommitted drift; that is expected pre-commit behavior, not a defect."
+    },
+    {
+      "action": "Investigated a Sol review finding that the SYMBOL_EXTRACTORS allowlist regresses ```c# fences. Reproduced with re.match(r'^```(\\w*)', '```c#') capturing only 'c', then confirmed _detect_language('c') returns 'c' unchanged (lang_map has 'cs'/'csharp'/'c#' -> 'csharp' but no bare 'c' alias), and 'c' is not a SYMBOL_EXTRACTORS key, so the new Phase 2 allowlist silently dropped every ```c# code example.",
+      "outcome": "Confirmed run_claim_extraction on a markdown fixture with a ```c# fence returned claims: [] before the fix, reproducing the exact regression the reviewer reported."
+    },
+    {
+      "action": "Broadened the fence-detection regex capture group in run_claim_extraction from \\w* to \\S* so the full 'c#' info-string token reaches _detect_language intact (which already tokenizes on whitespace via .split()[0], so this is a no-op for word-only info strings). Left _count_code_blocks's separate \\w* regex untouched: it is a Phase 1 statistics-only counter, not part of the compilability-gating logic the reviewer flagged.",
+      "outcome": "Added TestDetectLanguage.test_c_sharp_hash_alias (pins the pre-existing 'c#' -> 'csharp' lang_map entry), TestRunClaimExtraction.test_extracts_csharp_from_hash_alias_fence (proves a ```c# fence still produces a code_example claim with language == 'csharp'), and TestRunCompilabilityCheck.test_checks_csharp_hash_alias_end_to_end (chains real run_claim_extraction output for a ```c# fence into run_compilability_check and asserts an unresolved_symbol finding, proving Phase 3 does not skip it either)."
+    },
+    {
+      "action": "Re-ran the full targeted validation loop after the c# fix: uv run pytest tests/skills/doc-accuracy/test_doc_accuracy.py -q, uv run ruff check on the canonical script and the test file, uv run python build/scripts/build_all.py to regenerate the Copilot mirror, a byte-for-byte diff of the canonical script against the regenerated mirror, and uv run python build/scripts/build_all.py --check after committing.",
+      "outcome": "99 tests passed (up from 96 before this round), ruff reported no issues, the regenerated mirror was byte-identical to canonical, and --check exited 0 with no staleness once the fix commit (aed5d0c14) was in place."
     }
   ],
-  "endingCommit": "f507b79f8",
+  "endingCommit": "aed5d0c14",
   "nextSteps": [
     "None."
   ]
