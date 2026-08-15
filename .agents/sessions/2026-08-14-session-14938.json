@@ -84,12 +84,12 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-4938-model-pin-removal-qa.md"
+        "Evidence": ".agents/qa/pr-5040-issue-4938-model-pin-removal-qa.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 0527aea1ff)"
+        "Evidence": "All changes committed (HEAD: 8d0d3a59c5)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -115,7 +115,7 @@
       "result": "All tests pass."
     }
   ],
-  "endingCommit": "0527aea1ff",
+  "endingCommit": "8d0d3a59c5",
   "nextSteps": [
     "Push branch and create PR.",
     "Verify CI passes.",
