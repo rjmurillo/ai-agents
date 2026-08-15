@@ -460,6 +460,8 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 cleanup_pr_autofix
 ```
 
+Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). Exits 2 and 3 mean NO criterion command was executed. Neither is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. Surface the stderr diff to a human and skip the PR.
+
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
@@ -687,6 +689,8 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --config "$CONFIG_PATH" \
   --pull-request {pr} --json
 ```
+
+The dispatcher enforces the Issue #5072 trust boundary before dispatching anything: exit 2 also means the config diverges from or is absent at `origin/main`, and exit 3 means trust verification was impossible; in both cases no criterion command ran, the failure is not transient, and `--approve-untrusted-config` requires a human who has read the surfaced diff.
 
 ## Verification
 
