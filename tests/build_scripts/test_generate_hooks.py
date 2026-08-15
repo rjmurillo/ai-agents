@@ -3685,6 +3685,39 @@ def test_generator_no_regen_hooks_config_preserves_before_event_processing(
     assert not (tmp_path / "out" / "PreToolUse").exists()
 
 
+def test_generator_no_regen_hooks_config_read_failure_aborts_before_event_processing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hooks.json read failure must fail before event processing starts."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    output_config = tmp_path / "out" / "hooks.json"
+    output_config.parent.mkdir(parents=True, exist_ok=True)
+    output_config.write_text("{\"hooks\": {}}\n", encoding="utf-8")
+
+    real_open = Path.open
+    failed = False
+
+    def fail_output_config_open(path: Path, *args: Any, **kwargs: Any):
+        nonlocal failed
+        if not failed and path == output_config:
+            failed = True
+            raise OSError("simulated hooks.json read failure")
+        return real_open(path, *args, **kwargs)
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("_process_event should not run when hooks.json read fails")
+
+    monkeypatch.setattr(Path, "open", fail_output_config_open)
+    monkeypatch.setattr(generate_hooks_events, "_process_event", fail_if_called)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 1
+    assert output_config.read_text(encoding="utf-8") == '{"hooks": {}}\n'
+    assert not (tmp_path / "out" / "PreToolUse").exists()
+
+
 def test_generator_no_regen_hooks_config_rechecks_sidecar_created_mid_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3712,6 +3745,43 @@ def test_generator_no_regen_hooks_config_rechecks_sidecar_created_mid_run(
     assert rc == 0
     assert (tmp_path / "out" / "hooks.json.noregen").is_file()
     assert not (tmp_path / "out" / "hooks.json").exists()
+    event_dir = tmp_path / "out" / "PreToolUse"
+    if event_dir.exists():
+        assert not any(event_dir.iterdir())
+
+
+def test_generator_no_regen_hooks_config_recheck_read_failure_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late hooks.json read failure must roll back generated artifacts."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    output_config = tmp_path / "out" / "hooks.json"
+    real_process_event = generate_hooks_events._process_event
+    real_open = Path.open
+    late_phase = False
+    failed = False
+
+    def mark_late_phase(*args: Any, **kwargs: Any) -> Any:
+        nonlocal late_phase
+        emitted = real_process_event(*args, **kwargs)
+        late_phase = True
+        return emitted
+
+    def fail_late_output_config_open(path: Path, *args: Any, **kwargs: Any):
+        nonlocal failed
+        if late_phase and not failed and path == output_config:
+            failed = True
+            raise OSError("simulated late hooks.json read failure")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(generate_hooks_events, "_process_event", mark_late_phase)
+    monkeypatch.setattr(Path, "open", fail_late_output_config_open)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 1
+    assert not output_config.exists()
     event_dir = tmp_path / "out" / "PreToolUse"
     if event_dir.exists():
         assert not any(event_dir.iterdir())

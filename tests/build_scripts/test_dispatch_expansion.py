@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size - This contract suite keeps the manifest
+# fixtures, omission matrix, and live-corpus checks together so one file
+# still shows the full expansion contract.
 """Tests for the generator's dispatch-group expansion (#3075).
 
 The Copilot tree must be generated from the PER-HOOK view, not the

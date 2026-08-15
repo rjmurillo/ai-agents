@@ -1209,7 +1209,13 @@ def generate_hooks(
             return 2, result
 
     if not what_if:
-        config_reason = regen_detect_reason(output_config)
+        try:
+            config_reason = _strict_regen_reason(
+                output_config, context="hooks.json generation"
+            )
+        except OSError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1, result
         if config_reason is not None:
             print(
                 "  NOTICE: preserved generated hook artifact set because "
@@ -1312,7 +1318,13 @@ def generate_hooks(
         # Write hooks.json through the same transaction as every generated
         # script. Recheck NO-REGEN immediately before publication so a sentinel
         # created during generation rolls back the entire artifact set.
-        config_reason = regen_detect_reason(output_config)
+        try:
+            config_reason = _strict_regen_reason(
+                output_config, context="hooks.json generation"
+            )
+        except OSError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1, result
         if config_reason is not None:
             print(
                 "  NOTICE: preserved generated hook artifact set because "
