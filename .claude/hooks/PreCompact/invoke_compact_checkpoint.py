@@ -39,21 +39,20 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
 
     Runs only when ``hook_utilities`` cannot be imported. The repository
     canonical source is
-    ``scripts/hook_utilities/utilities.py::recent_host_session_dates``::
+    ``scripts/hook_utilities/utilities.py::get_recent_session_log``; the
+    installed plugin mirrors it at ``lib/hook_utilities/utilities.py``. Its
+    load-bearing prefix contract is::
 
-        current = now()
-        today = current.strftime(_ISO_DATE)
-        yesterday = (current - timedelta(days=1)).strftime(_ISO_DATE)
-        return today, yesterday
-
-    The installed plugin mirrors that helper at
-    ``lib/hook_utilities/utilities.py``.
+        prefixes = (host_today, utc_today, host_yesterday, utc_yesterday)
+        for prefix in deduplicated(prefixes):
+            return newest_readable_log(prefix) if one exists
 
     Stricter/looser/different than canonical:
-    Unlike canonical, this fallback uses inline ``datetime.now()`` and skips a
-    date after a glob error instead of warning and returning ``None``. Both
-    prioritize host-local today/yesterday and retain UTC today/yesterday for
-    rollout compatibility with pre-Issue #4779 logs.
+    This fallback captures host and UTC clocks inline rather than calling
+    ``recent_host_session_dates``. A glob error skips that prefix silently;
+    canonical warns and returns ``None``. A candidate stat error is also
+    skipped silently; canonical warns for each unreadable candidate. Both
+    return ``None`` for a missing directory, but only canonical warns.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():

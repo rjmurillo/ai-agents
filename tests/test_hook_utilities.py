@@ -201,6 +201,16 @@ class TestGetTodaySessionLog:
         assert result is not None
         assert result.name == f"{today}-session-002.json"
 
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_log(str(tmp_path)) == selected
+
     def test_accepts_explicit_date(self, tmp_path: Path) -> None:
         session = tmp_path / "2025-01-15-session-001.json"
         session.write_text("{}")
@@ -235,6 +245,17 @@ class TestGetTodaySessionLogs:
         with pytest.warns(UserWarning):
             result = get_today_session_logs(str(nonexistent))
         assert result == []
+
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        (tmp_path / "2099-12-30-session-999.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_logs(str(tmp_path)) == [selected]
 
     def test_returns_all_today_logs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
