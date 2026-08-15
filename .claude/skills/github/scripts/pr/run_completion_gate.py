@@ -259,7 +259,7 @@ class TrustCheck(NamedTuple):
     detail: str
 
 
-def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[bytes]:
     """Run a git command, capturing raw bytes (``git show`` is binary-exact)."""
     return subprocess.run(
         ["git", *args],
@@ -339,6 +339,56 @@ def _verify_config_trust(config_path: Path, trusted_ref: str) -> TrustCheck:
         tofile=f"{rel.as_posix()} (working tree)",
     )
     return TrustCheck(TRUST_DIVERGED, "".join(diff))
+
+
+def _enforce_config_trust(
+    config_path: Path,
+    trusted_ref: str,
+    approved: bool,
+) -> tuple[TrustCheck, int | None]:
+    """Gate dispatch on config trust; returns ``(trust, exit_code_or_None)``.
+
+    ``None`` means dispatch may proceed. A non-``None`` exit code means the
+    gate halted before executing any criterion command: 2 for a malformed
+    ref or an untrusted config (diverged / missing-base), 3 when trust
+    verification itself is impossible (git-error), per ADR-035.
+    """
+    if not _TRUSTED_REF_RE.match(trusted_ref):
+        print(
+            f"Refusing malformed --trusted-ref {trusted_ref!r}",
+            file=sys.stderr,
+        )
+        return TrustCheck(TRUST_GIT_ERROR, "malformed trusted ref"), 2
+
+    trust = _verify_config_trust(config_path, trusted_ref)
+    if trust.status == TRUST_TRUSTED:
+        return trust, None
+
+    if not approved:
+        print(
+            f"HALT: completion-gate config {config_path} is not trusted "
+            f"({trust.status}) against {trusted_ref}; no criterion "
+            f"command was executed.",
+            file=sys.stderr,
+        )
+        if trust.detail:
+            print(trust.detail, file=sys.stderr)
+        print(
+            "If a human has inspected the diff above and approves "
+            "executing this config, re-run with --approve-untrusted-config.",
+            file=sys.stderr,
+        )
+        return trust, 3 if trust.status == TRUST_GIT_ERROR else 2
+
+    print(
+        f"WARNING: executing completion-gate config {config_path} "
+        f"despite trust status {trust.status!r} against {trusted_ref} "
+        f"(--approve-untrusted-config given).",
+        file=sys.stderr,
+    )
+    if trust.detail:
+        print(trust.detail, file=sys.stderr)
+    return trust, None
 
 
 # ---------------------------------------------------------------------------
@@ -958,6 +1008,27 @@ def _try_write_evidence(path_arg: str, payload: dict) -> bool:
     return True
 
 
+def _extract_criteria(config: dict) -> list | None:
+    """Return the completion_criteria list, or None (with stderr) if invalid.
+
+    Rejects anything other than a non-empty list. The previous inline
+    ``if not criteria`` accepted a dict that is non-empty, which would
+    silently iterate the dict's keys (CodeRabbit review feedback).
+    """
+    criteria = config.get("completion_criteria")
+    if not isinstance(criteria, list):
+        print(
+            f"completion_criteria must be a list, got "
+            f"{type(criteria).__name__}",
+            file=sys.stderr,
+        )
+        return None
+    if not criteria:
+        print("No completion_criteria in config", file=sys.stderr)
+        return None
+    return criteria
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -980,56 +1051,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
         return 2
 
-    if not _TRUSTED_REF_RE.match(args.trusted_ref):
-        print(
-            f"Refusing malformed --trusted-ref {args.trusted_ref!r}",
-            file=sys.stderr,
-        )
-        return 2
-
     # CWE-829 trust boundary: no criterion command runs unless the
     # working-tree config is byte-identical to the trusted-ref copy or a
     # human has explicitly approved the divergence.
-    trust = _verify_config_trust(config_path, args.trusted_ref)
-    if trust.status != TRUST_TRUSTED:
-        if not args.approve_untrusted_config:
-            print(
-                f"HALT: completion-gate config {config_path} is not trusted "
-                f"({trust.status}) against {args.trusted_ref}; no criterion "
-                f"command was executed.",
-                file=sys.stderr,
-            )
-            if trust.detail:
-                print(trust.detail, file=sys.stderr)
-            print(
-                "If a human has inspected the diff above and approves "
-                "executing this config, re-run with "
-                "--approve-untrusted-config.",
-                file=sys.stderr,
-            )
-            return 3 if trust.status == TRUST_GIT_ERROR else 2
-        print(
-            f"WARNING: executing completion-gate config {config_path} "
-            f"despite trust status {trust.status!r} against "
-            f"{args.trusted_ref} (--approve-untrusted-config given).",
-            file=sys.stderr,
-        )
-        if trust.detail:
-            print(trust.detail, file=sys.stderr)
+    trust, halt_code = _enforce_config_trust(
+        config_path, args.trusted_ref, args.approve_untrusted_config,
+    )
+    if halt_code is not None:
+        return halt_code
 
-    criteria = config.get("completion_criteria")
-    # Reject anything other than a list. The previous ``if not criteria``
-    # accepted a dict that is non-empty, which would silently iterate the
-    # dict's keys (CodeRabbit review feedback).
-    if not isinstance(criteria, list):
-        print(
-            f"completion_criteria must be a list, got "
-            f"{type(criteria).__name__}",
-            file=sys.stderr,
-        )
-        return 2
-    if not criteria:
-        print("No completion_criteria in config", file=sys.stderr)
+    criteria = _extract_criteria(config)
+    if criteria is None:
         return 2
 
     rows: list[dict] = []
