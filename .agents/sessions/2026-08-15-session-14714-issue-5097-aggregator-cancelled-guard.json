@@ -148,7 +148,7 @@
       "evidence": "ci/ci-infrastructure-aggregate-job-always-pattern told future sessions to write if: always() && <conditions> on aggregate jobs (Issue #856). Added a correction section citing the vendor's !cancelled() recommendation and the new sweep test. Noted: that memory carries no row in .serena/memories/memory-index.md, so keyword retrieval cannot reach it; left as a follow-up rather than widening this diff."
     }
   ],
-  "endingCommit": "fd107d39155dc72e057a442b96585a18e488d619",
+  "endingCommit": "370ed63034b0f0383928f5f75941309f9e543a50",
   "nextSteps": [
     "Follow-up: codeql-analysis.yml check-blocking-issues carries if: always() and downloads SARIF artifacts from a cancelled analyze job. It never reads needs.<job>.result, so it is outside this fix's shape, but a cancelled run can still leave it red on missing artifacts. Worth its own issue.",
     "Follow-up: ai-pr-quality-gate.yml aggregate and ai-session-protocol.yml aggregate still carry the redundant always() && !cancelled() spelling from the #2347 fix. The always() term is dead weight under the vendor recommendation; a cosmetic cleanup would leave one spelling in the repo.",
