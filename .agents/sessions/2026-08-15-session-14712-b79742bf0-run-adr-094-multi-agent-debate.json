@@ -193,6 +193,11 @@
       "timestamp": "2026-08-15",
       "action": "Pre-push failed on memory-index-token-ratchet, pre-pr Count Ratchets, and one pytest node, all tracing to one cause: the third origin/main merge left two memory-index.md rows for diagnosing-a-blocked-pr, recording 885 and 919 tokens",
       "outcome": "Ran scripts/update_memory_index_tokens.py per knowledge-persistence MUST-6, which dropped the duplicate row and kept 919. test_every_declared_entrypoint_runs_in_locked_environment passes. Separately confirmed the earlier tests/mutation/test_mutate_debate_log_path.py M1 failure was a flake: it passes in isolation and passed on the next full run"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Copilot flagged that qa-adr-094-debate.md certified a 9-line ADR edit while binding to a commit that also carries the ADR-095 rewrite, the renumber, the retrospective, and the memory-index fix",
+      "outcome": "Correct finding. Rewrote the report's Scope as a 7-row file table covering the real session, added the checks actually run and a failures-found table, and noted in the verdict that no debate role voted to reject"
     }
   ],
   "episodeMetrics": {

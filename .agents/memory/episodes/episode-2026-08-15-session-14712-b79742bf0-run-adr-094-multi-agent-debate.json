@@ -104,7 +104,8 @@
         "e015",
         "e016",
         "e020",
-        "e023"
+        "e023",
+        "e025"
       ],
       "leads_to": [
         "e017"
@@ -299,6 +300,17 @@
         "e022"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Copilot flagged that qa-adr-094-debate.md certified a 9-line ADR edit while binding to a commit that also carries the ADR-095 rewrite, the renumber, the retrospective, and the memory-index fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
   ],
