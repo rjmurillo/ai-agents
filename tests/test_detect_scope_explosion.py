@@ -1527,3 +1527,139 @@ class TestMainConsultsPrBaseOnlyWhenBlocking:
             ),
         ):
             assert main() == 1
+
+
+class TestGeneratedFileExclusion:
+    """Tests for generated file exclusion from scope count (Issue #4920).
+
+    Generated files (matching GENERATED_GLOBS/GENERATED_PATHS) must not count
+    toward the scope explosion threshold.
+    """
+
+    def test_generated_files_excluded_from_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A branch with 60 generated files and 3 authored files passes."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        # 60 generated agent files
+        for i in range(60):
+            _write_file(repo, f"src/copilot-cli/agents/agent_{i}.agent.md", f"agent {i}\n")
+        # 3 authored files
+        for i in range(3):
+            _write_file(repo, f"scripts/file_{i}.py", f"x = {i}\n")
+
+        _commit_all(repo, "template regen + authored")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 3
+        assert result.generated_count == 60
+
+    def test_authored_files_still_block(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A branch with 55 authored files blocks even with generated files."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        # 10 generated
+        for i in range(10):
+            _write_file(repo, f"src/copilot-cli/agents/a_{i}.agent.md", f"a {i}\n")
+        # 55 authored (over threshold)
+        for i in range(55):
+            _write_file(repo, f"lib/mod_{i}.py", f"v = {i}\n")
+
+        _commit_all(repo, "large PR")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 55
+        assert result.generated_count == 10
+
+    def test_only_generated_files_yields_zero_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A branch with only generated files has file_count == 0."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        for i in range(30):
+            _write_file(repo, f"src/vs-code-agents/agent_{i}.agent.md", f"vs {i}\n")
+
+        _commit_all(repo, "regen only")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 0
+        assert result.generated_count == 30
+
+    def test_report_includes_generated_note(self, capsys: CaptureFixture[str]) -> None:
+        """Report output mentions generated exclusion when count > 0."""
+        result = ScopeResult(
+            file_count=5,
+            merge_base="abc123",
+            current_branch="feature",
+            files=tuple(f"f{i}.py" for i in range(5)),
+            generated_count=61,
+        )
+        exit_code = report(result)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "61 generated excluded" in captured.out
+
+    def test_report_omits_note_when_no_generated(self, capsys: CaptureFixture[str]) -> None:
+        """Report output has no generated note when count is 0."""
+        result = ScopeResult(
+            file_count=5,
+            merge_base="abc123",
+            current_branch="feature",
+            files=tuple(f"f{i}.py" for i in range(5)),
+            generated_count=0,
+        )
+        report(result)
+        captured = capsys.readouterr()
+        assert "generated" not in captured.out
+
+    def test_episode_files_excluded(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Episode JSON files are recognized as generated."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        _write_file(repo, ".agents/memory/episodes/episode-2026-01-01-session-1.json", "{}")
+        _write_file(repo, "scripts/real.py", "x = 1\n")
+        _commit_all(repo, "episode + authored")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 1
+        assert result.generated_count == 1
+
+    def test_merge_in_progress_also_excludes_generated(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Generated files excluded even during an in-progress merge."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+
+        # Create a side branch with generated files
+        _check_git(repo, "checkout", "-qb", "side")
+        for i in range(20):
+            _write_file(repo, f"src/copilot-cli/agents/s_{i}.agent.md", f"s {i}\n")
+        _write_file(repo, "authored.py", "y = 1\n")
+        _commit_all(repo, "side work")
+
+        # Back to feature, start merge
+        _check_git(repo, "checkout", "main")
+        _check_git(repo, "checkout", "-qb", "feature")
+        _write_file(repo, "feature.py", "z = 1\n")
+        _commit_all(repo, "feature file")
+        _check_git(repo, "merge", "--no-commit", "side")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.generated_count == 20
+        # authored: feature.py + authored.py = 2
+        assert result.file_count == 2

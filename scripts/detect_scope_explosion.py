@@ -39,6 +39,9 @@ from scripts.scope_pr_base import (  # noqa: E402
     resolve_pr_base_branch,
     strip_remote_prefix,
 )
+from scripts.validation.git_hook_policy import (  # noqa: E402
+    _is_generated,
+)
 
 # Thresholds for scope explosion detection
 WARN_THRESHOLD = 10
@@ -61,6 +64,7 @@ class ScopeResult:
     merge_base: str
     current_branch: str
     files: tuple[str, ...]
+    generated_count: int = 0
 
 
 def get_current_branch() -> str | None:
@@ -238,6 +242,22 @@ def is_ancestor(commit: str, ref: str) -> bool:
     return result.returncode == 0
 
 
+def _partition_generated(files: list[str], repo_root: Path | None = None) -> tuple[list[str], int]:
+    """Separate authored files from generated files.
+
+    Returns:
+        Tuple of (authored_files, generated_count).
+    """
+    authored = []
+    generated = 0
+    for f in files:
+        if _is_generated(f, repo_root=repo_root):
+            generated += 1
+        else:
+            authored.append(f)
+    return authored, generated
+
+
 def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     """Detect scope explosion on the current branch.
 
@@ -268,11 +288,13 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         # staged diff against the base ref, and blocking on merge-base would
         # turn a countable merge into a hard error.
         files = sorted(set(get_index_files_against_ref(base_ref)))
+        authored, gen_count = _partition_generated(files)
         return ScopeResult(
-            file_count=len(files),
+            file_count=len(authored),
             merge_base=base_ref[:12],
             current_branch=branch,
-            files=tuple(files),
+            files=tuple(authored),
+            generated_count=gen_count,
         )
 
     merge_base = get_merge_base(base_branch, base_ref)
@@ -288,12 +310,14 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     # ACMR set, which could not subtract such a deletion because the committed
     # diff still listed it (Issue #3171).
     files = sorted(set(get_index_files_against_ref(merge_base)))
+    authored, gen_count = _partition_generated(files)
 
     return ScopeResult(
-        file_count=len(files),
+        file_count=len(authored),
         merge_base=merge_base[:12],
         current_branch=branch,
-        files=tuple(files),
+        files=tuple(authored),
+        generated_count=gen_count,
     )
 
 
@@ -382,22 +406,23 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
         Exit code: 0 for pass/warn, 1 for block.
     """
     count = result.file_count
+    gen_note = f" ({result.generated_count} generated excluded)" if result.generated_count else ""
 
     if count < WARN_THRESHOLD:
         if not quiet:
-            print(f"PR size: {format_bar(count, WARN_THRESHOLD)}")
+            print(f"PR size: {format_bar(count, WARN_THRESHOLD)}{gen_note}")
         return 0
 
     if count < STRONG_WARN_THRESHOLD:
-        print(f"WARNING: PR scope growing. {format_bar(count, WARN_THRESHOLD)}")
+        print(f"WARNING: PR scope growing. {format_bar(count, WARN_THRESHOLD)}{gen_note}")
         print(f"  Branch: {result.current_branch}")
         print("  Consider reviewing scope before the PR grows further.")
         return 0
 
     if count <= BLOCK_THRESHOLD:
-        print(f"WARNING: PR scope is large. {format_bar(count, STRONG_WARN_THRESHOLD)}")
+        print(f"WARNING: PR scope is large. {format_bar(count, STRONG_WARN_THRESHOLD)}{gen_note}")
         print(f"  Branch: {result.current_branch}")
-        print(f"  {count} files changed since diverging from main.")
+        print(f"  {count} files changed since diverging from main.{gen_note}")
         print("  Strongly consider splitting this into smaller PRs.")
         if not from_prepush:
             print("  Remediation:")
@@ -409,9 +434,9 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
         return 0
 
     # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
-    print(f"BLOCKED: PR scope explosion detected. {format_bar(count, BLOCK_THRESHOLD)}")
+    print(f"BLOCKED: PR scope explosion detected. {format_bar(count, BLOCK_THRESHOLD)}{gen_note}")
     print(f"  Branch: {result.current_branch}")
-    print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).")
+    print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).{gen_note}")
     print("  This PR is too large to review effectively.")
     print("")
     if not from_prepush:
