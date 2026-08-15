@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: baf63b657a81a73ee8d91701ec8a7d34a7051086
+qaCommit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6
 ---
 
 # QA Report: dx-review skill and attribution
@@ -9,7 +9,7 @@ qaCommit: baf63b657a81a73ee8d91701ec8a7d34a7051086
 Branch: `feat/dx-review`
 
 Validated through commit:
-`baf63b657a81a73ee8d91701ec8a7d34a7051086`
+`2efc836aef09a1df655ec0d3d638eef48e6c72e6`
 
 ## Scope
 
@@ -51,6 +51,7 @@ Validated through commit:
 | Retrospective evidence | Complete, no placeholders, no prohibited dashes |
 | Final dx-review output gates | 23 tests passed; security re-review approved |
 | ReDoS timing calibration | 30 fresh runs passed; security review approved |
+| Deep linearity budgets | 30 fresh runs passed for both fixed workloads |
 
 Security-critical output confinement has no missing lines or branches across
 `scripts/generate_third_party_notices.py` lines 383 through 461.

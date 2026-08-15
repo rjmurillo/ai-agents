@@ -195,7 +195,9 @@
       "caused_by": [
         "e016"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
     {
@@ -210,15 +212,39 @@
         "e015"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T11:25:00+00:00",
+      "type": "milestone",
+      "content": "calibrate-linearity-budgets",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T11:21:51+00:00",
+      "type": "commit",
+      "content": "Commit: 2efc836aef09a1df655ec0d3d638eef48e6c72e6",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     }
   ],
   "metrics": {
-    "duration_minutes": 450,
+    "duration_minutes": 480,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 418
+    "commits": 6,
+    "files_changed": 419
   },
   "lessons": []
 }

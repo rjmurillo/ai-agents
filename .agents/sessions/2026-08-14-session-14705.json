@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, attribution, review fixes, pre-push stabilization, retrospective evidence, latest main, final output gates, and ReDoS calibration committed through baf63b657; evidence-only updates follow."
+        "Evidence": "Implementation, attribution, review fixes, pre-push stabilization, retrospective evidence, latest main, final output gates, and loaded timing calibration committed through 2efc836ae; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,7 +170,7 @@
       ]
     }
   ],
-  "endingCommit": "baf63b657a81a73ee8d91701ec8a7d34a7051086",
+  "endingCommit": "2efc836aef09a1df655ec0d3d638eef48e6c72e6",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
     "Monitor checks, address review threads, and enable auto-merge."
