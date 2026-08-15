@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15002-fix-4942-readme-vscode-path.json
-qaCommit: 2d043bd97834f8fe98fe31ffff5117cfae4e62ea
+qaCommit: c60b03acd789f060f0778af36b8fbf9740f99385
 ---
 
 # QA Report: Issue #4942 - README VS Code Agent Path

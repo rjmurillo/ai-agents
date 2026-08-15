@@ -128,9 +128,9 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "3532ac5c0a30fb183aee3f562500ec81a9d272b6",
-      "head": "2d043bd97834f8fe98fe31ffff5117cfae4e62ea"
+      "head": "c60b03acd789f060f0778af36b8fbf9740f99385"
     }
   },
-  "endingCommit": "2d043bd97834f8fe98fe31ffff5117cfae4e62ea",
+  "endingCommit": "c60b03acd789f060f0778af36b8fbf9740f99385",
   "retrospective": "## Retrospective\n\nDocumentation fix with regression test. Also fixes pre-existing subprocess encoding violation that was blocking the pre-push hook on main."
 }

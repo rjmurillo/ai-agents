@@ -87,6 +87,19 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-15002-fix-4942-readme-vscode-path"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T13:46:15+00:00",
+      "type": "commit",
+      "content": "Commit: c60b03acd789f060f0778af36b8fbf9740f99385",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15002-fix-4942-readme-vscode-path"
     }
@@ -96,7 +109,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 3
   },
   "lessons": []
