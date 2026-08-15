@@ -1,0 +1,163 @@
+{
+  "id": "episode-2026-08-15-session-5056-pr-autofix-round-cap",
+  "session": "2026-08-15-session-5056-pr-autofix-round-cap",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add a machine-enforced round/time circuit breaker for pr-autofix's T3/T4 thread-fix loop (issue #5056)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "investigate",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "investigate",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T13:35:41+00:00",
+      "type": "commit",
+      "content": "Commit: 820c667ef1b09c13a576cba2389a5a8d9270e2fa",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T13:50:14+00:00",
+      "type": "commit",
+      "content": "Commit: d49690fc5fa01280ee55ef62fcaa222aeb1622a4",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5056-pr-autofix-round-cap"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}

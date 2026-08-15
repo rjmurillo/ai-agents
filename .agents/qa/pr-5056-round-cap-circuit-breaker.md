@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5056-pr-autofix-round-cap.json
-qaCommit: 4e21dd9b568aa17edc008f5a00945e1554cc25e0
+qaCommit: d49690fc5fa01280ee55ef62fcaa222aeb1622a4
 ---
 
 # Issue #5056 Round-Cap Circuit Breaker QA Report
@@ -24,6 +24,10 @@ Phase 2 Step 2.5, and its mirror at `src/copilot-cli/skills/github/scripts/pr/ch
 | `npx markdownlint-cli2 src/copilot-cli/skills/pr-autofix/SKILL.md` | 0 issues |
 | Byte-identical mirror check (`.claude/` vs `src/copilot-cli/` copy of `check_pr_round_cap.py`) | IDENTICAL |
 | Manual smoke of `evaluate_round_cap` (round 1..5, wall-clock-only escalation) | Matches expected ACT/ESCALATE transitions |
+| `uv run python scripts/validation/pre_pr.py` (full suite, background run) | Caught two real defects: 6 mypy `[type-arg]` errors and a taste-ratchet file-size REGRESSION (584 > baseline 583). Both fixed; see below |
+| `uv run mypy .../check_pr_round_cap.py` after fix | 0 errors |
+| `uv run python scripts/ci/taste_count_ratchet.py` after fix | OK, count == baseline 583 |
+| `uv run python scripts/ci/merge_tree_ratchet_check.py` after merging `origin/main` | OK, merged tree passes all registered ratchets |
 
 ## Acceptance Criteria (task items 3 and 5)
 
