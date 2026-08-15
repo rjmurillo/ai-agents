@@ -1,14 +1,34 @@
 {
-  "sessionNumber": 15200,
-  "objective": "Resolve issue #4898: immutable PR snapshot for doc-accuracy review",
-  "startingCommit": "021f6c9a43c8f33b4b58983b6e17950a69a3e214",
-  "endingCommit": "021f6c9a43c8f33b4b58983b6e17950a69a3e214",
-  "status": "in-progress",
-  "testsRun": "uv run pytest tests/test_pr_snapshot.py -q",
-  "testsResult": "58 passed",
-  "filesModified": [
-    ".claude/skills/doc-accuracy/scripts/pr_snapshot.py",
-    "src/copilot-cli/skills/doc-accuracy/scripts/pr_snapshot.py",
-    "tests/test_pr_snapshot.py"
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15200,
+    "date": "2026-08-15",
+    "branch": "fix/4898-doc-accuracy-immutable-snapshot",
+    "startingCommit": "b55aaca81e",
+    "objective": "Resolve issue #4898: immutable PR snapshot for doc-accuracy review"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/4898-doc-accuracy-immutable-snapshot in worktree /home/richard/src/GitHub/rjmurillo/ai-agents-worktrees/issue-4898"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "git branch --show-current reported fix/4898-doc-accuracy-immutable-snapshot"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "startingCommitNoted": {"level": "SHOULD", "Complete": true, "Evidence": "b55aaca81e"}
+    },
+    "sessionEnd": {
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "All changes committed and pushed to fix/4898-doc-accuracy-immutable-snapshot"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "uv run pytest tests/test_pr_snapshot.py: 58 passed; ruff check clean; encoding ratchet OK; taste ratchet OK"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5044-pr-snapshot-qa-report.md"}
+    }
+  },
+  "workLog": [
+    {"timestamp": "2026-08-15T06:00:00Z", "action": "implement", "detail": "Write pr_snapshot.py in canonical .claude/skills/doc-accuracy/scripts/ with full security hardening"},
+    {"timestamp": "2026-08-15T06:30:00Z", "action": "test", "detail": "Write 58 tests (34 unit + 24 real Git integration)"},
+    {"timestamp": "2026-08-15T07:00:00Z", "action": "fix", "detail": "Address review findings: ADR-035 exit codes, Git env sanitization, full fetch, identity staleness, input validation, fork rejection"},
+    {"timestamp": "2026-08-15T07:30:00Z", "action": "verify", "detail": "All CI ratchets pass: ruff, encoding count, taste count, subprocess encoding"}
+  ],
+  "endingCommit": "3e7c7f5e4d49eed9af1f372afe7ae69578540cae",
+  "nextSteps": [
+    "Integration with doc_accuracy.py --target flag (Phase 2)",
+    "End-to-end test with real GitHub PR (requires network)"
   ]
 }
