@@ -201,13 +201,16 @@ pipeline and MUST NOT be hand-edited; regenerate it in the same change per
 `spec-compliance` always runs regardless of `--axes`. It is the Stage-1 gate and
 its `CRITICAL_FAIL` short-circuit is the cheapest correctness check in the run.
 
-`validate_review_marker.py` gains one rule: a trailer whose axis list is not an
-exact match (set equality) of the discovered axis set exits 1. This catches a
-missing axis, an unknown axis, and a duplicate axis alike; a strict-subset check
-alone would miss a list that mixes one real axis with one unknown name, because
-that list is not a subset of the discovered set at all. This is defense in
-depth. A scoped run should never write a marker in the first place, and a
-hand-written or partially-updated marker must not pass.
+`validate_review_marker.py` gains one rule: a trailer exits 1 unless its axis
+list satisfies BOTH set equality against the discovered axis set AND equal
+length. Both halves are load-bearing. Set equality alone catches a missing axis
+and an unknown axis, but not a duplicate, because
+`set(["analyst", "analyst", "qa"]) == {"analyst", "qa"}` is true; the length
+check is what rejects the duplicate. A strict-subset check in place of set
+equality would separately miss a list mixing one real axis with one unknown
+name, since such a list is not a subset of the discovered set at all. This is
+defense in depth. A scoped run should never write a marker in the first place,
+and a hand-written or partially-updated marker must not pass.
 
 ## Required tests
 

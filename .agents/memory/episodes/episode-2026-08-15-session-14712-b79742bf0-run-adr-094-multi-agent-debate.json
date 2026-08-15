@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate",
+  "session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Run the mandatory adr-review multi-agent debate on ADR-094 and land the debate log",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the checker before writing anything: scripts/validation/git_hook_policy.py check_adr_review_policy requires adr-review evidence in the current branch's newest session log plus a .agents/critique/*debate*.md that names the staged ADR IDs",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the 6-role adr-review debate in parallel (architect, critic, independent-thinker, security, analyst, high-level-advisor), each given ADR-094 plus the counter evidence from PR #5059 and PR #5062 that cuts against the ADR",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the debate's own quantitative claims before recording them, per .claude/rules/canonical-source-mirror.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the independent-thinker's marker census against a direct count",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the three reproducible P0 anchors directly: /review became a skill in c3ddc571a (2026-05-24) and the marker landed in 16c960418 (2026-06-04), both after PRs #1887, #1965 and #1979; 009-phase1-agent-comment-baseline.md:163 reports 52% over the 182 comments the ADR quotes while :178 reports 24% over a different 173-unit rollup",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found three .agents files modified in the working tree during this session by a process this session did not direct (the QA report rebound to session 14711, that log's endingCommit advanced, and session 99916's qaValidation downgraded to SKIPPED)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the two pre-existing red session-log checks on PR #5062: session 14711 and session 99916 both claimed the same QA report, which only one log can own, and the report's qaCommit had gone stale behind commit e137317ef",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

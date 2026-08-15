@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14712,
+    "date": "2026-08-15",
+    "branch": "adr/094-scoped-review-axes",
+    "startingCommit": "e137317ef468f70688671bd58f893273be52527f",
+    "objective": "Run the mandatory adr-review multi-agent debate on ADR-094 and land the debate log"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available in this harness; project already active from the prior session in this worktree, no separate activation call needed"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instruction manual already in context from the active project session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/skills/adr-review/SKILL.md in full before running the debate; enumerated .claude/skills/review/scripts/ and .claude/skills/review/references/ during verification"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository instruction set loaded via CLAUDE.md and AGENTS.md system context at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/{universal,voice,builder-ethos,code-quality,session-logs,canonical-source-mirror,ci-scripts,security,push-lock}.md in context"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the adr-review skill contract and scripts/validation/git_hook_policy.py check_adr_review_policy before writing any artifact, so the debate-log path and format came from the checker rather than from recall"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr/094-scoped-review-axes"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On adr/094-scoped-review-axes"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain checked at session start: one staged ADR-094 edit plus untracked .claude/hooks/Stop/"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e137317ef"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified before commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No net-new durable convention emerged that is not already in .claude/rules/canonical-source-mirror.md; the debate-log verification section records the one re-measurement lesson in the artifact itself rather than duplicating it into a memory"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py markdown lint run over the changed-file selection covering .agents/critique/ADR-094-debate-log.md"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/qa-adr-094-debate.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two commits: the ADR duplicate-axis fix plus the debate log plus this file, then an .agents-only follow-up rebinding the QA marker and endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py run before push; git_hook_policy.py adr-review satisfied by .agents/critique/ADR-094-debate-log.md naming ADR-094"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-15",
+      "action": "Read the checker before writing anything: scripts/validation/git_hook_policy.py check_adr_review_policy requires adr-review evidence in the current branch's newest session log plus a .agents/critique/*debate*.md that names the staged ADR IDs",
+      "outcome": "Debate-log path and format taken from the contract, not guessed"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Ran the 6-role adr-review debate in parallel (architect, critic, independent-thinker, security, analyst, high-level-advisor), each given ADR-094 plus the counter evidence from PR #5059 and PR #5062 that cuts against the ADR",
+      "outcome": "No consensus: 2 BLOCK (critic, security), 3 ACCEPT WITH CHANGES, 1 DISAGREE AND COMMIT. Verdict NOT ACCEPTED, narrow and re-measure"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Re-measured the debate's own quantitative claims before recording them, per .claude/rules/canonical-source-mirror.md",
+      "outcome": "The critic's headline distribution (32 merged PRs carrying a review marker, mean 2.22, median 1) does not reproduce: origin/main carries zero such commits because the repository squash-merges and the empty marker commit is discarded. All 14 marker commits sit on unmerged refs. The finding survives in a stronger reproducible form and is recorded that way"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Corrected the independent-thinker's marker census against a direct count",
+      "outcome": "14 trailer commits, 3 name the full 15-axis set (not 4), 11 name a subset (not 10), 4 name a code-review axis with no references/code-review.md. The conclusion that subset markers already pass validate_review_marker.py stands"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Verified the three reproducible P0 anchors directly: /review became a skill in c3ddc571a (2026-05-24) and the marker landed in 16c960418 (2026-06-04), both after PRs #1887, #1965 and #1979; 009-phase1-agent-comment-baseline.md:163 reports 52% over the 182 comments the ADR quotes while :178 reports 24% over a different 173-unit rollup",
+      "outcome": "F1 and F2 recorded as verified rather than as reported"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Found three .agents files modified in the working tree during this session by a process this session did not direct (the QA report rebound to session 14711, that log's endingCommit advanced, and session 99916's qaValidation downgraded to SKIPPED)",
+      "outcome": "Saved the diff, reverted all three to HEAD, and re-applied the QA ownership fix deliberately so every committed byte is intentional. Flagged in the final report"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Cleared the two pre-existing red session-log checks on PR #5062: session 14711 and session 99916 both claimed the same QA report, which only one log can own, and the report's qaCommit had gone stale behind commit e137317ef",
+      "outcome": "14711 releases the claim as SKIPPED: docs-only; 99916 keeps it with qaCommit and endingCommit rebound to the final content commit"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 4,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "e137317ef468f70688671bd58f893273be52527f",
+      "head": "e137317ef468f70688671bd58f893273be52527f"
+    }
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Maintainer reads .agents/critique/ADR-094-debate-log.md and decides accept, revise, or reject. ADR-094 stays status: proposed",
+    "Five P0 findings block acceptance: the cost citations predate the mechanism, the 24% signal figure is spliced, the marker prohibition has no writer script, the validator changes target a mirror, and two push-blocking consumers are missing from the impact table",
+    "Revising ADR-094 against the debate findings is separate work and was deliberately not done in this session"
+  ]
+}
