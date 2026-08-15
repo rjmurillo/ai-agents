@@ -72,9 +72,33 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e007",
+        "e008"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched four more implementer sessions for stalled diagnosed issues 4751, 4349, 4691, 4607; deferred 4608 (blocked on merge-group work, constant has no production caller)",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed remote-container push blockers found during pre-push: added sqlite3 and openssh-client to scripts/bootstrap-vm.sh prerequisites, added root skip-guard to orphan-ref-validator permission-denied test (chmod 0 cannot deny read to root) in canonical and mirror copies",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
     }
   ],

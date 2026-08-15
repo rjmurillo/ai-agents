@@ -123,6 +123,12 @@
     },
     {
       "action": "Dispatched five implementer sessions: issues 5066, 5071, 5072, 5073, 5074, each on its own claude/issue-NNNN branch"
+    },
+    {
+      "action": "Dispatched four more implementer sessions for stalled diagnosed issues 4751, 4349, 4691, 4607; deferred 4608 (blocked on merge-group work, constant has no production caller)"
+    },
+    {
+      "action": "Fixed remote-container push blockers found during pre-push: added sqlite3 and openssh-client to scripts/bootstrap-vm.sh prerequisites, added root skip-guard to orphan-ref-validator permission-denied test (chmod 0 cannot deny read to root) in canonical and mirror copies"
     }
   ],
   "nextSteps": [
