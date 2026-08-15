@@ -146,6 +146,70 @@ class TestSiblingRefsMaxSession:
         with patch.object(allocation.subprocess, "run", _dispatching_run(listing, trees)):
             assert allocation.sibling_refs_max_session("/repo") is None
 
+    def test_child_timeout_is_clamped_to_the_remaining_budget(self, monkeypatch):
+        # Review finding (PR 5092): the deadline was checked only before an
+        # ls-tree call that got a fresh full timeout, so a reading could
+        # return an int after the budget expired. The child must be clamped
+        # to the remaining budget.
+        clock = iter([0.0, allocation.SIBLING_SCAN_BUDGET_SECONDS - 1.0])
+        monkeypatch.setattr(
+            allocation.time,
+            "monotonic",
+            lambda: next(clock, allocation.SIBLING_SCAN_BUDGET_SECONDS - 1.0),
+        )
+        listing = _completed(0, f"{MAIN_REF} aaa111\n")
+        trees = {MAIN_REF: _completed(0, _sessions_listing(10003))}
+        timeouts: list[float] = []
+
+        def run(argv, **kwargs):
+            if argv[1] == "ls-tree":
+                timeouts.append(kwargs["timeout"])
+                return trees[argv[3]]
+            return listing
+
+        with patch.object(allocation.subprocess, "run", run):
+            assert allocation.sibling_refs_max_session("/repo") == 10003
+        assert timeouts == [1.0]  # remaining budget, not the fresh 10s
+
+    def test_mid_scan_expiry_is_probe_failure_not_partial_reading(self, monkeypatch):
+        # The deadline passing between refs makes the reading incomplete; the
+        # numbers already seen must not be returned as a complete scan.
+        expired = allocation.SIBLING_SCAN_BUDGET_SECONDS + 1.0
+        clock = iter([0.0, 1.0, expired])
+        monkeypatch.setattr(allocation.time, "monotonic", lambda: next(clock, expired))
+        listing = _completed(0, f"{MAIN_REF} aaa111\n{SIBLING_REF} bbb222\n")
+        trees = {MAIN_REF: _completed(0, _sessions_listing(10003))}
+        with patch.object(allocation.subprocess, "run", _dispatching_run(listing, trees)):
+            assert allocation.sibling_refs_max_session("/repo") is None
+
+    def test_absurd_sibling_number_does_not_poison_the_ceiling(self):
+        # CWE-400 negative control: a sibling branch is untrusted input, so a
+        # filename carrying an absurd number must be ignored, not propagated
+        # into every later allocation.
+        absurd = "9" * 230
+        listing = _completed(0, f"{MAIN_REF} aaa111\n{SIBLING_REF} bbb222\n")
+        trees = {
+            MAIN_REF: _completed(0, _sessions_listing(10003)),
+            SIBLING_REF: _completed(
+                0, f".agents/sessions/2026-08-07-session-{absurd}.json\n"
+            ),
+        }
+        with patch.object(allocation.subprocess, "run", _dispatching_run(listing, trees)):
+            assert allocation.sibling_refs_max_session("/repo") == 10003
+
+    def test_numbers_at_the_bound_are_still_counted(self):
+        # Positive control for the CWE-400 bound: the ceiling itself is a
+        # legal value; only values above it are garbage.
+        listing = _completed(0, f"{MAIN_REF} aaa111\n")
+        trees = {
+            MAIN_REF: _completed(
+                0,
+                f".agents/sessions/2026-08-07-session-{allocation.MAX_SESSION_NUMBER}.json\n",
+            )
+        }
+        with patch.object(allocation.subprocess, "run", _dispatching_run(listing, trees)):
+            assert allocation.sibling_refs_max_session("/repo") == allocation.MAX_SESSION_NUMBER
+
     def test_refs_at_the_same_commit_are_read_once(self):
         # origin/HEAD duplicates origin/main at the same commit; identical
         # commits share the same sessions tree, so one ls-tree covers both.

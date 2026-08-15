@@ -40,18 +40,39 @@ SIBLING_SCAN_BUDGET_SECONDS = 60.0
 
 _SESSIONS_PATH = ".agents/sessions/"
 
+# CWE-400 input bound: a session number parsed from a filename is untrusted
+# input to allocation, and the sibling scan widens the input surface to every
+# unmerged branch. Without a bound, one branch carrying a filename like
+# session-<230 digits>.json would make every subsequent allocation exceed it
+# and produce over-limit filenames repo-wide. Eight digits is four orders of
+# magnitude above the highest number ever allocated here (99916 at the time
+# this bound landed), so a legitimate allocation cannot reach it.
+MAX_SESSION_NUMBER = 99_999_999
+
 
 def max_session_in_names(names: Iterable[str]) -> int:
-    """Highest session number among ``*.json`` file names, or 0 when none."""
+    """Highest plausible session number among ``*.json`` names, or 0 when none.
+
+    Numbers above ``MAX_SESSION_NUMBER`` are ignored as garbage rather than
+    propagated: returning them would poison the allocation ceiling for every
+    later session (CWE-400).
+    """
     max_num = 0
     for name in names:
         m = SESSION_NUM_RE.search(name)
         if m and name.endswith(".json"):
-            max_num = max(max_num, int(m.group(1)))
+            value = int(m.group(1))
+            if value > MAX_SESSION_NUMBER:
+                continue
+            max_num = max(max_num, value)
     return max_num
 
 
-def _run_git(args: list[str], repo_root: str | None) -> subprocess.CompletedProcess[str] | None:
+def _run_git(
+    args: list[str],
+    repo_root: str | None,
+    timeout_seconds: float = GIT_TIMEOUT_SECONDS,
+) -> subprocess.CompletedProcess[str] | None:
     """Run a git command, returning None on any spawn/timeout failure."""
     try:
         return subprocess.run(
@@ -60,7 +81,7 @@ def _run_git(args: list[str], repo_root: str | None) -> subprocess.CompletedProc
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=GIT_TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
             check=False,
             cwd=repo_root,
         )
@@ -95,8 +116,12 @@ def sibling_refs_max_session(repo_root: str | None = None) -> int | None:
     so that window is the normal case, not an edge (issue #4751). Walking
     every remote-tracking ref closes the pushed-but-unmerged window. It stays
     offline the same way ``git ls-tree origin/main`` does: remote-tracking
-    refs are local, so nothing here touches the network, and "unreachable
-    remote" surfaces as a git failure, not a hang.
+    refs are local, so nothing here touches the network. The reading is
+    therefore only as fresh as the last fetch: an unreachable remote does not
+    fail this scan, it just means the refs may be stale, and a sibling pushed
+    since the last fetch is invisible. A truly broken local repository (no
+    refs database, git missing) surfaces as a command failure and returns
+    ``None``.
 
     Returns an ``int`` (possibly 0) only when every ref was read: 0 means the
     scan completed and found no session files, which IS evidence of absence.
@@ -125,9 +150,18 @@ def sibling_refs_max_session(repo_root: str | None = None) -> int | None:
             # covers them all (origin/HEAD duplicating origin/main, etc.).
             continue
         seen_commits.add(commit)
-        if time.monotonic() > deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             return None
-        ls = _run_git(["ls-tree", "--name-only", refname, _SESSIONS_PATH], repo_root)
+        # Clamp the child to the remaining budget so the whole scan is
+        # bounded by the deadline, not deadline plus one fresh child timeout;
+        # without the clamp a reading could complete and return an int after
+        # the budget expired.
+        ls = _run_git(
+            ["ls-tree", "--name-only", refname, _SESSIONS_PATH],
+            repo_root,
+            timeout_seconds=min(GIT_TIMEOUT_SECONDS, remaining),
+        )
         if ls is None or ls.returncode != 0:
             return None
         names = [os.path.basename(entry) for entry in ls.stdout.splitlines() if entry.strip()]
