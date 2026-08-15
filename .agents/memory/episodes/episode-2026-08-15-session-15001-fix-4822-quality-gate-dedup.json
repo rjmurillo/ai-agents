@@ -1,0 +1,143 @@
+{
+  "id": "episode-2026-08-15-session-15001-fix-4822-quality-gate-dedup",
+  "session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve issue #4822: eliminate duplicate pytest execution in ai-pr-quality-gate.yml",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created consume_pytest_signal.py",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Modified workflow YAML",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 14 tests",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated workflow structure test",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T08:49:03+00:00",
+      "type": "commit",
+      "content": "Commit: 0a24e0ad18",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T09:11:15+00:00",
+      "type": "commit",
+      "content": "Commit: 26fd4319a6090e67fa2ad66c20f7840efa730164",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T09:19:11+00:00",
+      "type": "commit",
+      "content": "Commit: 68f467e38df8e5fc9660f1ee995ddccd1dac41fc",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T08:55:10+00:00",
+      "type": "commit",
+      "content": "Commit: 5f4b62cd82e4d06bf5c6d5214bc572ec264bd4fb",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T09:37:18+00:00",
+      "type": "commit",
+      "content": "Commit: b865865d089a272a913b2f393da3c9be8c35817f",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T09:48:06+00:00",
+      "type": "commit",
+      "content": "Commit: f5455d8dcd12724df6e638b28a88b10dc72c39e7",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 4
+  },
+  "lessons": []
+}
