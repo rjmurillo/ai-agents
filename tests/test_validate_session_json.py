@@ -3089,6 +3089,7 @@ class TestAMalformedChecklistItemIsReportedNotFatal:
         ).errors
         assert not [e for e in errors if "Malformed item" in e]
 
+    @pytest.mark.timeout(300)
     def test_every_committed_log_can_be_validated_without_crashing(self) -> None:
         """The corpus is the reason this guard exists."""
         sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
