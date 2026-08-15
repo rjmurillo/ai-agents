@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Scoped pytest (107 passed), ruff clean, security-scan clean, taste ratchet at baseline, mypy changed-files gate green, pre_pr.py run before push"
+        "Evidence": "Scoped pytest (109 passed), ruff clean, security-scan clean, taste ratchet at baseline, mypy changed-files gate green, pre_pr.py run before push"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "77675fe502b967193c18aad1eacb4cffe5820c30 on claude/issue-5072-completion-gate-trust"
+        "Evidence": "175a820280c140ba3265cf315234e38c059c5fbe on claude/issue-5072-completion-gate-trust"
       },
       "validationPassed": {
         "level": "MUST",
@@ -148,10 +148,13 @@
     },
     {
       "activity": "Analyzed CodeQL clear-text-logging alerts on the trust prints as name-heuristic false positives (git ref name and status enum match the 'trust' sensitivity heuristic); replied on the PR threads rather than suppressing, per the PR #760 no-blind-suppression lesson"
+    },
+    {
+      "activity": "Agent Safety Review (CI) confirmed the F2/F3 fixes and raised one new finding: approval on git-error is approving blind; --approve-untrusted-config now covers diverged and missing-base only, git-error always exits 3 (negative controls added, 109 tests)"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "77675fe502b967193c18aad1eacb4cffe5820c30"
+  "endingCommit": "175a820280c140ba3265cf315234e38c059c5fbe"
 }

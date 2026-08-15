@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15072-issue-5072-completion-gate-trust.json
-qaCommit: 77675fe502b967193c18aad1eacb4cffe5820c30
+qaCommit: 175a820280c140ba3265cf315234e38c059c5fbe
 ---
 
 # QA Report: PR #5089 completion-gate config trust boundary (Issue #5072)
@@ -16,7 +16,7 @@ CWE-829 fix in `.claude/skills/github/scripts/pr/run_completion_gate.py`: the di
 
 Command: `uv run pytest tests/skills/github/test_run_completion_gate.py -q`
 
-Result: 107 passed (76 pre-existing dispatcher tests unchanged, 31 new across the trust boundary, security-review hardening, and loader branches). The new tests drive `main()` end to end against real git repositories with no subprocess stubbing.
+Result: 109 passed (76 pre-existing dispatcher tests unchanged, 33 new across the trust boundary, security-review hardening, approval-scope, and loader branches). The new tests drive `main()` end to end against real git repositories with no subprocess stubbing.
 
 Acceptance-criteria mapping:
 
@@ -47,7 +47,7 @@ Every line of the new trust code (`TrustCheck`, `_run_git`, `_verify_config_trus
 
 ### Full suite
 
-Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `77675fe502b967193c18aad1eacb4cffe5820c30` runs the same complete pre-push hook suite before the ref moves.
+Pre-push `python-tests` job (`git_hook_policy.py pytest`): 28851 passed after the three environment fixes documented in the PR body. The push of `175a820280c140ba3265cf315234e38c059c5fbe` runs the same complete pre-push hook suite before the ref moves.
 
 
 ### Security-review hardening (second round)
@@ -60,6 +60,7 @@ The security agent review (APPROVE-WITH-NOTES) drove four additional controls, e
 | F3 TOCTOU (CWE-367) | single read; verified bytes are parsed bytes | `test_config_is_read_exactly_once` |
 | F4 EOL false divergence | trusted side via `git cat-file --filters` | `test_eol_only_difference_under_autocrlf_stays_trusted` plus `test_content_tamper_under_autocrlf_still_halts` negative control |
 | F6 parser crash class | RecursionError exits 2, not a traceback | `test_deeply_nested_config_fails_config_not_crash` |
+| Agent-safety finding: approval on git-error | `--approve-untrusted-config` covers diverged and missing-base only; git-error always exits 3 | `test_approval_flag_rejected_when_not_a_git_repo`, `test_approval_flag_rejected_when_trusted_ref_absent` |
 
 ## Verdict
 
