@@ -223,3 +223,34 @@ def test_plugin_version_rules_forbid_manifest_bumps() -> None:
 def test_knowledge_persistence_does_not_require_manifest_bumps() -> None:
     for path in _KNOWLEDGE_PERSISTENCE_SURFACES:
         assert "manifest bump" not in _read(path).casefold()
+
+
+def test_readme_and_installation_agree_on_vscode_agent_path() -> None:
+    """Regression guard for issue #4942.
+
+    README and docs/installation.md must agree that VS Code agents
+    are installed at .github/agents/, not src/vs-code-agents/.
+    """
+    readme = _read(REPO_ROOT / "README.md")
+    installation = _read(REPO_ROOT / "docs" / "installation.md")
+
+    # README platform table: VS Code row should point to .github/agents/
+    vscode_row = re.search(
+        r"\|\s*\*\*VS Code.*?\|\s*`([^`]+)`\s*\|", readme
+    )
+    assert vscode_row is not None, "VS Code row missing from README platform table"
+    readme_path = vscode_row.group(1)
+
+    # installation.md platform table: VS Code row
+    install_vscode_row = re.search(
+        r"\|\s*VS Code\s*\|\s*`([^`]+)`\s*\|", installation
+    )
+    assert install_vscode_row is not None
+    install_path = install_vscode_row.group(1)
+
+    assert readme_path == install_path, (
+        f"README says {readme_path!r} but installation.md says {install_path!r}"
+    )
+    assert readme_path == ".github/agents/", (
+        f"VS Code agent path should be .github/agents/, got {readme_path!r}"
+    )

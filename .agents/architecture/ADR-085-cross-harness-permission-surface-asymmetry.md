@@ -38,9 +38,25 @@ dispatcher machinery serves live generation paths. The decision's terminal
 states are implemented. On 2026-08-11 issue #4874 added the
 `require_subagent_model` registration to the vendored inventory; section 6 and
 the repo-local `.github/hooks` surface note were updated in the same review
-(debate log `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`). Sources:
-<https://github.com/rjmurillo/ai-agents/issues/3217> and
-<https://github.com/rjmurillo/ai-agents/issues/3218>.
+(debate log `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+On 2026-08-14 issue #5013 excluded `push_pr_script_identity_guard` from the
+generated Copilot inventory only. The trigger was a live containment incident:
+the guard's plugin-wide `Bash` matcher combined with the Copilot dispatcher's
+timed child-process deny (#4706) denied 127 unrelated Bash commands over more
+than 21 minutes before the owner applied immediate containment. The root
+cause was the guard's broad `Bash` registration paired with a timed child
+process that denies on overrun, not a defect in the identity check itself.
+Claude Code keeps running the guard unchanged in its own canonical dispatch
+group, because its host entry is not a timed child process. Copilot CLI
+accepts, as residual risk for the excluded window, the reopened gap that a
+prompt-injected repository lookalike `new_pr.py` is no longer denied there.
+Section 7 now records the exclusion, the eligibility test applied to it, and
+the field-governance and reintroduction requirements; section 6 is otherwise
+unchanged and the dispatcher itself is unchanged. Debate log:
+`.agents/critique/ADR-068-071-085-5013-debate-log.md`. Sources:
+<https://github.com/rjmurillo/ai-agents/issues/3217>,
+<https://github.com/rjmurillo/ai-agents/issues/3218>, and
+<https://github.com/rjmurillo/ai-agents/issues/5013>.
 
 ## Amendment Record
 
@@ -62,7 +78,7 @@ decision.
 
 ## Date
 
-2026-07-20; amended 2026-07-31 and 2026-08-11
+2026-07-20; amended 2026-07-31, 2026-08-11, and 2026-08-14
 
 ## Context
 
@@ -333,7 +349,11 @@ a surviving vendored hook is listed with the hook that keeps it alive. Decision
 adapter. Removing that adapter requires superseding this decision, not treating
 zero active producers as implicit approval. The vendored source has four registrations across two events:
 `markdownlint_guard`, `push_pr_script_identity_guard`,
-`require_subagent_model`, and `markdown_auto_lint`. Copilot generation emits two host registrations. This repository also
+`require_subagent_model`, and `markdown_auto_lint`. Copilot generation emits two host registrations. Issue #5013 excluded
+`push_pr_script_identity_guard` from the generated Copilot inventory only: the
+four-registration count above still describes the vendored Claude source, and
+the Copilot-side PreToolUse manifest now carries the remaining two shims,
+`markdownlint_guard` and `require_subagent_model`. This repository also
 registers the require-subagent-model gate directly at
 `.github/hooks/require-subagent-model.json` for local Copilot runs; cloud
 agent reads only default-branch `.github/hooks/*.json`, so cloud coverage
@@ -351,6 +371,100 @@ The current dispatcher state is not permanent debt accepted by documentation.
 Each retained component must record why direct registration or deletion would
 lose a measured host contract or cost more than the retained machinery.
 Simplification requires a new architecture decision.
+
+### 7. `push_pr_script_identity_guard`: temporary Copilot-only exclusion, Claude retained (D-C)
+
+Issue #5013 (2026-08-14) excluded `push_pr_script_identity_guard` from the
+generated Copilot inventory only, in response to the containment incident
+recorded in Status: the guard's plugin-wide `Bash` matcher paired with the
+Copilot dispatcher's timed child-process deny (#4706) denied 127 unrelated
+Bash commands over more than 21 minutes. `.claude/hooks/dispatch_groups.json`
+marks the group `copilotExclude: true` and still lists the guard in Claude
+Code's canonical dispatch group. `.claude/hooks/hooks.json` still registers
+that group. This ADR is the policy authority for the exclusion; ADR-068
+and ADR-071 record only the derived dispatcher and runtime metrics that
+result from it.
+
+**Eligibility test applied (Decision 1).** This exclusion is not a
+hook-to-permissions migration, so Decision 1's three-part test does not admit
+or reject it directly. Applied by analogy, it bounds what a temporary
+exclusion may claim:
+
+1. **Portability.** The question is inverted here: the guard already ships on
+   both harnesses today, and the field removes it from one. No permission
+   surface replaces it on Copilot. Copilot regains no equivalent policy; it
+   regains nothing.
+2. **Fidelity.** Removing the guard from Copilot removes all of its fidelity,
+   not a partial subset. There is no partial-fidelity carrier and none is
+   claimed.
+3. **Policy safety.** The guard's underlying policy, deny a noncanonical
+   `new_pr.py` invocation, remains a real safety boundary. Excluding the guard
+   from Copilot does not make that boundary safe to skip. It accepts skipping
+   it as a temporary, contained cost.
+
+Containment passes temporarily because the alternative, 127 unrelated denials
+recurring on every Copilot Bash call, is an availability failure with no
+compensating security benefit: the guard was denying commands it was never
+meant to evaluate, not catching a live attack. The remaining security cost is
+real and named, not eliminated: while excluded, Copilot CLI has no guard
+against a prompt-injected repository lookalike `new_pr.py` gaining user-level
+Python execution through `/push-pr`. Claude Code is unaffected because its
+host entry is not a timed child process and the guard runs there unchanged.
+
+**Generic field governance.** A generic `copilotExclude` field on a
+dispatch-group shim entry is allowed only when all of the following hold, not
+merely a boolean flip:
+
+1. Strict boolean validation. The generator rejects any `copilotExclude`
+   value that is not literally `true` or `false`; a truthy non-boolean value
+   such as `1`, `"true"`, or `null` fails generation rather than silently
+   including or excluding the shim.
+2. Plugin surface named. The record states which generated surface loses the
+   shim, the Copilot plugin `hooks.json` and its manifest, and which surface
+   keeps it, the vendored Claude plugin source and the unaffected
+   `.claude/settings.json`.
+3. Issue metadata. The record names the issue that authorized the exclusion,
+   #5013, in the field's generator comment and in this ADR.
+4. Decision metadata. The record names the ADR that owns the security
+   judgment, this ADR, not the mechanical ADR that owns dispatcher shape,
+   ADR-068.
+5. Residual risk stated. The record states what protection is lost on the
+   excluded harness while the field is `true`, the `new_pr.py` lookalike gap
+   above.
+6. Unaffected-harness behavior stated. The record states that the
+   non-excluded harness is unchanged and names the mechanism, the field is
+   ignored by `invoke_dispatch_claude.py`.
+7. Reintroduction criteria named. The record names the gates a future change
+   must pass before flipping the field back to `false`, the eight gates
+   below.
+8. Cleanup obligation named. The record states that a permanent exclusion
+   requires removing the dead Copilot-side generation path rather than
+   leaving `copilotExclude: true` as permanent scaffolding.
+9. Tests required. The record names the tests that must pass before and
+   after any change to the field: absence regressions on the Copilot side,
+   presence regressions on the Claude side, and the boolean-validation test
+   in item 1.
+
+**Reintroduction gates.** Issue #5013 and assignee rjmurillo own
+reintroduction. Reintroduction is optional and requires rjmurillo's approval
+before the field reverts to `false`. All eight gates below must pass in the
+same change:
+
+1. Unrelated commands never launch the guard's child process on Copilot.
+2. The canonical `new_pr.py` invocation is allowed.
+3. A prompt-injected repository lookalike `new_pr.py` is denied.
+4. A dynamic launcher, `python -c`, `eval`, or shell substitution, targeting
+   `new_pr.py` is denied.
+5. A Windows load test of 32 calls across 8 workers completes without a false
+   denial.
+6. Latency stays under a 500ms p95 and a 1 second maximum across that load
+   test.
+7. The measurement runs against a real Copilot CLI probe, not a simulated
+   harness.
+8. The owner classifies the guard's disposition as deleted or essential
+   before it returns to the generated inventory.
+
+Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
 ## Resolved Owner Decisions
 
@@ -525,12 +639,17 @@ retirement or replacement requires a new architecture decision.
   replace agent-time PreToolUse enforcement.
 - ADR-083 (#3222): the dogfood mandate that makes Finding 2 blocking.
 - ADR-068: the generic PermissionRequest adapter and the active-policy removal.
+  Its 2026-08-14 amendment records the derived dispatcher metrics that follow
+  from Decision 7 here; ADR-068 is not the policy authority for the
+  exclusion.
+- ADR-071: its 2026-08-14 amendment records the derived runtime-contract
+  metrics that follow from Decision 7 here.
 - ADR-082: the dispatcher machinery whose simplification is bounded by
   surviving hooks. Issue #3218 no longer owns that scope.
 
 ## References
 
-- Issues #3197, #3217, #3218, #3216, #3219.
+- Issues #3197, #3217, #3218, #3216, #3219, #4764, #4825, #5013.
 - Claude Code permissions, "Compound commands": <https://code.claude.com/docs/en/permissions>.
 - anthropics/claude-code#4956: Bash permission bypass via command chaining.
 - PR #3293, commit `8f391b3c67a7ea85e279d036f07e8a4c1a92a243`,
@@ -544,3 +663,5 @@ retirement or replacement requires a new architecture decision.
   Permission controls.
 - `.claude/skills/agent-harness-reference/references/probe-evidence.md`,
   Permission-surface inventory.
+- `.agents/critique/ADR-068-071-085-5013-debate-log.md`, the issue #5013
+  containment and exclusion review.
