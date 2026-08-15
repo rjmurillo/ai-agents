@@ -62,3 +62,53 @@ That reframing is why finding 3 is a deletion rather than a rewording.
 - No reviewer probed Claude Code or VS Code resolvers. The amendment's claims
   are scoped to Copilot CLI 1.0.79 and say so.
 - No cross-vendor reviewer. See the deviation note above.
+
+## Round 2 (2026-08-15): full 6-agent review of finding 4's "harmless" claim
+
+Unlike round 1, this is the **full** adr-review protocol: all six roles
+(architect, critic, independent-thinker, security, analyst, high-level-advisor)
+ran independently against one narrow diff — the correction to finding 4
+described below. No scoped-review deviation is claimed for this round.
+
+### Trigger
+
+A GitHub Copilot PR review comment on PR #4954 (unresolved as of commit
+`861eedc62`) found that finding 4 called `model_tier`-to-versioned-id
+translation for generated plugin agents "harmless," while finding 1 (same
+amendment, unchanged) measured that a versioned pin overrides an operator's
+explicitly selected session model on delegation. `build/generate_agents_common.py:222-227`
+resolves a template's `model_tier` to a versioned `model` id via
+`templates/platforms/copilot-cli.yaml`'s `model_tiers` map before a plugin
+agent ships, so the two findings describe the same versioned-id mechanism
+while reaching opposite conclusions about its cost.
+
+### Reviewers and lenses
+
+| Reviewer | Lens | Verdict |
+|---|---|---|
+| architect | Structure, governance, coherence, ADR compliance | ACCEPT |
+| critic | Gaps, risks, alignment, completeness | ACCEPT |
+| independent-thinker | Steelman that the fix is still wrong or insufficient | ACCEPT_WITH_CHANGES |
+| security | Trust-boundary and threat-model consequences of the override | ACCEPT_WITH_CHANGES |
+| analyst | Root cause, direct evidence verification, feasibility | ACCEPT_WITH_CHANGES |
+| high-level-advisor | Tie-break between the ACCEPT and ACCEPT_WITH_CHANGES votes | ACCEPT (tie-breaker, deciding vote) |
+
+Each reviewer received the current finding 4 text, the proposed replacement,
+and the two source citations (`build/generate_agents_common.py:222-227`,
+`templates/platforms/copilot-cli.yaml` `model_tiers`), independently.
+
+### Findings and disposition
+
+| # | Finding | Reviewer(s) | Disposition |
+|---|---|---|---|
+| 1 | The proposed text resolves the Copilot finding: it drops "harmless," states the override is the same mechanism finding 1 measured, and records that whether the override is acceptable "is undecided here and remains an open gap." | architect, critic | **Accepted as-is.** |
+| 2 | The override was not independently re-probed for a `model_tier`-resolved id; the proposed text should not claim it as measured. | independent-thinker, analyst | **Accepted as-is.** The proposed text already states "not independently probed... inferred from finding 1's mechanism, not separately reproduced." No change needed. |
+| 3 | Add a prescriptive "Migration item" sentence naming concrete resolution options (stop emitting `model`, emit a bare alias, or accept the override with explicit operator opt-in). | independent-thinker, security | **Rejected by tie-break.** high-level-advisor: this ADR amendment is scoped as "a rationale correction, not a rule change," and its own established pattern (the "Suggested sequence" list, and finding 4's own closing sentence: "is migration work this ADR does not currently name") consistently narrates gaps without prescribing unscoped follow-up work. Prescribing migration options belongs in a follow-up PR or ADR entry in the suggested sequence, not in this correction. |
+| 4 | The override has trust-boundary implications (an operator's explicit model choice may be a safety/assurance decision, not only a cost preference) and should be framed that way, citing ASI09/CWE-346. | security | **Rejected by tie-break**, same reasoning as finding 3: out of scope for a rationale-only correction. Recorded here so a future amendment that does touch the manifest schema or trust boundary does not have to rediscover this framing. |
+| 5 | `build/generate_agents_common.py:222-227` should instead read `223-228`. | analyst | **Rejected on the facts.** Re-verified directly against the source file: line 222 is the `# Resolve model:` comment, 223 is `model_tier = frontmatter.get(...)`, 224 is a comment, 225 is the `model_tiers = ...` lookup, 226 is the `if model_tier and isinstance(...)` guard, and 227 is `result["model"] = str(model_tiers[model_tier])` — the complete resolution block, matching the citation in the Copilot review comment that raised this finding. Line 228 is the `else:` branch for the non-tier fallback path, not part of the resolution being cited. `222-227` is correct; `223-228` would drop the leading comment and add an unrelated branch. |
+
+### Consensus
+
+6 of 6: 3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by the high-level-advisor
+tie-break in favor of the unmodified proposed text (candidate A). Final text
+applied verbatim as proposed; no further edits from this round.

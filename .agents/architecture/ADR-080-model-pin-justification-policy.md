@@ -289,18 +289,27 @@ the `ai-review` selection path. Treat the class as unconfirmed here, not
 disproved everywhere.
 
 **4. Rule 1's bare-alias state does not survive translation on every path, so
-rule 3's cost exception has a live gap.** Bare aliases are not valid Copilot
-model ids. For **generated plugin agents** this is harmless:
-`templates/platforms/copilot-cli.yaml` `model_tiers` resolves a template's
-`model_tier` to a versioned id before it ships. For **repository-level agents**
-(`.github/agents/`), bare aliases such as `model: sonnet` in
-`quality-auditor.agent.md` reach Copilot unresolved and fall back; this gap
-remains open. For **skills** there is no such translation, and
+rule 3's cost exception has a live gap, and the fix for one path reopens
+finding 1.** Bare aliases are not valid Copilot model ids. For **generated
+plugin agents**, `templates/platforms/copilot-cli.yaml` `model_tiers`
+(consumed by `build/generate_agents_common.py:222-227`) resolves a template's
+`model_tier` to a versioned id (for example `model_tier: sonnet` becomes
+`model: claude-sonnet-4.6`) before it ships, so the bare alias never reaches
+Copilot unresolved. That is not the same as harmless: the resolved value is a
+versioned id, and finding 1 measured that a versioned pin overrides an
+operator's explicitly selected session model on delegation. The same override
+was not independently probed for a `model_tier`-resolved id specifically; it is
+inferred from finding 1's mechanism, not separately reproduced. Whether that
+override is acceptable for generated agents, and how it interacts with rule
+3's cost exception, is undecided here and remains an open gap. For
+**repository-level agents** (`.github/agents/`), bare aliases such as
+`model: sonnet` in `quality-auditor.agent.md` reach Copilot unresolved and fall
+back; this gap remains open. For **skills** there is no such translation, and
 `src/copilot-cli/skills` ships 8 raw aliases today (7 `haiku`, 1 `opus`). Those
-are precisely the units rule 3's cost exception exists for, and their cheap-tier
-intent is silently discarded in favour of the session default, which is the
-inverse of the exception's purpose. Fixing the skill copier, or removing those
-pins, is migration work this ADR does not currently name.
+are precisely the units rule 3's cost exception exists for, and their
+cheap-tier intent is silently discarded in favour of the session default,
+which is the inverse of the exception's purpose. Fixing the skill copier, or
+removing those pins, is migration work this ADR does not currently name.
 
 **5. Point 5's citation is stale and its scope is short by two files.**
 `templates/platforms/copilot-cli.yaml:95` is `outputDir`; the `model:` line was
