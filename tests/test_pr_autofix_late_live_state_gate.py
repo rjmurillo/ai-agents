@@ -263,7 +263,7 @@ def _run_race(
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
-    mutation_sleep = "0" if renewal_failure else "0"
+    mutation_sleep = "0"
     mutation_block_fifo = ""
     if renewal_failure:
         mutation_block_fifo = str(tmp_path / "mutation-block-fifo")
@@ -344,6 +344,9 @@ fi
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
         check=False,
     )
     return result, check_log, lease_log, mutation_log
