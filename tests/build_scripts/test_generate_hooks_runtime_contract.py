@@ -495,7 +495,11 @@ def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> N
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
 def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
-    """Every emitted powershell path resolves under pwsh, incl. the fallback."""
+    """Every emitted powershell path resolves under pwsh, incl. the fallback.
+
+    Batches all Test-Path checks into a single pwsh invocation per scenario
+    to avoid N subprocess spawns that flake under xdist load (issue #4928).
+    """
     doc = _generate(tmp_path)
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"
@@ -503,26 +507,32 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
         _contract_env(copilot_root=plugin_root, claude_root=plugin_root),
         _contract_env(copilot_root=None, claude_root=plugin_root),  # fallback
     ]
+    entries = _all_entries(doc)
+    ps_exprs = [_path_arg(entry["powershell"]) for entry in entries]
+
     for env in scenarios:
-        for entry in _all_entries(doc):
-            ps_expr = _path_arg(entry["powershell"])
-            proc = subprocess.run(
-                [
-                    "pwsh",
-                    "-NoProfile",
-                    "-Command",
-                    f'if (Test-Path "{ps_expr}") {{ "OK" }} else {{ "MISSING" }}',
-                ],
-                env=env,
-                cwd=userland,
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-                check=False,
-            )
-            assert proc.returncode == 0, proc.stderr
-            assert "OK" in proc.stdout, f"unresolved powershell path: {ps_expr!r}"
+        # Build a single script that checks every path and emits OK/MISSING
+        checks = "; ".join(
+            f'if (Test-Path "{expr}") {{ "OK:{expr}" }} else {{ "MISSING:{expr}" }}'
+            for expr in ps_exprs
+        )
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", checks],
+            env=env,
+            cwd=userland,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        lines = [ln for ln in proc.stdout.splitlines() if ln]
+        assert len(lines) == len(ps_exprs), (
+            f"pwsh emitted {len(lines)} lines, expected {len(ps_exprs)}"
+        )
+        for line in lines:
+            assert line.startswith("OK:"), f"unresolved powershell path: {line}"
 
 
 def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> None:
