@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15200-fix-4898-pr-snapshot.json
-qaCommit: 030bc7d018d7686fbb76d748331ab469003af99e
+qaCommit: 2bd2e0bae9a94ca0050bf0f50d15a8b27782f1f8
 ---
 
 # PR Snapshot QA Report
