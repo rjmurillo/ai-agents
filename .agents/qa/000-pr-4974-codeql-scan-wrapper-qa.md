@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-13-session-14705.json
-qaCommit: 83bc841fe16be06d72d0e41ed6c9a918103e792b
+qaCommit: 7cabac1dca91690af708637ded7d9dc574a5e747
 ---
 
 # Issue 4921 QA Report: codeql-scan wrapper delegates
