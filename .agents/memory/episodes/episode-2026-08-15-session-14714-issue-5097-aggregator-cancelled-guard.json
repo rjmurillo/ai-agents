@@ -98,7 +98,8 @@
         "e006",
         "e007",
         "e012",
-        "e013"
+        "e013",
+        "e015"
       ],
       "leads_to": [
         "e009"
@@ -174,6 +175,30 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main again after PR #5087's squash landed the cherry-picked hunks",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T20:56:19+00:00",
+      "type": "commit",
+      "content": "Commit: 3b2428fa06cd0d2f26462c07d6741a4aedd51a49",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
     }
@@ -183,7 +208,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 17
   },
   "lessons": []

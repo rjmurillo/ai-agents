@@ -154,9 +154,13 @@
     {
       "step": "Clamped each observation-sync child's subprocess timeout to the remaining budget",
       "evidence": "scripts/validation/git_hook_policy.py sync_observations: timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining); AI gate DevOps finding (240s check + 90s child = 330s past the 300s lefthook cap); test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget asserts [50.0, 1.0]; commit 358e756b0"
+    },
+    {
+      "step": "Merged origin/main again after PR #5087's squash landed the cherry-picked hunks",
+      "evidence": "merge commit 3b2428fa0: conflicts confined to the clamp additions in scripts/validation/git_hook_policy.py and tests/test_lefthook_integration.py; ours side kept (main's content plus the clamp); verified diff vs origin/main is clamp-only; 4 sync tests, 55 guard tests, merge-tree-ratchet OK post-merge"
     }
   ],
-  "endingCommit": "358e756b076b8c382ebf70e4853cb7310592745a",
+  "endingCommit": "3b2428fa06cd0d2f26462c07d6741a4aedd51a49",
   "nextSteps": [
     "Follow-up: codeql-analysis.yml check-blocking-issues carries if: always() and downloads SARIF artifacts from a cancelled analyze job. It never reads needs.<job>.result, so it is outside this fix's shape, but a cancelled run can still leave it red on missing artifacts. Worth its own issue.",
     "Follow-up: ai-pr-quality-gate.yml aggregate and ai-session-protocol.yml aggregate still carry the redundant always() && !cancelled() spelling from the #2347 fix. The always() term is dead weight under the vendor recommendation; a cosmetic cleanup would leave one spelling in the repo.",
