@@ -103,7 +103,8 @@
         "e014",
         "e015",
         "e016",
-        "e020"
+        "e020",
+        "e023"
       ],
       "leads_to": [
         "e017"
@@ -274,6 +275,17 @@
         "e021"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push failed on memory-index-token-ratchet, pre-pr Count Ratchets, and one pytest node, all tracing to one cause: the third origin/main merge left two memory-index.md rows for diagnosing-a-blocked-pr, recording 885 and 919 tokens",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
   ],

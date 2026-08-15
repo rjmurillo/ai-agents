@@ -188,6 +188,11 @@
       "timestamp": "2026-08-15",
       "action": "Rebound all three session logs and all three QA reports to fa39b0200 after the origin/main merge staled every marker, then corrected the rename note that landed inside a code span",
       "outcome": "All three logs PASS validate_session_json.py against HEAD"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Pre-push failed on memory-index-token-ratchet, pre-pr Count Ratchets, and one pytest node, all tracing to one cause: the third origin/main merge left two memory-index.md rows for diagnosing-a-blocked-pr, recording 885 and 919 tokens",
+      "outcome": "Ran scripts/update_memory_index_tokens.py per knowledge-persistence MUST-6, which dropped the duplicate row and kept 919. test_every_declared_entrypoint_runs_in_locked_environment passes. Separately confirmed the earlier tests/mutation/test_mutate_debate_log_path.py M1 failure was a flake: it passes in isolation and passed on the next full run"
     }
   ],
   "episodeMetrics": {

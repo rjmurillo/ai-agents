@@ -40,9 +40,8 @@
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
-|blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (885)
-|zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (919)
+|zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
