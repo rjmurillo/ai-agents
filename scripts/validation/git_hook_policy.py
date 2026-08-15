@@ -42,6 +42,7 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.hook_utilities.utilities import recent_host_session_dates
+from scripts.test_selection import select_tests
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -6551,7 +6552,115 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
     ]
 
 
-def run_pytest(repo_root: Path) -> int:
+# Test modules that must run serially, mirroring the CI partitions in
+# `_pytest_commands`. When import-graph selection picks any of these, they run
+# in their own command so a shared `-n` worker pool cannot corrupt them.
+_PYTEST_MUTATION_PREFIX = "tests/mutation/"
+_PYTEST_SAFE_PUSH_SERIAL = (
+    "tests/test_safe_push_pr_branch.py",
+    "tests/test_mutation_workspace_signals.py",
+)
+_PYTEST_PR_AUTOFIX_SERIAL = ("tests/test_pr_autofix_late_live_state_gate.py",)
+
+
+def _abs_test_paths(repo_root: Path, rels: Sequence[str]) -> list[str]:
+    return [str(repo_root / rel) for rel in rels]
+
+
+def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> list[list[str]]:
+    """Build partitioned pytest commands for an import-graph-selected subset.
+
+    The subset is split into the same buckets `_pytest_commands` uses, so the
+    parallel bulk and mutation runs stay parallel and the process-sensitive
+    safe-push and pr-autofix modules stay serial.
+    """
+    mutation: list[str] = []
+    safe_push: list[str] = []
+    pr_autofix: list[str] = []
+    bulk: list[str] = []
+    for rel in test_files:
+        if rel.startswith(_PYTEST_MUTATION_PREFIX):
+            mutation.append(rel)
+        elif rel in _PYTEST_SAFE_PUSH_SERIAL:
+            safe_push.append(rel)
+        elif rel in _PYTEST_PR_AUTOFIX_SERIAL:
+            pr_autofix.append(rel)
+        else:
+            bulk.append(rel)
+    base = [sys.executable, "-m", "pytest"]
+    commands: list[list[str]] = []
+    if bulk:
+        commands.append(
+            [
+                *base,
+                "-m",
+                "not integration",
+                *_pytest_parallel_flags(),
+                *_abs_test_paths(repo_root, bulk),
+            ]
+        )
+    if mutation:
+        commands.append(
+            [
+                *base,
+                "-m",
+                "not integration",
+                *_pytest_parallel_flags(),
+                *_abs_test_paths(repo_root, mutation),
+            ]
+        )
+    if safe_push:
+        commands.append(
+            [
+                *base,
+                "-m",
+                "not integration and not safe_push_transport",
+                *_abs_test_paths(repo_root, safe_push),
+            ]
+        )
+    if pr_autofix:
+        commands.append(
+            [*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)]
+        )
+    return commands
+
+
+def _resolve_pytest_commands(
+    repo_root: Path,
+    changed_files: Sequence[str] | None,
+) -> list[list[str]]:
+    """Return the pytest commands to run: an import-graph subset or the full suite.
+
+    Any failure to determine the diff, and any fail-safe verdict from the
+    selector, returns the full partition set. The subset is only used when the
+    graph maps every changed file with certainty.
+
+    Raises:
+        ValueError: the worker override is invalid (from `_pytest_parallel_flags`).
+    """
+    if changed_files is None:
+        changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
+    else:
+        changed = list(changed_files)
+    # The full suite is the historical default and stays silent so callers that
+    # assert a clean success path keep passing. Only a narrowed subset, the new
+    # behavior, announces itself.
+    if changed is None:
+        return _pytest_commands(repo_root)
+    selection = select_tests.select(changed, repo_root)
+    if selection.full:
+        return _pytest_commands(repo_root)
+    print(
+        f"pytest selection: {len(selection.tests)} test file(s) via import graph "
+        f"(from {len(changed)} changed file(s)); reason: {selection.reason}",
+        file=sys.stderr,
+    )
+    for rel in selection.tests:
+        print(f"  {rel}", file=sys.stderr)
+    return _pytest_commands_for_subset(repo_root, selection.tests)
+
+
+def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> int:
     env = _clean_git_env()
     for key in (
         "CLAUDE_PROJECT_DIR",
@@ -6568,7 +6677,7 @@ def run_pytest(repo_root: Path) -> int:
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
     try:
-        commands = _pytest_commands(repo_root)
+        commands = _resolve_pytest_commands(repo_root, changed_files)
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -7079,7 +7188,8 @@ def _handle_memory_sync(args: argparse.Namespace) -> int:
 
 
 def _handle_pytest(args: argparse.Namespace) -> int:
-    return run_pytest(_repo_root(args))
+    changed = list(args.paths) if args.paths else None
+    return run_pytest(_repo_root(args), changed)
 
 
 def _handle_workflow_local(args: argparse.Namespace) -> int:
@@ -7322,6 +7432,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("extract-episodes", _handle_extract_episodes),
         ("adr-review", _handle_adr_review),
         ("retrospective", _handle_retrospective),
+        ("pytest", _handle_pytest),
     )
     simple_commands = (
         ("branch", _handle_branch),
@@ -7332,7 +7443,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("memory-token-update", _handle_memory_tokens),
         ("memory-size", _handle_memory_size),
         ("memory-sync", _handle_memory_sync),
-        ("pytest", _handle_pytest),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
         ("bot-cascade", _handle_bot_cascade),
