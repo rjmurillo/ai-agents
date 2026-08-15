@@ -910,11 +910,19 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "python-type-check",
         "infrastructure-advisory",
         "workflow-local-run",
-        "observation-sync-advisory",
     ):
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
+    # observation-sync-advisory derives its file set from the push refs on
+    # stdin instead of {push_files}: the first-push fallback fed the whole
+    # observation corpus to the sync and overran the job's cap (#5071).
+    observation_job = pre_push_jobs["observation-sync-advisory"]
+    observation_run = observation_job["run"]
+    assert isinstance(observation_run, str)
+    assert observation_run.endswith("git_hook_policy.py observations-push")
+    assert "{push_files}" not in observation_run
+    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
     build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]

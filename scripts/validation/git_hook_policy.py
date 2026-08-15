@@ -7325,6 +7325,44 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
+def _handle_observations_push(args: argparse.Namespace) -> int:
+    # Mirrors the glob for observation-sync-advisory in lefthook.yml:
+    #     glob: ".serena/memories/**/*-observations.md"
+    # plus the top-level spelling, because fnmatch requires the "**/" segment
+    # while lefthook's glob does not. Lefthook's glob is a secondary filter
+    # only (ADR-006); the guard logic lives here.
+    #
+    # Stricter/looser/different than the e2e handlers above: on an
+    # unresolvable push range this handler SKIPS instead of failing open.
+    # The job is advisory (sync_observations always returns 0), and failing
+    # open means syncing every tracked observation file; without a reachable
+    # Forgetful service each file burns a 10s MCP timeout, so the full corpus
+    # (50 files when this landed) overruns the job's 5m lefthook cap and the
+    # timeout kill blocks the push (issue #5071 push evidence; same class as
+    # issue #4492).
+    observation_globs = (
+        ".serena/memories/*-observations.md",
+        ".serena/memories/**/*-observations.md",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is None:
+        print("observation-sync advisory skipped: push range unresolvable")
+        return 0
+    targets = sorted(
+        path
+        for path in changed
+        if _any_glob_match({path}, observation_globs) and (repo_root / path).is_file()
+    )
+    print(
+        f"observation-sync: {len(targets)} observation file(s) among "
+        f"{len(changed)} changed in push range"
+    )
+    if not targets:
+        return 0
+    return sync_observations(targets, repo_root)
+
+
 def _handle_sessions(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
     if args.paths:
@@ -7438,6 +7476,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("observations-push", _handle_observations_push),
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
