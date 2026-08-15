@@ -10593,7 +10593,10 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
