@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15150-pr-template-acceptance-criteria.json
-qaCommit: d82916ec6c42c25194f4a8ff2ae75059ab007f1c
+qaCommit: 8b1247ce1d6261fef6d9664bc913b3c60883591a
 ---
 
 # QA Report: PR Template Acceptance Criteria Section
@@ -48,6 +48,13 @@ Spec Coverage job). Refs #5068.
    then full causal-restore suite green).
 7. **bootstrap-vm.sh**: package-list edit only; script re-runs idempotently
    (apt-get install with already-installed packages is a no-op).
+8. **Observation-sync bail-fast (commit 8b1247c)**: 4 targeted tests pass in
+   `tests/test_lefthook_integration.py` (all-success processes every file,
+   McpError bails with loud remaining-count warning, non-MCP failure
+   continues, legacy single-file case unchanged). Measured trigger: each
+   import spawn pays a 10s handshake timeout when Forgetful is absent; a
+   new-branch push matched 43 observation files and exceeded the 5m job cap
+   twice (302.93s, 304.23s in recorded push logs).
 
 ## Not covered
 
