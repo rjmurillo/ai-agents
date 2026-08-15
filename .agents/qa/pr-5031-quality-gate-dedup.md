@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15001-fix-4822-quality-gate-dedup.json
-qaCommit: f5455d8dcd12724df6e638b28a88b10dc72c39e7
+qaCommit: f3e9d106ffd4f40bb9763fbb99575eda5389e67c
 ---
 
 # QA Report: PR #5031 - Stop ai-pr-quality-gate re-running pytest suite

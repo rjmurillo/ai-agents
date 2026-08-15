@@ -127,6 +127,32 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T11:11:17+00:00",
+      "type": "commit",
+      "content": "Commit: 8e03d515dd23c9fd6f2688ac4d448ab17ebcd3f2",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T11:12:44+00:00",
+      "type": "commit",
+      "content": "Commit: f3e9d106ffd4f40bb9763fbb99575eda5389e67c",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15001-fix-4822-quality-gate-dedup"
     }
@@ -136,8 +162,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 4
+    "commits": 8,
+    "files_changed": 8
   },
   "lessons": []
 }
