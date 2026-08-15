@@ -41,11 +41,17 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
     canonical source is
     ``scripts/hook_utilities/utilities.py::get_recent_session_log``; the
     installed plugin mirrors it at ``lib/hook_utilities/utilities.py``. Its
-    load-bearing prefix contract is::
+    load-bearing prefix contract is quoted verbatim::
 
-        prefixes = (host_today, utc_today, host_yesterday, utc_yesterday)
-        for prefix in deduplicated(prefixes):
-            return newest_readable_log(prefix) if one exists
+        host_dates = recent_host_session_dates()
+        now_utc = datetime.now(tz=UTC)
+        utc_dates = (
+            now_utc.strftime(_ISO_DATE),
+            (now_utc - timedelta(days=1)).strftime(_ISO_DATE),
+        )
+        prefixes = tuple(
+            dict.fromkeys((host_dates[0], utc_dates[0], host_dates[1], utc_dates[1]))
+        )
 
     Stricter/looser/different than canonical:
     This fallback captures host and UTC clocks inline rather than calling
