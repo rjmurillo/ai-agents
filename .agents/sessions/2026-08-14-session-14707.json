@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 36f165d6036b54bb9f7311213508b04693f56fd2; final evidence committed separately"
+        "Evidence": "Validated code commit a020f2e18701193ec7dd824a11b72e734400983d; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1,221 focused tests passed after main synchronization; 838 policy tests passed after physical-recency tightening; Ruff, review-axis drift, session validation, and diff checks passed"
+        "Evidence": "857 final consumer, policy, and retrospective tests passed; Ruff, build_all.py --check, review-axis drift, and diff checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -190,9 +190,13 @@
     {
       "action": "Tightened retrospective cross-host lookup to physically current dates.",
       "outcome": "Preserved host today/yesterday and UTC compatibility, accepted current UTC-12/UTC+14 artifacts, and rejected stale scanner-relative two-day artifacts; 838 policy tests passed."
+    },
+    {
+      "action": "Closed the final four suppressed review findings.",
+      "outcome": "Corrected the physical timezone instant, documented fallback divergence, removed dead UTC definitions with regenerated mirror, and restricted same-branch session selection to host grace plus physically current cross-host dates; 857 tests passed."
     }
   ],
-  "endingCommit": "36f165d6036b54bb9f7311213508b04693f56fd2",
+  "endingCommit": "a020f2e18701193ec7dd824a11b72e734400983d",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
