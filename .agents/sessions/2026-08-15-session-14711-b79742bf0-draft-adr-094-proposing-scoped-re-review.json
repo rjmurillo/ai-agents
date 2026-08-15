@@ -94,12 +94,12 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/adr-094-scoped-re-review-axes.md"
+        "Evidence": ".agents/qa/qa-adr-094-scoped-re-review-axes.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: a4a57a6d6e)"
+        "Evidence": "All changes committed (HEAD: 48ac127d6f)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,10 +147,10 @@
     {
       "timestamp": "2026-08-15",
       "action": "QA pass: dash scan, banned vocabulary, ADR number collision, 13 cited paths, 5 quoted lines",
-      "outcome": "PASS, recorded at .agents/qa/adr-094-scoped-re-review-axes.md"
+      "outcome": "PASS, recorded at .agents/qa/qa-adr-094-scoped-re-review-axes.md"
     }
   ],
-  "endingCommit": "a4a57a6d6e",
+  "endingCommit": "48ac127d6f",
   "nextSteps": [
     "Human maintainer reviews ADR-094 and decides accept, revise, or reject (governance.md MUST-1)",
     "On acceptance, orchestrator invokes the adr-review skill for multi-agent validation",
