@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule.json
-qaCommit: 70608747772b0da80242e7358f166796e6e51230
+qaCommit: c0d7bf451fd37e4fc2bdc01f5c0212743ed7e7b1
 ---
 
 # Issue 5074 Merge Resolver Rename Rule QA
@@ -27,6 +27,10 @@ Files under test:
 - `.claude/skills/merge-resolver/SKILL.md` (version 2.3.0)
 - `.claude/skills/merge-resolver/references/strategies.md`
 - `build/scripts/detect_agent_drift.py` (baseline re-measure only)
+- `scripts/validation/git_hook_policy.py` (observation-sync internal budget)
+- `tests/test_lefthook_integration.py`, `tests/test_claude_mem_scripts.py`,
+  `.claude/skills/orphan-ref-validator/tests/test_scan.py` and its
+  `src/copilot-cli` mirror (budget tests plus root-environment skip guards)
 
 ## Acceptance Criteria
 
@@ -56,6 +60,8 @@ Quoted from issue #5074:
 | Ruff on edited script | `uv run ruff check` and `ruff format --check` on `build/scripts/detect_agent_drift.py` | clean |
 | Markdown lint | `npx markdownlint-cli2` on all changed markdown files | 0 issues (`.agents/**` and `.github/agents/**` excluded by config) |
 | Session log validates | `uv run python scripts/validate_session_json.py .agents/sessions/2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule.json` | PASS after QA report landed |
+| Observation-sync budget behavior | `uv run pytest tests/test_lefthook_integration.py -k sync_observations -q` | 4 passed (existing pair plus mid-list stop and exhausted-budget edge) |
+| Root-skip guards leave non-root coverage intact | `uv run pytest tests/test_claude_mem_scripts.py .claude/skills/orphan-ref-validator/tests/test_scan.py -q` | 12 passed 1 skipped; 227 passed 1 skipped (skips are the root-environment guards firing in this root container; CI runners are non-root and execute them) |
 
 ## Known Gaps
 

@@ -120,7 +120,11 @@
         "e006",
         "e007",
         "e008",
-        "e009"
+        "e009",
+        "e013",
+        "e014",
+        "e015",
+        "e016"
       ],
       "leads_to": [
         "e011"
@@ -148,6 +152,63 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the blocked push: observation-sync-advisory overruns its 5m cap when the Forgetful MCP handshake times out",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a 240s internal budget to sync_observations per the ci-scripts advisory-budget rule",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guarded three permission-denial tests against running as root and repaired the container environment",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "error",
+      "content": "Guarded three permission-denial tests against running as root and repaired the container environment  chmod 0 cannot deny root: root-skipif added in tests/test_lefthook_integration.py, tests/test_claude_mem_scripts.py, and both orphan-ref-validator test_scan.py mirrors; installed sqlite3 and openssh-client which tests require; hook pytest job reproduction went from 5 failed to green on affected files",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T15:15:45+00:00",
+      "type": "commit",
+      "content": "Commit: c0d7bf451fd37e4fc2bdc01f5c0212743ed7e7b1",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
     }
@@ -155,10 +216,10 @@
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
-    "errors": 0,
+    "errors": 5,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 16
+    "commits": 4,
+    "files_changed": 21
   },
   "lessons": []
 }

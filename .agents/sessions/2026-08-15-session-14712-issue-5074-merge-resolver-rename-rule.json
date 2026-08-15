@@ -150,9 +150,21 @@
     {
       "step": "Validated before push",
       "evidence": "pytest tests/test_detect_agent_drift.py -x: 52 passed; ruff clean; markdownlint-cli2 0 issues on changed files; pre_pr.py run"
+    },
+    {
+      "step": "Diagnosed the blocked push: observation-sync-advisory overruns its 5m cap when the Forgetful MCP handshake times out",
+      "evidence": "each file costs 10.155s (McpError Timeout >10.0s, memory_sync.mcp_client DEFAULT_TIMEOUT); first push of a new branch sweeps all 43 tracked observation files into {push_files}; 43 x 10.2s exceeds the 300s cap; job timed out at 302s in two consecutive pushes"
+    },
+    {
+      "step": "Added a 240s internal budget to sync_observations per the ci-scripts advisory-budget rule",
+      "evidence": "scripts/validation/git_hook_policy.py _OBSERVATION_SYNC_BUDGET_SECONDS; skip count reported per the no-silent-caps rule; tests test_sync_observations_stops_at_its_internal_budget and test_sync_observations_reports_a_fully_exhausted_budget in tests/test_lefthook_integration.py"
+    },
+    {
+      "step": "Guarded three permission-denial tests against running as root and repaired the container environment",
+      "evidence": "chmod 0 cannot deny root: root-skipif added in tests/test_lefthook_integration.py, tests/test_claude_mem_scripts.py, and both orphan-ref-validator test_scan.py mirrors; installed sqlite3 and openssh-client which tests require; hook pytest job reproduction went from 5 failed to green on affected files"
     }
   ],
-  "endingCommit": "70608747772b0da80242e7358f166796e6e51230",
+  "endingCommit": "c0d7bf451fd37e4fc2bdc01f5c0212743ed7e7b1",
   "nextSteps": [
     "Follow-up: resolve_pr_conflicts.py auto-resolves .agents/sessions/* by accept-theirs, which discards the branch's own log on add/add; the rename half is manual until the script learns it",
     "Follow-up: issue #4751 remains the allocation-time prevention for same-number session collisions"
