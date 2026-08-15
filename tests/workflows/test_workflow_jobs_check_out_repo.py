@@ -114,8 +114,8 @@ def repo_paths_in_run(run: str) -> list[str]:
     return found
 
 
-def _line_runs_checkout_index(line: str) -> bool:
-    """True when ``line`` is a real (non-printing, non-comment) checkout-index call.
+def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
+    """Return whether ``line`` checks out into the workspace and its final cwd state.
 
     Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` or a
     comment that merely mentions ``git checkout-index`` is never mistaken
@@ -130,22 +130,51 @@ def _line_runs_checkout_index(line: str) -> bool:
     """
     tokens = _tokenize_command_line(line)
     for segment in _shell_command_segments(tokens):
+        assignments = {
+            token.split("=", 1)[0]: token.split("=", 1)[1]
+            for token in segment
+            if _ENV_ASSIGNMENT.match(token)
+        }
         command = _strip_environment_assignments(segment)
+        if command[:1] == ["cd"] and len(command) > 1:
+            in_workspace = command[1] in {
+                ".",
+                "./",
+                "$GITHUB_WORKSPACE",
+                "${GITHUB_WORKSPACE}",
+            }
+            continue
         if command[:2] != ["git", "checkout-index"]:
             continue
+        work_tree = assignments.get("GIT_WORK_TREE")
+        effective_workspace = in_workspace
+        if work_tree is not None:
+            effective_workspace = work_tree in {
+                ".",
+                "./",
+                "$GITHUB_WORKSPACE",
+                "${GITHUB_WORKSPACE}",
+            }
         command_tokens = command[2:]
         for option_index, token in enumerate(command_tokens):
             if token.startswith("--prefix="):
-                return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
+                checks_out_workspace = effective_workspace and any(
+                    form in line for form in _WORKSPACE_PREFIX_FORMS
+                )
+                return checks_out_workspace, in_workspace
             if token == "--prefix" and option_index + 1 < len(command_tokens):
-                return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
-        return False
-    return False
+                checks_out_workspace = effective_workspace and any(
+                    form in line for form in _WORKSPACE_PREFIX_FORMS
+                )
+                return checks_out_workspace, in_workspace
+        return False, in_workspace
+    return False, in_workspace
 
 
 def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
     """Return (step label, dependency) for the first step needing an absent checkout."""
     checked_out = False
+    in_workspace = True
     for step in job.get("steps") or []:
         if not isinstance(step, dict):
             continue
@@ -170,7 +199,11 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
                 for token in tokens:
                     if _REPO_PATH.match(token):
                         return label, token.lstrip("./")
-            if _line_runs_checkout_index(line):
+            materialized_workspace, in_workspace = _checkout_index_effect(
+                line,
+                in_workspace,
+            )
+            if materialized_workspace:
                 checked_out = True
     return None
 
@@ -306,6 +339,21 @@ class TestFirstUnmetRepoDependency:
                 {
                     "name": "Materialize",
                     "run": "cd /tmp && git checkout-index -a\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_checkout_index_with_external_work_tree_does_not_satisfy_dependency(
+        self,
+    ) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": (
+                        "GIT_WORK_TREE=/tmp/tree git checkout-index -a\npython3 scripts/ci/x.py"
+                    ),
                 }
             ]
         }
