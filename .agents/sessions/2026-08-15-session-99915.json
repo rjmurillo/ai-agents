@@ -48,6 +48,16 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Loaded memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
       }
     },
     "sessionEnd": {
@@ -60,6 +70,41 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "Learnings in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5027-investigation-scope-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new memories needed for this fix"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All tests pass"
       }
     }
   },

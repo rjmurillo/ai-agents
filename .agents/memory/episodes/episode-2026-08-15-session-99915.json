@@ -3,7 +3,7 @@
   "session": "2026-08-15-session-99915",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue #4915: investigation scope gate rejects merges from main",
   "decisions": [],
   "events": [
