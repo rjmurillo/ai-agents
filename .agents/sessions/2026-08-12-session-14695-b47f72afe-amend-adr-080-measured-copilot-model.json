@@ -16,8 +16,8 @@
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Instructions read from .agents/SESSION-PROTOCOL.md"
+        "Complete": false,
+        "Evidence": "No Serena initial_instructions tool output was retained for session 14695; reading SESSION-PROTOCOL.md does not satisfy this requirement."
       },
       "handoffRead": {
         "level": "MUST",
@@ -83,8 +83,8 @@
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Episode companion generated"
+        "Complete": false,
+        "Evidence": "No Serena memory write was retained for session 14695; an episode companion is not a memory operation."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-080 amendment committed at c803be2e80"
+        "Evidence": "Final ADR repair committed at 1e0a6a775."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed after repair"
+        "Evidence": "ADR review reached 6 of 6 ACCEPT with no P0 or P1 findings; QA report binds to 1e0a6a775."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -134,8 +134,12 @@
     {
       "action": "Committed the probe evidence so the amendment's claims are reproducible, which rule 4 of this same ADR requires of a weaker claim.",
       "result": "Method, full result table, delegation transcript with negative control, and an explicit not-measured section written to .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md"
+    },
+    {
+      "action": "Repaired final review findings against the ADR, QA report, episode, and protocol evidence.",
+      "result": "Restored the #2840 issue link, rebound QA to commit 1e0a6a775 after the episode repair, corrected files_changed evidence to 5, and marked two session MUST items incomplete where no Serena tool evidence exists."
     }
   ],
-  "endingCommit": "c803be2e80a189bb4fbed1da334ec1b167b14ba9",
+  "endingCommit": "1e0a6a77500e34eae949ef4b6ceaf32ced3ba114",
   "nextSteps": []
 }
