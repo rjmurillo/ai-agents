@@ -749,3 +749,56 @@ class TestNoModelLinesInGitHubAgents:
                 if line.startswith("model:"):
                     violations.append(f"{f.name}:{i}: {line}")
         assert violations == [], "model: lines found:\n" + "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Issue #4936: subagent_model detection
+# ---------------------------------------------------------------------------
+
+
+class TestSubagentModelDetection:
+    """Issue #4936: MODEL_BEARING_KEYS must include subagent_model."""
+
+    def test_nested_subagent_model_pin_is_violation(self, tmp_path: Path) -> None:
+        """Positive: a versioned subagent_model is caught by enforce mode."""
+        _skill(
+            tmp_path,
+            "orchestrator",
+            "metadata:\n  subagent_model: claude-opus-4-6",
+        )
+        report = _run(tmp_path, {}, [])
+        assert report.violations, "subagent_model pin must be flagged"
+        assert any(
+            "subagent_model" in v for v in report.violations
+        )
+
+    def test_subagent_model_bare_alias_is_detected(self, tmp_path: Path) -> None:
+        """Edge: a bare alias under subagent_model is still seen as a pin."""
+        _skill(
+            tmp_path,
+            "orchestrator",
+            "metadata:\n  subagent_model: opus",
+        )
+        report = _run(tmp_path, {}, [])
+        # Bare alias under subagent_model is a nested pin, not top-level,
+        # so it's flagged as a nested pin violation.
+        assert report.violations or report.backlog
+
+    def test_no_subagent_model_passes(self, tmp_path: Path) -> None:
+        """Negative control: skill without subagent_model passes cleanly."""
+        _skill(tmp_path, "clean", "metadata:\n  version: 1.0")
+        report = _run(tmp_path, {}, [])
+        assert not report.violations
+
+    def test_model_bearing_keys_constant_is_authoritative(self) -> None:
+        """Edge: the constant contains both known model keys."""
+        assert "model" in cmp.MODEL_BEARING_KEYS
+        assert "subagent_model" in cmp.MODEL_BEARING_KEYS
+
+    def test_top_level_subagent_model_also_detected(self, tmp_path: Path) -> None:
+        """Edge: subagent_model at frontmatter top level is also caught."""
+        _skill(tmp_path, "flat", "subagent_model: claude-opus-4-6")
+        report = _run(tmp_path, {}, [])
+        # The _nested_pins function skips top-level 'model' scalars (alias
+        # rules handle those), but subagent_model should still be walked.
+        assert report.violations or report.backlog

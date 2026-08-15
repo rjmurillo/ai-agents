@@ -63,6 +63,10 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 
 ROLLING_ALIASES = ("sonnet", "opus", "haiku")
 
+# Keys that carry a model identifier in skill/agent frontmatter.
+# Any key added here is subject to ADR-080 enforcement.
+MODEL_BEARING_KEYS: frozenset[str] = frozenset({"model", "subagent_model"})
+
 # Manifest evidence older than this many days is stale (harness/pricing drift).
 MANIFEST_MAX_AGE_DAYS = 180
 
@@ -204,7 +208,7 @@ def _collect_nested_pins(
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key == "model":
+            if key in MODEL_BEARING_KEYS:
                 if isinstance(value, str) and value.strip():
                     out.append((path, value.strip()))
                     continue
@@ -281,7 +285,12 @@ def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
     for key, value in typed.items():
         # A scalar top-level model is the compliant shape and is judged by the
         # alias rules instead. A structured one is not, so walk into it.
+        # NOTE: only 'model' has alias-rule coverage; other MODEL_BEARING_KEYS
+        # (e.g. subagent_model) are collected directly as pins.
         if key == "model" and isinstance(value, str):
+            continue
+        if key in MODEL_BEARING_KEYS and isinstance(value, str) and value.strip():
+            out.append((str(key), value.strip()))
             continue
         _collect_nested_pins(value, str(key), seen, out)
     return tuple(sorted(out))
