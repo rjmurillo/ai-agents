@@ -186,6 +186,8 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
             continue
         if command[:2] != ["git", "checkout-index"]:
             continue
+        if "-a" not in command[2:] and "--all" not in command[2:]:
+            return False, in_workspace
         work_tree = assignments.get("GIT_WORK_TREE")
         effective_workspace = (
             in_workspace if work_tree is None else _is_workspace_reference(work_tree)
@@ -435,6 +437,11 @@ class TestFirstUnmetRepoDependency:
                 "python3 scripts/ci/x.py",
                 ("Materialize", "scripts/ci/x.py"),
             ),
+            (
+                'git checkout-index --prefix="$GITHUB_WORKSPACE/" docs/one.txt\n'
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
@@ -454,6 +461,7 @@ class TestFirstUnmetRepoDependency:
             "later_print_segment_cannot_supply_workspace_prefix",
             "nonleading_work_tree_assignment_is_not_environment",
             "quoted_pipe_segment_mismatch_fails_closed",
+            "selective_checkout_does_not_satisfy_repo_dependency",
         ],
     )
     def test_materialize_step_dependency_scenarios(

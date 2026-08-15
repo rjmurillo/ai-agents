@@ -51,6 +51,17 @@ jobs:
       PR_ACTION: ${{ github.event_name == 'merge_group' && 'merge_group' || github.event.action }}
 
     steps:
+      - name: Publish pending status before materialization
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: >-
+          gh api "repos/$REPOSITORY/statuses/$PR_SHA" -X POST
+          -f state=pending
+          -f context="Validate Vendor Provenance"
+          -f description="Vendor provenance is pending"
+
       - name: Materialize trusted base (immutable SHA)
         env:
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}

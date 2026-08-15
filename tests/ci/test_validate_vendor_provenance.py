@@ -811,6 +811,9 @@ class TestWorkflowContractRegression:
         assert "statuses: write" in workflow
         assert "--start-head-gates" in workflow
         assert "--finish-head-gates" in workflow
+        assert workflow.index("Publish pending status before materialization") < workflow.index(
+            "Materialize trusted base"
+        )
 
 
 # ── Relevance check (exercises production helper) ──
