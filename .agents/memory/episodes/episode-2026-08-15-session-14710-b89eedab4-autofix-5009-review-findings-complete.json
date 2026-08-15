@@ -105,7 +105,7 @@
         "e009"
       ],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     },
@@ -128,14 +128,27 @@
       "type": "commit",
       "content": "Commit: b485b6385173b9a5f298e624b6aa42dfb0233b42",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T08:05:00+00:00",
+      "type": "milestone",
+      "content": "write-retrospective",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
     }
   ],
   "metrics": {
-    "duration_minutes": 240,
+    "duration_minutes": 280,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

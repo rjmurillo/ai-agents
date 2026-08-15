@@ -114,7 +114,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Retrospective skill consulted. No new durable learning exceeded existing PR autofix and QA procedures."
+        "Evidence": ".agents/retrospective/2026-08-15-pr-5009-autofix.md"
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -163,6 +163,11 @@
       "timestamp": "2026-08-15T07:25Z",
       "action": "isolate-semgrep-contract-test",
       "details": "Moved the worker and rule-budget assertions into a small dedicated test file. The large integration file returned to byte parity with remote, reducing the security scan workload without reducing command coverage."
+    },
+    {
+      "timestamp": "2026-08-15T08:05Z",
+      "action": "write-retrospective",
+      "details": "Recorded the remote-head replay, process-race stabilization, Semgrep calibration, and evidence deduplication in .agents/retrospective/2026-08-15-pr-5009-autofix.md."
     }
   ],
   "endingCommit": "b485b6385173b9a5f298e624b6aa42dfb0233b42",
