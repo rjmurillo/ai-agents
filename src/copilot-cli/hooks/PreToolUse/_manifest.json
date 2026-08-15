@@ -3,12 +3,10 @@
   "mode": "gate",
   "shims": [
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
-    "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
     "invoke_require_subagent_model__Agent_Task_456aac.py"
   ],
   "timeouts": {
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py": 90,
-    "invoke_push_pr_script_identity_guard__Bash_f620ca.py": 10,
     "invoke_require_subagent_model__Agent_Task_456aac.py": 10
   }
 }
