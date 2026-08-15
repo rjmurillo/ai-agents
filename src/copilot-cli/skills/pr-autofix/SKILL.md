@@ -26,7 +26,7 @@ which is a structural change that must be measured against the eval harness befo
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
 Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
-Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`
+Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
 Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
 vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents contributor fixtures; installed plugin consumers do not have these files.
 -->
@@ -391,11 +391,46 @@ if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
+# Step 2.5: Round-cap circuit breaker (BLOCKING for T3/T4, issue #5056).
+# T3/T4 PRs iterate: post a fix, wait for CI or a bot review, repeat. Nothing
+# capped how many times that loop could run, and prose caps have been
+# ignored repeatedly (the documented failure mode, not a hypothetical one):
+# PR #1887 ran 11+ bot review rounds over 46 hours wall clock before a human
+# intervened (see the pr-1887-iteration-paradox retrospective in this repo's
+# rjmurillo/ai-agents source, contributor-only); PRs #1965 and #1979 each ran
+# 18 rounds (see the CI-FEEDBACK-SUBLOOP governance doc, same source, line
+# 11). check_pr_round_cap.py records one round per call against a
+# hidden marker comment on the PR (same storage pattern as
+# pr_autofix_lease.py's ADR-076 lease) and returns Data.action=ESCALATE when
+# either the round count or the wall-clock budget is exceeded. Call it once
+# per pass through this loop for a T3/T4 PR, immediately after the tier is
+# known, before any thread-lifecycle or CI-fix action.
+# Tier comes from test_pr_merge_ready.py, the authoritative tier source;
+# check_pr_live_state.py emits no tier field, so reading $LIVE here would
+# pin TIER at UNKNOWN and silently disable this gate. Computed once, also
+# consumed by the auto-merge disarm gate below.
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
+if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
+        --pull-request "$PR" --output-format json)
+    ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    if [ "$ROUND_ACTION" != "ACT" ]; then
+        ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
+        echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
+        # check_pr_round_cap.py already posted a human-readable PR comment
+        # naming the round count, wall-clock elapsed, and both caps
+        # (issue #5056 item 4: leave a note, do not just stop silently).
+        # A human must review the remaining thread(s)/CI failure(s) directly.
+        cleanup_pr_autofix
+        continue
+    fi
+fi
+
 # Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
+# TIER was computed at Step 2.5 (round-cap gate) above.
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -473,7 +508,8 @@ cleanup_pr_autofix
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
-5. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
+5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
+6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
@@ -590,6 +626,14 @@ python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
 # exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when
 # the PR is merged/closed/draft or fully superseded by base.
 python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request {pr} --skip-fetch --output-format json
+
+# Round-cap circuit breaker (BLOCKING for T3/T4 per Phase 2; issue #5056).
+# Records one round against a hidden marker comment and returns exit 0 +
+# Data.action=ACT when both the round-count and wall-clock caps hold, exit 1
+# + Data.action=ESCALATE when either is exceeded. Defaults: 5 rounds / 4
+# hours, each overridable via --max-rounds/--max-hours or
+# $PR_AUTOFIX_MAX_ROUNDS/$PR_AUTOFIX_MAX_ROUND_HOURS.
+python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format json
 
 # CI-failure triage step 1 (BLOCKING, issue #5073): before reading any log or
 # starting any local investigation, ask whether the same check is red on
@@ -722,6 +766,7 @@ Per PR processed:
 
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
+- [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, immediately after the tier was known (issue #5056): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent.
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
