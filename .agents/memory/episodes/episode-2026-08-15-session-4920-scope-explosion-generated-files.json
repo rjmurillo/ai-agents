@@ -63,6 +63,19 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T11:22:21+00:00",
+      "type": "commit",
+      "content": "Commit: 298560b6efecf7f1d6e5670a865f9769cc606416",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4920-scope-explosion-generated-files"
     }
@@ -72,8 +85,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }
