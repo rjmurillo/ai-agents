@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code and synchronization commit d03becf973878370002fc32ecbc4bb140b20c995; final evidence committed separately"
+        "Evidence": "Validated code commit 36f165d6036b54bb9f7311213508b04693f56fd2; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1,221 focused policy, validator, session, and retrospective tests passed after latest main synchronization; Ruff, review-axis drift, and diff checks passed"
+        "Evidence": "1,221 focused tests passed after main synchronization; 838 policy tests passed after physical-recency tightening; Ruff, review-axis drift, session validation, and diff checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -186,9 +186,13 @@
     {
       "action": "Synchronized latest main and regenerated the architect review prompt.",
       "outcome": "Resolved merge-ref-only review-axis drift; 1,221 focused tests, Ruff, and committed-content drift validation pass."
+    },
+    {
+      "action": "Tightened retrospective cross-host lookup to physically current dates.",
+      "outcome": "Preserved host today/yesterday and UTC compatibility, accepted current UTC-12/UTC+14 artifacts, and rejected stale scanner-relative two-day artifacts; 838 policy tests passed."
     }
   ],
-  "endingCommit": "d03becf973878370002fc32ecbc4bb140b20c995",
+  "endingCommit": "36f165d6036b54bb9f7311213508b04693f56fd2",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
