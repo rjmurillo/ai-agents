@@ -1,11 +1,11 @@
-# The count ratchets made "behind main" a real merge blocker before the branch ruleset did too
+# The count ratchets make "behind main" a practical merge blocker even though the ruleset does not
 
 ## Question
 
-`main`'s branch ruleset now sets `strict_required_status_checks_policy: true`, so
-being behind `main` blocks a merge. Before that flip, the count ratchets still
-made stale branches fail in practice. Did branch freshness matter even before
-the ruleset required it?
+`main`'s branch ruleset sets `strict_required_status_checks_policy: false`, so
+being behind `main` does not formally block a merge. Nevertheless the count
+ratchets still make stale branches fail in practice. Does branch freshness
+matter even without the ruleset requiring it?
 
 ## Conventional answer
 
