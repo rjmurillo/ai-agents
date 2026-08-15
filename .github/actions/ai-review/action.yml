@@ -169,6 +169,23 @@ runs:
         export COPILOT_VERSION="1.0.63"
         python3 "$GITHUB_WORKSPACE/scripts/ci/install_copilot_cli.py"
 
+    # Issue #4607: BOT_PAT was configured per ADR-026 Decision 5 but resolved
+    # to the human account, so CI shared one API budget with every agent
+    # session and no run log could show it. This step runs unconditionally
+    # (unlike the enable-diagnostics steps below) so every run log reports
+    # which identity bot-pat resolves to. Non-blocking: a MISMATCH warns
+    # loudly instead of turning every review red before the owner rotates
+    # the secret. Set IDENTITY_STRICT=true here once the secret is rotated
+    # to make the identity a hard gate.
+    - name: Report bot-pat identity
+      id: bot_identity
+      shell: bash
+      env:
+        IDENTITY_TOKEN: ${{ inputs.bot-pat }}
+        EXPECTED_BOT_ID: '250269933'
+        EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
+      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_bot_identity.py"
+
     - name: Verify GitHub authentication
       if: inputs.enable-diagnostics == 'true'
       shell: bash

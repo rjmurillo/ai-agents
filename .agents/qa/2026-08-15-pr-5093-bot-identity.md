@@ -1,0 +1,116 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
+qaCommit: 56308f0e17b97a7e5fcc29eec11e43e851bbe879
+---
+
+# QA Report: Bot identity diagnostic (Issue #4607, PR #5093)
+
+## Scope
+
+Repo-side fix for issue #4607: CI and agent sessions share one GitHub API
+budget because `BOT_PAT` resolves to the human account (id 6811113) instead of
+`rjmurillo-bot` (id 250269933). The secret rotation is operator-only; this
+change makes the identity visible and checkable from run logs.
+
+## What changed
+
+1. `scripts/ci/check_bot_identity.py`: stdlib-only diagnostic module. Probes
+   `GET /user` with the supplied credential and reports one of four verdicts:
+   MATCH, MISMATCH, MISSING, UNKNOWN. A failed probe is reported as UNKNOWN,
+   never as a pass. `IDENTITY_STRICT` turns MISMATCH/MISSING/UNKNOWN into
+   nonzero exits (4/2/3 per the repo exit-code contract).
+2. `.github/actions/ai-review/action.yml`: unconditional `Report bot-pat
+   identity` step. All 22 caller sites inherit it, so every AI review run log
+   now names the resolved login and id.
+3. `.github/workflows/pr-maintenance.yml`: same diagnostic in the
+   `discover-prs` job (ADR-026 is the PR maintenance automation ADR).
+
+## Test evidence
+
+Command: `uv run --frozen pytest tests/ci/test_check_bot_identity.py tests/ci/test_bot_identity_wiring.py -q`
+
+Result: 21 passed.
+
+Coverage against the required cases:
+
+| Required case | Test | Result |
+|---|---|---|
+| Identity matches expected id | `TestMatch::test_expected_bot_id_exits_zero_and_names_the_identity` | pass, exit 0 |
+| Identity mismatch reported | `TestMismatch::test_wrong_account_warns_but_does_not_block_by_default` | pass, warning emitted |
+| Mismatch blocking exits nonzero from main() | `TestMismatch::test_wrong_account_in_strict_mode_exits_nonzero_from_main` | pass, exit 4 |
+| API probe failure is UNKNOWN, not a pass | `TestProbeFailure::test_failed_probe_is_unknown_never_a_match` (4 parametrized failures) | pass |
+| Probe failure blocking exits nonzero from main() | `TestProbeFailure::test_failed_probe_in_strict_mode_exits_external` | pass, exit 3 |
+| Missing token never probes, strict exit nonzero | `TestMissingToken` (2 tests) | pass, exit 2 strict |
+| Token never printed | `TestMatch::test_match_never_prints_the_token` | pass |
+| Wiring: step unconditional, non-strict, bound to bot-pat | `tests/ci/test_bot_identity_wiring.py` (3 tests, parsed YAML) | pass |
+
+Static checks: `ruff check` clean, `ruff format` clean, `mypy` clean on the
+module. `python3 -c "import scripts.ci.check_bot_identity"` succeeds with the
+bare interpreter (the action step runs it with bare `python3`, so imports must
+be stdlib-only).
+
+## Acceptance criterion status
+
+The issue's acceptance criterion is: inside CI, `gh api user --jq .id` under
+`BOT_PAT` returns 250269933. This does NOT pass yet and cannot pass from the
+repository side: the secret's value belongs to the human account and only the
+repository owner can mint and store a replacement. What this change delivers
+is that every ai-review and pr-maintenance run log now prints the resolved
+identity, so the criterion is checkable from any run log: the new step reports
+MISMATCH today and will report MATCH once the owner rotates the secret.
+
+## Broken window fixed on the path
+
+The pre-push suite could not pass in this (root) container:
+`test_permission_denied_file_returns_auth_exit_code` in the
+orphan-ref-validator skill relied on `chmod 0`, which CAP_DAC_OVERRIDE
+ignores under euid 0, so the scan returned findings (exit 1) instead of the
+auth envelope (exit 4). The test now injects `PermissionError` at the
+module's read seam, making it deterministic for every euid; the
+`src/copilot-cli` mirror is byte-identical. Verified: the test and both
+bundle-tree suites pass. Unrelated to issue #4607; flagged in the PR
+description per the ownership rule.
+
+Two more tests of the same class were fixed in a follow-up commit: the
+tracked-scan unreadable-file test (chmod 0, same CAP_DAC_OVERRIDE issue)
+and the claude-mem `get_count` error test (sqlite3 creates
+`/nonexistent.db` when the caller can write `/`, so root got success where
+other users got the intended error). Both now exercise their failure paths
+for every euid. Full-suite evidence: 28,856 passed with only these 3
+environmental failures before the fixes; each fixed test passes after.
+
+Superseded at merge 341fe22c2: origin/main landed its own fixes for the
+same three tests (euid/Windows skipif guards and a directory-as-database
+probe). The merge adopted main's versions, so these files carry no diff
+against main in this PR; the euid-guarded tests skip under root, which
+also keeps this container's pre-push suite green. Verified post-merge:
+37 passed, 2 skipped across the affected files plus the identity tests.
+
+## Review-driven hardening (round 2, Copilot)
+
+Copilot review raised four code findings, all addressed:
+non-object JSON payloads no longer crash the probe (UNKNOWN instead);
+strict-mode 401 exits 4 (auth) per the exit-code contract while 403/5xx
+stay 3 (external); the diagnostic now runs before the first BOT_PAT call
+in ai-metrics-analysis, update-reviewer-stats, and auto-assign-reviewer
+(previously only ai-review action callers and pr-maintenance had it); and
+the wiring test pins every consumer unconditional, non-strict, and ordered
+before the first BOT_PAT API step. The session episode was regenerated to
+drop a duplicated abbreviated commit spelling. 38 identity tests pass.
+
+## Review-driven hardening
+
+Semgrep on PR #5093 flagged the dynamic urllib URL in `probe_user`
+(urllib follows `file://`). The probe now parses the scheme and refuses
+anything but https before opening, reported as UNKNOWN. Three scheme cases
+(`http`, `file`, `ftp`) added to the tests; 21 tests pass.
+
+## Residual risk
+
+- The diagnostic adds one `GET /user` request per ai-review invocation against
+  the probed token's budget. Under exhaustion the probe itself returns 403 and
+  is reported as UNKNOWN, non-blocking.
+- Strict mode is deliberately off. Enabling `IDENTITY_STRICT` before the
+  secret rotation would turn every AI review red. The wiring test pins the
+  non-strict state with a comment explaining when to flip it.

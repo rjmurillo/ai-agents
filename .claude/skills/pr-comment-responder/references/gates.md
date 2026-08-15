@@ -128,6 +128,20 @@ fi
 
 ### Phase 8.4: CI Check Verification
 
+**CI-failure triage step 1 (issue #5073)**: when any check is failing, run
+`triage_red_check.py` for that check name BEFORE reading logs or starting any
+local investigation. The cause frequently lives on main, and each missed
+attribution costs a full investigation.
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/triage_red_check.py" --check-name "[failing check name]" --pull-request [number]
+# Exit 0 = GREEN_ON_MAIN: the PR introduced the failure; investigate the PR.
+# Exit 1 = RED_ON_MAIN: inherited from main; cite Data.EvidenceUrl (the main
+#          run) in the thread instead of debugging the PR.
+# Exit 3 = UNKNOWN: probe failure is not absence; never treat as green.
+```
+
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
