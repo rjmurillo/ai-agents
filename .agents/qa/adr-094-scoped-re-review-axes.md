@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review.json
-qaCommit: 9574338dd16e0ef581eec9c760b97e83759db7f5
+qaCommit: a4a57a6d6efe1b219b4d6bada1a473469b00282a
 ---
 
 # QA: ADR-094 scoped re-review axes
