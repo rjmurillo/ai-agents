@@ -7945,6 +7945,125 @@ def test_remaining_policy_success_and_error_branches(
     assert "recommended maximum" not in capsys.readouterr().out
 
 
+def test_observation_sync_runs_every_file_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Positive: with budget headroom every pushed file is imported once,
+    each child clamped to at most the remaining budget."""
+    commands: list[list[str]] = []
+    timeouts: list[float] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        timeouts.append(_kwargs["timeout_seconds"])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    imported = [command[3] for command in commands]
+    assert imported == ["a-observations.md", "b-observations.md"]
+    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
+    assert all(t > 0 for t in timeouts)
+    assert "budget" not in capsys.readouterr().err
+
+
+def test_observation_sync_stays_advisory_on_per_file_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Negative: a failing import warns, continues, and never blocks the push."""
+    results = iter([_completed(1), _completed(0)])
+    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "observation sync failed for 'bad-observations.md'" in err
+    assert "budget" not in err
+
+
+def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
+    so the loop's own budget must stop it first, name every skipped file (no
+    silent caps), and still return 0."""
+    monkeypatch.setattr(policy, "OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
+    calls: list[list[str]] = []
+
+    def _forbidden(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _forbidden)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert calls == []
+    err = capsys.readouterr().err
+    assert "budget" in err
+    assert "skipped 2" in err
+    assert "'a-observations.md', 'b-observations.md'" in err
+
+
+def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline passing between files keeps the files already
+    imported and skips exactly the remainder, naming them."""
+    clock = iter([0.0, 0.0, policy.OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
+
+    def _tick() -> float:
+        return next(clock, policy.OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
+
+    monkeypatch.setattr(policy.time, "monotonic", _tick)
+    commands: list[list[str]] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert [command[3] for command in commands] == ["a-observations.md"]
+    err = capsys.readouterr().err
+    assert "exhausted after 1 of 2" in err
+    assert "'b-observations.md'" in err
+    assert "'a-observations.md'," not in err
+
+
+def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
+    """The budget protects the job only if budget plus one worst-case child
+    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def _find(jobs):
+        for job in jobs:
+            if job.get("name") == "observation-sync-advisory":
+                return job
+            if "group" in job:
+                found = _find(job["group"].get("jobs", []))
+                if found is not None:
+                    return found
+        return None
+
+    job = _find(config["pre-push"]["jobs"])
+    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
+    cap_text = job["timeout"]
+    assert cap_text.endswith("m")
+    cap_seconds = float(cap_text[:-1]) * 60
+    assert (
+        policy.OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+        <= cap_seconds
+    )
+
+
 def test_changed_commit_path_and_scan_edge_cases(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
