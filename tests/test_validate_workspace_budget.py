@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.validate_workspace_budget import (
+    FILE_CEILING_BYTES,
     PER_FILE_BUDGET_BYTES,
     TOTAL_BUDGET_BYTES,
     WORKSPACE_FILES,
@@ -205,8 +206,18 @@ class TestMainDisplayOutput:
         )
         rc = main(["--path", str(tmp_path)])
         out = capsys.readouterr().out
-        if rc == 0:
-            assert "[OVER]" not in out
+        assert rc == 0, out
+        assert "[OVER]" not in out
+        # The displayed effective ceiling is the contract (PR #5100 review):
+        # the custom-ceiling file must show its own limit, and a regression
+        # to the generic per-file label must fail here, not pass vacuously.
+        copilot_line = next(
+            line for line in out.splitlines()
+            if line.strip().startswith(".github/copilot-instructions.md:")
+        )
+        custom_ceiling = FILE_CEILING_BYTES[".github/copilot-instructions.md"]
+        assert f"(limit {custom_ceiling:,})" in copilot_line
+        assert "(limit 3,000)" not in copilot_line
 
     def test_pool_total_excludes_custom_ceiling_files(
         self, tmp_path: Path, capsys
