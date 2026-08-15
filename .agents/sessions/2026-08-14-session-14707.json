@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 62482450c9b3690e84d023acfb21188c4da962b8; final evidence committed separately"
+        "Evidence": "Validated code commit 8610fc7bdf4d9dbaa96f3833573f446a15279b12; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,9 +170,13 @@
     {
       "action": "Tightened future-date validation to the physical UTC+14 boundary.",
       "outcome": "The validator now computes UTC now plus 14 hours; fixed-clock tests cover 09:59 rejection and 10:00 acceptance."
+    },
+    {
+      "action": "Corrected the impossible-date diagnostic after scanner expansion.",
+      "outcome": "The message now states the physical impossibility without incorrectly claiming the \u00b12-day scanner cannot discover the file."
     }
   ],
-  "endingCommit": "62482450c9b3690e84d023acfb21188c4da962b8",
+  "endingCommit": "8610fc7bdf4d9dbaa96f3833573f446a15279b12",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
