@@ -2522,6 +2522,8 @@ class TestPublishCheckRun:
         assert call_args[2] == "repos/owner/repo/check-runs/999"
         assert "-X" in call_args
         assert call_args[call_args.index("-X") + 1] == "PATCH"
+        payload = json.loads(mock_run.call_args.kwargs["input"])
+        assert "head_sha" not in payload
 
     def test_no_check_run_id_refuses_second_row(self) -> None:
         from unittest.mock import patch

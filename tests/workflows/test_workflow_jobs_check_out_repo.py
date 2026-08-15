@@ -33,6 +33,7 @@ _WORKSPACE_PREFIX_FORMS = (
     '--prefix "$GITHUB_WORKSPACE/"',
     '--prefix "${GITHUB_WORKSPACE}/"',
 )
+_WORKSPACE_PREFIX_VALUES = frozenset({"$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"})
 # A ``cd`` target or ``GIT_WORK_TREE`` value that names the job workspace itself.
 _WORKSPACE_REFERENCES = frozenset({".", "./", "$GITHUB_WORKSPACE", "${GITHUB_WORKSPACE}"})
 
@@ -94,6 +95,14 @@ def _shell_command_segments(tokens: list[str]) -> list[list[str]]:
     return [segment for segment in segments if segment]
 
 
+def _raw_shell_segments(line: str) -> list[str]:
+    return [
+        segment.strip()
+        for segment in re.split(r"\s*(?:&&|\|\||;|\|)\s*", line)
+        if segment.strip()
+    ]
+
+
 def _strip_environment_assignments(tokens: list[str]) -> list[str]:
     first_command = 0
     while first_command < len(tokens) and _ENV_ASSIGNMENT.match(tokens[first_command]):
@@ -123,21 +132,30 @@ def _is_workspace_reference(value: str) -> bool:
 
 def _segment_assignments(segment: list[str]) -> dict[str, str]:
     """Return the leading ``VAR=value`` environment assignments in *segment*."""
-    return {
-        token.split("=", 1)[0]: token.split("=", 1)[1]
-        for token in segment
-        if _ENV_ASSIGNMENT.match(token)
-    }
+    assignments: dict[str, str] = {}
+    for token in segment:
+        if not _ENV_ASSIGNMENT.match(token):
+            break
+        name, value = token.split("=", 1)
+        assignments[name] = value
+    return assignments
 
 
-def _prefixes_into_workspace(command_tokens: list[str], line: str) -> bool:
+def _prefixes_into_workspace(command_tokens: list[str], raw_segment: str) -> bool:
     """True when *command_tokens* passes checkout-index a workspace-rooted ``--prefix``."""
     for index, token in enumerate(command_tokens):
-        is_prefix_option = token.startswith("--prefix=") or (
-            token == "--prefix" and index + 1 < len(command_tokens)
-        )
-        if is_prefix_option:
-            return any(form in line for form in _WORKSPACE_PREFIX_FORMS)
+        if token.startswith("--prefix="):
+            value = token.split("=", 1)[1]
+            return (
+                value in _WORKSPACE_PREFIX_VALUES
+                and any(form in raw_segment for form in _WORKSPACE_PREFIX_FORMS)
+            )
+        if token == "--prefix" and index + 1 < len(command_tokens):
+            value = command_tokens[index + 1]
+            return (
+                value in _WORKSPACE_PREFIX_VALUES
+                and any(form in raw_segment for form in _WORKSPACE_PREFIX_FORMS)
+            )
     return False
 
 
@@ -156,7 +174,9 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
     substring-vs-subcommand gap).
     """
     tokens = _tokenize_command_line(line)
-    for segment in _shell_command_segments(tokens):
+    token_segments = _shell_command_segments(tokens)
+    raw_segments = _raw_shell_segments(line)
+    for segment, raw_segment in zip(token_segments, raw_segments, strict=False):
         assignments = _segment_assignments(segment)
         command = _strip_environment_assignments(segment)
         if command[:1] == ["cd"] and len(command) > 1:
@@ -168,7 +188,9 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
         effective_workspace = (
             in_workspace if work_tree is None else _is_workspace_reference(work_tree)
         )
-        checks_out_workspace = effective_workspace and _prefixes_into_workspace(command[2:], line)
+        checks_out_workspace = effective_workspace and _prefixes_into_workspace(
+            command[2:], raw_segment
+        )
         return checks_out_workspace, in_workspace
     return False, in_workspace
 
@@ -392,6 +414,19 @@ class TestFirstUnmetRepoDependency:
                 '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py',
                 None,
             ),
+            (
+                "git checkout-index -a --prefix=/tmp/candidate/ && "
+                "printf '%s' '--prefix=\"$GITHUB_WORKSPACE/\"'\n"
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                "cd /tmp\n"
+                "git checkout-index GIT_WORK_TREE=\"$GITHUB_WORKSPACE\" "
+                '--prefix="$GITHUB_WORKSPACE/"\n'
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
@@ -408,6 +443,8 @@ class TestFirstUnmetRepoDependency:
             "empty_prefix_does_not_satisfy_a_dependency",
             "single_quoted_workspace_prefix_does_not_satisfy_a_dependency",
             "checkout_index_with_workspace_prefix_satisfies_a_dependency",
+            "later_print_segment_cannot_supply_workspace_prefix",
+            "nonleading_work_tree_assignment_is_not_environment",
         ],
     )
     def test_materialize_step_dependency_scenarios(

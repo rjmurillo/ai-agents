@@ -1765,7 +1765,6 @@ def _publish_check_run(
     repo = _validate_repo_slug(repo)
     payload = _json.dumps({
         "name": "Validate Vendor Provenance",
-        "head_sha": head_sha,
         "status": "completed",
         "conclusion": conclusion,
         "output": {
