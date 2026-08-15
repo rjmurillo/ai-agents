@@ -80,15 +80,25 @@ def test_host_session_date_boundary_midnight_and_last_second():
     assert host_session_date(now=lambda: datetime(2026, 8, 13, 23, 59, 59)) == "2026-08-13"
 
 
-def test_host_session_date_default_clock_is_local_now_not_utc():
-    """Negative guard: the production default is local ``datetime.now``.
+def test_session_date_helper_default_clocks_are_local_now_not_utc():
+    """Creator and consumer production defaults use local ``datetime.now``.
 
     A regression to ``partial(datetime.now, tz=UTC)`` or any UTC-bound default
-    would change this identity and reintroduce Issue #4779.
+    would change these identities and reintroduce Issue #4779. The recent-date
+    helper is pinned separately because ``get_recent_session_log`` invokes it
+    without injecting a clock.
     """
-    from session_init.date_helpers import host_session_date
+    from session_init.date_helpers import host_session_date as creator_date
 
-    assert host_session_date.__defaults__ == (datetime.now,)
+    from scripts.hook_utilities.utilities import (
+        host_session_date as consumer_date,
+    )
+    from scripts.hook_utilities.utilities import (
+        recent_host_session_dates,
+    )
+
+    for helper in (creator_date, consumer_date, recent_host_session_dates):
+        assert helper.__defaults__ == (datetime.now,)
 
 
 def test_new_populated_session_log_uses_host_date_helper():
