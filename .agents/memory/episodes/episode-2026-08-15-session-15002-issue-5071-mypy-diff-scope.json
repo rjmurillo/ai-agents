@@ -61,7 +61,9 @@
         "e002",
         "e003",
         "e004",
-        "e006"
+        "e006",
+        "e008",
+        "e009"
       ],
       "leads_to": [
         "e007"
@@ -87,6 +89,41 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Converted observation-sync-advisory to push-range stdin scoping",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed claude-mem get_count error test",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T15:03:50+00:00",
+      "type": "commit",
+      "content": "Commit: 69a31729e343b102fdbfbb7cbc7eff70927368ae",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     }
@@ -96,8 +133,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 12
   },
   "lessons": []
 }

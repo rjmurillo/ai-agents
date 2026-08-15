@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15002-issue-5071-mypy-diff-scope.json
-qaCommit: ef7f749d1872c77f5141ee67ae8c165ba3161b4c
+qaCommit: 69a31729e343b102fdbfbb7cbc7eff70927368ae
 ---
 
 # QA Report: Issue 5071, pre-push mypy scoped to merge-base diff
@@ -101,6 +101,24 @@ diff, all environmental in a root CCR container:
 
 After the repairs: the three named tests pass or skip under root, and the
 forgetful tests pass (41 passed).
+
+Second push attempt surfaced two more blockers, both fixed:
+
+- `observation-sync-advisory` timed out at its 5m cap on both pushes: the
+  lefthook `{push_files}` first-push fallback fed all 50 tracked observation
+  files to the sync, and each file burns a 10s Forgetful MCP timeout in a
+  container without that service (measured 10.3s on one file). Converted the
+  job to the issue #4492 stdin pattern: new `observations-push` subcommand
+  derives the real push range from the pre-push refs and filters to
+  observation files. Six new tests in `tests/test_observations_push_scope.py`
+  (positive sync-in-range, top-level glob edge, negative no-observation push,
+  unresolvable-range advisory skip, deleted-file edge, and a `main(argv)`
+  exit-code propagation test). The wiring assertion in
+  `tests/test_lefthook_integration.py` was flipped to pin the new shape.
+- `test_returns_negative_on_error` in `tests/test_claude_mem_scripts.py` was
+  un-skipped by the sqlite3 install and fails by design: sqlite3 opens a
+  nonexistent database lazily, so `SELECT 1` exits 0. The test now uses a
+  directory path, which is unopenable in every sqlite3 version.
 
 ## Acceptance Criteria Mapping (issue #5071)
 
