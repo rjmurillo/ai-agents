@@ -128,16 +128,22 @@ def test_guard_result_depends_on_every_other_job() -> None:
 
 
 def test_guard_result_runs_even_when_dependencies_fail() -> None:
-    """Without `if: always()` the aggregate is skipped when a dependency fails.
+    """Without a status-check function the aggregate is skipped on a failure.
 
     A skipped required check does not report, so the pull request waits forever
-    rather than showing a red guard.
+    rather than showing a red guard. `!cancelled()` keeps that property: GitHub
+    documents it as the recommended alternative to `always()` for running a job
+    "regardless of its success or failure". `always()` itself is now rejected
+    because it also ran during cancellation, publishing a red guard for a
+    superseded run (#5097). Full contract in
+    `tests/workflows/test_aggregator_cancellation_guard.py`.
     """
     yaml = pytest.importorskip("yaml")
     workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
     document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-    condition = document["jobs"]["guard-result"]["if"]
-    assert "always()" in str(condition)
+    condition = str(document["jobs"]["guard-result"]["if"])
+    assert "!cancelled()" in condition
+    assert "always()" not in condition
 
 
 def test_windows_is_covered_on_a_real_windows_runner() -> None:
@@ -155,8 +161,8 @@ def test_no_guard_job_is_conditional() -> None:
     job conditional, and dropping a job from the aggregate's `needs`. The
     other two are covered by sibling tests; this covers the second.
 
-    `guard-result` is exempt because its `if: always()` is what makes it
-    report at all when an upstream job fails.
+    `guard-result` is exempt because its `if: ${{ !cancelled() }}` is what
+    makes it report at all when an upstream job fails.
     """
     yaml = pytest.importorskip("yaml")
     workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
