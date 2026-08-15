@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-14-session-14938",
+  "session": "2026-08-14-session-14938",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix rejected Copilot model spellings in .github/agents (issue #4938)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T23:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed all 28 model: lines from .github/agents/ files",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T23:10:00+00:00",
+      "type": "milestone",
+      "content": "Added .github/agents/*.md to check_model_pins.py _UNIT_GLOBS",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T23:15:00+00:00",
+      "type": "milestone",
+      "content": "Added 5 regression tests (positive, negative, edge)",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14938"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T06:17:43+00:00",
+      "type": "commit",
+      "content": "Commit: 144ed1d344",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14938"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 15,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 27
+  },
+  "lessons": []
+}

@@ -715,7 +715,7 @@ class TestGitHubAgentsGlobCoverage:
         units = cmp.scan_units(tmp_path)
         assert any(u.path.endswith("bad.agent.md") for u in units)
         unit = next(u for u in units if u.path.endswith("bad.agent.md"))
-        tier_map = {}
+        tier_map: dict[str, str] = {}
         msg = cmp._unit_rule_failure(unit, {}, tier_map, tmp_path, TODAY, cmp.DEFAULT_MODEL)
         assert msg is not None
         assert "neither a rolling alias nor a versioned id" in msg
