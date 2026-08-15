@@ -54,10 +54,15 @@ def is_colocated_skill_test(path: str) -> bool:
     return False
 
 
-def existing_on_head(repo_root: Path) -> set[str]:
-    """Return paths that already exist on HEAD (legacy allowance)."""
+def existing_on_ref(repo_root: Path, ref: str = "HEAD") -> set[str]:
+    """Return paths that already exist on *ref* (legacy allowance).
+
+    In pre-commit mode, HEAD is the right baseline (uncommitted files are new).
+    In branch mode, pass the base ref (e.g. origin/main) so that files added
+    on the branch are NOT exempted.
+    """
     result = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+        ["git", "ls-tree", "-r", "--name-only", ref],
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -74,13 +79,15 @@ def check_paths(
     *,
     repo_root: Path,
     allow_existing: bool = True,
+    legacy_ref: str = "HEAD",
 ) -> list[str]:
     """Return paths that violate the colocated-test rule.
 
-    When *allow_existing* is True, files already tracked on HEAD are
-    excluded (legacy tolerance).
+    When *allow_existing* is True, files already tracked on *legacy_ref* are
+    excluded (legacy tolerance). Use the base ref in branch mode so that
+    files added on the branch are still flagged.
     """
-    legacy = existing_on_head(repo_root) if allow_existing else set()
+    legacy = existing_on_ref(repo_root, legacy_ref) if allow_existing else set()
     violations: list[str] = []
     for path in paths:
         if not path:
@@ -150,12 +157,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.paths:
         paths = args.paths
+        legacy_ref = "HEAD"
     elif args.staged_only:
         paths = staged_additions(args.repo_root)
+        legacy_ref = "HEAD"
     else:
         paths = branch_additions(args.repo_root, args.base)
+        legacy_ref = args.base
 
-    violations = check_paths(paths, repo_root=args.repo_root)
+    violations = check_paths(paths, repo_root=args.repo_root, legacy_ref=legacy_ref)
 
     if violations:
         print(
