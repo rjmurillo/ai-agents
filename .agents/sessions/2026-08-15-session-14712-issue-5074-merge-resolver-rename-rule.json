@@ -152,7 +152,7 @@
       "evidence": "pytest tests/test_detect_agent_drift.py -x: 52 passed; ruff clean; markdownlint-cli2 0 issues on changed files; pre_pr.py run"
     }
   ],
-  "endingCommit": "7229964369fd87f8fd11e06e908d2ee6a23c3e7f",
+  "endingCommit": "70608747772b0da80242e7358f166796e6e51230",
   "nextSteps": [
     "Follow-up: resolve_pr_conflicts.py auto-resolves .agents/sessions/* by accept-theirs, which discards the branch's own log on add/add; the rename half is manual until the script learns it",
     "Follow-up: issue #4751 remains the allocation-time prevention for same-number session collisions"

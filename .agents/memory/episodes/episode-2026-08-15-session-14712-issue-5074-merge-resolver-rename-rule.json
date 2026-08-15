@@ -135,6 +135,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T14:42:34+00:00",
+      "type": "commit",
+      "content": "Commit: 70608747772b0da80242e7358f166796e6e51230",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
     }
@@ -144,8 +157,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 13
+    "commits": 3,
+    "files_changed": 16
   },
   "lessons": []
 }
