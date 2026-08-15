@@ -19,6 +19,7 @@ allowed-tools:
   - Glob
   - AskUserQuestion
   - WebSearch
+  - WebFetch
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit
@@ -48,9 +49,10 @@ Every score in the scorecard MUST cite one of these labels:
 
 When a check involves interactive docs, forms, search, authentication, or web
 error paths, use browser tooling (e.g. computer use, browser MCP) when
-available. Fall back to web fetch or artifact inspection with PARTIAL or
-INFERRED evidence when browser tooling is unavailable. State what could not
-be tested and why.
+available. Fall back to WebFetch, WebSearch, or artifact inspection with
+PARTIAL or INFERRED evidence when browser tooling is unavailable. Fetched
+docs and search results alone are never TESTED. State what could not be
+tested and why.
 
 ## Process
 
@@ -151,8 +153,9 @@ Check for community presence:
 - GitHub issues: response patterns, templates, labels.
 - Contributing guide.
 
-Use WebSearch or file inspection. Mark TESTED for web-verified items, INFERRED
-for file-only evidence.
+Use WebSearch, WebFetch, or file inspection. WebSearch or WebFetch alone
+are INFERRED. Combine fetched evidence with executed observation before using
+PARTIAL.
 
 Score 0-10 with evidence.
 
@@ -185,7 +188,7 @@ DX AUDIT SCORECARD
 | DX Measurement       | __/10  | [brief evidence]       | [actual]     |
 |----------------------|--------|------------------------|--------------|
 | TTHW                 | __ min | [duration or N/A+why]  | [actual/N/A] |
-| Overall DX           | __/10  |                        |              |
+| Overall DX           | __/10  |                        | [actual]     |
 ==================
 ```
 

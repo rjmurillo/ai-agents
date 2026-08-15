@@ -21,6 +21,16 @@ SKILL_PATH = (
 )
 
 _skill_text: str | None = None
+EVIDENCE_METHOD_PLACEHOLDERS = frozenset({"[actual]", "TESTED", "PARTIAL", "INFERRED"})
+TTHW_METHOD_PLACEHOLDERS = frozenset(
+    {"[actual/N/A]", "N/A", "TESTED", "PARTIAL", "INFERRED"}
+)
+READ_ONLY_APPROVAL_PATTERN = re.compile(
+    r"(?i)\bread-?only commands?\s+do not need approval\b"
+)
+TESTED_FILE_INSPECTION_PATTERN = re.compile(
+    r"(?i)\bTESTED\b[^\n]*\b(file inspection|file read|fetched documentation|static inspection)\b"
+)
 
 PROVENANCE_REFERENCE_PATTERNS = (
     re.compile(r"(?im)^##\s+provenance\s*$"),
@@ -45,6 +55,43 @@ def _parse_frontmatter(text: str) -> dict:
     if not m:
         return {}
     return yaml.safe_load(m.group(1)) or {}
+
+
+def _extract_block(text: str, heading: str, stop_prefixes: tuple[str, ...]) -> str:
+    """Return the body of a Markdown heading block, or an empty string."""
+    start = text.find(heading)
+    if start == -1:
+        return ""
+    body = text[start + len(heading) :].lstrip("\n")
+    end = len(body)
+    for prefix in stop_prefixes:
+        marker = f"\n{prefix}"
+        index = body.find(marker)
+        if index != -1:
+            end = min(end, index)
+    return body[:end]
+
+
+def _scorecard_rows(text: str) -> list[list[str]]:
+    """Parse rows from the DX scorecard code block."""
+    start = text.find("DX AUDIT SCORECARD")
+    if start == -1:
+        return []
+    end = text.find("```", start)
+    if end == -1:
+        return []
+
+    rows: list[list[str]] = []
+    for line in text[start:end].splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.split("|")[1:-1]]
+        if len(cells) != 4:
+            continue
+        if cells[0] == "Dimension" or set(cells[0]) == {"-"}:
+            continue
+        rows.append(cells)
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +127,16 @@ def check_every_command_approval(text: str) -> bool:
     2. No language that limits approval to only some commands (e.g.
        "commands that write outside" or "cannot be undone").
     """
-    lower = text.lower()
+    if READ_ONLY_APPROVAL_PATTERN.search(text):
+        return False
+    step = _extract_block(
+        text,
+        "### Step 1: Getting Started / Onboarding Audit",
+        ("### ", "## "),
+    )
+    if not step:
+        return False
+    lower = step.lower()
     has_every = (
         "every command" in lower
         or "every\ncommand" in lower
@@ -103,13 +159,21 @@ def check_tested_excludes_file_inspection(text: str) -> bool:
     The TESTED label must mean the auditor executed the interaction or command
     and observed the result. File-only inspection is INFERRED.
     """
-    lower = text.lower()
-    for line in lower.splitlines():
-        if "tested" in line and ("executed" in line or "observed" in line):
-            if "file inspection" in line or "file read" in line:
-                return False
-            return True
-    return False
+    if TESTED_FILE_INSPECTION_PATTERN.search(text):
+        return False
+    labels = _extract_block(text, "## Evidence Labels", ("## ",))
+    if not labels:
+        return False
+    tested_row = next(
+        (line for line in labels.lower().splitlines() if line.startswith("| tested |")),
+        "",
+    )
+    return bool(tested_row) and (
+        "executed the interaction or command" in tested_row
+        and "observed the result" in tested_row
+        and "file inspection" not in tested_row
+        and "file read" not in tested_row
+    )
 
 
 def check_tthw_not_hardcoded_tested(text: str) -> bool:
@@ -126,15 +190,26 @@ def check_tthw_not_hardcoded_tested(text: str) -> bool:
     )
     if not has_prohibition:
         return False
-    # Parse the scorecard TTHW row: reject if it contains literal TESTED.
-    for line in text.splitlines():
-        if "TTHW" in line and "|" in line and ("min" in line or "__" in line):
-            parts = [p.strip() for p in line.split("|")]
-            non_empty = [p for p in parts if p]
-            if len(non_empty) >= 3:
-                method_col = non_empty[-1]
-                if method_col == "TESTED":
-                    return False
+    for row in _scorecard_rows(text):
+        if row[0] != "TTHW":
+            continue
+        return row[3] in TTHW_METHOD_PLACEHOLDERS and row[3] != "TESTED"
+    return True
+
+
+def check_scorecard_rows_have_methods(text: str) -> bool:
+    """Return True when every scorecard row carries a method label column."""
+    rows = _scorecard_rows(text)
+    if not rows:
+        return False
+    for dimension, _score, _summary, method in rows:
+        placeholders = (
+            TTHW_METHOD_PLACEHOLDERS
+            if dimension == "TTHW"
+            else EVIDENCE_METHOD_PLACEHOLDERS
+        )
+        if method not in placeholders:
+            return False
     return True
 
 
@@ -162,6 +237,9 @@ class TestRealSkillContracts:
 
     def test_tthw_not_hardcoded_tested(self) -> None:
         assert check_tthw_not_hardcoded_tested(_load_skill())
+
+    def test_scorecard_rows_have_method_labels(self) -> None:
+        assert check_scorecard_rows_have_methods(_load_skill())
 
     def test_omits_provenance_and_gstack_references(self) -> None:
         assert check_no_provenance_or_source_references(_load_skill())
@@ -267,6 +345,24 @@ def _insert_gstack_provenance(text: str) -> str:
     return text.replace("## Triggers", provenance + "## Triggers", 1)
 
 
+def _append_read_only_contradiction(text: str) -> str:
+    """Append a contradiction that exempts read-only commands from approval."""
+    return text + "\nRead-only commands do not need approval.\n"
+
+
+def _append_tested_file_inspection_contradiction(text: str) -> str:
+    """Append a contradiction that broadens TESTED to file inspection."""
+    return text + "\nTESTED includes file inspection.\n"
+
+
+def _remove_overall_dx_method(text: str) -> str:
+    """Blank the Overall DX method column in the scorecard."""
+    return text.replace(
+        "| Overall DX           | __/10  |                        | [actual]     |",
+        "| Overall DX           | __/10  |                        |              |",
+    )
+
+
 class TestMutationsBash:
     """Mutations that re-add Bash must fail check_no_bash_preapproved."""
 
@@ -298,12 +394,20 @@ class TestMutationsApproval:
         mutated = _remove_every_command(_load_skill())
         assert not check_every_command_approval(mutated)
 
+    def test_read_only_approval_contradiction(self) -> None:
+        mutated = _append_read_only_contradiction(_load_skill())
+        assert not check_every_command_approval(mutated)
+
 
 class TestMutationsTested:
     """Mutations that broaden TESTED to include file inspection must fail."""
 
     def test_tested_includes_file_inspection(self) -> None:
         mutated = _make_tested_include_file_inspection(_load_skill())
+        assert not check_tested_excludes_file_inspection(mutated)
+
+    def test_appended_tested_file_inspection_contradiction(self) -> None:
+        mutated = _append_tested_file_inspection_contradiction(_load_skill())
         assert not check_tested_excludes_file_inspection(mutated)
 
 
@@ -317,6 +421,14 @@ class TestMutationsTthw:
     def test_hardcode_tthw_scorecard_row(self) -> None:
         mutated = _hardcode_tthw_scorecard_row(_load_skill())
         assert not check_tthw_not_hardcoded_tested(mutated)
+
+
+class TestMutationsScorecard:
+    """Mutations that drop scorecard methods must fail."""
+
+    def test_remove_overall_dx_method(self) -> None:
+        mutated = _remove_overall_dx_method(_load_skill())
+        assert not check_scorecard_rows_have_methods(mutated)
 
 
 class TestMutationsProvenance:
