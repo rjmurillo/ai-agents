@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model.json
-qaCommit: 391d0f99daf93304c7f9fc360bc9db1b02a51a49
+qaCommit: e3af5bcc7e61893298efb58f8d6f34b2563f3763
 ---
 
 # QA Report: Session 14695 ADR-080 Amendment
@@ -40,6 +40,7 @@ session-protocol correction.
 | `ae927ffc7` | A review against `49ea48f0d` raised 5 active findings: this analysis file's Method-section summary sentence still described the delegation probe as writing to a single shared `--log-dir ./logs`, contradicting the separated treatment/control commands documented further down in the same file; both this report's and session-15001's `ee57202b8` revision-history row still read literally "(this commit)"; this session's own report (`000-session-14706-pr-4954-round3-coordination-qa.md`) had the same stale placeholder for its round-10b row; and the handoff was stale, still describing round 9 as local/uncommitted after `a959d4506`/`ee57202b8`/`49ea48f0d` were all already pushed and CI-green. Corrected the analysis file's wording, rewrote the handoff to cover rounds 9-10a-10b and round-11's discovery, and appended a workLog entry to session-14706's own log. Because the analysis file is evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports. |
 | `fd8fa1522` | Rebound `endingCommit`/`episodeMetrics.comparison.head` (both session logs) and `qaCommit` (both QA reports) from `a959d4506` to `ae927ffc7`, mirroring the established two-commit content-fix-then-rebind pattern; also corrected this table's own `ee57202b8` row (see above), which had been left reading "(this commit)" since it was committed. |
 | `391d0f99d` | A review against `7de4606b2` raised 7 active findings: this analysis file's "Other CLI versions. 1.0.79 only" sentence contradicted the delegation probe's documented second measurement on CLI 1.0.81-0, needing scope to the candidate-value matrix specifically; session-14695's `episodeMetrics.filesChanged` read 10 but its 3 actually-produced commits touch only 5 unique files (verified via `git show --stat`), and its episode's `metrics.files_changed` had the same error; both this report's and session-15001's `fd8fa1522` revision-history row still read literally "(this commit)"; session-14706's own report had the same stale placeholder for its `7de4606b2` row; the handoff was stale, still describing round 11 as "being fixed now"; and session-14706's own `nextSteps` still listed an already-completed "push commits" instruction. Corrected `filesChanged` to 5 in both the session log and its episode, reworded the analysis file, rewrote the handoff, and cleaned up session-14706's `nextSteps`. Because the analysis file and session-14695's log are evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports; the follow-up rebind commit fixing that (and naming `fd8fa1522` above) does not get a separate row of its own, per this round's review instruction against adding a new self-referential placeholder row for cleanup/rebind commits. |
+| `e3af5bcc7` | A review against `09222ab35` raised 6 active findings, 2 of which touch this QA scope: this analysis file's "(the four model-tier/threshold resolutions)" wrongly described the candidate-value matrix (the 4-count actually belongs to the delegation probe's control transcript further down, not the 7-explicit-plus-1-absent matrix); this session's own `nextSteps`/handoff/evidence text needed no change here (those findings touch only session-14706's own artifacts and the PR description). Corrected the analysis file's wording to "seven explicit values plus the absent control." The other 4 findings (a PR-body acceptance-criteria overclaim, a PR-body Changes-section gap, this handoff's staleness, and two stale `sessionEnd.Evidence` fields in session-14706's own log) were fixed in the same commit but do not touch this QA scope's own evidence paths. Because the analysis file is evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports; the follow-up rebind commit fixing that does not get a separate row of its own, per the still-standing round-12 review instruction. |
 
 ## Evidence
 
@@ -97,11 +98,11 @@ session-protocol correction.
   authored, per the schema's "count of files owned by this session"
   definition (`session-log.schema.json`).
 - `session_qa_binding()`/`validate_qa_report()` resolve cleanly end-to-end
-  against `391d0f99d` (this report's `qaCommit`, the session's
+  against `e3af5bcc7` (this report's `qaCommit`, the session's
   `endingCommit`, and `episodeMetrics.comparison.head` all agree, after the
-  round-12 content fix and this round-12 rebind; the binding passed through
+  round-13 content fix and this round-13 rebind; the binding passed through
   `1a841d53d` at round 6, `0d0657c6b` at round 8, `a959d4506` at round 10,
-  and `ae927ffc7` at round 11 before landing here).
+  `ae927ffc7` at round 11, and `391d0f99d` at round 12 before landing here).
 - Round-3 fix: `scripts/ci/validate_session_protocol.py --session-file
   <this log>` (which passes `--validation-head` from the live PR head,
   unlike a bare `validate_session_json.py` invocation) reported "QA report
@@ -251,6 +252,23 @@ session-protocol correction.
   `qaCommit`/`endingCommit` for all three session logs/QA reports; the
   follow-up rebind commit fixing that does not add a new self-referential
   row of its own, per this round's review instruction.
+- Round-13 fix (`e3af5bcc7`): a review against `09222ab35` raised 6 active
+  findings; the two touching this QA scope were that this analysis file's
+  "(the four model-tier/threshold resolutions)" wrongly described the
+  candidate-value matrix (7 explicit values plus 1 absent-control row, a
+  different count from the delegation probe's 4-resolution control
+  transcript further down) and a CI-status note: `get_pr_checks.py`
+  reported 1 failed check, "Check placeholder identity," against
+  `09222ab35`; confirmed via `gh api repos/.../rules/branches/main` it is
+  not among the branch's 16 required status-check contexts (it flags 8
+  historical commits predating this session, per issue #2466, and fixing
+  it needs a prohibited history rewrite/force-push), so it does not affect
+  this QA scope's PASS verdict. Corrected the analysis file's wording to
+  "seven explicit values plus the absent control." Because the analysis
+  file is evidence this QA scope covers, this again stales
+  `qaCommit`/`endingCommit` for all three session logs/QA reports; the
+  follow-up rebind commit fixing that does not add a new self-referential
+  row of its own, per the still-standing round-12 review instruction.
 
 ## Verdict
 
@@ -296,4 +314,13 @@ rebind commit sets both session logs' and both QA reports'
 `qaCommit`/`endingCommit` forward to `391d0f99d` and corrects this table's
 own `fd8fa1522` row, left reading "(this commit)" after that commit landed,
 without adding a new self-referential row for itself, per this round's
-review instruction. `qaCommit` is `391d0f99d`.
+review instruction. Round 13 (`e3af5bcc7`) corrected this analysis file's
+"(the four model-tier/threshold resolutions)" phrase, which round 12 had
+left wrongly describing the candidate-value matrix instead of the
+delegation probe's control transcript, to "seven explicit values plus the
+absent control"; the follow-up rebind commit sets both session logs' and
+both QA reports' `qaCommit`/`endingCommit` forward to `e3af5bcc7`, again
+without adding a new self-referential row for itself. The only CI failure
+observed against `09222ab35`/`e3af5bcc7` ("Check placeholder identity") is
+confirmed non-required and caused by 8 pre-session historical commits, out
+of this QA scope's authority to fix. `qaCommit` is `e3af5bcc7`.
