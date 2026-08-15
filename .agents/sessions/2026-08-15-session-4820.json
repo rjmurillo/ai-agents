@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4820,
+    "date": "2026-08-15",
+    "branch": "docs/4820-serial-landing-workflow",
+    "startingCommit": "ff2c10b1eb",
+    "objective": "Document serial auto-merge landing workflow (issue #4820)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read initial instructions"
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read HANDOFF.md"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session skill scripts used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read constraints"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4915-investigation-scope-merge-base"
+      }
+    },
+    "sessionEnd": {
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report created"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/4820-serial-landing-workflow"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is not main"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Measured live ruleset 11104075: strict_required_status_checks_policy is false"
+    },
+    {
+      "action": "Created docs/landing-workflow.md documenting the serial one-front protocol"
+    },
+    {
+      "action": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md, and Serena memories"
+    },
+    {
+      "action": "Added cross-reference from docs/merge-guards.md"
+    }
+  ],
+  "nextSteps": [
+    "Monitor for ruleset changes that invalidate the documented state"
+  ],
+  "endingCommit": "",
+  "episodeMetrics": {
+    "filesChanged": 6,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "ff2c10b1eb",
+      "head": "ff2c10b1eb"
+    }
+  }
+}

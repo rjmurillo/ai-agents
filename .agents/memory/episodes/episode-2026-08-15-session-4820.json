@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-15-session-4820",
+  "session": "2026-08-15-session-4820",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Document serial auto-merge landing workflow (issue #4820)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured live ruleset 11104075: strict_required_status_checks_policy is false",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created docs/landing-workflow.md documenting the serial one-front protocol",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md, and Serena memories",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added cross-reference from docs/merge-guards.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4820"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

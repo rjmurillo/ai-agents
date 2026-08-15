@@ -1116,17 +1116,18 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped: the setting is now `true`
-(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
-main can no longer land at all, so the two edits can no longer meet for the
-first time on main.
+that no longer existed. That remedy shipped as `true` on 2026-08-04 but has
+since been returned to `false` (measured 2026-08-15). The count ratchets
+enforce effective branch freshness regardless: a branch behind main fails CI
+because its recorded baseline exceeds main's lowered value.
 
-What remains is the case strict does not cover. Ruleset 11104075 still has no
-`merge_queue` rule and no workflow handles a `merge_group` event, so admission
-is serialized only by the refresh requirement, not by testing the combined
-result before the merge. The exact-equality assertion above is therefore the
-gate that still catches a baseline and a count arriving out of step, and it
-fires locally on a tree nobody's diff touched.
+What remains is the case neither strict nor the ratchets cover. Ruleset
+11104075 still has no `merge_queue` rule and no workflow handles a
+`merge_group` event, so admission is serialized only by the one-front landing
+protocol (see `docs/landing-workflow.md`), not by testing the combined result
+before the merge. The exact-equality assertion above is therefore the gate that
+still catches a baseline and a count arriving out of step, and it fires locally
+on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline

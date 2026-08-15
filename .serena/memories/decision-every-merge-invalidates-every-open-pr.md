@@ -22,11 +22,11 @@ grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
 
-**That `false` is a 2026-08-03 reading and is no longer true. Strict is `true`
-today, deliberately, and must stay on. See "Do not correct
-`strict_required_status_checks_policy` back to `false`" below, and issue #4646.
-The `merge_group` half still holds: no workflow answers that event, and a merge
-queue cannot be enabled on this repository anyway.**
+**Update 2026-08-15: strict is now `false` again. The count ratchets enforce
+effective branch freshness independently, so the serial one-front landing
+protocol is unchanged. See `docs/landing-workflow.md`. The `merge_group` half
+still holds: no workflow answers that event, and a merge queue cannot be enabled
+on this repository anyway (user-owned).**
 
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main
@@ -34,54 +34,32 @@ clears violations. So **every merge invalidates every other open PR**, and a
 drain of N PRs is not N independent units of work. It is a queue that re-dirties
 itself behind you.
 
-### The strict policy flipped on, which sharpens this rather than fixing it
+### The strict policy history
 
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
-ever *required* to be current. That is no longer the configuration. Measured
-2026-08-08:
+ever *required* to be current. It was flipped to `true` on 2026-08-04, then
+returned to `false` before 2026-08-15. Measured 2026-08-15:
 
 ```
 gh api repos/rjmurillo/ai-agents/rules/branches/main \
   --jq '[.[] | select(.type=="required_status_checks")
          | .parameters.strict_required_status_checks_policy]'
-  -> [true]
+  -> [false]
 ```
 
-This was a deliberate remedy, not configuration drift. Issue #3755, "Merge
-race: a pull request behind main can merge on a check that never saw main's
-content", argued that `strict_required_status_checks_policy = False` on ruleset
-11104075 let a green check describe a tree that no longer existed, and
-documented two PRs four minutes apart whose gate and prose met for the first
-time on main. It closed 2026-08-05. Enabling strict is the fix it asked for, so
-read the flip as that issue landing rather than as a setting someone toggled.
+The operational conclusion is unchanged regardless of the strict setting: the
+count ratchets enforce effective branch freshness because they compare the
+branch baseline against main's lowered value. A branch behind main fails CI
+whether or not GitHub also blocks the merge button.
 
-Read the reversal carefully, because it inverts the operational conclusion
-without touching the root cause. Under `false`, a stale branch *could* still
-merge, so staleness cost you a spurious red and a re-measure. Under `true`,
-GitHub refuses the merge outright until the branch is current, so the
-invalidation is no longer advisory: after each landing, every other open PR is
-hard-blocked until someone refreshes it.
+The drain is therefore strictly serial. Auto-merge does not rescue the
+serialization, because auto-merge never updates a branch: it stays armed and
+waits indefinitely while the PR sits `BEHIND`. Refreshing the branch is the
+step a human still has to take; re-arming is not.
 
-The drain is therefore strictly serial. Measured the same day: four PRs landed
-(#4614, #4572, #4755, #4741) and the open count ended at 60, with every
-remaining PR pushed back to `BEHIND` by the landings.
-
-Do not read that as "64 minus four equals 60". Reconstructing open-PR state
-from the API puts 65 open immediately before the first landing, and five PRs
-left the queue in that window, because #4683 was closed unmerged at 14:57:16Z
-alongside the four merges. Queue size is not a landing ledger, so measure the
-count and the landings separately rather than deriving one from the other.
-
-An armed auto-merge does not rescue the serialization, because auto-merge never
-updates a branch: it stays armed and waits indefinitely while the PR sits
-`BEHIND`. Observed on #4766, whose `autoMergeRequest.enabledAt` of
-`2026-08-08T18:38:05Z` survived both a later landing that knocked it back and
-two subsequent branch refreshes. Refreshing the branch is the step a human
-still has to take; re-arming is not.
-
-The merge-queue caveat below is unchanged and is now the binding constraint,
-not the staleness itself.
+The serial one-front landing protocol controls concurrency and CI cost. See
+`docs/landing-workflow.md`.
 
 ## Evidence
 
@@ -161,9 +139,10 @@ repositories for this configuration. The owner must transfer the repository to
 an organization or GitHub must expand eligibility before the ruleset gains a
 `merge_queue` rule.
 
-`strict_required_status_checks_policy` is deliberately `true`. It prevents a
-branch behind main from merging on checks that never saw current main. The
-merge-tree ratchet complements strict checks, it does not replace them.
+`strict_required_status_checks_policy` is `false` as of 2026-08-15. The count
+ratchets enforce effective branch freshness independently: a branch behind main
+fails CI because its recorded baseline exceeds main's lowered value. The serial
+one-front landing protocol controls concurrency. See `docs/landing-workflow.md`.
 
 ## Corollary: the merged result can be red even when every input was green
 
