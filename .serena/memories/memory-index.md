@@ -185,3 +185,4 @@
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1170)
+|dotfile leading-dot path github url validation traversal safe_path_re: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)

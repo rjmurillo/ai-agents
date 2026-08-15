@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-15-session-14709-pr-5005-review-fixes",
+  "session": "2026-08-15-session-14709-pr-5005-review-fixes",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR #5005 review findings: memory index entry and QA report naming",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
