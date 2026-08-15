@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review",
+  "session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Draft ADR-094 proposing scoped re-review axes flag for review skill to cut uncached full re-run cost",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read CI-FEEDBACK-SUBLOOP.md and .claude/skills/review/SKILL.md in full",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR precedent search over .agents/architecture/ for sub-loop, CI-feedback, scoped review, convergence",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the claim that pr-autofix invokes /review per PR at T3/T4",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drafted .agents/architecture/ADR-094-scoped-re-review-axes.md",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "QA pass: dash scan, banned vocabulary, ADR number collision, 13 cited paths, 5 quoted lines",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T14:01:32+00:00",
+      "type": "commit",
+      "content": "Commit: 48ac127d6f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T16:40:40+00:00",
+      "type": "commit",
+      "content": "Commit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T17:00:33+00:00",
+      "type": "commit",
+      "content": "Commit: 56237643c5951dc17e4a853b5e27f4c645061015",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T19:51:43+00:00",
+      "type": "commit",
+      "content": "Commit: 4161987600aa31d32bdcea5c4be0f66e489e3e18",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T19:59:29+00:00",
+      "type": "commit",
+      "content": "Commit: f18efba357185f4663806d5394c3d6d510dd51db",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 18
+  },
+  "lessons": []
+}
