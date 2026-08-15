@@ -764,17 +764,34 @@ def _resolve_within(path: Path, root: Path, label: str) -> Path:
     return resolved
 
 
-def find_stale_matcher_shims(
+def validate_event_directory(
     event_dir: Path,
-    shim_names: list[str],
     *,
     hooks_root: Path | None = None,
-) -> list[Path]:
-    """Return removable generated shims omitted from the manifest."""
+) -> tuple[Path, Path] | None:
+    """Validate a generated hook event directory before any candidate scan.
+
+    Returns ``(resolved_event_dir, root_path)`` when ``event_dir`` is a real,
+    non-symlinked directory that resolves inside ``root_path`` (``hooks_root``
+    when given, else ``event_dir.parent.resolve(strict=True)``). Returns
+    ``None`` when ``event_dir`` does not exist: callers treat a missing event
+    directory as "nothing to clean up", not an error. Raises ``ValueError``
+    when ``event_dir`` is a symlink, is not a directory, or resolves outside
+    ``root_path`` -- a symlinked event directory could otherwise redirect a
+    later delete or read into a path outside the generated hook tree
+    (CWE-59, symlink following).
+
+    This is the shared safety gate for every generator path that reads or
+    deletes candidate files inside a generated hook event directory:
+    :func:`find_stale_matcher_shims` below, and
+    ``generate_hooks_events._missing_owner_companion_targets`` (issue #5013
+    review fix), which reuses this exact sequence instead of maintaining a
+    second copy of the lstat/symlink/resolve checks.
+    """
     try:
         event_stat = event_dir.lstat()
     except FileNotFoundError:
-        return []
+        return None
     if stat.S_ISLNK(event_stat.st_mode):
         raise ValueError(f"refusing symlinked event directory: {event_dir}")
     if not stat.S_ISDIR(event_stat.st_mode):
@@ -785,15 +802,55 @@ def find_stale_matcher_shims(
     except (OSError, RuntimeError) as exc:
         raise ValueError(f"could not resolve hooks root for {event_dir}: {exc}") from exc
     resolved_event = _resolve_within(event_dir, root_path, "hook event directory")
+    return resolved_event, root_path
+
+
+def validate_candidate_file(
+    candidate: Path,
+    resolved_event_dir: Path,
+    root_path: Path,
+) -> bool:
+    """Validate one candidate file inside an already-validated event directory.
+
+    Returns ``True`` when ``candidate`` exists as a regular file that
+    resolves inside BOTH ``resolved_event_dir`` and ``root_path`` (the pair
+    returned by :func:`validate_event_directory`). Returns ``False`` when the
+    candidate does not exist or is not a regular file (a directory, FIFO,
+    etc.): callers treat that as "no candidate to act on". Raises
+    ``ValueError`` when the candidate is a symlink, which could otherwise
+    redirect a delete or read into a path outside the generated hook tree
+    (CWE-59, symlink following) -- the same threat :func:`validate_event_directory`
+    guards against for the containing directory.
+    """
+    try:
+        candidate_stat = candidate.lstat()
+    except FileNotFoundError:
+        return False
+    if stat.S_ISLNK(candidate_stat.st_mode):
+        raise ValueError(f"refusing symlinked hook candidate: {candidate}")
+    if not stat.S_ISREG(candidate_stat.st_mode):
+        return False
+    _resolve_within(candidate, resolved_event_dir, "hook candidate")
+    _resolve_within(candidate, root_path, "hook candidate")
+    return True
+
+
+def find_stale_matcher_shims(
+    event_dir: Path,
+    shim_names: list[str],
+    *,
+    hooks_root: Path | None = None,
+) -> list[Path]:
+    """Return removable generated shims omitted from the manifest."""
+    validated = validate_event_directory(event_dir, hooks_root=hooks_root)
+    if validated is None:
+        return []
+    resolved_event, root_path = validated
     active_shims = {_shim_name_key(name) for name in shim_names}
     stale_shims: list[Path] = []
     for candidate in sorted(event_dir.iterdir()):
-        candidate_stat = candidate.lstat()
-        if stat.S_ISLNK(candidate_stat.st_mode):
-            raise ValueError(f"refusing symlinked hook candidate: {candidate}")
-        if not stat.S_ISREG(candidate_stat.st_mode):
+        if not validate_candidate_file(candidate, resolved_event, root_path):
             continue
-        _resolve_within(candidate, resolved_event, "hook candidate")
         if candidate.suffix != ".py":
             continue
         if _shim_name_key(candidate.name) in active_shims:

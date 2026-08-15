@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from types import ModuleType
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -325,6 +326,45 @@ def _validate_writable_owner_output_companions(
             )
 
 
+def _iter_active_dispatchable_owners(
+    hooks_map: dict[str, Any],
+    *,
+    event_remap: dict[str, str],
+    event_drop: set[str],
+    script_source: Path,
+) -> Iterable[tuple[str, dict[str, Any], Path, Path]]:
+    """Yield ``(target_event, group, owner_relative_path, owner_source)``.
+
+    One owner per tuple, for every owner the write loop (:func:`_process_event`
+    via :func:`_emit_one_hook`) would actually reach this run. Shared by
+    :func:`_prevalidate_companions` (existence check, before any write) and
+    :func:`_stage_missing_owner_companion_cleanup` (staleness check, after
+    the write loop), so the two can never disagree about which owners are
+    "still active" -- both walk the identical skip conditions:
+
+    - ``claude_event`` is in ``event_drop``, or ``event_remap.get(claude_event)``
+      is falsy (missing key OR mapped to an empty string): the event never
+      reaches :func:`_process_event`'s normal emit path
+      (:func:`_handle_event_drop`/:func:`_handle_unknown_event` instead).
+    - The hook's ``command`` does not resolve to a Python script under
+      ``script_source`` (:func:`_resolve_script_path` returns ``None``):
+      matches the ``src is None`` early-return in :func:`_emit_one_hook`.
+    """
+    for claude_event in sorted(hooks_map.keys()):
+        if claude_event in event_drop or not event_remap.get(claude_event):
+            continue
+        groups = hooks_map.get(claude_event)
+        if not isinstance(groups, list):
+            continue
+        target_event = event_remap[claude_event]
+        for group, hook in _iter_hooks(groups):
+            cmd = hook.get("command", "") or ""
+            src = _resolve_script_path(script_source, cmd, claude_event)
+            if src is None:
+                continue
+            yield target_event, group, src.relative_to(script_source), src
+
+
 def _prevalidate_companions(
     hooks_map: dict[str, Any],
     *,
@@ -353,55 +393,252 @@ def _prevalidate_companions(
     gap: a missing companion anywhere fails the whole run before the
     first byte of output exists.
 
-    Only owners the write loop would actually reach are checked here:
-    events in ``eventDrop``, absent from ``event_remap``, or mapped to
-    an empty/falsey target are skipped (they never reach
-    :func:`_emit_one_hook` -- :func:`_process_event` uses
-    ``event_remap.get(claude_event)`` and skips via
-    :func:`_handle_unknown_event` whenever that lookup is falsey, not
-    only when the key is absent), and commands that do not resolve to a
-    Python script under ``script_source`` are skipped too
-    (:func:`_resolve_script_path` returns ``None`` for those, matching
-    the ``src is None`` early-return in :func:`_emit_one_hook`). This
-    keeps prevalidation's notion of "an owner that will be processed"
-    identical to the write loop's, so no owner is checked here that
-    would not otherwise be copied, and vice versa.
+    Reuses :func:`_iter_active_dispatchable_owners` for "an owner that will
+    be processed", so no owner is checked here that would not otherwise be
+    copied, and vice versa.
     """
-    for claude_event in sorted(hooks_map.keys()):
-        if claude_event in event_drop or not event_remap.get(claude_event):
-            continue
-        groups = hooks_map.get(claude_event)
-        if not isinstance(groups, list):
-            continue
-        target_event = event_remap[claude_event]
-        for group, hook in _iter_hooks(groups):
-            cmd = hook.get("command", "") or ""
-            src = _resolve_script_path(script_source, cmd, claude_event)
-            if src is None:
-                continue
-            script_rel = src.relative_to(script_source)
-            _validate_companions(script_rel, src)
-            matcher = group.get("matcher")
-            matcher_str = matcher if isinstance(matcher, str) and matcher else None
-            target = _relative_script_target(
-                output_scripts,
-                target_event,
-                src.name,
-                matcher=matcher_str,
+    for target_event, group, script_rel, src in _iter_active_dispatchable_owners(
+        hooks_map,
+        event_remap=event_remap,
+        event_drop=event_drop,
+        script_source=script_source,
+    ):
+        _validate_companions(script_rel, src)
+        matcher = group.get("matcher")
+        matcher_str = matcher if isinstance(matcher, str) and matcher else None
+        target = _relative_script_target(
+            output_scripts,
+            target_event,
+            src.name,
+            matcher=matcher_str,
+        )
+        owner_reason = regen_detect_reason(target)
+        if owner_reason is not None:
+            _validate_no_regen_output_companions(
+                script_rel,
+                src,
+                target.parent,
             )
-            owner_reason = regen_detect_reason(target)
-            if owner_reason is not None:
-                _validate_no_regen_output_companions(
-                    script_rel,
-                    src,
-                    target.parent,
-                )
-            else:
-                _validate_writable_owner_output_companions(
-                    script_rel,
-                    src,
-                    target.parent,
-                )
+        else:
+            _validate_writable_owner_output_companions(
+                script_rel,
+                src,
+                target.parent,
+            )
+
+
+def _companion_cleanup_hooks_root(output_scripts: Path) -> Path | None:
+    """Resolve ``output_scripts`` as the companion-cleanup root, or ``None``.
+
+    Returns ``None`` when ``output_scripts`` does not exist yet: zero
+    dispatchable events were emitted this run, or this is a ``--what-if``
+    dry run that never writes to disk. Either way nothing was ever
+    generated under it, so no companion can be orphaned there; callers
+    treat that as "nothing to check", not a config error
+    (``resolve(strict=True)`` requires the path to already exist).
+    """
+    if not output_scripts.is_dir():
+        return None
+    try:
+        return output_scripts.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise GenerateHooksError(f"companion cleanup path validation failed: {exc}") from exc
+
+
+def _missing_owner_event_dir(
+    owner_relative_path: str,
+    *,
+    event_remap: dict[str, str],
+    out: dict[str, list[dict[str, Any]]],
+    output_scripts: Path,
+) -> Path | None:
+    """Return the output event directory for one missing owner, or ``None``.
+
+    ``None`` means the owner's Claude event does not remap to a target
+    event that is still active this run (``event_drop``, unmapped, or the
+    whole event lost every hook) -- there is nothing to clean up for this
+    owner at all.
+    """
+    claude_event = owner_relative_path.split("/", 1)[0]
+    target_event = event_remap.get(claude_event)
+    if not target_event or target_event not in out:
+        return None
+    return output_scripts / target_event
+
+
+def _validated_missing_owner_event_dir(
+    event_dir: Path,
+    hooks_root: Path,
+    cache: dict[Path, tuple[Path, Path] | None],
+    generate_dispatcher: ModuleType,
+) -> tuple[Path, Path] | None:
+    """Validate (and memoize) one event directory for companion cleanup.
+
+    Re-raises a ``ValueError`` from
+    ``generate_dispatcher.validate_event_directory`` as
+    :class:`GenerateHooksError` so a symlinked or non-directory event path
+    fails generation (exit 2) instead of propagating an uncaught exception.
+    Memoized per ``event_dir`` because multiple missing owners under
+    :data:`_COMPANIONS_BY_OWNER` can share the same Claude event.
+    """
+    if event_dir not in cache:
+        try:
+            cache[event_dir] = generate_dispatcher.validate_event_directory(
+                event_dir, hooks_root=hooks_root
+            )
+        except ValueError as exc:
+            raise GenerateHooksError(f"companion cleanup path validation failed: {exc}") from exc
+    return cache[event_dir]
+
+
+def _missing_owner_candidate_targets(
+    event_dir: Path,
+    companion_names: tuple[str, ...],
+    resolved_event: Path,
+    root_path: Path,
+    generate_dispatcher: ModuleType,
+) -> list[Path]:
+    """Return the deletable, unprotected companion files under ``event_dir``.
+
+    Each ``companion_name`` is validated through
+    ``generate_dispatcher.validate_candidate_file`` before it is considered:
+    a symlinked or non-regular candidate raises :class:`GenerateHooksError`
+    (re-raised from that function's ``ValueError``); a missing or
+    NO-REGEN-protected candidate is silently skipped or reported, matching
+    :func:`_missing_owner_companion_targets`'s existing NO-REGEN contract.
+    """
+    targets: list[Path] = []
+    for companion_name in companion_names:
+        candidate = event_dir / companion_name
+        try:
+            is_regular_candidate = generate_dispatcher.validate_candidate_file(
+                candidate, resolved_event, root_path
+            )
+        except ValueError as exc:
+            raise GenerateHooksError(f"companion cleanup path validation failed: {exc}") from exc
+        if not is_regular_candidate:
+            continue
+        reason = regen_detect_reason(candidate)
+        if reason is not None:
+            print(f"  NOTICE: preserved {candidate} (NO-REGEN: {reason})")
+            continue
+        targets.append(candidate)
+    return targets
+
+
+def _missing_owner_companion_targets(
+    hooks_map: dict[str, Any],
+    out: dict[str, list[dict[str, Any]]],
+    *,
+    event_remap: dict[str, str],
+    event_drop: set[str],
+    script_source: Path,
+    output_scripts: Path,
+) -> list[Path]:
+    """Return generated companions whose declared owner is no longer active.
+
+    :data:`_COMPANIONS_BY_OWNER` is the single source of truth for which
+    generated files are runtime-only companions of a dispatched owner
+    script. When an owner leaves the active hook set -- excluded via
+    ``copilotExclude`` in ``dispatch_groups.json`` (issue #5013), or simply
+    removed from a settings group -- but its Claude event is STILL active
+    (``out`` still has other entries for that target event), the owner's
+    declared companions become orphaned generated files with no owner left
+    to justify them. ``find_stale_matcher_shims`` (called from
+    :func:`_stage_dispatcher_artifacts`) never catches this: it only
+    recognizes shim-WRAPPED owner scripts (``is_shimmed``), and a companion
+    is a plain, never-shimmed helper module.
+
+    Returns ONLY the companion filenames :data:`_COMPANIONS_BY_OWNER`
+    declares for a MISSING owner -- never a directory sweep -- so an
+    unrelated helper file placed next to them, or a companion belonging to
+    a still-active owner, is never a candidate. An event with NO remaining
+    active hooks at all (absent from ``out``) is left to
+    :func:`_stage_orphan_event_cleanup`, which removes the whole directory,
+    companions included; this only covers the case where the EVENT
+    survives but one of its OWNERS does not. A NO-REGEN-protected candidate
+    is reported and excluded, mirroring :func:`generate_dispatcher.
+    find_stale_matcher_shims`'s own protected-file handling.
+
+    Path safety (issue #5013 review fix): every ``event_dir`` and candidate
+    companion path is validated before it is ever added to the deletion
+    list, via ``_validated_missing_owner_event_dir`` and
+    ``_missing_owner_candidate_targets`` above -- see those two functions'
+    docstrings for the exact ``generate_dispatcher`` safety gate they call
+    and the CWE-59 (symlink following) rationale.
+    """
+    import generate_dispatcher
+
+    active_owners = {
+        script_rel.as_posix()
+        for _target_event, _group, script_rel, _src in _iter_active_dispatchable_owners(
+            hooks_map,
+            event_remap=event_remap,
+            event_drop=event_drop,
+            script_source=script_source,
+        )
+    }
+    hooks_root = _companion_cleanup_hooks_root(output_scripts)
+    if hooks_root is None:
+        return []
+
+    targets: list[Path] = []
+    validated_event_dirs: dict[Path, tuple[Path, Path] | None] = {}
+    for owner_relative_path, companion_names in _COMPANIONS_BY_OWNER.items():
+        if owner_relative_path in active_owners:
+            continue
+        event_dir = _missing_owner_event_dir(
+            owner_relative_path,
+            event_remap=event_remap,
+            out=out,
+            output_scripts=output_scripts,
+        )
+        if event_dir is None:
+            continue
+        validated = _validated_missing_owner_event_dir(
+            event_dir, hooks_root, validated_event_dirs, generate_dispatcher
+        )
+        if validated is None:
+            continue
+        resolved_event, root_path = validated
+        targets.extend(
+            _missing_owner_candidate_targets(
+                event_dir, companion_names, resolved_event, root_path, generate_dispatcher
+            )
+        )
+    return targets
+
+
+def _stage_missing_owner_companion_cleanup(
+    hooks_map: dict[str, Any],
+    out: dict[str, list[dict[str, Any]]],
+    *,
+    event_remap: dict[str, str],
+    event_drop: set[str],
+    script_source: Path,
+    output_scripts: Path,
+    transaction: HookGenerationTransaction,
+    what_if: bool,
+) -> None:
+    """Stage transactional deletion of the targets found by
+    :func:`_missing_owner_companion_targets`, or report them under
+    ``--what-if`` without deleting anything.
+    """
+    targets = _missing_owner_companion_targets(
+        hooks_map,
+        out,
+        event_remap=event_remap,
+        event_drop=event_drop,
+        script_source=script_source,
+        output_scripts=output_scripts,
+    )
+    if not targets:
+        return
+    if what_if:
+        for target in targets:
+            print(f"  Would remove generated orphan companion: {target}")
+        return
+    transaction.delete_many(targets)
 
 
 def _stage_script(
@@ -863,13 +1100,22 @@ def generate_hooks(
     if not script_source.is_dir():
         print(f"Error: scriptSource not a directory: {script_source}", file=sys.stderr)
         return 1, result
-    config_reason = regen_detect_reason(output_config)
-    if config_reason is not None:
-        print(
-            "  NOTICE: preserved generated hook artifact set because "
-            f"{output_config} is NO-REGEN protected: {config_reason}"
-        )
-        return 0, result
+
+    # Issue #5013 review fix: do NOT short-circuit on output_config's
+    # NO-REGEN status here. Doing so before source loading, dispatch-group
+    # expansion, and companion/dispatcher validation let a malformed
+    # `copilotExclude` value or missing ADR-085 Decision 7 governance
+    # metadata (issue/decision fields) silently succeed with exit 0 whenever
+    # hooks.json carried a NO-REGEN sentinel, preserving stale output instead
+    # of surfacing the config error. Validation now always runs; the
+    # equivalent NO-REGEN recheck immediately before publication (below,
+    # search "recheck NO-REGEN immediately before publication") still
+    # preserves the existing no-write behavior once validation passes. Any
+    # filesystem staging that later recheck triggers a return before (owner
+    # script copies, companion cleanup, dispatcher artifact staging) runs
+    # through ``transaction``, which the ``finally`` block below rolls back
+    # whenever the run returns without ``committed = True``, so the
+    # generated artifact set stays byte-identical.
 
     try:
         hooks_map = _load_hook_source(settings_source)
@@ -948,6 +1194,31 @@ def generate_hooks(
                 return 2, result
             for target_event, entry in emitted:
                 out.setdefault(target_event, []).append(entry)
+
+        # Issue #5013: an owner excluded from Copilot generation (or simply
+        # removed from a settings group) can leave its declared companions
+        # behind in an event directory that is STILL active for other
+        # owners. This must run before dispatcher consolidation renames
+        # `out`'s VALUES (never its target-event KEYS, so ordering relative
+        # to the block below does not change which companions are found),
+        # and before commit so a failure here still rolls back cleanly.
+        try:
+            _stage_missing_owner_companion_cleanup(
+                hooks_map,
+                out,
+                event_remap=event_remap,
+                event_drop=event_drop,
+                script_source=script_source,
+                output_scripts=output_scripts,
+                transaction=transaction,
+                what_if=what_if,
+            )
+        except GenerateHooksError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2, result
+        except OSError as exc:
+            print(f"Error: orphan companion cleanup failed: {exc}", file=sys.stderr)
+            return 1, result
 
         # ADR-068 / #2295: consolidate safely mergeable events to one dispatcher
         # entry and keep structured decision events direct. Consolidated shims

@@ -1829,6 +1829,507 @@ def test_generator_dispatcher_removes_published_stale_matcher_shim(
     assert not stale[0].exists()
 
 
+def _setup_owner_with_companions_and_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """One PreToolUse dispatcher group: an owner (two declared companions)
+    plus an independent sibling owner sharing the same matcher.
+
+    Synthetic, fixture-local ``_COMPANIONS_BY_OWNER`` entry -- per the
+    convention in :func:`_setup_skill_companion_fixture` above -- rather
+    than the real, production ``push_pr_script_identity_guard`` entry, so
+    this test exercises the generic cleanup mechanism, not one wired to a
+    single named owner.
+    """
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {
+            "PreToolUse/invoke_owner.py": (
+                "owner_companion_a.py",
+                "owner_companion_b.py",
+            )
+        },
+    )
+    cfg = _write_config(tmp_path, hooks_stanza_overrides={"dispatcher": True})
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "invoke_owner.py", "print('owner')\n")
+    _write_script(hooks_src, "PreToolUse", "owner_companion_a.py", "TOKEN_A = 1\n")
+    _write_script(hooks_src, "PreToolUse", "owner_companion_b.py", "TOKEN_B = 2\n")
+    _write_script(hooks_src, "PreToolUse", "invoke_sibling.py", "print('sibling')\n")
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_owner.py",
+                        },
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+    return cfg
+
+
+def test_generator_dispatcher_removes_owner_and_companions_when_owner_excluded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regeneration must sweep a removed owner's companions too (issue #5013).
+
+    ``find_stale_matcher_shims`` (the existing dispatcher-mode cleanup,
+    exercised above) only recognizes shim-WRAPPED owner scripts
+    (``is_shimmed``); a companion is a plain, never-shimmed helper module,
+    so it was never a candidate for that scan. A companion left behind by
+    a removed or ``copilotExclude``-d owner therefore lingered in
+    ``src/copilot-cli`` forever even though the owner's own generated shim
+    was correctly swept.
+
+    Starting state (the "stale owner and companion artifacts" this test
+    proves cleanup against): a first generation run publishes the owner's
+    shim AND both declared companions, then an unrelated helper file is
+    planted directly in the same output directory -- standing in for a
+    file a prior, independent generation left there. The owner is then
+    removed from the settings group (simulating a ``copilotExclude: true``
+    flip, or a plain manifest edit) while a sibling hook keeps the
+    PreToolUse event itself active. Regeneration must remove ONLY the
+    owner's own shim (existing mechanism) and its two declared companions
+    (new mechanism), while the unrelated helper and the sibling's own
+    generated shim are untouched.
+    """
+    cfg = _setup_owner_with_companions_and_sibling(tmp_path, monkeypatch)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_dir = tmp_path / "out" / "PreToolUse"
+    companion_a = out_dir / "owner_companion_a.py"
+    companion_b = out_dir / "owner_companion_b.py"
+    assert companion_a.is_file()
+    assert companion_b.is_file()
+    owner_shims_before = [
+        path
+        for path in out_dir.glob("invoke_owner*.py")
+        if is_shimmed(path.read_text(encoding="utf-8"))
+    ]
+    assert len(owner_shims_before) == 1
+
+    unrelated = out_dir / "unrelated_helper.py"
+    unrelated.write_text("KEEP = True\n", encoding="utf-8")
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert not companion_a.exists()
+    assert not companion_b.exists()
+    assert not owner_shims_before[0].exists()
+    assert unrelated.read_text(encoding="utf-8") == "KEEP = True\n"
+    sibling_shims = [
+        path
+        for path in out_dir.glob("invoke_sibling*.py")
+        if is_shimmed(path.read_text(encoding="utf-8"))
+    ]
+    assert len(sibling_shims) == 1
+
+
+def test_active_dispatchable_owners_skip_non_list_groups(tmp_path: Path) -> None:
+    """Malformed event groups cannot become active companion owners."""
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "invoke_owner.py", "print('owner')\n")
+    hooks_map = {
+        "PostToolUse": {"hooks": []},
+        "PreToolUse": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": (
+                            "python3 -u "
+                            ".claude/hooks/PreToolUse/invoke_owner.py"
+                        ),
+                    }
+                ]
+            }
+        ],
+    }
+
+    owners = list(
+        generate_hooks_events._iter_active_dispatchable_owners(
+            hooks_map,
+            event_remap={
+                "PostToolUse": "PostToolUse",
+                "PreToolUse": "PreToolUse",
+            },
+            event_drop=set(),
+            script_source=hooks_src,
+        )
+    )
+
+    assert len(owners) == 1
+    assert owners[0][0] == "PreToolUse"
+    assert owners[0][2] == Path("PreToolUse/invoke_owner.py")
+
+
+def _setup_single_companion_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """One PreToolUse owner (single declared companion) plus an independent
+    sibling hook, direct mode (no dispatcher consolidation).
+
+    Shared starting state for the four companion-cleanup tests below; each
+    mutates ``settings.json`` and re-runs generation afterward its own way,
+    so only this common setup is factored out here.
+    """
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {"PreToolUse/invoke_owner.py": ("owner_companion.py",)},
+    )
+    cfg = _write_config(tmp_path)
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "invoke_owner.py", "print('owner')\n")
+    _write_script(hooks_src, "PreToolUse", "owner_companion.py", "TOKEN = 1\n")
+    _write_script(hooks_src, "PreToolUse", "invoke_sibling.py", "print('sibling')\n")
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_owner.py",
+                        },
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+                        },
+                    ]
+                }
+            ]
+        },
+    )
+    return cfg
+
+
+def test_generator_direct_mode_removes_companions_of_missing_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Companion cleanup does not depend on dispatcher consolidation.
+
+    Same shape as the dispatcher-mode test above, but WITHOUT
+    ``dispatcher: true``. The owner's OWN shim removal is a dispatcher-mode
+    feature (``find_stale_matcher_shims`` runs only from
+    ``_stage_dispatcher_changes``) so it is out of scope for direct mode
+    and not asserted here; this isolates and proves the companion cleanup
+    itself is independent of that mode.
+    """
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_dir = tmp_path / "out" / "PreToolUse"
+    companion = out_dir / "owner_companion.py"
+    assert companion.is_file()
+
+    unrelated = out_dir / "unrelated_helper.py"
+    unrelated.write_text("KEEP = True\n", encoding="utf-8")
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert not companion.exists()
+    assert unrelated.read_text(encoding="utf-8") == "KEEP = True\n"
+    assert (out_dir / "invoke_sibling.py").is_file()
+
+
+def test_generator_companion_cleanup_is_what_if_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--what-if`` reports the removal without deleting anything."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    companion = tmp_path / "out" / "PreToolUse" / "owner_companion.py"
+    assert companion.is_file()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path, what_if=True)
+
+    assert rc == 0
+    assert companion.is_file()
+
+
+def test_generator_companion_cleanup_preserves_no_regen_protected_companion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A NO-REGEN-protected companion of a missing owner is preserved, not deleted.
+
+    Mirrors the existing NO-REGEN preservation contract for stale matcher
+    shims and stale event artifacts: a customer-modified companion must
+    survive even though its owner is gone, and the run must still succeed
+    (rc=0) with a NOTICE, not fail.
+    """
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    companion = tmp_path / "out" / "PreToolUse" / "owner_companion.py"
+    assert companion.is_file()
+    companion.with_suffix(companion.suffix + ".noregen").write_text("preserve\n", encoding="utf-8")
+    capsys.readouterr()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert companion.is_file()
+    assert companion.name in captured.out
+    assert "NO-REGEN" in captured.out
+
+
+def test_generator_companion_cleanup_os_error_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An OSError while staging companion cleanup rolls back, not partial-commits.
+
+    Mirrors ``test_generator_orphan_discovery_failure_rolls_back``: the
+    failure is injected into ``regen_detect_reason`` ONLY for the companion
+    path this cleanup would otherwise remove, so every other NO-REGEN check
+    in the same run (config, owners, dispatcher artifacts) behaves normally
+    and the run fails for the reason under test, not an unrelated one.
+    """
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    companion = tmp_path / "out" / "PreToolUse" / "owner_companion.py"
+    assert companion.is_file()
+    before = companion.read_bytes()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    original_regen_detect_reason = generate_hooks_events.regen_detect_reason
+
+    def fail_only_for_companion(path: Path) -> str | None:
+        if path.name == "owner_companion.py":
+            raise OSError("simulated companion cleanup failure")
+        return original_regen_detect_reason(path)
+
+    monkeypatch.setattr(generate_hooks_events, "regen_detect_reason", fail_only_for_companion)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 1
+    assert companion.is_file()
+    assert companion.read_bytes() == before
+
+
+def test_generator_companion_cleanup_rejects_symlinked_event_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A symlinked event directory must abort companion cleanup, not follow it.
+
+    Issue #5013 review fix (finding 2): ``_missing_owner_companion_targets``
+    built ``event_dir`` (and every candidate path under it) without ever
+    checking whether ``event_dir`` itself was a symlink. A symlinked
+    ``out/PreToolUse`` could redirect
+    ``HookGenerationTransaction.delete_many`` into deleting a file OUTSIDE
+    the generated tree once the companion's declared owner went missing
+    (CWE-59, symlink following).
+
+    The fix reuses ``generate_dispatcher.validate_event_directory``, the
+    SAME safety gate ``generate_dispatcher.find_stale_matcher_shims`` already
+    applies. Quoted verbatim from that function (``build/scripts/
+    generate_dispatcher.py``, read this session)::
+
+        if stat.S_ISLNK(event_stat.st_mode):
+            raise ValueError(f"refusing symlinked event directory: {event_dir}")
+
+    This test injects the SAME fake-lstat technique
+    ``test_stale_scan_rejects_symlinked_event_directory`` in
+    ``test_generate_dispatcher.py`` uses against that function directly, but
+    drives it end-to-end through ``generate_hooks`` so a symlinked directory
+    is proven to abort the WHOLE run (exit 2), not just skip one check.
+    """
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_dir = tmp_path / "out" / "PreToolUse"
+    companion = out_dir / "owner_companion.py"
+    sibling = out_dir / "invoke_sibling.py"
+    assert companion.is_file()
+    assert sibling.is_file()
+    companion_before = companion.read_bytes()
+    sibling_before = sibling.read_bytes()
+
+    # Remove the owner from settings.json (companion becomes orphaned) while
+    # the sibling hook keeps the PreToolUse event itself active, matching
+    # `_setup_single_companion_fixture`'s sibling-based cleanup tests above.
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    real_lstat = Path.lstat
+    symlink_stat = os.stat_result((stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    def fake_lstat(path: Path) -> os.stat_result:
+        if path == out_dir:
+            return symlink_stat
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fake_lstat)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "companion cleanup path validation failed" in captured.err
+    assert "refusing symlinked event directory" in captured.err
+    # No partial artifact change: neither the orphaned companion nor the
+    # still-active sibling's generated file was touched by the aborted run.
+    assert companion.is_file()
+    assert companion.read_bytes() == companion_before
+    assert sibling.is_file()
+    assert sibling.read_bytes() == sibling_before
+
+
+def test_generator_companion_cleanup_rejects_symlinked_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A symlinked companion candidate must abort cleanup, not be deleted.
+
+    Issue #5013 review fix (finding 2), the candidate-file half of the same
+    gap: even with a legitimate (non-symlinked) event directory, the
+    COMPANION FILE ITSELF could be a symlink planted at the exact path the
+    generator expects its runtime companion to occupy. Deleting it via
+    ``HookGenerationTransaction.delete_many`` would follow the symlink target,
+    not the companion. ``generate_dispatcher.validate_candidate_file`` rejects
+    this the same way ``find_stale_matcher_shims`` rejects a symlinked shim
+    candidate. Quoted verbatim from that function (``build/scripts/
+    generate_dispatcher.py``, read this session)::
+
+        if stat.S_ISLNK(candidate_stat.st_mode):
+            raise ValueError(f"refusing symlinked hook candidate: {candidate}")
+
+    Mirrors ``test_stale_scan_rejects_symlinked_candidate`` in
+    ``test_generate_dispatcher.py``, driven end-to-end through
+    ``generate_hooks`` instead of calling the dispatcher function directly.
+    """
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_dir = tmp_path / "out" / "PreToolUse"
+    companion = out_dir / "owner_companion.py"
+    sibling = out_dir / "invoke_sibling.py"
+    assert companion.is_file()
+    companion_before = companion.read_bytes()
+    sibling_before = sibling.read_bytes()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    real_lstat = Path.lstat
+    symlink_stat = os.stat_result((stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    def fake_lstat(path: Path) -> os.stat_result:
+        if path == companion:
+            return symlink_stat
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fake_lstat)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "companion cleanup path validation failed" in captured.err
+    assert "refusing symlinked hook candidate" in captured.err
+    assert companion.is_file()
+    assert companion.read_bytes() == companion_before
+    assert sibling.is_file()
+    assert sibling.read_bytes() == sibling_before
+
+
 def test_generator_dispatcher_removes_stale_event_artifacts(tmp_path: Path) -> None:
     cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -1943,6 +2444,17 @@ def test_generator_dispatcher_cleanup_path_failure_is_config_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Issue #5013 review fix: the companion-cleanup path now validates every
+    # event directory it touches (see
+    # test_generator_companion_cleanup_rejects_symlinked_event_directory and
+    # test_generator_companion_cleanup_rejects_symlinked_candidate below).
+    # Production `_COMPANIONS_BY_OWNER` declares an owner under PreToolUse,
+    # the SAME event this fixture's dispatcher owner uses, so without this
+    # override the companion-cleanup check -- not the dispatcher-cleanup
+    # check this test targets -- would be the first to observe the faked
+    # symlink. Emptying the mapping isolates the assertion below to
+    # `_stage_dispatcher_artifacts`'s own `find_stale_matcher_shims` call.
+    monkeypatch.setattr(generate_hooks_events, "_COMPANIONS_BY_OWNER", {})
     cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
@@ -2881,6 +3393,137 @@ def test_generator_protected_hooks_config_freezes_artifact_set(
     assert rc == 0
     assert after == before
     assert "preserved generated hook artifact set" in output
+
+
+def _write_dispatch_group_settings_and_manifest(
+    tmp_path: Path,
+    shim: dict[str, Any],
+    *,
+    group_overrides: dict[str, Any] | None = None,
+) -> Path:
+    """Register one dispatch-group hook whose sole shim carries ``shim``.
+
+    Shared setup for the two NO-REGEN/copilotExclude-validation-ordering
+    tests below: both need a `settings.json` that registers an
+    `invoke_dispatch_claude.py --group g1` command and a matching
+    `dispatch_groups.json` manifest so `_expand_dispatch_groups` reaches
+    the shim under test. ``group_overrides`` merges into the group spec
+    (e.g. ``{"surface": "plugin"}``) for tests that need to pass the
+    surface check (governance item 2) to reach the metadata checks
+    (items 3-4).
+    """
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/invoke_dispatch_claude.py --group g1"
+                            ),
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "guard.py", "print('guard')\n")
+    group_spec = {"event": "PreToolUse", "shims": [shim], **(group_overrides or {})}
+    (hooks_src / "dispatch_groups.json").write_text(
+        json.dumps({"groups": {"g1": group_spec}}),
+        encoding="utf-8",
+    )
+    return hooks_src
+
+
+def _seed_protected_hooks_json(tmp_path: Path) -> bytes:
+    """Write a pre-existing, NO-REGEN-sidecar-protected ``out/hooks.json``.
+
+    Returns the seeded bytes so the caller can assert the file is
+    byte-identical after a failed generation run.
+    """
+    output_config = tmp_path / "out" / "hooks.json"
+    output_config.parent.mkdir(parents=True, exist_ok=True)
+    stale_bytes = b'{\n  "version": 1,\n  "hooks": {}\n}\n'
+    output_config.write_bytes(stale_bytes)
+    output_config.with_suffix(".json.noregen").write_text("preserve\n", encoding="utf-8")
+    return stale_bytes
+
+
+def test_generator_no_regen_hooks_config_still_rejects_malformed_copilot_exclude(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A NO-REGEN-protected hooks.json must not bypass copilotExclude validation.
+
+    Issue #5013 review fix: ``generate_hooks`` used to check
+    ``output_config``'s NO-REGEN status BEFORE calling ``_load_hook_source``
+    and ``_expand_dispatch_groups``, so a malformed ``copilotExclude`` value
+    on a dispatch-group shim silently returned exit 0 whenever hooks.json
+    carried a NO-REGEN sentinel: the bad manifest was never even parsed.
+    Source loading and dispatch-group expansion (including copilotExclude
+    validation, per ``generate_hooks_expand._copilot_exclude_flag``) now run
+    unconditionally, so this must return exit 2 and leave the protected
+    artifact byte-identical.
+    """
+    cfg = _write_config(tmp_path)
+    _write_dispatch_group_settings_and_manifest(
+        tmp_path,
+        {
+            "file": "guard.py",
+            # Malformed: copilotExclude must be a strict boolean (ADR-085
+            # Decision 7, governance item 1); a string is a config error,
+            # not a truthy include/exclude.
+            "copilotExclude": "true",
+        },
+    )
+    stale_bytes = _seed_protected_hooks_json(tmp_path)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "copilotExclude" in captured.err
+    assert "strict boolean" in captured.err
+    assert (tmp_path / "out" / "hooks.json").read_bytes() == stale_bytes
+
+
+def test_generator_no_regen_hooks_config_still_rejects_missing_exclude_governance(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A NO-REGEN-protected hooks.json must not bypass exclude-governance checks.
+
+    Same ordering bug as
+    ``test_generator_no_regen_hooks_config_still_rejects_malformed_copilot_exclude``,
+    exercised through the OTHER half of finding 1: a syntactically valid
+    ``copilotExclude: true`` missing its required ADR-085 Decision 7
+    governance metadata (``copilotExcludeIssue`` / ``copilotExcludeDecision``,
+    enforced by ``generate_hooks_expand._require_copilot_exclude_governance``)
+    must also fail generation instead of silently succeeding because
+    hooks.json happened to be NO-REGEN protected.
+    """
+    cfg = _write_config(tmp_path)
+    _write_dispatch_group_settings_and_manifest(
+        tmp_path,
+        {
+            "file": "guard.py",
+            "copilotExclude": True,
+            "copilotExcludeIssue": "#5013",
+            # copilotExcludeDecision is missing entirely.
+        },
+        group_overrides={"surface": "plugin"},
+    )
+    stale_bytes = _seed_protected_hooks_json(tmp_path)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "copilotExcludeDecision" in captured.err
+    assert (tmp_path / "out" / "hooks.json").read_bytes() == stale_bytes
 
 
 def test_generator_distinct_shim_per_matcher(tmp_path: Path) -> None:
