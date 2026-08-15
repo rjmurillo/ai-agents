@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
-qaCommit: b66a37b977f7ce93013dcfea6ba4ea0dde8590de
+qaCommit: 4f1bdb2a118facd8656d2b07274d63e83c5359eb
 ---
 
 # QA Report, issue 4939

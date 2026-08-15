@@ -188,7 +188,7 @@
       ]
     }
   ],
-  "endingCommit": "b66a37b977f7ce93013dcfea6ba4ea0dde8590de",
+  "endingCommit": "4f1bdb2a118facd8656d2b07274d63e83c5359eb",
   "nextSteps": [
     "Obtain explicit human-maintainer APPROVED review on PR #5024.",
     "Merge PR #5024 after approval."
