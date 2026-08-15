@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15001-fix-4928-pwsh-flake.json
-qaCommit: e94ffd1c20d5ca080df9b04d3d0a062c0fe48903
+qaCommit: 62730bf58efe9544acc2df1c508fe839d16f1541
 ---
 
 # QA Report: PowerShell runtime contract flake fix (#4928)
