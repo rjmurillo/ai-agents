@@ -487,18 +487,12 @@ class TestMain:
         assert "shadow_pytest_agreement=UNCOMPARED" in out
 
     def test_consume_step_replaces_shadow_step(self) -> None:
-        """The quality gate workflow consumes pytest.yml signal instead of running tests locally."""
+        """Quality gate consumes pytest.yml signal instead of running tests locally."""
         workflow = yaml.safe_load(
             (Path(__file__).parents[2] / ".github/workflows/ai-pr-quality-gate.yml").read_text(
                 encoding="utf-8"
             )
         )
         steps = workflow["jobs"]["run-tests"]["steps"]
-        # Shadow step should no longer exist
-        shadow_steps = [s for s in steps if "shadow" in s.get("name", "").lower()]
-        assert shadow_steps == [], "Shadow pytest step should be removed"
-        # Consume step should exist
-        consume = next(
-            (s for s in steps if "resolve pytest signal" in s.get("name", "").lower()), None
-        )
-        assert consume is not None, "Consume pytest signal step must exist"
+        assert not [s for s in steps if "shadow" in s.get("name", "").lower()]
+        assert any("resolve pytest signal" in s.get("name", "").lower() for s in steps)
