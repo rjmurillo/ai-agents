@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), db7ead33f (this session log and QA report), and ac53f6802 (handoff rewrite). endingCommit was later rebound to 9996e0905, a round-3 autofix commit that narrowed two analysis-file sentences and thereby staled this session's QA report (analysis file is evidence this QA scope covers); see 9996e0905 itself and .agents/qa/000-session-15001-pr-4954-round2-findings-qa.md revision history for that commit's own record, not a separate session log."
+        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), db7ead33f (this session log and QA report), and ac53f6802 (handoff rewrite). endingCommit was later rebound to 9996e0905 (round-3 autofix, narrowed two analysis-file sentences), then to e8b9229b9 (round-4 autofix, corrected the analysis file's runtime-contract-check wording, this session log's changesCommitted evidence to name db7ead33f/ac53f6802 explicitly, the corresponding episode's missing commit event, a stale session-14695 QA bullet, and a stale handoff); each rebind was required because the analysis file is evidence this QA scope covers. See e8b9229b9 itself and .agents/qa/000-session-15001-pr-4954-round2-findings-qa.md revision history for that commit's own record, not a separate session log."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Dash guard, full-mode validate_session_json.py, retrospective evidence check, ADR change detector, episode validator, and QA binding all verified passing; see workLog and the per-issue handoff for exact commands and output. Re-verified after the 9996e0905 rebind that session_qa_binding()/validate_qa_report() resolve cleanly against the new endingCommit."
+        "Evidence": "Dash guard, full-mode validate_session_json.py, retrospective evidence check, ADR change detector, episode validator, and QA binding all verified passing; see workLog and the per-issue handoff for exact commands and output. Re-verified after the e8b9229b9 rebind that session_qa_binding()/validate_qa_report() resolve cleanly against the new endingCommit."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -150,7 +150,7 @@
       "timestamp": "2026-08-15T10:45:00Z"
     }
   ],
-  "endingCommit": "9996e0905792abb6016b38cfa1f2afc01f692fb0",
+  "endingCommit": "e8b9229b9df615310728d664bb8f957be8604e3a",
   "nextSteps": [
     "Rewrite .agents/sessions/handoffs/2026-08-15-2840-handoff.md in a follow-up commit: remove all em/en-dashes, remove the copy-template HTML comment placeholder, correct the CI-mode claim to match this session's finding, correct the retrospective claim (now genuinely satisfied by this session log's Retrospective section below), and point the reciprocal session-log reference at this file (.agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json) instead of the Aug-12 log.",
     "If desired, open a follow-up issue to independently probe (not just infer) whether model_tier-resolved plugin agents actually override an operator's explicit session model, closing the open gap recorded in ADR-080 finding 4.",
