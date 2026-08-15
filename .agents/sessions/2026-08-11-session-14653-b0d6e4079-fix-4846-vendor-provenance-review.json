@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to dual-channel head-gate commit ddbee477979b6059ced8e127677bc9607f0be2ca."
+        "Evidence": "QA evidence rebound to latest trust-pin refresh e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96."
       },
       "validationPassed": {
         "level": "MUST",
@@ -251,8 +251,12 @@
     {
       "action": "Moved start and finish head-gate orchestration into Python.",
       "result": "Both status and check channels are always attempted before failures are aggregated. 222 provenance tests pass. Independent security review returned PASS."
+    },
+    {
+      "action": "Merged current main and pinned validate_install_parity plus discourse_traversal mirrors.",
+      "result": "222 provenance tests, 160 workflow checkout tests, and 20 merged-anchor tests pass."
     }
   ],
-  "endingCommit": "ddbee477979b6059ced8e127677bc9607f0be2ca",
+  "endingCommit": "e91c121cb4e9a2bd581e9153bc9ae6bc1d2ffa96",
   "nextSteps": []
 }
