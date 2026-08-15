@@ -7216,6 +7216,59 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
 
 
+def test_sync_observations_processes_every_file_on_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def _dispatch(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _dispatch)
+    paths = ["a-observations.md", "b-observations.md", "c-observations.md"]
+    assert policy.sync_observations(paths, tmp_path) == 0
+    assert len(calls) == 3
+
+
+def test_sync_observations_bails_out_when_forgetful_mcp_unreachable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[list[str]] = []
+
+    def _dispatch(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(
+            1,
+            stderr=(
+                "memory_sync.mcp_client.McpError: "
+                "Timeout waiting for response (>10.0s)"
+            ),
+        )
+
+    monkeypatch.setattr(policy, "_run_command", _dispatch)
+    paths = ["a-observations.md", "b-observations.md", "c-observations.md"]
+    assert policy.sync_observations(paths, tmp_path) == 0
+    assert len(calls) == 1
+    err = capsys.readouterr().err
+    assert "skipped observation sync for 2 remaining file(s)" in err
+
+
+def test_sync_observations_continues_past_non_mcp_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def _dispatch(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(1, stderr="ValueError: malformed observation table")
+
+    monkeypatch.setattr(policy, "_run_command", _dispatch)
+    paths = ["a-observations.md", "b-observations.md"]
+    assert policy.sync_observations(paths, tmp_path) == 0
+    assert len(calls) == 2
+
+
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

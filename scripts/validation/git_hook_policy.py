@@ -6893,7 +6893,14 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    for path in paths:
+    # Each import spawn pays an MCP handshake with its own timeout when the
+    # Forgetful service is absent (scripts/memory_sync/mcp_client.py raises
+    # McpError "Timeout waiting for response"). The lefthook job cap is 5m and
+    # a timeout kill cannot be absorbed by a shell guard, so paying that
+    # handshake once per file across a large push_files set converts this
+    # advisory into a push blocker. Bail after the first unreachable-service
+    # failure; every later spawn would fail the same way.
+    for index, path in enumerate(paths):
         result = _run_command(
             [
                 sys.executable,
@@ -6907,8 +6914,19 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
             repo_root,
         )
         _print_process_output(result)
-        if result.returncode != 0:
-            print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
+        if result.returncode == 0:
+            continue
+        print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
+        combined_output = f"{result.stdout}\n{result.stderr}"
+        if "McpError" in combined_output:
+            remaining = len(paths) - index - 1
+            if remaining:
+                print(
+                    "WARNING: Forgetful MCP unreachable; skipped observation "
+                    f"sync for {remaining} remaining file(s)",
+                    file=sys.stderr,
+                )
+            break
     return 0
 
 
