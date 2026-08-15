@@ -49,7 +49,7 @@ def _load_skill() -> str:
     return _skill_text
 
 
-def _parse_frontmatter(text: str) -> dict:
+def _parse_frontmatter(text: str) -> dict[str, object]:
     """Parse YAML frontmatter between ``---`` fences."""
     m = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
     if not m:
