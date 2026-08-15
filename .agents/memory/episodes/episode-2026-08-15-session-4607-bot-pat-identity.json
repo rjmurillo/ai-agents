@@ -1,0 +1,47 @@
+{
+  "id": "episode-2026-08-15-session-4607-bot-pat-identity",
+  "session": "2026-08-15-session-4607-bot-pat-identity",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Issue #4607: make the BOT_PAT identity checkable from any CI run log and fix repo-side wiring",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "investigate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "diagnose",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

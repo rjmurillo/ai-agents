@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4607,
+    "date": "2026-08-15",
+    "branch": "claude/issue-4607-bot-pat-identity",
+    "startingCommit": "430c206d21",
+    "objective": "Issue #4607: make the BOT_PAT identity checkable from any CI run log and fix repo-side wiring"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Evidence": "serena tools available",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Evidence": "serena MCP instructions loaded",
+        "Complete": true
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Evidence": "HANDOFF.md auto-injected; no issue-4607 branch handoff exists",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Evidence": ".agents/sessions/2026-08-15-session-4607-bot-pat-identity.json",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Evidence": "scripts/ci and scripts/validation reviewed",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Evidence": "issue #4607 and all 11 comments read via GitHub MCP",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Evidence": "CLAUDE.md, AGENTS.md, .claude/rules read; ADR-026 Decision 5 read",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Evidence": "auto-recalled memories reviewed; retrospective 2026-08-05-pr-queue-and-doctrine.md read",
+        "Complete": true
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Evidence": "claude/issue-4607-bot-pat-identity at origin/main 430c206d21",
+        "Complete": true
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Evidence": "claude/issue-4607-bot-pat-identity",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Evidence": "pending",
+        "Complete": false
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "investigate",
+      "description": "Read issue #4607, ADR-026 Decision 5, retrospective 2026-08-05; mapped BOT_PAT/GH_TOKEN wiring across .github/workflows and the ai-review action"
+    },
+    {
+      "action": "diagnose",
+      "description": "Wiring passes secrets.BOT_PAT consistently; defect is (a) secret value belongs to human account (operator-only) and (b) no run log reports the resolved identity because verify_github_auth.py is gated behind enable-diagnostics=false and never compares the id"
+    },
+    {
+      "action": "implement",
+      "description": "Added scripts/ci/check_bot_identity.py (stdlib-only, MATCH/MISMATCH/MISSING/UNKNOWN verdicts, strict mode with nonzero exits) with 18 tests"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Owner: mint BOT_PAT from rjmurillo-bot (id 250269933), store as repository secret, confirm the identity step reports MATCH"
+  ]
+}
