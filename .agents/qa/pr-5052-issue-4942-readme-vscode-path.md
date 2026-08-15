@@ -26,4 +26,4 @@ This disagreed with `docs/installation.md` line 96 which correctly states
 
 ## Retrospective
 
-Documentation-only fix with regression test. Low risk.
+Documentation fix with regression test plus a pre-existing subprocess encoding fix on main. Low risk.
