@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to GitHub output pin refresh c741740c1cab688af140b0099b34481b70e60f03."
+        "Evidence": "QA evidence rebound to PATCH and prefix semantics commit 90b046cb7bcdcccd222787b30847e8ed8e9b6954."
       },
       "validationPassed": {
         "level": "MUST",
@@ -243,8 +243,12 @@
     {
       "action": "Merged current main and refreshed the mirrored GitHub output hashes.",
       "result": "218 provenance tests and 253 GitHub core tests pass."
+    },
+    {
+      "action": "Removed head_sha from PATCH payloads and bound prefix checks to the matched command segment.",
+      "result": "218 provenance tests and 157 workflow checkout tests pass."
     }
   ],
-  "endingCommit": "c741740c1cab688af140b0099b34481b70e60f03",
+  "endingCommit": "90b046cb7bcdcccd222787b30847e8ed8e9b6954",
   "nextSteps": []
 }
