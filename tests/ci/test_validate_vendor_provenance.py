@@ -450,6 +450,30 @@ class TestNpmrcRejection:
         assert ".npmrc" in r.stdout
 
 
+# ── uv.toml rejection ──
+
+
+class TestUvTomlRejection:
+    def test_root_uv_toml_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "c"
+        _write(root / "uv.toml", 'index-url = "https://evil.example/simple"')
+
+        result = _run(["--candidate-root", str(root)])
+
+        assert result.returncode == 1
+        assert "uv.toml" in result.stdout
+
+    def test_root_uv_toml_symlink_rejected(self, tmp_path: Path) -> None:
+        root = tmp_path / "c"
+        root.mkdir()
+        (root / "uv.toml").symlink_to(root / "missing-uv.toml")
+
+        result = _run(["--candidate-root", str(root)])
+
+        assert result.returncode == 1
+        assert "uv.toml" in result.stdout
+
+
 # ── Installed-hook entrypoint test ──
 
 
@@ -1804,6 +1828,13 @@ class TestNpmrcRelevance:
         assert check_relevance([".claude/.npmrc"]) is True
 
 
+class TestUvTomlRelevance:
+    def test_uv_toml_only_change_triggers_relevance(self):
+        from scripts.ci.validate_vendor_provenance import check_relevance
+
+        assert check_relevance(["uv.toml"]) is True
+
+
 # ── Trust anchor authentication regression ──
 
 
@@ -1911,6 +1942,14 @@ class TestDiffTreeEmptyCollapse:
         # Find lines containing git commands with || true (would suppress errors)
         git_suppressed = re.findall(r"git\s+.*\|\|\s*true", content)
         assert git_suppressed == [], f"Git error suppression found: {git_suppressed}"
+
+    def test_check_run_creation_failure_is_not_suppressed(self):
+        wf_path = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
+        content = wf_path.read_text()
+        create_step = content.split("- name: Create in-progress check run", 1)[1]
+        create_step = create_step.split("- name:", 1)[0]
+
+        assert "|| true" not in create_step
 
 
 # ── Pinned hook_utilities coverage ──

@@ -1776,6 +1776,13 @@ def _reject_npmrc(candidate: Path, vendor_dir: Path) -> list[str]:
     return errors
 
 
+def _reject_uv_toml(candidate: Path) -> list[str]:
+    uv_config = candidate / "uv.toml"
+    if uv_config.exists() or uv_config.is_symlink():
+        return ["uv.toml at repository root"]
+    return []
+
+
 def _find_forbidden_config_keys(value: object, location: str = "$") -> list[str]:
     errors: list[str] = []
     if isinstance(value, dict):
@@ -1927,6 +1934,7 @@ _EXTRA_WATCHED: tuple[str, ...] = (
     ".github/copilot/settings.json",
     ".claude/.npmrc",
     ".npmrc",
+    "uv.toml",
 )
 
 
@@ -2206,7 +2214,12 @@ def main() -> int:
     _run_phase(".npmrc Rejection", errs)
     all_errors.extend(errs)
 
-    # 10. Vendor reconstruction (npm ci)
+    # 10. uv configuration rejection
+    errs = _reject_uv_toml(root)
+    _run_phase("uv.toml Rejection", errs)
+    all_errors.extend(errs)
+
+    # 11. Vendor reconstruction (npm ci)
     # ABORT if any preflight error: never execute npm with tainted inputs.
     if all_errors:
         print("\n  SKIP: Vendor reconstruction skipped (preflight errors)")

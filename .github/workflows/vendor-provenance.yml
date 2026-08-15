@@ -76,22 +76,17 @@ jobs:
         # completed "Validate Vendor Provenance" check-run for that same
         # SHA remains the latest status for the whole re-validation
         # window. Creating an in_progress run here immediately shadows
-        # any such stale success. Best-effort: a failure here must not
-        # fail the job, since `_publish_check_run` falls back to creating
-        # a fresh completed run at the end (issue raised in PR #4846
-        # review).
+        # any such stale success. A creation failure must fail the job.
+        # Falling back to a completed run at the end would preserve the
+        # stale-success window during validation.
         if: always() && github.event_name == 'pull_request_target'
         id: create_check
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Best-effort: `|| true` keeps this non-fatal (see rationale
-          # above) without weakening the file-wide fail-closed contract;
-          # a creation failure degrades to the pre-existing POST-only
-          # publish path, it does not abort the job.
           CHECK_RUN_ID=$(python3 scripts/ci/validate_vendor_provenance.py \
-            --create-check-run "${{ github.repository }}" "$PR_SHA") || true
+            --create-check-run "${{ github.repository }}" "$PR_SHA")
           echo "check_run_id=$CHECK_RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Materialize candidate and comparison trees
