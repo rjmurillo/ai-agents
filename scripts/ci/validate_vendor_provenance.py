@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path, PurePosixPath
 
 # ── Trust-anchor pins (SHA-256, lowercase hex) ──
@@ -1654,6 +1655,46 @@ def _validate_check_run_id(check_run_id: str) -> str:
     return check_run_id
 
 
+def _is_retryable_gh_error(stderr: str) -> bool:
+    match = re.search(r"HTTP\s+(\d{3})", stderr)
+    if match is None:
+        return True
+    status = int(match.group(1))
+    return status in {408, 429} or status >= 500
+
+
+def _run_gh_api(args: list[str], payload: str) -> subprocess.CompletedProcess[str] | None:
+    attempts = 3
+    for attempt in range(attempts):
+        try:
+            result = subprocess.run(
+                args,
+                input=payload,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            if attempt == attempts - 1:
+                print(
+                    f"ERROR: GitHub API timed out after {attempts} attempts: {exc}",
+                    file=sys.stderr,
+                )
+                return None
+            time.sleep(attempt + 1)
+            continue
+        except FileNotFoundError as exc:
+            print(f"ERROR: GitHub CLI is unavailable: {exc}", file=sys.stderr)
+            return None
+        if result.returncode == 0 or not _is_retryable_gh_error(result.stderr):
+            return result
+        if attempt < attempts - 1:
+            time.sleep(attempt + 1)
+    return result
+
+
 def _create_check_run(repo: str, head_sha: str) -> str | None:
     """Create an in_progress check run on the PR head SHA.
 
@@ -1669,9 +1710,8 @@ def _create_check_run(repo: str, head_sha: str) -> str | None:
     completes this exact check-run ID.
 
     Returns the numeric check-run ID as a string on success, None on
-    failure (caller falls back to the create-on-publish path, which is
-    fail-closed for a brand-new SHA but keeps the exact race this
-    function exists to close for edited/reopened events).
+    failure. The publisher refuses to create a competing fallback row
+    when creation failed.
     """
     repo = _validate_repo_slug(repo)
     import json as _json
@@ -1680,22 +1720,15 @@ def _create_check_run(repo: str, head_sha: str) -> str | None:
         "head_sha": head_sha,
         "status": "in_progress",
     })
-    try:
-        result = subprocess.run(
-            [
-                "gh", "api", f"repos/{repo}/check-runs",
-                "-X", "POST",
-                "--input", "-",
-            ],
-            input=payload,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        print(f"ERROR: check-run creation failed: {exc}", file=sys.stderr)
+    result = _run_gh_api(
+        [
+            "gh", "api", f"repos/{repo}/check-runs",
+            "-X", "POST",
+            "--input", "-",
+        ],
+        payload,
+    )
+    if result is None:
         return None
     if result.returncode != 0:
         print(f"ERROR: check-run creation failed: {result.stderr}", file=sys.stderr)
@@ -1723,9 +1756,8 @@ def _publish_check_run(
 
     When `check_run_id` is given (the ID returned by `_create_check_run`),
     this PATCHes that exact in_progress run to completed, closing the
-    stale-success race on edited/reopened events. Without it, this POSTs
-    a brand-new completed run (used when creation failed or was skipped),
-    matching the prior fail-closed behavior for a first-time SHA.
+    stale-success race on edited/reopened events. Without it, publication
+    fails without creating a second competing row.
 
     Returns 0 on success, 1 on failure.
     """
@@ -1741,31 +1773,22 @@ def _publish_check_run(
             "summary": summary,
         },
     })
-    if check_run_id:
-        check_run_id = _validate_check_run_id(check_run_id)
-        args = [
+    if not check_run_id:
+        print(
+            "ERROR: refusing to publish without the in-progress check-run ID",
+            file=sys.stderr,
+        )
+        return 1
+    check_run_id = _validate_check_run_id(check_run_id)
+    result = _run_gh_api(
+        [
             "gh", "api", f"repos/{repo}/check-runs/{check_run_id}",
             "-X", "PATCH",
             "--input", "-",
-        ]
-    else:
-        args = [
-            "gh", "api", f"repos/{repo}/check-runs",
-            "-X", "POST",
-            "--input", "-",
-        ]
-    try:
-        result = subprocess.run(
-            args,
-            input=payload,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        print(f"ERROR: check-run publication failed: {exc}", file=sys.stderr)
+        ],
+        payload,
+    )
+    if result is None:
         return 1
     if result.returncode != 0:
         print(f"ERROR: check-run publication failed: {result.stderr}", file=sys.stderr)

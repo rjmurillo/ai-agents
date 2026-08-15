@@ -801,6 +801,14 @@ class TestWorkflowContractRegression:
         assert "python-version: '3.14.6'" in workflow
         assert "version: '0.12.0'" in workflow
 
+    def test_workflow_serializes_runs_per_pull_request(self) -> None:
+        workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
+            encoding="utf-8"
+        )
+
+        assert "group: vendor-provenance-" in workflow
+        assert "cancel-in-progress: true" in workflow
+
 
 # ── Relevance check (exercises production helper) ──
 
@@ -2451,7 +2459,9 @@ class TestPublishCheckRun:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "{}"
-            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+            result = _publish_check_run(
+                "owner/repo", "abc123", "success", "ok", check_run_id="999"
+            )
         assert result == 0
         call_args = mock_run.call_args
         assert "check-runs" in call_args[0][0][2]
@@ -2464,7 +2474,9 @@ class TestPublishCheckRun:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "{}"
-            result = _publish_check_run("owner/repo", "abc123", "failure", "bad")
+            result = _publish_check_run(
+                "owner/repo", "abc123", "failure", "bad", check_run_id="999"
+            )
         assert result == 0
 
     def test_api_failure_returns_1(self) -> None:
@@ -2475,7 +2487,9 @@ class TestPublishCheckRun:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 1
             mock_run.return_value.stderr = "unauthorized"
-            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+            result = _publish_check_run(
+                "owner/repo", "abc123", "success", "ok", check_run_id="999"
+            )
         assert result == 1
 
     def test_timeout_returns_1(self) -> None:
@@ -2485,7 +2499,9 @@ class TestPublishCheckRun:
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gh", 30)):
-            result = _publish_check_run("owner/repo", "abc123", "success", "ok")
+            result = _publish_check_run(
+                "owner/repo", "abc123", "success", "ok", check_run_id="999"
+            )
         assert result == 1
 
     def test_check_run_id_patches_existing_run(self) -> None:
@@ -2507,20 +2523,15 @@ class TestPublishCheckRun:
         assert "-X" in call_args
         assert call_args[call_args.index("-X") + 1] == "PATCH"
 
-    def test_no_check_run_id_posts_new_run(self) -> None:
-        """Falls back to POST when no check_run_id is given (unchanged)."""
+    def test_no_check_run_id_refuses_second_row(self) -> None:
         from unittest.mock import patch
 
         from scripts.ci.validate_vendor_provenance import _publish_check_run
 
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = "{}"
             result = _publish_check_run("owner/repo", "abc123", "success", "ok")
-        assert result == 0
-        call_args = mock_run.call_args[0][0]
-        assert call_args[2] == "repos/owner/repo/check-runs"
-        assert call_args[call_args.index("-X") + 1] == "POST"
+        assert result == 1
+        mock_run.assert_not_called()
 
 
 class TestCreateCheckRun:
@@ -2550,6 +2561,24 @@ class TestCreateCheckRun:
             mock_run.return_value.stderr = "unauthorized"
             result = _create_check_run("owner/repo", "abc123")
         assert result is None
+
+    def test_transient_failure_retries_then_succeeds(self) -> None:
+        from subprocess import CompletedProcess
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        responses = [
+            CompletedProcess([], 1, stdout="", stderr="gh: unavailable (HTTP 502)"),
+            CompletedProcess([], 0, stdout='{"id": 12345}', stderr=""),
+        ]
+        with (
+            patch("subprocess.run", side_effect=responses) as mock_run,
+            patch("time.sleep"),
+        ):
+            result = _create_check_run("owner/repo", "abc123")
+        assert result == "12345"
+        assert mock_run.call_count == 2
 
     def test_timeout_returns_none(self) -> None:
         import subprocess

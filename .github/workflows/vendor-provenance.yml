@@ -16,6 +16,10 @@
 
 name: Vendor Provenance
 
+concurrency:
+  group: vendor-provenance-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   checks: write
@@ -76,9 +80,9 @@ jobs:
         # completed "Validate Vendor Provenance" check-run for that same
         # SHA remains the latest status for the whole re-validation
         # window. Creating an in_progress run here immediately shadows
-        # any such stale success. A creation failure must fail the job.
-        # Falling back to a completed run at the end would preserve the
-        # stale-success window during validation.
+        # any such stale success. Bounded retries absorb transient API
+        # failures. If creation still fails, the job fails and the final
+        # publisher refuses to create a second competing check-run row.
         if: always() && github.event_name == 'pull_request_target'
         id: create_check
         env:
