@@ -116,7 +116,8 @@
         "e079",
         "e081",
         "e083",
-        "e085"
+        "e085",
+        "e087"
       ],
       "leads_to": [
         "e006"
@@ -1101,6 +1102,30 @@
       "caused_by": [
         "e084"
       ],
+      "leads_to": [
+        "e088"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e087",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published the pending PR-head status before any Git operation and required full checkout-index materialization.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e088",
+      "timestamp": "2026-08-15T12:32:00+00:00",
+      "type": "commit",
+      "content": "Commit: de56b3261348c8753192fc3e857cc4a7bb0faaa3",
+      "caused_by": [
+        "e086"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1110,7 +1135,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 47,
+    "commits": 48,
     "files_changed": 53
   },
   "lessons": []

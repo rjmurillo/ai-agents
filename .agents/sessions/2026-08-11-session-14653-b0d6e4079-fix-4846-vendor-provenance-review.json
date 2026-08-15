@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to UTF-8 subprocess fix 6df6ae35f382b9682afb0799be48dedaf4b0d982."
+        "Evidence": "QA evidence rebound to pre-materialization sentinel de56b3261348c8753192fc3e857cc4a7bb0faaa3."
       },
       "validationPassed": {
         "level": "MUST",
@@ -259,8 +259,12 @@
     {
       "action": "Fixed the latest main subprocess encoding regression.",
       "result": "consume_pytest_signal now pins UTF-8 with replacement decoding. 16 targeted tests pass."
+    },
+    {
+      "action": "Published the pending PR-head status before any Git operation and required full checkout-index materialization.",
+      "result": "222 provenance tests and 161 workflow checkout tests pass. Independent security review returned PASS."
     }
   ],
-  "endingCommit": "6df6ae35f382b9682afb0799be48dedaf4b0d982",
+  "endingCommit": "de56b3261348c8753192fc3e857cc4a7bb0faaa3",
   "nextSteps": []
 }
