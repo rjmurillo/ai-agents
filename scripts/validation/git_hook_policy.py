@@ -6967,15 +6967,28 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The observation-sync-advisory lefthook job carries a 5m timeout, and a
+# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
+# the kill lands before any || branch runs), so this advisory's worst case must
+# be held under the cap from the inside. Each file costs up to ~10s when the
+# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
+# 10.0 seconds per request), and the first push of a new branch sweeps every
+# tracked observation file into {push_files}, so an unreachable MCP server
+# overruns the cap and blocks the push. 240s leaves 60s of headroom.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 240.0
+
+
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    # Each import spawn pays an MCP handshake with its own timeout when the
-    # Forgetful service is absent (scripts/memory_sync/mcp_client.py raises
-    # McpError "Timeout waiting for response"). The lefthook job cap is 5m and
-    # a timeout kill cannot be absorbed by a shell guard, so paying that
-    # handshake once per file across a large push_files set converts this
-    # advisory into a push blocker. Bail after the first unreachable-service
-    # failure; every later spawn would fail the same way.
+    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
     for index, path in enumerate(paths):
+        if time.monotonic() >= deadline:
+            print(
+                "WARNING: observation sync budget "
+                f"({int(_OBSERVATION_SYNC_BUDGET_SECONDS)}s) exhausted; "
+                f"skipped {len(paths) - index} of {len(paths)} file(s)",
+                file=sys.stderr,
+            )
+            break
         result = _run_command(
             [
                 sys.executable,
@@ -6989,19 +7002,8 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
             repo_root,
         )
         _print_process_output(result)
-        if result.returncode == 0:
-            continue
-        print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
-        combined_output = f"{result.stdout}\n{result.stderr}"
-        if "McpError" in combined_output:
-            remaining = len(paths) - index - 1
-            if remaining:
-                print(
-                    "WARNING: Forgetful MCP unreachable; skipped observation "
-                    f"sync for {remaining} remaining file(s)",
-                    file=sys.stderr,
-                )
-            break
+        if result.returncode != 0:
+            print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
     return 0
 
 

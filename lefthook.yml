@@ -449,6 +449,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+              # This job's own timeout (above) in seconds, so the
+              # generated-staleness gate can clamp its deadline to the
+              # process's remaining share; a test pins the two values.
+              PRE_PR_OUTER_CAP_SECONDS: "900"
 
           - name: worktree-gc-report
             timeout: 2m
@@ -561,10 +565,6 @@ pre-push:
               build/scripts/validate_planning_artifacts.py
               --path . --fail-on-error
             glob: ".agents/planning/**/*.md"
-
-          - name: build-all-check
-            timeout: 15m
-            run: uv run --frozen python build/scripts/build_all.py --check
 
           - name: branch-scope
             timeout: 5m
