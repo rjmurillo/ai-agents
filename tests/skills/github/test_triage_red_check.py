@@ -61,13 +61,16 @@ def check_run(
     run_id: int = 100,
     attempt: int = 1,
     job_id: int = 1,
+    with_url: bool = True,
 ) -> dict:
     return {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
         "conclusion": conclusion,
-        "detailsUrl": _RUN_URL.format(run_id=run_id, job_id=job_id),
+        "detailsUrl": (
+            _RUN_URL.format(run_id=run_id, job_id=job_id) if with_url else ""
+        ),
         "checkSuite": {
             "workflowRun": {"databaseId": run_id, "runAttempt": attempt}
         },
@@ -305,6 +308,24 @@ class TestRedOnMain:
         assert rc == 1
         assert envelope["Data"]["Verdict"] == "RED_ON_MAIN"
 
+    def test_missing_details_url_falls_back_to_run_url(self):
+        # A check run can lack detailsUrl; the workflow run id still names the
+        # evidence run, so the run URL is constructed instead of losing it.
+        response = history_response(
+            [
+                commit_node(
+                    "aaa",
+                    [check_run("Run Python Tests", "FAILURE", run_id=88, with_url=False)],
+                )
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 1
+        assert (
+            envelope["Data"]["EvidenceUrl"]
+            == "https://github.com/o/r/actions/runs/88"
+        )
+
     def test_red_sibling_wins_within_one_run(self):
         # Two jobs of one run share the name and both ran; the failure is
         # real and must win over the passing sibling (refs issue #4499).
@@ -387,6 +408,44 @@ class TestUnknown:
         assert envelope.get("Success") is False
         assert "UNKNOWN" in str(envelope.get("Error"))
 
+    def test_malformed_history_payload_exits_three_not_traceback(self):
+        # ADR-035 reserves exit 1 for the RED_ON_MAIN verdict, so a malformed
+        # payload must map to ApiError (exit 3), never an AttributeError.
+        response = {"repository": {"ref": {"name": "main", "target": {"history": "junk"}}}}
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        assert envelope.get("Success") is False
+
+    def test_non_object_history_node_exits_three(self):
+        response = {
+            "repository": {
+                "ref": {"name": "main", "target": {"history": {"nodes": ["junk"]}}}
+            }
+        }
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        assert envelope.get("Success") is False
+
+    def test_non_object_rollup_exits_three(self):
+        commit = {
+            "oid": "aaa",
+            "committedDate": "2026-08-15T00:00:00Z",
+            "statusCheckRollup": "junk",
+        }
+        rc, envelope = _run_main(_single_response(history_response([commit])))
+        assert rc == 3
+        assert envelope.get("Success") is False
+
+    def test_non_object_contexts_exits_three(self):
+        commit = {
+            "oid": "aaa",
+            "committedDate": "2026-08-15T00:00:00Z",
+            "statusCheckRollup": {"contexts": ["junk"]},
+        }
+        rc, envelope = _run_main(_single_response(history_response([commit])))
+        assert rc == 3
+        assert envelope.get("Success") is False
+
     def test_stale_only_rows_are_unknown(self):
         response = history_response(
             [commit_node("aaa", [check_run("Run Python Tests", "STALE")])]
@@ -462,6 +521,17 @@ class TestEvaluateCommitRows:
 
     def test_unrecognized_node_type_normalizes_to_none(self):
         assert normalize_row({"__typename": "SomethingElse"}) is None
+
+    def test_non_dict_context_node_is_dropped_not_raised(self):
+        assert normalize_row("junk") is None
+
+    def test_garbage_node_beside_valid_success_still_green(self):
+        response = history_response(
+            [commit_node("aaa", ["junk", check_run("Run Python Tests", "SUCCESS")])]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 0
+        assert envelope["Data"]["Verdict"] == "GREEN_ON_MAIN"
 
 
 class TestTriageOutputShape:

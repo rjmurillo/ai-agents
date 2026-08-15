@@ -223,7 +223,15 @@ _GUIDANCE = {
 
 
 def normalize_row(ctx: dict) -> dict | None:
-    """Convert a GraphQL context node to a flat row, or None for other types."""
+    """Convert a GraphQL context node to a flat row, or None for other types.
+
+    A malformed node (not a dict) is dropped rather than raised on: an
+    AttributeError here would exit 1, which ADR-035 reserves for verified
+    logic failures, and the caller's pagination completeness check already
+    prevents a dropped node from turning into a false GREEN.
+    """
+    if not isinstance(ctx, dict):
+        return None
     typename = ctx.get("__typename")
 
     if typename == "CheckRun":
@@ -409,13 +417,40 @@ def fetch_branch_history(owner: str, repo: str, branch: str, depth: int) -> dict
             "Error": "BranchNotFound",
             "Message": f"Branch {branch!r} not found in {owner}/{repo}",
         }
-    target = ref.get("target") or {}
-    history_nodes = (target.get("history") or {}).get("nodes") or []
+    # Malformed shapes below map to ApiError (exit 3, UNKNOWN), never an
+    # uncaught AttributeError: exit 1 is reserved for the RED_ON_MAIN verdict.
+    target = ref.get("target")
+    history = target.get("history") if isinstance(target, dict) else None
+    history_nodes = history.get("nodes") if isinstance(history, dict) else None
+    if not isinstance(history_nodes, list):
+        return {
+            "Error": "ApiError",
+            "Message": "Malformed GraphQL response: branch history is missing",
+        }
 
     commits: list[dict] = []
     for node in history_nodes:
-        rollup = node.get("statusCheckRollup") or {}
-        contexts = rollup.get("contexts") or {}
+        if not isinstance(node, dict):
+            return {
+                "Error": "ApiError",
+                "Message": "Malformed GraphQL response: non-object history node",
+            }
+        # A null rollup or contexts is GitHub's legitimate "no checks on this
+        # commit"; a non-null non-object is a malformed payload and must not
+        # silently read as "no checks" (the walk would skip past it).
+        rollup = node.get("statusCheckRollup")
+        if rollup is not None and not isinstance(rollup, dict):
+            return {
+                "Error": "ApiError",
+                "Message": "Malformed GraphQL response: non-object statusCheckRollup",
+            }
+        contexts = (rollup or {}).get("contexts")
+        if contexts is not None and not isinstance(contexts, dict):
+            return {
+                "Error": "ApiError",
+                "Message": "Malformed GraphQL response: non-object contexts",
+            }
+        contexts = contexts or {}
         context_nodes = list(contexts.get("nodes") or [])
         page_info = contexts.get("pageInfo") or {}
         pages_complete = True
@@ -464,6 +499,7 @@ def triage(commits: list[dict], check_name: str) -> dict:
                 "Verdict": _VERDICT_UNKNOWN,
                 "Reason": "contexts_incomplete",
                 "EvidenceUrl": None,
+                "EvidenceRunId": None,
                 "EvidenceCommit": commit["Oid"],
                 "EvidenceCommitDate": commit["CommittedDate"],
                 "CommitsExamined": commits_examined,
@@ -477,6 +513,7 @@ def triage(commits: list[dict], check_name: str) -> dict:
             "Verdict": _VERDICT_RED if verdict == "red" else _VERDICT_GREEN,
             "Reason": "",
             "EvidenceUrl": (evidence or {}).get("DetailsUrl") or None,
+            "EvidenceRunId": (evidence or {}).get("WorkflowRunId"),
             "EvidenceCommit": commit["Oid"],
             "EvidenceCommitDate": commit["CommittedDate"],
             "CommitsExamined": commits_examined,
@@ -487,6 +524,7 @@ def triage(commits: list[dict], check_name: str) -> dict:
         "Verdict": _VERDICT_UNKNOWN,
         "Reason": "not_observed_on_branch",
         "EvidenceUrl": None,
+        "EvidenceRunId": None,
         "EvidenceCommit": None,
         "EvidenceCommitDate": None,
         "CommitsExamined": commits_examined,
@@ -598,6 +636,14 @@ def main(argv: list[str] | None = None) -> int:
 
     result = triage(history["Commits"], args.check_name)
     verdict = result["Verdict"]
+
+    # A check run can lack detailsUrl; the workflow run id still identifies
+    # the evidence run, so construct the run URL rather than losing it.
+    if not result["EvidenceUrl"] and result.get("EvidenceRunId") is not None:
+        result["EvidenceUrl"] = (
+            f"https://github.com/{owner}/{repo}/actions/runs/"
+            f"{result['EvidenceRunId']}"
+        )
 
     output = {
         "CheckName": args.check_name,
