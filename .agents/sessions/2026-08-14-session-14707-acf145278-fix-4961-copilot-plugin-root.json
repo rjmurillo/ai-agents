@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix and tests committed as acf145278 on fix/4961-merge-resolver-copilot-plugin-root."
+        "Evidence": "Latest review fix and tests committed as 223042927 on fix/4961-merge-resolver-copilot-plugin-root."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validation/pre_pr.py: 51 validations passed; ruff clean on changed paths; portability 160/160; taste ratchet 581 <= 583."
+        "Evidence": "Review fix: 18 targeted tests passed and Ruff reported no issues on both changed code files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -163,9 +163,14 @@
       "timestamp": "2026-08-14T22:45:00Z",
       "action": "PR 5000 description gate FAIL, then review finding from copilot-pull-request-reviewer",
       "result": "Description gate: inline-backtick paths under '## Changes' are change claims; moved the mirror and out-of-scope subsections to '## Design Decisions' and '## Out of Scope' and verified locally with scripts/validation/pr_description.py (0 issues). Review finding: the candidate predicate accepted github_core on directory name alone, so a partial package imported instead of falling through; predicate now requires github_core/api.py, plus 3 new tests and mutant M5. Commit 271d20435."
+    },
+    {
+      "timestamp": "2026-08-15T05:46:00Z",
+      "action": "Addressed the second review round on candidate importability",
+      "result": "Candidate selection now imports RepoInfo in an isolated Python process. Added missing-transitive-module, empty-stderr, timeout, and CLI regression coverage. Commit 223042927; 18 targeted tests passed and Ruff was clean."
     }
   ],
-  "endingCommit": "271d20435dbe6949f4114a235fd68600b269cf04",
+  "endingCommit": "223042927e5e158204c9a782a6fff328211de0fe",
   "nextSteps": [
     "Watch CI on the PR for the merge-resolver skill tests.",
     "Consider a follow-up issue: other skill scripts still collapse COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with 'or', which shadows a valid root when the first is set but foreign."

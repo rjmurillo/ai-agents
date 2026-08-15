@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root.json
-qaCommit: 271d20435dbe6949f4114a235fd68600b269cf04
+qaCommit: 223042927e5e158204c9a782a6fff328211de0fe
 ---
 
 # Issue 4961 Session 14707 QA Report
@@ -10,8 +10,8 @@ qaCommit: 271d20435dbe6949f4114a235fd68600b269cf04
 
 Validated the plugin `lib` resolution in
 `.claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py`: candidate
-order, per-candidate validation, fallthrough past a foreign plugin root, and
-fail-closed exit 2 when no candidate carries `github_core`.
+order, isolated `RepoInfo` import validation, fallthrough past incomplete or
+foreign plugin roots, and fail-closed exit 2 when no candidate is importable.
 
 ## Defect reproduction
 
@@ -36,44 +36,19 @@ not mask the result.
 
 ## Results
 
-- Focused tests: PASS, 91 tests (14 new).
+- Review fix tests: PASS, 18 tests.
 
   ```text
-  uv run --frozen python -m pytest tests/skills/merge-resolver/ \
-    tests/test_plugin_path_resolution.py -q
-  91 passed
+  uv run pytest tests/skills/merge-resolver/test_resolve_lib_dir.py -q
+  18 passed
   ```
-
-- Full suite: PASS (`uv run --frozen python -m pytest tests/ -x -q
-  --timeout=300` exited 0: 28325 passed, 37 skipped in 900.17s), and the
-  pre-push `python-tests` job passed in 336.86s on the first push.
-
-- Mutation sweep: PASS, 5 mutants, 0 unexpected outcomes.
-
-  | Mutant | Restores | Expected | Observed |
-  |--------|----------|----------|----------|
-  | M1 | Claude root ahead of Copilot root | DEAD | DEAD (2 failed) |
-  | M2 | Accept any existing `lib/` (drop the module check) | DEAD | DEAD (5 failed) |
-  | M3 | Take the first candidate only (no fallthrough) | DEAD | DEAD (7 failed) |
-  | M5 | Name-only `github_core` check (PR #5000 review defect) | DEAD | DEAD (3 failed) |
-  | M4 | Inverted control: reword one docstring line | SURVIVED | SURVIVED (14 passed) |
-
-  The harness refuses an absent or ambiguous target, asserts the file changed
-  on disk before running, clears `__pycache__` between runs, restores the file
-  byte-identically after each mutant, and fails the sweep on pytest exit 4 or
-  "no tests ran".
 
 - Scoped Ruff: PASS.
 
   ```text
-  uv run --frozen ruff check .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
+  uv run ruff check .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
     tests/skills/merge-resolver/test_resolve_lib_dir.py
   ```
-
-- Vendor portability: PASS, 160 grandfathered refs across 84 scripts
-  (baseline 160).
-- Taste count ratchet: PASS, 581 violations against baseline 583.
-- Pre-PR validation: PASS, 51 validations.
 
 ## Coverage
 
@@ -86,10 +61,13 @@ not mask the result.
 | Missing Copilot root falls through | `test_missing_copilot_root_falls_through_to_claude_root` |
 | Foreign `lib/` without `github_core` rejected | `test_foreign_plugin_lib_without_core_package_is_rejected` |
 | Partial `github_core` without `api.py` rejected | `test_partial_core_package_without_the_imported_module_is_rejected` |
+| `api.py` with a missing transitive import rejected | `test_api_with_missing_transitive_module_is_rejected` |
+| Import failure with empty stderr | `test_import_probe_reports_failure_without_stderr` |
+| Import timeout | `test_import_probe_reports_timeout` |
 | `GITHUB_WORKSPACE` checkout | `test_uses_github_workspace_when_no_plugin_root_is_valid` |
 | Repo-relative fallback | `test_falls_back_to_repository_lib_when_no_variable_is_set` |
 | Fail-closed exit 2 and message | `test_exits_2_when_no_candidate_carries_the_core_package` |
-| End to end under Copilot CLI | `TestResolveLibDirCli` (3 subprocess tests) |
+| End to end under Copilot CLI | `TestResolveLibDirCli` (4 subprocess tests) |
 
 ## Review round 1
 
@@ -100,9 +78,16 @@ than fall through or exit 2. Confirmed and fixed in commit 271d20435: the
 predicate now requires `github_core/api.py`, the module the script imports.
 Mutant M5 reproduces the reported defect and is killed by 3 tests.
 
+## Review round 2
+
+`copilot-pull-request-reviewer` found that checking for `api.py` still allowed
+an incomplete package whose imported sibling modules were absent. Fixed in
+commit 223042927: each candidate now imports `RepoInfo` in an isolated Python
+process before selection. Tests cover a missing transitive module, empty
+stderr, timeout, and the subprocess CLI path.
+
 ## Verdict
 
 PASS. The acceptance criteria in issue 4961 are met: both harness roots
-resolve, a foreign root falls through instead of ending the run, a partial
-package is rejected rather than imported, and the fail-closed exit 2 path is
-preserved and asserted.
+resolve, foreign and incomplete roots fall through instead of ending the run,
+and the fail-closed exit 2 path is preserved and asserted.
