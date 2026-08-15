@@ -283,6 +283,25 @@ def _check_commit(owner: str, repo: str, sha: str) -> ClaimCheck:
             f"cited commit {sha}", owner, repo, sanitize_failure_detail(exc)
         )
     if result.returncode == 0:
+        # Validate response body: gh exits 0 for any 2xx, so an empty,
+        # non-JSON, or wrong-object payload must not silently verify the
+        # commit (issue #4951, PR #5011).
+        body = result.stdout.strip()
+        try:
+            payload = json.loads(body) if body else None
+        except (json.JSONDecodeError, ValueError):
+            payload = None
+        returned_sha = payload.get("sha") if isinstance(payload, dict) else None
+        if not isinstance(returned_sha, str) or not returned_sha:
+            return _unverifiable(
+                f"cited commit {sha}", owner, repo,
+                "gh returned 2xx but response body has no valid sha field",
+            )
+        if not returned_sha.startswith(sha):
+            return _unverifiable(
+                f"cited commit {sha}", owner, repo,
+                f"gh returned sha {returned_sha!r} which does not match cited prefix",
+            )
         return _CLAIM_VERIFIED
 
     detail = _probe_detail(result)
