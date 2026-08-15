@@ -7,7 +7,7 @@
     "startingCommit": "344de6f94c",
     "objective": "Add Serena worktree scope guard to prevent edits targeting wrong checkout"
   },
-  "endingCommit": "fc0b5aeb04123e50ff7712aad3f25e58e84fab68",
+  "endingCommit": "158c2cea54fd263c7ec2933c31e7bd8b892d29a4",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
