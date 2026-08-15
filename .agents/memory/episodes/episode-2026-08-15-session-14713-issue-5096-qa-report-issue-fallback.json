@@ -74,7 +74,8 @@
         "e004",
         "e005",
         "e008",
-        "e012"
+        "e012",
+        "e015"
       ],
       "leads_to": [
         "e007"
@@ -177,6 +178,17 @@
         "e013"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drove the shipped gate end to end against this branch, with a negative control",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
   ],

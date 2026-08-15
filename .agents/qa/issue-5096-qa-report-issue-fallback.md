@@ -128,6 +128,11 @@ number no report names and a stub body reading `Fixes #5096`. It resolved
 `_validate_report` path against the real session log and real git ancestry, and
 returned 0. That is the same code path the `Validate PR` job takes.
 
+Negative control, same driver with the body changed to `See #5096 with no
+keyword`: `main()` returned 1 and printed `No QA report found for code
+changes`. So the resolution came from the keyword in the body, not from the
+report merely existing on disk.
+
 ## Known Gaps
 
 - Both globs match on a numeric prefix, so `*issue-5096*.md` would also match a

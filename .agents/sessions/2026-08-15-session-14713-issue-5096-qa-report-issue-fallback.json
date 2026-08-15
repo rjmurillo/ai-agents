@@ -146,6 +146,10 @@
     {
       "step": "Re-bound qaCommit and endingCommit after the Serena memory commit",
       "evidence": ".serena/ is absent from QA_EVIDENCE_PREFIXES in .claude/lib/qa_report.py, so commit e93af5c82 (memory plus index) counted as post-QA work and made the b22fa729b binding stale. Re-bound both to e93af5c82; every commit after it touches only .agents/qa, .agents/sessions, and .agents/memory/episodes, which are evidence."
+    },
+    {
+      "step": "Drove the shipped gate end to end against this branch, with a negative control",
+      "evidence": "With only gh api stubbed and PR_NUMBER set to a number no report names, main() returned 0 and resolved .agents/qa/issue-5096-qa-report-issue-fallback.md through the body keyword; the same driver with the keyword removed returned 1 and printed 'No QA report found for code changes'."
     }
   ],
   "endingCommit": "e93af5c82d39a52102ea9e07a9c4f6fc5f361b57",
