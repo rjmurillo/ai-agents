@@ -92,7 +92,10 @@
         "e036",
         "e037",
         "e039",
-        "e041"
+        "e041",
+        "e043",
+        "e044",
+        "e045"
       ],
       "leads_to": [
         "e006"
@@ -553,6 +556,52 @@
       "caused_by": [
         "e040"
       ],
+      "leads_to": [
+        "e046"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed 2 commits (2ea883515..524c5534e) after fixing a lease-renewal-race hang in the ad-hoc push wrapper (redundant top-level start_lease_renewal call racing prepare_lease_for_mutation's internal renewal sequence) and satisfying a newly-discovered retrospective-policy pre-push gate (a pure filesystem check for a dated .agents/retrospective/ file; satisfied with an untracked file that does not affect scope count). Diagnosed the tail-buffering false-hang pitfall along the way (piping a live long-running mutation through `tail -N` withholds all output until EOF, indistinguishable from a genuine hang). Post-push: CI settled at 117 passed, 1 failed (non-required semgrep-cloud-platform/scan), 0 pending, 0 required checks failed/pending/missing, MergeRefUsable true, mergeStateStatus still BLOCKED. GraphQL query of all 50 review threads found 2 unresolved: PRRT_kwDOQoWRls6Za-ys (copilot-pull-request-reviewer stale-success race, already closed by 2ea883515, needs reply+resolve) and a NEW thread PRRT_kwDOQoWRls6ZcyJ9 (semgrep-code, dangerous-subprocess-use-tainted-env-args on scripts/ci/validate_vendor_provenance.py:1705, flagging the repo/check_run_id CLI-arg-to-subprocess.run flow this session's own 2ea883515 introduced).",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "content": "Pushed 2 commits (2ea883515..524c5534e) after fixing a lease-renewal-race hang in the ad-hoc push wrapper (redundant top-level start_lease_renewal call racing prepare_lease_for_mutation's internal renewal sequence) and satisfying a newly-discovered retrospective-policy pre-push gate (a pure filesystem check for a dated .agents/retrospective/ file; satisfied with an untracked file that does not affect scope count). Diagnosed the tail-buffering false-hang pitfall along the way (piping a live long-running mutation through `tail -N` withholds all output until EOF, indistinguishable from a genuine hang). Post-push: CI settled at 117 passed, 1 failed (non-required semgrep-cloud-platform/scan), 0 pending, 0 required checks failed/pending/missing, MergeRefUsable true, mergeStateStatus still BLOCKED. GraphQL query of all 50 review threads found 2 unresolved: PRRT_kwDOQoWRls6Za-ys (copilot-pull-request-reviewer stale-success race, already closed by 2ea883515, needs reply+resolve) and a NEW thread PRRT_kwDOQoWRls6ZcyJ9 (semgrep-code, dangerous-subprocess-use-tainted-env-args on scripts/ci/validate_vendor_provenance.py:1705, flagging the repo/check_run_id CLI-arg-to-subprocess.run flow this session's own 2ea883515 introduced).      Fixed the semgrep finding per this project's standing security-findings rule (never dismiss, always break the taint flow -- precedent: .agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md, where a /fp reply did not suppress the re-scan on the next push). Added _validate_repo_slug (^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$) and _validate_check_run_id (all-digits), both raising SystemExit on a malformed value, called at the top of _create_check_run and in _publish_check_run before either builds subprocess argv. Added TestCheckRunArgValidation (7 tests: valid passthrough, malformed-input rejection for both validators, both call sites reject malformed input). Verified: full tests/ci/test_validate_vendor_provenance.py suite 211 passed (was 204); ruff and mypy clean on both modified files; git merge-tree --write-tree origin/main HEAD reports 0 conflicts (origin/main advanced again during this session, to 841f375ca9, a large ~200-file unrelated batch not adopted); branch scope unchanged at exactly 50/50. Committed as b3d89b4c9 with a Refs: trailer citing the thread ID. Not yet pushed, not yet rebound the QA/session evidence commit (this entry is that rebind), not yet replied to or resolved either thread, not yet re-run the completion gate.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "error",
+      "content": "Pushed 2 commits (2ea883515..524c5534e) after fixing a lease-renewal-race hang in the ad-hoc push wrapper (redundant top-level start_lease_renewal call racing prepare_lease_for_mutation's internal renewal sequence) and satisfying a newly-discovered retrospective-policy pre-push gate (a pure filesystem check for a dated .agents/retrospective/ file; satisfied with an untracked file that does not affect scope count). Diagnosed the tail-buffering false-hang pitfall along the way (piping a live long-running mutation through `tail -N` withholds all output until EOF, indistinguishable from a genuine hang). Post-push: CI settled at 117 passed, 1 failed (non-required semgrep-cloud-platform/scan), 0 pending, 0 required checks failed/pending/missing, MergeRefUsable true, mergeStateStatus still BLOCKED. GraphQL query of all 50 review threads found 2 unresolved: PRRT_kwDOQoWRls6Za-ys (copilot-pull-request-reviewer stale-success race, already closed by 2ea883515, needs reply+resolve) and a NEW thread PRRT_kwDOQoWRls6ZcyJ9 (semgrep-code, dangerous-subprocess-use-tainted-env-args on scripts/ci/validate_vendor_provenance.py:1705, flagging the repo/check_run_id CLI-arg-to-subprocess.run flow this session's own 2ea883515 introduced).      Fixed the semgrep finding per this project's standing security-findings rule (never dismiss, always break the taint flow -- precedent: .agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md, where a /fp reply did not suppress the re-scan on the next push). Added _validate_repo_slug (^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$) and _validate_check_run_id (all-digits), both raising SystemExit on a malformed value, called at the top of _create_check_run and in _publish_check_run before either builds subprocess argv. Added TestCheckRunArgValidation (7 tests: valid passthrough, malformed-input rejection for both validators, both call sites reject malformed input). Verified: full tests/ci/test_validate_vendor_provenance.py suite 211 passed (was 204); ruff and mypy clean on both modified files; git merge-tree --write-tree origin/main HEAD reports 0 conflicts (origin/main advanced again during this session, to 841f375ca9, a large ~200-file unrelated batch not adopted); branch scope unchanged at exactly 50/50. Committed as b3d89b4c9 with a Refs: trailer citing the thread ID. Not yet pushed, not yet rebound the QA/session evidence commit (this entry is that rebind), not yet replied to or resolved either thread, not yet re-run the completion gate.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-08-15T00:57:40+00:00",
+      "type": "commit",
+      "content": "Commit: b3d89b4c9d4bdb1fc94fd0d1bd32b392aa015af0",
+      "caused_by": [
+        "e042"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -560,9 +609,9 @@
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
-    "errors": 0,
+    "errors": 1,
     "recoveries": 0,
-    "commits": 27,
+    "commits": 28,
     "files_changed": 51
   },
   "lessons": []

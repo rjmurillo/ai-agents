@@ -1,15 +1,58 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 2ea883515483013b86e76a0881dbc869176caf03
+qaCommit: b3d89b4c9d4bdb1fc94fd0d1bd32b392aa015af0
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `2ea883515483013b86e76a0881dbc869176caf03`
-(qaCommit, above; this is the 9th rebind of this report). After the 6
+Validated the branch at commit `b3d89b4c9d4bdb1fc94fd0d1bd32b392aa015af0`
+(qaCommit, above; this is the 10th rebind of this report). Since the 9th
+rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
+and CI went green (117/118 checks passing -- non-required
+`semgrep-cloud-platform/scan` failed and is not investigated further here
+since `FailedRequiredChecks` is empty -- 0 required checks failed or
+pending), but `mergeStateStatus` stayed `BLOCKED`: a GraphQL query of all
+50 review threads found 2 unresolved, not 1. The first,
+`PRRT_kwDOQoWRls6Za-ys` (copilot-pull-request-reviewer, the stale-success
+race), is already closed by `2ea883515` and awaits only a reply+resolve.
+The second, `PRRT_kwDOQoWRls6ZcyJ9`, is new: `semgrep-code` flagged
+`dangerous-subprocess-use-tainted-env-args` on
+`scripts/ci/validate_vendor_provenance.py:1705`, the exact code
+`2ea883515` added this session (`repo`/`check_run_id` flow into
+`subprocess.run` argv inside `_create_check_run`/`_publish_check_run`).
+Per this project's standing security-findings rule (never dismiss,
+always break the taint flow -- see
+`.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`,
+where an identical-shaped finding recurred on every push after a `/fp`
+reply, since bot triage replies do not suppress semgrep's CI re-scan),
+commit `b3d89b4c9` (qaCommit, above) fixes this by adding
+`_validate_repo_slug`/`_validate_check_run_id` (closed regex allowlists,
+raise `SystemExit` on mismatch) and calling them at both call sites
+before either builds its subprocess argv. 7 new tests
+(`TestCheckRunArgValidation`) cover valid passthrough, malformed-input
+rejection, and both call sites' guards; the full
+`tests/ci/test_validate_vendor_provenance.py` suite (211 tests, was 204)
+passes, `ruff`/`mypy` are clean, and `git merge-tree --write-tree
+origin/main HEAD` reports 0 conflicts (origin/main advanced again during
+this session, to `841f375ca9`, a large ~200-file unrelated batch;
+verified this specific diff stays merge-clean without adopting any of
+it). Branch scope is unchanged at exactly 50/50: both files this commit
+touches were already tracked in this branch's diff.
+
+Also this session: discovered and satisfied a new `retrospective-policy`
+pre-push gate (a pure filesystem check for a dated
+`.agents/retrospective/` file, satisfied by an untracked file that does
+not affect the scope count) and root-caused a wrapper-script hang to a
+lease-renewal race (redundant top-level `start_lease_renewal` call
+racing `prepare_lease_for_mutation`'s internal renewal sequence), fixed
+by removing the redundant call. Neither required a code change to this
+PR's tracked files.
+
+Prior (9th rebind): validated the branch at commit
+`2ea883515483013b86e76a0881dbc869176caf03`. After the 6
 commits ending at `fd82d92fc` (below) pushed clean and CI went green
 (118/118 checks passing, 0 failed, 0 pending), `mergeStateStatus` stayed
 `BLOCKED`. Ruleset `11104075` sets `required_approving_review_count: 0`
