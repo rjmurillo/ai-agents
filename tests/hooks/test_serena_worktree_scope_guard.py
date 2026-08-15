@@ -201,3 +201,108 @@ class TestPayloadParsing:
         monkeypatch.setattr("sys.stdin", __import__("io").StringIO(""))
         tool_name, _ = guard._read_payload()
         assert tool_name == ""
+
+
+class TestIntegrationWorktreeIsolation:
+    """End-to-end test proving the guard blocks writes in wrong worktree."""
+
+    def test_guard_blocks_write_in_external_worktree(
+        self, fake_git_repo: Path, external_worktree: Path
+    ) -> None:
+        """Invoke the guard as a subprocess with real worktree paths.
+
+        Proves that a relative edit targeting the external worktree is
+        blocked when Serena project root points to the primary checkout.
+        """
+        # Create .serena/project.yml only in primary repo (not worktree)
+        # (already created by fake_git_repo fixture)
+        assert (fake_git_repo / ".serena" / "project.yml").is_file()
+        assert not (external_worktree / ".serena" / "project.yml").is_file()
+
+        # Create a file in both trees to track mutation
+        (fake_git_repo / "target.py").write_text("original")
+        (external_worktree / "target.py").write_text("original")
+
+        # Simulate the guard invocation from the external worktree
+        payload = json.dumps({
+            "tool_name": "serena-replace_content",
+            "tool_input": {
+                "relative_path": "target.py",
+                "needle": "original",
+                "repl": "modified",
+                "mode": "literal",
+            },
+            "cwd": str(external_worktree),
+        })
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / ".claude"
+                    / "hooks"
+                    / "PreToolUse"
+                    / "invoke_serena_worktree_scope_guard.py"
+                ),
+            ],
+            input=payload,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(external_worktree),
+            env={
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": str(fake_git_repo),
+            },
+        )
+
+        # Guard should block (exit 2) because worktree != Serena root
+        assert result.returncode == 2, (
+            f"Expected block (exit 2), got {result.returncode}. "
+            f"stderr: {result.stderr}"
+        )
+
+        # Verify neither file was mutated (guard blocked before edit)
+        assert (fake_git_repo / "target.py").read_text() == "original"
+        assert (external_worktree / "target.py").read_text() == "original"
+
+    def test_guard_allows_write_in_matching_worktree(
+        self, fake_git_repo: Path
+    ) -> None:
+        """Guard allows write when CWD worktree matches Serena root."""
+        payload = json.dumps({
+            "tool_name": "serena-replace_content",
+            "tool_input": {
+                "relative_path": "target.py",
+                "needle": "x",
+                "repl": "y",
+                "mode": "literal",
+            },
+            "cwd": str(fake_git_repo),
+        })
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / ".claude"
+                    / "hooks"
+                    / "PreToolUse"
+                    / "invoke_serena_worktree_scope_guard.py"
+                ),
+            ],
+            input=payload,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(fake_git_repo),
+            env={
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": str(fake_git_repo),
+            },
+        )
+
+        # Guard should allow (exit 0)
+        assert result.returncode == 0
