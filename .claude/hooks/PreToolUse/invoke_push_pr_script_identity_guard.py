@@ -258,12 +258,12 @@ def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path, offset: int)
 
 def _new_pr_option_values(tokens: list[ShellToken], args_start: int) -> dict[str, str]:
     """Return the option/value pairs, rejecting anything outside the allowlist."""
-    _ALLOWED_OPTIONS = {"--title", "--body-file", "--prepare-body-file"}
+    allowed_options = {"--title", "--body-file", "--prepare-body-file"}
     values: dict[str, str] = {}
     index = args_start
     while index < len(tokens):
         option = tokens[index].value
-        if option not in _ALLOWED_OPTIONS:
+        if option not in allowed_options:
             raise GuardViolationError(
                 "new_pr.py accepts only --title, --body-file, "
                 "or --prepare-body-file here"

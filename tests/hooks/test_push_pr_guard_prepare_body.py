@@ -49,7 +49,7 @@ def test_prepare_body_file_with_env_chdir(runner, tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("runner", _RUNNERS)
-def test_prepare_body_file_with_env_C_short(runner, tmp_path: Path) -> None:
+def test_prepare_body_file_with_env_c_short(runner, tmp_path: Path) -> None:
     """env -C <dir> is the short form of --chdir."""
     root, _script = _repository(tmp_path)
     command = (
