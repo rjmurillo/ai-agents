@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5079.json
-qaCommit: f233933dd1ae6977f41b87fc3edfd705fd2bcb5b
+qaCommit: 0c1fc3b427c450917be26d3ef6e2606f3376ce08
 ---
 
 # QA report: generated-artifact staleness gate (PR #5088, issue #5079)
@@ -144,5 +144,11 @@ only after a 30s grace window, EXTERNAL (exit 3) either way.
 expiry with a marker file; `test_every_row_carries_a_deadline` replaces the
 old asymmetry pins. 25 tests pass; ruff/mypy clean; corpus gate rc=0;
 ratchets unchanged.
+
+Copilot round 3 also flagged that the standalone `build-all-check` lefthook
+job now raced the gate's own `build_all --check` in the same parallel
+pre-push group (two unlocked snapshot/restore cycles over the same owned
+prefixes). The standalone job is removed; `tests/test_lefthook_integration.py`
+pins its absence with the rationale (847 tests pass).
 
 VERDICT: PASS

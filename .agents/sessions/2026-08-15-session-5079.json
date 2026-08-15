@@ -152,7 +152,7 @@
       "detail": "Bounded both generator checks with cleanup-preserving termination: 600s deadline, SIGINT first so build_all's finally restores its snapshot, kill after 30s grace, EXTERNAL exit 3. Marker-file test proves the child's finally runs on expiry."
     }
   ],
-  "endingCommit": "f233933dd1ae6977f41b87fc3edfd705fd2bcb5b",
+  "endingCommit": "0c1fc3b427c450917be26d3ef6e2606f3376ce08",
   "nextSteps": [
     "build/scripts/build_all.py:1206 prints an em dash in its STALENESS DETECTED message, which .claude/rules/universal.md MUST NOT 5 forbids in authored text. The dash validator scans markdown only, so nothing catches it. Left alone to keep this diff scoped."
   ]
