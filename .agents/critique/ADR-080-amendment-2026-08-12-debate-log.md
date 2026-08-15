@@ -67,7 +67,7 @@ That reframing is why finding 3 is a deletion rather than a rewording.
 
 Unlike round 1, this is the **full** adr-review protocol: all six roles
 (architect, critic, independent-thinker, security, analyst, high-level-advisor)
-ran independently against one narrow diff — the correction to finding 4
+ran independently against one narrow diff: the correction to finding 4
 described below. No scoped-review deviation is claimed for this round.
 
 ### Trigger
@@ -105,7 +105,7 @@ and the two source citations (`build/generate_agents_common.py:222-227`,
 | 2 | The override was not independently re-probed for a `model_tier`-resolved id; the proposed text should not claim it as measured. | independent-thinker, analyst | **Accepted as-is.** The proposed text already states "not independently probed... inferred from finding 1's mechanism, not separately reproduced." No change needed. |
 | 3 | Add a prescriptive "Migration item" sentence naming concrete resolution options (stop emitting `model`, emit a bare alias, or accept the override with explicit operator opt-in). | independent-thinker, security | **Rejected by tie-break.** high-level-advisor: this ADR amendment is scoped as "a rationale correction, not a rule change," and its own established pattern (the "Suggested sequence" list, and finding 4's own closing sentence: "is migration work this ADR does not currently name") consistently narrates gaps without prescribing unscoped follow-up work. Prescribing migration options belongs in a follow-up PR or ADR entry in the suggested sequence, not in this correction. |
 | 4 | The override has trust-boundary implications (an operator's explicit model choice may be a safety/assurance decision, not only a cost preference) and should be framed that way, citing ASI09/CWE-346. | security | **Rejected by tie-break**, same reasoning as finding 3: out of scope for a rationale-only correction. Recorded here so a future amendment that does touch the manifest schema or trust boundary does not have to rediscover this framing. |
-| 5 | `build/generate_agents_common.py:222-227` should instead read `223-228`. | analyst | **Rejected on the facts.** Re-verified directly against the source file: line 222 is the `# Resolve model:` comment, 223 is `model_tier = frontmatter.get(...)`, 224 is a comment, 225 is the `model_tiers = ...` lookup, 226 is the `if model_tier and isinstance(...)` guard, and 227 is `result["model"] = str(model_tiers[model_tier])` — the complete resolution block, matching the citation in the Copilot review comment that raised this finding. Line 228 is the `else:` branch for the non-tier fallback path, not part of the resolution being cited. `222-227` is correct; `223-228` would drop the leading comment and add an unrelated branch. |
+| 5 | `build/generate_agents_common.py:222-227` should instead read `223-228`. | analyst | **Rejected on the facts.** Re-verified directly against the source file: line 222 is the `# Resolve model:` comment, 223 is `model_tier = frontmatter.get(...)`, 224 is a comment, 225 is the `model_tiers = ...` lookup, 226 is the `if model_tier and isinstance(...)` guard, and 227 is `result["model"] = str(model_tiers[model_tier])`, the complete resolution block, matching the citation in the Copilot review comment that raised this finding. Line 228 is the `else:` branch for the non-tier fallback path, not part of the resolution being cited. `222-227` is correct; `223-228` would drop the leading comment and add an unrelated branch. |
 
 ### Consensus
 
