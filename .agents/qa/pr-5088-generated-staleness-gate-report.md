@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5079.json
-qaCommit: 5f8fe6262d2af2530f023c823010f6684cafa621
+qaCommit: f233933dd1ae6977f41b87fc3edfd705fd2bcb5b
 ---
 
 # QA report: generated-artifact staleness gate (PR #5088, issue #5079)
@@ -131,5 +131,18 @@ type-ignore (44), and cli-exit-contract (27) ratchets unchanged.
 ## Not verified
 
 - Behavior on a machine where `sync_plugin_lib.py --check` reports drift. No such state was reachable on this branch, so the short-circuit was exercised against stubs rather than against real sync drift.
+
+## Round 3: reliability-verdict remediation (2026-08-15)
+
+The reliability review returned CRITICAL_FAIL on the round-2 head: removing
+build_all's external kill closed the SIGKILL corruption path but opened an
+unbounded stall path for callers not under the lefthook job cap. Both rows
+now carry a 600s deadline enforced by graceful termination: SIGINT first
+(KeyboardInterrupt, so build_all's snapshot-restoring finally runs), kill
+only after a 30s grace window, EXTERNAL (exit 3) either way.
+`test_expiry_lets_the_child_finally_run` proves the child's finally runs on
+expiry with a marker file; `test_every_row_carries_a_deadline` replaces the
+old asymmetry pins. 25 tests pass; ruff/mypy clean; corpus gate rc=0;
+ratchets unchanged.
 
 VERDICT: PASS
