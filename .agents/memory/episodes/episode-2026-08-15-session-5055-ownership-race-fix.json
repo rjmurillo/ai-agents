@@ -73,7 +73,8 @@
         "e003",
         "e004",
         "e005",
-        "e008"
+        "e008",
+        "e009"
       ],
       "leads_to": [
         "e007"
@@ -88,7 +89,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-15-session-5055-ownership-race-fix"
     },
     {
@@ -101,6 +104,28 @@
         "e006"
       ],
       "_source_session": "2026-08-15-session-5055-ownership-race-fix"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Landing refresh: merged origin/main (post #5088) and re-verified tests, staleness gate, and ratchets on the merged tree",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-5055-ownership-race-fix"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T21:23:41+00:00",
+      "type": "commit",
+      "content": "Commit: 2518fab504bb2ac05eb80538ea355e9c6c70809d",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5055-ownership-race-fix"
     }
   ],
   "metrics": {
@@ -108,7 +133,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": []

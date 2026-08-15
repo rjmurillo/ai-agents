@@ -126,18 +126,21 @@
     },
     {
       "action": "Removed stale consume_pytest_signal.py reference from QA scope"
+    },
+    {
+      "action": "Landing refresh: merged origin/main (post #5088) and re-verified tests, staleness gate, and ratchets on the merged tree"
     }
   ],
   "nextSteps": [
     "Monitor for flakiness reports on the race test"
   ],
-  "endingCommit": "e11d7a72ab568f24e95a0e601e15cfb249f5e22c",
+  "endingCommit": "2518fab504bb2ac05eb80538ea355e9c6c70809d",
   "episodeMetrics": {
     "filesChanged": 4,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "9fc656b73d",
-      "head": "e11d7a72ab568f24e95a0e601e15cfb249f5e22c"
+      "head": "2518fab504bb2ac05eb80538ea355e9c6c70809d"
     }
   }
 }
