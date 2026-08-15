@@ -1,7 +1,7 @@
 ---
 title: Issue 5008 QA Report
 issue: 5008
-qaCommit: fcca62efce6a8b51d70e1e1a21f86cb77f0df64f
+qaCommit: 81f9295d4c5c6612f433bf1412bd60569842d5a3
 qaSessionLog: .agents/sessions/2026-08-14-session-14705-issue-5008.json
 qaVerdict: PASS
 ---
@@ -30,14 +30,18 @@ use the literal `PASS` the loader requires) and `qaCommit` was a
 40-character form). Both are corrected in this version's frontmatter;
 `uv run python scripts/validate_session_json.py
 .agents/sessions/2026-08-14-session-14705-issue-5008.json` no longer
-reports a QA-report-binding error, only the two pre-existing, unrelated
-`Incomplete MUST` findings for `sessionEnd.checklistComplete` and
-`sessionEnd.validationPassed` described below.
+reports a QA-report-binding error. At the time this paragraph was first
+written, two pre-existing, unrelated `Incomplete MUST` findings for
+`sessionEnd.checklistComplete` and `sessionEnd.validationPassed`
+remained; see "Full pre_pr.py run" below for how those were resolved in
+a later round.
 
 ## Checks (rerun this session)
 
 - `uv run pytest tests/test_invoke_batch_pr_review.py -q`
 - `uv run ruff check scripts/invoke_batch_pr_review.py tests/test_invoke_batch_pr_review.py`
+- `uv run python scripts/validation/pre_pr.py` (full, not `--quick`)
+- `uv run python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14705-issue-5008.json`
 
 ## Results
 
@@ -59,22 +63,52 @@ reports a QA-report-binding error, only the two pre-existing, unrelated
   `reset_worktree_identity` mock call), the other 10 cases stayed green.
   Restored the file; `git diff` against HEAD was empty and the suite
   returned to 12 passed.
+- Rerun this turn at commit 81f9295d4, immediately before the full
+  `pre_pr.py` run below: `uv run pytest
+  tests/test_invoke_batch_pr_review.py -q` reports 12 passed in 0.79s.
+  `uv run ruff check scripts/invoke_batch_pr_review.py
+  tests/test_invoke_batch_pr_review.py` reports "All checks passed!".
 
-## Not re-verified in this correction pass
+## Full pre_pr.py run
 
-`uv run python scripts/validation/pre_pr.py --quick` was not rerun in this
-session; the resuming instructions scoped rerun work to the two commands
-above. The prior QA pass reported it failing on unrelated
-`python-lint-count-ratchet` and `memory-index-count-ratchet` findings, but
-that result is not restated here as current since it was not reproduced
-in this session.
+The parent session independently ran `uv run python
+scripts/validation/pre_pr.py` (full, not `--quick`) at commit 81f9295d4
+and reported `Total Validations: 51`, `Passed: 50`, `Failed: 1`; the
+`python-lint-count-ratchet` and `memory-index-count-ratchet` failures
+recorded by the earlier `--quick` run did not reproduce. This session
+reran the identical command at the same commit and got the identical
+result. The sole failure was `Session End Validation`:
+
+```text
+[FAIL] Validation errors:
+  - Incomplete MUST: sessionEnd.validationPassed
+  - Incomplete MUST: sessionEnd.checklistComplete
+```
+
+Both fields were `Complete: false` in the session log carried since this
+report's first version, citing the (now-superseded) `--quick` ratchet
+failures as the reason. That was the only remaining cause of the
+failure: no other validation among the 51 failed, and neither field's
+own evidence described anything about this fix's correctness. This
+report's companion commit sets both to `Complete: true` with evidence
+naming the full-run counts above and the self-referential cause.
+`uv run python scripts/validate_session_json.py
+.agents/sessions/2026-08-14-session-14705-issue-5008.json` against the
+corrected file reports 0 errors.
+
+With `checklistComplete`/`validationPassed` set to `Complete: true` in
+the working tree, this session reran the identical full `pre_pr.py`
+command a second time and it reported `Total Validations: 51`,
+`Passed: 51`, `Failed: 0`, confirming the two fields' own evidence
+claims rather than merely asserting them.
 
 ## Conclusion
 
 The fix is locally verified: the regression tests genuinely exercise the
 `reset_worktree_identity` re-pin (they fail when it is removed and pass
 when it is present), and the targeted pytest and Ruff commands both pass
-cleanly against the corrected test file. Repository-wide pre-PR
-validation status is unknown as of this correction; the outstanding
-blocker recorded by the prior session (unrelated ratchet failures) should
-be reconfirmed before merge.
+cleanly against the corrected test file. The full repository-wide
+`pre_pr.py` gate passes 51/51 after this report's companion commit
+resolves this file's own prior incomplete session-end markers; the
+count-ratchet blocker recorded by the original QA pass no longer
+reproduces.
