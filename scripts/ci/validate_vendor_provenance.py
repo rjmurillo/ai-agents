@@ -386,7 +386,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/validate_install_parity.py",
-        "5f1a89be3ea0faa2fad23ecb01e45ee497da0ba0e9c33a802b04e3354e6d2bbf",
+        "65bd11c4bc121597e25d0d8b1a5babab5bff7a03a8f0c9038cc9025089c94c8e",
         "Build script",
     ),
     (
@@ -520,6 +520,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         ".claude/lib/github_core/api.py",
         "0f185b2f33407f460374c75326bdb09ab58d75112d53a51eea9a7d5d5f8516d5",
         "Lib: .claude/lib/github_core/api.py",
+    ),
+    (
+        ".claude/lib/github_core/discourse_traversal.py",
+        "5feb6527764f4d50aa181cb0f50362ff3c4eda2820147b349b5a6ad3ab35ffd3",
+        "Lib: .claude/lib/github_core/discourse_traversal.py",
     ),
     (
         ".claude/lib/github_core/pr_merge_state.py",
@@ -720,6 +725,11 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "src/copilot-cli/lib/github_core/api.py",
         "0f185b2f33407f460374c75326bdb09ab58d75112d53a51eea9a7d5d5f8516d5",
         "Lib: src/copilot-cli/lib/github_core/api.py",
+    ),
+    (
+        "src/copilot-cli/lib/github_core/discourse_traversal.py",
+        "5feb6527764f4d50aa181cb0f50362ff3c4eda2820147b349b5a6ad3ab35ffd3",
+        "Lib: src/copilot-cli/lib/github_core/discourse_traversal.py",
     ),
     (
         "src/copilot-cli/lib/github_core/pr_merge_state.py",
