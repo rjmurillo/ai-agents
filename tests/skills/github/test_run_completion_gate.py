@@ -1483,7 +1483,8 @@ class TestConfigTrustBoundary:
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
         _commit_as_trusted(git_repo, config_path)
         config_path.write_text(
-            config_path.read_text(encoding="utf-8") + "\n\u202eevil\u200bhidden",
+            config_path.read_text(encoding="utf-8")
+            + "\n\u202eevil\u200bhidden\x1b[31mansi",
             encoding="utf-8",
         )
 
@@ -1498,6 +1499,8 @@ class TestConfigTrustBoundary:
         assert "\\u202e" in err
         assert "\u200b" not in err
         assert "\\u200b" in err
+        assert "\x1b" not in err
+        assert "\\u001b" in err
 
     def test_config_missing_from_trusted_ref_halts(
         self, git_repo, tmp_path, capsys,
@@ -1729,6 +1732,40 @@ class TestVerifyConfigTrustErrorBranches:
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
         assert "cat-file --filters" in result.detail
+
+    def test_ls_tree_failure_is_git_error_not_missing_base(
+        self, tmp_path, monkeypatch,
+    ):
+        # cat-file -e exits 128 for BOTH an absent path and an
+        # object-store error, which would have made verification
+        # failures approvable as missing-base. The existence check now
+        # uses ls-tree; a nonzero exit there must be the non-approvable
+        # git-error (exit 3), never missing-base.
+        def _fake(args, cwd):
+            if args[:1] == ["ls-tree"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=128, stdout=b"",
+                    stderr=b"fatal: object store corrupt",
+                )
+            if args[:2] == ["rev-parse", "--symbolic-full-name"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=0,
+                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        result = _dispatcher._verify_config_trust(config, "origin/main", b"{}")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
+        assert result.status != _dispatcher.TRUST_MISSING_BASE
+        assert "ls-tree" in result.detail
 
 
 class TestTrustBoundaryHardening:

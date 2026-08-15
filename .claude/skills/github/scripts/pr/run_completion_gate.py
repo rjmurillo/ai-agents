@@ -442,8 +442,23 @@ def _verify_config_trust(
             )
 
         spec = f"{trusted_ref}:{rel.as_posix()}"
-        proc = _run_git(["cat-file", "-e", spec], toplevel)
+        # Existence check via ls-tree, not ``cat-file -e``: cat-file -e
+        # exits 128 for BOTH an absent path and a real object-store
+        # error (probed on git 2.54), which would let a verification
+        # failure masquerade as the approvable missing-base status.
+        # ls-tree separates them structurally: a nonzero exit is an
+        # error (never approvable, exit 3); an empty stdout on exit 0
+        # is a genuinely absent path.
+        proc = _run_git(
+            ["ls-tree", trusted_ref, "--", rel.as_posix()], toplevel,
+        )
         if proc.returncode != 0:
+            return TrustCheck(
+                TRUST_GIT_ERROR,
+                f"git ls-tree {trusted_ref} -- {rel.as_posix()} failed: "
+                f"{proc.stderr.decode(errors='replace').strip()}",
+            )
+        if not proc.stdout.strip():
             # missing-base is approvable, so the human must be shown the
             # exact content approval would execute. With no trusted copy
             # to diff against, surface the whole working-tree config as
