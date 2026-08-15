@@ -372,11 +372,6 @@ class TestFirstUnmetRepoDependency:
     def test_non_mapping_steps_are_skipped(self) -> None:
         assert first_unmet_repo_dependency({"steps": ["oops", None]}) is None
 
-    # Each case is a single "Materialize" step's ``run`` text against the
-    # (step label, dependency) the parser must return, or ``None`` when a
-    # workspace checkout-index satisfies the later dependency. The comments
-    # preserve the false-positive history (PR #4846 review) that motivated
-    # each scenario, since a substring search once passed all of them.
     @pytest.mark.parametrize(
         ("run_text", "expected"),
         [
