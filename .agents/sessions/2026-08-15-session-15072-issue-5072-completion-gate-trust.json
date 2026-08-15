@@ -172,10 +172,13 @@
     },
     {
       "activity": "Copilot review round 5: rejected repo-local symlinked config paths before read (CWE-59/CWE-200 leak of local-only files into the missing-base approval diff), with direct and parent-directory negative controls proving the secret never reaches stderr; trusted-ref default re-raise deferred to #5099 item 3"
+    },
+    {
+      "activity": "Copilot review round 6: anchored trust at the project root work tree so a config inside a PR-vendored nested repository or submodule cannot be verified against an attacker-owned origin/main (exit 3, nested-repo negative control); reconciled stale session-log audit entries (git show supersession note, final 113-test count, now 114 with the nested-repo control)"
     }
   ],
   "nextSteps": [
     "Drive PR #5089 to green: CI, review threads, security agent review"
   ],
-  "endingCommit": "b385b1314acfa2d354b7f80f38df64c64eb65704"
+  "endingCommit": "ecc6f90af9043988cf04caf094053628ae3a2f8a"
 }
