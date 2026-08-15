@@ -260,6 +260,24 @@ class TestCommittedNotice:
 
         assert main() == 1
 
+    def test_check_rejects_a_missing_notice(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_fake_notice_repo(tmp_path)
+        monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "generate_third_party_notices.py",
+                "--check",
+                "--output",
+                "missing/THIRD-PARTY-NOTICES.TXT",
+            ],
+        )
+
+        assert main() == 1
+
     def test_default_generation_writes_packaged_notice_copies(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -289,3 +307,24 @@ class TestOutputPathContainment:
     def test_rejects_parent_traversal_outside_project_root(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="escapes project root"):
             resolve_output_path(tmp_path, "../THIRD-PARTY-NOTICES.TXT")
+
+    def test_cli_rejects_parent_traversal(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _write_fake_notice_repo(tmp_path)
+        monkeypatch.setattr(notices_mod, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "generate_third_party_notices.py",
+                "--output",
+                "../THIRD-PARTY-NOTICES.TXT",
+            ],
+        )
+
+        assert main() == 2
+        assert "output path escapes project root" in capsys.readouterr().err
