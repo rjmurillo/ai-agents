@@ -429,3 +429,35 @@ class TestSquashBodySanitizer:
         assert is_placeholder_identity(
             "rjmurillo-bot", "rjmurillo-bot@users.noreply.github.com"
         ) is False
+
+
+class TestCIBackstopWorkflow:
+    """Issue #5008 item 2: CI workflow exists and calls check_placeholder_identity."""
+
+    WORKFLOW = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "placeholder-identity-check.yml"
+    )
+
+    def test_workflow_file_exists(self) -> None:
+        """The CI backstop workflow must exist."""
+        assert self.WORKFLOW.is_file(), f"Missing: {self.WORKFLOW}"
+
+    def test_workflow_calls_check_script(self) -> None:
+        """The workflow must invoke check_placeholder_identity.py."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "check_placeholder_identity.py" in content
+
+    def test_workflow_uses_fetch_depth_zero(self) -> None:
+        """Full history is required to scan all commits in the PR range."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "fetch-depth: 0" in content
+
+    def test_workflow_triggers_on_pull_request(self) -> None:
+        """Must run on pull_request to catch placeholder before merge."""
+        content = self.WORKFLOW.read_text(encoding="utf-8")
+        assert "pull_request:" in content
+
+
