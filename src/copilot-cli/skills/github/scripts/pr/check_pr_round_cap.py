@@ -2,64 +2,44 @@
 """Per-PR round/time circuit breaker for pr-autofix's T3/T4 thread loop (issue #5056).
 
 pr-autofix's thread-lifecycle loop (Phase 2, T3/T4 in
-`src/copilot-cli/skills/pr-autofix/SKILL.md`) has no machine-enforced cap on
-how many fix/review rounds it runs against one PR. Every existing safety
-mechanism (the branch-ownership lease, the live-state gate) protects against
-racing or acting on a stale PR; none of them bounds how long the loop keeps
-acting on a PR that IS still live and IS still actionable. A PR can stay
-live and actionable for dozens of rounds while a reviewer bot and the agent
-trade fixes back and forth.
+`src/copilot-cli/skills/pr-autofix/SKILL.md`) had no machine-enforced cap on
+how many fix/review rounds it runs against one PR. The lease and live-state
+gate protect against racing or acting on a stale PR; neither bounds how long
+the loop keeps acting on a PR that is still live and actionable. Evidence:
+`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` (PR #1887:
+46h wall clock, 69 commits, 11+ bot review rounds) and
+`.agents/governance/CI-FEEDBACK-SUBLOOP.md` line 11 (PRs #1965 and #1979,
+18 rounds each). Prose caps have been written down and ignored repeatedly.
+This script follows `check_pr_live_state.py`'s shape (issue #2455): a
+machine-checked JSON envelope pr-autofix branches on, not another sentence
+in a SKILL.md.
 
-Evidence this is a real, not hypothetical, failure mode:
-    - `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`: PR
-      #1887 ran 46 hours wall clock, 69 commits, 254 conversations, 11+ bot
-      review rounds. "each fix triggers a new full-PR review... cost is
-      N bots x M findings, not max(M))."
-    - `.agents/governance/CI-FEEDBACK-SUBLOOP.md` line 11: the ad-hoc
-      read-comment/edit-file/push default "produced PR #1965 (58 commits,
-      18 rounds) and PR #1979 (30 commits, 18 rounds)."
+Storage decision (Search Before Building, Layer 1): `pr_autofix_lease.py`
+(ADR-076) already solved "small per-PR state that survives a session
+restart" with a hidden-marker PR comment instead of counting commits or
+writing a file. This script reuses that shape:
 
-Prose caps ("stop after a few rounds") have been written down and ignored
-repeatedly; that is the documented failure mode. This script follows the
-same shape as `check_pr_live_state.py` (issue #2455): a machine-checked JSON
-envelope pr-autofix branches on, not another sentence in a SKILL.md.
+    1. A squash-merge, rebase, or force-push (all routine in this repo's
+       pr-autofix flow) destroys commit history a counter would replay; a
+       PR comment survives all three because it lives on the issue
+       timeline, not the ref graph.
+    2. Commit counting needs a git checkout and a commit-naming convention;
+       a comment marker needs only the GitHub API, matching
+       `check_pr_live_state.py`'s read-path design.
+    3. A fourth ad-hoc storage scheme repeats the failure
+       `.claude/rules/push-lock.md` documents for lock files (three
+       incompatible schemes coexisting silently). Reuse avoids a second.
 
-Storage decision (Search Before Building, Layer 1: this codebase already
-solved "small per-PR state that must survive a session restart"):
-`pr_autofix_lease.py` (ADR-076) stores its lease as a hidden-marker comment
-on the PR timeline rather than counting commits or writing to a file. This
-script reuses that same storage shape for the same reasons, which apply
-here with equal force:
+Unlike the lease, this marker carries no security weight: a forged or
+duplicated marker at worst causes a premature ESCALATE (fail-safe), never a
+bypassed cap (fail-open, the failure this script prevents). So it skips the
+lease's verified-comment-author bookkeeping and trusts the latest marker
+carrying this script's own hidden-comment prefix, which only pr-autofix
+posts.
 
-    1. Commit counting is fragile. A squash-merge, a rebase, or a
-       force-push (all routine in this repo's pr-autofix flow; see the
-       Force-Push Safety section of SKILL.md) destroys the commit history a
-       counter would need to replay. A hidden PR comment survives all
-       three because it lives on the issue timeline, not the ref graph.
-    2. Commit counting requires a git checkout of the PR branch and a
-       naming convention every fix commit must follow exactly. A comment
-       marker requires only the GitHub API, matching the read-path design
-       of `check_pr_live_state.py` (no local checkout needed to answer
-       "is this PR still actionable").
-    3. Introducing a fourth ad-hoc state-storage scheme is the exact
-       failure `.claude/rules/push-lock.md` documents for lock files: three
-       incompatible schemes coexisted silently until a `ps` census caught
-       it. Reusing the one this repo already has for pr-autofix per-PR
-       state avoids adding a second.
-
-Unlike the lease, this marker carries no security weight: the worst case of
-a forged or duplicated marker is a premature ESCALATE (fail-safe, stops
-work early) never a bypassed cap (fail-open, the failure mode this script
-exists to prevent). So this script does not replicate the lease's
-verified-comment-author bookkeeping; it trusts the latest marker with this
-script's own hidden-comment prefix, which only pr-autofix itself posts.
-
-Exit codes follow ADR-035, mirroring `check_pr_live_state.py`:
-    0 - round recorded, under both caps: proceed with the round (ACT)
-    1 - a cap is exceeded: stop acting on this PR (ESCALATE)
-    2 - PR not found
-    3 - External error (API failure)
-    4 - Auth error
+Exit codes follow ADR-035, mirroring `check_pr_live_state.py`: 0 = round
+recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE);
+2 = PR not found; 3 = external error (API failure); 4 = auth error.
 """
 
 from __future__ import annotations
@@ -72,7 +52,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
-from typing import Any, NoReturn, cast
+from typing import Any, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +91,9 @@ _SCRIPT_NAME = "check_pr_round_cap.py"
 
 
 class RoundCapStoreError(RuntimeError):
-    """Raised when the marker-comment store (GitHub issue comments) fails.
-
-    Mirrors ``pr_autofix_lease.py``'s ``LeaseStoreError``: a store failure
-    here must not crash the process. It is caught in ``main`` and reported
-    through the same JSON-envelope error path ``check_pr_live_state.py``
-    uses, so pr-autofix's ``jq -r '.Data.action'`` always has JSON to read.
+    """Marker-comment store failure. Mirrors ``pr_autofix_lease.py``'s
+    ``LeaseStoreError``: caught in ``main`` and reported through the same
+    JSON-envelope error path ``check_pr_live_state.py`` uses.
     """
 
 
@@ -124,14 +101,13 @@ def _comment_endpoint(owner: str, repo: str, pr_number: int) -> str:
     return f"repos/{owner}/{repo}/issues/{pr_number}/comments"
 
 
-def _list_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
+def _list_comments(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
     """Return PR issue comments (oldest first). Raises RoundCapStoreError.
 
-    Deliberately does not reuse ``github_core.api.get_issue_comments``: that
-    helper calls ``error_and_exit`` on failure, which prints to stderr and
-    exits with no JSON on stdout. A gate script needs every exit path,
-    including failures, to emit the same JSON envelope so the caller's
-    ``jq`` read never runs against empty input.
+    Does not reuse ``github_core.api.get_issue_comments``: it calls
+    ``error_and_exit`` on failure (stderr, no JSON on stdout). A gate script
+    needs every exit path to emit JSON so the caller's ``jq`` read never
+    runs against empty input.
     """
     endpoint = _comment_endpoint(owner, repo, pr_number) + "?per_page=100"
     try:
@@ -153,13 +129,13 @@ def _list_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
     return _parse_paginated_json_arrays(result.stdout or "")
 
 
-def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict]:
+def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
     """Parse one or more JSON array documents from ``gh api --paginate``."""
     raw = raw_stdout.strip()
     if not raw:
         return []
     decoder = json.JSONDecoder()
-    comments: list[dict] = []
+    comments: list[dict[str, Any]] = []
     pos = 0
     while pos < len(raw):
         while pos < len(raw) and raw[pos].isspace():
@@ -226,9 +202,7 @@ __all__ = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Marker parsing / rendering (pure functions; unit-tested directly)
-# ---------------------------------------------------------------------------
+# Marker parsing / rendering below: pure functions, unit-tested directly.
 
 
 def parse_marker(body: str, prefix: str) -> dict[str, Any] | None:
@@ -253,7 +227,9 @@ def parse_marker(body: str, prefix: str) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def select_latest_state(comments: list[dict], prefix: str) -> dict[str, Any] | None:
+def select_latest_state(
+    comments: list[dict[str, Any]], prefix: str,
+) -> dict[str, Any] | None:
     """Return the most recent marker payload matching *prefix*, or None.
 
     GitHub's issue-comments endpoint returns comments in ascending
@@ -303,9 +279,7 @@ def render_escalation_comment(
     )
 
 
-# ---------------------------------------------------------------------------
-# Evaluation (pure function; unit-tested directly)
-# ---------------------------------------------------------------------------
+# Evaluation below: pure function, unit-tested directly.
 
 
 def evaluate_round_cap(
@@ -367,19 +341,12 @@ def evaluate_round_cap(
     }
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# CLI below.
 
 
 def _emit_error(
-    message: str,
-    code: int,
-    error_type: str,
-    output_format: str,
-    pr_number: int,
-    owner: str,
-    repo: str,
+    message: str, code: int, error_type: str,
+    output_format: str, pr_number: int, owner: str, repo: str,
 ) -> NoReturn:
     write_skill_error(
         message,
@@ -448,16 +415,11 @@ def main(argv: list[str] | None = None) -> int:
             pr_number, owner, repo, duration_ms, safe_log_str(str(exc)),
         )
         _emit_error(
-            f"Failed to fetch PR comments: {exc}",
-            3,
-            "ApiError",
-            output_format,
-            pr_number,
-            owner,
-            repo,
+            f"Failed to fetch PR comments: {exc}", 3, "ApiError",
+            output_format, pr_number, owner, repo,
         )
 
-    prior_state = select_latest_state(cast(list[dict], comments), _STATE_MARKER)
+    prior_state = select_latest_state(comments, _STATE_MARKER)
     now = datetime.now(UTC)
     result = evaluate_round_cap(prior_state, now, args.max_rounds, args.max_hours)
 
@@ -466,28 +428,19 @@ def main(argv: list[str] | None = None) -> int:
         _post_comment(owner, repo, pr_number, marker_body)
     except RoundCapStoreError as exc:
         _emit_error(
-            f"Failed to persist round-cap state comment: {exc}",
-            3,
-            "ApiError",
-            output_format,
-            pr_number,
-            owner,
-            repo,
+            f"Failed to persist round-cap state comment: {exc}", 3, "ApiError",
+            output_format, pr_number, owner, repo,
         )
 
     escalation_posted = False
     if result["action"] == "ESCALATE":
         already_escalated = select_latest_state(
-            cast(list[dict], comments), _ESCALATION_MARKER,
+            comments, _ESCALATION_MARKER,
         )
         if already_escalated is None:
             escalation_body = render_escalation_comment(
-                pr_number,
-                result["round"],
-                args.max_rounds,
-                result["elapsed_hours"],
-                args.max_hours,
-                result["reason"],
+                pr_number, result["round"], args.max_rounds,
+                result["elapsed_hours"], args.max_hours, result["reason"],
             )
             try:
                 _post_comment(owner, repo, pr_number, escalation_body)
