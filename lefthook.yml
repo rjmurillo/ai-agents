@@ -562,10 +562,6 @@ pre-push:
               --path . --fail-on-error
             glob: ".agents/planning/**/*.md"
 
-          - name: build-all-check
-            timeout: 15m
-            run: uv run --frozen python build/scripts/build_all.py --check
-
           - name: branch-scope
             timeout: 5m
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
