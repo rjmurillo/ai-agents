@@ -33,7 +33,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -348,19 +348,22 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
     if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
 
-    # Validate session date is not in the future. A future date means the agent
-    # wrote tomorrow's date or a placeholder; the log will be invisible to
-    # branch-context-policy date filtering (issue #3717).
+    # The creator records its host-local date (issue #4779). UTC+14 is the
+    # furthest possible host offset, so reject dates later than the date there
+    # at this instant as physically impossible (issue #3717).
     session_date_str = session.get("date")
     if isinstance(session_date_str, str):
         try:
             session_date = date.fromisoformat(session_date_str)
-            today = datetime.now(tz=timezone.utc).date()
-            if session_date > today:
+            now_utc = datetime.now(tz=timezone.utc)
+            latest_host_date = (now_utc + timedelta(hours=14)).date()
+            if session_date > latest_host_date:
                 result.errors.append(
                     f"Session date '{session_date_str}' is in the future "
-                    f"(today is {today.isoformat()}); branch-context-policy "
-                    "will not pick up this log"
+                    f"(later than the latest possible host date "
+                    f"{latest_host_date.isoformat()} at {now_utc.isoformat()}); "
+                    "that date is physically impossible for a current host and "
+                    "looks like a placeholder or a wrong date"
                 )
         except ValueError:
             pass  # Schema already rejects non-date strings via its pattern

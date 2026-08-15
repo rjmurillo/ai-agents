@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.hook_utilities.utilities as hook_utilities
 from scripts.hook_utilities import (
     coerce_to_list,
     format_work_item,
@@ -185,7 +186,7 @@ class TestGetTodaySessionLog:
         assert result is None
 
     def test_returns_most_recent_log(self, tmp_path: Path) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
 
         session1 = tmp_path / f"{today}-session-001.json"
         session2 = tmp_path / f"{today}-session-002.json"
@@ -199,6 +200,16 @@ class TestGetTodaySessionLog:
         result = get_today_session_log(str(tmp_path))
         assert result is not None
         assert result.name == f"{today}-session-002.json"
+
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_log(str(tmp_path)) == selected
 
     def test_accepts_explicit_date(self, tmp_path: Path) -> None:
         session = tmp_path / "2025-01-15-session-001.json"
@@ -235,8 +246,19 @@ class TestGetTodaySessionLogs:
             result = get_today_session_logs(str(nonexistent))
         assert result == []
 
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        (tmp_path / "2099-12-30-session-999.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_logs(str(tmp_path)) == [selected]
+
     def test_returns_all_today_logs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         yesterday = "2020-01-01"
 
         (tmp_path / f"{today}-session-001.json").write_text("{}")
@@ -257,7 +279,7 @@ class TestGetRecentSessionLog:
             assert get_recent_session_log(str(tmp_path / "missing")) is None
 
     def test_returns_today_log_when_present(self, tmp_path: Path) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         f = tmp_path / f"{today}-session-01.json"
         f.write_text("{}")
         result = get_recent_session_log(str(tmp_path))
@@ -265,7 +287,7 @@ class TestGetRecentSessionLog:
 
     def test_falls_back_to_yesterday_when_no_today(self, tmp_path: Path) -> None:
         """Cross-midnight sessions: prefer today; fall back only when today is empty."""
-        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         f = tmp_path / f"{yesterday}-session-01.json"
         f.write_text("{}")
         result = get_recent_session_log(str(tmp_path))
@@ -273,8 +295,8 @@ class TestGetRecentSessionLog:
 
     def test_prefers_today_over_yesterday(self, tmp_path: Path) -> None:
         """When both dates exist, today wins regardless of mtime."""
-        today_d = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        today_d = datetime.now().strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         today_f = tmp_path / f"{today_d}-session-01.json"
         yesterday_f = tmp_path / f"{yesterday}-session-99.json"
         today_f.write_text("{}")
@@ -283,6 +305,31 @@ class TestGetRecentSessionLog:
         os.utime(yesterday_f, (time.time() + 100, time.time() + 100))
         result = get_recent_session_log(str(tmp_path))
         assert result is not None and result.name == today_f.name
+
+    def test_finds_pre_migration_utc_tomorrow_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A new local-date consumer finds an active old UTC-date log."""
+        utc_log = tmp_path / "2026-03-15-session-01.json"
+        utc_log.write_text("{}", encoding="utf-8")
+        stale_local = tmp_path / "2026-03-13-session-01.json"
+        stale_local.write_text("{}", encoding="utf-8")
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is not None:
+                    return cls(2026, 3, 15, 1, 30, tzinfo=UTC)
+                return cls(2026, 3, 14, 18, 30)
+
+        monkeypatch.setattr(
+            hook_utilities,
+            "recent_host_session_dates",
+            lambda: ("2026-03-14", "2026-03-13"),
+        )
+        monkeypatch.setattr(hook_utilities, "datetime", _FrozenDateTime)
+
+        assert get_recent_session_log(str(tmp_path)) == utc_log
 
     def test_skips_candidate_with_transient_stat_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -293,7 +340,7 @@ class TestGetRecentSessionLog:
         permission error) on one candidate must not cause the whole
         selection to return None when other candidates are healthy.
         """
-        today_d = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today_d = datetime.now().strftime("%Y-%m-%d")
         bad = tmp_path / f"{today_d}-session-01.json"
         good = tmp_path / f"{today_d}-session-02.json"
         bad.write_text("{}")

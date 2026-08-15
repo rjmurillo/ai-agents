@@ -167,3 +167,34 @@ class TestMain:
         files = list(sessions_dir.glob("*.json"))
         data = json.loads(files[0].read_text())
         assert data["protocolCompliance"]["sessionStart"]["notOnMain"]["Complete"] is True
+
+    @patch("new_session_log_json.host_session_date", return_value="2026-08-08")
+    @patch("new_session_log_json._get_repo_root")
+    @patch("new_session_log_json._get_branch")
+    @patch("new_session_log_json._get_commit")
+    def test_filename_and_date_field_use_host_session_date(
+        self, mock_commit, mock_branch, mock_root, mock_date, tmp_path
+    ):
+        """The JSON creator names the file by the host date helper, not UTC.
+
+        Regression guard for Issue #4779: this creation path was the third
+        creator missed by the first fix. A UTC anchor here would run the
+        filename a day ahead of the contributor's local date near midnight.
+        """
+        mock_root.return_value = str(tmp_path)
+        mock_branch.return_value = "feat/test"
+        mock_commit.return_value = "abc1234"
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+
+        exit_code = new_session_log_json.main([
+            "--session-number", "1",
+            "--objective", "test",
+        ])
+        assert exit_code == 0
+
+        files = list(sessions_dir.glob("*.json"))
+        assert len(files) == 1
+        assert files[0].name == "2026-08-08-session-1.json"
+        data = json.loads(files[0].read_text())
+        assert data["session"]["date"] == "2026-08-08"
