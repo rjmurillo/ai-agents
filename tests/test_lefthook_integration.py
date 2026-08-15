@@ -5040,6 +5040,7 @@ def test_mypy_scope_keeps_modified_file_and_blocks_its_errors(
 def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     # Unresolvable merge base must never weaken the gate: the full pushed set
     # is scanned, and the block-on-any-error fallback still applies.
@@ -5056,6 +5057,9 @@ def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
 
     assert policy.run_mypy(["source.py"], tmp_path) == 1
     assert invoked == [["source.py"]]
+    # The fallback also reports its scope size (ci-scripts: report examined
+    # counts), so a full scan is distinguishable from a filtered one.
+    assert "scanning all 1 pushed file(s)" in capsys.readouterr().out
 
 
 def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
@@ -5084,6 +5088,27 @@ def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
 
     assert policy.run_mypy(["keep.py", "round.py"], repo) == 0
     assert invoked == [["keep.py"]]
+
+
+def test_mypy_scope_end_to_end_blocks_changed_line_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Companion to the round-trip end-to-end test: blocking must also work
+    # through real merge-base discovery, not only through mocked seams.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "keep.py", "value: int = 1\n")
+    _write_file(repo, "keep.py", "value: int = 'broken'\n")
+    _git(repo, "commit", "-aqm", "test: break typing on line 1")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "keep.py:1: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["keep.py"], repo) == 1
 
 
 def test_mypy_cli_main_exit_codes_respect_merge_base_scope(

@@ -38,7 +38,7 @@ def _init_repo(root: Path) -> str:
         )
     return subprocess.run(
         ["git", "-C", str(root), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True, encoding="utf-8",
+        check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
     ).stdout.strip()
 
 
@@ -56,7 +56,7 @@ def _commit(root: Path, filename: str, content: str = "x") -> str:
     )
     return subprocess.run(
         ["git", "-C", str(root), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True, encoding="utf-8",
+        check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
     ).stdout.strip()
 
 class TestHandleObservationsPush:
@@ -190,7 +190,7 @@ class TestHandleObservationsPush:
         )
         head_sha = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
         ).stdout.strip()
         called = {"n": 0}
 

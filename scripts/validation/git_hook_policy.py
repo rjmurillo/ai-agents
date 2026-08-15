@@ -2777,6 +2777,15 @@ def _merge_base_scope(
     ``None`` signals the base could not be resolved; callers then keep the
     full pushed set so the gate is never weaker than before, mirroring the
     ``_changed_line_map`` fallback.
+
+    Path identity uses ``_normalize_ratchet_path`` on both sides of the
+    comparison, so a pathological name that differs only by surrounding
+    whitespace can collide. Collisions only ADD names to the returned set,
+    never remove them: a file that differs from the merge base always
+    contributes its own normalized name, so a modified file can never be
+    dropped. The worst case is retaining a round-tripped file whose name
+    collides with a modified one, which merely scans it; the diff-line
+    ratchet still ignores its unchanged lines.
     """
     if not paths:
         return set()
@@ -2836,6 +2845,10 @@ def _filter_to_merge_base_scope(
         return paths
     scope = _merge_base_scope(paths, repo_root, base_ref)
     if scope is None:
+        print(
+            f"mypy scope: merge base {base_ref} unresolvable; "
+            f"scanning all {len(paths)} pushed file(s)"
+        )
         return paths
     kept = [path for path in paths if _normalize_ratchet_path(path) in scope]
     print(
