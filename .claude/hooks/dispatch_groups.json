@@ -1,68 +1,81 @@
 {
-  "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. file is relative to .claude/hooks/. timeout/statusMessage preserve the pre-consolidation per-hook registration values for generator fidelity. copilotMatcher overrides the group matcher for Copilot shim generation only.",
-  "groups": {
-    "sessionstart-1-context_loader": {
-      "event": "SessionStart",
-      "mode": "observe",
-      "matcher": null,
-      "shims": [
-        {
-          "file": "SessionStart/invoke_context_loader.py",
-          "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+    "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. file is relative to .claude/hooks/. timeout/statusMessage preserve the pre-consolidation per-hook registration values for generator fidelity. copilotMatcher overrides the group matcher for Copilot shim generation only.",
+    "groups": {
+        "sessionstart-1-context_loader": {
+            "event": "SessionStart",
+            "mode": "observe",
+            "matcher": null,
+            "shims": [
+                {
+                    "file": "SessionStart/invoke_context_loader.py",
+                    "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+                }
+            ]
+        },
+        "plugin-pretooluse-8-markdownlint_guard": {
+            "event": "PreToolUse",
+            "mode": "gate",
+            "matcher": "Bash(git push*)",
+            "surface": "plugin",
+            "shims": [
+                {
+                    "file": "PreToolUse/invoke_markdownlint_guard.py",
+                    "timeout": 90,
+                    "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
+                }
+            ]
+        },
+        "plugin-pretooluse-9-push_pr_script_identity": {
+            "event": "PreToolUse",
+            "mode": "gate",
+            "matcher": "Bash",
+            "surface": "plugin",
+            "shims": [
+                {
+                    "file": "PreToolUse/invoke_push_pr_script_identity_guard.py",
+                    "timeout": 10,
+                    "statusMessage": "Verifying push-pr script identity (BLOCKING)"
+                }
+            ]
+        },
+        "plugin-pretooluse-10-require_subagent_model": {
+            "event": "PreToolUse",
+            "mode": "gate",
+            "matcher": "^(Agent|Task)$",
+            "surface": "plugin",
+            "shims": [
+                {
+                    "file": "PreToolUse/invoke_require_subagent_model.py",
+                    "copilotMatcher": "^(Agent|Task)$",
+                    "timeout": 10,
+                    "statusMessage": "Requiring explicit sub-agent model (BLOCKING)"
+                }
+            ]
+        },
+        "plugin-posttooluse-1-markdown_auto_lint": {
+            "event": "PostToolUse",
+            "mode": "observe",
+            "matcher": "^(Write|Edit)$",
+            "surface": "plugin",
+            "shims": [
+                {
+                    "file": "PostToolUse/invoke_markdown_auto_lint.py",
+                    "statusMessage": "Auto-linting markdown files"
+                }
+            ]
+        },
+        "plugin-pretooluse-11-serena_worktree_scope": {
+            "event": "PreToolUse",
+            "mode": "gate",
+            "matcher": "^serena-",
+            "surface": "plugin",
+            "shims": [
+                {
+                    "file": "PreToolUse/invoke_serena_worktree_scope_guard.py",
+                    "timeout": 10,
+                    "statusMessage": "Checking Serena worktree scope (BLOCKING, #4917)"
+                }
+            ]
         }
-      ]
-    },
-    "plugin-pretooluse-8-markdownlint_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash(git push*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_markdownlint_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-9-push_pr_script_identity": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_push_pr_script_identity_guard.py",
-          "timeout": 10,
-          "statusMessage": "Verifying push-pr script identity (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-10-require_subagent_model": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(Agent|Task)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_require_subagent_model.py",
-          "copilotMatcher": "^(Agent|Task)$",
-          "timeout": 10,
-          "statusMessage": "Requiring explicit sub-agent model (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-posttooluse-1-markdown_auto_lint": {
-      "event": "PostToolUse",
-      "mode": "observe",
-      "matcher": "^(Write|Edit)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PostToolUse/invoke_markdown_auto_lint.py",
-          "statusMessage": "Auto-linting markdown files"
-        }
-      ]
     }
-  }
 }
