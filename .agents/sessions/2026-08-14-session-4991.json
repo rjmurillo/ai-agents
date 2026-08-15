@@ -1,0 +1,197 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4991,
+    "date": "2026-08-14",
+    "branch": "fix/4812-skillforge-name-mismatch",
+    "startingCommit": "194975a0fe74730a48ae281d1b7c6d92a4534c7c",
+    "objective": "Run full PR autofix for PR 4991 and repair Validate PR CI"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP toolset available; initial instructions loaded for this repository session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as read-only reference"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 61 Python helpers under .claude/skills/github/scripts and used pr-autofix scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and relevant PR autofix corrections"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4812-skillforge-name-mismatch"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4812-skillforge-name-mismatch"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree was clean before the QA-discovered code fix"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "194975a0fe74730a48ae281d1b7c6d92a4534c7c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No repository memory update required; the fix is captured in committed QA evidence"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "QA report checked with markdownlint-cli2"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All non-evidence code committed through 51968f2cad1de8c8e7e663f327cecb5af2d92bcc"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed on this completed log"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #4991 autofix task completed through QA evidence and CI verification"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4991-autofix-qa-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Diagnosed Validate PR full logs",
+      "result": "Required check failed because no SHA-bound QA report existed"
+    },
+    {
+      "action": "Ran adversarial QA",
+      "result": "Found global sys.path pollution causing 11 order-dependent failures"
+    },
+    {
+      "action": "Fixed and validated test isolation",
+      "result": "Removed global sys.path mutation; 85 focused tests passed and final QA passed 151 executions"
+    },
+    {
+      "action": "Prepared CI evidence",
+      "result": "Created SHA-bound QA report for commit e59c04f6e38bf6344437a99f3e405b8b910cbce4"
+    },
+    {
+      "action": "Updated branch and repaired count ratchet",
+      "result": "Merged current main, added a reasoned test-suite file-size suppression, taste count equals baseline 583, and 97 focused tests pass"
+    },
+    {
+      "action": "Revalidated after final base refresh",
+      "result": "Merged origin/main at 4ecc1fdf3; taste ratchet stayed at baseline 583 and 97 focused tests passed"
+    },
+    {
+      "action": "Cleared active suppressed-review findings",
+      "result": "Validated global skills regardless of verbosity, narrowed the registry/path rationale, regenerated the mirror, and passed 86 affected tests plus the taste ratchet"
+    },
+    {
+      "action": "Revalidated suppressed-finding fixes after latest main merge",
+      "result": "86 affected tests passed and taste count remained at baseline 583"
+    },
+    {
+      "action": "Fixed post-merge ruff ratchet",
+      "result": "Sorted installation-test imports; ruff ratchet passed for 40 changed Python files and 14 tests passed"
+    },
+    {
+      "action": "Fixed final suppressed plugin-portability findings",
+      "result": "Converted SkillForge launch examples to plugin-root fallbacks, regenerated mirrors, and passed 36 generator tests"
+    },
+    {
+      "action": "Resolved latest active suppressed review findings",
+      "result": "Used project-local .claude fallback, corrected /skillforge documentation, regenerated mirrors, and passed 36 generator tests"
+    },
+    {
+      "action": "Fixed project-local fallback runtime resolution",
+      "result": "Resolved ROOT to an absolute path before cd; generator tests and variables-unset runtime probe passed"
+    },
+    {
+      "action": "Resolved installed-path and eval provenance findings",
+      "result": "Kept executables plugin-root anchored, targeted global skill workspace, removed cross-root reference, made base/treatment paths explicit, and passed generator/runtime checks"
+    },
+    {
+      "action": "Merged latest origin/main and revalidated",
+      "result": "Merged 841f375ca and passed 72 focused generator, structural, and installation tests"
+    },
+    {
+      "action": "Added SkillForge launcher runtime-contract coverage",
+      "result": "Three tests execute the documented block for Copilot-root, project-local fallback, and broken-root negative control; Ruff and tests pass"
+    },
+    {
+      "action": "Corrected Copilot launcher runtime test root",
+      "result": "COPILOT_PLUGIN_ROOT now targets src/copilot-cli; Ruff and all three runtime-contract cases pass"
+    },
+    {
+      "action": "Removed stale SkillForge exec portability allowances",
+      "result": "Deleted canonical and generated modularity-guidelines baseline entries; portability ratchet passes"
+    },
+    {
+      "action": "Prevented package artifacts from breaking global skill validation",
+      "result": "Launcher now runs from ~/.claude, targets skills/my-skill, and writes ./dist outside the skills directory; 17 focused tests pass"
+    }
+  ],
+  "endingCommit": "51968f2cad1de8c8e7e663f327cecb5af2d92bcc",
+  "nextSteps": []
+}

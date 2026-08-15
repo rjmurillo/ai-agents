@@ -32,10 +32,8 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-
-UTC = timezone.utc
 
 
 def _resolve_paths_lib_dir() -> Path:
@@ -65,6 +63,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+from hook_utilities.utilities import host_session_date  # noqa: E402
 from paths import artifact_dir as _resolve_artifact_dir  # noqa: E402
 
 
@@ -174,15 +173,29 @@ def _session_log_date(path: Path) -> date | None:
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
     """Return the session log for a target date priority, or None when absent.
 
-    Prefers the target date, then the previous day, then the newest older log.
+    Prefers the target date and previous day. For the current host-local
+    scope, UTC today/yesterday follow as rollout compatibility for logs created
+    before Issue #4779; explicit historical scopes do not use that fallback.
+    The newest older log is the final fallback.
     """
     if not sessions_dir.is_dir():
         return None
     candidates = list(sessions_dir.glob("*-session-*.json"))
     if not candidates:
         return None
-    today = today or datetime.now(tz=UTC).date()
-    for target_day in (today, today - timedelta(days=1)):
+    host_today = date.fromisoformat(host_session_date())
+    today = today or host_today
+    if today == host_today:
+        now_utc = datetime.now(tz=UTC)
+        target_days = [
+            today,
+            now_utc.date(),
+            today - timedelta(days=1),
+            (now_utc - timedelta(days=1)).date(),
+        ]
+    else:
+        target_days = [today, today - timedelta(days=1)]
+    for target_day in dict.fromkeys(target_days):
         prefix = f"{target_day.isoformat()}-session-"
         dated = [path for path in candidates if path.name.startswith(prefix)]
         if dated:
@@ -374,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--scope",
-        default=datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+        default=host_session_date(),
         help="Retrospective scope label (default: today's date).",
     )
     parser.add_argument(

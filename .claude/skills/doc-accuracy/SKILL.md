@@ -113,8 +113,8 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 |------|-------------|
 | `assessment.json` | Phase 1: doc/source inventory with symbol index |
 | `claims.json` | Phase 2: verifiable claims extracted from docs |
-| `compilability-findings.json` | Phase 3: symbol resolution findings |
-| `gate-result.json` | Gate verdict with severity counts |
+| `compilability-findings.json` | Phase 3: run status and symbol resolution findings |
+| `gate-result.json` | Gate verdict, reason when inconclusive, and severity counts |
 | `report.md` | Markdown summary (when `--format markdown`) |
 
 ---
@@ -127,7 +127,7 @@ Run `doc_accuracy.py` to produce JSON artifacts. No LLM calls.
 
 1. **Phase 1 (Assessment)**: Enumerate documentation and source files. Extract public symbols via regex. Build doc-to-source mapping.
 2. **Phase 2 (Claim Extraction)**: Parse markdown files. Extract verifiable claims with file path, line number, claim type, and referenced symbols.
-3. **Phase 3 (Compilability)**: Verify type names, method names, parameter names in code examples exist in the codebase via symbol index lookup.
+3. **Phase 3 (Compilability)**: Verify type names, method names, parameter names in code examples exist in the codebase via symbol index lookup. If Phase 1 finds no source symbols, report `DID_NOT_RUN` with zero findings instead of treating every documentation reference as unresolved.
 
 ### Phase 4: Behavioral Verification (Agent)
 
@@ -208,11 +208,20 @@ Present proposed fixes for user approval before modifying any file. Categories:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | No findings at or above severity threshold |
-| 1 | Error (file not found, parse error) |
-| 10 | Findings at or above severity threshold |
+Canonical source bundled with this skill:
+
+```text
+scripts/doc_accuracy.py
+```
+
+```text
+Exit Codes:
+    0: No findings at or above severity threshold
+    1: Error or inconclusive run, including no source symbols for Phase 3
+    2: Configuration error, including an invalid --diff-base
+    3: External dependency failure, including unavailable or failed Git
+    10: Findings at or above severity threshold
+```
 
 ---
 
@@ -238,6 +247,7 @@ After running:
 - [ ] Behavioral claims verified by reading implementation source
 - [ ] Cross-document conflicts identified with all locations listed
 - [ ] Exit code reflects severity threshold
+- [ ] Phase 3 reports `DID_NOT_RUN` when no source symbols exist
 
 ---
 
