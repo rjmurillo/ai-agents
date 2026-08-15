@@ -95,7 +95,7 @@
       "qaValidation": {
         "complete": true,
         "level": "MUST",
-        "evidence": ".agents/qa/pr-0000-issue-4920-scope-explosion-generated-files.md"
+        "evidence": ".agents/qa/pr-5047-issue-4920-scope-explosion-generated-files.md"
       }
     }
   },
