@@ -5,7 +5,8 @@
     "date": "2026-08-15",
     "branch": "fix/push-pr-timeout-denial-5013",
     "startingCommit": "f92949aac35ce4d31414dfbb9e752750b27a967e",
-    "objective": "Fix #5013: push-pr PreToolUse guard timeout denial"
+    "objective": "Fix #5013: push-pr PreToolUse guard timeout denial",
+    "endingCommit": "d5b8f24af6e63b3f8c42357222b679dbf4c184de"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -116,7 +117,7 @@
       ]
     }
   ],
-  "endingCommit": "97d814ef471ea2c60ca8cbfe2674b1d37c10d81c",
+  "endingCommit": "d5b8f24af6e63b3f8c42357222b679dbf4c184de",
   "nextSteps": [
     "Narrow Copilot matcher in follow-up"
   ],
