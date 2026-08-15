@@ -49,6 +49,20 @@ _DEFAULT_REMOTE = "origin"
 #     lefthook run pre-push          -> ARG1=[{1}] ARG2=[{2}] ALL=[]
 #     lefthook run pre-push origin U -> ARG1=[origin] ARG2=[U] ALL=[origin U]
 _UNEXPANDED_PLACEHOLDER = re.compile(r"^\{[^{}]*\}$")
+_AUTH_FAILURE_HINTS = (
+    "authentication failed",
+    "could not read username",
+    "permission denied",
+    "unauthorized",
+)
+
+
+class RemoteLookupError(RuntimeError):
+    """A remote query failed before it could distinguish absence from error."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
 def _resolve_remote(argv: list[str] | None) -> str | None:
@@ -99,8 +113,18 @@ def _run(cmd: list[str], *, timeout: int = 10) -> subprocess.CompletedProcess[st
 
 def _remote_sha(remote: str, refspec: str) -> str | None:
     """Return the SHA the remote currently has for refspec, or None if absent."""
-    result = _run(["git", "ls-remote", remote, refspec])
-    if result.returncode != 0 or not result.stdout.strip():
+    try:
+        result = _run(["git", "ls-remote", remote, refspec])
+    except subprocess.TimeoutExpired as error:
+        raise RemoteLookupError(
+            f"git ls-remote timed out after {error.timeout} seconds", 3
+        ) from error
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"git ls-remote exited {result.returncode}"
+        lowered = detail.lower()
+        exit_code = 4 if any(hint in lowered for hint in _AUTH_FAILURE_HINTS) else 3
+        raise RemoteLookupError(detail, exit_code)
+    if not result.stdout.strip():
         return None
     # Output: "<sha>\t<refspec>"
     parts = result.stdout.strip().split()
@@ -182,7 +206,14 @@ def main(argv: list[str] | None = None) -> int:
         # point; a job that cannot name its remote must not report success.
         return 2
 
-    stale_refs = _stale_refs(lines, remote)
+    try:
+        stale_refs = _stale_refs(lines, remote)
+    except RemoteLookupError as error:
+        print(
+            f"[push-ref-staleness] Remote lookup failed: {error}",
+            file=sys.stderr,
+        )
+        return error.exit_code
 
     if stale_refs:
         print(

@@ -17,6 +17,7 @@ Covers:
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from io import StringIO
 from pathlib import Path
@@ -83,6 +84,49 @@ class TestRemoteUnchanged:
         # New branch: ls-remote returns None
         with patch("sys.stdin", _make_stdin()), _mock_remote_sha(None):
             assert main([]) == 0
+
+
+class TestRemoteLookupFailure:
+    def test_absent_remote_ref_returns_none(self):
+        result = subprocess.CompletedProcess(["git"], 0, "", "")
+        with patch.object(_mod, "_run", return_value=result):
+            assert _mod._remote_sha("origin", _REF) is None
+
+    def test_network_failure_exits_three(self, capsys):
+        error = _mod.RemoteLookupError("network is unreachable", 3)
+        with patch("sys.stdin", _make_stdin()), \
+                patch.object(_mod, "_remote_sha", side_effect=error):
+            assert main(["origin"]) == 3
+        assert "Remote lookup failed: network is unreachable" in capsys.readouterr().err
+
+    def test_authentication_failure_exits_four(self, capsys):
+        result = subprocess.CompletedProcess(
+            ["git"], 128, "", "fatal: Authentication failed for remote"
+        )
+        with patch.object(_mod, "_run", return_value=result), \
+                patch("sys.stdin", _make_stdin()):
+            assert main(["origin"]) == 4
+        assert "Remote lookup failed: fatal: Authentication failed" in (
+            capsys.readouterr().err
+        )
+
+    def test_unknown_remote_failure_exits_three(self, capsys):
+        result = subprocess.CompletedProcess(
+            ["git"], 2, "", "fatal: 'missing' does not appear to be a git repository"
+        )
+        with patch.object(_mod, "_run", return_value=result), \
+                patch("sys.stdin", _make_stdin()):
+            assert main(["missing"]) == 3
+        assert "does not appear to be a git repository" in capsys.readouterr().err
+
+    def test_remote_timeout_exits_three(self, capsys):
+        with patch.object(
+            _mod,
+            "_run",
+            side_effect=subprocess.TimeoutExpired(["git", "ls-remote"], 10),
+        ), patch("sys.stdin", _make_stdin()):
+            assert main(["origin"]) == 3
+        assert "git ls-remote timed out after 10 seconds" in capsys.readouterr().err
 
 
 class TestRemoteAdvanced:
