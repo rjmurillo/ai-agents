@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: b3b3c3555717894e82d83492ecde47261ec262a3
+qaCommit: f1deafdf28794d52abf31b335880b7804171b7c8
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `b3b3c3555717894e82d83492ecde47261ec262a3`
+Validated the branch at commit `f1deafdf28794d52abf31b335880b7804171b7c8`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -30,7 +30,7 @@ pass), and an `xfail` shipped without an open tracking issue
 it in the reason string). The 4th finding (`pyproject.toml:10`, PR
 description undersold the branch's historical 50-file scope) was addressed
 via `gh pr edit`. That was the branch-local measurement before later base
-merges; GitHub now reports a 12-file PR diff. Full targeted suite:
+merges; GitHub now reports a 10-file PR diff. Full targeted suite:
 192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this
@@ -46,7 +46,7 @@ passes 215 tests, and fail-open guard tests pass 21 tests. Ruff, mypy,
 actionlint, workflow validation, and independent security review all pass.
 The final review cleanup removes duplicate sub-agent behavior tests and makes
 the checkout dependency guard reject external checkout-index prefixes.
-Final suites pass: 216 provenance tests, 149 workflow checkout tests, and
+Final suites pass: 216 provenance tests, 151 workflow checkout tests, and
 25 hook-contract tests. Exact Python and uv pins passed independent security
 review. Ruff, actionlint, and workflow validation pass.
 
