@@ -33,18 +33,19 @@ from pathlib import Path
 def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
     """Return the newest readable session log from today or yesterday.
 
-    Runs only when ``hook_utilities`` cannot be imported. The executable lines
-    from ``lib/hook_utilities/utilities.py::recent_host_session_dates`` are::
+    Runs only when ``hook_utilities`` cannot be imported. The repository
+    canonical source is
+    ``scripts/hook_utilities/utilities.py::recent_host_session_dates``::
 
         current = now()
         today = current.strftime(_ISO_DATE)
         yesterday = (current - timedelta(days=1)).strftime(_ISO_DATE)
         return today, yesterday
 
-    Stricter/looser/different than canonical: the fallback uses inline
-    ``datetime.now()`` rather than an injectable callable and skips a date
-    after a glob error, while the canonical importer warns and returns
-    ``None``. Both remain host-local rather than UTC (Issue #4779).
+    The installed plugin mirrors that helper at
+    ``lib/hook_utilities/utilities.py``. Unlike canonical, this fallback uses
+    inline ``datetime.now()`` and skips a date after a glob error instead of
+    warning and returning ``None``. Both use host-local dates (Issue #4779).
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():

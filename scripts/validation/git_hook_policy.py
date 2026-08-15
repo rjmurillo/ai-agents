@@ -983,28 +983,27 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
-def _recent_date_prefixes() -> tuple[str, str]:
-    '''Return today's and yesterday's UTC date strings for cross-midnight tolerance.
+def _recent_date_prefixes() -> tuple[str, ...]:
+    """Return host-local and UTC date prefixes for retrospective lookup.
 
-    UTC anchor. The canonical artifact-date contract in
-    ``.claude/skills/retrospective/scripts/run_retrospective.py`` is::
-
-        def _artifact_date(scope: str) -> str:
-            """Return the artifact date, preferring a dated retrospective scope."""
-            return _scope_date(scope) or datetime.now(tz=UTC).strftime("%Y-%m-%d")
-
-    Stricter/looser/different than canonical: this helper has no scope input
-    and returns both today and yesterday for a fallback search window, while
-    the canonical function prefers an explicit scope and returns one date.
-    Session logs use a different authority: they are named by the host local
-    date (Issue #4779), so session-log scanning routes through
-    ``recent_host_session_dates`` instead. Do not merge the two; a UTC consumer
-    reading a host-local session date is exactly the bug #4779 fixes.
-    '''
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    return today, yesterday
+    ``run_retrospective.build_parser`` defaults its dated scope through
+    ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
+    undated scopes instead use UTC. A producer and scanner can differ by 26
+    hours (UTC+14 versus UTC-12), so search the scanner host date plus or minus
+    two days, then retain UTC today/yesterday for undated-scope compatibility.
+    """
+    host_today, _ = recent_host_session_dates()
+    host_anchor = date.fromisoformat(host_today)
+    host_dates = tuple(
+        (host_anchor + timedelta(days=offset)).isoformat()
+        for offset in (2, 1, 0, -1, -2)
+    )
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime("%Y-%m-%d"),
+        (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
+    )
+    return tuple(dict.fromkeys((*host_dates, *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
@@ -1602,9 +1601,8 @@ def _today_retrospective_exists(repo_root: Path) -> bool:
     retro_dir = repo_root / ".agents" / "retrospective"
     if not retro_dir.is_dir():
         return False
-    today, yesterday = _recent_date_prefixes()
     try:
-        for prefix in (today, yesterday):
+        for prefix in _recent_date_prefixes():
             if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
                 return True
         return False

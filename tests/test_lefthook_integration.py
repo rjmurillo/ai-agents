@@ -518,6 +518,30 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     )
 
 
+def test_retrospective_policy_accepts_host_tomorrow_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC+14 producer's next-day artifact satisfies the UTC-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 12, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-14", "2026-03-13"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-15-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
 def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
