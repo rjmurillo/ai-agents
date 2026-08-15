@@ -75,6 +75,18 @@ class TestDetectLanguage:
     def test_cs_alias(self) -> None:
         assert _detect_language("cs") == "csharp"
 
+    def test_c_sharp_hash_alias(self) -> None:
+        """Pin the "c#" -> "csharp" alias that the fence regex depends on.
+
+        _detect_language itself was never the bug (this mapping already
+        existed); the regression was that ```c``` fences never reached this
+        function with the full "c#" token intact (see
+        TestRunClaimExtraction.test_extracts_csharp_from_hash_alias_fence).
+        This test pins the alias contract so a future edit to lang_map cannot
+        silently reopen that regression from the other end.
+        """
+        assert _detect_language("c#") == "csharp"
+
     def test_empty_string(self) -> None:
         assert _detect_language("") == ""
 
@@ -1401,6 +1413,35 @@ class TestRunClaimExtraction:
             )
             assert code_examples[0]["language"] == lang
 
+    def test_extracts_csharp_from_hash_alias_fence(self, tmp_path: Path) -> None:
+        """Regression test: ```c#``` fences must still produce a claim.
+
+        The fence-detection regex in run_claim_extraction previously captured
+        the info string with \\w*, which stops before the "#" in "c#" and
+        passes only "c" to _detect_language. "c" has no lang_map alias (only
+        "cs"/"csharp"/"c#" map to "csharp"), so it was returned unchanged and,
+        because SYMBOL_EXTRACTORS has no "c" entry, the SYMBOL_EXTRACTORS-based
+        allowlist added for Go/Rust/Java skip support silently dropped every
+        ```c#``` code example. This pins that the full "c#" token reaches
+        _detect_language (which maps it to "csharp", a SYMBOL_EXTRACTORS
+        entry) so the claim survives extraction.
+        """
+        md = "# Doc\n\n```c#\nConsole.WriteLine(42);\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        code_examples = [c for c in result["claims"] if c["type"] == "code_example"]
+        assert len(code_examples) == 1
+        assert code_examples[0]["language"] == "csharp"
+
     def test_leaves_unmapped_code_example_without_source(self, tmp_path: Path) -> None:
         md = "# Doc\n\n```csharp\nConsole.WriteLine(42)\n```\n"
         (tmp_path / "doc.md").write_text(md)
@@ -1568,6 +1609,39 @@ class TestRunCompilabilityCheck:
                 f"expected one finding for language {lang!r}"
             )
             assert result["findings"][0]["category"] == "unresolved_symbol"
+
+    def test_checks_csharp_hash_alias_end_to_end(self, tmp_path: Path) -> None:
+        """Regression test: a ```c#``` fence must still reach unresolved-symbol
+        checking, not just claim extraction.
+
+        Runs the actual run_claim_extraction output (not a hand-built claim
+        dict) through run_compilability_check, so this proves the full
+        pipeline for the reported "c#" regex regression: extraction resolves
+        "c#" to "csharp" (see
+        TestRunClaimExtraction.test_extracts_csharp_from_hash_alias_fence) and
+        that claim is not skipped in Phase 3 either.
+        """
+        md = "# Doc\n\n```c#\nvar w = TotallyUnresolvedWidget();\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment: dict[str, Any] = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        claims = run_claim_extraction(tmp_path, assessment)
+        code_examples = [c for c in claims["claims"] if c["type"] == "code_example"]
+        assert len(code_examples) == 1
+        assert code_examples[0]["language"] == "csharp"
+
+        result = run_compilability_check(assessment, claims)
+        unresolved = [
+            f for f in result["findings"] if f["category"] == "unresolved_symbol"
+        ]
+        assert len(unresolved) == 1
 
 
 class TestCheckGate:

@@ -816,8 +816,18 @@ def run_claim_extraction(
         while i < len(lines):
             line = lines[i]
 
-            # Detect fenced code blocks
-            fence_match = re.match(r"^```(\w*)", line)
+            # Detect fenced code blocks. The info string is captured with
+            # \S* rather than \w*: a fence like ```c# has a language token
+            # containing a non-word character, and _detect_language's
+            # lang_map (defined above, in this file) maps that exact token
+            # ("c#") to "csharp". \w* stops before the "#" and passes only
+            # "c", which lang_map does not recognize, so the claim was
+            # silently dropped by the SYMBOL_EXTRACTORS allowlist below.
+            # _detect_language already tokenizes on whitespace via
+            # .split()[0], so widening the capture to non-whitespace does
+            # not change behavior for any fence whose info string was
+            # already all word characters.
+            fence_match = re.match(r"^```(\S*)", line)
             if fence_match:
                 lang = _detect_language(fence_match.group(1))
                 block_start = i + 1
