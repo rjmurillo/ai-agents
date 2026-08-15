@@ -102,10 +102,10 @@
     {
       "action": "Diagnosed hosted-runner contract: Copilot CLI 1.0.78 with token auth does not emit session.custom_agents_updated",
       "evidence": "Nightly run 31886004229 fails identically on all 3 OS.",
-      "commit": "e08e58b372c1c5d4633e9c5f9b343314d7dd360a"
+      "commit": "4da170ab0b1b6d1ed114f03b3666bf311f9540b5"
     }
   ],
-  "endingCommit": "e08e58b372c1c5d4633e9c5f9b343314d7dd360a",
+  "endingCommit": "4da170ab0b1b6d1ed114f03b3666bf311f9540b5",
   "nextSteps": [
     "Trigger nightly CLI smoke to verify fix on hosted runners",
     "Confirm issue #4964 closes automatically"
