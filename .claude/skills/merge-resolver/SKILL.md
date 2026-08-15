@@ -325,4 +325,4 @@ uv run python scripts/validate_session_json.py "$SESSION_LOG"
 
 </details>
 
-<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .agents/qa/, retrospectives under .agents/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->

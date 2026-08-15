@@ -293,4 +293,4 @@ git add .agents/sessions/<date>-session-<N>.json \
 git grep -l "session-<N>" -- ".agents/qa/*.md"
 ```
 
-<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. Issue #2050. -->
+<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json, QA reports under .agents/qa/, retrospectives under .agents/retrospective/) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) and the filename number parser note (scripts/validate_session_json.py) are upstream paths in the rjmurillo/ai-agents repository. Issue #2050. -->
