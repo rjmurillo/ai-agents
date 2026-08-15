@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, attribution, and QA changes committed through 8200772d9; this session log is the final commit payload."
+        "Evidence": "Implementation, attribution, review fixes, and pre-push gate stabilization committed through 029e32ee9; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,7 +170,7 @@
       ]
     }
   ],
-  "endingCommit": "8200772d9",
+  "endingCommit": "029e32ee9dddcbbd9025c67b891029dbbcb342bd",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
     "Monitor checks, address review threads, and enable auto-merge."

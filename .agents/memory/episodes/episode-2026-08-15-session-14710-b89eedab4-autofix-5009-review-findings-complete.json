@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete",
+  "session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 5009 review findings and complete merge gate",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T03:25:00+00:00",
+      "type": "milestone",
+      "content": "triage-pr-5009",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T03:40:00+00:00",
+      "type": "milestone",
+      "content": "fix-pr-5009",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T04:05:00+00:00",
+      "type": "milestone",
+      "content": "validate-pr-5009",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T04:15:00+00:00",
+      "type": "milestone",
+      "content": "record-qa",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T06:20:00+00:00",
+      "type": "milestone",
+      "content": "replay-fixes-on-remote-head",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T06:35:00+00:00",
+      "type": "milestone",
+      "content": "stabilize-process-tests",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T07:10:00+00:00",
+      "type": "milestone",
+      "content": "stabilize-security-scan",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T07:36:27+00:00",
+      "type": "commit",
+      "content": "Commit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 225,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 410
+  },
+  "lessons": []
+}

@@ -1,44 +1,56 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14705.json
-qaCommit: 8200772d94311558698744c876d9543567169c7e
+qaCommit: 029e32ee9dddcbbd9025c67b891029dbbcb342bd
 ---
 
 # QA Report: dx-review skill and attribution
 
 Branch: `feat/dx-review`
-Commit: `8200772d94311558698744c876d9543567169c7e`
 
-## Files in scope
+Validated through commit:
+`029e32ee9dddcbbd9025c67b891029dbbcb342bd`
 
-- `.claude/skills/dx-review/SKILL.md` (canonical)
-- `src/copilot-cli/skills/dx-review/SKILL.md` (generated)
+## Scope
+
+- `.claude/skills/dx-review/SKILL.md`
+- `src/copilot-cli/skills/dx-review/SKILL.md`
 - `tests/skills/dx-review/test_dx_review_contracts.py`
+- `tests/evals/skill-scenarios/dx-review.json`
 - `scripts/generate_third_party_notices.py`
 - `tests/test_generate_third_party_notices.py`
 - `THIRD-PARTY-NOTICES.TXT`
+- `.claude/THIRD-PARTY-NOTICES.TXT`
+- `src/copilot-cli/THIRD-PARTY-NOTICES.TXT`
+- `tests/test_pr_autofix_late_live_state_gate.py`
+- `tests/test_validate_session_json.py`
+- `scripts/validation/git_hook_policy.py`
+- `tests/test_lefthook_integration.py`
 
-## Check results
+## Results
 
-| # | Check | Command / method | Result |
-|---|-------|------------------|--------|
-| 1 | pytest | `uv run pytest tests/skills/dx-review tests/test_generate_third_party_notices.py -q` | 32 passed, 0 failed |
-| 2 | Ruff | `uv run ruff check scripts/generate_third_party_notices.py tests/skills/dx-review tests/test_generate_third_party_notices.py` | All checks passed |
-| 3 | SkillForge quick | `uv run python scripts/validate_skill_format.py --path .claude/skills/dx-review` | PASSED |
-| 4 | SkillForge full | `uv run python scripts/validate_skill_installation.py --verbose` | PASSED (100 skills, dx-review OK) |
-| 5 | Docs safety | `uv run python scripts/detect_skill_violation.py --file .claude/skills/dx-review/SKILL.md` | No violations |
-| 6 | Canonical vs generated match | Byte comparison | Identical (9,138 bytes) |
-| 7 | Notice generator | `uv run python scripts/generate_third_party_notices.py --check` | Current |
-| 8 | Command safety | Manual inspection of SKILL.md | Present: "Shell commands are not pre-approved"; "Every command...requires explicit user approval via AskUserQuestion"; Bash absent from allowed-tools |
-| 9 | Evidence labels | Manual inspection | TESTED, PARTIAL, INFERRED table with definitions present |
-| 10 | Conditional TTHW | Manual inspection | "only when the target supports a runnable example"; "Never hardcode TESTED for TTHW"; scorecard uses `[actual/N/A]` |
-| 11 | Browser fallback | Manual inspection | "use browser tooling...when available. Fall back to web fetch or artifact inspection with PARTIAL or INFERRED evidence when browser tooling is unavailable" |
-| 12 | Triggers | Manual inspection | 5 trigger phrases mapped in table |
-| 13 | MIT attribution | Exact license comparison | Full gstack MIT text and paragraph breaks match the pinned license |
-| 14 | Existing notice stability | Byte comparison to HEAD | SkillForge notice block unchanged |
-| 15 | Skill provenance removal | Contract test and manual inspection | No gstack source or adaptation prose remains in the skill |
-| 16 | Em/en dash check | Regex scan of authored changes | None found |
+| Check | Result |
+|-------|--------|
+| Focused PR tests | 77 passed |
+| Changed-file mypy | Passed |
+| Ruff | Passed |
+| Skill format | Passed |
+| Notice drift | Passed |
+| Activation coverage | Passed |
+| Skill mirror | Byte-identical |
+| Notice mirrors | Byte-identical |
+| Lease-loss race stress | 30 consecutive fresh pytest processes passed |
+| Delayed-child teardown stress | 30 consecutive fresh pytest processes passed |
+| Session corpus validation | 4 class tests passed |
+| Semgrep integration | 97 tests passed |
+| Exact security gate | 7 files, 763 rules, 0 errors, 0 findings |
+| Serial batch measurement | 100 files scanned in 93 seconds |
+| Security review | Approved |
+
+Security-critical output confinement has no missing lines or branches across
+`scripts/generate_third_party_notices.py` lines 383 through 461.
 
 ## Verdict
 
-All 16 checks pass. No blockers.
+PASS. The final branch state closes the skill, attribution, review, typing,
+packaging, pre-push race, timeout, security scan, and QA findings.
