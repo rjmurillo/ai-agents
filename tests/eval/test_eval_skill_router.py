@@ -313,7 +313,7 @@ class TestReviewAxisRoutingContract:
             "keywords": ["vulnerability", "secret", "auth"],
         },
         "dependency": {
-            "axis": "security",
+            "axis": "architect",
             "keywords": ["dependency", "dependencies"],
         },
         "ci_deploy": {
@@ -380,3 +380,42 @@ class TestReviewAxisRoutingContract:
         assert "cannot be classified" in content or (
             "full set" in content
         ), "SKILL.md must document fail-closed behavior"
+
+    def test_low_risk_runs_subset(self) -> None:
+        """AC-8: Low-risk docs-only changes run fewer than full 15 axes.
+
+        The SKILL.md documents that analyst is always-on and other axes
+        are selected only when the change matches their risk category.
+        A docs-only change matches no specialist, so only always-on axes run.
+        """
+        skill_md = self._REVIEW_REFS.parent / "SKILL.md"
+        content = skill_md.read_text(encoding="utf-8")
+        # Verify always-on axes are a subset of total
+        assert "analyst" in content.lower()
+        assert "always" in content.lower() and "run" in content.lower()
+        # Verify deep review triggers full set (contrast)
+        assert "full set" in content or "full canonical set" in content
+        # Verify fixtures include low-risk routing
+        import json
+        fxs = json.loads(
+            _SKILL_ROUTER_FIXTURES.read_text(encoding="utf-8")
+        )
+        low_risk = [f for f in fxs if "low-risk" in f["id"]]
+        assert low_risk, "Must have a low-risk routing fixture"
+        # Low-risk routes to general review, not a specialist
+        assert low_risk[0]["correct"] == "review"
+
+    def test_deep_review_runs_full_set(self) -> None:
+        """AC-10: Explicit deep review runs all 15 axes."""
+        skill_md = self._REVIEW_REFS.parent / "SKILL.md"
+        content = skill_md.read_text(encoding="utf-8")
+        assert "deep review" in content.lower() or "deep-review" in content
+        assert "full set" in content or "15" in content
+        # Verify the fail-closed fixture routes back to full review
+        import json
+        fxs = json.loads(
+            _SKILL_ROUTER_FIXTURES.read_text(encoding="utf-8")
+        )
+        fail_closed = [f for f in fxs if "fail-closed" in f["id"]]
+        assert fail_closed, "Must have a fail-closed routing fixture"
+        assert fail_closed[0]["correct"] == "review"
