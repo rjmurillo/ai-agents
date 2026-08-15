@@ -192,7 +192,14 @@ class TestGithubSurfaces:
 
 class TestProbeUser:
     def test_probe_returns_unknown_on_connection_refused(self):
-        result = probe_user("tok", api_url="http://127.0.0.1:9")
+        result = probe_user("tok", api_url="https://127.0.0.1:9")
 
         assert not result.ok
         assert "network error" in result.error
+
+    @pytest.mark.parametrize("url", ["http://api.github.com", "file:///etc/passwd", "ftp://x"])
+    def test_probe_refuses_non_https_schemes_without_opening(self, url):
+        result = probe_user("tok", api_url=url)
+
+        assert not result.ok
+        assert "non-https" in result.error

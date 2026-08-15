@@ -36,6 +36,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -75,7 +76,15 @@ def probe_user(token: str, api_url: str = DEFAULT_API_URL) -> ProbeResult:
     Never raises: every failure collapses to ``ProbeResult(ok=False)`` so the
     caller reports UNKNOWN instead of crashing the step. The token is never
     included in any returned string.
+
+    Only https URLs are opened. ``api_url`` comes from ``GITHUB_API_URL``,
+    which the runner sets, but urllib would also follow ``file://``; refusing
+    any other scheme removes that class outright (CWE-22 adjacent, flagged by
+    semgrep dynamic-urllib-use-detected).
     """
+    scheme = urllib.parse.urlsplit(api_url).scheme
+    if scheme != "https":
+        return ProbeResult(ok=False, error=f"refusing non-https API URL scheme {scheme!r}")
     request = urllib.request.Request(
         f"{api_url.rstrip('/')}/user",
         headers={
