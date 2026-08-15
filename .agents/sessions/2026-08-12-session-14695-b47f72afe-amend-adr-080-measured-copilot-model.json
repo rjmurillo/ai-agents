@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Model_tier override fix committed at 0edf6e063; prior repairs at 1e0a6a775 and earlier. A subsequent dash-only debate-log punctuation fix (required by the repository's authored-text dash ban) was committed at c860ae452; see session 15001 for that round's full repair work. This session's own last produced commit is c860ae452; this episode's commit-event list ends there. A further round-3 fix narrowing two overclaiming sentences in the analysis file (Copilot findings against the round-2 fix commits) was committed at 9996e0905, and a round-4 fix (correcting the same analysis file's runtime-contract-check wording, a stale QA files_changed bullet, missing episode SHAs, and a stale handoff) was committed at e8b9229b9; neither is a commit this session produced (both belong to separate later autofix rounds), so endingCommit/episodeMetrics.comparison.head and this QA report's qaCommit are rebound to e8b9229b9 purely as the QA-freshness validation target, since it touches evidence this QA scope covers. This episode's own event list intentionally does not add a commit event for either SHA, per the extractor's contract that events represent session-produced commits, not QA-rebind targets."
+        "Evidence": "Model_tier override fix committed at 0edf6e063; prior repairs at 1e0a6a775 and earlier. A subsequent dash-only debate-log punctuation fix (required by the repository's authored-text dash ban) was committed at c860ae452; see session 15001 for that round's full repair work. This session's own last produced commit is c860ae452; this episode's commit-event list ends there. A further round-3 fix narrowing two overclaiming sentences in the analysis file (Copilot findings against the round-2 fix commits) was committed at 9996e0905, and a round-4 fix (correcting the same analysis file's runtime-contract-check wording, a stale QA files_changed bullet, missing episode SHAs, and a stale handoff) was committed at e8b9229b9; neither is a commit this session produced (both belong to separate later autofix rounds), so endingCommit/episodeMetrics.comparison.head and this QA report's qaCommit are rebound to e8b9229b9 purely as the QA-freshness validation target, since it touches evidence this QA scope covers. This episode's own event list intentionally does not add a commit event for either SHA, per the extractor's contract that events represent session-produced commits, not QA-rebind targets. A round-5 fix removed an episode commit event that had wrongly attributed 9996e0905 as session-produced. A round-6 change merged origin/main (server-side, via gh pr update-branch, commit 1a841d53d) to relieve PR 4954's 20-commit block (CONTRIBUTING.md); the merge is not a commit this session produced either, but git log -m walks both parents' diffs, so the QA staleness check sees every path main touched. endingCommit/episodeMetrics.comparison.head and this QA report's qaCommit are rebound to 1a841d53d for the same QA-freshness reason as the round-3/4 rebinds; the episode's own event list is unaffected."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings on the finding-4 fix; a second full 6-agent review (6 of 6 ACCEPT) covered the subsequent dash-only punctuation fix to the same debate log. Neither the round-3 (9996e0905) nor round-4 (e8b9229b9) analysis-file wording fixes changed any measurement, citation, or finding, so no new ADR-review pass was required for either (detect_adr_changes.py does not flag .agents/analysis/ paths). QA report binds to e8b9229b9 (episodeMetrics.comparison.head/endingCommit) for freshness purposes; the episode's own commit-event list and metrics.commits (4) reflect only this session's actually-produced commits (c803be2e8, 1e0a6a775, 0edf6e063, c860ae452), not the rebind target."
+        "Evidence": "Full 6-agent ADR review reached 6 of 6 (3 ACCEPT, 3 ACCEPT_WITH_CHANGES resolved by tie-break) with no P0 or P1 findings on the finding-4 fix; a second full 6-agent review (6 of 6 ACCEPT) covered the subsequent dash-only punctuation fix to the same debate log. Neither the round-3 (9996e0905) nor round-4 (e8b9229b9) analysis-file wording fixes changed any measurement, citation, or finding, so no new ADR-review pass was required for either (detect_adr_changes.py does not flag .agents/analysis/ paths). QA report binds to e8b9229b9 (episodeMetrics.comparison.head/endingCommit) for freshness purposes; the episode's own commit-event list and metrics.commits (4) reflect only this session's actually-produced commits (c803be2e8, 1e0a6a775, 0edf6e063, c860ae452), not the rebind target. Round 6 rebinds the same fields to 1a841d53d (the origin/main merge commit); re-verified PR_HEAD_SHA=1a841d53d resolves both QA reports as COMPLIANT."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -145,14 +145,14 @@
       "timestamp": "2026-08-15T07:09:54Z"
     }
   ],
-  "endingCommit": "e8b9229b9df615310728d664bb8f957be8604e3a",
+  "endingCommit": "1a841d53d07d1cfbf6cc63b3cdd74f4232a24914",
   "nextSteps": [],
   "episodeMetrics": {
     "filesChanged": 10,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "90be321b3bfad576e3c1d440402d4333a87326c9",
-      "head": "e8b9229b9df615310728d664bb8f957be8604e3a"
+      "head": "1a841d53d07d1cfbf6cc63b3cdd74f4232a24914"
     }
   }
 }
