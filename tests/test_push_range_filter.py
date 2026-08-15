@@ -405,3 +405,4 @@ class TestHandleCliPluginE2eSkip:
 
         assert rc == 0
         assert run_called["n"] == 1
+

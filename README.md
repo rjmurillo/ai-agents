@@ -214,7 +214,7 @@ The output should include `project-toolkit@ai-agents` (or whichever component yo
 |----------|---------------|-------|
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
-| **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
+| **VS Code / GitHub Copilot** | `.github/agents/` | Use `@agent` syntax in Copilot Chat |
 
 See [docs/installation.md](docs/installation.md) for complete installation documentation, including platform-specific paths, troubleshooting, and post-installation steps.
 

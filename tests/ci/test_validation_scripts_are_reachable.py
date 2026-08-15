@@ -94,6 +94,7 @@ _NO_CALLER: dict[str, str] = {
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
     ),
+
 }
 
 
