@@ -1,0 +1,179 @@
+"""Unit tests for the fail-safe test-selection logic."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from scripts.test_selection import select_tests
+
+
+def _write(root: Path, rel: str, text: str) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _make_repo(root: Path) -> Path:
+    """A repo where a change to pkg/core.py must reach tests/test_feature.py."""
+    _write(root, "pyproject.toml", "[project]\nname = 'demo'\n")
+    _write(root, "pkg/__init__.py", "")
+    _write(root, "pkg/core.py", "VALUE = 1\n")
+    _write(root, "pkg/mid.py", "from pkg import core\n")
+    _write(root, "pkg/leaf.py", "STANDALONE = 2\n")
+    _write(root, "pkg/orphan.py", "UNUSED = 3\n")
+    _write(root, "tests/test_feature.py", "from pkg import mid\n")
+    _write(root, "tests/test_leaf.py", "from pkg import leaf\n")
+    return root / ".cache" / "graph.json"
+
+
+def _patterns(root: Path) -> Path:
+    path = root / "patterns.txt"
+    path.write_text("# comment\ndocs/**\nlockfile.txt\n", encoding="utf-8")
+    return path
+
+
+def _select(root: Path, changed: list[str]) -> select_tests.Selection:
+    cache = root / ".cache" / "graph.json"
+    return select_tests.select(changed, root, cache, _patterns(root))
+
+
+def test_non_python_change_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["README.md"])
+    assert result.full
+    assert "non-Python" in result.reason
+
+
+def test_conftest_change_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(tmp_path, "tests/sub/conftest.py", "x = 1\n")
+    result = _select(tmp_path, ["tests/sub/conftest.py"])
+    assert result.full
+    assert "conftest" in result.reason
+
+
+def test_runtime_read_pattern_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["docs/guide.py"])
+    assert result.full
+    assert "runtime-read pattern" in result.reason
+
+
+def test_dynamic_import_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(tmp_path, "pkg/dyn.py", "import importlib\nm = importlib.import_module('pkg.core')\n")
+    result = _select(tmp_path, ["pkg/dyn.py"])
+    assert result.full
+    assert "dynamic import" in result.reason
+
+
+def test_unmapped_file_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["pkg/ghost.py"])
+    assert result.full
+    assert "unmapped" in result.reason
+
+
+def test_leaf_change_selects_single_test(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["pkg/leaf.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_leaf.py",)
+
+
+def test_transitive_change_selects_dependent_test(tmp_path: Path) -> None:
+    # Regression for issue #4408: a shared module reached only through an
+    # intermediate import must still select the test above it. Missing this
+    # edge is the false-negative the whole system exists to prevent.
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["pkg/core.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_feature.py",)
+
+
+def test_change_with_no_dependent_test_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["pkg/orphan.py"])
+    assert result.full
+    assert "no test" in result.reason
+
+
+def test_no_changed_files_is_full(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, [])
+    assert result.full
+
+
+def test_multiple_changes_union_tests(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["pkg/core.py", "pkg/leaf.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_feature.py", "tests/test_leaf.py")
+
+
+def test_has_dynamic_import_flags_importlib(tmp_path: Path) -> None:
+    path = tmp_path / "d.py"
+    path.write_text("from importlib import import_module\n", encoding="utf-8")
+    assert select_tests.has_dynamic_import(path)
+
+
+def test_has_dynamic_import_flags_dunder_import(tmp_path: Path) -> None:
+    path = tmp_path / "d.py"
+    path.write_text("m = __import__('os')\n", encoding="utf-8")
+    assert select_tests.has_dynamic_import(path)
+
+
+def test_has_dynamic_import_ignores_static_import(tmp_path: Path) -> None:
+    path = tmp_path / "d.py"
+    path.write_text("import os\nfrom pathlib import Path\n", encoding="utf-8")
+    assert not select_tests.has_dynamic_import(path)
+
+
+def test_has_dynamic_import_treats_unparseable_as_dynamic(tmp_path: Path) -> None:
+    path = tmp_path / "d.py"
+    path.write_text("def (:\n", encoding="utf-8")
+    assert select_tests.has_dynamic_import(path)
+
+
+def test_load_runtime_read_patterns_skips_comments_and_blanks(tmp_path: Path) -> None:
+    patterns = _patterns(tmp_path)
+    assert select_tests.load_runtime_read_patterns(patterns) == ("docs/**", "lockfile.txt")
+
+
+def test_changed_from_git_returns_none_outside_repo(tmp_path: Path) -> None:
+    assert select_tests.changed_from_git(tmp_path, "origin/main") is None
+
+
+def test_cli_prints_full_suite_sentinel(tmp_path: Path, capsys) -> None:
+    _make_repo(tmp_path)
+    code = select_tests.main(["--repo-root", str(tmp_path), "README.md"])
+    assert code == 0
+    assert capsys.readouterr().out.strip() == select_tests.FULL_SUITE
+
+
+def test_cli_prints_selected_tests(tmp_path: Path, capsys) -> None:
+    _make_repo(tmp_path)
+    code = select_tests.main(["--repo-root", str(tmp_path), "pkg/leaf.py"])
+    assert code == 0
+    assert capsys.readouterr().out.splitlines() == ["tests/test_leaf.py"]
+
+
+def test_cli_json_format(tmp_path: Path, capsys) -> None:
+    import json
+
+    _make_repo(tmp_path)
+    code = select_tests.main(["--repo-root", str(tmp_path), "--format", "json", "pkg/leaf.py"])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "full": False,
+        "reason": "import-graph subset",
+        "tests": ["tests/test_leaf.py"],
+    }
+
+
+def test_cli_from_git_bad_base_is_full(tmp_path: Path, capsys) -> None:
+    _make_repo(tmp_path)
+    code = select_tests.main(["--repo-root", str(tmp_path), "--from-git", "origin/main"])
+    assert code == 0
+    assert capsys.readouterr().out.strip() == select_tests.FULL_SUITE
