@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json
-qaCommit: 1301b4c099ce5497f5b4550d235c6ee02dfb9420
+qaCommit: ac53f68020f20ed320ee4c61e79b3d9b1ed1f445
 ---
 
 # QA Report: Session 15001, PR 4954 round 2 findings
@@ -24,6 +24,8 @@ report.
 |--------|-------|
 | `c860ae452` | Removed both prohibited em-dashes from the round-2 debate-log section; second full 6-agent adr-review (6 of 6 ACCEPT) |
 | `1301b4c09` | Demoted 2 MUST items to SHOULD with honest justification; corrected the CI-mode claim; fixed the episode causal-order bug via regeneration; split the QA revision history by actual commit |
+| `db7ead33f` | Added this session log and this QA report |
+| `ac53f6802` | Rewrote the per-issue handoff in place: removed all prohibited em-dashes, removed the leftover template placeholder, corrected the CI-mode and retrospective claims. Session `endingCommit` and this report's `qaCommit` rebound here, since this is the session's actual final commit |
 
 ## Evidence
 
@@ -48,7 +50,10 @@ report.
 - QA binding: `session_qa_binding()`/`validate_qa_report()` resolve cleanly
   for `000-session-14695-adr-080-amendment-qa.md` against `c860ae452`
   (session-14695's `endingCommit`/`episodeMetrics.comparison.head`), and
-  for this report against `1301b4c09` (session-15001's `endingCommit`).
+  for this report against `ac53f6802` (session-15001's `endingCommit`,
+  the session's actual final commit, corrected from the earlier `1301b4c09`
+  binding once the handoff rewrite and this session log's own commit were
+  accounted for).
 - Retrospective evidence: this session log's `retrospective` field and
   workLog contain matching text for
   `RETROSPECTIVE_EVIDENCE_PATTERNS` (`retrospective section`,
@@ -60,5 +65,7 @@ report.
 ## Verdict
 
 PASS. All 21 active findings from PR 4954's second Copilot review round are
-resolved across commits `c860ae452` and `1301b4c09`, plus the session-15001
-log and the per-issue handoff rewrite committed alongside this report.
+resolved across commits `c860ae452` and `1301b4c09`. The session-15001 log
+and this report were committed together at `db7ead33f`; the per-issue
+handoff rewrite landed afterward in a separate commit, `ac53f6802`, which is
+this session's actual final commit and this report's `qaCommit`.

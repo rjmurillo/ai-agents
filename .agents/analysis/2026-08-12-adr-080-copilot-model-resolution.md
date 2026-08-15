@@ -1,7 +1,9 @@
 # How Copilot CLI resolves an agent `model:` field
 
-Evidence for the ADR-080 Amendment 2026-08-12. Everything here was run against
-the real binary, not inferred from documentation.
+Evidence for the ADR-080 Amendment 2026-08-12. The `model:` resolution
+measurements below were run against the real binary; the skill-fallback claim
+and the corpus counts further down are inferred from source inspection, not
+independently measured.
 
 ## Environment
 
@@ -94,8 +96,8 @@ pin, and delegated to from a parent at `--model claude-opus-5`:
 
 ## Where aliases actually ship unresolved
 
-The alias problem is real but it is not where the first draft said. Agents are
-translated; skills are not.
+The alias problem is real but it is not where the first draft said. Generated
+plugin agents are translated; repository-level agents and skills are not.
 
 ```console
 $ grep -m1 -E '^(model|model_tier):' .claude/agents/quality-auditor.md
