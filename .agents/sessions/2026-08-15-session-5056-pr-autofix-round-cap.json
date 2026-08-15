@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5056,
+    "date": "2026-08-15",
+    "branch": "feat/pr-autofix-round-cap",
+    "startingCommit": "57b3107f6",
+    "objective": "Add a machine-enforced round/time circuit breaker for pr-autofix's T3/T4 thread-fix loop (issue #5056)"
+  },
+  "endingCommit": "",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; MCP not required for this scope"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read AGENTS.md, CLAUDE.md, and the repo rule tree before acting"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created 2026-08-15-session-5056-pr-autofix-round-cap.json"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Listed .claude/skills/github/scripts/pr/ before adding check_pr_round_cap.py alongside check_pr_live_state.py and pr_autofix_lease.py"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read AGENTS.md root"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .claude/rules/plugin-self-containment.md, testing.md, claude-agents.md, python.md, ci-scripts.md before writing"
+      },
+      "memoriesLoaded": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "feat/pr-autofix-round-cap, created from origin/main (57b3107f6)"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "On feat/pr-autofix-round-cap"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items recorded"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No HANDOFF.md changes"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: no durable cross-harness convention discovered beyond what already lives in .claude/rules/plugin-self-containment.md; no new memory warranted"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 src/copilot-cli/skills/pr-autofix/SKILL.md: 0 issues"
+      },
+      "qaValidation": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/qa/pr-5056-round-cap-circuit-breaker.md"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Commit 820c667ef1b09c13a576cba2389a5a8d9270e2fa on feat/pr-autofix-round-cap"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "26/26 new tests passed, ruff clean, portability and skill-contract gates clean"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "investigate",
+      "detail": "Read src/copilot-cli/skills/pr-autofix/SKILL.md in full (712 lines): lease mechanics (ADR-076), live-state gate (issue #2455), tier ladder T1-T5, and confirmed no existing round/time cap on the T3/T4 thread-fix loop"
+    },
+    {
+      "action": "investigate",
+      "detail": "Located check_pr_live_state.py and pr_autofix_lease.py under .claude/skills/github/scripts/pr/ (mirrored byte-identical to src/copilot-cli/skills/github/scripts/pr/); confirmed pr_autofix_lease.py's ADR-076 hidden-marker-PR-comment storage pattern and reused it over commit counting (commits do not survive squash/rebase/force-push, all routine in this repo's pr-autofix flow)"
+    },
+    {
+      "action": "implement",
+      "detail": "Added check_pr_round_cap.py: records one round per call against a hidden marker PR comment, evaluates round-count (default 5) and wall-clock (default 4h) caps independently, returns a check_pr_live_state.py-style JSON envelope (Data.action=ACT|ESCALATE), posts a one-time human-readable escalation comment on ESCALATE. Mirrored byte-identical into src/copilot-cli/skills/github/scripts/pr/."
+    },
+    {
+      "action": "implement",
+      "detail": "Wired the gate into src/copilot-cli/skills/pr-autofix/SKILL.md as Step 2.5 (T3/T4-scoped, immediately after tier is known), plus Workflow list item 5, a Scripts section example, and a Verification checklist row"
+    },
+    {
+      "action": "test",
+      "detail": "Added tests/skills/pr-autofix/test_check_pr_round_cap.py: 26 tests covering build_parser defaults/env-var override, evaluate_round_cap (below cap, exactly at cap, wall-clock exceeded independent of round count, corrupted state tolerance), marker parse/render round-trip, and main() envelope shape/exit codes (0/1/3) including escalation-comment idempotency and non-fatal escalation-post failure"
+    },
+    {
+      "action": "verify",
+      "detail": "Ran check_skill_md_portability.py, check_skill_md_exec_portability.py, check_plugin_frontmatter_self_containment.py, check_skill_contract_tests.py against the modified SKILL.md; fixed an initial DRIFT (literal .agents/ paths cited in Step 2.5 prose were inside the pre-existing outer HTML comment, not a standalone vendor-portability marker, so the checker's regex did not recognize the declaration) by removing the literal upstream paths from prose entirely per plugin-self-containment.md's 'write shared agent prose without naming a tree-specific path' guidance"
+    },
+    {
+      "action": "verify",
+      "detail": "Created GitHub issue #5056 (label application to nonexistent 'pr-autofix' label failed, non-fatal; issue itself created) since no existing issue covered this circuit breaker"
+    }
+  ],
+  "nextSteps": [
+    "Push feat/pr-autofix-round-cap and open a PR referencing issue #5056",
+    "Run the full pre_pr.py validation suite before requesting review",
+    "Out of scope per task instructions: do not promote .agents/governance/CI-FEEDBACK-SUBLOOP.md to normative; that requires a separate ADR + human approval track"
+  ],
+  "outcome": {
+    "status": "COMPLETE",
+    "summary": "Added check_pr_round_cap.py (mirrored to both plugin roots), wired it into pr-autofix SKILL.md's Phase 2 T3/T4 loop as a BLOCKING Step 2.5 gate, and added 26 tests under tests/skills/pr-autofix/",
+    "filesChanged": [
+      ".claude/skills/github/scripts/pr/check_pr_round_cap.py",
+      "src/copilot-cli/skills/github/scripts/pr/check_pr_round_cap.py",
+      "src/copilot-cli/skills/pr-autofix/SKILL.md",
+      "tests/skills/pr-autofix/test_check_pr_round_cap.py"
+    ],
+    "testsAdded": 26,
+    "testsTotal": 26,
+    "testsPassed": true
+  }
+}
