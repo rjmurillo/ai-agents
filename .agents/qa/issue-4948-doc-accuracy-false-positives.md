@@ -1,5 +1,5 @@
 ---
-qaCommit: aed5d0c14ded588ff6e46b9b43d91e6f2941fa2e
+qaCommit: 425931199003776028bd4fcca3c006b7ddcf07e4
 qaSessionLog: .agents/sessions/2026-08-14-session-14711-fix-4948-doc-accuracy-false-positives.json
 qaVerdict: PASS
 ---
@@ -8,29 +8,34 @@ qaVerdict: PASS
 
 ## Objective
 
-Verify the fix for `doc-accuracy` false positives on text fences, Mermaid fences, PowerShell examples, unmapped code claims, and code examples in languages that have no `SYMBOL_EXTRACTORS` entry (Go, Rust, Java, and any future addition). Also verify the follow-up fix for a regression where the fence-detection regex truncated `c#` to `c`, causing the new `SYMBOL_EXTRACTORS` allowlist to incorrectly skip common C# fences written as ` ```c#`.
+Verify the fix for `doc-accuracy` false positives on text fences, Mermaid fences, PowerShell examples, unmapped code claims, and code examples in languages that have no `SYMBOL_EXTRACTORS` entry (Go, Rust, Java, and any future addition). Also verify the follow-up fix for a regression where the fence-detection regex truncated `c#` to `c`, causing the new `SYMBOL_EXTRACTORS` allowlist to incorrectly skip common C# fences written as ` ```c#`. Also verify the post-merge repair for a regression introduced by merging `origin/main` (PR #4956), which added a Phase 3 `DID_NOT_RUN` short-circuit that made 6 of this branch's own tests either fail or stop testing what they claimed.
 
 ## Tests
 
 - `uv run pytest tests/skills/doc-accuracy/test_doc_accuracy.py -q`
 - `uv run ruff check .claude/skills/doc-accuracy/scripts/doc_accuracy.py tests/skills/doc-accuracy/test_doc_accuracy.py`
+- `uv run python scripts/validation/git_hook_policy.py mypy .claude/skills/doc-accuracy/scripts/doc_accuracy.py src/copilot-cli/skills/doc-accuracy/scripts/doc_accuracy.py tests/skills/doc-accuracy/test_doc_accuracy.py`
 - `uv run python build/scripts/build_all.py`
 - `diff .claude/skills/doc-accuracy/scripts/doc_accuracy.py src/copilot-cli/skills/doc-accuracy/scripts/doc_accuracy.py`
 - `uv run python build/scripts/build_all.py --check` (run after committing; run before a commit always reports the just-regenerated file as uncommitted drift, which is expected, not a defect)
+- `uv run python scripts/validation/pre_pr.py --verbose` (full pre-PR validation suite, 51 checks)
 - Temp fixture reproduction with `doc_accuracy.py --target <tmp> --format summary --severity-threshold high`
 
 ## Results
 
 | Check | Result |
 |-------|--------|
-| Targeted pytest | PASS, 99 tests (was 96 after the Go/Rust/Java skip fix; +3 for the c# fence regression: one `_detect_language("c#")` alias pin, one extraction-phase regression test, one end-to-end extraction+compilability-check regression test) |
+| Targeted pytest | PASS, 105 tests (was 99 after the c# fence fix; merging `origin/main` (PR #4956) added 7 new test functions -- `test_exit_code_documentation_covers_the_cli_contract`, `test_does_not_run_without_source_symbols`, `test_does_not_run_without_source_symbols_or_claims`, `test_did_not_run_is_inconclusive`, `test_includes_did_not_run_reason`, `test_scan_docs_only_repo_is_inconclusive`, `test_scan_with_unresolved_symbol_fails` -- and removed 1 (`test_scan_empty_repo`, superseded by the docs-only-repo coverage), a net of +6; verified via `git diff 64773a8316 5e9da768e -- tests/skills/doc-accuracy/test_doc_accuracy.py`) |
 | Ruff (canonical script + tests) | PASS, "All checks passed!" |
+| Mypy changed-files gate (`git_hook_policy.py mypy`) | PASS, "Success: no issues found" on all 3 files |
 | `build_all.py` regeneration | PASS, mirror rewritten from canonical, `diff` reports no differences |
 | `build_all.py --check` (post-commit, clean tree) | PASS, exit 0, no staleness reported |
+| Full `pre_pr.py --verbose` (post-commit) | PASS, 51/51 validations green, including the whole-repo/merge-tree ruff count ratchet |
 | Reproduction before the original fix | FAIL, exit 10 with 2 claims and 8 high findings |
 | Reproduction after the original fix | PASS, exit 0 with 0 claims and 0 findings |
 | Reproduction of the c# regression before the follow-up fix | FAIL, `run_claim_extraction` on a ` ```c#` fence returned `claims: []` (claim silently dropped) |
 | Reproduction of the c# regression after the follow-up fix | PASS, `run_claim_extraction` returns one `code_example` claim with `language == "csharp"` |
+| Post-merge repro: skip logic disabled + old (empty `source_symbols`) skip tests | Before this round's fix, `test_skips_go/rust/java/powershell_code_examples` passed vacuously (Phase 3 short-circuited to `DID_NOT_RUN` regardless of the skip logic); after adding a non-matching `source_symbols` entry and asserting `status == "COMPLETED"`, temporarily disabling the SYMBOL_EXTRACTORS skip check made all four fail as expected, confirming the tests are now diagnostic |
 
 ## Notes
 
@@ -41,4 +46,7 @@ Verify the fix for `doc-accuracy` false positives on text fences, Mermaid fences
 - Code example claims no longer inherit a fallback source file when no symbol matches (unchanged from the original fix).
 - **c# regression (follow-up fix)**: the fence-detection regex in `run_claim_extraction` captured the info string with `\w*`, which stops at the first non-word character. A ` ```c#` fence therefore passed only `"c"` to `_detect_language`, which has no alias for bare `"c"` (only `"cs"`/`"csharp"`/`"c#"` map to `"csharp"`), so `"c"` was returned unchanged and, having no `SYMBOL_EXTRACTORS` entry, every c# code example was silently skipped by the new allowlist. Fixed by broadening the capture group to `\S*`, which captures the full non-whitespace info-string token (`_detect_language` already tokenizes on whitespace via `.split()[0]`, so this is a no-op for any fence whose info string was already all word characters). `_count_code_blocks` has the same underlying character-class limitation (`^```\w*\s*$`) but is a Phase 1 statistics-only counter, not part of the compilability-gating logic that was the subject of the reported regression; left unchanged per "fix narrowly."
 - New tests from the c# regression fix: `TestDetectLanguage.test_c_sharp_hash_alias` (pins the pre-existing `"c#"` -> `"csharp"` `lang_map` entry so it cannot be silently removed), `TestRunClaimExtraction.test_extracts_csharp_from_hash_alias_fence` (proves a ` ```c#` fence still produces a `code_example` claim with `language == "csharp"`, i.e., extraction is not skipped), and `TestRunCompilabilityCheck.test_checks_csharp_hash_alias_end_to_end` (runs the real `run_claim_extraction` output for a ` ```c#` fence through `run_compilability_check` and asserts an `unresolved_symbol` finding is produced, i.e., compilability resolution is not skipped either).
+- **Post-merge repair**: merging `origin/main` brought in PR #4956 (`fix(doc-accuracy): handle docs-only targets`), which changed `run_compilability_check` to return `{"status": "DID_NOT_RUN", "findings": [], "reason": ...}` immediately whenever `assessment["source_symbols"]` is empty, rather than reaching the per-claim loop at all. Six of this branch's `TestRunCompilabilityCheck` tests built `assessment = {"source_symbols": []}` intentionally, to prove an unresolvable identifier still produces a finding without any real codebase to check against. After the merge, that empty list instead triggers the new short-circuit before the SYMBOL_EXTRACTORS gate ever runs: `test_resolves_symbol_extractor_languages` and `test_checks_csharp_hash_alias_end_to_end` failed outright (expected 1 finding, got 0), while `test_skips_powershell_code_examples`, `test_skips_go_code_examples`, `test_skips_rust_code_examples`, and `test_skips_java_code_examples` kept passing but became vacuous: they would have passed even with the SYMBOL_EXTRACTORS skip logic deleted entirely, since Phase 3 never reached it. Fixed by giving each of these 6 tests a `source_symbols` entry named `"UnrelatedPlaceholder"` (never referenced by any claim in that test, so it cannot resolve anything) so Phase 3 reaches `status == "COMPLETED"`, and asserting that status explicitly in every one of the 6 tests. Confirmed the fix is not vacuous itself by temporarily disabling the SYMBOL_EXTRACTORS skip check in the canonical script and re-running only these tests: all 4 skip tests failed as expected (they would have passed before this fix), then the mutation was reverted (`git diff` on the canonical script was empty afterward).
+- **Post-merge repair, missing import**: the merge also dropped `from typing import Any` from the test file. Upstream's own two rewritten `DID_NOT_RUN`-adjacent tests stopped needing `Any` (they moved to un-annotated `assessment = {...}` literals), so PR #4956 removed the import along with its own two usages, but this branch's remaining `assessment: dict[str, Any] = {...}` annotations (in the 6 tests above, before they were fixed, and in the parametrized/end-to-end tests) still needed it. This produced exactly 6 F821 ("Undefined name `Any`") errors under `ruff check`, matching the 6 remaining `dict[str, Any]` annotations. Restored the import in sorted position (`pathlib` -> `typing` -> `unittest.mock`).
+- **Post-merge repair, whole-repo ruff count ratchet**: `scripts/validation/pre_pr.py`'s merge-tree ratchet check (`scripts/ci/merge_tree_ratchet_check.py`) materializes `git merge-tree --write-tree origin/main HEAD` into a scratch checkout and re-runs the whole-repo ruff count ratchet there; `origin/main` had advanced two more commits (`333a80b74`, `c387d7b36`) past the tip this branch had already merged, so the check re-evaluated against the newest `origin/main`. Reproduced the reported "33 > baseline 27 (+6)" regression manually via `git archive` on the merge-tree OID; the 6 extra violations were exactly the 6 F821 ("Undefined name `Any`") errors above (same file, same line numbers), present because the merge-tree evaluation reads committed history, not the uncommitted working-tree fix. The regression cleared on its own once the `Any`-import fix was committed: the merge-tree ratchet check and the full `pre_pr.py --verbose` run both went green afterward with no further code change.
 

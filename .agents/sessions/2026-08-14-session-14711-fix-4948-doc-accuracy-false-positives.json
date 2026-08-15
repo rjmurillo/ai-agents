@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits. Resumed in a later session to close the Go/Rust/Java gap: fix commit f507b79f8 replaced the NON_COMPILABLE_LANGUAGES/tuple denylists with a SYMBOL_EXTRACTORS-based allowlist. Resumed again after a Sol review found the allowlist regressed ```c# fences (fence regex truncated 'c#' to 'c'): fix commit aed5d0c14 broadened the capture group to \\S*; this commit records that SHA in endingCommit and corrects the QA evidence."
+        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits. Resumed in a later session to close the Go/Rust/Java gap: fix commit f507b79f8 replaced the NON_COMPILABLE_LANGUAGES/tuple denylists with a SYMBOL_EXTRACTORS-based allowlist. Resumed again after a Sol review found the allowlist regressed ```c# fences (fence regex truncated 'c#' to 'c'): fix commit aed5d0c14 broadened the capture group to \\S*. Resumed again after merging origin/main (merge commit d94d62f6d) exposed 2 test failures and 4 silently-vacuous tests via PR #4956's new Phase 3 DID_NOT_RUN short-circuit, plus 6 F821 Any errors from a dropped import: fix commit 425931199 repairs all 6 affected tests and restores the import; this commit records that SHA in endingCommit and corrects the QA evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,9 +163,29 @@
     {
       "action": "Re-ran the full targeted validation loop after the c# fix: uv run pytest tests/skills/doc-accuracy/test_doc_accuracy.py -q, uv run ruff check on the canonical script and the test file, uv run python build/scripts/build_all.py to regenerate the Copilot mirror, a byte-for-byte diff of the canonical script against the regenerated mirror, and uv run python build/scripts/build_all.py --check after committing.",
       "outcome": "99 tests passed (up from 96 before this round), ruff reported no issues, the regenerated mirror was byte-identical to canonical, and --check exited 0 with no staleness once the fix commit (aed5d0c14) was in place."
+    },
+    {
+      "action": "Resumed after origin/main was merged into this branch (merge commit d94d62f6d, pulling in PR #4956 'fix(doc-accuracy): handle docs-only targets'). Ran the targeted suite and found 105 collected with 2 failures: test_resolves_symbol_extractor_languages and test_checks_csharp_hash_alias_end_to_end both expected one unresolved_symbol finding but got zero.",
+      "outcome": "Read the merged run_compilability_check and found PR #4956 added a status='DID_NOT_RUN' short-circuit that returns immediately with findings=[] whenever assessment['source_symbols'] is empty; both failing tests (and, silently, 4 sibling skip tests) built assessment={'source_symbols': []}, so Phase 3 never reached the SYMBOL_EXTRACTORS gate at all."
+    },
+    {
+      "action": "Gave all 6 affected TestRunCompilabilityCheck tests (test_skips_powershell_code_examples, test_skips_go_code_examples, test_skips_rust_code_examples, test_skips_java_code_examples, test_resolves_symbol_extractor_languages, test_checks_csharp_hash_alias_end_to_end) a source_symbols entry named UnrelatedPlaceholder that never matches any symbol referenced in that test, and added an explicit status == 'COMPLETED' assertion to each, per the mirror obligation to close the inverse (sibling skip tests were passing vacuously, not just the two named failures).",
+      "outcome": "Verified the fix is not itself vacuous: temporarily disabled the SYMBOL_EXTRACTORS skip check in the canonical script and reran the 5 skip/resolve tests -- all 4 skip tests failed as expected (they passed before this fix) -- then restored the canonical script from a backup and confirmed git diff on it was empty."
+    },
+    {
+      "action": "Found and fixed 6 F821 'Undefined name Any' ruff errors: the merge dropped 'from typing import Any' from the test file (upstream's own rewritten tests stopped needing it) while this branch's remaining dict[str, Any] annotations still needed it. Restored the import in sorted position (pathlib -> typing -> unittest.mock).",
+      "outcome": "uv run ruff check on the canonical script and test file returned 'All checks passed!'. uv run python scripts/validation/git_hook_policy.py mypy on the 3 changed files returned 'Success: no issues found' for each."
+    },
+    {
+      "action": "During investigation, an ad hoc `git read-tree <merge-tree-oid>` (run without an isolated GIT_INDEX_FILE, to inspect the merge-tree ratchet's scratch materialization) replaced this worktree's real index, producing ~20 spurious MM/AD entries in `git status` against unrelated upstream files. Caught this before committing by inspecting file content (md5sum matched HEAD) rather than trusting git status, then ran `git reset` (no path, no --hard) to restore the index to HEAD while preserving the real working-tree edit.",
+      "outcome": "Confirmed via `git fsck` (clean) and `git diff --stat` (only tests/skills/doc-accuracy/test_doc_accuracy.py) that the working tree and repository were not damaged; re-ran pytest and ruff to reconfirm green before committing."
+    },
+    {
+      "action": "Committed the post-merge test repair (single file, tests/skills/doc-accuracy/test_doc_accuracy.py), then ran the full uv run python scripts/validation/pre_pr.py --verbose (51 checks).",
+      "outcome": "Before this commit, pre_pr reported 2 failures: Count Ratchets (whole-repo ruff count ratchet regression, 33 > baseline 27 via the merge-tree materialization, reproduced manually with git archive and confirmed the 6 extra violations were the same 6 F821 Any errors) and Session End Validation (QA stale, expected until QA/session evidence is updated). After the commit, Count Ratchets passed (the merge-tree evaluation reads committed history, so committing the Any-import fix cleared it); only Session End Validation remained failing, exactly the expected state pending this QA/session evidence update."
     }
   ],
-  "endingCommit": "aed5d0c14",
+  "endingCommit": "425931199",
   "nextSteps": [
     "None."
   ]
