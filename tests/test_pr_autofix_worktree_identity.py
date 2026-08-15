@@ -112,6 +112,33 @@ class TestWorktreeIdentityReset:
         result = _git(["config", "--local", "user.email"], worktree_path)
         assert result.stdout.strip() == "rjmurillo-bot@users.noreply.github.com"
 
+    def test_unset_failure_raises_for_non_missing_key(self, tmp_path: Path) -> None:
+        """A non-zero, non-5 return code from git config --unset-all raises."""
+        import subprocess as _sp
+        from unittest.mock import patch as _patch
+
+        from scripts.github_core.worktree_identity import reset_worktree_identity
+
+        worktree_path = tmp_path / "wt"
+        worktree_path.mkdir()
+        _git(["init", "-b", "main"], worktree_path)
+
+        fake_result = _sp.CompletedProcess(
+            args=["git", "config", "--local", "--unset-all", "user.name"],
+            returncode=2,
+            stdout="",
+            stderr="error: invalid key",
+        )
+        with _patch(
+            "scripts.github_core.worktree_identity._run_git_config",
+            return_value=fake_result,
+        ):
+            import pytest as _pt
+
+            with _pt.raises(_sp.CalledProcessError) as exc_info:
+                reset_worktree_identity(worktree_path, operator="rjmurillo")
+            assert exc_info.value.returncode == 2
+
 
 # ---------------------------------------------------------------------------
 # (b) Placeholder guard rejects bad commits
