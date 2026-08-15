@@ -100,6 +100,19 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T17:00:33+00:00",
+      "type": "commit",
+      "content": "Commit: 56237643c5951dc17e4a853b5e27f4c645061015",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
     }
@@ -109,7 +122,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 18
   },
   "lessons": []
