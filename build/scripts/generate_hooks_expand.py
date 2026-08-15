@@ -8,8 +8,34 @@ generator expands each dispatch registration back to the per-hook entries
 recorded in ``.claude/hooks/dispatch_groups.json`` before emission. The
 expanded entries reproduce the pre-consolidation command, timeout, and
 statusMessage values, so the generated Copilot tree is unchanged by the
-Claude-side consolidation. Extracted from ``generate_hooks_events.py`` to
-keep that module under the file-size taste limit.
+Claude-side consolidation, EXCEPT for a shim whose manifest entry sets
+``copilotExclude: true`` (issue #5013): that shim is omitted from the
+Copilot expansion outright, while ``invoke_dispatch_claude.py`` still runs
+it unchanged on the Claude Code side, because that entry point never reads
+``copilotExclude``.
+
+Phase 2 (issue #5013, ADR-085 Decision 7, "Generic field governance") adds
+three fail-closed rules to ``copilotExclude`` itself, enforced by
+:func:`_copilot_exclude_flag` and :func:`_require_copilot_exclude_governance`
+below:
+
+1. Strict boolean validation (governance item 1). Quoted verbatim from
+   ``.agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md``,
+   Decision 7: "The generator rejects any ``copilotExclude`` value that is
+   not literally ``true`` or ``false``; a truthy non-boolean value such as
+   ``1``, ``"true"``, or ``null`` fails generation rather than silently
+   including or excluding the shim."
+2. Plugin surface required (governance item 2, "Plugin surface named"):
+   ``copilotExclude: true`` is only accepted on a dispatch group that
+   declares ``surface: plugin``. A group outside the generated Copilot
+   plugin surface has no Copilot generation path to exclude a shim from.
+3. Issue and decision metadata (governance items 3-4): ``copilotExclude:
+   true`` requires non-empty string ``copilotExcludeIssue`` and
+   ``copilotExcludeDecision`` fields naming the authorizing issue and the
+   ADR that owns the security judgment.
+
+Extracted from ``generate_hooks_events.py`` to keep that module under the
+file-size taste limit.
 """
 
 from __future__ import annotations
@@ -29,6 +55,13 @@ from generate_hooks_emit import GenerateHooksError  # noqa: E402
 _DISPATCH_COMMAND_RE = re.compile(
     r"dispatch_claude\.py\"?\s+--group\s+([A-Za-z0-9_-]+)"
 )
+
+# The only dispatch-group surface a shim may be excluded from Copilot
+# generation on (ADR-085 Decision 7, governance item 2). Every group in the
+# committed manifest that ISN'T this surface (e.g. "sessionstart-1-
+# context_loader", which sets no surface at all) has no Copilot generation
+# path to exclude a shim from in the first place.
+_EXCLUDABLE_SURFACE = "plugin"
 
 
 def _load_dispatch_groups(script_source: Path) -> dict[str, Any]:
@@ -70,6 +103,79 @@ def _expanded_hook_entry(shim: dict[str, Any], group_id: str) -> dict[str, Any]:
     return hook
 
 
+def _copilot_exclude_flag(shim: dict[str, Any], group_id: str) -> bool:
+    """Return the strict-boolean ``copilotExclude`` flag for one shim.
+
+    An absent key means ``False``. A PRESENT key must be literally ``True``
+    or ``False``: Python's ``bool`` is an ``int`` subclass, so this checks
+    ``isinstance(raw, bool)`` rather than truthiness, which is the only way
+    to accept ``True``/``False`` while rejecting ``1``/``0`` (and every
+    string, ``None``, list, or object) as required by ADR-085 Decision 7,
+    generic field governance item 1 (quoted in the module docstring).
+    """
+    if "copilotExclude" not in shim:
+        return False
+    raw = shim["copilotExclude"]
+    if not isinstance(raw, bool):
+        file_rel = shim.get("file", "<unknown>")
+        raise GenerateHooksError(
+            f"dispatch group {group_id!r} shim {file_rel!r} has "
+            f"copilotExclude={raw!r} ({type(raw).__name__}); it must be a "
+            "strict boolean, not a string, number, null, list, or object "
+            "(issue #5013, ADR-085 Decision 7 governance item 1)"
+        )
+    return raw
+
+
+def _require_non_empty_exclude_metadata(
+    shim: dict[str, Any],
+    field: str,
+    group_id: str,
+    file_rel: str,
+) -> None:
+    """Raise unless ``shim[field]`` is a non-blank string.
+
+    Backs governance items 3 (issue metadata) and 4 (decision metadata):
+    both name a record the ADR itself must also carry, so a missing,
+    blank, or non-string value here is a manifest authoring error, not an
+    optional annotation.
+    """
+    value = shim.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise GenerateHooksError(
+            f"dispatch group {group_id!r} shim {file_rel!r} sets "
+            f"copilotExclude=true but {field!r} is missing, blank, or not a "
+            "string; copilotExcludeIssue and copilotExcludeDecision must "
+            "both be non-empty strings (issue #5013, ADR-085 Decision 7 "
+            "governance items 3-4)"
+        )
+
+
+def _require_copilot_exclude_governance(
+    shim: dict[str, Any],
+    spec: dict[str, Any],
+    group_id: str,
+) -> None:
+    """Enforce ADR-085 Decision 7's rules for one ``copilotExclude: true`` shim.
+
+    Order mirrors the ADR's own governance-item numbering: surface (item 2),
+    then issue metadata (item 3), then decision metadata (item 4). Item 1
+    (strict boolean) is enforced by :func:`_copilot_exclude_flag` before this
+    function ever runs.
+    """
+    file_rel = shim.get("file", "<unknown>")
+    surface = spec.get("surface")
+    if surface != _EXCLUDABLE_SURFACE:
+        raise GenerateHooksError(
+            f"dispatch group {group_id!r} shim {file_rel!r} sets "
+            f"copilotExclude=true but the group's surface is {surface!r}; "
+            f"exclusion is only allowed on a {_EXCLUDABLE_SURFACE!r}-surface "
+            "group (issue #5013, ADR-085 Decision 7 governance item 2)"
+        )
+    for field in ("copilotExcludeIssue", "copilotExcludeDecision"):
+        _require_non_empty_exclude_metadata(shim, field, group_id, file_rel)
+
+
 def _expand_one_dispatch_group(
     group_id: str,
     claude_event: str,
@@ -93,6 +199,14 @@ def _expand_one_dispatch_group(
             raise GenerateHooksError(
                 f"dispatch group {group_id!r} has a non-object shim entry"
             )
+        if _copilot_exclude_flag(shim, group_id):
+            # Issue #5013: the push-pr identity guard registered on the bare
+            # Bash matcher denied unrelated commands after a child-process
+            # timeout. Omit any copilotExclude shim from Copilot expansion
+            # entirely; invoke_dispatch_claude.py never reads this field, so
+            # the Claude Code gate keeps running the shim unchanged.
+            _require_copilot_exclude_governance(shim, spec, group_id)
+            continue
         matcher = shim.get("copilotMatcher") or registration_matcher
         hook = _expanded_hook_entry(shim, group_id)
         if partitions and partitions[-1][0] == matcher:
