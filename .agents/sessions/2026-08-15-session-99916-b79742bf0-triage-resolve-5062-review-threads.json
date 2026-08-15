@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 99916,
+    "date": "2026-08-15",
+    "branch": "adr/094-scoped-review-axes",
+    "startingCommit": "a784582a6",
+    "objective": "Triage and resolve PR #5062 review threads on ADR-094 draft"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Not read this session; task was delegated with full context in the prompt (PR number, worktree path, thread-resolution memory pointer)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/pr/ enumerated before use"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/{universal,voice,builder-ethos,code-quality,session-logs}.md in context via system reminders"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/pr-review/batch-thread-resolution.md before using resolve_pr_review_thread.py"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr/094-scoped-review-axes"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On adr/094-scoped-review-axes"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain checked before edits; only untracked .claude/hooks/Stop/ present, unrelated to this task"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a784582a6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-15",
+      "action": "Fetched all 10 unresolved review threads on PR #5062 via get_unresolved_review_threads.py, all from copilot-pull-request-reviewer",
+      "outcome": "10 threads on ADR-094-scoped-re-review-axes.md (8), the QA report (1), and the session log (1)"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Triaged each thread against its cited source file (governance.md scope, ADR-073, AGENTS.md, CI-FEEDBACK-SUBLOOP.md, review/SKILL.md, ai-pr-quality-gate.yml) instead of trusting the bot claim",
+      "outcome": "All 10 confirmed as real defects: 2 arithmetic errors (undercounted proposed cost), 2 wrong/incomplete citations, 1 overstated alternative cost, 1 axis-validation gap, 1 bypassable marker check, 1 unfalsifiable test row, 1 factually wrong CI claim"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Fixed all 8 ADR-094 defects in one commit; recomputed the cost arithmetic from first principles (initial full run + Stage-1-always-runs on scoped rounds), landing on 42 vs 90 (53% reduction), not the original 25 vs 90 (72%)",
+      "outcome": "Commit e699ab744"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Updated QA report's Not-verified section to cite the corrected 53% figure instead of certifying the original 72% arithmetic error as merely unmeasured",
+      "outcome": ".agents/qa/qa-adr-094-scoped-re-review-axes.md edited"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Fixed the prior session log's nextSteps: adr-review fires on the ADR edit per AGENTS.md:44, before human approval per ADR-073:156, not on acceptance",
+      "outcome": "2026-08-15-session-14711-...json nextSteps corrected"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

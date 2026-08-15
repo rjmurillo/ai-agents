@@ -53,9 +53,14 @@ two quoted lines above.
 
 ## Not verified
 
-- **The 72% reduction figure is arithmetic on an assumed workload** (5 rounds, 2
-  flagged axes), not a measurement. The ADR labels it as such. No scoped mode
-  exists yet, so no empirical number is obtainable.
+- **The reduction figure is arithmetic on an assumed workload** (6 total
+  rounds, 2 flagged axes), not a measurement. The original draft's 72% figure
+  undercounted the proposed cost: it omitted the mandatory Stage-1 axis on
+  every scoped round (contract change 7) and the initial full run needed to
+  find what to scope in the first place. Corrected to 42 axis invocations
+  against the unchanged 90-invocation baseline, a 53% reduction. The ADR
+  labels this as arithmetic, not measurement. No scoped mode exists yet, so
+  no empirical number is obtainable.
 - **The 24% signal ratio** comes from 6 CI review agents in
   `.agents/analysis/009-phase1-agent-comment-baseline.md`, a different population
   from `/review`'s 15 axes. The ADR states this limitation inline and lists a
