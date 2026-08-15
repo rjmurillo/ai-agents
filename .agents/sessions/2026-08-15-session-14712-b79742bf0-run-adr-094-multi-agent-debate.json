@@ -195,10 +195,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "e137317ef468f70688671bd58f893273be52527f",
-      "head": "56237643c5951dc17e4a853b5e27f4c645061015"
+      "head": "4161987600aa31d32bdcea5c4be0f66e489e3e18"
     }
   },
-  "endingCommit": "56237643c5951dc17e4a853b5e27f4c645061015",
+  "endingCommit": "4161987600aa31d32bdcea5c4be0f66e489e3e18",
   "nextSteps": [
     "Subset review markers pass validate_review_marker.py today: 11 of 14 marker commits name a subset and 4 name a code-review axis that has no references file. This survives the rejection and wants its own issue",
     "Nothing validates a duplicate ADR id. Two branches took 094 concurrently and the collision surfaced only by luck of a shared critique filename",

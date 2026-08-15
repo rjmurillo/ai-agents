@@ -260,6 +260,19 @@
       "caused_by": [
         "e019"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-15T19:51:43+00:00",
+      "type": "commit",
+      "content": "Commit: 4161987600aa31d32bdcea5c4be0f66e489e3e18",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
@@ -269,7 +282,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 4
   },
   "lessons": []

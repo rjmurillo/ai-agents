@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads.json
-qaCommit: 56237643c5951dc17e4a853b5e27f4c645061015
+qaCommit: 4161987600aa31d32bdcea5c4be0f66e489e3e18
 ---
 
 # QA: ADR-094 scoped re-review axes
