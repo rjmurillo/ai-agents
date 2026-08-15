@@ -96,6 +96,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
         "workflow routes through the selection runner that calls it."
     ),
+    "ruleset_required_contexts.py": (
+        "Library holding the required-context contract shared by "
+        "ruleset_context_drift.py and test_merge_group_readiness.py. The "
+        "scheduled workflow invokes the detector, while both test files verify "
+        "the shared contract."
+    ),
 }
 
 

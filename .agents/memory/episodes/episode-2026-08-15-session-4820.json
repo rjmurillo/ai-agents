@@ -1,0 +1,179 @@
+{
+  "id": "episode-2026-08-15-session-4820",
+  "session": "2026-08-15-session-4820",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Document serial auto-merge landing workflow (issue #4820)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured live ruleset 11104075: strict_required_status_checks_policy is false",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created docs/landing-workflow.md documenting the serial one-front protocol",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md, and Serena memories",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added cross-reference from docs/merge-guards.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured live ruleset 11104075 via API: strict is false",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected stale strict:true claims in AGENTS.md, GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated 2 Serena memories to reflect current strict:false state",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T11:10:54+00:00",
+      "type": "commit",
+      "content": "Commit: 36541215a29a6b1c133bb83bc93de124ebd83c6e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T11:47:18+00:00",
+      "type": "commit",
+      "content": "Commit: 03fcba445d6321d962b2bb6298cdb6b46271666b",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T12:03:03+00:00",
+      "type": "commit",
+      "content": "Commit: 84da6f743d527ab19e89b19f7f0e3bdce34af326",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T12:27:21+00:00",
+      "type": "commit",
+      "content": "Commit: 24439780525256bf4048dd2bf972262dcacd0646",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T12:27:58+00:00",
+      "type": "commit",
+      "content": "Commit: 2aa84b2d239577b36f6ad2635bd85834ab17d7cc",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-4820"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T13:01:29+00:00",
+      "type": "commit",
+      "content": "Commit: d676271b6aa5f33ae7129c3aa3103ffec90db1d5",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4820"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 6
+  },
+  "lessons": []
+}

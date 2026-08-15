@@ -190,6 +190,76 @@ _AUTH_FAILURE_STATUSES = frozenset(
     {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
 )
 
+# Substrings that prove a gh failure message is a credential fault (ADR-035
+# exit 4). Quoted verbatim from the canonical per-script copy in
+# `.claude/skills/github/scripts/issue/close_issue.py::_AUTH_ERROR_MARKERS`
+# as of commit bc179ad3a:
+#
+#     _AUTH_ERROR_MARKERS = (
+#         "credential",
+#         "not logged in",
+#         "bad credentials",
+#         "could not authenticate",
+#         "authentication",
+#         "requires authentication",
+#     )
+#
+# The same tuple is copy-pasted into new_issue.py (with a "Copied verbatim from
+# close_issue.py" comment), reopen_issue.py, get_issue_comments.py, and
+# get_pr_reviews.py. This is the shared home so new callers stop adding copy
+# number six; the existing copies are left alone (issue #4951 touches only
+# close_issue.py).
+AUTH_ERROR_MARKERS = (
+    "credential",
+    "not logged in",
+    "bad credentials",
+    "could not authenticate",
+    "authentication",
+    "requires authentication",
+)
+
+
+# GitHub's permission-denial wording for installations/apps (HTTP 403 but NOT
+# rate-limit).  Checked separately from AUTH_ERROR_MARKERS because it must not
+# match when the 403 is a rate-limit response (issue #4951, PR #5011).
+_PERMISSION_DENIED_MARKER = "resource not accessible by integration"
+
+# Patterns that identify a 403 as a rate-limit response rather than a
+# permission denial.  When present, the text is NOT an auth failure.
+_RATE_LIMIT_MARKERS = (
+    "rate limit",
+    "abuse detection",
+    "secondary rate limit",
+)
+
+
+def is_auth_failure_text(text: str) -> bool:
+    """Return True when gh failure text names a credential or permission fault (exit 4).
+
+    Stricter than :func:`classify_gh_failure_text`, on purpose. That function
+    classifies the output of an auth *preflight*, where the probe has already
+    failed, so its fallback bucket is ``INVALID_CREDENTIALS``. Applied to an
+    arbitrary API error ("Could not resolve to a PullRequest") the fallback
+    would report a credential fault and send the operator to ``gh auth login``
+    for an upstream problem. This predicate requires an explicit marker and
+    leaves everything else to the caller, which maps it to exit 3 (external).
+
+    GitHub returns HTTP 403 for two unrelated situations: rate-limiting and
+    permission denial ("Resource not accessible by integration").  Only the
+    latter is an auth/permission failure (exit 4).  Rate-limit 403s remain
+    external failures (exit 3).
+    """
+    lowered = (text or "").lower()
+    # Explicit credential markers always win.
+    if any(marker in lowered for marker in AUTH_ERROR_MARKERS):
+        return True
+    # Permission denial marker, but only when NOT a rate-limit response.
+    if _PERMISSION_DENIED_MARKER in lowered:
+        if any(rl in lowered for rl in _RATE_LIMIT_MARKERS):
+            return False
+        return True
+    return False
+
 
 @dataclass(frozen=True)
 class GhAuthResult:
@@ -270,9 +340,19 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
 )
 
 
-def _sanitize_auth_detail(text: str, limit: int = 200) -> str:
-    """Redact tokens and collapse whitespace so detail is envelope/log safe."""
-    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", text or "")
+def sanitize_failure_detail(text: object, limit: int = 200) -> str:
+    """Redact tokens and collapse whitespace so detail is envelope/log safe.
+
+    Collapsing whitespace also strips CR/LF, which is the CWE-117 log-forging
+    defense ``log_safety.safe_log_str`` provides; this helper additionally
+    redacts credentials and bounds the length, so remote text (a gh stderr
+    body, a GraphQL error) is safe to place in an error envelope.
+
+    Was ``_sanitize_auth_detail``. Renamed and made public in issue #4951 so
+    the PR merge-state reader and the close verifier sanitize probe details
+    the same way instead of each growing a copy.
+    """
+    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", str(text) if text else "")
     redacted = " ".join(redacted.split())
     if len(redacted) > limit:
         redacted = redacted[:limit] + "..."
@@ -361,7 +441,7 @@ def _graphql_viewer_probe() -> GhAuthResult:
 
     combined = f"{result.stdout}\n{result.stderr}"
     return GhAuthResult(
-        classify_gh_failure_text(combined), _sanitize_auth_detail(combined)
+        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
     )
 
 
@@ -748,16 +828,38 @@ def _extract_graphql_error(result: subprocess.CompletedProcess[str]) -> str:
 def _parse_graphql_response(stdout: str) -> dict:
     """Parse a successful gh stdout into the GraphQL ``data`` payload.
 
-    Raises RuntimeError on unparseable output or GraphQL-level errors; both are
-    permanent (not retried by the caller).
+    Raises RuntimeError on unparseable output, unexpected shapes, or
+    GraphQL-level errors; all are permanent (not retried by the caller).
+
+    Shape validation (issue #4951, PR #5011): decoded JSON that is not a dict,
+    or an ``errors`` list whose items are not dicts, would raise
+    ``AttributeError`` on the ``.get()`` calls below.  That uncaught exception
+    exits 1 (Python default), which ADR-035 reserves for verified logic
+    failures.  Catching the shapes here and raising ``RuntimeError`` lets the
+    caller map them to exit 3 (external/malformed).
     """
     try:
         parsed = json.loads(stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Failed to parse GraphQL response: {stdout}") from exc
 
-    if parsed.get("errors"):
-        messages = [e.get("message", str(e)) for e in parsed["errors"]]
+    if not isinstance(parsed, dict):
+        raise RuntimeError(
+            f"GraphQL response is not a JSON object: {type(parsed).__name__}"
+        )
+
+    errors = parsed.get("errors")
+    if errors:
+        if not isinstance(errors, list):
+            raise RuntimeError(
+                f"GraphQL 'errors' field is not a list: {type(errors).__name__}"
+            )
+        messages: list[str] = []
+        for entry in errors:
+            if isinstance(entry, dict):
+                messages.append(entry.get("message", str(entry)))
+            else:
+                messages.append(str(entry))
         raise RuntimeError(f"GraphQL errors: {'; '.join(messages)}")
 
     data: dict = parsed.get("data", {})

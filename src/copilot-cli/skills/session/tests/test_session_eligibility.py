@@ -195,10 +195,13 @@ class TestMainFunction:
         def mock_run(cmd, **kwargs):
             assert cmd == [
                 "git",
-                "diff",
+                "log",
+                "--first-parent",
+                "--no-merges",
                 "--name-status",
                 "--find-renames",
                 "--no-ext-diff",
+                "--format=",
                 f"{base_ref}..{head_ref}",
                 "--",
             ]

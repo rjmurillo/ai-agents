@@ -418,3 +418,22 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         )
         return True
     return bool(exit_code == 0)
+
+
+def validate_colocated_skill_tests(repo_root: Path) -> bool:
+    """Block newly added test files in customer-shipped skill directories.
+
+    Wraps ``scripts/validation/check_colocated_skill_tests.py``. Returns True
+    when no new colocated tests are detected. Issue #4838.
+    """
+    script = repo_root / "scripts" / "validation" / "check_colocated_skill_tests.py"
+    if not script.is_file():
+        print("[ERROR] check_colocated_skill_tests.py not found")
+        return False
+    cmd = [sys.executable, str(script), "--repo-root", str(repo_root)]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
