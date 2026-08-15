@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 219c790f285293780972c49d8f90c886b74857a8; final evidence committed separately"
+        "Evidence": "Validated code commit df2e2620a1eaafb193ced0502cf04becc977cb27; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
@@ -198,9 +198,13 @@
     {
       "action": "Preserved compatibility with active logs from the UTC-date release.",
       "outcome": "Primary utility, retrospective evidence, and PreCompact fallback prioritize host-local dates then deduplicated UTC dates; explicit historical scopes remain bounded; 953 tests passed."
+    },
+    {
+      "action": "Prioritized active pre-migration UTC logs over local yesterday grace.",
+      "outcome": "All three selectors now order host today, UTC today, host yesterday, UTC yesterday; mixed-file regressions and vendor-portability declaration pass; 953 tests passed."
     }
   ],
-  "endingCommit": "219c790f285293780972c49d8f90c886b74857a8",
+  "endingCommit": "df2e2620a1eaafb193ced0502cf04becc977cb27",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
