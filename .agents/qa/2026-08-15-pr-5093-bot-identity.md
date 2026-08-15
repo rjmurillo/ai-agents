@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: 8056d7caef4068f138cd517ac55cebfb10f13dc6
+qaCommit: 341fe22c28a6010c81b0582a0539d1519d20142e
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607, PR #5093)
@@ -79,6 +79,13 @@ and the claude-mem `get_count` error test (sqlite3 creates
 other users got the intended error). Both now exercise their failure paths
 for every euid. Full-suite evidence: 28,856 passed with only these 3
 environmental failures before the fixes; each fixed test passes after.
+
+Superseded at merge 341fe22c2: origin/main landed its own fixes for the
+same three tests (euid/Windows skipif guards and a directory-as-database
+probe). The merge adopted main's versions, so these files carry no diff
+against main in this PR; the euid-guarded tests skip under root, which
+also keeps this container's pre-push suite green. Verified post-merge:
+37 passed, 2 skipped across the affected files plus the identity tests.
 
 ## Review-driven hardening
 
