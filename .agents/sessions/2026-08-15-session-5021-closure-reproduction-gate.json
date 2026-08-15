@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5021,
+    "date": "2026-08-15",
+    "branch": "fix/closure-reproduction-gate",
+    "startingCommit": "333a80b74a",
+    "objective": "Implement reproduction verification gate for issue #4624"
+  },
+  "endingCommit": "287042d7bade7c3ef76de86edd74d61bbcf353e9",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "serenaInstructions": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read HANDOFF.md, AGENTS.md, CLAUDE.md"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created 2026-08-15-session-5021-closure-reproduction-gate.json"
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read AGENTS.md root and .agents/AGENT-INSTRUCTIONS.md"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read project constraints from AGENTS.md"
+      },
+      "memoriesLoaded": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "fix/closure-reproduction-gate"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "On fix/closure-reproduction-gate"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All items recorded"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No handoff changes"
+      },
+      "serenaMemoryUpdated": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "SHOULD: implementer session; item not applicable"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No markdown changes in code commit"
+      },
+      "qaValidation": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/qa/pr-5021-closure-reproduction-gate.md"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All changes committed and pushed"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "107 tests passed, ruff clean, mypy clean"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "reproduce",
+      "detail": "Confirmed defect: close succeeds without reproduction verification on current main"
+    },
+    {
+      "action": "implement",
+      "detail": "Added reproduction_verified field to ManifestAction and gate in _apply_close"
+    },
+    {
+      "action": "test",
+      "detail": "Added 8 tests in TestReproductionGate, updated existing scope-gate tests"
+    }
+  ],
+  "nextSteps": [],
+  "outcome": {
+    "status": "COMPLETE",
+    "summary": "Added reproduction_verified gate to _apply_close in triage_batch_apply.py",
+    "filesChanged": [
+      "scripts/triage_batch_apply.py",
+      "tests/test_triage_batch_apply.py",
+      "tests/test_triage_gateway.py"
+    ],
+    "testsAdded": 8,
+    "testsTotal": 107,
+    "testsPassed": true
+  }
+}
