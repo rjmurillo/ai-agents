@@ -196,7 +196,7 @@
       "result": "Fixed findings 1, 2, 6, 7 directly in this workLog update (nextSteps cleaned above; episodeMetrics.filesChanged corrected 10 to 5 in session-14695's log and its episode; analysis file reworded; handoff rewritten). Planned a round-12 content-fix commit (analysis file, session-14695 log+episode, handoff, this session log) followed by a rebind split into two commits by the atomic-commit cap (session-14695+session-15001+their 2 QA reports naming fd8fa1522 directly; session-14706's own log+its own QA report naming 7de4606b2 directly), neither rebind commit adding a new self-referential placeholder row for itself, per the round-12 review's explicit instruction."
     }
   ],
-  "endingCommit": "ae927ffc735db019a97621446438b1bc89124c8d",
+  "endingCommit": "391d0f99daf93304c7f9fc360bc9db1b02a51a49",
   "nextSteps": [
     "Wait for CI to reach a terminal state, renewing the lease every 2-3 minutes; re-verify PR_HEAD_SHA=<pushed HEAD> scripts/ci/validate_session_protocol.py --session-file <this log> is COMPLIANT once the real head SHA is known",
     "Re-check for a round-13 active-findings cycle; watch whether omitting new self-referential placeholder rows in round-12's rebind commits reduces the finding count",
