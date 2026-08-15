@@ -88,7 +88,7 @@ def test_launcher_uses_copilot_plugin_root_from_host_worktree(tmp_path: Path) ->
     result = _run_launcher(
         host,
         home,
-        COPILOT_PLUGIN_ROOT=str(REPO_ROOT / ".claude"),
+        COPILOT_PLUGIN_ROOT=str(REPO_ROOT / "src" / "copilot-cli"),
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
