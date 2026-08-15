@@ -37,10 +37,12 @@ from extract_session_episode import (  # noqa: E402
     _as_dict,
     _as_list,
     _commit_sha,
+    _event_order_relation,
     _git_commit_timestamp,
     _link_sequential_events,
     _norm,
     default_episodes_dir,
+    validate_episode_causal_graph,
 )
 
 
@@ -70,6 +72,40 @@ def count_edges(events: list[dict[str, Any]]) -> int:
     return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
 
 
+def _edge_set(events: list[dict[str, Any]]) -> set[tuple[str, str]]:
+    """Every ``leads_to`` edge as a (source id, target id) pair."""
+    edges: set[tuple[str, str]] = set()
+    for evt in events:
+        source = str(_as_dict(evt).get("id"))
+        for target in _as_list(_as_dict(evt).get("leads_to")):
+            edges.add((source, str(target)))
+    return edges
+
+
+def _all_removed_now_incomparable(
+    events: list[dict[str, Any]], removed: set[tuple[str, str]]
+) -> bool:
+    """True when every removed edge joins events that are now incomparable.
+
+    Uses the post-restamp timestamps, so an edge the old flattened stamps
+    fabricated between a synthetic-midnight milestone and a commit reads as
+    incomparable here and may be dropped. An edge between events the order
+    relation still ranks is evidence, and dropping it is refused. A dangling
+    endpoint counts as removable: the rebuild validates ids, so the old edge
+    referenced an event that no longer exists.
+    """
+    by_id = {str(_as_dict(evt).get("id")): evt for evt in events}
+    timestamps = validate_episode_causal_graph(events, validate_order=False)
+    for source, target in removed:
+        left = by_id.get(source)
+        right = by_id.get(target)
+        if left is None or right is None:
+            continue
+        if _event_order_relation(left, right, timestamps) is not None:
+            return False
+    return True
+
+
 def repair_episode(path: Path) -> dict[str, Any]:
     """Repair one episode file in place. Returns a per-file report.
 
@@ -83,13 +119,21 @@ def repair_episode(path: Path) -> dict[str, Any]:
         return {"path": str(path), "status": "unchanged", "edges": 0}
 
     before_edges = count_edges(events)
+    before_set = _edge_set(events)
     restamped = restamp_commit_events(events)
     _link_sequential_events(events)
     after_edges = count_edges(events)
+    after_set = _edge_set(events)
 
-    # Only ever add edges. A rebuild that would remove one means the file
-    # carries evidence this pass cannot see, so leave it alone.
-    if after_edges <= before_edges:
+    # A rebuild may remove an edge only when the pair it joined is now
+    # classified incomparable (the false milestone-to-commit edges of issue
+    # #4847). A removed edge between still-comparable events means the file
+    # carries evidence this pass cannot see, so leave it alone. A raw count
+    # comparison cannot make that distinction: it preserved the exact #4847
+    # edge this tool exists to remove (PR #5058 review).
+    removed = before_set - after_set
+    evidence_removed = removed and not _all_removed_now_incomparable(events, removed)
+    if evidence_removed or after_set == before_set:
         status = "unrepairable" if _is_flat(events, before_edges) else "unchanged"
         report = {"path": str(path), "status": status, "edges": before_edges}
         if status == "unrepairable":
@@ -109,6 +153,7 @@ def repair_episode(path: Path) -> dict[str, Any]:
         "status": "repaired",
         "edges": after_edges,
         "edges_before": before_edges,
+        "removed_incomparable_edges": len(removed),
     }
 
 
