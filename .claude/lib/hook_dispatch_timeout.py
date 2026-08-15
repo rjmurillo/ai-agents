@@ -66,7 +66,7 @@ def run_timed_shim(
         print(
             f"hook-dispatch: shim {name} timed out after {timeout_sec:g}s; "
             f"allowing (infrastructure timeout is not a policy denial). "
-            f"Reinstall if persistent: copilot plugin install project-toolkit@ai-agents",
+            f"Reinstall if persistent: /install-plugin rjmurillo/ai-agents",
             file=sys.stderr,
         )
         return ALLOW_EXIT, "", ""
@@ -74,7 +74,7 @@ def run_timed_shim(
         print(
             f"hook-dispatch: shim {name} failed to launch: {exc}; "
             f"allowing (launch failure is not a policy denial). "
-            f"Reinstall if persistent: copilot plugin install project-toolkit@ai-agents",
+            f"Reinstall if persistent: /install-plugin rjmurillo/ai-agents",
             file=sys.stderr,
         )
         return ALLOW_EXIT, "", ""

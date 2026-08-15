@@ -35,7 +35,7 @@
             "type": "command"
           }
         ],
-        "matcher": "Bash"
+        "matcher": "Bash(*new_pr*|*push_pr*|*push-pr*|*python*|*pypy*|*pr.py*|uv run *)"
       },
       {
         "hooks": [

@@ -3,12 +3,12 @@
   "mode": "gate",
   "shims": [
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
-    "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
+    "invoke_push_pr_script_identity_guard__Bash_new_pr_push_pr_push_pr_python_pypy_pr_py_uv_237ef7.py",
     "invoke_require_subagent_model__Agent_Task_456aac.py"
   ],
   "timeouts": {
     "invoke_markdownlint_guard__Bash_git_push_0e93bf.py": 90,
-    "invoke_push_pr_script_identity_guard__Bash_f620ca.py": 10,
+    "invoke_push_pr_script_identity_guard__Bash_new_pr_push_pr_push_pr_python_pypy_pr_py_uv_237ef7.py": 10,
     "invoke_require_subagent_model__Agent_Task_456aac.py": 10
   }
 }

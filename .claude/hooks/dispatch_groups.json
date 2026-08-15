@@ -28,7 +28,7 @@
     "plugin-pretooluse-9-push_pr_script_identity": {
       "event": "PreToolUse",
       "mode": "gate",
-      "matcher": "Bash",
+      "matcher": "Bash(*new_pr*|*push_pr*|*push-pr*|*python*|*pypy*|*pr.py*|uv run *)",
       "surface": "plugin",
       "shims": [
         {
