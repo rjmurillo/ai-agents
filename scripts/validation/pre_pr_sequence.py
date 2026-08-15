@@ -44,6 +44,7 @@ from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_generated_staleness import validate_generated_staleness
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
@@ -236,6 +237,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # tracking issue, the orphan signature that hid stale mirrors before #2780.
     # Issue #2770.
     _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
+    # The gate above reads deferral comments inside build_all.py's source. This
+    # one asks the separate question CI asks: is the generated tree stale
+    # against its inputs. Runs sync_plugin_lib.py --check then
+    # build/scripts/build_all.py --check, in the order
+    # .claude/rules/generated-artifacts.md requires. Both are read-only.
+    # Issue #5079: without it, a hand-edit to a generated file cleared every
+    # local gate and the generator silently reverted it in CI (PR #5059).
+    _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # No new hard-coded upstream-only paths (issue #2050).
