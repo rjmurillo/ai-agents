@@ -86,8 +86,12 @@ Control, identical command, worker's `model:` line deleted:
 ## Runtime-contract check on a shipped artifact
 
 Not a synthetic fixture. `src/copilot-cli/agents/critic.agent.md` was copied
-verbatim into a scratch repository after the generator change that removes the
-pin, and delegated to from a parent at `--model claude-opus-5`:
+verbatim into a scratch repository, its `model: claude-opus-4.6` line then
+manually deleted (mirroring the control step above with `sed -i
+'/^model:/d'`, not any generator change: the reviewed tree still ships that
+pin unchanged, both in `src/copilot-cli/agents/critic.agent.md:11` and in
+the generator input at `templates/platforms/copilot-cli.yaml:98`), and
+delegated to from a parent at `--model claude-opus-5`:
 
 ```text
 [DEBUG] Agent "critic": definitionModel=

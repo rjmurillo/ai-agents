@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), plus this session log and the handoff rewrite committed separately. endingCommit was later rebound to 9996e0905, a round-3 autofix commit that narrowed two analysis-file sentences and thereby staled this session's QA report (analysis file is evidence this QA scope covers); see 9996e0905 itself and .agents/qa/000-session-15001-pr-4954-round2-findings-qa.md revision history for that commit's own record, not a separate session log."
+        "Evidence": "Commits c860ae452 (debate-log dash fix), 1301b4c09 (session-14695 honesty corrections and episode regen), db7ead33f (this session log and QA report), and ac53f6802 (handoff rewrite). endingCommit was later rebound to 9996e0905, a round-3 autofix commit that narrowed two analysis-file sentences and thereby staled this session's QA report (analysis file is evidence this QA scope covers); see 9996e0905 itself and .agents/qa/000-session-15001-pr-4954-round2-findings-qa.md revision history for that commit's own record, not a separate session log."
       },
       "validationPassed": {
         "level": "MUST",

@@ -72,12 +72,13 @@ session-protocol correction.
   opus/haiku inferred); finding 4's model_tier override remains scoped the
   same way (inferred from finding 1's mechanism, not separately measured).
   This round changed no claims, only punctuation.
-- Episode `files_changed` is the schema-valid integer 7 (was 6 before this
-  round's debate-log commit added one more commit to the session-owned
-  range), sourced from `episodeMetrics.filesChanged` (an authoritative
-  override; the raw first-parent commit range from the session's original
-  `startingCommit` picks up 3 unrelated upstream commits absorbed by a rebase
-  and would overstate this).
+- Episode `files_changed` is the schema-valid integer 10 (last measured at
+  round-2 fix commit `1301b4c09` as 7, before the round-3 rebind below
+  raised it to 10 for the `9996e0905` binding), sourced from
+  `episodeMetrics.filesChanged` (an authoritative override; the raw
+  first-parent commit range from the session's original `startingCommit`
+  picks up 3 unrelated upstream commits absorbed by a rebase and would
+  overstate this).
 - `session_qa_binding()`/`validate_qa_report()` resolve cleanly end-to-end
   against `9996e0905` (this report's `qaCommit`, the session's
   `endingCommit`, and `episodeMetrics.comparison.head` all agree).
