@@ -25,6 +25,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Lines that only print a path do not need the file to exist.
 _PRINTING = re.compile(r"^\s*(echo|printf|cat\s+<<|#)")
+_ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
 
 # A token is a repo reference when it looks like a relative path into one of
 # these trees. Anchored so an unrelated argument cannot match.
@@ -73,6 +75,24 @@ def _logical_shell_commands(run_text: str) -> list[str]:
     return commands
 
 
+def _shell_command_segments(tokens: list[str]) -> list[list[str]]:
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token in _SHELL_CONTROL_TOKENS:
+            if segments[-1]:
+                segments.append([])
+            continue
+        segments[-1].append(token)
+    return [segment for segment in segments if segment]
+
+
+def _strip_environment_assignments(tokens: list[str]) -> list[str]:
+    first_command = 0
+    while first_command < len(tokens) and _ENV_ASSIGNMENT.match(tokens[first_command]):
+        first_command += 1
+    return tokens[first_command:]
+
+
 def repo_paths_in_run(run: str) -> list[str]:
     """Return repo-relative paths the block actually executes or reads.
 
@@ -103,10 +123,11 @@ def _line_runs_checkout_index(line: str) -> bool:
     (PR #4846 review, thread on this exact substring-vs-subcommand gap).
     """
     tokens = _tokenize_command_line(line)
-    for index in range(len(tokens) - 1):
-        if tokens[index : index + 2] != ["git", "checkout-index"]:
+    for segment in _shell_command_segments(tokens):
+        command = _strip_environment_assignments(segment)
+        if command[:2] != ["git", "checkout-index"]:
             continue
-        command_tokens = tokens[index + 2 :]
+        command_tokens = command[2:]
         for option_index, token in enumerate(command_tokens):
             if token.startswith("--prefix="):
                 prefix = token.split("=", 1)[1]
@@ -351,6 +372,28 @@ class TestFirstUnmetRepoDependency:
             ]
         }
         assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_compound_echo_does_not_satisfy_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "true && echo git checkout-index\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/ci/x.py")
+
+    def test_compound_real_checkout_satisfies_a_dependency(self) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Materialize",
+                    "run": "true && git checkout-index -a\npython3 scripts/ci/x.py",
+                }
+            ]
+        }
+        assert first_unmet_repo_dependency(job) is None
 
     def test_checkout_index_with_workspace_prefix_satisfies_a_dependency(self) -> None:
         job = {
