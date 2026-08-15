@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to GitHub-core pin refresh 334e8f422b3c8ecbf446f7e16599ec77adf2b169."
+        "Evidence": "QA evidence rebound to single-writer lifecycle commit 91a3a02a66c646e9a04a874ee977fb9eb84631e0."
       },
       "validationPassed": {
         "level": "MUST",
@@ -235,8 +235,12 @@
     {
       "action": "Merged current main and pinned the changed and new GitHub core modules.",
       "result": "216 provenance tests and 285 GitHub core tests pass."
+    },
+    {
+      "action": "Serialized PR runs, retried transient Checks API failures, and removed fallback check rows.",
+      "result": "The state machine has one create path and one PATCH path. 218 provenance tests pass. Independent security review returned PASS."
     }
   ],
-  "endingCommit": "334e8f422b3c8ecbf446f7e16599ec77adf2b169",
+  "endingCommit": "91a3a02a66c646e9a04a874ee977fb9eb84631e0",
   "nextSteps": []
 }
