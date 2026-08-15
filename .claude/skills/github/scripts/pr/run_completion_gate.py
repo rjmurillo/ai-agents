@@ -89,10 +89,13 @@ window). The outcomes:
 
 A human who has inspected the surfaced diff can approve execution
 explicitly by re-running with ``--approve-untrusted-config``, which
-proceeds through every non-trusted outcome with a loud stderr warning
-and records the trust status in the JSON payload. Config evolution
-through normal PRs needs no flag: once the change merges to the base
-branch, working tree and trusted ref agree again.
+proceeds through **diverged** and **missing-base** with a loud stderr
+warning and records the trust status in the JSON payload. **git-error**
+is never overridable: with verification impossible there is no
+trustworthy diff a human could have inspected, so approval would turn
+an unverifiable state into an execution path. Config evolution through
+normal PRs needs no flag: once the change merges to the base branch,
+working tree and trusted ref agree again.
 
 Scope of the guarantee
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -429,6 +432,11 @@ def _enforce_config_trust(
     gate halted before executing any criterion command: 2 for a malformed
     ref or an untrusted config (diverged / missing-base), 3 when trust
     verification itself is impossible (git-error), per ADR-035.
+
+    ``approved`` covers diverged and missing-base only: those surface an
+    inspectable diff or file for the human to have reviewed. git-error is
+    never overridable, because approving with nothing to inspect would
+    turn an unverifiable state into an execution path.
     """
     if not _TRUSTED_REF_RE.match(trusted_ref):
         print(
@@ -440,6 +448,27 @@ def _enforce_config_trust(
     trust = _verify_config_trust(config_path, trusted_ref, tree_bytes)
     if trust.status == TRUST_TRUSTED:
         return trust, None
+
+    if trust.status == TRUST_GIT_ERROR:
+        # Approval requires an inspectable artifact. On git-error there is
+        # no trustworthy diff a human could have reviewed, so approving
+        # would turn an unverifiable state into an execution path
+        # (PR #5089 agent-safety finding). Never overridable.
+        print(
+            f"HALT: completion-gate config {config_path} cannot be "
+            f"verified ({trust.status}) against {trusted_ref}; no "
+            f"criterion command was executed.",
+            file=sys.stderr,
+        )
+        if trust.detail:
+            print(trust.detail, file=sys.stderr)
+        print(
+            "--approve-untrusted-config does not apply when verification "
+            "is impossible: there is no trustworthy diff to inspect. Fix "
+            "the environment or fetch the trusted ref.",
+            file=sys.stderr,
+        )
+        return trust, 3
 
     if not approved:
         print(
@@ -455,7 +484,7 @@ def _enforce_config_trust(
             "executing this config, re-run with --approve-untrusted-config.",
             file=sys.stderr,
         )
-        return trust, 3 if trust.status == TRUST_GIT_ERROR else 2
+        return trust, 2
 
     print(
         f"WARNING: executing completion-gate config {config_path} "
@@ -1049,9 +1078,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--approve-untrusted-config",
         action="store_true",
         help=(
-            "Proceed although the config diverges from, is absent at, or "
-            "cannot be verified against the trusted ref. Pass ONLY after a "
-            "human has inspected the surfaced diff and explicitly approved it"
+            "Proceed although the config diverges from or is absent at the "
+            "trusted ref. Pass ONLY after a human has inspected the surfaced "
+            "diff and explicitly approved it. Does NOT apply when "
+            "verification itself is impossible (git-error exits 3 "
+            "regardless): with nothing to inspect there is nothing a human "
+            "could have approved"
         ),
     )
     return parser
@@ -1067,14 +1099,14 @@ def _assert_cwd_inside_project_root() -> None:
         ) from exc
 
 
-def _write_evidence(path_arg: str, payload: dict) -> None:
+def _write_evidence(path_arg: str, payload: dict[str, Any]) -> None:
     _assert_cwd_inside_project_root()
     path = validate_safe_path(path_arg, _PROJECT_ROOT)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _try_write_evidence(path_arg: str, payload: dict) -> bool:
+def _try_write_evidence(path_arg: str, payload: dict[str, Any]) -> bool:
     if not path_arg:
         return True
     try:

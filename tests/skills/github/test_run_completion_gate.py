@@ -1892,3 +1892,50 @@ class TestVerifyRefCommitBranch:
 
         assert result.status == _dispatcher.TRUST_GIT_ERROR
         assert "not found" in result.detail
+
+
+class TestApprovalDoesNotCoverGitError:
+    """PR #5089 agent-safety finding: on git-error there is no trustworthy
+    diff to inspect, so explicit approval must not unlock dispatch.
+    """
+
+    def test_approval_flag_rejected_when_not_a_git_repo(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 3
+        assert not marker.exists(), (
+            "approval must not unlock dispatch when verification is impossible"
+        )
+        err = capsys.readouterr().err
+        assert "does not apply when verification is impossible" in err
+
+    def test_approval_flag_rejected_when_trusted_ref_absent(
+        self, git_repo, tmp_path, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "no origin ref")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
