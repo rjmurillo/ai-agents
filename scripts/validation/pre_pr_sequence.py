@@ -249,13 +249,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
-    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
-    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Fails when a skill or agent instruction commands read_memory or
     # edit_memory on a name that resolves to no tracked memory. Issue #4897:
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
     # blocking step failed for any agent that ran the instruction literally.
     _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured
