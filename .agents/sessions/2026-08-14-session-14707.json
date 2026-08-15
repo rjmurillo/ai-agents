@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit a55bc212fb6e67376439706470097a6f63bcff7b; final evidence committed separately"
+        "Evidence": "Validated code and synchronization commit d03becf973878370002fc32ecbc4bb140b20c995; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, 586 final focused tests, 371 physical-boundary tests, 78 default-clock tests, and 837 retrospective-policy tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
+        "Evidence": "1,221 focused policy, validator, session, and retrospective tests passed after latest main synchronization; Ruff, review-axis drift, and diff checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -182,9 +182,13 @@
     {
       "action": "Aligned retrospective artifact scanning with host-local production.",
       "outcome": "The push gate now searches the scanner host date plus/minus two days and retains UTC today/yesterday for undated-scope compatibility; a UTC+14 producer boundary test passes."
+    },
+    {
+      "action": "Synchronized latest main and regenerated the architect review prompt.",
+      "outcome": "Resolved merge-ref-only review-axis drift; 1,221 focused tests, Ruff, and committed-content drift validation pass."
     }
   ],
-  "endingCommit": "a55bc212fb6e67376439706470097a6f63bcff7b",
+  "endingCommit": "d03becf973878370002fc32ecbc4bb140b20c995",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
