@@ -348,24 +348,22 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
     if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
 
-    # Validate the session date is not implausibly in the future. The date is
-    # the creator's host-local date (Issue #4779), but this validator also runs
-    # in CI under UTC. The maximum timezone offset is UTC+14, so a legitimate
-    # host-local date can sit at most one calendar day ahead of the validator's
-    # UTC "today". Tolerate that one day; a larger gap means a placeholder or a
-    # wrong future date, which branch-context-policy date filtering would miss
-    # (issue #3717).
+    # The creator records its host-local date (issue #4779). UTC+14 is the
+    # furthest possible host offset, so reject dates later than the date there
+    # at this instant; branch-context-policy would miss such logs (issue #3717).
     session_date_str = session.get("date")
     if isinstance(session_date_str, str):
         try:
             session_date = date.fromisoformat(session_date_str)
-            today = datetime.now(tz=timezone.utc).date()
-            if session_date > today + timedelta(days=1):
+            now_utc = datetime.now(tz=timezone.utc)
+            latest_host_date = (now_utc + timedelta(hours=14)).date()
+            if session_date > latest_host_date:
                 result.errors.append(
                     f"Session date '{session_date_str}' is in the future "
-                    f"(more than a day past {today.isoformat()} UTC); it looks "
-                    "like a placeholder or a wrong date and branch-context-policy "
-                    "will not pick up this log"
+                    f"(later than the latest possible host date "
+                    f"{latest_host_date.isoformat()} at {now_utc.isoformat()}); "
+                    "it looks like a placeholder or a wrong date and "
+                    "branch-context-policy will not pick up this log"
                 )
         except ValueError:
             pass  # Schema already rejects non-date strings via its pattern

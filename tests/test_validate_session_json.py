@@ -825,16 +825,19 @@ class TestValidateSessionSection:
 
         assert not any("future" in e for e in result.errors)
 
-    def test_host_local_date_one_day_ahead_of_utc_is_accepted(self) -> None:
-        """A host-local date one day ahead of UTC is tolerated (#4779).
-
-        The creator names the log by the host-local date. A far-east host
-        (max UTC+14) can be one calendar day ahead of the UTC-running
-        validator. That one-day gap is legitimate and must not be flagged.
-        """
+    @pytest.mark.parametrize(
+        ("hour", "minute", "expected_future_errors"),
+        [(9, 59, 1), (10, 0, 0)],
+        ids=["before-utc-10", "at-utc-10"],
+    )
+    def test_host_local_tomorrow_at_utc_10_boundary(
+        self, hour: int, minute: int, expected_future_errors: int
+    ) -> None:
+        """UTC+14 reaches tomorrow precisely at 10:00 UTC (#4779)."""
         from datetime import datetime, timedelta, timezone
 
-        tomorrow = (datetime.now(tz=timezone.utc).date() + timedelta(days=1)).isoformat()
+        fixed_now = datetime(2026, 8, 14, hour, minute, tzinfo=timezone.utc)
+        tomorrow = (fixed_now.date() + timedelta(days=1)).isoformat()
         session = {
             "number": 1,
             "date": tomorrow,
@@ -844,9 +847,13 @@ class TestValidateSessionSection:
         }
         result = ValidationResult()
 
-        validate_session_section(session, result)
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
 
-        assert not any("future" in e for e in result.errors)
+        future_errors = [error for error in result.errors if "future" in error]
+        assert len(future_errors) == expected_future_errors
+        assert all(tomorrow in error for error in future_errors)
 
     def test_date_two_days_ahead_of_utc_emits_error(self) -> None:
         """Two days ahead exceeds the max timezone offset, so it is flagged (#4779).
