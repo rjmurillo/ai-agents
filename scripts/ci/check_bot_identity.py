@@ -62,12 +62,16 @@ VERDICT_UNKNOWN = "UNKNOWN"
 @dataclass(frozen=True, slots=True)
 class ProbeResult:
     """Outcome of one ``GET /user`` probe. ``login``/``account_id`` are set
-    only when ``ok`` is true; ``error`` describes the failure otherwise."""
+    only when ``ok`` is true; ``error`` describes the failure otherwise.
+    ``auth_failure`` marks a credential rejection (HTTP 401) so strict mode
+    can exit 4 (auth) instead of 3 (external) per the repo exit-code
+    contract (AGENTS.md, .claude/rules/ci-scripts.md MUST 4)."""
 
     ok: bool
     login: str = ""
     account_id: str = ""
     error: str = ""
+    auth_failure: bool = False
 
 
 def probe_user(token: str, api_url: str = DEFAULT_API_URL) -> ProbeResult:
@@ -98,12 +102,25 @@ def probe_user(token: str, api_url: str = DEFAULT_API_URL) -> ProbeResult:
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        return ProbeResult(ok=False, error=f"HTTP {exc.code} from /user")
+        # 401 is the token itself being rejected; everything else (403 rate
+        # limits, 5xx) is the service, not the credential.
+        return ProbeResult(
+            ok=False,
+            error=f"HTTP {exc.code} from /user",
+            auth_failure=exc.code == 401,
+        )
     except urllib.error.URLError as exc:
         return ProbeResult(ok=False, error=f"network error: {exc.reason}")
     except (json.JSONDecodeError, UnicodeDecodeError, TimeoutError) as exc:
         return ProbeResult(ok=False, error=f"unreadable /user payload: {exc}")
 
+    if not isinstance(payload, dict):
+        # Valid JSON can be an array, string, number, or null; .get on those
+        # would raise and crash a step documented as never-raising.
+        return ProbeResult(
+            ok=False,
+            error=f"unexpected /user payload type {type(payload).__name__}",
+        )
     login = payload.get("login")
     account_id = payload.get("id")
     if not isinstance(login, str) or not isinstance(account_id, int):
@@ -166,7 +183,9 @@ def check_bot_identity(
         )
         print(f"::warning::{label} identity {VERDICT_UNKNOWN}: {detail}")
         _emit(VERDICT_UNKNOWN, detail, environ)
-        return EXIT_EXTERNAL if strict else EXIT_OK
+        if not strict:
+            return EXIT_OK
+        return EXIT_AUTH if result.auth_failure else EXIT_EXTERNAL
 
     identity = f"login={result.login} id={result.account_id}"
     if result.account_id == expected_id:

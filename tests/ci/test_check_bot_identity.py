@@ -120,6 +120,26 @@ class TestProbeFailure:
         assert rc == EXIT_EXTERNAL
         assert rc != 0
 
+    def test_rejected_credential_in_strict_mode_exits_auth(self):
+        rejected = ProbeResult(ok=False, error="HTTP 401 from /user", auth_failure=True)
+
+        rc = main(
+            [],
+            probe=_probe(rejected),
+            environ={"IDENTITY_TOKEN": "tok", "IDENTITY_STRICT": "1"},
+        )
+
+        assert rc == EXIT_AUTH
+        assert rc != 0
+
+    def test_rejected_credential_without_strict_still_reports_unknown(self, capsys):
+        rejected = ProbeResult(ok=False, error="HTTP 401 from /user", auth_failure=True)
+
+        rc = main([], probe=_probe(rejected), environ={"IDENTITY_TOKEN": "tok"})
+
+        assert rc == EXIT_OK
+        assert "UNKNOWN" in capsys.readouterr().out
+
 
 class TestMissingToken:
     def test_empty_token_reports_missing_without_probing(self, capsys):
@@ -196,6 +216,55 @@ class TestProbeUser:
 
         assert not result.ok
         assert "network error" in result.error
+
+    @pytest.mark.parametrize("body", [b'"a string"', b"[1, 2]", b"42", b"null"])
+    def test_probe_reports_non_object_json_without_raising(self, body, monkeypatch):
+        import contextlib
+        import io
+
+        from scripts.ci import check_bot_identity as module
+
+        @contextlib.contextmanager
+        def fake_urlopen(request, timeout):
+            yield io.BytesIO(body)
+
+        monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+
+        result = probe_user("tok")
+
+        assert not result.ok
+        assert "payload type" in result.error
+
+    def test_probe_marks_401_as_auth_failure(self, monkeypatch):
+        import urllib.error
+
+        from scripts.ci import check_bot_identity as module
+
+        def raise_401(request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)
+
+        monkeypatch.setattr(module.urllib.request, "urlopen", raise_401)
+
+        result = probe_user("tok")
+
+        assert not result.ok
+        assert result.auth_failure
+        assert "401" in result.error
+
+    def test_probe_does_not_mark_403_as_auth_failure(self, monkeypatch):
+        import urllib.error
+
+        from scripts.ci import check_bot_identity as module
+
+        def raise_403(request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 403, "rate limited", {}, None)
+
+        monkeypatch.setattr(module.urllib.request, "urlopen", raise_403)
+
+        result = probe_user("tok")
+
+        assert not result.ok
+        assert not result.auth_failure
 
     @pytest.mark.parametrize("url", ["http://api.github.com", "file:///etc/passwd", "ftp://x"])
     def test_probe_refuses_non_https_schemes_without_opening(self, url):
