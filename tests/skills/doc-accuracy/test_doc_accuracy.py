@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
@@ -1589,7 +1590,23 @@ class TestRunCompilabilityCheck:
         assert result["findings"] == []
 
     def test_skips_powershell_code_examples(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        # source_symbols must be non-empty: run_compilability_check now
+        # short-circuits to status="DID_NOT_RUN" when Phase 1 finds no
+        # source symbols (see test_does_not_run_without_source_symbols),
+        # which would make findings == [] trivially true regardless of
+        # whether the powershell skip logic below ran at all. The
+        # placeholder symbol's name never matches a referenced symbol in
+        # this test, so it cannot resolve any claim; asserting
+        # status == "COMPLETED" proves the check actually reached (and
+        # then skipped inside) the per-claim loop.
+        assessment: dict[str, Any] = {
+            "source_symbols": [{
+                "name": "UnrelatedPlaceholder", "kind": "class",
+                "file": "placeholder.py", "line": 1,
+                "signature": "class UnrelatedPlaceholder:",
+                "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1600,10 +1617,20 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert result["findings"] == []
 
     def test_skips_go_code_examples(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        # See test_skips_powershell_code_examples for why source_symbols
+        # must be non-empty here.
+        assessment: dict[str, Any] = {
+            "source_symbols": [{
+                "name": "UnrelatedPlaceholder", "kind": "class",
+                "file": "placeholder.py", "line": 1,
+                "signature": "class UnrelatedPlaceholder:",
+                "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1614,10 +1641,20 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert result["findings"] == []
 
     def test_skips_rust_code_examples(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        # See test_skips_powershell_code_examples for why source_symbols
+        # must be non-empty here.
+        assessment: dict[str, Any] = {
+            "source_symbols": [{
+                "name": "UnrelatedPlaceholder", "kind": "class",
+                "file": "placeholder.py", "line": 1,
+                "signature": "class UnrelatedPlaceholder:",
+                "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1628,10 +1665,20 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert result["findings"] == []
 
     def test_skips_java_code_examples(self) -> None:
-        assessment: dict[str, Any] = {"source_symbols": []}
+        # See test_skips_powershell_code_examples for why source_symbols
+        # must be non-empty here.
+        assessment: dict[str, Any] = {
+            "source_symbols": [{
+                "name": "UnrelatedPlaceholder", "kind": "class",
+                "file": "placeholder.py", "line": 1,
+                "signature": "class UnrelatedPlaceholder:",
+                "visibility": "public",
+            }],
+        }
         claims = {
             "claims": [{
                 "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1642,6 +1689,7 @@ class TestRunCompilabilityCheck:
             }],
         }
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         assert result["findings"] == []
 
     def test_resolves_symbol_extractor_languages(self) -> None:
@@ -1655,9 +1703,24 @@ class TestRunCompilabilityCheck:
         checked-but-resolved claim cannot be confused: only "checked and
         unresolved" produces a finding here. Parametrized over the live
         mod.SYMBOL_EXTRACTORS keys.
+
+        source_symbols must be non-empty (see
+        test_skips_powershell_code_examples): with an empty source_symbols
+        list, run_compilability_check now short-circuits to
+        status="DID_NOT_RUN" before the SYMBOL_EXTRACTORS gate ever runs, so
+        len(findings) == 0 would pass for the wrong reason (Phase 3 never
+        ran) instead of the reason this test exists to prove (the symbol was
+        checked and found unresolved).
         """
         for lang in sorted(SYMBOL_EXTRACTORS.keys()):
-            assessment: dict[str, Any] = {"source_symbols": []}
+            assessment: dict[str, Any] = {
+                "source_symbols": [{
+                    "name": "UnrelatedPlaceholder", "kind": "class",
+                    "file": "placeholder.py", "line": 1,
+                    "signature": "class UnrelatedPlaceholder:",
+                    "visibility": "public",
+                }],
+            }
             claims = {
                 "claims": [{
                     "id": "claim-0001", "file": "doc.md", "line": 1,
@@ -1668,6 +1731,9 @@ class TestRunCompilabilityCheck:
                 }],
             }
             result = run_compilability_check(assessment, claims)
+            assert result["status"] == "COMPLETED", (
+                f"expected Phase 3 to run for language {lang!r}"
+            )
             assert len(result["findings"]) == 1, (
                 f"expected one finding for language {lang!r}"
             )
@@ -1683,6 +1749,14 @@ class TestRunCompilabilityCheck:
         "c#" to "csharp" (see
         TestRunClaimExtraction.test_extracts_csharp_from_hash_alias_fence) and
         that claim is not skipped in Phase 3 either.
+
+        source_symbols must be non-empty (see
+        test_skips_powershell_code_examples): run_compilability_check
+        short-circuits to status="DID_NOT_RUN" with an empty source_symbols
+        list, which would make this test pass even if Phase 3 never actually
+        evaluated the extracted claim. "UnrelatedPlaceholder" never matches
+        "TotallyUnresolvedWidget", so it cannot resolve the claim and only
+        exercises the required non-empty precondition.
         """
         md = "# Doc\n\n```c#\nvar w = TotallyUnresolvedWidget();\n```\n"
         (tmp_path / "doc.md").write_text(md)
@@ -1693,7 +1767,12 @@ class TestRunCompilabilityCheck:
                 "mapped_source_files": [],
                 "referenced_symbols": [],
             }],
-            "source_symbols": [],
+            "source_symbols": [{
+                "name": "UnrelatedPlaceholder", "kind": "class",
+                "file": "placeholder.py", "line": 1,
+                "signature": "class UnrelatedPlaceholder:",
+                "visibility": "public",
+            }],
         }
         claims = run_claim_extraction(tmp_path, assessment)
         code_examples = [c for c in claims["claims"] if c["type"] == "code_example"]
@@ -1701,6 +1780,7 @@ class TestRunCompilabilityCheck:
         assert code_examples[0]["language"] == "csharp"
 
         result = run_compilability_check(assessment, claims)
+        assert result["status"] == "COMPLETED"
         unresolved = [
             f for f in result["findings"] if f["category"] == "unresolved_symbol"
         ]
