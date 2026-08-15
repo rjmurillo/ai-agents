@@ -164,11 +164,15 @@
       "evidence": "strategies.md: the recipe assumes merge sides; during rebase --theirs is the replayed commit, so the warning points to git show REBASE_HEAD: and the rebase section; commit 1eeaf0126"
     },
     {
+      "step": "Merged origin/main and resolved four root-guard conflicts by taking main's superseding fixes, then re-ran QA on the merged tree and rebound",
+      "evidence": "merge commit 31482e962: main's combined nt-or-root skipif and directory-as-database sqlite probe replace this branch's guards; sync_observations budget auto-merged; verify_no_conflict_markers exit 0; detect_agent_drift OK (baselined) 20.7 both comparisons; 52 drift tests, 7 lefthook-scoped tests, 227 orphan-ref tests passed post-merge"
+    },
+    {
       "step": "Guarded three permission-denial tests against running as root and repaired the container environment",
       "evidence": "chmod 0 cannot deny root: root-skipif added in tests/test_lefthook_integration.py, tests/test_claude_mem_scripts.py, and both orphan-ref-validator test_scan.py mirrors; installed sqlite3 and openssh-client which tests require; hook pytest job reproduction went from 5 failed to green on affected files"
     }
   ],
-  "endingCommit": "1eeaf012606a8e3c5418abe8f4bcc071a5a29185",
+  "endingCommit": "31482e962bad85a131110e972e945ed08d1ee398",
   "nextSteps": [
     "Follow-up: resolve_pr_conflicts.py auto-resolves .agents/sessions/* by accept-theirs, which discards the branch's own log on add/add; the rename half is manual until the script learns it",
     "Follow-up: issue #4751 remains the allocation-time prevention for same-number session collisions"

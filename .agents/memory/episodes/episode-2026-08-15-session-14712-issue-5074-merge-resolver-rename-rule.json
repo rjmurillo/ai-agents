@@ -125,7 +125,8 @@
         "e014",
         "e015",
         "e016",
-        "e018"
+        "e018",
+        "e020"
       ],
       "leads_to": [
         "e011"
@@ -234,6 +235,30 @@
       "caused_by": [
         "e017"
       ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and resolved four root-guard conflicts by taking main's superseding fixes, then re-ran QA on the merged tree and rebound",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T19:37:44+00:00",
+      "type": "commit",
+      "content": "Commit: 31482e962bad85a131110e972e945ed08d1ee398",
+      "caused_by": [
+        "e019"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
     }
@@ -243,7 +268,7 @@
     "tool_calls": null,
     "errors": 5,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 22
   },
   "lessons": []
