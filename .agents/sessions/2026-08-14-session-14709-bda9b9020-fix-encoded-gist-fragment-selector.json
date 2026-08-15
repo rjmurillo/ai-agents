@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14709,
+    "date": "2026-08-14",
+    "branch": "fix/5001-gist-fragment-hardening",
+    "startingCommit": "e60e3b896c97fd9bb0194b944599d3d6d0c46cf9",
+    "objective": "Fix encoded gist fragment selector widening for issue 5001"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory list, read, and edit operations succeeded for this repository; the server exposed no separate activation operation"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as the read-only project dashboard"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github-url-intercept and security-scan script surfaces inspected"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github/gist-routing-content-integrity memory read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/5001-gist-fragment-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/5001-gist-fragment-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Only this session log was untracked before QA evidence creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e60e3b896c97fd9bb0194b944599d3d6d0c46cf9"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session start and end checklist reviewed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github/gist-routing-content-integrity updated with issue 5001 fragment-decoding rule"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint selected 0 of 2 changed markdown files because .agents/qa and .serena are ignored; NOT LINTED"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5007-issue-5001-gist-fragment-hardening.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final implementation and review fixes committed through 250415ae96f3f83cb0411e9daf69897e97d0bbf7"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "92 targeted tests, Ruff, mypy, build_all.py --check, CWE-78 scan, code review, and security review passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 5001 claimed and acceptance criteria tracked in the issue"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped for this focused follow-up fix"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced encoded gist fragment widening from merged issue 4982 routing",
+      "result": "Encoded or malformed file-selector fragments could miss file routing and retrieve every file in the gist."
+    },
+    {
+      "action": "Implemented complete fragment decoding and selector validation",
+      "result": "The parser validates percent escapes, decodes before prefix detection, rejects controls and separators, and accepts only generated gist slug grammar."
+    },
+    {
+      "action": "Regenerated and compared the Copilot runtime mirror",
+      "result": "Canonical and Copilot gist routing modules contain the same reviewed implementation."
+    },
+    {
+      "action": "Resolved PR 5007 line-anchor review findings",
+      "result": "Restricted anchors to positive ASCII integers, rejected malformed ranges from their first candidate, and added zero, leading-zero, Unicode-digit, and extra-endpoint negative controls."
+    },
+    {
+      "action": "Validated and independently reviewed commits through 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "result": "92 targeted tests, Ruff, mypy, generated-artifact checks, CWE-78 scan, code review, security review, and memory size validation passed."
+    }
+  ],
+  "endingCommit": "250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+  "nextSteps": [
+    "Push fix/5001-gist-fragment-hardening and open one PR with Fixes #5001.",
+    "Add PR-numbered QA evidence, clear exact CI and review gates, merge, and confirm issue 5001 closes."
+  ]
+}

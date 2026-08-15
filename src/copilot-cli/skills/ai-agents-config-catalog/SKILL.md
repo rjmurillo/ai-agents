@@ -8,7 +8,12 @@ license: MIT
 # AI Agents Config Catalog
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Every flag, marker, and skip semantic in this repo, verified against code as of 2026-07-03. Each escape hatch exists because a gate sometimes misfires; each one also has an abuse story or a guard. Before you set any of these, read its row. The house rule (learned in session 1187, see the Removed Flags section): escape hatches get teeth or get abused.
+Every flag, marker, and skip semantic in this repo, verified against code as
+of 2026-07-03. Hook registration surfaces were rechecked on 2026-08-14. Each
+escape hatch exists because a gate sometimes misfires; each one also has an
+abuse story or a guard. Before you set any of these, read its row. The house
+rule (learned in session 1187, see the Removed Flags section): escape hatches
+get teeth or get abused.
 
 Related skills: `ai-agents-change-control` owns when a bypass is allowed; `agent-harness-reference` and `ai-agents-architecture-contract` own what the hooks themselves do; `ai-agents-debugging-playbook` owns triaging a gate that fired on you.
 
@@ -118,13 +123,14 @@ all.
 
 ## Hook Registration Surfaces
 
-Two independent registration sources serve different consumers. Do not force
+Three independent registration sources serve different consumers. Do not force
 parity between them:
 
-| Surface | Consumer | Shape re-verified 2026-08-12 |
+| Surface | Consumer | Shape re-verified 2026-08-14 |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | 6 events, 7 groups |
-| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 3 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 4 groups |
+| `.github/hooks/require-subagent-model.json` | Copilot CLI in this repository (cloud agent from the default branch) | native `preToolUse`, matcher `task`, direct registration |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
 one-file registration is valid only when its consumer scope is deliberate.
@@ -163,7 +169,11 @@ repository-controlled code, so command-name matching is not a safe approval boun
 
 ## Provenance and Maintenance
 
-Audited 2026-07-03 against the working tree. Sources: files and line numbers cited per row above. Line numbers drift; the greps below are the durable re-verification. Run from repo root. If a grep returns nothing, the flag moved or died: update this catalog before relying on it.
+Audited 2026-08-14 against the working tree for hook registration surfaces.
+Other rows remain verified as of 2026-07-03. Sources: files and line numbers
+cited per row above. Line numbers drift; the commands below are the durable
+re-verification. Run from repo root. If a command returns nothing, the flag
+moved or died: update this catalog before relying on it.
 
 | Fact | Re-verify one-liner |
 |---|---|
@@ -178,7 +188,8 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
 | .env keys | `grep -n -e "API_KEY" -e "COMPRESS_TOKENIZER" .env.example` |
-| hook registration surfaces | `python3 -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
+| hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
+| repository-local Copilot sub-agent gate | `uv run --frozen python -c "import json; h=json.load(open('.github/hooks/require-subagent-model.json'))['hooks']['preToolUse']; print([(e['matcher'], e['type']) for e in h])"` |
 | removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.

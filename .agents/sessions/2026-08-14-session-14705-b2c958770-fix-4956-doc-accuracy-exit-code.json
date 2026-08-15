@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14705,
+    "date": "2026-08-14",
+    "branch": "fix/issue-4879-doc-accuracy",
+    "startingCommit": "66c2b23e4",
+    "objective": "Fix PR 4956 doc-accuracy exit code documentation"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was not exposed by this harness; repository fallback .serena/memories/memory-index.md was read."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/USAGE-MANDATORY.md and the repository memory fallback instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and .agents/sessions/handoffs/2026-08-13-4879-handoff.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed executable scripts in the applicable doc-accuracy, github, and session skills before use."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/USAGE-MANDATORY.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read root AGENTS.md, CLAUDE.md, scaffold instructions, PR autofix command, and path-scoped rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and skills/doc-accuracy-docs-only-evidence-state.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified PR #4956 head 66c2b23e4840f8684a53231fea38cf6e2e9b36c6 before implementation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worked in external worktree ai-agents-pr-4956-2161e838 on fix/issue-4879-doc-accuracy."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Reviewed git status before implementation, after generation, and before evidence finalization."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "66c2b23e4"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-end items have evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory committed in PR #4983 (3f913d7c9 on chore/pr-4956-memory-split). Doc-accuracy state preserved in authorized session storage (deferred to separate PR per no-bundling rule)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only ran; repository configuration excludes all 3 QA Markdown files."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4956-session-14705-exit-code-docs.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a remove the unrelated memory and use a portable source citation; remaining files are protocol-owned QA and session evidence.; memory split in 9aa3d27c182."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Todo update occurs after the required PR completion gate."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "A retrospective was outside the narrow PR review-fix scope."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T01:25:34.788942+00:00",
+      "action": "Session started",
+      "outcome": "Session log created"
+    },
+    {
+      "timestamp": "2026-08-14T02:30:00+00:00",
+      "action": "Implemented exit-code documentation fix",
+      "outcome": "Documented exit codes 0, 1, 2, 3, and 10 in canonical sources, regenerated mirrors, and added a drift test."
+    },
+    {
+      "timestamp": "2026-08-14T02:58:00+00:00",
+      "action": "Validated focused behavior and generated artifacts",
+      "outcome": "Six focused tests, scoped Ruff, SkillForge validation, and build_all.py --check passed."
+    },
+    {
+      "timestamp": "2026-08-14T04:30:00+00:00",
+      "action": "Applied completion-gate follow-up",
+      "outcome": "Removed the unrelated Serena patch, preserved it for split-pr-4956-memory, replaced repository-only citations with scripts/doc_accuracy.py, and refreshed validation at 52a1c5414a."
+    }
+  ],
+  "endingCommit": "92358004b8004da624d48215c3a47b7f8ea646b2",
+  "nextSteps": []
+}

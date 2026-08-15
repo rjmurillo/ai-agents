@@ -1,0 +1,187 @@
+{
+  "id": "episode-2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_",
+  "session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4914: isolate GIT_* environment for every git subprocess in scripts/ci/count_ratchet.py so linked-worktree pushes do not read the wrong tree",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4914 discourse (body, triage comment, CodeRabbit enrichment) and checked for existing PR coverage",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the mechanism on git 2.43.0 with a real linked worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified git exports GIT_DIR to pre-push only from a linked worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured whether merge_tree_materialization.isolated_git_environment could be reused directly",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added git_environment() to count_ratchet and routed every git subprocess through it",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote tests/ci/test_count_ratchet_git_environment.py against real git",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the tests detect the defect by reverting the isolation and re-running",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "error",
+      "content": "Verified the tests detect the defect by reverting the isolation and re-running    8 of 17 failed with isolation removed, including the guard on both modules; all 17 pass with it restored",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the issue's exact failure end to end via ruff_count_ratchet.current_count(<scratch>)",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered from self-inflicted damage: an early throwaway harness ran git add -A and git commit with GIT_DIR exported and cwd in a scratch dir",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the gates",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "test",
+      "content": "tests/ci 2416 passed; all five count ratchets OK; pre_pr.py all validations passed; commit hooks green",
+      "caused_by": [],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T15:03:03+00:00",
+      "type": "commit",
+      "content": "Commit: 0cd0a70d3c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T15:28:06+00:00",
+      "type": "commit",
+      "content": "Commit: e009b85af365b3c479765fd914cadd7088cb007c",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14696-b8dd33c5e-fix-issue-4914-isolate-git_"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 8,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -2,7 +2,15 @@
 
 ## Status
 
-Accepted
+Accepted. **Section 1 (Model Identifier Format), the `model` row of the Section 2
+field table, and Section 3 (Three-Tier Model Selection Strategy) are superseded
+by [ADR-080](./ADR-080-model-pin-justification-policy.md) (2026-07-11).** Under
+ADR-080 a skill or command may not carry a versioned model id at all: omit
+`model:` and inherit the harness model, or use a bare rolling alias priced below
+the default (today `haiku`) with a `model-rationale:` line.
+`scripts/validation/check_model_pins.py` enforces this. The superseded text
+below is kept as record, with the copyable examples corrected so no reader
+lifts a pin the gate rejects.
 
 ## Date
 
@@ -47,25 +55,40 @@ Adopt the following standardization for all 27 Claude Code skills:
 
 ### 1. Model Identifier Format
 
-**Use aliases by default** for most skills:
+> **Superseded 2026-07-11 by [ADR-080](./ADR-080-model-pin-justification-policy.md)**:
+> the decision recorded here was "use aliases such as `claude-opus-4-6` by
+> default, with dated snapshots (`claude-sonnet-4-6-20260101`) allowed for
+> security-critical skills". ADR-080 rule 1 bans both spellings on a skill or a
+> command, because both are versioned ids: the harness cannot sweep a skill, so
+> no evidence can justify one, and a retired id breaks CI (issue #2839). The
+> conformant states are shown below; the original text is preserved in this
+> note.
+
+**Omit `model:` and inherit the harness model.** That is the default and needs
+no justification:
 
 ```yaml
-model: claude-opus-4-6      # Default: auto-updates
-model: claude-sonnet-4-6    # Default: auto-updates
-model: claude-haiku-4-5     # Default: auto-updates (no 4-6 Haiku shipped)
+---
+name: skill-identifier
+description: What the skill does and when to use it
+---
 ```
 
-**Exception: Security-Critical Skills** may use dated snapshots when deterministic behavior is required:
+**Exception: cost.** A bare rolling alias that prices below the harness default
+`claude-sonnet-4-6` may be pinned with a `model-rationale:` line. Today only
+`haiku` qualifies:
 
 ```yaml
-model: claude-sonnet-4-6-20260101  # Pinned version
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ```
 
-**Current Security-Critical Skills** (eligible for snapshot pinning):
-- `security-detection`: Triggers security reviews (false negatives = security incidents)
-- `session-log-fixer`: Validates session protocol (deterministic per ADR-033)
+**Skills once listed here as snapshot-pinning candidates**: `security-detection`
+ships `model: haiku` with a cost rationale today, and `session-log-fixer`
+carries no `model:` line. Determinism is no longer a reason to pin; ADR-033 is
+satisfied by the skill's own logic, not by a frozen model id.
 
-**Rationale**:
+**Rationale (superseded)**:
 - Most skills benefit from automatic model improvements
 - Security-critical skills may need deterministic behavior
 - Hybrid approach balances improvement vs stability
@@ -81,7 +104,7 @@ name: skill-identifier       # Required (Official): matches directory name
 version: X.Y.Z              # Required (SkillForge): semantic versioning
 description: ...            # Required (Official): trigger mechanism with keywords
 license: MIT                # Required (SkillForge): SPDX identifier
-model: claude-sonnet-4-6     # Required (SkillForge): use claude-opus-4-6, claude-sonnet-4-6, or claude-haiku-4-5
+# model:                    # Optional (ADR-080): omit to inherit; bare cost alias only, never a versioned id
 allowed-tools: Read, Grep   # Optional (Official): tool restrictions
 metadata:                   # Optional (SkillForge): domain-specific fields
   domains: [...]
@@ -94,22 +117,37 @@ metadata:                   # Optional (SkillForge): domain-specific fields
 
 | Field | Status | Location | Source |
 |-------|--------|----------|--------|
-| `name` | Required | Top-level | Official Anthropic spec |
-| `version` | Required | Top-level | SkillForge validator |
-| `description` | Required | Top-level | Official Anthropic spec |
-| `license` | Required | Top-level | SkillForge validator |
-| `model` | Required | Top-level | SkillForge validator |
+| `name` | Required | Top-level | Official Anthropic spec; SkillForge `REQUIRED_PROPERTIES` |
+| `version` | Required by ai-agents convention | Top-level | Project convention; SkillForge lists it under `OPTIONAL_PROPERTIES` |
+| `description` | Required | Top-level | Official Anthropic spec; SkillForge `REQUIRED_PROPERTIES` |
+| `license` | Required by ai-agents convention | Top-level | Project convention; SkillForge lists it under `OPTIONAL_PROPERTIES` and `RECOMMENDED_PROPERTIES` |
+| `model` | Optional (ADR-080) | Top-level | Omit to inherit; bare cost alias only |
+| `model-rationale` | Optional (ADR-080) | Top-level | Required whenever `model` is set |
 | `allowed-tools` | Optional | Top-level | Official Anthropic spec |
 | `metadata` | Optional | Top-level | SkillForge convention |
 | `metadata.*` | Optional | In metadata | Domain-specific fields |
 
 **Rationale**:
 - SkillForge validate-skill.py defines the authoritative structure
-- Required fields (name, version, description, license, model) at top-level
+- The validator itself requires only `name` and `description`
+  (`.claude/skills/SkillForge/scripts/_constants.py`:
+  `REQUIRED_PROPERTIES = {'name', 'description'}`). `version` and `license` are
+  an ai-agents project convention this ADR added on top; `license` is in
+  `RECOMMENDED_PROPERTIES`. `model` was a fifth required field when this ADR was
+  accepted; ADR-080 made it optional, and `_constants.py` now lists it under
+  `OPTIONAL_PROPERTIES` with the comment "Optional model alias; omit to inherit,
+  bare alias only, no versioned id"
 - Metadata reserved for domain-specific extensions
 - Consistent structure improves validation and packaging compatibility
 
 ### 3. Three-Tier Model Selection Strategy
+
+> **Superseded 2026-07-11 by [ADR-080](./ADR-080-model-pin-justification-policy.md)**:
+> the tier table below assigned each skill a versioned model id. Those
+> assignments no longer exist in the tree: skills either omit `model:` or carry
+> the bare `haiku` cost alias. Read the table as historical tier reasoning, not
+> as values to copy into frontmatter. The "authoritative list" parentheticals
+> describe a state that the ADR-080 migration removed.
 
 Allocate models based on skill complexity:
 
@@ -218,6 +256,14 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 
 > **Superseded 2026-04-30**: The "move into metadata" steps below were reversed. SkillForge validator now requires `name`, `version`, `description`, `license`, and `model` at **top level** (see Field Status table in Section 2 and the validator at `scripts/validation/skill_frontmatter.py`). Skills that ship today have `model` and `version` top-level. The bullets below are retained as historical record of the original Phase 1 plan.
 
+> **Correction 2026-07-11 ([ADR-080](./ADR-080-model-pin-justification-policy.md))**:
+> `model` is no longer required. `.claude/skills/SkillForge/scripts/_constants.py`
+> sets `REQUIRED_PROPERTIES = {'name', 'description'}` and lists `model` under
+> `OPTIONAL_PROPERTIES` with the comment "Optional model alias; omit to inherit,
+> bare alias only, no versioned id". As of 2026-08-14, 7 of the 99 shipped
+> skills carry a `model:` line and all 7 use the bare `haiku` alias.
+> The 2026-04-30 note above is retained as written.
+
 **Session #S356** (2026-01-03):
 - Update all 27 model-tier-assigned skills to use model aliases (catalog count of skills WITH explicit `model:` frontmatter at that time; broader catalog included additional skills without tier assignment)
 - ~~Restructure frontmatter (version/model into metadata object, per SkillForge validator)~~ Reversed; top-level retained.
@@ -254,9 +300,10 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 ### Related ADRs
 
 - **ADR-007**: Memory-First Architecture (analysis stored in Serena + Forgetful for retrieval)
-- **ADR-033**: Everything Deterministic Evaluation (security-critical skills may need snapshot pinning)
+- **ADR-033**: Everything Deterministic Evaluation (security-critical skills may need snapshot pinning; superseded as a pinning rationale by ADR-080)
 - **ADR-036**: Two-Source Agent Template Architecture (establishes that Claude skills are manually maintained)
 - **ADR-039**: Agent Model Cost Optimization (agent-level model selection; this ADR addresses skill-level)
+- **ADR-080**: Model Pins Require Cited Eval Evidence (supersedes this ADR's model identifier strategy: skills and commands may not carry a versioned id)
 
 ### Verification
 
@@ -265,7 +312,7 @@ Frontmatter validation checklist:
 - [ ] Frontmatter starts with `---` on line 1 (no blank lines)
 - [ ] `name`: lowercase, alphanumeric + hyphens, < 64 chars
 - [ ] `description`: includes trigger keywords, < 1024 chars
-- [ ] `model`: valid alias (`claude-{tier}-4-6` for Opus/Sonnet, `claude-haiku-4-5`) if present
+- [ ] `model`: absent (inherit), or the bare cost alias `haiku` with a `model-rationale` line. Never a versioned id (ADR-080 rule 1)
 - [ ] `allowed-tools`: comma-separated valid tools if present
 - [ ] `tools`: uses block-style array format (hyphen-bulleted), not inline
 - [ ] YAML uses spaces (not tabs) for indentation
@@ -305,11 +352,16 @@ Frontmatter compliance will be verified through:
 2. **PR review checklist**: Frontmatter validation checkbox required
 3. **Quarterly audit**: Model distribution metrics from `/metrics` skill
 
-**Validation Script Criteria**:
+**Validation Script Criteria** (as specified in 2026-01; the PowerShell script
+named above no longer exists, and the model rule is superseded, see below):
 
 - Frontmatter starts with `---` on line 1
 - Required fields present (`name`, `description`)
-- Model identifier matches pattern `^claude-((opus|sonnet)-4-6|haiku-4-5)(-\d{8})?$`
+- ~~Model identifier matches pattern `^claude-((opus|sonnet)-4-6|haiku-4-5)(-\d{8})?$`~~
+  Superseded by ADR-080: a versioned id is rejected on a skill or command.
+  `scripts/validation/check_model_pins.py` is the current gate, and
+  `.claude/skills/SkillForge/scripts/validate-skill.py` (Lefthook's `skillforge`
+  job, staged `SKILL.md` files) validates the rest of the frontmatter.
 - Description length <=1024 characters
 - YAML syntax valid (no tabs, proper indentation)
 - Arrays use block-style format (not inline `['...']` syntax)

@@ -24,7 +24,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -41,6 +41,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -982,30 +983,54 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
-def _recent_date_prefixes() -> tuple[str, str]:
-    """Return today's and yesterday's UTC date strings for cross-midnight tolerance."""
-    from datetime import timedelta
+def _current_host_date_prefixes() -> tuple[str, ...]:
+    """Return scanner-local grace plus dates physically current worldwide."""
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    earliest = (now_utc - timedelta(hours=12)).date()
+    latest = (now_utc + timedelta(hours=14)).date()
+    physically_current_dates = tuple(
+        (earliest + timedelta(days=offset)).isoformat()
+        for offset in range((latest - earliest).days + 1)
+    )
+    return tuple(dict.fromkeys((*host_dates, *physically_current_dates)))
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    return today, yesterday
+
+def _recent_date_prefixes() -> tuple[str, ...]:
+    """Return admissible host-local and UTC retrospective date prefixes.
+
+    ``run_retrospective.build_parser`` defaults its dated scope through
+    ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
+    undated scopes instead use UTC. Preserve the scanner host's today/yesterday
+    grace, then add only calendar dates that are physically current somewhere
+    in the UTC-12 through UTC+14 range. This finds a same-instant artifact from
+    another host without admitting an arbitrary scanner-relative ±2-day
+    window.
+    """
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime("%Y-%m-%d"),
+        (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
+    )
+    return tuple(dict.fromkeys((*_current_host_date_prefixes(), *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
-    """Return today's and yesterday's session logs, or None if unreadable.
+    """Return adjacent-date session logs, or None if unreadable.
 
-    The two-day window handles cross-midnight UTC sessions. Returning None
-    rather than an empty list keeps "directory unreadable" distinguishable
-    from "no logs today", because both callers fail open on the former.
+    The scanner host's today/yesterday grace is augmented only by dates that
+    are physically current somewhere from UTC-12 through UTC+14. This finds a
+    same-instant log from another host without admitting arbitrary stale
+    scanner-relative dates. Returning None rather than an empty list keeps
+    "directory unreadable" distinguishable from "no logs today", because both
+    callers fail open on the former.
     """
     if not sessions_dir.is_dir():
         return None
-    today, yesterday = _recent_date_prefixes()
     candidates: list[Path] = []
     try:
-        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
-        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
+        for date_prefix in _current_host_date_prefixes():
+            candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None
     return candidates
@@ -1127,10 +1152,12 @@ def _is_committed_here(repo_root: Path, path: Path) -> bool:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
-    Checks both today's and yesterday's UTC dates to handle cross-midnight
-    sessions gracefully. Follows hook_utilities.get_today_session_log selection
-    semantics (newest UTC-dated session log by mtime) with the per-file stat
-    resilience of hook_utilities._newest_by_mtime: a single unreadable candidate
+    Delegates date selection to ``_recent_session_candidates``, whose window
+    covers cross-midnight sessions and the full host timezone range (Issue
+    #4779). Follows
+    hook_utilities.get_today_session_log selection semantics (newest dated
+    session log by mtime) with the per-file stat resilience of
+    hook_utilities._newest_by_mtime: a single unreadable candidate
     (deleted or renamed mid-scan, permission race) is skipped rather than
     blinding the check to every other valid log. An empty match or an unreadable
     directory yields None so branch-context checking fails open.
@@ -1579,9 +1606,8 @@ def _today_retrospective_exists(repo_root: Path) -> bool:
     retro_dir = repo_root / ".agents" / "retrospective"
     if not retro_dir.is_dir():
         return False
-    today, yesterday = _recent_date_prefixes()
     try:
-        for prefix in (today, yesterday):
+        for prefix in _recent_date_prefixes():
             if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
                 return True
         return False
@@ -6143,7 +6169,7 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
         result = _run_command(
             [
                 sys.executable,
-                ".claude/skills/SkillForge/scripts/validate-skill.py",
+                ".claude/skills/skillforge/scripts/validate-skill.py",
                 Path(path).parent.as_posix(),
             ],
             repo_root,

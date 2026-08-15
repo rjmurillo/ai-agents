@@ -771,7 +771,7 @@ class TestParserFidelity:
     def test_the_rejected_templates_still_exist_and_still_scan(self) -> None:
         """Pins the premise for the fallback. If these parse, simplify this."""
         root = Path(__file__).resolve().parents[2]
-        template = root / ".claude/skills/SkillForge/assets/templates/skill-md-template.md"
+        template = root / ".claude/skills/skillforge/assets/templates/skill-md-template.md"
         assert template.is_file()
         text = template.read_text(encoding="utf-8", errors="replace")
         lines = gate.frontmatter_lines(text)

@@ -1,0 +1,221 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14707,
+    "date": "2026-08-14",
+    "branch": "fix/4779-session-init-host-date",
+    "startingCommit": "26189f3cc520064d8b450efa78a09e172bb63cf8",
+    "objective": "Autofix PR 4984 validate host local date behavior and CI evidence"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP responded with project instructions and repository memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-autofix, session-init, and session-log-fixer skill workflows loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-autofix/bare-root-requires-pr-worktree-for-sha-audit loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4779-session-init-host-date"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4779-session-init-host-date"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree /tmp/pr-4984-worktree was clean at PR head before evidence creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "26189f3cc520064d8b450efa78a09e172bb63cf8"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session protocol items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unmodified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable memory required; existing PR-autofix SHA-audit memory covered this workflow"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: repository markdownlint config excludes .agents/** (0 files selected)"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4984-host-local-date-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Validated code and documentation commit e28b01db0841a5ea73533523be65b54f522572d1; final evidence committed separately"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "955 complete date-behavior tests passed; Ruff, build_all.py --check, review-axis drift, and diff checks passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fetched the complete Validate PR failure log.",
+      "outcome": "The only required failure was a missing QA report for code changes."
+    },
+    {
+      "action": "Validated host-local session date behavior in an external worktree.",
+      "outcome": "574 affected tests passed across creator, consumer, checkpoint, hook-policy, and validator paths, including UTC, Pacific/Kiritimati, and America/Los_Angeles."
+    },
+    {
+      "action": "Validated code quality and generated mirror parity.",
+      "outcome": "Ruff passed for every changed Python file and generate_skills.py left the worktree unchanged."
+    },
+    {
+      "action": "Created session and QA evidence bound to the validated PR head.",
+      "outcome": "The generated session filename and payload both use host-local date 2026-08-14."
+    },
+    {
+      "action": "Addressed two active suppressed Copilot review findings.",
+      "outcome": "Restored TestValidateSessionStart and clarified that real-timezone end-to-end tests cover agreement while controlled-instant unit tests prove host-date authority."
+    },
+    {
+      "action": "Merged current origin/main and resolved the session identity collision.",
+      "outcome": "Preserved main session 14706 unchanged, renumbered this PR session to 14707, and passed 382 focused tests plus session validation after the merge."
+    },
+    {
+      "action": "Addressed the final Windows portability review thread.",
+      "outcome": "The POSIX timezone-switching module now skips when time.tzset is unavailable; 12 Linux tests and Ruff passed."
+    },
+    {
+      "action": "Closed three suppressed cross-timezone consumer findings.",
+      "outcome": "Branch-context scanning now covers the full UTC+14 to UTC-12 date range; retrospective evidence uses host-local date authority; canonical and generated mirror tests passed."
+    },
+    {
+      "action": "Closed the final suppressed timezone and documentation findings.",
+      "outcome": "Branch scanning now covers scanner date plus/minus two days, reverse UTC-12 to UTC+14 behavior is regression-tested, and fallback/date-authority documentation names exact sources."
+    },
+    {
+      "action": "Addressed five final suppressed review findings.",
+      "outcome": "Removed the unused tuple binding, made omitted retrospective scopes host-local in both CLIs with end-to-end tests, documented exact canonical divergences, and froze the UTC validator boundary test."
+    },
+    {
+      "action": "Addressed final plugin-payload review findings.",
+      "outcome": "Moved three host-date regressions to the root tests tree, removed them from generated customer payloads, and made hook/library documentation self-contained inside the plugin."
+    },
+    {
+      "action": "Reproduced and fixed the Validate Generated Files failure from full logs.",
+      "outcome": "build_all.py identified the missing src/copilot-cli library mirror; committed the generated copy and confirmed the full staleness check passes."
+    },
+    {
+      "action": "Tightened future-date validation to the physical UTC+14 boundary.",
+      "outcome": "The validator now computes UTC now plus 14 hours; fixed-clock tests cover 09:59 rejection and 10:00 acceptance."
+    },
+    {
+      "action": "Corrected the impossible-date diagnostic after scanner expansion.",
+      "outcome": "The message now states the physical impossibility without incorrectly claiming the \u00b12-day scanner cannot discover the file."
+    },
+    {
+      "action": "Pinned all creator and consumer date-helper defaults.",
+      "outcome": "Deterministic tests now assert local datetime.now defaults for creator host_session_date, consumer host_session_date, and recent_host_session_dates."
+    },
+    {
+      "action": "Aligned retrospective artifact scanning with host-local production.",
+      "outcome": "The push gate now searches the scanner host date plus/minus two days and retains UTC today/yesterday for undated-scope compatibility; a UTC+14 producer boundary test passes."
+    },
+    {
+      "action": "Synchronized latest main and regenerated the architect review prompt.",
+      "outcome": "Resolved merge-ref-only review-axis drift; 1,221 focused tests, Ruff, and committed-content drift validation pass."
+    },
+    {
+      "action": "Tightened retrospective cross-host lookup to physically current dates.",
+      "outcome": "Preserved host today/yesterday and UTC compatibility, accepted current UTC-12/UTC+14 artifacts, and rejected stale scanner-relative two-day artifacts; 838 policy tests passed."
+    },
+    {
+      "action": "Closed the final four suppressed review findings.",
+      "outcome": "Corrected the physical timezone instant, documented fallback divergence, removed dead UTC definitions with regenerated mirror, and restricted same-branch session selection to host grace plus physically current cross-host dates; 857 tests passed."
+    },
+    {
+      "action": "Preserved compatibility with active logs from the UTC-date release.",
+      "outcome": "Primary utility, retrospective evidence, and PreCompact fallback prioritize host-local dates then deduplicated UTC dates; explicit historical scopes remain bounded; 953 tests passed."
+    },
+    {
+      "action": "Prioritized active pre-migration UTC logs over local yesterday grace.",
+      "outcome": "All three selectors now order host today, UTC today, host yesterday, UTC yesterday; mixed-file regressions and vendor-portability declaration pass; 953 tests passed."
+    },
+    {
+      "action": "Pinned the remaining host-date consumer wiring and corrected fallback parity documentation.",
+      "outcome": "Sentinel tests distinguish host-local from UTC on UTC CI for singular and plural selectors; PreCompact now cites the full canonical selector contract; 955 tests passed."
+    },
+    {
+      "action": "Quoted the canonical rollout prefix fragment verbatim in PreCompact documentation.",
+      "outcome": "The load-bearing mirror claim now matches scripts/hook_utilities/utilities.py exactly; Ruff and diff checks pass."
+    }
+  ],
+  "endingCommit": "e28b01db0841a5ea73533523be65b54f522572d1",
+  "nextSteps": [
+    "Commit and push refreshed QA/session evidence with SHA safety.",
+    "Wait for required checks and run the completion gate.",
+    "Merge only if all four readiness conditions pass."
+  ]
+}

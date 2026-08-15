@@ -386,11 +386,19 @@ github format:
 
 #### Frontmatter Validation
 
+> **Superseded 2026-07-11 by [ADR-080](./ADR-080-model-pin-justification-policy.md)**:
+> this review approved the line `model: claude-sonnet-4-6`. ADR-080 rule 1 bans
+> a versioned id on a skill, and the migration removed it, so the line is
+> dropped from the snippet below and the table row is restated. The rest of the
+> snippet is the 2026-02-14 review snapshot, not current: today
+> `.claude/skills/context-optimizer/SKILL.md` is at version 1.2.0 with a
+> rewritten description and still carries no `model:` line. The original
+> approval is retained as record in this note.
+
 ```yaml
 ---
 name: context-optimizer
 version: 1.0.0
-model: claude-sonnet-4-6
 description: |
   Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid).
   Compress markdown to pipe-delimited format (60-80% token reduction).
@@ -406,7 +414,7 @@ license: MIT
 |-------------|--------|----------|
 | Name format `^[a-z0-9-]{1,64}$` | ✓ | "context-optimizer" matches |
 | Version (SemVer) | ✓ | "1.0.0" valid |
-| Model alias | ✓ | "claude-sonnet-4-6" recommended for standard workflows |
+| Model pin | ✓ | No `model:` line; inherits the harness default (ADR-080) |
 | Description (non-empty, max 1024) | ✓ | 4 lines, includes trigger keywords |
 | Frontmatter starts line 1 | ✓ | No blank lines before `---` |
 
