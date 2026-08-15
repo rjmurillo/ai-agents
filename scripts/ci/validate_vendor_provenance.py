@@ -1603,6 +1603,47 @@ def _reject_gitlinks(pr_sha: str) -> list[str]:
     return errors
 
 
+# Subprocess-safety note (CWE-78, semgrep
+# python.lang.security.audit.dangerous-subprocess-use-tainted-env-args):
+# ``repo``/``check_run_id`` originate from CLI args (``argparse``), which
+# semgrep treats as tainted regardless of actual provenance (here,
+# ``github.repository`` and a prior API response, not PR content). The
+# call is list-form (no shell), so this is not classic command
+# injection, but per this project's security-findings rule (never
+# dismiss, always break the flow -- see the CWE-78 precedent in
+# `.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`),
+# both values are validated against a closed pattern before they can
+# shape a `gh api` request path.
+_REPO_SLUG_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+_CHECK_RUN_ID_PATTERN = re.compile(r"^[0-9]+$")
+
+
+def _validate_repo_slug(repo: str) -> str:
+    """Return ``repo`` if it matches ``owner/repo``, else raise.
+
+    GitHub repository slugs are always ``owner/repo`` with a restricted
+    character set. Rejecting anything else before it reaches a
+    ``subprocess.run`` argv breaks the semgrep taint chain and rejects
+    a malformed value before it can shape an API request path.
+    """
+    if not _REPO_SLUG_PATTERN.match(repo):
+        raise SystemExit(f"refusing to use malformed repository slug: {repo!r}")
+    return repo
+
+
+def _validate_check_run_id(check_run_id: str) -> str:
+    """Return ``check_run_id`` if it is all decimal digits, else raise.
+
+    ``_create_check_run`` sources this value from GitHub's own API
+    response (a JSON integer ``id``), but the ``--check-run-id`` CLI
+    path is generic input; restrict it to decimal digits before it can
+    shape an API request path.
+    """
+    if not _CHECK_RUN_ID_PATTERN.match(check_run_id):
+        raise SystemExit(f"refusing to use malformed check-run id: {check_run_id!r}")
+    return check_run_id
+
+
 def _create_check_run(repo: str, head_sha: str) -> str | None:
     """Create an in_progress check run on the PR head SHA.
 
@@ -1622,6 +1663,7 @@ def _create_check_run(repo: str, head_sha: str) -> str | None:
     fail-closed for a brand-new SHA but keeps the exact race this
     function exists to close for edited/reopened events).
     """
+    repo = _validate_repo_slug(repo)
     import json as _json
     payload = _json.dumps({
         "name": "Validate Vendor Provenance",
@@ -1678,6 +1720,7 @@ def _publish_check_run(
     Returns 0 on success, 1 on failure.
     """
     import json as _json
+    repo = _validate_repo_slug(repo)
     payload = _json.dumps({
         "name": "Validate Vendor Provenance",
         "head_sha": head_sha,
@@ -1689,6 +1732,7 @@ def _publish_check_run(
         },
     })
     if check_run_id:
+        check_run_id = _validate_check_run_id(check_run_id)
         args = [
             "gh", "api", f"repos/{repo}/check-runs/{check_run_id}",
             "-X", "PATCH",

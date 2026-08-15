@@ -2526,6 +2526,70 @@ class TestCreateCheckRun:
         assert result is None
 
 
+class TestCheckRunArgValidation:
+    """CWE-78 hardening: repo/check_run_id are validated before subprocess argv.
+
+    Semgrep flags ``dangerous-subprocess-use-tainted-env-args`` on the
+    CLI-arg-to-subprocess.run dataflow even for list-form (no-shell)
+    calls. Per this project's security-findings rule (never dismiss,
+    always break the flow), both values are validated against a closed
+    pattern before they can shape a `gh api` request path.
+    """
+
+    def test_validate_repo_slug_accepts_valid_slug(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_repo_slug
+
+        assert _validate_repo_slug("owner/repo") == "owner/repo"
+        assert _validate_repo_slug("rjmurillo/ai-agents") == "rjmurillo/ai-agents"
+
+    def test_validate_repo_slug_rejects_malformed(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_repo_slug
+
+        for bad in (
+            "owner/repo; rm -rf /",
+            "owner repo",
+            "owner/repo/extra",
+            "owner",
+            "",
+            "owner/../../etc",
+        ):
+            with pytest.raises(SystemExit):
+                _validate_repo_slug(bad)
+
+    def test_validate_check_run_id_accepts_digits(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_check_run_id
+
+        assert _validate_check_run_id("999") == "999"
+        assert _validate_check_run_id("1") == "1"
+
+    def test_validate_check_run_id_rejects_non_digits(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_check_run_id
+
+        for bad in ("999; rm -rf /", "abc", "-1", "1.5", ""):
+            with pytest.raises(SystemExit):
+                _validate_check_run_id(bad)
+
+    def test_create_check_run_rejects_malformed_repo(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _create_check_run
+
+        with pytest.raises(SystemExit):
+            _create_check_run("owner/repo; rm -rf /", "abc123")
+
+    def test_publish_check_run_rejects_malformed_repo(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with pytest.raises(SystemExit):
+            _publish_check_run("owner repo", "abc123", "success", "ok")
+
+    def test_publish_check_run_rejects_malformed_check_run_id(self) -> None:
+        from scripts.ci.validate_vendor_provenance import _publish_check_run
+
+        with pytest.raises(SystemExit):
+            _publish_check_run(
+                "owner/repo", "abc123", "success", "ok", check_run_id="1; rm -rf /",
+            )
+
+
 class TestRejectGitlinksCLI:
     """Tests for --reject-gitlinks CLI mode."""
 
