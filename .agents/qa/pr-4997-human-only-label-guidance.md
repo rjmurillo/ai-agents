@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance.json
-qaCommit: ee5ef371f984383b66c93c60a8273f14ad01fe59
+qaCommit: fc25b58285878ef23e20fce7a41d34b9597d161b
 ---
 
 # QA Report: PR #4997, issue #4782, enforcement messages naming a human-only label
