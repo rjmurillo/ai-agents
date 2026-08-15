@@ -263,7 +263,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/hooks/PreCompact/invoke_compact_checkpoint.py",
-        "087a81091cdd9e193a89525958762e7823e55c095f5ef54e8651f131406742f3",
+        "f6fa5d82ab339c14489b17a259b5e0e6913b0b5072d0a4dcb7687276a71fe8c3",
         "Hook executable",
     ),
     (
@@ -627,7 +627,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/hook_utilities/utilities.py",
-        "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
+        "0b48c0dc3c05c4ed8968cab878512bae73b364360540bed827888ee7ffd53c42",
         "Lib: .claude/lib/hook_utilities/utilities.py",
     ),
     (
@@ -822,7 +822,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/hook_utilities/utilities.py",
-        "99ace215a380a0f1f17f15d7c910c5927d650ff260d89e6cc8eb6bf087d9de6f",
+        "0b48c0dc3c05c4ed8968cab878512bae73b364360540bed827888ee7ffd53c42",
         "Lib: src/copilot-cli/lib/hook_utilities/utilities.py",
     ),
     (
