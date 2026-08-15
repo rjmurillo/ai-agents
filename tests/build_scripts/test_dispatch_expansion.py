@@ -354,6 +354,40 @@ def test_copilot_exclude_true_requires_issue_and_decision_metadata(tmp_path, met
 
 
 @pytest.mark.parametrize(
+    "metadata",
+    [
+        {"copilotExcludeIssue": "none", "copilotExcludeDecision": "ADR-085"},
+        {"copilotExcludeIssue": "5013", "copilotExcludeDecision": "ADR-085"},
+        {"copilotExcludeIssue": "#5013", "copilotExcludeDecision": "temporary"},
+        {"copilotExcludeIssue": "#5013", "copilotExcludeDecision": "adr-085"},
+    ],
+    ids=[
+        "issue-word",
+        "issue-missing-hash",
+        "decision-word",
+        "decision-lowercase",
+    ],
+)
+def test_copilot_exclude_true_requires_traceable_issue_and_decision_formats(
+    tmp_path, metadata
+):
+    """``copilotExclude`` metadata must use traceable issue and ADR formats.
+
+    ADR-085 Decision 7, generic field governance items 3-4, require these
+    fields to name the authorizing issue and the owning ADR. A non-empty
+    placeholder such as ``none`` or ``temporary`` still fails because it is
+    not a traceable ``#<issue>`` or ``ADR-<decision>`` reference.
+    """
+    hooks_dir = _plugin_group_fixture(
+        tmp_path,
+        {"file": "b.py", "copilotExclude": True, **metadata},
+    )
+
+    with pytest.raises(GenerateHooksError, match="traceable reference"):
+        _expand_dispatch_groups(_ONE_GROUP_DISPATCHER_HOOKS_MAP, hooks_dir)
+
+
+@pytest.mark.parametrize(
     "surface",
     [None, "repo", "vendored", "plugin "],
     ids=["absent", "repo", "vendored", "plugin-with-trailing-space"],

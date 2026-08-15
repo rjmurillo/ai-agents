@@ -21,18 +21,18 @@ below:
 
 1. Strict boolean validation (governance item 1). Quoted verbatim from
    ``.agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md``,
-   Decision 7: "The generator rejects any ``copilotExclude`` value that is
-   not literally ``true`` or ``false``; a truthy non-boolean value such as
-   ``1``, ``"true"``, or ``null`` fails generation rather than silently
+   Decision 7: "The generator rejects any `copilotExclude` value that is
+   not literally `true` or `false`; a truthy non-boolean value such as
+   `1`, `"true"`, or `null` fails generation rather than silently
    including or excluding the shim."
 2. Plugin surface required (governance item 2, "Plugin surface named"):
    ``copilotExclude: true`` is only accepted on a dispatch group that
    declares ``surface: plugin``. A group outside the generated Copilot
    plugin surface has no Copilot generation path to exclude a shim from.
 3. Issue and decision metadata (governance items 3-4): ``copilotExclude:
-   true`` requires non-empty string ``copilotExcludeIssue`` and
-   ``copilotExcludeDecision`` fields naming the authorizing issue and the
-   ADR that owns the security judgment.
+   true`` requires traceable ``copilotExcludeIssue`` and
+   ``copilotExcludeDecision`` string fields naming the authorizing issue and
+   the ADR that owns the security judgment.
 
 Extracted from ``generate_hooks_events.py`` to keep that module under the
 file-size taste limit.
@@ -55,6 +55,8 @@ from generate_hooks_emit import GenerateHooksError  # noqa: E402
 _DISPATCH_COMMAND_RE = re.compile(
     r"dispatch_claude\.py\"?\s+--group\s+([A-Za-z0-9_-]+)"
 )
+_ISSUE_REFERENCE_RE = re.compile(r"#\d+")
+_ADR_REFERENCE_RE = re.compile(r"ADR-\d+")
 
 # The only dispatch-group surface a shim may be excluded from Copilot
 # generation on (ADR-085 Decision 7, governance item 2). Every group in the
@@ -127,18 +129,18 @@ def _copilot_exclude_flag(shim: dict[str, Any], group_id: str) -> bool:
     return raw
 
 
-def _require_non_empty_exclude_metadata(
+def _require_exclude_reference(
     shim: dict[str, Any],
     field: str,
     group_id: str,
     file_rel: str,
 ) -> None:
-    """Raise unless ``shim[field]`` is a non-blank string.
+    """Raise unless ``shim[field]`` names a traceable issue or ADR reference.
 
     Backs governance items 3 (issue metadata) and 4 (decision metadata):
     both name a record the ADR itself must also carry, so a missing,
-    blank, or non-string value here is a manifest authoring error, not an
-    optional annotation.
+    blank, malformed, or non-string value here is a manifest authoring
+    error, not an optional annotation.
     """
     value = shim.get(field)
     if not isinstance(value, str) or not value.strip():
@@ -148,6 +150,16 @@ def _require_non_empty_exclude_metadata(
             "string; copilotExcludeIssue and copilotExcludeDecision must "
             "both be non-empty strings (issue #5013, ADR-085 Decision 7 "
             "governance items 3-4)"
+        )
+    trimmed = value.strip()
+    pattern = _ISSUE_REFERENCE_RE if field == "copilotExcludeIssue" else _ADR_REFERENCE_RE
+    example = "#5013" if field == "copilotExcludeIssue" else "ADR-085"
+    if pattern.fullmatch(trimmed) is None:
+        raise GenerateHooksError(
+            f"dispatch group {group_id!r} shim {file_rel!r} sets "
+            f"copilotExclude=true but {field!r}={value!r} is not a traceable "
+            f"reference; expected {example!r} format (issue #5013, "
+            "ADR-085 Decision 7 governance items 3-4)"
         )
 
 
@@ -173,7 +185,7 @@ def _require_copilot_exclude_governance(
             "group (issue #5013, ADR-085 Decision 7 governance item 2)"
         )
     for field in ("copilotExcludeIssue", "copilotExcludeDecision"):
-        _require_non_empty_exclude_metadata(shim, field, group_id, file_rel)
+        _require_exclude_reference(shim, field, group_id, file_rel)
 
 
 def _expand_one_dispatch_group(

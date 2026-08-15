@@ -2032,6 +2032,54 @@ def _setup_single_companion_fixture(
     return cfg
 
 
+def _setup_shared_companion_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Two active owners share one companion and each owns one unique file."""
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {
+            "PreToolUse/invoke_owner_a.py": (
+                "shared_companion.py",
+                "owner_a_only.py",
+            ),
+            "PreToolUse/invoke_owner_b.py": (
+                "shared_companion.py",
+                "owner_b_only.py",
+            ),
+        },
+    )
+    cfg = _write_config(tmp_path)
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "invoke_owner_a.py", "print('owner-a')\n")
+    _write_script(hooks_src, "PreToolUse", "invoke_owner_b.py", "print('owner-b')\n")
+    _write_script(hooks_src, "PreToolUse", "shared_companion.py", "SHARED = 1\n")
+    _write_script(hooks_src, "PreToolUse", "owner_a_only.py", "OWNER_A = 1\n")
+    _write_script(hooks_src, "PreToolUse", "owner_b_only.py", "OWNER_B = 1\n")
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_owner_a.py",
+                        },
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/PreToolUse/invoke_owner_b.py",
+                        },
+                    ]
+                }
+            ]
+        },
+    )
+    return cfg
+
+
 def test_generator_direct_mode_removes_companions_of_missing_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2072,6 +2120,42 @@ def test_generator_direct_mode_removes_companions_of_missing_owner(
     assert not companion.exists()
     assert unrelated.read_text(encoding="utf-8") == "KEEP = True\n"
     assert (out_dir / "invoke_sibling.py").is_file()
+
+
+def test_generator_preserves_shared_companion_for_surviving_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing owner must not delete a companion another owner still needs."""
+    cfg = _setup_shared_companion_fixture(tmp_path, monkeypatch)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_dir = tmp_path / "out" / "PreToolUse"
+    shared = out_dir / "shared_companion.py"
+    owner_a_only = out_dir / "owner_a_only.py"
+    owner_b_only = out_dir / "owner_b_only.py"
+    assert shared.is_file()
+    assert owner_a_only.is_file()
+    assert owner_b_only.is_file()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_owner_b.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert shared.is_file()
+    assert not owner_a_only.exists()
+    assert owner_b_only.is_file()
+    assert (out_dir / "invoke_owner_b.py").is_file()
 
 
 def test_generator_companion_cleanup_is_what_if_safe(
@@ -2147,10 +2231,9 @@ def test_generator_companion_cleanup_os_error_rolls_back(
     """An OSError while staging companion cleanup rolls back, not partial-commits.
 
     Mirrors ``test_generator_orphan_discovery_failure_rolls_back``: the
-    failure is injected into ``regen_detect_reason`` ONLY for the companion
-    path this cleanup would otherwise remove, so every other NO-REGEN check
-    in the same run (config, owners, dispatcher artifacts) behaves normally
-    and the run fails for the reason under test, not an unrelated one.
+    failure is injected at the file-read boundary the production strict
+    detector actually uses, so the test covers the fail-closed path rather
+    than a monkeypatched wrapper alias.
     """
     cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -2169,20 +2252,76 @@ def test_generator_companion_cleanup_os_error_rolls_back(
     ]
     settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
-    original_regen_detect_reason = generate_hooks_events.regen_detect_reason
+    real_open = Path.open
+    failed = False
 
-    def fail_only_for_companion(path: Path) -> str | None:
-        if path.name == "owner_companion.py":
+    def fail_only_for_companion(
+        path: Path, *args: Any, **kwargs: Any
+    ):  # pragma: no cover - closure shape only
+        nonlocal failed
+        if not failed and path == companion:
+            failed = True
             raise OSError("simulated companion cleanup failure")
-        return original_regen_detect_reason(path)
+        return real_open(path, *args, **kwargs)
 
-    monkeypatch.setattr(generate_hooks_events, "regen_detect_reason", fail_only_for_companion)
+    monkeypatch.setattr(Path, "open", fail_only_for_companion)
 
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 1
     assert companion.is_file()
     assert companion.read_bytes() == before
+
+
+def test_generator_companion_cleanup_rejects_symlinked_output_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A symlinked output root must abort companion cleanup before resolve()."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    out_root = tmp_path / "out"
+    out_dir = out_root / "PreToolUse"
+    companion = out_dir / "owner_companion.py"
+    sibling = out_dir / "invoke_sibling.py"
+    assert companion.is_file()
+    assert sibling.is_file()
+    companion_before = companion.read_bytes()
+    sibling_before = sibling.read_bytes()
+
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"] = [
+        {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_sibling.py",
+        }
+    ]
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    real_lstat = Path.lstat
+    symlink_stat = os.stat_result((stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    def fake_lstat(path: Path) -> os.stat_result:
+        if path == out_root:
+            return symlink_stat
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fake_lstat)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "companion cleanup path validation failed" in captured.err
+    assert "refusing symlinked hooks output root" in captured.err
+    assert companion.is_file()
+    assert companion.read_bytes() == companion_before
+    assert sibling.is_file()
+    assert sibling.read_bytes() == sibling_before
 
 
 def test_generator_companion_cleanup_rejects_symlinked_event_directory(
@@ -3524,6 +3663,58 @@ def test_generator_no_regen_hooks_config_still_rejects_missing_exclude_governanc
     assert rc == 2
     assert "copilotExcludeDecision" in captured.err
     assert (tmp_path / "out" / "hooks.json").read_bytes() == stale_bytes
+
+
+def test_generator_no_regen_hooks_config_preserves_before_event_processing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pre-existing NO-REGEN hooks.json stops the run before event processing."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    stale_bytes = _seed_protected_hooks_json(tmp_path)
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("_process_event should not run for protected hooks.json")
+
+    monkeypatch.setattr(generate_hooks_events, "_process_event", fail_if_called)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert (tmp_path / "out" / "hooks.json").read_bytes() == stale_bytes
+    assert not (tmp_path / "out" / "PreToolUse").exists()
+
+
+def test_generator_no_regen_hooks_config_rechecks_sidecar_created_mid_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sidecar created during generation must trigger the late recheck."""
+    cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
+    real_process_event = generate_hooks_events._process_event
+    created_sidecar = False
+
+    def create_sidecar_after_event(*args: Any, **kwargs: Any) -> Any:
+        nonlocal created_sidecar
+        emitted = real_process_event(*args, **kwargs)
+        if not created_sidecar:
+            created_sidecar = True
+            output_config = tmp_path / "out" / "hooks.json"
+            output_config.with_suffix(".json.noregen").write_text(
+                "preserve\n", encoding="utf-8"
+            )
+        return emitted
+
+    monkeypatch.setattr(generate_hooks_events, "_process_event", create_sidecar_after_event)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert (tmp_path / "out" / "hooks.json.noregen").is_file()
+    assert not (tmp_path / "out" / "hooks.json").exists()
+    event_dir = tmp_path / "out" / "PreToolUse"
+    if event_dir.exists():
+        assert not any(event_dir.iterdir())
 
 
 def test_generator_distinct_shim_per_matcher(tmp_path: Path) -> None:

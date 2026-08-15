@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -55,6 +56,7 @@ from generate_hooks_emit import (  # noqa: E402
 from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from regen_guard import detect_reason_strict as regen_detect_reason_strict  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402
 
 # Files required at runtime by one emitted hook but not dispatched themselves.
@@ -437,7 +439,16 @@ def _companion_cleanup_hooks_root(output_scripts: Path) -> Path | None:
     treat that as "nothing to check", not a config error
     (``resolve(strict=True)`` requires the path to already exist).
     """
-    if not output_scripts.is_dir():
+    try:
+        output_stat = output_scripts.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(output_stat.st_mode):
+        raise GenerateHooksError(
+            "companion cleanup path validation failed: "
+            f"refusing symlinked hooks output root: {output_scripts}"
+        )
+    if not stat.S_ISDIR(output_stat.st_mode):
         return None
     try:
         return output_scripts.resolve(strict=True)
@@ -464,6 +475,32 @@ def _missing_owner_event_dir(
     if not target_event or target_event not in out:
         return None
     return output_scripts / target_event
+
+
+def _strict_regen_reason(path: Path, *, context: str) -> str | None:
+    """Return a NO-REGEN reason or raise ``OSError`` with call-site context."""
+    try:
+        return regen_detect_reason_strict(path)
+    except OSError as exc:
+        raise OSError(f"{context} NO-REGEN check failed for {path}: {exc}") from exc
+
+
+def _active_companion_target_keys(
+    active_owners: set[str],
+    *,
+    event_remap: dict[str, str],
+    out: dict[str, list[dict[str, Any]]],
+) -> set[tuple[str, str]]:
+    """Return live ``(target_event, companion_name)`` keys for active owners."""
+    active_targets: set[tuple[str, str]] = set()
+    for owner_relative_path in active_owners:
+        claude_event = owner_relative_path.split("/", 1)[0]
+        target_event = event_remap.get(claude_event)
+        if not target_event or target_event not in out:
+            continue
+        for companion_name in _COMPANIONS_BY_OWNER.get(owner_relative_path, ()):
+            active_targets.add((target_event, companion_name))
+    return active_targets
 
 
 def _validated_missing_owner_event_dir(
@@ -493,10 +530,12 @@ def _validated_missing_owner_event_dir(
 
 def _missing_owner_candidate_targets(
     event_dir: Path,
+    target_event: str,
     companion_names: tuple[str, ...],
     resolved_event: Path,
     root_path: Path,
     generate_dispatcher: ModuleType,
+    active_companion_targets: set[tuple[str, str]],
 ) -> list[Path]:
     """Return the deletable, unprotected companion files under ``event_dir``.
 
@@ -506,9 +545,13 @@ def _missing_owner_candidate_targets(
     (re-raised from that function's ``ValueError``); a missing or
     NO-REGEN-protected candidate is silently skipped or reported, matching
     :func:`_missing_owner_companion_targets`'s existing NO-REGEN contract.
+    A candidate shared by another ACTIVE owner under the same target event
+    is also skipped.
     """
     targets: list[Path] = []
     for companion_name in companion_names:
+        if (target_event, companion_name) in active_companion_targets:
+            continue
         candidate = event_dir / companion_name
         try:
             is_regular_candidate = generate_dispatcher.validate_candidate_file(
@@ -518,7 +561,7 @@ def _missing_owner_candidate_targets(
             raise GenerateHooksError(f"companion cleanup path validation failed: {exc}") from exc
         if not is_regular_candidate:
             continue
-        reason = regen_detect_reason(candidate)
+        reason = _strict_regen_reason(candidate, context="companion cleanup")
         if reason is not None:
             print(f"  NOTICE: preserved {candidate} (NO-REGEN: {reason})")
             continue
@@ -578,6 +621,11 @@ def _missing_owner_companion_targets(
             script_source=script_source,
         )
     }
+    active_companion_targets = _active_companion_target_keys(
+        active_owners,
+        event_remap=event_remap,
+        out=out,
+    )
     hooks_root = _companion_cleanup_hooks_root(output_scripts)
     if hooks_root is None:
         return []
@@ -603,7 +651,13 @@ def _missing_owner_companion_targets(
         resolved_event, root_path = validated
         targets.extend(
             _missing_owner_candidate_targets(
-                event_dir, companion_names, resolved_event, root_path, generate_dispatcher
+                event_dir,
+                event_dir.name,
+                companion_names,
+                resolved_event,
+                root_path,
+                generate_dispatcher,
+                active_companion_targets,
             )
         )
     return targets
@@ -1153,6 +1207,15 @@ def generate_hooks(
         except GenerateHooksError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 2, result
+
+    if not what_if:
+        config_reason = regen_detect_reason(output_config)
+        if config_reason is not None:
+            print(
+                "  NOTICE: preserved generated hook artifact set because "
+                f"{output_config} is NO-REGEN protected: {config_reason}"
+            )
+            return 0, result
 
     start = time.monotonic()
     print(f"Found {len(hooks_map)} Claude event(s) in {settings_source}")
