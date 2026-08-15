@@ -449,6 +449,10 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+              # This job's own timeout (above) in seconds, so the
+              # generated-staleness gate can clamp its deadline to the
+              # process's remaining share; a test pins the two values.
+              PRE_PR_OUTER_CAP_SECONDS: "900"
 
           - name: worktree-gc-report
             timeout: 2m
@@ -562,10 +566,6 @@ pre-push:
               --path . --fail-on-error
             glob: ".agents/planning/**/*.md"
 
-          - name: build-all-check
-            timeout: 15m
-            run: uv run --frozen python build/scripts/build_all.py --check
-
           - name: branch-scope
             timeout: 5m
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
@@ -612,9 +612,15 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
 
+          # Issue #4492 pattern: on the first push of a new branch lefthook's
+          # {push_files} fallback includes upstream-only files, which fed every
+          # tracked observation file to this job; without a reachable Forgetful
+          # service each file burns a 10s MCP timeout and the corpus overruns
+          # the 5m cap. The handler derives the real push range from stdin.
           - name: observation-sync-advisory
             timeout: 5m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py observations {push_files}
+            run: uv run --frozen python scripts/validation/git_hook_policy.py observations-push
+            use_stdin: true
             glob: ".serena/memories/**/*-observations.md"
 
           - name: bot-cascade-advisory

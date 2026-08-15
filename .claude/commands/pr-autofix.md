@@ -393,7 +393,7 @@ fi
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -486,18 +486,31 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -576,7 +589,15 @@ python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
 # the PR is merged/closed/draft or fully superseded by base.
 python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request {pr} --skip-fetch --output-format json
 
-# Get CI check logs
+# CI-failure triage step 1 (BLOCKING, issue #5073): before reading any log or
+# starting any local investigation, ask whether the same check is red on
+# origin/main. Exit 0 = green on main (the PR introduced it; investigate the
+# PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
+# out main instead of debugging the PR). Exit 3 = cannot determine (probe
+# failure is not absence; never treat UNKNOWN as green).
+python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
+
+# Get CI check logs (step 2, only when the check is green on main)
 python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
   python3 "$SCRIPTS_DIR/get_pr_check_logs.py" --pull-request {pr} --checks-input -
 
@@ -707,6 +728,7 @@ Per PR processed:
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
+- [ ] CI-failure triage step 1 ran before any log reading (T2/T4 only, issue #5073): `triage_red_check.py --check-name "<name>"` verdict recorded per failing check; RED_ON_MAIN failures were attributed to main with the EvidenceUrl, not investigated on the PR.
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).

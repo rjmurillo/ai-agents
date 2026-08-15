@@ -6,8 +6,11 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Every case here now runs through the Claude dispatcher only, which is where
+the guard still runs; invoke_dispatch_claude.py does not read
+copilotExclude.
 """
 
 from __future__ import annotations
@@ -23,10 +26,12 @@ import pytest
 
 from tests.hooks.push_pr_guard_harness import (
     CLAUDE_PLUGIN_ROOT,
-    COPILOT_PLUGIN_ROOT,
     PLUGIN_SCRIPT_REFERENCE,
     REPO_ROOT,
     SCRIPT_RELATIVE,
+)
+from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
 )
 from tests.hooks.push_pr_guard_harness import (
     body_file as _body_file,
@@ -42,9 +47,6 @@ from tests.hooks.push_pr_guard_harness import (
 )
 from tests.hooks.push_pr_guard_harness import (
     run_claude as _run_claude,
-)
-from tests.hooks.push_pr_guard_harness import (
-    run_copilot as _run_copilot,
 )
 from tests.hooks.push_pr_guard_harness import (
     run_guard_script as _run_guard_script,
@@ -155,15 +157,8 @@ def _minimum_supported_interpreter() -> str | None:
             / "invoke_push_pr_script_identity_guard.py",
             CLAUDE_PLUGIN_ROOT,
         ),
-        (
-            COPILOT_PLUGIN_ROOT
-            / "hooks"
-            / "PreToolUse"
-            / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
-            COPILOT_PLUGIN_ROOT,
-        ),
     ],
-    ids=["claude", "copilot"],
+    ids=["claude"],
 )
 def test_guards_run_on_the_minimum_supported_interpreter(
     tmp_path: Path,
@@ -176,6 +171,11 @@ def test_guards_run_on_the_minimum_supported_interpreter(
     AttributeError and the guard exited 1, which a PreToolUse host treats as a
     hook error rather than a block, so the identity gate silently stopped
     enforcing. Reproduced on cpython 3.10.20 before the fix (issue #4825).
+
+    Claude-only since issue #5013: the Copilot copy of this guard was
+    retired from the generated shim tree (dispatch_groups.json marks it
+    copilotExclude), so there is no second guard file to run this floor
+    check against.
     """
     interpreter = _minimum_supported_interpreter()
     if interpreter is None:
@@ -216,12 +216,8 @@ def test_guards_run_on_the_minimum_supported_interpreter(
     "guard",
     [
         REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
-        COPILOT_PLUGIN_ROOT
-        / "hooks"
-        / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
     ],
-    ids=["claude", "copilot"],
+    ids=["claude"],
 )
 def test_guards_do_not_use_post_310_hashlib_api(guard: Path) -> None:
     """Pin the specific API that broke the 3.10 floor.
@@ -234,6 +230,9 @@ def test_guards_do_not_use_post_310_hashlib_api(guard: Path) -> None:
     digest code moved into ``_push_pr_guard_identity.py`` when the guard was
     split, so an entrypoint-only check would now pass while the call it exists
     to forbid sits one import away.
+
+    Claude-only since issue #5013 (see the interpreter-floor test above for
+    why there is no Copilot guard file left to check).
     """
     for member in _guard_unit(guard):
         source = member.read_text(encoding="utf-8")
@@ -244,7 +243,7 @@ def test_guards_do_not_use_post_310_hashlib_api(guard: Path) -> None:
 
 
 def test_trusted_digests_match_the_shipped_bundle() -> None:
-    """The pinned digests must equal the files they gate, on both surfaces.
+    """The pinned digests must equal the files they gate.
 
     `_validate_runtime_bundle` denies every push-pr invocation whose new_pr.py
     or validate_pr_description.py digest differs from the pinned constant. A
@@ -253,6 +252,9 @@ def test_trusted_digests_match_the_shipped_bundle() -> None:
 
     The constants live in the ``_push_pr_guard_identity`` member of the runtime
     unit, so the search covers every member rather than the entrypoint alone.
+
+    Claude-only since issue #5013: the Copilot copy of this guard was retired
+    from the generated shim tree, so there is only one guard left to pin.
     """
     expected = {
         "_TRUSTED_NEW_PR_SHA256": CLAUDE_PLUGIN_ROOT / SCRIPT_RELATIVE,
@@ -269,10 +271,6 @@ def test_trusted_digests_match_the_shipped_bundle() -> None:
     }
     guards = (
         REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py",
-        COPILOT_PLUGIN_ROOT
-        / "hooks"
-        / "PreToolUse"
-        / "invoke_push_pr_script_identity_guard__Bash_f620ca.py",
     )
 
     for guard in guards:
@@ -346,7 +344,7 @@ def test_guard_fails_closed_without_its_runtime_modules(tmp_path: Path) -> None:
     assert result.returncode != 0, "a guard that cannot import its own modules must not allow"
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -356,7 +354,7 @@ def test_guard_fails_closed_without_its_runtime_modules(tmp_path: Path) -> None:
         "--title 'fix: bypass' --body-file .agents/scratch/body.md --skip-validation",
     ],
 )
-def test_dispatchers_deny_noncanonical_new_pr_arguments(
+def test_claude_deny_noncanonical_new_pr_arguments(
     tmp_path: Path,
     runner,
     arguments: str,
@@ -373,8 +371,8 @@ def test_dispatchers_deny_noncanonical_new_pr_arguments(
     assert "push-pr script identity denied" in result.stderr
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
-def test_dispatchers_deny_hardlinked_body_file(
+@pytest.mark.parametrize("runner", _RUNNERS)
+def test_claude_deny_hardlinked_body_file(
     tmp_path: Path,
     runner,
 ) -> None:
@@ -396,5 +394,4 @@ def test_dispatchers_deny_hardlinked_body_file(
 
     assert result.returncode == 2
     assert "single-link regular file" in result.stderr
-
 

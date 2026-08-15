@@ -1,0 +1,326 @@
+{
+  "id": "episode-2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate",
+  "session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Run the mandatory adr-review debate on the scoped-re-review ADR, then land the maintainer's rejection",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the checker before writing anything: scripts/validation/git_hook_policy.py check_adr_review_policy requires adr-review evidence in the current branch's newest session log plus a .agents/critique/*debate*.md that names the staged ADR IDs",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the 6-role adr-review debate in parallel (architect, critic, independent-thinker, security, analyst, high-level-advisor), each given ADR-094 plus the counter evidence from PR #5059 and PR #5062 that cuts against the ADR",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measured the debate's own quantitative claims before recording them, per .claude/rules/canonical-source-mirror.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the independent-thinker's marker census against a direct count",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the three reproducible P0 anchors directly: /review became a skill in c3ddc571a (2026-05-24) and the marker landed in 16c960418 (2026-06-04), both after PRs #1887, #1965 and #1979; 009-phase1-agent-comment-baseline.md:163 reports 52% over the 182 comments the ADR quotes while :178 reports 24% over a different 173-unit rollup",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found three .agents files modified in the working tree during this session by a process this session did not direct (the QA report rebound to session 14711, that log's endingCommit advanced, and session 99916's qaValidation downgraded to SKIPPED)",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the two pre-existing red session-log checks on PR #5062: session 14711 and session 99916 both claimed the same QA report, which only one log can own, and the report's qaCommit had gone stale behind commit e137317ef",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e020",
+        "e023",
+        "e025"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A second unattributed change appeared after commit 66cf2111d: a 187-line revision of ADR-094 adding contract changes 11 and 12, a new ship.md contributor-mode section, SHA-pinned axis discovery, and decision-makers: [rjmurillo]",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T16:17:28+00:00",
+      "type": "commit",
+      "content": "Commit: 8b60aaabf",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T16:18:49+00:00",
+      "type": "commit",
+      "content": "Commit: 5eceaef55",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Maintainer rejected the proposal on finding F1 after independently verifying the date precedence, and directed landing it as a rejection record rather than closing PR #5062 unmerged",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and hit an add/add conflict on .agents/critique/ADR-094-debate-log.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read what PR #5010 (458028d2b) actually shipped before describing it, per canonical-source-mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the ADR as a rejection record, deleting the contract-change list, required tests, and cost arithmetic rather than annotating them",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote .agents/retrospective/2026-08-15-adr-094-inert-hooks-and-number-collision.md for the retrospective-policy pre-push gate",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111d",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T16:36:52+00:00",
+      "type": "commit",
+      "content": "Commit: ff2493fefdb0b65ff6079ef70afdc922a81413d0",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T16:40:40+00:00",
+      "type": "commit",
+      "content": "Commit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound all three session logs and all three QA reports to fa39b0200 after the origin/main merge staled every marker, then corrected the rename note that landed inside a code span",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T17:00:33+00:00",
+      "type": "commit",
+      "content": "Commit: 56237643c5951dc17e4a853b5e27f4c645061015",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-15T19:51:43+00:00",
+      "type": "commit",
+      "content": "Commit: 4161987600aa31d32bdcea5c4be0f66e489e3e18",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push failed on memory-index-token-ratchet, pre-pr Count Ratchets, and one pytest node, all tracing to one cause: the third origin/main merge left two memory-index.md rows for diagnosing-a-blocked-pr, recording 885 and 919 tokens",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-15T19:59:29+00:00",
+      "type": "commit",
+      "content": "Commit: f18efba357185f4663806d5394c3d6d510dd51db",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Copilot flagged that qa-adr-094-debate.md certified a 9-line ADR edit while binding to a commit that also carries the ADR-095 rewrite, the renumber, the retrospective, and the memory-index fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 4
+  },
+  "lessons": []
+}

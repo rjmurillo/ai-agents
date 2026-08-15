@@ -17,6 +17,12 @@ The Copilot dispatcher rejects a payload without a string ``tool_name``
 `tool_name`/`toolName` field``, exit 2), so ``payload`` always emits it. A
 harness that omitted it would report exit 2 for every command and read as a
 denial on both harnesses regardless of guard behavior.
+
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it ``copilotExclude``), so the guard now runs on
+only one of the two dispatchers. ``RUNNERS`` below is what guard-policy tests
+should parametrize over; ``run_copilot`` stays exported for tests that check
+the Copilot dispatcher's own behavior rather than this guard's decisions.
 """
 
 from __future__ import annotations
@@ -45,12 +51,12 @@ PLUGIN_SCRIPT_REFERENCE = (
 CLAUDE_GUARD = (
     REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "invoke_push_pr_script_identity_guard.py"
 )
-COPILOT_GUARD = (
-    COPILOT_PLUGIN_ROOT
-    / "hooks"
-    / "PreToolUse"
-    / "invoke_push_pr_script_identity_guard__Bash_f620ca.py"
-)
+# Issue #5013: the generated Copilot matcher shim for this guard was retired
+# (dispatch_groups.json marks the shim copilotExclude, so the generator omits
+# it). There is no COPILOT_GUARD path anymore; the guard now ships only on the
+# Claude side. Do not reintroduce a constant that points at a generated file,
+# and do not point a "copilot" test at CLAUDE_GUARD to fake parity: #5013
+# removed the Copilot copy, it did not relocate it.
 
 
 def write_script(path: Path) -> Path:
@@ -202,3 +208,22 @@ def run_both(command: str, cwd: Path) -> dict[str, subprocess.CompletedProcess[s
     disagreed instead of reporting an anonymous tuple index.
     """
     return {"claude": run_claude(command, cwd), "copilot": run_copilot(command, cwd)}
+
+
+# Issue #5013: the push-pr identity guard is copilotExclude in
+# dispatch_groups.json, so build/scripts/generate_hooks_expand.py never emits
+# it into the Copilot shim tree. invoke_dispatch_claude.py does not read
+# copilotExclude, so the guard keeps running unchanged on the Claude side.
+# Guard POLICY assertions (deny/allow decisions the guard itself makes)
+# therefore only have a runner to test on Claude; parametrizing them over
+# run_copilot would either fail (the Copilot dispatcher no longer denies
+# anything the guard used to deny) or pass vacuously (an "allow" the guard
+# never decided, because nothing dispatches to it). RUNNERS is the single
+# place that set narrows to, so a future guard retired from the other surface
+# only has to change here.
+#
+# run_copilot itself is still exported and still used directly by tests that
+# check the Copilot dispatcher's OWN behavior (it allows an unrelated
+# command, it still runs its remaining shims) rather than this guard's
+# policy.
+RUNNERS = (run_claude,)

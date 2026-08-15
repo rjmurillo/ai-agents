@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14708,
+    "date": "2026-08-14",
+    "branch": "feat/4981-risk-based-review-axes",
+    "startingCommit": "e60e3b896",
+    "objective": "Execute issue #4981: select axes by change risk"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions and serena-onboarding read"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CONTRIBUTING.md"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "find .claude/skills/review and src/copilot-cli/skills/review"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "CONTRIBUTING.md setup and validation guidance"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/generated-artifacts.md, .claude/rules/canonical-source-mirror.md, .claude/rules/session-logs.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-read_memory memory_maintenance"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/4981-risk-based-review-axes"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/4981-risk-based-review-axes"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short before code commit and after evidence prep"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e60e3b896"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required sessionEnd items are now complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CONTRIBUTING.md preserved; no handoff file changed"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-write_memory eval/skill-router-spike"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen markdownlint-cli2 .claude/skills/review/SKILL.md src/copilot-cli/skills/review/SKILL.md"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-15-pr-5010-risk-based-review-axes.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "bd398324901f268f1558e87512923c562e4d7abb"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Completed during session continuation"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Completed during session continuation"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Read review and session instructions",
+      "outcome": "Read .claude/rules/generated-artifacts.md, .claude/rules/canonical-source-mirror.md, .claude/rules/session-logs.md, .claude/skills/review/SKILL.md, .github/prompts/review-pr.prompt.md, src/copilot-cli/skills/review/SKILL.md, AGENTS.md, and CONTRIBUTING.md"
+    },
+    {
+      "task": "Expand review routing eval coverage",
+      "outcome": "Added review routing fixtures to evals/skill-router-spike/fixtures.json and a regression test in tests/eval/test_eval_skill_router.py"
+    },
+    {
+      "task": "Validate targeted review evals",
+      "outcome": "uv run --frozen markdownlint-cli2 .claude/skills/review/SKILL.md src/copilot-cli/skills/review/SKILL.md passed; python3 scripts/eval/eval_skill_router.py --fixtures evals/skill-router-spike/fixtures.json --dry-run passed; PYTEST_ADDOPTS='' python3 -m pytest -o addopts='' tests/eval/test_eval_skill_router.py tests/eval/test_eval_knowledge_integration.py -q passed (20/20)"
+    },
+    {
+      "task": "Validate broader eval subset",
+      "outcome": "PYTEST_ADDOPTS='' python3 -m pytest -o addopts='' tests/eval/test_eval_skill_router.py tests/eval/test_eval_knowledge_integration.py tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_report_contract.py tests/eval/test_eval_runtime_parity_review_fixes.py -q collected 80 tests, 74 passed, and 6 runtime-parity tests failed with pre-existing 'current worktree does not contain this evaluator' errors"
+    },
+    {
+      "task": "Commit review routing changes",
+      "outcome": "Committed the review contract, eval fixtures, and regression test at bd398324901f268f1558e87512923c562e4d7abb"
+    },
+    {
+      "task": "Validate session log",
+      "outcome": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json passed"
+    },
+    {
+      "task": "Fix E501 lint violations",
+      "outcome": "Wrapped 2 lines exceeding 100-char limit in test_eval_skill_router.py"
+    },
+    {
+      "task": "Fix em dashes",
+      "outcome": "Replaced U+2014 with hyphens in SKILL.md, regenerated mirror"
+    },
+    {
+      "task": "Add axis routing contract tests",
+      "outcome": "4 tests verifying AC-9 risk category coverage in axis references"
+    },
+    {
+      "task": "Rename QA report",
+      "outcome": "Renamed to match pr-5010 glob pattern for CI validation"
+    },
+    {
+      "task": "Add AC-8/AC-10 eval tests",
+      "outcome": "Low-risk subset and deep review full-set tests pass"
+    }
+  ],
+  "endingCommit": "86c9767fb1",
+  "nextSteps": []
+}
