@@ -4,17 +4,17 @@
   "timestamp": "2026-08-13T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Fix ship.md first-PR pipeline validation deadlock (issue 4841)",
+  "task": "Fix issue 4921: codeql-scan skill wrappers reference removed PowerShell scripts",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read issue 4841 and the linked workflow docs (.claude/commands/ship.md, .claude/skills/pipeline-validator/SKILL.md, .claude/commands/push-pr.md) plus related issue 2749.",
+      "content": "Reproduced #4921 in a linked worktree",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14705"
     },
@@ -22,10 +22,10 @@
       "id": "e002",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Checked for a competing PR and claimed the issue through the github skill scripts.",
+      "content": "Verified delegate CLI contracts at level 1",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14705"
     },
@@ -33,10 +33,10 @@
       "id": "e003",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Branched pre-flight check 1 on PR existence in .claude/commands/ship.md and added a discharge step after /push-pr.",
+      "content": "Fixed both canonical wrappers (commit 0ddffe8768)",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14705"
     },
@@ -44,10 +44,10 @@
       "id": "e004",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Regenerated the Copilot mirror with build/scripts/build_all.py.",
+      "content": "Fixed two further siblings with the same failure shape",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14705"
     },
@@ -55,38 +55,138 @@
       "id": "e005",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added tests/commands/test_ship_first_pr_ordering.py, parsing sections and bullets of both ship documents.",
+      "content": "Added real-repo delegate test (commit 5c20686cc7)",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
       "_source_session": "2026-08-13-session-14705"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-13T15:12:25+00:00",
-      "type": "commit",
-      "content": "Commit: 3bd39453140a49b4104c505c46460f2f6b777f8d",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e007"
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flipped 6 tests asserting the removed PowerShell names",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
       ],
-      "leads_to": [],
       "_source_session": "2026-08-13-session-14705"
     },
     {
       "id": "e007",
       "timestamp": "2026-08-13T00:00:00+00:00",
       "type": "milestone",
-      "content": "Renamed the QA report to carry the PR number after opening PR 4972.",
+      "content": "Regenerated copilot tree via build_all.py (commit e57717137d)",
       "caused_by": [],
       "leads_to": [
-        "e006"
+        "e009"
       ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T14:55:22+00:00",
+      "type": "commit",
+      "content": "Commit: 0ddffe8768",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e013",
+        "e014"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T15:07:07+00:00",
+      "type": "commit",
+      "content": "Commit: 5c20686cc7",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T15:15:08+00:00",
+      "type": "commit",
+      "content": "Commit: e57717137d",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-13T15:52:34+00:00",
+      "type": "commit",
+      "content": "Commit: 5c73e4c318b9b63dfe804f66adb482228208da6b",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed stdout flush adjacency broken by the _run_delegate extraction",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "test",
+      "content": "Fixed stdout flush adjacency broken by the _run_delegate extraction      tests/test_stdout_flush_before_spawn.py 30 passed; flush moved inside try, immediately before the spawn",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14705"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-13T16:23:36+00:00",
+      "type": "commit",
+      "content": "Commit: f7728da1150a8085d47735527c13fa56227fb991",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-13-session-14705"
     }
   ],
@@ -95,8 +195,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 5,
+    "files_changed": 17
   },
   "lessons": []
 }

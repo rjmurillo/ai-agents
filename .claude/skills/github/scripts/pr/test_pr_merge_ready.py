@@ -954,6 +954,70 @@ def _script_commit() -> str:
     return result.stdout.strip() or "unknown"
 
 
+
+# ---------------------------------------------------------------------------
+# Non-required failure dispositions
+# ---------------------------------------------------------------------------
+
+_VALID_DISPOSITIONS = frozenset({
+    "known-flaky",
+    "infrastructure",
+    "unrelated-to-pr",
+    "tracked-issue",
+})
+
+
+def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
+    """Load per-check dispositions from a JSON file.
+
+    Expected format::
+
+        {
+          "Check Name": {
+            "disposition": "known-flaky|infrastructure|unrelated-to-pr|tracked-issue",
+            "reason": "human explanation"
+          }
+        }
+
+    Returns an empty dict when the file is absent or unreadable.
+    """
+    if not dispositions_file:
+        return {}
+    try:
+        with open(dispositions_file, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _check_nonrequired_dispositions(
+    failed_non_required: list[str],
+    dispositions_file: str | None,
+) -> list[str]:
+    """Return failed non-required check names without valid dispositions.
+
+    A disposition entry must have a ``disposition`` key with a value from
+    ``_VALID_DISPOSITIONS`` and a non-empty ``reason`` string.
+    """
+    if not failed_non_required:
+        return []
+    dispositions = _load_dispositions(dispositions_file)
+    undisposed: list[str] = []
+    for name in failed_non_required:
+        entry = dispositions.get(name)
+        if not isinstance(entry, dict):
+            undisposed.append(name)
+            continue
+        disp = entry.get("disposition", "")
+        reason = entry.get("reason", "")
+        if disp not in _VALID_DISPOSITIONS or not reason.strip():
+            undisposed.append(name)
+    return undisposed
+
+
 def check_merge_readiness(
     owner: str,
     repo: str,
@@ -961,6 +1025,7 @@ def check_merge_readiness(
     ignore_ci: bool = False,
     ignore_threads: bool = False,
     include_non_required: bool = False,
+    dispositions_file: str | None = None,
 ) -> dict:
     """Check if a PR is ready to merge. Sergeant orchestrator."""
     op_start = time.monotonic()
@@ -978,6 +1043,15 @@ def check_merge_readiness(
         pr, ignore_ci, include_non_required, reasons,
         owner=owner, repo=repo, pr_number=pr_number,
     )
+    # Non-required disposition check: undisposed failures block merge
+    undisposed = _check_nonrequired_dispositions(
+        failed_non_required, dispositions_file,
+    )
+    if undisposed:
+        reasons.append(
+            f"{len(undisposed)} non-required check(s) failed without "
+            f"disposition: {', '.join(undisposed)}"
+        )
     can_merge = len(reasons) == 0
     fetched_pages_complete = threads_pages_complete and contexts_pages_complete
     _emit_merge_ready_log(
@@ -1005,6 +1079,7 @@ def check_merge_readiness(
         "FailedRequiredChecks": failed_required,
         "PendingRequiredChecks": pending_required,
         "FailedNonRequiredChecks": failed_non_required,
+        "UndisposedNonRequiredFailures": undisposed,
         "PendingNonRequiredChecks": pending_non_required,
         "PassedChecks": passed_checks,
         "CIPassing": ci_passing,
@@ -1041,6 +1116,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-non-required", action="store_true",
         help="Non-required check failures also block merge",
     )
+    parser.add_argument(
+        "--dispositions-file", default=None,
+        help="JSON file with per-check dispositions for non-required failures",
+    )
     return parser
 
 
@@ -1059,6 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
         ignore_ci=args.ignore_ci,
         ignore_threads=args.ignore_threads,
         include_non_required=args.include_non_required,
+        dispositions_file=args.dispositions_file,
     )
 
     print(json.dumps(result, indent=2))

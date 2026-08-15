@@ -218,7 +218,7 @@ class TestUnresolvedScopeWiring:
         gw._merge_times = {100: fix_time}
         action = ManifestAction(
             issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
+            rationale="Fixed via PR #100", reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED
@@ -239,7 +239,7 @@ class TestUnresolvedScopeWiring:
         gw._merge_times = {100: fix_time}
         action = ManifestAction(
             issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
+            rationale="Fixed via PR #100", reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_APPLIED
@@ -252,7 +252,7 @@ class TestUnresolvedScopeWiring:
         gw._merge_times = {100: fix_time}
         action = ManifestAction(
             issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
+            rationale="Fixed via PR #100", reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED
@@ -284,7 +284,7 @@ class TestUnresolvedScopeWiring:
         gw._merge_times = {200: fix_time}
         action = ManifestAction(
             issue=7, category=ACTION_CLOSE,
-            rationale="Resolved via PR #200",
+            rationale="Resolved via PR #200", reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED

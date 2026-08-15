@@ -2,23 +2,66 @@
 """CodeQL scan skill wrapper providing unified interface for security analysis.
 
 Supports full scans, quick scans with caching, and configuration validation.
-Delegates to underlying CodeQL scripts in .codeql/scripts/.
+Delegates to the Python scripts in ``.codeql/scripts/`` named by
+``DELEGATE_SCRIPT_NAMES``. Delegates are launched with ``sys.executable`` so the
+child runs in the same interpreter and virtual environment as this wrapper
+rather than whatever ``python3`` happens to be first on PATH.
 
 Exit codes follow ADR-035:
     0 - Success (no findings or findings ignored)
     1 - Findings detected (CI mode only)
     2 - Configuration invalid
     3 - Scan execution failed (CLI not found, script error)
+
+Delegate contracts (see canonical source files for full signatures):
+
+``.codeql/scripts/test_codeql_config.py`` build_parser() (lines 35-53):
+    --config-path, --ci, --format (console|json)
+    main() returns 2 when config absent, 0 if valid else 1.
+
+``.codeql/scripts/invoke_codeql_scan.py`` build_parser() (lines 33-78):
+    --repo-path, --config-path, --database-path, --results-path,
+    --languages, --use-cache, --ci, --format (console|sarif|json), --quick-scan
+    Exit codes: 0 success, 1 findings/error, 2 config error, 3 dependency error.
+
+``.codeql/scripts/install_codeql.py`` build_parser():
+    parser.add_argument("--add-to-path", action="store_true", ...)
+
+Stricter/looser/different than canonical:
+    - Validation collapses delegate exit ``1`` (invalid config) and delegate exit
+      ``2`` (config file not found) into this wrapper's single documented ``2 -
+      Configuration invalid``. The wrapper contract above has no distinct code
+      for a missing config file.
+    - ``--operation quick`` maps to the delegate's ``--use-cache`` only, not to
+      its separate ``--quick-scan`` flag. ``--quick-scan`` swaps the config file
+      for ``codeql-config-quick.yml`` (a different query set); this wrapper's
+      documented meaning of "quick" is "cached databases", so it reuses caches
+      against the same query set.
+    - Delegates run with ``cwd`` set to the repository root so their relative
+      defaults (``.github/codeql/codeql-config.yml``, ``.codeql/db``,
+      ``.codeql/results``, and ``--repo-path .``) resolve against the repository
+      instead of the caller's working directory. This wrapper therefore does not
+      restate those default paths.
 """
 
 from __future__ import annotations
 
 import argparse
 import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+CONFIG_SCRIPT_NAME = "test_codeql_config.py"
+SCAN_SCRIPT_NAME = "invoke_codeql_scan.py"
+INSTALL_SCRIPT_NAME = "install_codeql.py"
+
+#: Delegate scripts this wrapper resolves under ``<repo root>/.codeql/scripts/``.
+#: `tests/skills/codeql-scan/test_codeql_delegate_paths.py` asserts every name
+#: here resolves to a real file in this repository, so a rename that is not
+#: mirrored in `.codeql/scripts/` fails the suite instead of only failing at run
+#: time (Issue #4921).
+DELEGATE_SCRIPT_NAMES = (CONFIG_SCRIPT_NAME, SCAN_SCRIPT_NAME, INSTALL_SCRIPT_NAME)
 
 _COLORS = {
     "success": "\033[32m",
@@ -99,92 +142,81 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+def _python_executable() -> str:
+    """Return the interpreter used to launch delegate scripts.
 
-    if not shutil.which("pwsh"):
-        print("[SKIP] pwsh not found. Install PowerShell 7+ for CodeQL scanning.")
-        return 0
+    ``sys.executable`` is documented to be an empty string when the interpreter
+    cannot determine a real executable path (frozen or embedded builds). The
+    fallback keeps the delegate command well formed instead of building a
+    command whose first element is ``""``.
+    """
+    return sys.executable or "python3"
 
-    repo_root = _get_repo_root()
-    if repo_root is None:
-        _color_print("Not in a git repository", "error")
-        return 3
 
-    codeql_dir = repo_root / ".codeql"
-    if not codeql_dir.exists():
-        print("[SKIP] .codeql/ not found. CodeQL scanning requires project setup.", file=sys.stderr)
-        return 0
+def _delegate_path(repo_root: Path, script_name: str) -> Path:
+    """Resolve a delegate script under ``<repo root>/.codeql/scripts/``."""
+    return repo_root / ".codeql" / "scripts" / script_name
 
-    codeql_cli_path = repo_root / ".codeql" / "cli" / "codeql"
-    if platform.system() == "Windows":
-        codeql_cli_path = codeql_cli_path.with_suffix(".exe")
 
-    install_script = repo_root / ".codeql" / "scripts" / "Install-CodeQL.ps1"
-    scan_script = repo_root / ".codeql" / "scripts" / "Invoke-CodeQLScan.ps1"
-    config_script = repo_root / ".codeql" / "scripts" / "Test-CodeQLConfig.ps1"
+def _run_delegate(command: list[str], repo_root: Path) -> int | None:
+    """Run a delegate script from the repository root.
 
-    print(f"\n{'=== CodeQL Security Scan ==='}", file=sys.stderr)
-    print(f"Operation: {args.operation}", file=sys.stderr)
-    print("", file=sys.stderr)
-
-    if args.operation == "validate":
-        _color_print("Validating CodeQL configuration...", "info")
-        if not config_script.exists():
-            _color_print(f"Configuration script not found: {config_script}", "error")
-            return 3
-
+    Returns the delegate's exit code, or None when the interpreter could not be
+    launched, which the caller reports as exit 3.
+    """
+    try:
         sys.stdout.flush()
-        result = subprocess.run(
-            ["pwsh", "-NoProfile", "-File", str(config_script)],
-            check=False,
-        )
-        if result.returncode == 0:
-            _color_print("Configuration validation passed", "success")
-            return 0
-        _color_print("Configuration validation failed", "error")
-        return 2
+        result = subprocess.run(command, cwd=str(repo_root), check=False)
+    except OSError as exc:
+        _color_print(f"Could not run {command[0]}: {exc}", "error")
+        return None
+    return result.returncode
 
-    if not codeql_cli_path.exists():
-        _color_print(f"CodeQL CLI not found at: {codeql_cli_path}", "error")
-        print("", file=sys.stderr)
-        _color_print("Install CodeQL CLI with:", "info")
-        print(f"  pwsh {install_script} -AddToPath", file=sys.stderr)
-        print("", file=sys.stderr)
-        _color_print("Or use VSCode task: 'CodeQL: Install CLI'", "info")
+
+def _validate_config(repo_root: Path) -> int:
+    """Validate the CodeQL configuration via the config delegate."""
+    _color_print("Validating CodeQL configuration...", "info")
+    config_script = _delegate_path(repo_root, CONFIG_SCRIPT_NAME)
+    if not config_script.exists():
+        _color_print(f"Configuration script not found: {config_script}", "error")
         return 3
 
-    _color_print(f"CodeQL CLI found at: {codeql_cli_path}", "success")
-
-    if not scan_script.exists():
-        _color_print(f"Scan script not found: {scan_script}", "error")
+    returncode = _run_delegate(
+        [_python_executable(), str(config_script)], repo_root
+    )
+    if returncode is None:
         return 3
+    if returncode == 0:
+        _color_print("Configuration validation passed", "success")
+        return 0
+    _color_print("Configuration validation failed", "error")
+    return 2
 
-    scan_args: list[str] = ["pwsh", "-NoProfile", "-File", str(scan_script)]
+
+def _build_scan_command(scan_script: Path, args: argparse.Namespace) -> list[str]:
+    """Build the delegate scan command and report the selected options."""
+    command = [_python_executable(), str(scan_script)]
 
     if args.operation == "quick":
-        scan_args.append("-UseCache")
+        command.append("--use-cache")
         _color_print("Running quick scan (using cached databases)...", "info")
     else:
         _color_print("Running full scan (rebuilding databases)...", "info")
 
     if args.languages:
-        scan_args.append("-Languages")
-        scan_args.extend(args.languages)
+        command.append("--languages")
+        command.extend(args.languages)
         _color_print(f"Scanning languages: {', '.join(args.languages)}", "info")
 
     if args.ci:
-        scan_args.append("-CI")
+        command.append("--ci")
         _color_print("CI mode enabled (exit 1 on findings)", "info")
 
-    print("", file=sys.stderr)
+    return command
 
-    sys.stdout.flush()
-    result = subprocess.run(scan_args, check=False)
-    exit_code = result.returncode
 
-    print("", file=sys.stderr)
-
+def _report_scan_outcome(exit_code: int, repo_root: Path) -> None:
+    """Print a human-readable summary for a delegate scan exit code."""
     exit_messages = {
         0: ("Scan completed successfully", "success"),
         1: ("Scan completed with findings", "warning"),
@@ -197,13 +229,70 @@ def main(argv: list[str] | None = None) -> int:
     _color_print(msg, msg_type)
 
     if exit_code == 0:
-        results_dir = repo_root / ".codeql" / "results"
-        if results_dir.exists():
+        if (repo_root / ".codeql" / "results").exists():
             _color_print("SARIF results: .codeql/results/", "info")
     elif exit_code == 1:
         _color_print("Review SARIF files in .codeql/results/", "info")
 
+
+def _run_scan(repo_root: Path, args: argparse.Namespace) -> int:
+    """Run a full or quick scan via the scan delegate."""
+    codeql_cli_path = repo_root / ".codeql" / "cli" / "codeql"
+    if platform.system() == "Windows":
+        codeql_cli_path = codeql_cli_path.with_suffix(".exe")
+
+    if not codeql_cli_path.exists():
+        _color_print(f"CodeQL CLI not found at: {codeql_cli_path}", "error")
+        print("", file=sys.stderr)
+        _color_print("Install CodeQL CLI with:", "info")
+        install_script = _delegate_path(repo_root, INSTALL_SCRIPT_NAME)
+        print(
+            f"  {_python_executable()} {install_script} --add-to-path",
+            file=sys.stderr,
+        )
+        print("", file=sys.stderr)
+        _color_print("Or use VSCode task: 'CodeQL: Install CLI'", "info")
+        return 3
+
+    _color_print(f"CodeQL CLI found at: {codeql_cli_path}", "success")
+
+    scan_script = _delegate_path(repo_root, SCAN_SCRIPT_NAME)
+    if not scan_script.exists():
+        _color_print(f"Scan script not found: {scan_script}", "error")
+        return 3
+
+    command = _build_scan_command(scan_script, args)
+    print("", file=sys.stderr)
+
+    exit_code = _run_delegate(command, repo_root)
+    if exit_code is None:
+        return 3
+
+    print("", file=sys.stderr)
+    _report_scan_outcome(exit_code, repo_root)
     return exit_code
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    repo_root = _get_repo_root()
+    if repo_root is None:
+        _color_print("Not in a git repository", "error")
+        return 3
+
+    if not (repo_root / ".codeql").exists():
+        print("[SKIP] .codeql/ not found. CodeQL scanning requires project setup.", file=sys.stderr)
+        return 0
+
+    print("\n=== CodeQL Security Scan ===", file=sys.stderr)
+    print(f"Operation: {args.operation}", file=sys.stderr)
+    print("", file=sys.stderr)
+
+    if args.operation == "validate":
+        return _validate_config(repo_root)
+
+    return _run_scan(repo_root, args)
 
 
 if __name__ == "__main__":

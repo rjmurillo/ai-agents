@@ -25,6 +25,10 @@ PR files tab:
   https://github.com/owner/repo/pull/123/files
   → get_pr_context.py --pull-request 123 --include-changed-files
 
+PR changes tab:
+  https://github.com/owner/repo/pull/123/changes#r987654321
+  → get_pr_context.py --pull-request 123 --include-diff
+
 PR commits tab:
   https://github.com/owner/repo/pull/123/commits
   → get_pr_context.py --pull-request 123 (includes commit count)
@@ -39,11 +43,23 @@ PR checks tab:
 ```text
 Standard issue:
   https://github.com/owner/repo/issues/456
-  → Get-IssueContext.ps1 -Issue "456" -Owner "owner" -Repo "repo"
+  → get_issue_context.py --issue 456 --owner owner --repo repo
 
 Issue with comment:
   https://github.com/owner/repo/issues/456#issuecomment-789123456
   → gh api "repos/owner/repo/issues/comments/789123456"
+
+Discussion:
+  https://github.com/owner/repo/discussions/789
+  → gh api "repos/owner/repo/discussions/789"
+
+Actions run:
+  https://github.com/owner/repo/actions/runs/123
+  → gh api "repos/owner/repo/actions/runs/123"
+
+Actions job:
+  https://github.com/owner/repo/actions/runs/123/job/456
+  → gh api "repos/owner/repo/actions/jobs/456"
 ```
 
 ### File/Tree URLs
@@ -116,7 +132,7 @@ Raw gist content:
 | Review comments | Get-PRReviewComments.ps1 (legacy) | Pagination handled, threading preserved |
 | Review threads | get_pr_review_threads.py | Full thread context |
 | CI status | get_pr_checks.py | Can wait for completion, structured output |
-| Issue overview | Get-IssueContext.ps1 | Structured JSON, proper error handling |
+| Issue overview | get_issue_context.py | Structured JSON, proper error handling |
 
 ### When to Use gh api (Fallback)
 

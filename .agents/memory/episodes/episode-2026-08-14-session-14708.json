@@ -1,0 +1,230 @@
+{
+  "id": "episode-2026-08-14-session-14708",
+  "session": "2026-08-14-session-14708",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve issue 4918 end to end: repair implementation-008 frontmatter and close the frontmatter gate parity gap",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4918 discourse and check for an existing PR",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify the frontmatter repair against the canonical loader",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probe the gate for parity with python-frontmatter",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the parity gap and document the divergences",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clear the taste count ratchet regression the branch carried",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Integrate the concurrent autofix session that pushed to the same branch",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replace the branch after the placeholder-identity guard blocked every push",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: fbec84e94",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e015"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: 8f7b685db",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: cd0e9c38a",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: f8caac4b0",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: ab659dbf5",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T22:08:48+00:00",
+      "type": "commit",
+      "content": "Commit: d0becf519",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T22:10:21+00:00",
+      "type": "commit",
+      "content": "Commit: 8972531ef003950827b30aeb5c8a1a34ef1a798e",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the independent review on PR 5004",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-14T22:10:21+00:00",
+      "type": "commit",
+      "content": "Commit: 8972531ef",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-14-session-14708"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T23:20:03+00:00",
+      "type": "commit",
+      "content": "Commit: 5b51f5b98d97f40fe56096b75fc078780d5c801e",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14708"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 9
+  },
+  "lessons": []
+}
