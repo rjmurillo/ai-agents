@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14711-issue-4994-powershell-refs.json
-qaCommit: 3aa8a2b395ed7901a09034fa664f1b179ffcf52f
+qaCommit: 0452c640e7c9680465f9c5c83e650c1844026987
 ---
 
 # PR 5026 QA Report
