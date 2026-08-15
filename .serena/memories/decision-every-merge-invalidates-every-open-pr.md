@@ -21,11 +21,10 @@ automatically, and there is still no merge queue to test the combined result:
 grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
-
-**That `false` is a 2026-08-03 reading and is no longer true. Strict is `true`
-today, deliberately, and must stay on. See "Do not correct
-`strict_required_status_checks_policy` back to `false`" below, and issue #4646.
+**Measured 2026-08-14: strict is `false` on ruleset 11104075 (reverted
+2026-08-10). Being behind main does not block merge via the ruleset.
 The `merge_group` half still holds: no workflow answers that event, and a merge
+queue cannot be enabled on this repository anyway.**
 queue cannot be enabled on this repository anyway.**
 
 The consequence is stronger than "branches go stale". The count ratchets compare
@@ -161,9 +160,9 @@ repositories for this configuration. The owner must transfer the repository to
 an organization or GitHub must expand eligibility before the ruleset gains a
 `merge_queue` rule.
 
-`strict_required_status_checks_policy` is deliberately `true`. It prevents a
-branch behind main from merging on checks that never saw current main. The
-merge-tree ratchet complements strict checks, it does not replace them.
+`strict_required_status_checks_policy` is `false` (reverted 2026-08-10). A
+branch behind main is not blocked from merging by the ruleset alone. The count
+ratchets still enforce practical freshness for PRs that touch ratcheted counts.
 
 ## Corollary: the merged result can be red even when every input was green
 

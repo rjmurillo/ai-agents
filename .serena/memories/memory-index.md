@@ -15,7 +15,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3568)
+|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3573)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)

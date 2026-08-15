@@ -129,11 +129,11 @@ as sanctioned.
 Do not re-run the push hoping the refusal was transient. The path set is a
 deterministic property of the push range.
 
-Do not merge main into a docs branch just because GitHub says `behind`. Here it
-does block: `main` carries a **ruleset** with
-`strict_required_status_checks_policy: true`, so an out-of-date head cannot
-merge. `gh pr update-branch` clears that without touching local history.
-
+Do not merge main into a docs branch just because GitHub says `behind`. Here
+it does not block: `main` carries a **ruleset** with
+`strict_required_status_checks_policy: false`, so an out-of-date head can still
+merge. Use `gh pr update-branch` only if a status check itself requires fresh
+content (e.g. count ratchets comparing against the current baseline).
 Do not read a 404 from `gh api repos/{owner}/{repo}/branches/main/protection` as
 "main is unprotected". This repository governs `main` with rulesets, not classic
 branch protection, and the classic endpoint 404s regardless. Ask
