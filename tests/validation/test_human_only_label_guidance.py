@@ -47,8 +47,7 @@ from scripts.validation.pr_description import DEFAULT_BYPASS_LABEL, validate_pr_
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRIBUTING = REPO_ROOT / "CONTRIBUTING.md"
-
-_HUMAN_ONLY_LABELS = ("commit-limit-bypass", "description-validation-bypass")
+GOTCHAS = REPO_ROOT / ".agents" / "governance" / "GOTCHAS.md"
 
 # An instruction to the reader: an imperative verb followed, inside the same
 # sentence, by the label name. `[^.]` cannot cross a sentence boundary, so a
@@ -79,16 +78,45 @@ def _assert_defers_to_a_maintainer(message: str, label: str, sanctioned_action: 
     assert match is None, f"reads as an instruction to apply the label: {match} in {message}"
 
 
+_LABEL_SECTIONS = (
+    ("commit-limit-bypass", "#### Bypassing the Limit"),
+    ("description-validation-bypass", "#### Bypassing Description Validation"),
+)
+
+
+def _section_body(lines: Sequence[str], heading: str) -> str:
+    """Return the lines under `heading`, up to the next heading of any level.
+
+    A markdown heading line starts with one or more `#` characters. Slicing
+    to the next such line (or EOF) bounds the section so a caller can assert
+    a declaration is *inside* the cited section, not merely present somewhere
+    in the whole document.
+    """
+    start = lines.index(heading) + 1
+    for offset, line in enumerate(lines[start:]):
+        if line.startswith("#"):
+            return "\n".join(lines[start : start + offset])
+    return "\n".join(lines[start:])
+
+
 def test_contributing_declares_both_labels_human_only() -> None:
-    """The cited authority still says what the three messages claim it says."""
-    text = CONTRIBUTING.read_text(encoding="utf-8")
-    for label in _HUMAN_ONLY_LABELS:
-        assert f"A human maintainer MUST add the `{label}` label" in text, (
-            f"CONTRIBUTING.md no longer declares {label} human-only; "
-            "the enforcement messages citing it are now wrong"
+    """The cited authority still says what the three messages claim it says.
+
+    Scoped to the section named by each message: a declaration existing
+    anywhere in the file is not enough, because the runtime messages cite a
+    specific section by name. If the declaration moved to a different
+    section while the old heading survived elsewhere in the file, an
+    unscoped `in text` check would still pass and the message's citation
+    would go stale silently.
+    """
+    lines = CONTRIBUTING.read_text(encoding="utf-8").splitlines()
+    for label, heading in _LABEL_SECTIONS:
+        assert heading in lines, f"messages cite a section that no longer exists: {heading}"
+        section = _section_body(lines, heading)
+        assert f"A human maintainer MUST add the `{label}` label" in section, (
+            f"CONTRIBUTING.md's {heading!r} section no longer declares {label} "
+            "human-only; the enforcement messages citing that section are now wrong"
         )
-    for heading in ("#### Bypassing the Limit", "#### Bypassing Description Validation"):
-        assert heading in text, f"messages cite a section that no longer exists: {heading}"
 
 
 def test_contributing_never_instructs_without_naming_the_authority() -> None:
@@ -103,7 +131,7 @@ def test_contributing_never_instructs_without_naming_the_authority() -> None:
     `description-validation-bypass` label").
 
     Scope is reported with the finding count per `.claude/rules/testing.md`
-    SHOULD 10: every line of the file is examined, not a subset.
+    MUST 10: every line of the file is examined, not a subset.
     """
     lines = CONTRIBUTING.read_text(encoding="utf-8").splitlines()
     offenders = [
@@ -115,6 +143,33 @@ def test_contributing_never_instructs_without_naming_the_authority() -> None:
         f"{len(offenders)} of {len(lines)} CONTRIBUTING.md lines name a "
         f"human-only label as an action without naming who may take it: {offenders}"
     )
+
+
+_GOTCHAS_BYPASS_HEADING = "## The push blocks at 21 commits, and the check runs at push time"
+
+
+def test_gotchas_defers_the_commit_limit_bypass_to_a_maintainer() -> None:
+    """The commit-limit-bypass entry an agent reads mid-session carries the constraint.
+
+    Direct guard, added because no test in this file previously opened
+    `GOTCHAS.md`: an earlier QA report claimed this suite pinned the entry
+    while no assertion here read the file. `GOTCHAS.md` names only
+    `commit-limit-bypass` (``grep -n "commit-limit-bypass\\|description-
+    validation-bypass" .agents/governance/GOTCHAS.md`` returns one hit, at
+    line 251), so this guard checks the one label the file actually names,
+    scoped to the section that carries it.
+    """
+    lines = GOTCHAS.read_text(encoding="utf-8").splitlines()
+    assert _GOTCHAS_BYPASS_HEADING in lines, (
+        f"GOTCHAS.md renamed or removed the section this guard pins: {_GOTCHAS_BYPASS_HEADING!r}"
+    )
+    section = _section_body(lines, _GOTCHAS_BYPASS_HEADING)
+    assert "human maintainer is the only party who may add it" in section, (
+        "GOTCHAS.md no longer names the maintainer authority for commit-limit-bypass"
+    )
+    assert "do not apply it yourself" in section, "GOTCHAS.md prohibition missing"
+    match = _SELF_SERVICE_INSTRUCTION.search(section)
+    assert match is None, f"reads as an instruction to apply the label: {match} in {section}"
 
 
 def _push_update() -> policy.PushUpdate:
