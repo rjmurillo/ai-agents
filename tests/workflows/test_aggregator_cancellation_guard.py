@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import copy
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,7 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
 MINIMUM_AGGREGATORS_EXAMINED = 7
 
 
-def _load_workflow(name: str) -> dict[str, Any]:
+def _load_workflow(name: str) -> Mapping[Any, Any]:
     path = WORKFLOW_DIR / name
     assert path.is_file(), f"missing workflow file: {path}"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -112,7 +113,7 @@ def _strings(node: Any):
             yield from _strings(value)
 
 
-def _triggers(workflow: dict[str, Any]) -> set[str]:
+def _triggers(workflow: Mapping[Any, Any]) -> set[str]:
     """Event names for a workflow.
 
     PyYAML resolves an unquoted `on:` key to the boolean True, so read both.
@@ -123,11 +124,11 @@ def _triggers(workflow: dict[str, Any]) -> set[str]:
     return {on}
 
 
-def _consumes_dependency_results(job: dict[str, Any]) -> bool:
+def _consumes_dependency_results(job: Mapping[str, Any]) -> bool:
     return any(CONSUMES_NEEDS_RESULT.search(text) for text in _strings(job.get("steps") or []))
 
 
-def cancellation_guard_violations(job: dict[str, Any]) -> list[str]:
+def cancellation_guard_violations(job: Mapping[str, Any]) -> list[str]:
     """Reasons this job would publish a red check for a superseded run.
 
     Empty list means the job is safe. Shared by the real-workflow assertions
@@ -147,7 +148,7 @@ def cancellation_guard_violations(job: dict[str, Any]) -> list[str]:
     return violations
 
 
-def bare_always_violations(job: dict[str, Any]) -> list[str]:
+def bare_always_violations(job: Mapping[str, Any]) -> list[str]:
     """Reject a leftover `always()` term in a job this change converted."""
     condition = str(job.get("if") or "")
     if "always()" in condition:
@@ -155,7 +156,7 @@ def bare_always_violations(job: dict[str, Any]) -> list[str]:
     return []
 
 
-def unguarded_pr_head_aggregators(workflow: dict[str, Any]) -> tuple[list[str], int]:
+def unguarded_pr_head_aggregators(workflow: Mapping[Any, Any]) -> tuple[list[str], int]:
     """Return (violating job ids, number of aggregator jobs examined)."""
     if not (_triggers(workflow) & PR_HEAD_EVENTS):
         return [], 0
