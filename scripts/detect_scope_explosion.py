@@ -289,7 +289,7 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         # staged diff against the base ref, and blocking on merge-base would
         # turn a countable merge into a hard error.
         files = sorted(set(get_index_files_against_ref(base_ref)))
-        authored, gen_count = _partition_generated(files)
+        authored, gen_count = _partition_generated(files, repo_root=Path.cwd())
         return ScopeResult(
             file_count=len(authored),
             merge_base=base_ref[:12],
@@ -311,7 +311,7 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     # ACMR set, which could not subtract such a deletion because the committed
     # diff still listed it (Issue #3171).
     files = sorted(set(get_index_files_against_ref(merge_base)))
-    authored, gen_count = _partition_generated(files)
+    authored, gen_count = _partition_generated(files, repo_root=Path.cwd())
 
     return ScopeResult(
         file_count=len(authored),
