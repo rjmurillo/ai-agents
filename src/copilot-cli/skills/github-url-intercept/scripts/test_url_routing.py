@@ -30,7 +30,7 @@ import sys
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import SplitResult, urlsplit
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -178,13 +178,54 @@ def _parse_resource(
     return None
 
 
+def _has_disallowed_control_characters(url: str) -> bool:
+    return any(character < "\x20" or "\x7f" <= character <= "\x9f" for character in url)
+
+
+def _parse_github_split(url: str) -> SplitResult | None:
+    try:
+        split = urlsplit(url)
+    except ValueError:
+        return None
+    if split.scheme not in {"http", "https"} or split.netloc != "github.com":
+        return None
+    return split
+
+
+def _parse_repo_path(split: SplitResult) -> tuple[str, str, str] | None:
+    path_parts = split.path.split("/", 3)
+    if len(path_parts) < 3 or path_parts[0] != "":
+        return None
+
+    owner = path_parts[1]
+    repo = path_parts[2]
+    rest = path_parts[3] if len(path_parts) == 4 else ""
+
+    if not is_safe_input(owner, SAFE_OWNER_REPO_RE):
+        return None
+    if not is_safe_input(repo, SAFE_OWNER_REPO_RE):
+        return None
+    return owner, repo, rest
+
+
+def _fragment_matches_url_type(fragment_type: str | None, url_type: UrlType) -> bool:
+    expected_url_type = {
+        "pullrequestreview": UrlType.PULL,
+        "discussion_r": UrlType.PULL,
+        "issuecomment": UrlType.ISSUE,
+    }.get(fragment_type)
+    if expected_url_type is None:
+        return fragment_type is None
+    return expected_url_type == url_type
+
+
 def parse_github_url(url: str) -> dict[str, Any] | None:
     """Parse a GitHub URL into structured components.
 
     Returns None if the URL is invalid or contains dangerous characters.
     """
     # Reject control characters that urlsplit would strip (CWE-20).
-    if any(character < "\x20" or "\x7f" <= character <= "\x9f" for character in url):
+    if _has_disallowed_control_characters(url):
         return None
 
     try:
@@ -194,26 +235,14 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
     if gist is not None:
         return gist
 
-    try:
-        split = urlsplit(url)
-    except ValueError:
-        return None
-    if split.scheme not in {"http", "https"} or split.netloc != "github.com":
+    split = _parse_github_split(url)
+    if split is None:
         return None
 
-    path_parts = split.path.split("/", 3)
-    if len(path_parts) < 3 or path_parts[0] != "":
+    repo_path = _parse_repo_path(split)
+    if repo_path is None:
         return None
-
-    owner = path_parts[1]
-    repo = path_parts[2]
-    rest = path_parts[3] if len(path_parts) == 4 else ""
-
-    # Validate owner and repo (CWE-78)
-    if not is_safe_input(owner, SAFE_OWNER_REPO_RE):
-        return None
-    if not is_safe_input(repo, SAFE_OWNER_REPO_RE):
-        return None
+    owner, repo, rest = repo_path
 
     rest, fragment_type, fragment_id = _parse_fragment(split.fragment, rest)
     resource = _parse_resource(rest)
@@ -221,11 +250,7 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
         return None
     url_type, resource_id, subroute, secondary_id, ref, path = resource
 
-    if fragment_type == "pullrequestreview" and url_type != UrlType.PULL:
-        return None
-    if fragment_type == "discussion_r" and url_type != UrlType.PULL:
-        return None
-    if fragment_type == "issuecomment" and url_type != UrlType.ISSUE:
+    if not _fragment_matches_url_type(fragment_type, url_type):
         return None
 
     return {

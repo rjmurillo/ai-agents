@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing",
+  "session": "2026-08-14-session-14711-b3c55bf92-fix-5002-github-url-routing",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix PR #5002 GitHub URL routing failures and publish the branch",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
