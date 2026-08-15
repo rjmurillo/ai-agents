@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, attribution, review fixes, and pre-push gate stabilization committed through b485b6385; evidence-only updates follow."
+        "Evidence": "Implementation, attribution, review fixes, pre-push gate stabilization, and retrospective evidence committed through afd035053; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,7 +170,7 @@
       ]
     }
   ],
-  "endingCommit": "b485b6385173b9a5f298e624b6aa42dfb0233b42",
+  "endingCommit": "afd035053ef860735383e1551116f66beaa2faf4",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
     "Monitor checks, address review threads, and enable auto-merge."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b89eedab4-autofix-5009-review-findings-complete.json
-qaCommit: b485b6385173b9a5f298e624b6aa42dfb0233b42
+qaCommit: afd035053ef860735383e1551116f66beaa2faf4
 ---
 
 # QA Report: PR 5009 dx-review autofix
@@ -19,6 +19,7 @@ Validated commits:
 - `53452b9a9d55c52d20c5d78d28aef8045ca4b053`
 - `029e32ee9dddcbbd9025c67b891029dbbcb342bd`
 - `b485b6385173b9a5f298e624b6aa42dfb0233b42`
+- `afd035053ef860735383e1551116f66beaa2faf4`
 
 Parent commit: `410ad9acd19ce53759b1a1495ade18bcc015740d`
 
@@ -56,6 +57,7 @@ Sizes measured with `wc -lc` at the QA commit.
 | Session corpus timeout | `uv run pytest tests/test_validate_session_json.py::TestAMalformedChecklistItemIsReportedNotFatal -q` | 4 passed |
 | Semgrep integration | `uv run pytest tests/test_lefthook_integration.py -k semgrep -q` | 97 passed |
 | Semgrep command contract | `uv run pytest tests/validation/test_git_hook_semgrep_command.py -q` | 1 passed |
+| Retrospective evidence | Placeholder and prohibited-dash scans | Passed |
 | Exact security gate | Semgrep over the seven changed Python files | 763 rules, 7 targets, 0 errors, 0 findings |
 | Serial scale | Semgrep over 100 synthetic Python targets | 100 targets, 0 errors, 93 seconds |
 
