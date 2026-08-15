@@ -4,9 +4,7 @@ qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
 qaCommit: f2d54701559a1545b1758ccf8abc75b6b2640f09
 ---
 
-# QA Report: Bot identity diagnostic (Issue #4607)
-
-Note: this report will be renamed to carry the PR number once the PR exists.
+# QA Report: Bot identity diagnostic (Issue #4607, PR #5093)
 
 ## Scope
 

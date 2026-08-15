@@ -83,7 +83,7 @@
       },
       "qaValidation": {
         "level": "MUST",
-        "Evidence": ".agents/qa/2026-08-15-issue-4607-bot-identity.md",
+        "Evidence": ".agents/qa/2026-08-15-pr-5093-bot-identity.md",
         "Complete": true
       },
       "changesCommitted": {
@@ -117,7 +117,7 @@
     },
     {
       "action": "qa",
-      "description": "QA report at .agents/qa/2026-08-15-issue-4607-bot-identity.md; acceptance criterion cannot pass until the owner rotates BOT_PAT, stated plainly"
+      "description": "QA report at .agents/qa/2026-08-15-pr-5093-bot-identity.md; acceptance criterion cannot pass until the owner rotates BOT_PAT, stated plainly"
     },
     {
       "action": "fix",
