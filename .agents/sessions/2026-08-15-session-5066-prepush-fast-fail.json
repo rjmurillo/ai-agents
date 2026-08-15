@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5066,
+    "date": "2026-08-15",
+    "branch": "claude/issue-5066-prepush-fast-fail",
+    "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
+    "objective": "Issue #5066: restructure lefthook pre-push so cheap gates fail before the expensive ones start"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; project ai-agents active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md auto-loaded at session start (read-only reference; not modified)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, .claude/rules/ci-scripts.md (MUST-16, MUST-17, MUST-21) read before editing lefthook.yml"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ci-scripts.md MUST-21 stdin/piped constraint; .serena/memories/ci/run-count-ratchets-before-the-expensive-pre-push.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory ci/run-count-ratchets-before-the-expensive-pre-push read; issue #5066 evidence cross-checked"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/issue-5066-prepush-fast-fail, even with origin/main at 430c206d"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/issue-5066-prepush-fast-fail"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "430c206d21425c178f783daf84c7a7c48591160c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "sessionStart and sessionEnd items recorded with per-item evidence in this file"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ci/run-count-ratchets-before-the-expensive-pre-push.md updated: the pre-#5066 ordering trap is fixed in tooling; manual ratchet runs remain the cheapest loop"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on the QA report and memory edit; .agents/** is excluded by .markdownlint-cli2.yaml ignores"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-5066-prepush-fast-fail.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "f89f4c6 lefthook restructure with tests; follow-up commit carries session log, QA report, memory update"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "941 passed, 2 skipped across the seven lefthook-pinning test modules; single failure test_the_tracked_scan_fails_config_on_an_unreadable_file reproduces on unmodified origin/main in this root-user environment (chmod-000 stays readable), pre-existing; uv run python scripts/validation/pre_pr.py run before push; ruff clean on changed files; taste count ratchet OK (583 == baseline)"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #5066, lefthook.yml, ci-scripts.md MUST-16/17/21, and every test pinning lefthook wiring",
+      "evidence": "tests/test_lefthook_integration.py, tests/ci/test_lefthook_config_integrity.py, tests/ci/test_lefthook_ratchet_wiring.py, tests/ci/test_worktree_gc_wiring.py, tests/test_lefthook_gate_config.py, tests/ci/test_pre_pr_runs_lefthook_ratchets.py"
+    },
+    {
+      "step": "Empirically verified lefthook 2.1.10 scheduling semantics in a throwaway fixture repo",
+      "evidence": "piped hook + parallel group with one failing job: later top-level jobs and groups report '(skip) broken pipe' and do not run; clean run delivers the full ref-update stdin payload to every use_stdin job including a top-level job placed after groups"
+    },
+    {
+      "step": "Timed every Stage A candidate standalone",
+      "evidence": "taste 2.5s, type-ignore 0.1s, memory-index 0.4s, cli-exit-contract 10.0s, memory-index-token 1.5s, ruff_ratchet 0.1s, ruff_count 0.4s, merge-tree 16.6s, unreachable 5.2s, scope 0.2s, branch-context 0.2s, path-normalization 1.7s, planning-artifacts 0.1s, review-axis-drift 0.1s"
+    },
+    {
+      "step": "Restructured lefthook.yml pre-push into fast-fail and expensive stages, job bodies untouched",
+      "evidence": "per-job parse diff against origin/main:lefthook.yml: 36 jobs both sides, missing [], added [], body-changed []"
+    },
+    {
+      "step": "Updated the piped-stdin-group pin and added tests/ci/test_lefthook_prepush_fast_fail.py",
+      "evidence": "33 new tests pass; ordering pins fail against origin/main config (taste idx 4 == python-tests idx 4, security-scan idx 3); runtime tests drive the real lefthook binary with positive and negative controls"
+    },
+    {
+      "step": "Ran the seven lefthook-pinning test modules",
+      "evidence": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)"
+    }
+  ],
+  "endingCommit": "f89f4c6e219480e6737db0f9672aebbe4c1b9617",
+  "nextSteps": [
+    "After PR creation: add QA report copy matching .agents/qa/*pr-<N>*.md and refresh endingCommit in a follow-up commit"
+  ]
+}

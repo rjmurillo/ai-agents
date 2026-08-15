@@ -1,0 +1,79 @@
+# QA Report: pre-push fast-fail staging (issue #5066)
+
+- **Branch**: `claude/issue-5066-prepush-fast-fail`
+- **Session log**: `.agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json`
+- **Scope**: `lefthook.yml` pre-push restructure, `tests/test_lefthook_integration.py` pin update, new `tests/ci/test_lefthook_prepush_fast_fail.py`
+
+## What changed
+
+`lefthook.yml` pre-push is restructured into a fast-fail stage (cheap blocking
+gates) that must pass before the expensive stage (python-tests, semgrep, mypy,
+workflow-local-run, build-all-check, e2e smokes, pre-pr-validation) starts.
+Every job body is byte-identical to the previous config; only positions
+changed, verified by parsing both configs and diffing per-job mappings
+(36 jobs on both sides, zero body diffs, zero added or removed names).
+
+## Acceptance criteria verification
+
+### A failure detectable in under 60 seconds never costs a full pytest run
+
+The hook is `piped: true`, so a failing entry skips everything after it.
+Verified empirically on lefthook 2.1.10 in a fixture repository: a failing job
+inside a `parallel: true` group makes every later top-level entry report
+`(skip) broken pipe`, and the expensive marker job never ran.
+`tests/ci/test_lefthook_prepush_fast_fail.py::TestRuntimeFastFail` pins this
+against the real binary with a positive control.
+
+Fast-stage gates and their measured standalone wall clocks (2026-08-15, idle
+machine): taste-count-ratchet 2.5s, type-ignore 0.1s, memory-index 0.4s,
+cli-exit-contract 10.0s, memory-index-token 1.5s, ruff_ratchet 0.1s,
+ruff_count 0.4s, merge-tree 16.6s, unreachable-statements 5.2s, branch-scope
+0.2s, branch-context 0.2s, path-normalization 1.7s, planning-artifacts 0.1s,
+review-axis-drift 0.1s, retrospective-policy 0.2s. Parallel-stage maximum is
+about 17s; the fast stage also carries less contention than before because it
+no longer shares a scheduling group with pytest.
+
+### Total wall time for a clean push not worse by more than 10 percent
+
+Before: stdin piped group (including semgrep) ran serially, then one parallel
+group whose maximum is python-tests (measured 741.85s per
+`.serena/memories/ci/run-count-ratchets-before-the-expensive-pre-push.md`).
+After: the same stdin group minus semgrep, plus the fast parallel stage
+(max about 17s standalone), then semgrep serial (position relative to the
+expensive group unchanged: it ran before that group in both configs), then
+the same expensive parallel group. The only wall-clock addition on a clean
+push is the fast parallel stage maximum, roughly 17s against a 12-to-17
+minute total, about 2 percent. The real push of this branch exercised the
+new hook end to end (see Evidence).
+
+### All existing gates still run; only ordering changes
+
+Per-job diff against `origin/main:lefthook.yml`: 36 jobs before and after,
+no additions, no removals, no run/glob/env/timeout/use_stdin changes.
+`security-scan` stays a serialized stdin consumer (top-level job of the piped
+hook rather than member of the piped group), preserving ci-scripts.md MUST-21:
+a fixture run confirmed a top-level `use_stdin: true` job placed after groups
+receives the byte-identical full ref-update payload. The two e2e jobs keep
+their pre-existing `use_stdin`-inside-parallel-group shape, unchanged and now
+pinned as a closed exception list so it cannot silently grow.
+
+## Test evidence
+
+- `uv run --frozen pytest tests/ci/test_lefthook_prepush_fast_fail.py tests/test_lefthook_integration.py tests/ci/test_lefthook_config_integrity.py tests/ci/test_lefthook_ratchet_wiring.py tests/ci/test_worktree_gc_wiring.py tests/test_lefthook_gate_config.py tests/ci/test_pre_pr_runs_lefthook_ratchets.py`: 941 passed, 2 skipped, 1 failed.
+- The single failure, `test_the_tracked_scan_fails_config_on_an_unreadable_file`, also fails on the unmodified origin/main tree in this environment (runs as root, where a chmod-000 file stays readable). Pre-existing, unrelated to ordering.
+- Negative controls: the new ordering tests fail against the origin/main config (taste-count-ratchet and python-tests shared entry index 4, security-scan sat at index 3 before the ratchets), so the pins discriminate the old shape from the new one.
+- New coverage is positive (ordering holds, runtime clean-run control), negative (misordered synthetic config detected, stdin-in-parallel synthetic config detected, runtime fast-stage failure skips the expensive stage), and edge (unknown job name, config without pre-push, duration unit parsing, fast-stage timeout ceiling).
+
+## Known gaps
+
+- The dash guard and QA-report discovery named in the issue body live inside
+  `pre-pr-validation` (`checks_dash.validate_dash_prohibition`) and
+  `session-json-validation` (`validate_qa_report_evidence`). The session-log
+  and QA checks run in the fast stdin group; the dash guard rides
+  `pre-pr-validation` (measured 75.86s), which stays in the expensive stage
+  because promoting it would add its full wall clock to every clean push.
+  Splitting the dash check into a standalone fast job would add a new job,
+  which the issue scopes out ("only ordering changes").
+- Fast-stage timings were measured standalone on one machine (ci-scripts.md
+  MUST-16 caveat). The stage's job timeouts are unchanged (2m-10m caps), so a
+  loaded machine degrades wall clock, not correctness.
