@@ -236,8 +236,8 @@ State it rather than let a reader assume the coverage is wider than it is.
 - **Claude Code and VS Code resolvers.** Only Copilot CLI was driven. The
   `src/vs-code-agents` tree targets VS Code and its 30 `Claude Opus 4.6 (copilot)`
   values were never tested against VS Code itself, only against Copilot CLI.
-- **Other CLI versions.** The candidate-value matrix above (the four
-  model-tier/threshold resolutions) was measured on 1.0.79 only; only the
+- **Other CLI versions.** The candidate-value matrix above (seven explicit
+  values plus the absent control) was measured on 1.0.79 only; only the
   delegation probe's treatment/control runs (see above) were additionally
   repeated on 1.0.81-0, confirming the same resolution behavior there.
   Fallback-on-unresolvable is observed behavior, not a documented contract,
