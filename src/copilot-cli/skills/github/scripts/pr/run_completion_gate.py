@@ -408,6 +408,31 @@ def _verify_config_trust(
                 f"{proc.stderr.decode(errors='replace').strip()}",
             )
         toplevel = Path(proc.stdout.decode(errors="replace").strip())
+
+        # The config's work tree must BE the project root's work tree.
+        # rev-parse from config_path.parent resolves the NEAREST git
+        # repository, so a config placed inside a PR-vendored nested
+        # repository or initialized submodule would otherwise be
+        # verified against that nested repository's origin/main, whose
+        # remote the PR author can own, making an attacker-committed
+        # config byte-identical to an attacker-controlled trusted ref.
+        proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
+        if proc.returncode != 0:
+            return TrustCheck(
+                TRUST_GIT_ERROR,
+                f"project root {_PROJECT_ROOT} is not inside a git work "
+                f"tree: {proc.stderr.decode(errors='replace').strip()}",
+            )
+        project_toplevel = Path(proc.stdout.decode(errors="replace").strip())
+        if toplevel.resolve() != project_toplevel.resolve():
+            return TrustCheck(
+                TRUST_GIT_ERROR,
+                f"config {config_path} resides in a different git work "
+                f"tree ({toplevel}) than the project root "
+                f"({project_toplevel}); a nested repository or submodule "
+                f"cannot anchor trust",
+            )
+
         try:
             rel = config_path.resolve().relative_to(toplevel.resolve())
         except ValueError:

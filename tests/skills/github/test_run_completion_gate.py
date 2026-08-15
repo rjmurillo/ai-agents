@@ -1502,6 +1502,31 @@ class TestConfigTrustBoundary:
         assert "\x1b" not in err
         assert "\\u001b" in err
 
+    def test_config_in_nested_repository_fails_closed(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # A PR can vendor a nested repository (initialized submodule or
+        # committed checkout) whose origin/main the ATTACKER controls.
+        # A config inside it is byte-identical to that attacker-owned
+        # trusted ref, so trust must anchor at the project root's work
+        # tree and refuse a config from any other one (exit 3, never
+        # approvable).
+        nested = tmp_path / "vendor"
+        nested.mkdir()
+        _git(nested, "init", "-q")
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(nested, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(nested, config_path)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
+        err = capsys.readouterr().err
+        assert "different git work tree" in err
+
     def test_symlinked_config_is_rejected_without_reading_target(
         self, git_repo, tmp_path, capsys,
     ):
