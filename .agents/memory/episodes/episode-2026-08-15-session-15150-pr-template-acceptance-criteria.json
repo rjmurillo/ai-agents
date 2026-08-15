@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-08-15-session-15150-pr-template-acceptance-criteria",
+  "session": "2026-08-15-session-15150-pr-template-acceptance-criteria",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "PR process improvement wave: file issues 5064-5074, align PR template with the Validate Spec Coverage acceptance-criteria contract (issue 5068 item 3), dispatch implementer sessions for issues 5066, 5071, 5072, 5073, 5074",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Researched PR process end-to-end: repo gate map, GitHub friction metrics on 8 sampled merged PRs, retrospective and memory mining",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issues 5064 (evidence binding survives catch-up merges), 5065 (PR-scoped ratchet evaluation), 5066 (pre-push fast-fail stage), 5067 (CI consumes review marker), 5068 (MUST/gate alignment), 5069 (reviewer premise verification), 5070 (CodeRabbit path_instructions), 5071 (mypy diff scoping), 5072 (completion-gate config trust boundary), 5073 (measure-main-first triage probe), 5074 (merge-resolver rename rule)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected issue 5068 after verification: semantic title check is enforced by scripts/ci/classify_semantic_title_result.py; continue-on-error only absorbs the Unicorn HTML flake (issue 2616)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added Acceptance criteria section to .github/PULL_REQUEST_TEMPLATE.md so the template matches the Validate Spec Coverage contract documented in push-pr.md (issue 5068 item 3)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched five implementer sessions: issues 5066, 5071, 5072, 5073, 5074, each on its own claude/issue-NNNN branch",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched four more implementer sessions for stalled diagnosed issues 4751, 4349, 4691, 4607; deferred 4608 (blocked on merge-group work, constant has no production caller)",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed remote-container push blockers found during pre-push: added sqlite3 and openssh-client to scripts/bootstrap-vm.sh prerequisites, added root skip-guard to orphan-ref-validator permission-denied test (chmod 0 cannot deny read to root) in canonical and mirror copies",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed two more root-container test defects found by the pre-push suite: euid-0 skip guard on the unreadable-file scan test, real error input for the sqlite get_count test that had only ever passed by being skipped",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main; sibling PRs 5084 and others had shipped equivalent root-guard and bootstrap fixes, resolved conflicts toward main and kept only the additive sqlite non-numeric test",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed Copilot review round: template placeholder converted from HTML comment to visible prose, added regression test parsing the shipped template through acceptance_criteria.parse_criteria, rewrote QA report so the human-readable scope matches the frontmatter binding and names the sync_observations behavior change",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T22:23:47+00:00",
+      "type": "commit",
+      "content": "Commit: d64d0f4981a70dbccf78a823e36e233e2bed7ebf",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15150-pr-template-acceptance-criteria"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}
