@@ -10,6 +10,24 @@ import sys
 LOGIC_ERROR = 1
 BYPASS_LABEL = "commit-limit-bypass"
 
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority for
+# this label; CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# So the blocked-PR annotation states the sanctioned action (split) and names the
+# label as a maintainer decision rather than as the reader's next step (issue
+# #4782). The clause is duplicated from
+# scripts/validation/git_hook_policy.py:_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY rather
+# than imported: pr-validation.yml:212 runs this script as
+# `python3 scripts/ci/enforce_pr_validation.py` with nothing installed and no
+# sys.path setup, and an import failure here takes the required check red on
+# every PR. tests/validation/test_human_only_label_guidance.py pins both copies
+# to the same policy.
+HUMAN_ONLY_NOTICE = (
+    f"The '{BYPASS_LABEL}' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _fetch_labels(repository: str, pr_number: str) -> tuple[int, list[str]]:
     result = subprocess.run(
@@ -60,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
             ceiling = f" (limit: {commit_limit})" if commit_limit else ""
             print(
                 f"::error::PR has {commit_count} commits{ceiling}. "
-                f"Add '{BYPASS_LABEL}' label to override or split this PR.",
+                f"Split this PR into smaller ones. {HUMAN_ONLY_NOTICE}",
                 file=sys.stderr,
             )
             return LOGIC_ERROR

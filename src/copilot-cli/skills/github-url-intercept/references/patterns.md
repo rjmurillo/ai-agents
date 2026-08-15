@@ -129,7 +129,7 @@ Raw gist content:
 | Need | Script | Why |
 |------|--------|-----|
 | PR overview | get_pr_context.py | Structured JSON, proper error handling |
-| Review comments | Get-PRReviewComments.ps1 (legacy) | Pagination handled, threading preserved |
+| Review comments | get_pr_review_comments.py | Pagination handled, threading preserved |
 | Review threads | get_pr_review_threads.py | Full thread context |
 | CI status | get_pr_checks.py | Can wait for completion, structured output |
 | Issue overview | get_issue_context.py | Structured JSON, proper error handling |
@@ -161,8 +161,8 @@ Raw gist content:
 ### When Size Matters Most
 
 1. **Large PRs** (100+ files, 1000+ lines)
-   - Use `-DiffStat` instead of full diff
-   - Use `-IncludeChangedFiles` without `-IncludeDiff`
+   - Use `--diff-stat` instead of full diff
+   - Use `--include-changed-files` without `--include-diff`
 
 2. **Busy issues** (50+ comments)
    - Get issue context first
