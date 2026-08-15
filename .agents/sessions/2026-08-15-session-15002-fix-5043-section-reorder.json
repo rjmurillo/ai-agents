@@ -25,7 +25,7 @@
       "checklistComplete": {"complete": true, "level": "MUST", "evidence": "All items recorded"},
       "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
       "markdownLintRun": {"complete": true, "level": "MUST", "evidence": "No markdown in code commit"},
-      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-5043-section-reorder-qa.md"},
+      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-5054-section-reorder-qa.md"},
       "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed and pushed"},
       "validationPassed": {"complete": true, "level": "MUST", "evidence": "1654 tests passed, mypy clean, ruff clean"},
       "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"}
