@@ -89,27 +89,33 @@ class TestRepair:
     """A flat episode with a resolvable commit regains its edges."""
 
     @pytest.mark.unit
-    def test_flat_episode_regains_edges(self, tmp_path):
+    def test_flat_episode_with_midnight_milestones_is_unrepairable(self, tmp_path):
+        """Milestones at midnight are incomparable to commits (issue #4847).
+
+        The repair cannot create edges between them because the milestone's
+        true time is unknown. This is correct: the old behavior created false
+        causal edges.
+        """
         episodes = tmp_path / "episodes"
         path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
 
         result = _run("--episodes-dir", str(episodes))
 
         assert result.returncode == 0, result.stderr
-        assert _summary(result)["Repaired"] == 1
-        events = json.loads(path.read_text(encoding="utf-8"))["events"]
-        assert events[0]["leads_to"] == ["e003"]
-        assert events[2]["caused_by"] == ["e001", "e002"]
+        summary = _summary(result)
+        assert summary["Repaired"] == 0
+        assert str(path) in summary["Unrepairable"]
 
     @pytest.mark.unit
-    def test_commit_event_keeps_its_real_timestamp(self, tmp_path):
+    def test_unrepairable_episode_is_not_rewritten(self, tmp_path):
+        """An unrepairable episode is left on disk unchanged (issue #4847)."""
         episodes = tmp_path / "episodes"
         path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
+        before = path.read_bytes()
 
         _run("--episodes-dir", str(episodes))
 
-        events = json.loads(path.read_text(encoding="utf-8"))["events"]
-        assert events[2]["timestamp"] != MIDNIGHT
+        assert path.read_bytes() == before
 
     @pytest.mark.unit
     def test_second_run_changes_nothing(self, tmp_path):
@@ -176,7 +182,9 @@ class TestCliContract:
         result = _run("--episodes-dir", str(episodes), "--check")
 
         assert result.returncode == 0, result.stderr
-        assert _summary(result)["Repaired"] == 1
+        # Midnight milestones are incomparable to commits (issue #4847),
+        # so the episode is unrepairable, not repaired.
+        assert _summary(result)["Repaired"] == 0
         assert path.read_bytes() == before
 
     @pytest.mark.unit
@@ -199,8 +207,9 @@ class TestCliContract:
         assert result.returncode == 1
         summary = _summary(result)
         assert len(summary["Invalid"]) == 1
-        assert summary["Repaired"] == 1
-        assert json.loads(good.read_text(encoding="utf-8"))["events"][0]["leads_to"] == ["e003"]
+        # The "good" episode has midnight milestones, so it's unrepairable (issue #4847)
+        assert summary["Repaired"] == 0
+        assert str(good) in summary["Unrepairable"]
 
     @pytest.mark.unit
     def test_unreadable_json_is_reported_not_raised(self, tmp_path):
