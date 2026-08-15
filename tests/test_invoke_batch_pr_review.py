@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -12,8 +13,8 @@ from scripts.invoke_batch_pr_review import (
     get_pr_branch,
     get_worktree_status,
     main,
-    push_worktree_changes,
     print_status_table,
+    push_worktree_changes,
     run_gh,
     run_git,
 )
@@ -64,6 +65,28 @@ class TestGetWorktreeStatus:
         status = get_worktree_status(42, Path("/nonexistent"))
         assert status.exists is False
         assert status.pr == 42
+
+
+def _git(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run a git command, isolated from the caller's locale.
+
+    Signature and body are identical to
+    ``tests/test_pr_autofix_worktree_identity.py::_git`` (verified this
+    session by reading that file), the closest existing analog: both files
+    build throwaway git repos to exercise
+    ``scripts.github_core.worktree_identity``. No divergence.
+    """
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=check,
+    )
 
 
 def _prepare_pushable_worktree(root: Path) -> Path:
