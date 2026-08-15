@@ -93,11 +93,13 @@ uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
     --json
 ```
 
-Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
+Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error (including a config that diverges from or is absent at the trusted ref); exit 3 = trust verification impossible (no git work tree, trusted ref missing). On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
 
 ### Trust boundary on the PR branch
 
-When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree. A malicious PR can change `completion_criteria.command` or `pass_when_python` and the dispatcher will execute it. Before invoking `/pr-review` on a PR that you do not control, INSPECT the diff for any change to `.claude/commands/pr-review-config.yaml`. Hardening (loading the config from `main` or refusing to run on divergence) is tracked as a follow-up to PR #1898.
+When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree, which a malicious PR could rewrite (CWE-829: inclusion of functionality from untrusted control sphere). The dispatcher enforces this boundary itself: before executing any `completion_criteria.command`, it requires the working-tree config to be byte-identical to the copy at the trusted ref (`origin/main` by default; `--trusted-ref` overrides). If the file diverges, is absent from the trusted ref, or cannot be verified, the gate halts before any dispatch and prints the diff to stderr.
+
+To proceed after a halt, a human must inspect the surfaced diff and explicitly approve it; only then re-run with `--approve-untrusted-config`, which dispatches with a loud warning and records the trust status in the JSON evidence. Do NOT pass that flag on your own initiative: surface the diff to the user and stop. Refs Issue #5072 (hardening follow-up to PR #1898).
 
 ## Related Memories
 

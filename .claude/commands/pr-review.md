@@ -126,7 +126,7 @@ uv run python "$SCRIPTS_DIR/run_completion_gate.py" \
     --json
 ```
 
-The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error. On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
+The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error (including a config that diverges from or is absent at the trusted ref), and 3 when the trust check itself cannot run (no git work tree, trusted ref missing). On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
 
 When the dispatcher exits 1, surface the failing criterion's `name`, `command`, `reason`, and a stdout/stderr excerpt from the JSON output, then halt. Do not claim completion. Do not re-run the gate hoping for a different answer. Investigate the underlying failure and address it; once addressed, the gate may be re-run. The `--json` mode emits the verifier evidence inline; the table mode (default) prints the same fields below each FAIL row.
 
@@ -134,7 +134,9 @@ When the dispatcher exits 1, surface the failing criterion's `name`, `command`, 
 
 ### Trust boundary on the PR branch
 
-When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree. A malicious PR can change `completion_criteria.command` or `pass_when_python` and the dispatcher will execute it. Before invoking `/pr-review` on a PR that you do not control, INSPECT the diff for any change to `.claude/commands/pr-review-config.yaml`. The same caution applies to any test/lint/build a reviewer runs on a PR branch; this gate just makes the execution path explicit. Hardening (loading the config from `main` or refusing to run on divergence) is tracked as a follow-up to PR #1898.
+When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree, which a malicious PR could rewrite (CWE-829: inclusion of functionality from untrusted control sphere). The dispatcher enforces this boundary itself: before executing any `completion_criteria.command`, it requires the working-tree config to be byte-identical to the copy at the trusted ref (`origin/main` by default; `--trusted-ref` overrides). If the file diverges, is absent from the trusted ref, or cannot be verified (no git work tree, ref missing), the gate halts before any dispatch and prints the diff to stderr. Exit codes: 2 for a diverged or missing-at-base config, 3 when verification itself is impossible.
+
+To proceed after a halt, a human must inspect the surfaced diff and explicitly approve it; only then re-run with `--approve-untrusted-config`, which dispatches with a loud warning and records the trust status in the JSON evidence. Do NOT pass that flag on your own initiative: surface the diff to the user and stop. Config changes still evolve through normal PRs; once a change merges to the base branch, the working tree matches the trusted ref again and the gate runs without any flag. Refs Issue #5072 (hardening follow-up to PR #1898).
 
 ## Related Memories
 
