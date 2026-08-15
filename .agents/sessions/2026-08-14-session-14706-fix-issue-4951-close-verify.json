@@ -109,7 +109,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Issue #4951 claimed via claim_issue.py; PR opened and linked"
+        "Evidence": "Issue #4951 claimed via claim_issue.py; PR #5011 (https://github.com/rjmurillo/ai-agents/pull/5011) opened against main, closingIssuesReferences resolves to issue 4951"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -161,9 +161,10 @@
       "outcome": "merge commit af757ed9f; my session and episode files renamed with an issue suffix, main's 14706 files kept as landed"
     }
   ],
-  "endingCommit": "43134500538660691e9f64b48dc3c729532217ff",
+  "endingCommit": "558122b99e4df99e6c12564fe1f12937768dd4c1",
   "nextSteps": [
     "scripts/validation/verify_issue_close.py::verify_pr_merged collapses probe failure into False the same way; its callers say \"unverified\" rather than \"not merged\", so the false-claim harm is absent, but the bool contract still hides the difference from triage automation",
-    "Five scripts still carry copy-pasted _AUTH_ERROR_MARKERS tuples; github_core.api.AUTH_ERROR_MARKERS is the shared home for new callers"
+    "Five scripts still carry copy-pasted _AUTH_ERROR_MARKERS tuples; github_core.api.AUTH_ERROR_MARKERS is the shared home for new callers",
+    "new_pr_validations._validate_session_end validates a ref-backed temp copy of the session log under .agents/scratch without passing --session-log-identity, so validate_session_json.py derives the identity from the scratch path and the QA binding check fails with 'QA report session log does not match current session'; the flag exists for this case and no caller in the repo passes it, so any branch carrying a session log plus a bound QA report cannot create a PR through new_pr.py"
   ]
 }

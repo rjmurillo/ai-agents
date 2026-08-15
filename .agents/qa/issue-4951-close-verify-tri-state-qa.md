@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-fix-issue-4951-close-verify.json
-qaCommit: 43134500538660691e9f64b48dc3c729532217ff
+qaCommit: 63beae2c1d628e02a0f9ca0cc811f9945af1ac13
 ---
 
 # QA Report: Issue #4951 close-verification tri-state
@@ -95,3 +95,16 @@ failure at the same seam.
 - Five other scripts still carry copy-pasted `_AUTH_ERROR_MARKERS` tuples.
   `github_core.api.AUTH_ERROR_MARKERS` is now the shared home for new callers;
   the existing copies are untouched by this branch.
+
+## PR #5011 Review Thread Fixes (2026-08-14)
+
+Three Copilot review threads addressed in commit `8b55183a4`:
+
+| Thread | File | Fix | Test Coverage |
+|--------|------|-----|---------------|
+| PRRT_kwDOQoWRls6ZcLU- | `api.py:_parse_graphql_response` | Validate JSON is dict; validate errors items are dicts | `TestParseGraphqlResponseShapeValidation` (9 tests) |
+| PRRT_kwDOQoWRls6ZcLVQ | `api.py:is_auth_failure_text` | Add "Resource not accessible by integration" → exit 4; exclude rate-limit 403s | `TestPermissionDenialExitCode` (7 tests) |
+| PRRT_kwDOQoWRls6ZcRCI | `close_issue.py:_check_commit` | Validate response body on exit 0 (JSON, sha field, prefix match) | `TestCommitProbeBodyValidation` (6 tests) |
+
+Test counts: 22 new tests in `tests/test_pr_5011_review_fixes.py`.
+All 20920 existing tests continue to pass (1 pre-existing temp-dir error in mutation harness, unrelated).
