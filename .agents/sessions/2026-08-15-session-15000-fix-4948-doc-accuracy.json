@@ -7,7 +7,7 @@
     "startingCommit": "333a80b74a",
     "objective": "Fix issue #4948: doc-accuracy ASCII and PowerShell false positives"
   },
-  "endingCommit": "b5b5d96591bfab0f040e5d761a1dd462984ef9a9",
+  "endingCommit": "1fa3c1f60b38992aa155a844636f80e332f95471",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
@@ -90,7 +90,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "b5b5d96591 fix(doc-accuracy): skip compilability check for languages without source extractors"
+        "Evidence": "1fa3c1f60b fix(doc-accuracy): capture non-word chars in fence info string"
       },
       "validationPassed": {
         "level": "MUST",
@@ -125,7 +125,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "333a80b74a981fdc6438977eda69ff03aa34aba2",
-      "head": "b5b5d96591bfab0f040e5d761a1dd462984ef9a9"
+      "head": "1fa3c1f60b38992aa155a844636f80e332f95471"
     }
   },
   "retrospective": "## Retrospective\n\nLearning: denylist approaches for language filtering are fragile. An allowlist keyed on available extractors is self-maintaining and eliminates an entire category of false positives as new languages are added to fences."

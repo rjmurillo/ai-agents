@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15000-fix-4948-doc-accuracy.json
-qaCommit: b5b5d96591bfab0f040e5d761a1dd462984ef9a9
+qaCommit: 1fa3c1f60b38992aa155a844636f80e332f95471
 ---
 
 # PR 5018 QA Report: doc-accuracy false positives fix
