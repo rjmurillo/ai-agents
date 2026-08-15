@@ -4,7 +4,8 @@ Validates that:
 - Write tools are blocked when worktree != Serena project root
 - Read tools are always allowed
 - Matching worktrees pass through
-- Missing git or .serena/ fails open
+- Missing CLAUDE_PROJECT_DIR fails closed for writes (blocks)
+- Missing git toplevel on CWD fails open (not in a git repo)
 - SERENA_PROJECT_ROOT env var overrides discovery
 """
 
@@ -81,6 +82,24 @@ class TestScopeMatch:
             guard,
             "_read_payload",
             return_value=("serena-find_symbol", fake_git_repo),
+        ):
+            assert guard.main() == 0
+
+
+class TestMatcherContract:
+    """Negative controls: tools outside the write set are never blocked."""
+
+    def test_unrelated_tool_passes(self, fake_git_repo: Path) -> None:
+        """Non-serena tool (Bash) always passes regardless of scope."""
+        with patch.object(
+            guard, "_read_payload", return_value=("Bash", fake_git_repo)
+        ):
+            assert guard.main() == 0
+
+    def test_unknown_serena_variant_passes(self, fake_git_repo: Path) -> None:
+        """Tool name not in WRITE_TOOLS passes (e.g. future read tool)."""
+        with patch.object(
+            guard, "_read_payload", return_value=("serena-unknown_tool", fake_git_repo)
         ):
             assert guard.main() == 0
 
