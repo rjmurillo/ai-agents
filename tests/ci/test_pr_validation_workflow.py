@@ -852,7 +852,12 @@ class TestBlockedMessageNamesTheLimitThatWasApplied:
         assert "41 commits" in err
 
     def test_the_remediation_survives_every_shape(self, monkeypatch, capsys) -> None:
-        """Edge: the actionable half of the message is never dropped."""
+        """Edge: the actionable half of the message is never dropped.
+
+        Since issue #4782 the actionable half is the split, and the label is
+        named only as a maintainer's decision, so the prohibition on
+        self-application is part of what this pins.
+        """
         for limit in ("40", ""):
             _, err = self._run(
                 monkeypatch,
@@ -863,7 +868,8 @@ class TestBlockedMessageNamesTheLimitThatWasApplied:
                 COMMIT_LIMIT=limit,
             )
             assert enforce_mod.BYPASS_LABEL in err
-            assert "split this PR" in err
+            assert "Split this PR" in err
+            assert "do not apply it yourself" in err
 
     def test_the_workflow_still_supplies_the_variable(self) -> None:
         """Edge: the fix is inert unless the workflow binds COMMIT_LIMIT."""

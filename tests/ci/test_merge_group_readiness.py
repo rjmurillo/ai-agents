@@ -10,16 +10,11 @@ from typing import Any, TypedDict
 import pytest
 import yaml
 
+from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
-# REQUIRED_CONTEXTS mirrors ruleset 11104075 on rjmurillo/ai-agents. Refresh it
-# with:
-#
-#   gh api repos/rjmurillo/ai-agents/rulesets/11104075 --jq \
-#     '.rules[] | select(.type=="required_status_checks")
-#      | .parameters.required_status_checks[].context'
-#
 # Measured 2026-08-10: 16 contexts. The earlier 17th, "Aggregate Results", was
 # dropped from the ruleset after three workflows produced a check run under that
 # one name. Only the workflows that produce a context in this set need a
@@ -37,25 +32,6 @@ REQUIRED_WORKFLOWS = {
     "validate-generated-agents.yml",
     "validate-paths.yml",
     "validate-plugin-version-bump.yml",
-}
-
-REQUIRED_CONTEXTS = {
-    "Analyze (actions)",
-    "Analyze (python)",
-    "Analyst Review",
-    "Architect Review",
-    "DevOps Review",
-    "QA Review",
-    "Roadmap Review",
-    "Run Python Tests",
-    "Security Review",
-    "Validate Generated Files",
-    "Validate Path Normalization",
-    "Validate PR",
-    "Validate PR title",
-    "Validate Plugin Version Bump",
-    "Validate Spec Coverage",
-    "Validate memory citations",
 }
 
 REQUIRED_PRODUCERS = {

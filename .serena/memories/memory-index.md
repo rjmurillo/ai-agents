@@ -15,7 +15,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3568)
+|merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3222)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
@@ -23,12 +23,13 @@
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
 |new_pr create stale main ref session end validation: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
-|close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
+|close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (2127)
 |pr autofix late merge live state base refresh: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
-|gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (324)
+|gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
+|github url path dotfile leading dot traversal encoded blob tree: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object: [skills-jq-index](skills-jq-index.md) (356)
 |pr autofix lease bare checkout wrong branch local: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
@@ -39,6 +40,7 @@
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (885)
+|ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]
@@ -51,11 +53,13 @@
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
 |copilot hook generation matcher shim stale cleanup NO-REGEN: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1992)
 |subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (783)
+|lefthook placeholder remote positional arg duplicate job name inert push-ref-staleness: [hooks/lefthook-substitutes-positional-args-not-names](hooks/lefthook-substitutes-positional-args-not-names.md) (788)
 |test exit code pytest pester error failed passed: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |mutation testing false green sed delimiter guard load-bearing: [mutation-testing-false-green](mutation-testing-false-green.md) (908)
 |find existing test coverage by mutation not by: [find-coverage-by-mutation-not-by-name](find-coverage-by-mutation-not-by-name.md) (645)
 |regex pattern match escape lookahead anchor quantifier: [utilities/utilities-regex](utilities/utilities-regex.md) (548)
 
+|sys.path pollution frontmatter module collision test order import shadowing: [issue-4995-frontmatter-module-collision](issue-4995-frontmatter-module-collision.md) (120)
 [Security]
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
 |filesystem redirect symlink junction ancestor parent swap descriptor: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
@@ -80,7 +84,7 @@
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
 |code quality changed-only regression gate absolute debt issue: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
-|validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (503)
+|validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (539)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 |markdownlint scratch argv command length process startup batch exit code empty output issue 4892: [linting/linting-exclusions](linting/linting-exclusions.md) (2065)
 
@@ -97,7 +101,7 @@
 |spec coverage acceptance criteria checkbox observe signal non-blocking: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |mutation harness restore failure truncate empty target sibling: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
-|count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (845)
+|count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (797)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (714)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (839)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
@@ -108,7 +112,7 @@
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2000)
 |copilot skill mirror two canonical sources generate_skills generate_commands: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
-|CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (1004)
+|CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (1068)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
@@ -185,3 +189,4 @@
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1170)
+|codeql scan wrapper delegate python issue 4921: [codeql/codeql-scan-wrapper-python-delegates](codeql/codeql-scan-wrapper-python-delegates.md) (930)

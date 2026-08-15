@@ -24,7 +24,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -41,6 +41,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -575,6 +576,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
 )
+# Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
+# Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
+# The sanitized segment never contains __ (non-alnum runs collapse to single _),
+# so the last __ in a stem always marks the suffix boundary. Refs #4857.
+_HOOK_MATCHER_SUFFIX_RE = re.compile(
+    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
+)
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -982,30 +990,54 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
-def _recent_date_prefixes() -> tuple[str, str]:
-    """Return today's and yesterday's UTC date strings for cross-midnight tolerance."""
-    from datetime import timedelta
+def _current_host_date_prefixes() -> tuple[str, ...]:
+    """Return scanner-local grace plus dates physically current worldwide."""
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    earliest = (now_utc - timedelta(hours=12)).date()
+    latest = (now_utc + timedelta(hours=14)).date()
+    physically_current_dates = tuple(
+        (earliest + timedelta(days=offset)).isoformat()
+        for offset in range((latest - earliest).days + 1)
+    )
+    return tuple(dict.fromkeys((*host_dates, *physically_current_dates)))
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    return today, yesterday
+
+def _recent_date_prefixes() -> tuple[str, ...]:
+    """Return admissible host-local and UTC retrospective date prefixes.
+
+    ``run_retrospective.build_parser`` defaults its dated scope through
+    ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
+    undated scopes instead use UTC. Preserve the scanner host's today/yesterday
+    grace, then add only calendar dates that are physically current somewhere
+    in the UTC-12 through UTC+14 range. This finds a same-instant artifact from
+    another host without admitting an arbitrary scanner-relative ±2-day
+    window.
+    """
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime("%Y-%m-%d"),
+        (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
+    )
+    return tuple(dict.fromkeys((*_current_host_date_prefixes(), *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
-    """Return today's and yesterday's session logs, or None if unreadable.
+    """Return adjacent-date session logs, or None if unreadable.
 
-    The two-day window handles cross-midnight UTC sessions. Returning None
-    rather than an empty list keeps "directory unreadable" distinguishable
-    from "no logs today", because both callers fail open on the former.
+    The scanner host's today/yesterday grace is augmented only by dates that
+    are physically current somewhere from UTC-12 through UTC+14. This finds a
+    same-instant log from another host without admitting arbitrary stale
+    scanner-relative dates. Returning None rather than an empty list keeps
+    "directory unreadable" distinguishable from "no logs today", because both
+    callers fail open on the former.
     """
     if not sessions_dir.is_dir():
         return None
-    today, yesterday = _recent_date_prefixes()
     candidates: list[Path] = []
     try:
-        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
-        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
+        for date_prefix in _current_host_date_prefixes():
+            candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None
     return candidates
@@ -1127,10 +1159,12 @@ def _is_committed_here(repo_root: Path, path: Path) -> bool:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
-    Checks both today's and yesterday's UTC dates to handle cross-midnight
-    sessions gracefully. Follows hook_utilities.get_today_session_log selection
-    semantics (newest UTC-dated session log by mtime) with the per-file stat
-    resilience of hook_utilities._newest_by_mtime: a single unreadable candidate
+    Delegates date selection to ``_recent_session_candidates``, whose window
+    covers cross-midnight sessions and the full host timezone range (Issue
+    #4779). Follows
+    hook_utilities.get_today_session_log selection semantics (newest dated
+    session log by mtime) with the per-file stat resilience of
+    hook_utilities._newest_by_mtime: a single unreadable candidate
     (deleted or renamed mid-scan, permission race) is skipped rather than
     blinding the check to every other valid log. An empty match or an unreadable
     directory yields None so branch-context checking fails open.
@@ -1579,9 +1613,8 @@ def _today_retrospective_exists(repo_root: Path) -> bool:
     retro_dir = repo_root / ".agents" / "retrospective"
     if not retro_dir.is_dir():
         return False
-    today, yesterday = _recent_date_prefixes()
     try:
-        for prefix in (today, yesterday):
+        for prefix in _recent_date_prefixes():
             if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
                 return True
         return False
@@ -2453,6 +2486,11 @@ def _mirror_source(relative_path: str) -> str | None:
             if not remainder.endswith(output_suffix):
                 continue
             remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
         return source_prefix + remainder
     return None
 
@@ -4083,6 +4121,10 @@ def _semgrep_command(
         "--exclude-rule",
         "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
+    # Semgrep's default 7 jobs can fail before scanning when io_uring cannot
+    # allocate its worker queues. One job scanned 100 files in 93 seconds.
+    # Its default 5-second rule timeout also rejected this validator; 30 seconds
+    # scanned the seven-file push set within the 840-second child budget.
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -4097,6 +4139,8 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        "--jobs=1",
+        "--timeout=30",
         *exclude_compat_rules,
         "--",
         *targets,
@@ -5960,6 +6004,30 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 
 _NEEDS_SPLIT_LABEL = "needs-split"
 
+# Every message that names `commit-limit-bypass` carries this clause with it.
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
+# CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# Naming the label as the reader's next step tells whoever tripped the gate to
+# grant themselves a permission they do not hold. An agent reads that as
+# sanctioned remediation because it arrives from the enforcement mechanism
+# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
+# after this gate suggested it (issue #4782). Same shape as the atomic-commit
+# message, which states the local remedy and then closes the bypass door
+# ("Split this commit. This local pre-commit check has no PR-label bypass.",
+# added in commit e1fbc5a7a, PR #4245).
+#
+# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# who MAY add the label (a human maintainer). This message additionally
+# states who may NOT (the reader), because the load-bearing half for an
+# autonomous reader is the prohibition, not the permission; the canonical
+# line alone did not stop the PR #4735 agent from self-applying the label.
+_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
+    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _check_needs_split_bypass(
     update: PushUpdate, branch: str | None, repo_root: Path
@@ -5994,8 +6062,9 @@ def _check_needs_split_bypass(
         else "could not count new commits"
     )
     print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-        "use commit-limit-bypass to override the ceiling entirely.",
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
+        "Split the branch and push the parts separately. "
+        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
         file=sys.stderr,
     )
     return None
@@ -6124,7 +6193,7 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
         result = _run_command(
             [
                 sys.executable,
-                ".claude/skills/SkillForge/scripts/validate-skill.py",
+                ".claude/skills/skillforge/scripts/validate-skill.py",
                 Path(path).parent.as_posix(),
             ],
             repo_root,

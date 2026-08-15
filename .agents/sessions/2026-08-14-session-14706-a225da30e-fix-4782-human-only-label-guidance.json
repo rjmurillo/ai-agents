@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-14",
+    "branch": "fix/4782-push-gate-human-only-label",
+    "startingCommit": "a225da30e",
+    "objective": "Stop enforcement messages from telling their reader to apply a human-only bypass label (issue #4782)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "activate_project was not exposed as a separate tool; Serena resolved the project from the working directory and list_memories returned the 42.3 KB memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual before any repository edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only reference; .agents/handoffs holds no issue 4782 handoff."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue and used check_existing_pr_for_issue.py and claim_issue.py instead of raw gh for the claim."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md gates, .claude/rules/canonical-source-mirror.md, ci-scripts.md, testing.md, session-logs.md, push-lock.md and governance.md read before editing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "CONTRIBUTING.md lines 845-916 read as the canonical authority for both human-only labels; .claude/rules/governance.md read before touching .agents/governance/GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the Serena memory index and process/process-bypass-pattern-generalization, which records the session 1187 bypass cascade this issue is an instance of."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4782-push-gate-human-only-label in worktree /home/richard/src/GitHub/rjmurillo/ai-agents-worktrees/issue-4782"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported fix/4782-push-gate-human-only-label, created from origin/main at a225da30e"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fresh worktree; git status listed only the five intended modifications and one new test file."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a225da30e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified before the push."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory mutation. Searched .serena/memories: process/process-bypass-pattern-generalization covers the agent-behavior half, and the mechanism-design half now lives in three durable surfaces this PR touches (CONTRIBUTING.md, .agents/governance/GOTCHAS.md, and the guard test). .claude/rules/knowledge-persistence.md says a must-obey convention belongs in a rule file, not a Serena memory, so a memory here would duplicate without binding. Residual gap recorded as PR follow-up: the guard pins the three known surfaces, so a brand-new fourth enforcement message naming a human-only label would not be caught."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on CONTRIBUTING.md and .agents/governance/GOTCHAS.md reported 0 issues; GOTCHAS.md was NOT LINTED because .markdownlint-cli2.yaml excludes .agents/**, so 1 of 2 files was selected."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4997-human-only-label-guidance.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Thirteen atomic commits on this branch, session 14706's own work (excludes a concurrent session's four commits (visible in `git log origin/fix/4782-push-gate-human-only-label`, not authored here), which fixed the same three review threads independently before this session's branch merged them): 5f351cf8d81c9b3c46595cab12f47eee6d5de201 (CONTRIBUTING.md authority), 76521cf2f58f701d3412761ab62d9a61d2658b44 (the three enforcement messages with their tests), c7e1ff3339e5111c92226a3b56d79ef9841d4c43 (the GOTCHAS.md entry with this log), 0076e356293aa899ae80980b45f1d607c15d0c0d (the QA report and episode), 1edbf4fb0e42d55bc36876d1c573b76bb8598a33 (corrected the knowledge-persistence decision wording), 2ad3620319656d4517ce5a9d07a20d26ec390d34 (renamed the QA report so CI can find it), cd820953ed28263112dd3d52d81e5395f0c6192d (a later review round: scoped the CONTRIBUTING.md declaration checks to their section, corrected MUST 10, and added the GOTCHAS.md guard test), 8cf2d981af441e092a7c020c79849df0d56a64b6 (aligned the QA report with the new guard and the real bypass-present path), c6dc1d9e133d9ce661d04d5f1cae3d1bc8de07f9 (recorded every authored SHA and corrected two evidence claims), 1a7e136aa6b5314c972d9bc326d97bfad188b1d8 (advanced the QA binding past that round's test fix), 6993646f825a32f4047dcca0af0b538ddc4364fd (merged the concurrent session's branch, keeping this session's section-scoped guard and removing its duplicate weaker GOTCHAS test), 6b31cbebd6d4a0e1dae9ba15dd4da9191a18272e (fixed GOTCHAS.md's 'and nothing else' self-contradiction), 0976ab80e7213d17be44e36d082b4c9d3931c2a9 (named the canonical-mirror divergence in both bypass-message comments and repaired a merge-index defect in git_hook_policy.py)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest on the changed suites reported 567 passed; uv run ruff check clean on all changed Python files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "BLOCKED: no task row exists for issue 4782; the issue itself carries the state."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. The retrospective for the underlying incident is the issue body itself, which already records the PR #4735 and PR #4479 evidence."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T20:25:00Z",
+      "action": "Read the full issue #4782 discourse and confirmed no competing work existed.",
+      "detail": "check_existing_pr_for_issue.py reported existing_pr_count 0 and git ls-remote showed no 4782 branch. claim_issue.py returned claimed rjmurillo. The two issue comments are automated triage from the velocity accelerator and CodeRabbit, with no human counter-proposal to the suggested fix."
+    },
+    {
+      "timestamp": "2026-08-14T20:35:00Z",
+      "action": "Audited every message in the tree that names a human-only label.",
+      "detail": "CONTRIBUTING.md declares exactly two labels human-only, at lines 883 and 912. Three enforcement messages named one of them as the reader's own next step: git_hook_policy.py needs-split cap (the reported one), enforce_pr_validation.py blocked-PR annotation, and pr_description.py file-mismatch CRITICAL. check_pr_bypass_label.py reports presence without recommending, and pr_commit_count.py defers enforcement without naming a remedy, so both are correct as they stand. Of the candidates the issue named for audit, [skip-drift-check] already carries its code-owner obligation in show_drift_failure.py and the lefthook SKIP_ variables print only after the fact, so neither is the same defect."
+    },
+    {
+      "timestamp": "2026-08-14T20:45:00Z",
+      "action": "Rewrote all three messages to state the constraint, the sanctioned action, and the prohibition.",
+      "detail": "Each names the label only as a maintainer decision and cites CONTRIBUTING.md by section heading rather than by line number, because a line number in a runtime message rots silently. Followed the atomic-commit precedent from commit e1fbc5a7a, which states the local remedy and then closes the bypass door."
+    },
+    {
+      "timestamp": "2026-08-14T21:00:00Z",
+      "action": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
+      "detail": "Nine tests: the CONTRIBUTING.md citations still resolve, scoped to the section each names; no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority; the GOTCHAS.md entry names the same maintainer-only constraint; all three enforcement messages defer to a maintainer; and three no-over-fire controls prove the allowed paths carry no self-service instruction to apply the label: the push-gate-under-cap and description-validator paths never name the label at all, and the CI-blocker-with-label-present path drops the 'do not apply it yourself' lecture but still prints a bypass-applied notice (`::warning::Commit limit bypassed via 'commit-limit-bypass' label`, scripts/ci/enforce_pr_validation.py:73) that names the label. test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
+    },
+    {
+      "timestamp": "2026-08-14T21:10:00Z",
+      "action": "Ran the four-mutant negative control.",
+      "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
+    },
+    {
+      "timestamp": "2026-08-15T08:00:00Z",
+      "action": "Fetched and merged a concurrent session's independent fix for the same issue.",
+      "detail": "origin/fix/4782-push-gate-human-only-label had advanced five commits ahead with its own fix for the same three review threads. Merged with git merge (no rebase, no force); four files conflicted (the guard test, the QA report, this log, the episode). Kept this session's section-scoped _LABEL_SECTIONS/_section_body test helper over the concurrent branch's unscoped whole-file regex check, deleted the concurrent branch's duplicate weaker GOTCHAS test, and kept this session's more precise QA wording. Resolved the episode conflict --ours, pending regeneration."
+    },
+    {
+      "timestamp": "2026-08-15T08:20:00Z",
+      "action": "Fixed the eight active findings from review 4943283947 on the post-merge commit.",
+      "detail": "check_suppressed_review_findings.py --pull-request 4997 listed: session/QA test-count text stale at eight tests/five positives (now nine/six); GOTCHAS.md's 'and nothing else' contradicted its own split-into-another-PR remedy and CONTRIBUTING.md:857 (reworded to state both sanctioned paths, split or ask a maintainer to decide on the label, without exclusivity, using a pronoun reference so the fix does not itself trip _SELF_SERVICE_INSTRUCTION); a dead retrospectiveFile field named a file absent from both branches (removed); the durable count named 566 by the reviewer but the freshly re-run changed-suite command reported 567 by the time of the fix, so 567 is what is recorded, not the reviewer's now-stale suggestion; and the two derived-contract comments in git_hook_policy.py and pr_description.py were missing the exact 'Stricter/looser/different than canonical' heading required by .claude/rules/canonical-source-mirror.md (added, quoting CONTRIBUTING.md:883 and :912 verbatim)."
+    },
+    {
+      "timestamp": "2026-08-15T08:30:00Z",
+      "action": "Discovered and repaired a merge-index defect in git_hook_policy.py introduced while trimming the merge commit to the five-file authored-file cap.",
+      "detail": "check_atomic_commit() only exempts a merge-commit file from the cap when its staged content is byte-identical to MERGE_HEAD; an unstaging pass used to get under the cap ran `git restore --staged` on git_hook_policy.py, which resets the index to HEAD (this branch's parent), not the true three-way merge blend, silently dropping origin/main's unrelated _current_host_date_prefixes refactor from the merge commit's recorded tree. The working tree file itself was untouched, so the next commit that touched the file (the canonical-mirror heading fix) picked up the correct content again; confirmed by diffing the merge commit's blob against MERGE_HEAD's blob for that path (identical except this session's own heading comment) and documented the defect and repair in that commit's message rather than rewriting the already-built-on merge commit."
+    },
+    {
+      "timestamp": "2026-08-15T08:45:00Z",
+      "action": "Rebound the QA report and this log's changesCommitted/endingCommit to the final code commit and regenerated the episode.",
+      "detail": "changesCommitted had stopped at cd820953e, seven entries short of this session's actual thirteen commits; extended it and rebound endingCommit and the QA report's qaCommit/validation-commit narrative to 0976ab80e, the last commit touching non-evidence files. Regenerated the episode with extract_session_episode.py --preserve and validated it with --validate."
+    }
+  ],
+  "endingCommit": "0976ab80e7213d17be44e36d082b4c9d3931c2a9",
+  "nextSteps": [
+    "PR #4997 is open. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
+  ]
+}

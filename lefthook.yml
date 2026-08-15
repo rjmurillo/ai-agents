@@ -167,6 +167,11 @@ pre-commit:
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
 
+          - name: colocated-skill-tests
+            timeout: 1m
+            run: uv run --frozen python scripts/validation/check_colocated_skill_tests.py --staged-only
+            glob: "{.claude/skills,src/copilot-cli/skills,src/claude/skills}/**/tests/**test*.py"
+
           - name: command-size
             timeout: 5m
             run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
@@ -384,9 +389,24 @@ pre-push:
       timeout: 30s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
+    # Issue #4634: this job was declared twice, and the copy that ran first
+    # passed `{remote}`. Lefthook substitutes positional hook arguments only
+    # (`{0}` for all of them, `{1}`..`{n}` for one), so `{remote}` reached the
+    # script verbatim, `git ls-remote "{remote}"` resolved nothing, and the
+    # check reported success on every push. Git hands pre-push the remote name
+    # (or URL) as the first argument, so `{1}` is the supported spelling; the
+    # commit-message-policy job above uses the same `"{1}"` form. If a token
+    # ever reaches the script unexpanded again, it exits 2 rather than guessing
+    # a remote, so the misconfiguration fails the push instead of passing it.
+    # Keep this job ahead of the long-running groups: aborting here is the
+    # whole point, since the jobs below take 6-15 minutes before git would
+    # report the rejection.
+    # The 1m timeout is the deleted copy's, which is the safer of the two: the
+    # script allows `git ls-remote` 10s per pushed ref, so a push of several
+    # refs on a slow link could exceed the 30s this copy carried.
     - name: push-ref-staleness
-      timeout: 30s
-      run: uv run --frozen python scripts/validation/push_ref_staleness.py {remote}
+      timeout: 1m
+      run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
       use_stdin: true
 
     - group:
@@ -416,11 +436,6 @@ pre-push:
             timeout: 10m
             run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
             use_stdin: true
-
-    - name: push-ref-staleness
-      timeout: 1m
-      run: uv run --frozen python scripts/validation/push_ref_staleness.py
-      use_stdin: true
 
     - group:
         parallel: true

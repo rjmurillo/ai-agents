@@ -176,7 +176,7 @@ def is_credible_rescope(
     * The file count is positive. ``get_index_files_against_ref`` now raises
       ``ScopeDetectionError`` on any nonzero ``git diff``. Quoted rather than
       paraphrased, because this branch is the whole reason the condition exists,
-      ``scripts/detect_scope_explosion.py:196-198``::
+      ``scripts/detect_scope_explosion.py:201-203``::
 
           if result.returncode != 0:
               raise ScopeDetectionError(

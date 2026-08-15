@@ -167,6 +167,11 @@
       "required": ["filesChanged", "comparison"],
       "additionalProperties": false,
       "properties": {
+        "commitHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Latest commit authored by this session when QA rebinding advances comparison.head"
+        },
         "filesChanged": {
           "type": "integer",
           "minimum": 0,

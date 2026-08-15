@@ -134,8 +134,12 @@ def step_verify_claude_skill(repo_root: str) -> str:
     write_status("Verifying Claude Code skill...", "info")
     skill_dir = os.path.join(repo_root, ".claude", "skills", "codeql-scan")
     skill_file = os.path.join(skill_dir, "SKILL.md")
+    # Entry point documented by .claude/skills/codeql-scan/SKILL.md:
+    #   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+    # This verified the removed Invoke-CodeQLScanSkill.ps1 until Issue #4921, so
+    # the step reported the skill missing even when it was correctly installed.
     skill_script = os.path.join(
-        skill_dir, "scripts", "Invoke-CodeQLScanSkill.ps1",
+        skill_dir, "scripts", "invoke_codeql_scan.py",
     )
 
     if os.path.isfile(skill_file) and os.path.isfile(skill_script):

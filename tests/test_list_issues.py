@@ -382,7 +382,7 @@ class TestMain:
                 main([])
         assert exc.value.code == 3
         error = json.loads(capsys.readouterr().out)["Error"]
-        assert error["Type"] == "ApiError"
+        assert error["Type"] == "RateLimitError"
         assert "Could not verify empty issue list" in error["Message"]
 
     def test_invalid_limit_exits_2(self, capsys):
@@ -444,3 +444,111 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert output[0]["author"] is None
+
+
+# ---------------------------------------------------------------------------
+# Issue #4901: GraphQL rate-limit classification
+# ---------------------------------------------------------------------------
+
+
+class TestRateLimitClassification:
+    """Issue #4901: preserve GraphQL rate-limit classification."""
+
+    def test_graphql_rate_limit_reports_rate_limit_error(self, capsys):
+        """Primary rate-limit response yields RateLimitError, not ApiError."""
+        stderr = "GraphQL: API rate limit exceeded for user ID 12345 - retry after 1723612800"
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "RateLimitError"
+        assert "rate limit" in payload["Error"]["Message"].lower()
+
+    def test_secondary_rate_limit_reports_rate_limit_error(self, capsys):
+        """Secondary/abuse rate-limit yields RateLimitError."""
+        stderr = "gh: secondary rate limit reached (HTTP 403)"
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "RateLimitError"
+
+    def test_auth_failure_reports_auth_error(self, capsys):
+        """Auth failure (not rate limit) yields AuthError exit 4."""
+        stderr = "gh: Resource not accessible by integration (HTTP 403)"
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 4
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "AuthError"
+
+    def test_generic_api_error_still_exits_3(self, capsys):
+        """Non-rate-limit, non-auth errors still produce ApiError exit 3."""
+        stderr = "gh: Could not resolve to a Repository"
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
+
+    def test_empty_list_verify_rate_limited_reports_rate_limit_error(self, capsys):
+        """Rate limit during empty-result verification yields RateLimitError."""
+        stderr = "API rate limit already exceeded for user"
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _completed(stdout="[]", rc=0),  # gh issue list returns empty
+                _completed(rc=1, stderr=stderr),  # verify probe hits rate limit
+            ],
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "RateLimitError"

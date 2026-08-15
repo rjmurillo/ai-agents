@@ -35,9 +35,12 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -127,6 +130,13 @@ class NamingConventionResult(ValidationIssues):
 
 
 @dataclass
+class FrontmatterResult(ValidationIssues):
+    """Result of frontmatter YAML validity validation."""
+
+    invalid_files: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Orphan:
     """An orphaned file not referenced by any index."""
 
@@ -172,6 +182,7 @@ class ValidationReport:
     domain_results: dict[str, DomainResult] = field(default_factory=dict)
     memory_index_result: MemoryIndexRefResult | None = None
     naming_convention: NamingConventionResult | None = None
+    frontmatter_validity: FrontmatterResult | None = None
     orphans: list[Orphan] = field(default_factory=list)
     summary: ValidationSummary = field(default_factory=ValidationSummary)
 
@@ -868,6 +879,160 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
     return result
 
 
+# File names the canonical memory loader skips. Kept in parity with
+# scripts/memory_enhancement/serena_integration.py load_memories so this gate
+# guards exactly the files that reach the loader (PR #4985 review).
+_CANONICAL_SKIP_NAMES = frozenset({"README.md", "CLAUDE.md"})
+
+# Delimiter that opens and closes a frontmatter block. Copied from the parser
+# the canonical loader calls, python-frontmatter's YAMLHandler, quoted verbatim
+# from frontmatter/default_handlers.py:
+#     FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
+# THREE OR MORE dashes, not exactly three. A differential probe over both
+# implementations found the difference: `----` opened a block for the loader,
+# which then raised YAMLError and printed the #4918 warning, while a gate
+# keying on `== "---"` stayed silent. Matching the parser's own pattern closes
+# that false negative. re.MULTILINE is dropped here because this matches one
+# already-split line rather than scanning a whole document.
+_FM_BOUNDARY = re.compile(r"^-{3,}\s*$")
+
+
+def _parse_leading_frontmatter(
+    text: str,
+) -> tuple[bool, object, str | None]:
+    """Parse a leading YAML frontmatter block directly.
+
+    Returns ``(has_frontmatter, metadata, error)``:
+
+    - ``(False, None, None)`` when the file has no leading frontmatter block.
+      Frontmatter is optional (issue #4900), so plain Markdown, or a file whose
+      only ``---`` is a horizontal rule in the body, is not frontmatter.
+    - ``(True, metadata, None)`` when a closed block parsed successfully.
+      ``metadata`` is whatever YAML produced (dict, list, scalar, or None).
+    - ``(True, None, error)`` when the opening delimiter never closes or the
+      block is not parseable YAML. ``error`` is a one-line reason.
+
+    Detection mirrors ``frontmatter.loads``: surrounding whitespace is stripped
+    first, as ``frontmatter.parse`` does with "text = u(text, encoding).strip()",
+    a block opens only when the FIRST remaining line is a ``_FM_BOUNDARY``
+    delimiter, so a horizontal rule later in the body is never misread as
+    frontmatter, and it closes at the next delimiter line, whose dash count need
+    not match the opening one (the canonical ``FM_BOUNDARY.split(text, 2)`` does
+    not require that either).
+
+    Lines are split on ``\\n`` only. ``str.splitlines()`` would also break on
+    ``\\v``, ``\\f``, ``\\x1c``-``\\x1e``, ``\\x85``, ``\\u2028`` and
+    ``\\u2029``, while the canonical ``re.MULTILINE`` anchors exist only around
+    ``\\n``. Splitting the same way keeps a delimiter the canonical parser
+    cannot see from becoming one here (PR #5004 review).
+
+    Stricter/looser/different than canonical:
+
+    - STRICTER on an unclosed delimiter, a list block, and a scalar block.
+      ``frontmatter.loads`` returns empty metadata for all three and warns for
+      none, which is how corruption reaches main (issue #4918).
+    - STRICTER on a UTF-8 BOM in front of the delimiter, whatever the block
+      contains. ``FM_BOUNDARY.match`` fails on the BOM, so the loader reads the
+      whole file as plain Markdown and drops the metadata without warning. A
+      valid block behind a BOM is therefore just as lost as a malformed one,
+      so both are reported (PR #5004 review).
+    """
+    normalized = text.strip()
+    bom_prefixed = normalized.startswith("\ufeff")
+    if bom_prefixed:
+        normalized = normalized[1:].strip()
+    lines = normalized.split("\n")
+    if not _FM_BOUNDARY.match(lines[0]):
+        return False, None, None
+    if bom_prefixed:
+        return True, None, (
+            "UTF-8 BOM before the frontmatter delimiter; the loader reads the "
+            "whole file as plain Markdown and drops the metadata"
+        )
+    for idx in range(1, len(lines)):
+        if _FM_BOUNDARY.match(lines[idx]):
+            block = "\n".join(lines[1:idx])
+            try:
+                metadata = yaml.safe_load(block)
+            except yaml.YAMLError as exc:
+                detail = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+                return True, None, detail
+            return True, metadata, None
+    return True, None, "unclosed frontmatter delimiter (missing closing '---')"
+
+
+def check_frontmatter_validity(memory_path: Path) -> FrontmatterResult:
+    """Validate that leading YAML frontmatter parses on every memory file.
+
+    Scans .md files under memory_path recursively, skipping only ``README.md``
+    and ``CLAUDE.md`` to match the canonical loader's selection (see the comment
+    below). A file that opens with a frontmatter block (first line matching
+    ``_FM_BOUNDARY``, three or more dashes) must close that block and carry a
+    YAML mapping. A file with no leading frontmatter is fine: frontmatter is
+    optional in existing Serena
+    memories (issue #4900), so a plain-Markdown file, or one with a later
+    horizontal rule, is not a violation.
+
+    Three malformed shapes that ``frontmatter.loads`` accepted as empty
+    metadata are now violations (issue #4918): an unclosed opening delimiter, a
+    block that parses to a list, and a block that parses to a scalar. An empty
+    block (``None``) stays valid because it carries no colon-space corruption.
+    """
+    result = FrontmatterResult()
+
+    if not memory_path.exists():
+        return result
+
+    # File selection and YAML handling here stay in parity with the canonical
+    # memory loader, scripts/memory_enhancement/serena_integration.py, so this
+    # gate guards the exact files that reach it. Canonical selection
+    # (load_memories), quoted verbatim:
+    #     skip_names = {"README.md", "CLAUDE.md"}
+    #     for md_file in sorted(memories_dir.rglob("*.md")):
+    #         if md_file.name in skip_names:
+    #             continue
+    # Canonical YAML handling (_extract_metadata), quoted verbatim:
+    #     try:
+    #         post = frontmatter.loads(raw_text)
+    #     except yaml.YAMLError:
+    #         # Malformed YAML frontmatter; treat as plain markdown
+    # Divergence: the loader warns and falls back to plain Markdown on a
+    # YAMLError and treats empty metadata as "no frontmatter". This gate
+    # instead FAILS (records a violation) on an unclosed delimiter, a
+    # non-mapping block, or unparseable YAML, because merging that corruption
+    # is the defect #4918 exists to stop. Hidden directories are not skipped:
+    # the loader still reads a malformed '.trash/*.md', so this gate must too.
+    for f in sorted(memory_path.rglob("*.md")):
+        if f.name in _CANONICAL_SKIP_NAMES:
+            continue
+        relative = f.relative_to(memory_path)
+        has_frontmatter, metadata, error = _parse_leading_frontmatter(
+            f.read_text(encoding="utf-8")
+        )
+        if not has_frontmatter:
+            continue
+        rel_posix = relative.as_posix()
+        if error is not None:
+            result.passed = False
+            result.invalid_files.append(rel_posix)
+            result.issues.append(
+                f"Malformed YAML frontmatter: {rel_posix} ({error}). "
+                f"Quote values that contain a colon-space, close the block with "
+                f"a '---' delimiter, or remove the frontmatter block."
+            )
+            continue
+        if metadata is not None and not isinstance(metadata, dict):
+            result.passed = False
+            result.invalid_files.append(rel_posix)
+            result.issues.append(
+                f"Malformed YAML frontmatter: {rel_posix} (frontmatter must be "
+                f"a mapping, got {type(metadata).__name__}). Use 'key: value' "
+                f"lines, or remove the frontmatter block."
+            )
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # P1 validators
 # ---------------------------------------------------------------------------
@@ -1330,12 +1495,64 @@ def run_validation(
             for issue in naming_result.issues:
                 print(f"  - {issue}")
 
+    # P0: Frontmatter YAML validity (issue #4918)
+    frontmatter_result = check_frontmatter_validity(memory_path)
+    report.frontmatter_validity = frontmatter_result
+
+    if not frontmatter_result.passed:
+        report.passed = False
+        if output_format == "console":
+            print(
+                f"\n[P0] Malformed frontmatter "
+                f"({len(frontmatter_result.invalid_files)}):"
+            )
+            for issue in frontmatter_result.issues:
+                print(f"  - {issue}")
+
     return report
 
 
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
+
+
+def _bullet_section(heading: str, items: Iterable[str]) -> list[str]:
+    """Render a heading over a bullet list, or nothing when there are no items.
+
+    Every optional section of the report has the same shape, and inlining that
+    shape five times is what pushed ``format_markdown`` past the complexity
+    ceiling the taste ratchet enforces.
+    """
+    bullets = [f"- {item}" for item in items]
+    if not bullets:
+        return []
+    return [heading, "", *bullets, ""]
+
+
+def _domain_section(domain: str, result: DomainResult) -> list[str]:
+    """Render one domain's status, file issues, and keyword uniqueness table."""
+    lines = [
+        f"## Domain: {domain}",
+        "",
+        f"**Status**: {'PASS' if result.passed else 'FAIL'}",
+        "",
+    ]
+    lines.extend(_bullet_section("### File Issues", result.file_references.issues))
+
+    densities = result.keyword_density.densities
+    if densities:
+        lines.append("### Keyword Uniqueness")
+        lines.append("")
+        lines.append("| File | Uniqueness |")
+        lines.append("|------|------------|")
+        for file_name, density in densities.items():
+            pct = round(density * 100)
+            status = "OK" if density >= 0.40 else "LOW"
+            lines.append(f"| {file_name} | {pct}% ({status}) |")
+        lines.append("")
+
+    return lines
 
 
 def format_markdown(report: ValidationReport) -> str:
@@ -1360,43 +1577,29 @@ def format_markdown(report: ValidationReport) -> str:
     ]
 
     for domain, result in report.domain_results.items():
-        lines.append(f"## Domain: {domain}")
-        lines.append("")
-        lines.append(f"**Status**: {'PASS' if result.passed else 'FAIL'}")
-        lines.append("")
+        lines.extend(_domain_section(domain, result))
 
-        if result.file_references.issues:
-            lines.append("### File Issues")
-            for issue in result.file_references.issues:
-                lines.append(f"- {issue}")
-            lines.append("")
-
-        if result.keyword_density.densities:
-            lines.append("### Keyword Uniqueness")
-            lines.append("")
-            lines.append("| File | Uniqueness |")
-            lines.append("|------|------------|")
-            for file_name, density in result.keyword_density.densities.items():
-                pct = round(density * 100)
-                status = "OK" if density >= 0.40 else "LOW"
-                lines.append(f"| {file_name} | {pct}% ({status}) |")
-            lines.append("")
-
-    if report.orphans:
-        lines.append("## Orphaned Files")
-        lines.append("")
-        for orphan in report.orphans:
-            lines.append(
-                f"- {orphan.file} - add to {orphan.expected_index}"
-            )
-        lines.append("")
-
-    if report.naming_convention and report.naming_convention.violations:
-        lines.append("## Naming Convention Violations")
-        lines.append("")
-        for v in report.naming_convention.violations:
-            lines.append(f"- {v}")
-        lines.append("")
+    lines.extend(
+        _bullet_section(
+            "## Orphaned Files",
+            (
+                f"{orphan.file} - add to {orphan.expected_index}"
+                for orphan in report.orphans
+            ),
+        )
+    )
+    lines.extend(
+        _bullet_section(
+            "## Naming Convention Violations",
+            report.naming_convention.violations if report.naming_convention else [],
+        )
+    )
+    lines.extend(
+        _bullet_section(
+            "## Malformed Frontmatter",
+            report.frontmatter_validity.issues if report.frontmatter_validity else [],
+        )
+    )
 
     return "\n".join(lines)
 

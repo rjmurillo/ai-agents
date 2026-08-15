@@ -152,7 +152,7 @@ if child_log:
             "-c",
             (
                 "import pathlib, sys, time; "
-                "time.sleep(0.3); "
+                "time.sleep(5); "
                 "pathlib.Path(sys.argv[1]).write_text('child-ran\\\\n', encoding='utf-8')"
             ),
             child_log,
@@ -257,7 +257,7 @@ def _run_race(
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
-    mutation_sleep = "0.5" if renewal_failure else "0"
+    mutation_sleep = "5" if renewal_failure else "0"
     if immediate_lease_failure and spawn_delayed_child:
         lease_failure_override = 'lease_renewal_failed() {\n    [ -e "$MUTATION_STARTED_LOG" ]\n}\n'
     elif immediate_lease_failure:

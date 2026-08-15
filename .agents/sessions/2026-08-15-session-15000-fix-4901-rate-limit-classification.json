@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15000,
+    "date": "2026-08-15",
+    "branch": "fix/4901-list-issues-rate-limit",
+    "startingCommit": "5bb3a54004",
+    "objective": "Preserve GraphQL rate-limit classification in list_issues (issue #4901)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena project-bound"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "Initial instructions read"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md read"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "GitHub skill scripts listed"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "Project constraints read"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "PROJECT-CONSTRAINTS.md and GOTCHAS.md read"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "pr-comment-responder-skills loaded"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/4901-list-issues-rate-limit from origin/main"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "External worktree at issue-4901"},
+      "gitStatusVerified": {"level": "SHOULD", "Complete": true, "Evidence": "Clean worktree"},
+      "startingCommitNoted": {"level": "SHOULD", "Complete": true, "Evidence": "origin/main HEAD"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "All items completed"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md unchanged"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No new memory needed"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "No markdown changes"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5028-rate-limit-qa-report.md"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "381ba5fd0f committed and pushed"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "Session log validates"},
+      "tasksUpdated": {"level": "SHOULD", "Complete": true, "Evidence": "issue-4901 todo updated"},
+      "retrospectiveInvoked": {"level": "SHOULD", "Complete": false, "Evidence": "Deferred"}
+    }
+  },
+  "workLog": [
+    {"action": "reproduce", "detail": "Confirmed list_issues maps rate-limit stderr to ApiError instead of RateLimitError"},
+    {"action": "implement", "detail": "Added classify_gh_failure_text to list_issues error paths; rate-limit→RateLimitError exit 2, auth→AuthError exit 4"},
+    {"action": "test", "detail": "Added 5 new tests in TestRateLimitClassification; 122 relevant tests pass"},
+    {"action": "sync", "detail": "Synced output.py and list_issues.py to mirrors via sync_plugin_lib and build_all"},
+    {"action": "push", "detail": "Created PR #5028 with Fixes #4901"}
+  ],
+  "endingCommit": "381ba5fd0fe469680577f441eb4d0f37771531a6",
+  "nextSteps": []
+}

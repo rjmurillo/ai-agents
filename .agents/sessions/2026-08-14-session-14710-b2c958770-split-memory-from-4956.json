@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "id": "2026-08-14-session-14710",
+    "objective": "Split memory changes from PR #4956 to comply with no-bundling rule",
+    "startingCommit": "6102727d6",
+    "pr": 4956,
+    "number": 14710,
+    "date": "2026-08-14",
+    "branch": "fix/issue-4879-doc-accuracy"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Evidence-only session for splitting memory from PR #4956."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Evidence-only session for splitting memory from PR #4956."
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Continuation of PR #4956."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session-log-fixer and github skills used."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Evidence-only session for splitting memory from PR #4956."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/claude-agents.md:42 no-bundling rule."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Evidence-only session for splitting memory from PR #4956."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4879-doc-accuracy"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4879-doc-accuracy."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean working tree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6102727d6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No handoff changes required."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory committed in PR #4983 (3f913d7c9 on chore/pr-4956-memory-split). Doc-accuracy state preserved in authorized session storage (deferred to separate PR per no-bundling rule)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files modified in this session."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4956-0-memory-split-validation.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 6102727d6 and fadc1ef6f."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All 4 original sessions COMPLIANT. New session COMPLIANT."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No task changes."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Memory split pattern documented."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-14T16:30:00+00:00",
+      "action": "Reverted .serena/memories/ to main.",
+      "outcome": "Memory files removed from PR #4956."
+    },
+    {
+      "timestamp": "2026-08-14T16:35:00+00:00",
+      "action": "Created PR #4983 for memory-only changes.",
+      "outcome": "Memory committed as 3f913d7c9."
+    },
+    {
+      "timestamp": "2026-08-14T16:40:00+00:00",
+      "action": "Updated session evidence to reference external commit.",
+      "outcome": "All 4 sessions COMPLIANT."
+    },
+    {
+      "timestamp": "2026-08-14T16:45:00+00:00",
+      "action": "Updated QA report commit references.",
+      "outcome": "QA reports aligned with session endingCommit."
+    }
+  ],
+  "endingCommit": "92358004b8004da624d48215c3a47b7f8ea646b2",
+  "nextSteps": []
+}

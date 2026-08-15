@@ -1,6 +1,6 @@
 ---
 name: implementation-008-spec-schema-validation
-description: Constraints for writing spec artifacts (REQ/DESIGN/TASK): read spec-schemas.md first; validate enums before committing
+description: "Constraints for writing spec artifacts (REQ/DESIGN/TASK): read spec-schemas.md first; validate enums before committing"
 type: feedback
 ---
 
