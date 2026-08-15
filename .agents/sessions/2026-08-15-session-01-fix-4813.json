@@ -83,7 +83,7 @@
       },
       "qaValidation": {
         "level": "MUST",
-        "Evidence": ".agents/qa/2026-08-15-pr-4813-references-exclusion.md",
+        "Evidence": ".agents/qa/2026-08-15-pr-5048-references-exclusion.md",
         "Complete": true
       },
       "changesCommitted": {
