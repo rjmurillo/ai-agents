@@ -73,8 +73,9 @@ are out of scope here and tracked separately under issue #2139.
     directory clash.
 - Prior art: ADR-030 (skills-pattern-superiority) establishes that skills give
   direct, scoped tool access with lower overhead than subagents. ADR-044
-  (copilot-cli-frontmatter-compatibility) constrains the frontmatter fields
-  Copilot CLI accepts. ADR-012 (skill-catalog-mcp) governs the skill catalog.
+  (copilot-cli-frontmatter-compatibility) originally constrained frontmatter fields
+  Copilot CLI accepted; ADR-094 now governs compatibility via executable
+  owners and smoke verification. ADR-012 (skill-catalog-mcp) governs the skill catalog.
   `DESIGN-REVIEW-vscode-copilot-parity-plan.md` lays out the parity plan.
 
 ### Historical Rationale
@@ -159,8 +160,8 @@ are out of scope here and tracked separately under issue #2139.
    `allowed-tools`, and any `@CLAUDE.md` import. The generated copilot-cli skills
    already model `user-invocable: true` plus `@CLAUDE.md`
    (see `src/copilot-cli/skills/spec/SKILL.md`), so the SKILL.md shape is
-   established. ADR-094 constrains which frontmatter fields Copilot CLI accepts;
-   migration PRs honor that constraint.
+   established. ADR-094 assigns executable owners and requires a real-CLI smoke test;
+   migration PRs pass that verification.
 
 ## Prior Art Investigation
 

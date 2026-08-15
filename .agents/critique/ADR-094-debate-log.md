@@ -61,7 +61,7 @@ None. All Round 1 blocking findings were resolved.
 
 ADR-094 is accepted. ADR-044 is superseded and retained as historical evidence.
 
-## Round 3: Cross-Reference Correction
+## Post-Review Correction: Cross-Reference Update
 
 ### Change
 

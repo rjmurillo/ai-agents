@@ -120,7 +120,32 @@
         "e006",
         "e007",
         "e008",
-        "e009"
+        "e009",
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR #5024 review threads: corrected ADR-064 cross-references, completed handoff inventory, added debate log correction entry.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T13:16:08+00:00",
+      "type": "commit",
+      "content": "Commit: b66a37b977f7ce93013dcfea6ba4ea0dde8590de",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version"
@@ -131,8 +156,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 9
+    "commits": 2,
+    "files_changed": 11
   },
   "lessons": []
 }
