@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/issue-5074-merge-resolver-rename-rule.md"
+        "Evidence": ".agents/qa/pr-5087-issue-5074-merge-resolver-rename-rule.md"
       },
       "changesCommitted": {
         "level": "MUST",
