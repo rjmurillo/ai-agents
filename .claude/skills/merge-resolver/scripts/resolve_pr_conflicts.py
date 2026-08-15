@@ -44,6 +44,12 @@ _CORE_PACKAGE = "github_core"
 _CORE_MODULE_FILE = "api.py"
 _IMPORT_PROBE_OK = "repo-info-imported"
 
+# Plugin identity: the plugin.json file that distinguishes this plugin from a
+# foreign plugin that happens to carry github_core.api.RepoInfo.  Checked
+# before the import probe so we never execute foreign code.
+_PLUGIN_MANIFEST_REL = os.path.join(".claude-plugin", "plugin.json")
+_PLUGIN_IDENTITY_NAME = "project-toolkit"
+
 
 def _core_import_error(lib_dir: str) -> str | None:
     """Return the isolated import error, or None when RepoInfo imports."""
@@ -74,6 +80,24 @@ def _core_import_error(lib_dir: str) -> str | None:
         return "import exited before completion signal"
     stderr_lines = probe.stderr.strip().splitlines()
     return stderr_lines[-1] if stderr_lines else f"process exited {probe.returncode}"
+
+
+def _is_own_plugin(lib_dir: str) -> bool:
+    """Return True if the plugin root above *lib_dir* identifies as ours.
+
+    The manifest at ``<plugin_root>/.claude-plugin/plugin.json`` must carry
+    the expected ``name`` field.  Without this check, a foreign plugin that
+    also ships ``github_core.api.RepoInfo`` would pass the import probe and
+    be selected, violating the contract that no foreign code is imported.
+    """
+    plugin_root = os.path.dirname(lib_dir)
+    manifest = os.path.join(plugin_root, _PLUGIN_MANIFEST_REL)
+    try:
+        with open(manifest, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return bool(data.get("name") == _PLUGIN_IDENTITY_NAME)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return False
 
 
 def _lib_dir_candidates() -> list[str]:
@@ -164,6 +188,9 @@ def _resolve_lib_dir() -> str:
             continue
         if not os.path.isfile(os.path.join(lib_dir, _CORE_PACKAGE, _CORE_MODULE_FILE)):
             rejected.append(f"{lib_dir} (no {_CORE_PACKAGE}/{_CORE_MODULE_FILE})")
+            continue
+        if not _is_own_plugin(lib_dir):
+            rejected.append(f"{lib_dir} (plugin identity mismatch)")
             continue
         import_error = _core_import_error(lib_dir)
         if import_error is None:

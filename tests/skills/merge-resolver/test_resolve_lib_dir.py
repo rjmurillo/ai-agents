@@ -13,6 +13,7 @@ validated before use, and the run fails closed only when none is valid.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -62,6 +63,18 @@ _SCRIPT = (
 )
 
 
+_PLUGIN_IDENTITY_NAME = "project-toolkit"
+
+
+def _add_plugin_manifest(root: Path) -> None:
+    """Add the plugin identity manifest to a fixture root."""
+    manifest_dir = root / ".claude-plugin"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / "plugin.json").write_text(
+        json.dumps({"name": _PLUGIN_IDENTITY_NAME}), encoding="utf-8"
+    )
+
+
 def _make_plugin_root(base: Path, name: str) -> Path:
     """Create a plugin root whose lib/ carries an importable github_core.
 
@@ -75,6 +88,7 @@ def _make_plugin_root(base: Path, name: str) -> Path:
     (package / _CORE_MODULE_FILE_NAME).write_text(
         "class RepoInfo:\n    pass\n", encoding="utf-8"
     )
+    _add_plugin_manifest(root)
     return root
 
 
@@ -115,6 +129,7 @@ def _make_early_exit_plugin_root(base: Path, name: str) -> Path:
         "import sys\nsys.exit(0)\nclass RepoInfo:\n    pass\n",
         encoding="utf-8",
     )
+    _add_plugin_manifest(root)
     return root
 
 
