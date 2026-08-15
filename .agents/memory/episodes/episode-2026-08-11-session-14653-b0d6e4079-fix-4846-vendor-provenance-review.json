@@ -95,7 +95,9 @@
         "e041",
         "e043",
         "e044",
-        "e045"
+        "e045",
+        "e047",
+        "e048"
       ],
       "leads_to": [
         "e006"
@@ -602,6 +604,41 @@
       "caused_by": [
         "e042"
       ],
+      "leads_to": [
+        "e049"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the completion gate (run_completion_gate.py --pull-request 4846 --json) after resolving both outstanding review threads and pushing 524c5534e..7a5be354e (10th rebind). 4/5 criteria passed; 1 new failure: 'No suppressed Copilot review findings' (check_suppressed_review_findings.py), active_suppressed_count: 4. Investigated: a Copilot review at 2026-08-15T01:14:57Z bundled 4 findings into a collapsed 'Suppressed comments' section on head 7a5be354e, never surfacing as GraphQL reviewThreads, invisible to get_unresolved_review_threads.py. The pr-review-config.yaml pass_when clause has no tracking-based exemption for this criterion (unlike the review-threads criterion), and active_state is computed purely as active-iff-commit-equals-head-sha, so only a genuine fix (not a SHA-staleness reset) resolves each finding per this project's never-dismiss ethos.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran the completion gate (run_completion_gate.py --pull-request 4846 --json) after resolving both outstanding review threads and pushing 524c5534e..7a5be354e (10th rebind). 4/5 criteria passed; 1 new failure: 'No suppressed Copilot review findings' (check_suppressed_review_findings.py), active_suppressed_count: 4. Investigated: a Copilot review at 2026-08-15T01:14:57Z bundled 4 findings into a collapsed 'Suppressed comments' section on head 7a5be354e, never surfacing as GraphQL reviewThreads, invisible to get_unresolved_review_threads.py. The pr-review-config.yaml pass_when clause has no tracking-based exemption for this criterion (unlike the review-threads criterion), and active_state is computed purely as active-iff-commit-equals-head-sha, so only a genuine fix (not a SHA-staleness reset) resolves each finding per this project's never-dismiss ethos.      Fixed 3 of 4 findings in commit 3ec7f54ea: (1) tests/workflows/test_workflow_jobs_check_out_repo.py: _line_runs_checkout_index required only exact-token membership anywhere in the tokenized line, so 'checkout-index' as an unrelated CLI argument to another command satisfied the guard; now requires it immediately follow a 'git' token. 2 new tests (the exact false-positive shape, and the env-prefixed real-usage form), 147/147 pass. (2) tests/hooks/test_dispatch_groups_parity.py: this file's tests only checked invoke_require_subagent_model.py's registration/authorization, never its main() decision logic; added TestRequireSubagentModelGate (7 tests) loading the shipped entrypoint via importlib and driving both harnesses' payload shapes (explicit model, escape hatch, pinned Claude/Copilot definitions, deny with neither), isolated from the real machine's home directory via CLAUDE_CONFIG_DIR/COPILOT_HOME. 21/21 pass. (3) tests/build_scripts/test_hook_contract_knowledge.py:623: the fd82d92fc xfail guard had no tracking issue; opened https://github.com/rjmurillo/ai-agents/issues/5014 and cited it in the inline comment and xfail reason string. Finding #4 (pyproject.toml:10, PR description undersold the actual 50-file scope) addressed via gh pr edit adding a 'Scope note' section itemizing every drift-absorbed file category (not a tracked-file change). Full targeted suite (3 files): 192 passed, 1 xfailed (tracked, expected). ruff/mypy clean. git merge-tree --write-tree origin/main HEAD: 0 conflicts. Scope unchanged at exactly 50/50. Also re-verified mergeStateStatus transiently returned to BLOCKED after the gh pr edit (a 'Validate PR'/'Validate Spec Coverage' required re-run triggered by the description edit) and settled back to UNSTABLE ~2.5 minutes later with no new required failures. Committed 11th QA/session-log rebind alongside this entry; not yet pushed.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-08-15T01:45:04+00:00",
+      "type": "commit",
+      "content": "Commit: 3ec7f54eac820828780bd34c449248dc372d7281",
+      "caused_by": [
+        "e046"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -611,7 +648,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 28,
+    "commits": 29,
     "files_changed": 51
   },
   "lessons": []

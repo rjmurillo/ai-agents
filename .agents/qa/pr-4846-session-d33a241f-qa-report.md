@@ -1,16 +1,43 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: b3d89b4c9d4bdb1fc94fd0d1bd32b392aa015af0
+qaCommit: 3ec7f54eac820828780bd34c449248dc372d7281
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `b3d89b4c9d4bdb1fc94fd0d1bd32b392aa015af0`
-(qaCommit, above; this is the 10th rebind of this report). Since the 9th
-rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
+Validated the branch at commit `3ec7f54eac820828780bd34c449248dc372d7281`
+(qaCommit, above; this is the 11th rebind of this report). Since the 10th
+rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
+review findings" criterion surfaced 4 active findings from a Copilot
+review at `2026-08-15T01:14:57Z` bundled into a collapsed
+"Suppressed comments" section on the current head (invisible to
+`get_unresolved_review_threads.py`, since these never became GraphQL
+reviewThreads). Commit `3ec7f54ea` genuinely fixes 3 of the 4: an
+exact-token false positive in `_line_runs_checkout_index`
+(`tests/workflows/test_workflow_jobs_check_out_repo.py`, now requires
+"checkout-index" immediately follow a "git" token, not merely appear
+anywhere in the tokenized line -- 2 new tests, 147/147 pass), missing
+behavioral coverage for the `invoke_require_subagent_model.py` #4874
+gate (`tests/hooks/test_dispatch_groups_parity.py` previously had only
+inventory/parity checks -- added `TestRequireSubagentModelGate`, 7 tests
+driving `main()` directly across both harnesses' payload shapes, 21/21
+pass), and an `xfail` shipped without an open tracking issue
+(`tests/build_scripts/test_hook_contract_knowledge.py:623` -- opened
+[#5014](https://github.com/rjmurillo/ai-agents/issues/5014) and cited
+it in the reason string). The 4th finding (`pyproject.toml:10`, PR
+description undersold this branch's actual 50-file scope) was addressed
+via `gh pr edit` adding a "Scope note" section itemizing every drift-
+absorbed file category; this is not a tracked-file change so it is not
+reflected in `qaCommit`. Full targeted suite (all 3 modified files):
+192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
+`git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
+scope unchanged at exactly 50/50 (all 3 files already tracked in this
+branch's diff before this commit, no new files).
+
+Since the 9th rebind (`524c5534e`, below), commits `2ea883515`/`524c5534e` pushed clean
 and CI went green (117/118 checks passing -- non-required
 `semgrep-cloud-platform/scan` failed and is not investigated further here
 since `FailedRequiredChecks` is empty -- 0 required checks failed or
