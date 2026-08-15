@@ -67,6 +67,18 @@ For other PRs: Add references when traceability adds value.
 
 -
 
+## Acceptance criteria
+
+<!--
+The Validate Spec Coverage job reads `- [ ]` checkboxes from this section of
+the PR body. Numbered lists are not recognized. Check a box only once the
+criterion is actually met; an unchecked box makes the spec-coverage signal
+report FAIL (non-blocking). Replace the placeholder with the criteria this
+PR must satisfy.
+-->
+
+- [ ] <!-- criterion this PR must satisfy -->
+
 ## Type of Change
 
 - [ ] Bug fix (non-breaking change fixing an issue)

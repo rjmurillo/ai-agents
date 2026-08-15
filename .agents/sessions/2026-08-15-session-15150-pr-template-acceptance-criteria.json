@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15150,
+    "date": "2026-08-15",
+    "branch": "claude/pr-process-improvements-bp43s2",
+    "startingCommit": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0",
+    "objective": "PR process improvement wave: file issues 5064-5074, align PR template with the Validate Spec Coverage acceptance-criteria contract (issue 5068 item 3), dispatch implementer sessions for issues 5066, 5071, 5072, 5073, 5074"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Serena MCP disconnected in this environment; fallback to .serena/memories/ file reads per AGENTS.md"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "Serena MCP disconnected; memories read directly from .serena/memories/"
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog reviewed at session start"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Rules auto-loaded (.claude/rules)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS reviewed via process research"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories PR/CI entries (moving-baseline, pre-push ordering, reviewer reliability)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/pr-process-improvements-bp43s2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/pr-process-improvements-bp43s2"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings recorded in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only template change; QA report added after PR number known"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Template and session log committed together"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new memory; findings recorded in issues 5064-5074"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint via pre-commit hooks"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py run before push"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Researched PR process end-to-end: repo gate map, GitHub friction metrics on 8 sampled merged PRs, retrospective and memory mining"
+    },
+    {
+      "action": "Filed issues 5064 (evidence binding survives catch-up merges), 5065 (PR-scoped ratchet evaluation), 5066 (pre-push fast-fail stage), 5067 (CI consumes review marker), 5068 (MUST/gate alignment), 5069 (reviewer premise verification), 5070 (CodeRabbit path_instructions), 5071 (mypy diff scoping), 5072 (completion-gate config trust boundary), 5073 (measure-main-first triage probe), 5074 (merge-resolver rename rule)"
+    },
+    {
+      "action": "Corrected issue 5068 after verification: semantic title check is enforced by scripts/ci/classify_semantic_title_result.py; continue-on-error only absorbs the Unicorn HTML flake (issue 2616)"
+    },
+    {
+      "action": "Added Acceptance criteria section to .github/PULL_REQUEST_TEMPLATE.md so the template matches the Validate Spec Coverage contract documented in push-pr.md (issue 5068 item 3)"
+    },
+    {
+      "action": "Dispatched five implementer sessions: issues 5066, 5071, 5072, 5073, 5074, each on its own claude/issue-NNNN branch"
+    }
+  ],
+  "nextSteps": [
+    "Babysit this PR and the five child-session PRs to completion",
+    "Issues 5064, 5065, 5067 are design-level and await owner sequencing; 5069 and 5070 queued for a follow-up wave"
+  ],
+  "endingCommit": "",
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0",
+      "head": "0f5c0def86cf0bad63a2f6ef507fc58ecfc6abb0"
+    }
+  }
+}
