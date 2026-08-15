@@ -63,38 +63,38 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "all session-end items completed",
+        "Complete": true
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014); no branch handoff needed",
+        "Complete": true
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "no new durable convention; issue #4607 and ADR-026 already document the constraint",
+        "Complete": true
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "npx markdownlint-cli2 run; .agents/** excluded by .markdownlint-cli2.yaml",
+        "Complete": true
       },
       "qaValidation": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": ".agents/qa/2026-08-15-issue-4607-bot-identity.md",
+        "Complete": true
       },
       "changesCommitted": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "commits 4f0396e (module + tests) and f6ec064 (wiring)",
+        "Complete": true
       },
       "validationPassed": {
         "level": "MUST",
-        "Evidence": "pending",
-        "Complete": false
+        "Evidence": "21 tests pass; ruff, mypy clean; pre_pr.py green except session-end pending at first run",
+        "Complete": true
       }
     }
   },
@@ -110,9 +110,17 @@
     {
       "action": "implement",
       "description": "Added scripts/ci/check_bot_identity.py (stdlib-only, MATCH/MISMATCH/MISSING/UNKNOWN verdicts, strict mode with nonzero exits) with 18 tests"
+    },
+    {
+      "action": "implement",
+      "description": "Wired the diagnostic unconditionally into .github/actions/ai-review/action.yml and pr-maintenance.yml discover-prs; 3 wiring tests parse the YAML"
+    },
+    {
+      "action": "qa",
+      "description": "QA report at .agents/qa/2026-08-15-issue-4607-bot-identity.md; acceptance criterion cannot pass until the owner rotates BOT_PAT, stated plainly"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "f6ec064112fb172e9d873c98b3680be6989cedd7",
   "nextSteps": [
     "Owner: mint BOT_PAT from rjmurillo-bot (id 250269933), store as repository secret, confirm the identity step reports MATCH"
   ]

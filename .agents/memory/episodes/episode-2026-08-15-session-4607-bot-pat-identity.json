@@ -3,7 +3,7 @@
   "session": "2026-08-15-session-4607-bot-pat-identity",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Issue #4607: make the BOT_PAT identity checkable from any CI run log and fix repo-side wiring",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "investigate",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-4607-bot-pat-identity"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "diagnose",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-4607-bot-pat-identity"
     },
     {
@@ -31,6 +35,46 @@
       "type": "milestone",
       "content": "implement",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "qa",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T14:31:32+00:00",
+      "type": "commit",
+      "content": "Commit: 4f0396e",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-4607-bot-pat-identity"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T14:32:43+00:00",
+      "type": "commit",
+      "content": "Commit: f6ec064112fb172e9d873c98b3680be6989cedd7",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4607-bot-pat-identity"
     }
@@ -40,8 +84,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 7
   },
   "lessons": []
 }
