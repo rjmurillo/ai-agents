@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-14-session-14706",
+  "session": "2026-08-14-session-14706",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Autofix PR 4988 required CI and complete merge readiness",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched full Validate PR failure logs after a live-state gate.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the PR implementation in a dedicated external worktree.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created SHA-bound QA evidence for the validated source commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T18:25:18+00:00",
+      "type": "commit",
+      "content": "Commit: 27fa3cbd37c5f5f74bac81fb31ebad1ca833c1f5",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

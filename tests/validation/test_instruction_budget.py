@@ -733,10 +733,59 @@ def test_main_exits_zero_when_headroom_clears_the_reserve(tmp_path: Path) -> Non
     assert rc == 0
 
 
-def test_main_default_reserve_is_zero_so_ci_still_passes(tmp_path: Path) -> None:
-    # Regression guard: adding the reserve must not change the default verdict.
+def test_default_reserve_is_600_bytes() -> None:
+    assert ib.DEFAULT_RESERVE_BYTES == 600
+
+
+def test_main_default_reserve_blocks_ci_inside_band(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("INSTRUCTION_BUDGET_RESERVE", raising=False)
     size = _write_rule(tmp_path, "u", "'**'")
-    rc = ib.main(["--path", str(tmp_path), "--ci", "--ceiling", f".py:{size + 1}"])
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ci",
+            "--ceiling",
+            f".py:{size + 599}",
+        ]
+    )
+    assert rc == 1
+
+
+def test_main_default_reserve_passes_at_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("INSTRUCTION_BUDGET_RESERVE", raising=False)
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ci",
+            "--ceiling",
+            f".py:{size + 600}",
+        ]
+    )
+    assert rc == 0
+
+
+def test_main_explicit_zero_disables_default_reserve(tmp_path: Path) -> None:
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ci",
+            "--ceiling",
+            f".py:{size + 1}",
+            "--reserve",
+            "0",
+        ]
+    )
     assert rc == 0
 
 

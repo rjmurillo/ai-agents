@@ -6,6 +6,7 @@ content via API instead of HTML. Routes to github skill scripts when
 available, falls back to gh api for other resource types.
 
 Supported URL types:
+- Gists: gist.github.com/{owner}/{id}
 - Pull requests: /pull/{n}, /pull/{n}#discussion_r{id}
 - Issues: /issues/{n}, /issues/{n}#issuecomment-{id}
 - Files: /blob/{ref}/{path}, /tree/{ref}/{path}
@@ -22,8 +23,24 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+# Path-based callers do not add the script directory. Bootstrap it before
+# sibling imports so canonical and generated copies load outside package context.
+from gist_routing import build_gist_command, parse_gist_url  # noqa: E402
+from url_validation import (  # noqa: E402
+    SAFE_OWNER_REPO_RE,
+    SAFE_PATH_RE,
+    SAFE_REF_RE,
+    is_safe_input,
+)
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -31,6 +48,7 @@ from typing import Any
 
 
 class UrlType(StrEnum):
+    GIST = "Gist"
     PULL = "Pull"
     ISSUE = "Issue"
     BLOB = "Blob"
@@ -61,50 +79,85 @@ SCRIPT_ROUTES: dict[UrlType, dict[str, str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Input validation patterns (CWE-78 mitigation)
-# ---------------------------------------------------------------------------
-
-SAFE_OWNER_REPO_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_.]*$")
-SAFE_REF_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./]*$")
-SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9][-a-zA-Z0-9_./%+@]*$")
-DANGEROUS_CHARS = set("\"'`$;&|><(){}[]!\\")
-
-
-def is_safe_input(
-    value: str | None,
-    pattern: re.Pattern[str],
-    allow_empty: bool = False,
-    allow_triple_dot: bool = False,
-) -> bool:
-    """Validate input against command injection attacks."""
-    if not value:
-        return allow_empty
-
-    # Check for dangerous characters
-    if any(ch in DANGEROUS_CHARS for ch in value):
-        return False
-
-    # Check for path traversal
-    if allow_triple_dot:
-        test_value = value.replace("...", "__TRIPLE__")
-        if ".." in test_value:
-            return False
-    elif ".." in value:
-        return False
-
-    return bool(pattern.match(value))
-
-
-# ---------------------------------------------------------------------------
 # URL parsing
 # ---------------------------------------------------------------------------
 
 
-def parse_github_url(url: str) -> dict | None:
+FRAGMENT_PATTERNS = (
+    ("pullrequestreview", re.compile(r"#pullrequestreview-(\d+)")),
+    ("discussion_r", re.compile(r"#discussion_r(\d+)")),
+    ("issuecomment", re.compile(r"#issuecomment-(\d+)")),
+)
+
+
+def _parse_fragment(url: str, rest: str) -> tuple[str, str | None, str | None]:
+    for fragment_type, pattern in FRAGMENT_PATTERNS:
+        match = pattern.search(url)
+        if match:
+            return rest.split("#")[0], fragment_type, match.group(1)
+    return rest, None, None
+
+
+def _parse_blob(
+    match: re.Match[str],
+) -> tuple[UrlType, str | None, str | None, str | None] | None:
+    ref, path = match.groups()
+    if not is_safe_input(ref, SAFE_REF_RE):
+        return None
+    if not is_safe_input(path, SAFE_PATH_RE):
+        return None
+    return UrlType.BLOB, None, ref, path
+
+
+def _parse_tree(
+    match: re.Match[str],
+) -> tuple[UrlType, str | None, str | None, str | None] | None:
+    ref, path = match.groups()
+    if not is_safe_input(ref, SAFE_REF_RE):
+        return None
+    if path and not is_safe_input(path, SAFE_PATH_RE, allow_empty=True):
+        return None
+    return UrlType.TREE, None, ref, path
+
+
+def _parse_resource(
+    rest: str,
+) -> tuple[UrlType, str | None, str | None, str | None] | None:
+    simple_patterns = (
+        (UrlType.PULL, re.compile(r"^pull/(\d+)")),
+        (UrlType.ISSUE, re.compile(r"^issues/(\d+)")),
+        (UrlType.COMMIT, re.compile(r"^commit/([a-f0-9]+)")),
+    )
+    for url_type, pattern in simple_patterns:
+        match = pattern.match(rest)
+        if match:
+            return url_type, match.group(1), None, None
+
+    blob_match = re.match(r"^blob/([^/]+)/(.+)$", rest)
+    if blob_match:
+        return _parse_blob(blob_match)
+    tree_match = re.match(r"^tree/([^/]+)/(.*)$", rest)
+    if tree_match:
+        return _parse_tree(tree_match)
+
+    compare_match = re.match(r"^compare/(.+)$", rest)
+    if compare_match:
+        resource_id = compare_match.group(1)
+        if not is_safe_input(resource_id, SAFE_REF_RE, allow_triple_dot=True):
+            return None
+        return UrlType.COMPARE, resource_id, None, None
+    return UrlType.UNKNOWN, None, None, None
+
+
+def parse_github_url(url: str) -> dict[str, Any] | None:
     """Parse a GitHub URL into structured components.
 
     Returns None if the URL is invalid or contains dangerous characters.
     """
+    gist = parse_gist_url(url)
+    if gist is not None:
+        return gist
+
     match = re.match(r"^https?://github\.com/([^/]+)/([^/]+)/?(.*)$", url)
     if not match:
         return None
@@ -119,70 +172,11 @@ def parse_github_url(url: str) -> dict | None:
     if not is_safe_input(repo, SAFE_OWNER_REPO_RE):
         return None
 
-    # Check for fragments
-    fragment_type = None
-    fragment_id = None
-
-    review_match = re.search(r"#pullrequestreview-(\d+)", url)
-    discussion_match = re.search(r"#discussion_r(\d+)", url)
-    comment_match = re.search(r"#issuecomment-(\d+)", url)
-
-    if review_match:
-        fragment_type = "pullrequestreview"
-        fragment_id = review_match.group(1)
-        rest = rest.split("#")[0]
-    elif discussion_match:
-        fragment_type = "discussion_r"
-        fragment_id = discussion_match.group(1)
-        rest = rest.split("#")[0]
-    elif comment_match:
-        fragment_type = "issuecomment"
-        fragment_id = comment_match.group(1)
-        rest = rest.split("#")[0]
-
-    # Parse resource type
-    url_type = UrlType.UNKNOWN
-    resource_id = None
-    ref = None
-    path = None
-
-    pull_match = re.match(r"^pull/(\d+)", rest)
-    issue_match = re.match(r"^issues/(\d+)", rest)
-    blob_match = re.match(r"^blob/([^/]+)/(.+)$", rest)
-    tree_match = re.match(r"^tree/([^/]+)/(.*)$", rest)
-    commit_match = re.match(r"^commit/([a-f0-9]+)", rest)
-    compare_match = re.match(r"^compare/(.+)$", rest)
-
-    if pull_match:
-        url_type = UrlType.PULL
-        resource_id = pull_match.group(1)
-    elif issue_match:
-        url_type = UrlType.ISSUE
-        resource_id = issue_match.group(1)
-    elif blob_match:
-        url_type = UrlType.BLOB
-        ref = blob_match.group(1)
-        path = blob_match.group(2)
-        if not is_safe_input(ref, SAFE_REF_RE):
-            return None
-        if not is_safe_input(path, SAFE_PATH_RE):
-            return None
-    elif tree_match:
-        url_type = UrlType.TREE
-        ref = tree_match.group(1)
-        path = tree_match.group(2)
-        if not is_safe_input(ref, SAFE_REF_RE):
-            return None
-        if path and not is_safe_input(path, SAFE_PATH_RE, allow_empty=True):
-            return None
-    elif commit_match:
-        url_type = UrlType.COMMIT
-        resource_id = commit_match.group(1)
-    elif compare_match:
-        url_type = UrlType.COMPARE
-        resource_id = compare_match.group(1)
-        if not is_safe_input(resource_id, SAFE_REF_RE, allow_triple_dot=True):
-            return None
+    rest, fragment_type, fragment_id = _parse_fragment(url, rest)
+    resource = _parse_resource(rest)
+    if resource is None:
+        return None
+    url_type, resource_id, ref, path = resource
 
     return {
         "owner": owner,
@@ -201,7 +195,7 @@ def parse_github_url(url: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def get_recommended_route(parsed: dict) -> dict:
+def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
     """Determine the optimal command for a parsed GitHub URL."""
     owner = parsed["owner"]
     repo = parsed["repo"]
@@ -264,6 +258,7 @@ def get_recommended_route(parsed: dict) -> dict:
     resource_id = parsed["resource_id"]
 
     fallback_map: dict[UrlType, str] = {
+        UrlType.GIST: build_gist_command(parsed),
         UrlType.BLOB: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.TREE: f'gh api "repos/{owner}/{repo}/contents/{path}?ref={ref}"',
         UrlType.COMMIT: f'gh api "repos/{owner}/{repo}/commits/{resource_id}"',

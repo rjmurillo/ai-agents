@@ -52,6 +52,7 @@ HOOK_PAYLOADS = (
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
     "scripts/validation/git_hook_policy.py",
+    "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
     "scripts/validation/__init__.py",
     "scripts/validation/check_pr_bypass_label.py",
@@ -518,6 +519,54 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     )
 
 
+def test_retrospective_policy_accepts_host_tomorrow_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC+14 producer's next-day artifact satisfies the UTC-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 12, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-14", "2026-03-13"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-15-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_accepts_utc_minus_12_current_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC-12 producer's current artifact satisfies a UTC+14-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 11, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
 def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -556,6 +605,11 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     so the widened window cannot silently accept arbitrarily stale sessions.
     """
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
     _write_lf(retro, "# Retrospective\nstale\n")
@@ -1180,6 +1234,71 @@ def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout + result.stderr
     assert b"\n\n" not in packed_refs.read_bytes()
     assert packed_refs.with_name("packed-refs.before-repair").is_file()
+
+
+def _summary_lines(stdout: str, job: str) -> list[str]:
+    """Return the summary lines naming a job, one per execution lefthook ran."""
+    _, _, summary = stdout.partition("summary:")
+    return [line for line in summary.splitlines() if job in line]
+
+
+def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
+    tmp_path: Path,
+) -> None:
+    """The staleness job queries the remote git named, not a hardcoded default.
+
+    Issue #4634: the job passed ``{remote}``, which lefthook leaves verbatim, so
+    ``git ls-remote "{remote}" <ref>`` resolved no SHA, ``push_ref_staleness.py``
+    read that as a new branch, and the job reported success on every push. Its
+    duplicate hardcoded ``origin`` by passing no argument at all.
+
+    Two file-backed remotes make the wiring observable end to end. ``clean``
+    holds exactly the SHA the simulated push claims; ``advanced`` has moved one
+    commit past the local branch. Only naming ``advanced`` on the command line
+    may fail, so a run body that ignored its argument (or expanded it to a name
+    no remote resolves) could not produce this pair of outcomes.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    branch = "refs/heads/feature/test"
+
+    for name in ("clean", "advanced"):
+        _git(repo, "init", "-q", "--bare", str(tmp_path / f"{name}.git"))
+        _git(repo, "remote", "add", name, str(tmp_path / f"{name}.git"))
+        _git(repo, "push", "-q", name, f"HEAD:{branch}")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "test: remote-only commit")
+    _git(repo, "push", "-q", "advanced", f"HEAD:{branch}")
+    _git(repo, "reset", "-q", "--hard", head_sha)
+
+    # What git sends a pre-push hook: the local ref, what is being pushed, the
+    # remote ref, and the SHA git believes the remote holds.
+    push_input = f"{branch} {head_sha} {branch} {head_sha}\n"
+
+    def _run_against(remote: str) -> subprocess.CompletedProcess[str]:
+        return _run_lefthook(
+            repo,
+            "run",
+            "pre-push",
+            "--job",
+            "push-ref-staleness",
+            "--force",
+            remote,
+            str(tmp_path / f"{remote}.git"),
+            stdin=push_input,
+            check=False,
+        )
+
+    clean = _run_against("clean")
+    advanced = _run_against("advanced")
+
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert advanced.returncode != 0, advanced.stdout + advanced.stderr
+    assert "remote is at" in advanced.stdout + advanced.stderr
+    # One declaration, so one execution. The duplicate ran the job twice and
+    # reported both an OK and a FAILED line for the same name (issue #4634).
+    assert len(_summary_lines(clean.stdout, "push-ref-staleness")) == 1, clean.stdout
 
 
 def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:

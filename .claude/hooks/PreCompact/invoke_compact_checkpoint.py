@@ -29,18 +29,56 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+# vendor-portability: declared. The contributor-only
+# scripts/hook_utilities/utilities.py path below documents provenance; runtime
+# imports use the bundled lib/hook_utilities/utilities.py mirror.
+
 
 def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
-    """Return the newest readable session log from today or yesterday."""
+    """Return the newest readable session log from today or yesterday.
+
+    Runs only when ``hook_utilities`` cannot be imported. The repository
+    canonical source is
+    ``scripts/hook_utilities/utilities.py::get_recent_session_log``; the
+    installed plugin mirrors it at ``lib/hook_utilities/utilities.py``. Its
+    load-bearing prefix contract is quoted verbatim::
+
+        host_dates = recent_host_session_dates()
+        now_utc = datetime.now(tz=UTC)
+        utc_dates = (
+            now_utc.strftime(_ISO_DATE),
+            (now_utc - timedelta(days=1)).strftime(_ISO_DATE),
+        )
+        prefixes = tuple(
+            dict.fromkeys((host_dates[0], utc_dates[0], host_dates[1], utc_dates[1]))
+        )
+
+    Stricter/looser/different than canonical:
+    This fallback captures host and UTC clocks inline rather than calling
+    ``recent_host_session_dates``. A glob error skips that prefix silently;
+    canonical warns and returns ``None``. A candidate stat error is also
+    skipped silently; canonical warns for each unreadable candidate. Both
+    return ``None`` for a missing directory, but only canonical warns.
+    """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
         return None
 
-    now = datetime.now(tz=UTC)
-    for offset in (0, 1):
-        date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+    local_now = datetime.now()  # host-local date authority (Issue #4779)
+    utc_now = datetime.now(tz=UTC)
+    prefixes = tuple(
+        dict.fromkeys(
+            (
+                local_now.strftime("%Y-%m-%d"),
+                utc_now.strftime("%Y-%m-%d"),
+                (local_now - timedelta(days=1)).strftime("%Y-%m-%d"),
+                (utc_now - timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
+        )
+    )
+    for date_prefix in prefixes:
         try:
-            candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+            candidates = list(sessions_path.glob(f"{date_prefix}-session-*.json"))
         except OSError:
             continue
 

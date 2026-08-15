@@ -1,6 +1,6 @@
 # Official Hook Contracts
 
-Updated: 2026-07-20
+Updated: 2026-08-13
 
 This sidecar pins the official sources used by `agent-harness-reference`.
 Future agents should refresh these sources, not repeat an open-ended search.
@@ -360,6 +360,39 @@ SessionEnd
 ```
 
 Source: Claude Code hooks reference, Hook lifecycle.
+
+### PostToolUseFailure input
+
+Claude Code sends a top-level `error` string and `is_interrupt` boolean in
+addition to the common tool fields. The current reference says the error text
+varies by tool and directs consumers to key on `tool_name`, `is_interrupt`, and
+the `Exit code N` first line rather than treating the remaining display text as
+a stable format.
+
+Repository consequence: a failure observer reads `error` only after confirming
+`hook_event_name == "PostToolUseFailure"`, and ignores interrupted calls. It
+must not infer failure from words inside successful PostToolUse output.
+
+Source: Claude Code hooks reference, PostToolUseFailure input.
+
+### PostToolUseFailure output
+
+Claude Code accepts an event-specific `additionalContext` string inside
+`hookSpecificOutput`:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUseFailure",
+    "additionalContext": "Additional information about the failure for Claude"
+  }
+}
+```
+
+Repository consequence: a failure observer emits this structured output and
+returns exit 0. It does not use exit 2 or stderr for advisory context.
+
+Source: Claude Code hooks reference, PostToolUseFailure decision control.
 
 ### PreToolUse deny
 

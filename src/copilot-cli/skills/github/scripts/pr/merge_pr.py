@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, CLI script keeps merge orchestration and output contract together.
+# taste-lint: ignore complexity, CLI script keeps merge orchestration and output contract together.
 """Merge a GitHub Pull Request.
 
 Merges a PR using the specified strategy. Supports auto-merge
@@ -32,6 +34,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -106,7 +109,7 @@ _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
 def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
     """Query repository settings for allowed merge methods.
 
-    Returns a dict mapping strategy names to booleans.
+    Returns repository allow_* fields mapped to booleans.
     """
     result = subprocess.run(
         [
@@ -120,14 +123,18 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         check=False,
     )
     if result.returncode != 0:
-        print(f"Error querying repository settings: {result.stderr}", file=sys.stderr)
         raise RuntimeError(f"Failed to query repository settings: {result.stderr.strip()}")
 
     try:
-        return json.loads(result.stdout)
+        data = json.loads(result.stdout)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from GitHub API: {e}", file=sys.stderr)
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("GitHub repository settings response must be an object")
+    return {
+        field: bool(data.get(field, False))
+        for field in _STRATEGY_TO_REPO_FIELD.values()
+    }
 
 
 def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
@@ -146,7 +153,7 @@ def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
 
 def validate_strategy(
     strategy: str,
-    repo_settings: dict[str, bool],
+    repo_settings: dict[str, bool] | None,
     repo_flag: str,
     output_format: str,
 ) -> None:
@@ -155,7 +162,13 @@ def validate_strategy(
     Regression guard for issue #2449: before this change, validation
     called error_and_exit which wrote plain text to stderr and produced
     no stdout, breaking consumers that piped to json.loads.
+
+    When repo_settings is None, the caller supplied an explicit strategy and
+    skipped REST settings discovery. GitHub rejects a disallowed method at
+    merge time, and _handle_merge_failure surfaces a structured error.
     """
+    if repo_settings is None:
+        return
     field = _STRATEGY_TO_REPO_FIELD.get(strategy)
     if field and repo_settings.get(field, False):
         return
@@ -199,7 +212,11 @@ def _emit_error(
     raise SystemExit(code)
 
 
-def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
+def _fetch_pr_state(
+    pr: int,
+    repo_flag: str,
+    output_format: str,
+) -> dict[str, Any]:
     """Fetch the PR state via gh; emit envelope and exit on failure."""
     pr_result = subprocess.run(
         [
@@ -218,10 +235,32 @@ def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
             _emit_error(f"PR #{pr} not found in {repo_flag}", 2, "NotFound", output_format, pr)
         _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
 
-    return json.loads(pr_result.stdout)
+    try:
+        data = json.loads(pr_result.stdout)
+    except json.JSONDecodeError:
+        _emit_error(
+            f"PR #{pr} state response was not valid JSON",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+        )
+    if not isinstance(data, dict):
+        _emit_error(
+            f"PR #{pr} response was not a JSON object",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+        )
+    return {str(key): value for key, value in data.items()}
 
 
-def _reject_unknown_merge_state(pr_data: dict, pr: int, output_format: str) -> None:
+def _reject_unknown_merge_state(
+    pr_data: dict[str, Any],
+    pr: int,
+    output_format: str,
+) -> None:
     """Reject a direct merge while GitHub is still calculating mergeability.
 
     Issue #2637: after a base update, GitHub reports mergeable=UNKNOWN and
@@ -283,7 +322,7 @@ def _rest_merge(
     head_sha: str,
     subject: str,
     body: str,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     """Attempt a merge via the REST PUT endpoint.
 
     Issue #4362: the GraphQL ``mergePullRequest`` mutation used by ``gh pr
@@ -315,7 +354,7 @@ def _rest_merge(
 
 
 def _handle_merge_failure(
-    merge_result: subprocess.CompletedProcess,
+    merge_result: subprocess.CompletedProcess[str],
     pr: int,
     repo_flag: str,
     strategy: str,
@@ -368,9 +407,18 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
 
-    repo_settings = get_allowed_merge_methods(repo_flag)
+    repo_settings: dict[str, bool] | None = None
 
+    # Issue #4490: an explicit strategy does not need repository-settings
+    # discovery. The merge endpoint remains the authority for whether GitHub
+    # permits that strategy.
     if args.strategy is None:
+        # No explicit strategy: must fetch repo settings to auto-pick one.
+        # Wrap REST failures in a structured envelope so consumers can parse.
+        try:
+            repo_settings = get_allowed_merge_methods(repo_flag)
+        except (RuntimeError, ValueError) as exc:
+            _emit_error(str(exc), 3, "ApiError", output_format, pr)
         chosen = resolve_default_strategy(repo_settings)
         if chosen is None:
             _emit_error(
@@ -427,6 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if merge_result.returncode != 0:
         head_sha = pr_data.get("headRefOid") or ""
+        sanitized_body = filter_coauthor_trailers(args.body) if args.body else ""
         _handle_merge_failure(
             merge_result,
             pr,
@@ -434,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             args.strategy,
             head_sha,
             args.subject,
-            args.body,
+            sanitized_body,
             args.auto,
             output_format,
         )

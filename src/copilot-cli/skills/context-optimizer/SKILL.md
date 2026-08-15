@@ -285,14 +285,43 @@ Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
 
 Validates content placement against the skill vs passive context decision framework.
 
-**6 Compliance Checks**:
+**Evaluated Checks**:
 
 1. Skills contain actions (verbs, tool execution, scripts)
 2. Passive context is knowledge-only (no action patterns)
-3. CLAUDE.md under 200 lines (Anthropic recommendation)
-4. @imported files exist and are readable
-5. Skills have frontmatter (`name` and `description`)
-6. No duplicate content between skills and passive context
+3. @imported files exist and are readable
+4. Skills have frontmatter (`name` and `description`)
+5. No duplicate content between skills and passive context
+6. Declared size exceptions include rationale and safeguard evidence
+
+The report also measures the selected `CLAUDE.md` file. That number is not a
+compliance verdict. It excludes imported content, hierarchical
+`CLAUDE.md` and `AGENTS.md` files, generated instruction layers, and plugin
+context.
+
+Claude Code loads `CLAUDE.md` files in full. The vendor's first 200 lines or
+25 KB limit applies to auto-memory `MEMORY.md`, not `CLAUDE.md`. This
+repository's 200-line command ratchet is separate local policy in
+`command_size.py`.
+
+Source:
+<https://docs.anthropic.com/en/docs/claude-code/memory>
+
+Skill size is also separate. In a full `rjmurillo/ai-agents` checkout, run the
+repository's `skill_size.py` validator against both the canonical and generated
+skill trees.
+
+The report states what it does not evaluate. Content value still needs
+evidence-based review. Classify each passive rule as one of:
+
+1. Non-inferable gotcha with cited evidence
+2. Local arbitration between otherwise reasonable rules
+3. Costly-failure safeguard
+4. Task procedure that belongs in a skill
+5. Inferable restatement that should be removed
+
+Lexical matches do not prove those categories. Cite the incident, source, or
+test that supports each keep or remove decision.
 
 **Usage**:
 
@@ -310,12 +339,12 @@ python3 scripts/test_skill_passive_compliance.py --path .claude/skills/github --
 
 | Violation | Fix |
 |-----------|-----|
-| CLAUDE.md too long | Split into separate files, add @imports |
 | Missing @import file | Create file or remove @import directive |
 | Skill missing frontmatter | Add `---` block with `name:` and `description:` |
 | Skill has no actions | Add scripts or move to passive context |
 | Passive has actions | Extract executable content to a skill |
 | Duplicate content | Remove redundant content from skill or passive |
+| Unaudited size exception | Add invariant, behavior tests, and review trigger |
 
 </details>
 

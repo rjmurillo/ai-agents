@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "id": "CS1",
+      "desc": "Follows the target repository's documented module convention instead of prescribing ES modules",
+      "input": "The repository's package.json has no 'type' field, so modules default to CommonJS. Its CONTRIBUTING.md states: 'Use require() for all internal modules; do not introduce ES module import/export syntax.' The code under review mixes require() calls with one leftover import statement from a partial migration. Decide which module syntax you recommend converging on.",
+      "verdict_options": [
+        "FOLLOW_REPO_CONVENTION_REQUIRE",
+        "PRESCRIBE_ES_MODULES"
+      ],
+      "expected_verdict": "FOLLOW_REPO_CONVENTION_REQUIRE",
+      "expected_reason_contains": "convention",
+      "rationale": "The Stylistic Positives section instructs following the target repository's explicit conventions (style guide, linter config, .editorconfig) for module systems. A documented CONTRIBUTING.md rule against ES modules overrides any generic ES-modules preference the agent might otherwise default to."
+    },
+    {
+      "id": "CS2",
+      "desc": "Uses the language-native default when the repository documents no convention at all",
+      "input": "The repository has no style guide, no linter configuration, and no .editorconfig. It is a Go codebase. The function under review is a small named helper written in idiomatic Go style. Decide whether to rewrite it to match a stack-specific style you might prefer from another language, or leave the idiomatic Go choice alone.",
+      "verdict_options": [
+        "USE_LANGUAGE_NATIVE_IDIOM",
+        "IMPOSE_UNDOCUMENTED_PREFERENCE"
+      ],
+      "expected_verdict": "USE_LANGUAGE_NATIVE_IDIOM",
+      "expected_reason_contains": "idiomatic",
+      "rationale": "The Stylistic Positives section states that where no convention is documented, the agent uses the idiomatic default for that language rather than a house style carried over from a different stack. This is the fallback half of the same rule tested by CS1's documented-convention half."
+    }
+  ]
+}
