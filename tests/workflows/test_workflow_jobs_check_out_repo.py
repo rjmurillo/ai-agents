@@ -141,20 +141,45 @@ def _segment_assignments(segment: list[str]) -> dict[str, str]:
     return assignments
 
 
+def _without_shell_comment(raw_segment: str) -> str:
+    quote = ""
+    escaped = False
+    for index, character in enumerate(raw_segment):
+        if escaped:
+            escaped = False
+            continue
+        if character == "\\" and quote != "'":
+            escaped = True
+            continue
+        if quote:
+            if character == quote:
+                quote = ""
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            continue
+        if character == "#":
+            return raw_segment[:index]
+    return raw_segment
+
+
 def _prefixes_into_workspace(command_tokens: list[str], raw_segment: str) -> bool:
     """True when *command_tokens* passes checkout-index a workspace-rooted ``--prefix``."""
+    command_source = _without_shell_comment(raw_segment)
+    if command_source.count("--prefix") != 1:
+        return False
     for index, token in enumerate(command_tokens):
         if token.startswith("--prefix="):
             value = token.split("=", 1)[1]
             return (
                 value in _WORKSPACE_PREFIX_VALUES
-                and any(form in raw_segment for form in _WORKSPACE_PREFIX_FORMS)
+                and any(form in command_source for form in _WORKSPACE_PREFIX_FORMS)
             )
         if token == "--prefix" and index + 1 < len(command_tokens):
             value = command_tokens[index + 1]
             return (
                 value in _WORKSPACE_PREFIX_VALUES
-                and any(form in raw_segment for form in _WORKSPACE_PREFIX_FORMS)
+                and any(form in command_source for form in _WORKSPACE_PREFIX_FORMS)
             )
     return False
 
@@ -442,6 +467,12 @@ class TestFirstUnmetRepoDependency:
                 "python3 scripts/ci/x.py",
                 ("Materialize", "scripts/ci/x.py"),
             ),
+            (
+                "git checkout-index -a --prefix='$GITHUB_WORKSPACE/' "
+                '# --prefix="$GITHUB_WORKSPACE/"\n'
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
@@ -462,6 +493,7 @@ class TestFirstUnmetRepoDependency:
             "nonleading_work_tree_assignment_is_not_environment",
             "quoted_pipe_segment_mismatch_fails_closed",
             "selective_checkout_does_not_satisfy_repo_dependency",
+            "comment_cannot_supply_prefix_quote_evidence",
         ],
     )
     def test_materialize_step_dependency_scenarios(
