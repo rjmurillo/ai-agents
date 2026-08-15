@@ -1487,7 +1487,16 @@ class TestConfigTrustBoundary:
 
         assert rc == 2
         assert not marker.exists()
-        assert "missing-base" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "missing-base" in err
+        # missing-base is approvable, so the halt must surface the exact
+        # command a human would be approving, as a full-file addition
+        # diff (there is no trusted copy to diff against). The config's
+        # command string names verifier.py; its appearance on stderr
+        # proves the approvable content was shown, not just an absence
+        # message.
+        assert "verifier.py" in err
+        assert "(working tree)" in err
 
     def test_trusted_ref_absent_fails_closed(self, git_repo, tmp_path, capsys):
         # A repo with commits but no origin/main: verification is

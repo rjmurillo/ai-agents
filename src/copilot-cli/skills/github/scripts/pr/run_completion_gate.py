@@ -75,9 +75,10 @@ verified is the same buffer that is parsed and dispatched (no CWE-367
 window). The outcomes:
 
   * **trusted** -- bytes identical to the trusted blob after checkout
-    filters (``git cat-file --filters``, so ``core.autocrlf`` consumers
-    do not false-halt on line endings; filters can re-encode trusted
-    content but never inject bytes into it); dispatch proceeds.
+    filters (``git cat-file --filters`` reproduces the checkout
+    conversion the local checkout applies to that path, so
+    ``core.autocrlf`` consumers do not false-halt on line endings);
+    dispatch proceeds.
   * **diverged** -- bytes differ (whitespace included; byte identity is
     the contract). The gate halts with exit 2 before executing any
     command and prints a unified diff to stderr.
@@ -345,9 +346,13 @@ def _verify_config_trust(
     is read with ``git cat-file --filters``, which applies the same
     checkout conversion (EOL, working-tree-encoding) the working tree
     received, so a consumer repo with ``core.autocrlf`` does not
-    false-halt on line endings alone. Those filters can only re-encode
-    the trusted content, never inject new bytes into it, so a match still
-    proves the working tree carries the trusted content.
+    false-halt on line endings alone. The claim is deliberately modest:
+    custom smudge/process filter drivers can rewrite content
+    arbitrarily, so a match proves the working tree carries the LOCAL
+    CHECKOUT CONVERSION of the trusted content. Those drivers live in
+    git config, which PR content cannot modify; a PR-controlled
+    ``.gitattributes`` can only select among locally configured
+    conversions, not define new filter commands.
 
     The trusted ref must resolve to a remote-tracking ref
     (``refs/remotes/*``). ``HEAD``, a local branch, a tag, or a bare SHA
@@ -402,11 +407,26 @@ def _verify_config_trust(
         spec = f"{trusted_ref}:{rel.as_posix()}"
         proc = _run_git(["cat-file", "-e", spec], toplevel)
         if proc.returncode != 0:
+            # missing-base is approvable, so the human must be shown the
+            # exact content approval would execute. With no trusted copy
+            # to diff against, surface the whole working-tree config as
+            # a full-file addition diff.
+            addition_diff = "".join(
+                difflib.unified_diff(
+                    [],
+                    tree_bytes.decode(errors="replace").splitlines(
+                        keepends=True,
+                    ),
+                    fromfile=f"{spec} (absent)",
+                    tofile=f"{rel.as_posix()} (working tree)",
+                )
+            )
             return TrustCheck(
                 TRUST_MISSING_BASE,
                 f"{rel.as_posix()} does not exist at {trusted_ref}; a config "
                 f"absent from the trusted ref cannot be distinguished from a "
-                f"tampered one",
+                f"tampered one. The working-tree config that approval would "
+                f"dispatch:\n{addition_diff}",
             )
 
         proc = _run_git(["cat-file", "--filters", spec], toplevel)
