@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 8610fc7bdf4d9dbaa96f3833573f446a15279b12; final evidence committed separately"
+        "Evidence": "Validated code commit 2a3dd1aac2990ddf8261b9df3e3ccefbf319a85c; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, 586 final focused tests, and 371 physical-boundary tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, 586 final focused tests, 371 physical-boundary tests, and 78 default-clock tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -174,9 +174,13 @@
     {
       "action": "Corrected the impossible-date diagnostic after scanner expansion.",
       "outcome": "The message now states the physical impossibility without incorrectly claiming the \u00b12-day scanner cannot discover the file."
+    },
+    {
+      "action": "Pinned all creator and consumer date-helper defaults.",
+      "outcome": "Deterministic tests now assert local datetime.now defaults for creator host_session_date, consumer host_session_date, and recent_host_session_dates."
     }
   ],
-  "endingCommit": "8610fc7bdf4d9dbaa96f3833573f446a15279b12",
+  "endingCommit": "2a3dd1aac2990ddf8261b9df3e3ccefbf319a85c",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: 8610fc7bdf4d9dbaa96f3833573f446a15279b12
+qaCommit: 2a3dd1aac2990ddf8261b9df3e3ccefbf319a85c
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -20,7 +20,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Real timezone end-to-end tests | UTC, Pacific/Kiritimati, and America/Los_Angeles passed |
 | Host-behind-UTC boundary | Local 2026-08-08 selected while UTC was 2026-08-09 |
 | Host-ahead-of-UTC boundary | UTC+14 next-day acceptance begins exactly at 10:00 UTC; fixed-clock boundary tests passed |
-| Creator and consumer agreement | Session creator, hook utility, git-hook policy, and checkpoint fallback passed |
+| Creator and consumer agreement | Creator and both consumer default clocks are pinned to local `datetime.now`; 78 focused tests passed |
 | Session evidence date | Generated filename and JSON payload both record 2026-08-14 on the host |
 | Ruff | All changed Python files passed |
 | Generated mirror parity | `build_all.py --check` passed after syncing the Copilot plugin library |
