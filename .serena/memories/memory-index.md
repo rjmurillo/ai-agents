@@ -33,7 +33,7 @@
 |jq json parse filter select map array object: [skills-jq-index](skills-jq-index.md) (356)
 |pr autofix lease bare checkout wrong branch local: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
 |gh extension notify combine metrics milestone webhook grep: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
-|copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
+|copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1903)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)

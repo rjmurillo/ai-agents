@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
-qaCommit: 3f8fa69466ab2761b0e76307bf067659c97b986a
+qaCommit: 1cbbbbfc3f315a5ba6ca4be861c9ca51bfad5ef3
 ---
 
 # QA Report, issue 4939
@@ -11,14 +11,17 @@ qaCommit: 3f8fa69466ab2761b0e76307bf067659c97b986a
 
 ## Scope
 
-ADR-044 note for the retired `0.0.397` Copilot CLI pin.
+ADR-094 supersession policy, ADR-044 lifecycle update, contributor guidance, and the Copilot CLI regression runbook.
 
 ## Validation
 
-- Positive: `uv run python scripts/validation/check_copilot_version_pin.py --action <temp-ok.yml>` returned `COPILOT_VERSION pin OK: 1.0.79`.
-- Negative: `uv run python scripts/validation/check_copilot_version_pin.py --action <temp-bad.yml>` rejected `0.0.397` with exit 1.
-- Edge: `uv run python scripts/validation/check_copilot_version_pin.py --action <temp-missing.yml>` rejected a missing pin with exit 1.
-- Markdown: `npx markdownlint-cli2 .agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md .agents/sessions/handoffs/2026-08-15-4939-handoff.md` passed.
+- Validator tests: `uv run pytest tests/test_check_copilot_version_pin.py -q` passed 15 tests.
+- Repository pin: `uv run python scripts/validation/check_copilot_version_pin.py` returned `COPILOT_VERSION pin OK: 1.0.63`.
+- ADR numbering: `python3 scripts/validation/check_adr_uniqueness.py` passed and reported 095 as the next free number.
+- Markdown: `npx markdownlint-cli2 CONTRIBUTING.md` passed with zero errors.
+- Diff integrity: `git diff --check` passed.
+- Stale guidance search: no live contributor or runbook instruction still recommends `0.0.397`.
+- ADR review: Round 1 blocked 5 to 1. Round 2 accepted 6 to 0 after ADR-094 replaced the in-place amendment.
 
 ## Result
 

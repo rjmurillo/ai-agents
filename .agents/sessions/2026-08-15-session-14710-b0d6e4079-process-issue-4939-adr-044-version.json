@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ecd19db2798332ad188d1ccac1a008d78ec9cb63"
+        "Evidence": "1cbbbbfc3f315a5ba6ca4be861c9ca51bfad5ef3"
       },
       "validationPassed": {
         "level": "MUST",
@@ -179,9 +179,8 @@
       ]
     }
   ],
-  "endingCommit": "ecd19db2798332ad188d1ccac1a008d78ec9cb63",
+  "endingCommit": "1cbbbbfc3f315a5ba6ca4be861c9ca51bfad5ef3",
   "nextSteps": [
-    "Commit the accepted ADR and companion guidance.",
     "Run the full pre-PR gate.",
     "Open one PR for issue #4939."
   ]
