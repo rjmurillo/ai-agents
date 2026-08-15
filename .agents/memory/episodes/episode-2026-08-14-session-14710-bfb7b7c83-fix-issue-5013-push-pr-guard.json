@@ -3,7 +3,7 @@
   "session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard",
   "timestamp": "2026-08-14T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issue 5013 push-pr guard timeout denial",
   "decisions": [],
   "events": [
@@ -13,17 +13,43 @@
       "type": "milestone",
       "content": "Completed two-round adr-review for ADR-068, ADR-071, and ADR-085",
       "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T11:42:10+00:00",
+      "type": "milestone",
+      "content": "Recorded final local QA evidence",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T11:40:26+00:00",
+      "type": "commit",
+      "content": "Commit: 1b82c3ff2d",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e002"
+      ],
       "_source_session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 3,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 6
+    "commits": 1,
+    "files_changed": 35
   },
   "lessons": []
 }
