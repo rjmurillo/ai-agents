@@ -29,6 +29,11 @@
         "Complete": true,
         "Evidence": "This file"
       },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub operations routed through the GitHub MCP tools (issue_read, create_pull_request) per remote-session tooling; no raw gh calls"
+      },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
@@ -129,7 +134,7 @@
       "evidence": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)"
     }
   ],
-  "endingCommit": "f89f4c6e219480e6737db0f9672aebbe4c1b9617",
+  "endingCommit": "3b51153bed8767e3055f3dca8e9d794261bb63f4",
   "nextSteps": [
     "After PR creation: add QA report copy matching .agents/qa/*pr-<N>*.md and refresh endingCommit in a follow-up commit"
   ]

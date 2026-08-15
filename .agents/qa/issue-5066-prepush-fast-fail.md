@@ -1,3 +1,9 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
+qaCommit: 3b51153bed8767e3055f3dca8e9d794261bb63f4
+---
+
 # QA Report: pre-push fast-fail staging (issue #5066)
 
 - **Branch**: `claude/issue-5066-prepush-fast-fail`

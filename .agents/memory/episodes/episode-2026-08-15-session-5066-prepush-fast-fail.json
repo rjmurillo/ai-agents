@@ -98,6 +98,32 @@
         "e006",
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T14:32:55+00:00",
+      "type": "commit",
+      "content": "Commit: f89f4c6",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T14:34:54+00:00",
+      "type": "commit",
+      "content": "Commit: 3b51153bed8767e3055f3dca8e9d794261bb63f4",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
     }
@@ -107,8 +133,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 3,
+    "files_changed": 8
   },
   "lessons": []
 }
