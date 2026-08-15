@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-15",
+    "branch": "fix/push-pr-timeout-denial-5013",
+    "startingCommit": "f92949aac35ce4d31414dfbb9e752750b27a967e",
+    "objective": "Fix #5013: push-pr PreToolUse guard timeout denial"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: serenaActivated for fix #5013"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: serenaInstructions for fix #5013"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: handoffRead for fix #5013"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: sessionLogCreated for fix #5013"
+      },
+      "skillScriptsListed": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: skillScriptsListed for fix #5013"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: usageMandatoryRead for fix #5013"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: constraintsRead for fix #5013"
+      },
+      "memoriesLoaded": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: memoriesLoaded for fix #5013"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: branchVerified for fix #5013"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: notOnMain for fix #5013"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: checklistComplete for fix #5013"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: handoffPreserved for fix #5013"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Done: serenaMemoryUpdated for fix #5013"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: markdownLintRun for fix #5013"
+      },
+      "qaValidation": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/qa/2026-08-15-fix-5013-qa-report.md"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: changesCommitted for fix #5013"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Done: validationPassed for fix #5013"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "fix",
+      "description": "Changed hook_dispatch_timeout.py to allow on timeout",
+      "files": [
+        ".claude/lib/hook_dispatch_timeout.py",
+        "src/copilot-cli/lib/hook_dispatch_timeout.py"
+      ]
+    },
+    {
+      "action": "test",
+      "description": "Added 7 regression tests, updated 3 assertions",
+      "files": [
+        "tests/hooks/test_push_pr_timeout_regression_5013.py",
+        "tests/test_hook_dispatch.py"
+      ]
+    }
+  ],
+  "endingCommit": "97d814ef471ea2c60ca8cbfe2674b1d37c10d81c",
+  "nextSteps": [
+    "Narrow Copilot matcher in follow-up"
+  ],
+  "outcome": {
+    "status": "COMPLETE",
+    "summary": "Fixed timeout denial. 7 new tests."
+  }
+}
