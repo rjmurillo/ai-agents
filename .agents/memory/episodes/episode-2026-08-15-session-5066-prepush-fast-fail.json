@@ -163,6 +163,19 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T16:07:00+00:00",
+      "type": "commit",
+      "content": "Commit: 57ef6bf85b36a375c2efea4d00663e4a36323b43",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5066-prepush-fast-fail"
     }
@@ -172,7 +185,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 13
   },
   "lessons": []

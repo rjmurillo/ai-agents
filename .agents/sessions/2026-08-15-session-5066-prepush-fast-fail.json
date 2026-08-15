@@ -134,7 +134,7 @@
       "evidence": "941 passed, 2 skipped, 1 pre-existing environment failure (test_the_tracked_scan_fails_config_on_an_unreadable_file, reproduces on unmodified tree)"
     }
   ],
-  "endingCommit": "de9f106ebcc5ae3bd39ad856bea4cbdbaf422644",
+  "endingCommit": "57ef6bf85b36a375c2efea4d00663e4a36323b43",
   "nextSteps": [
     "Drive PR #5083 to green: watch CI and review threads via the PR activity subscription"
   ]
