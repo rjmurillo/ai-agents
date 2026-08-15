@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit 3e30193222a18dddc026b150209716ee14873526; final evidence committed separately"
+        "Evidence": "Validated code commit 62482450c9b3690e84d023acfb21188c4da962b8; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "574 initial tests, 382 review-fix tests, and 586 final focused tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
+        "Evidence": "574 initial tests, 382 review-fix tests, 586 final focused tests, and 371 physical-boundary tests passed; Ruff, plugin-lib sync, and build_all.py --check passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -166,9 +166,13 @@
     {
       "action": "Reproduced and fixed the Validate Generated Files failure from full logs.",
       "outcome": "build_all.py identified the missing src/copilot-cli library mirror; committed the generated copy and confirmed the full staleness check passes."
+    },
+    {
+      "action": "Tightened future-date validation to the physical UTC+14 boundary.",
+      "outcome": "The validator now computes UTC now plus 14 hours; fixed-clock tests cover 09:59 rejection and 10:00 acceptance."
     }
   ],
-  "endingCommit": "3e30193222a18dddc026b150209716ee14873526",
+  "endingCommit": "62482450c9b3690e84d023acfb21188c4da962b8",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",

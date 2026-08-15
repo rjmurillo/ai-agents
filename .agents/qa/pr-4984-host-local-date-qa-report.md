@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707.json
-qaCommit: 3e30193222a18dddc026b150209716ee14873526
+qaCommit: 62482450c9b3690e84d023acfb21188c4da962b8
 ---
 
 # PR 4984 Host-Local Date QA Report
@@ -19,7 +19,7 @@ local date rather than UTC, including both directions of UTC date divergence.
 | Affected regression suite | 574 passed in 55.68 seconds |
 | Real timezone end-to-end tests | UTC, Pacific/Kiritimati, and America/Los_Angeles passed |
 | Host-behind-UTC boundary | Local 2026-08-08 selected while UTC was 2026-08-09 |
-| Host-ahead-of-UTC boundary | Local 2026-08-09 selected while UTC was 2026-08-08 |
+| Host-ahead-of-UTC boundary | UTC+14 next-day acceptance begins exactly at 10:00 UTC; fixed-clock boundary tests passed |
 | Creator and consumer agreement | Session creator, hook utility, git-hook policy, and checkpoint fallback passed |
 | Session evidence date | Generated filename and JSON payload both record 2026-08-14 on the host |
 | Ruff | All changed Python files passed |
