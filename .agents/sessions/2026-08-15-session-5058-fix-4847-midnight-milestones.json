@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5058,
+    "date": "2026-08-15",
+    "branch": "fix/4847-untimestamped-causal-edges",
+    "startingCommit": "b97dabfd3d",
+    "objective": "Fix issue #4847: untimestamped milestones create false causal edges"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena project active"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "Read initial instructions"},
+      "handoffRead": {"level": "SHOULD", "Complete": true, "Evidence": "Read HANDOFF.md"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "extract_session_episode.py"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "Read usage mandatory"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "Read constraints"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "Loaded memories"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/4847-untimestamped-causal-edges"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "fix/4847-untimestamped-causal-edges"}
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "retrospectiveWritten": {"level": "SHOULD", "Complete": true, "Evidence": "Learnings in workLog"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/000-pr-5058-qa.md"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "git status clean"},
+      "serenaMemoryUpdated": {"level": "SHOULD", "Complete": true, "Evidence": "No new memories needed"},
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "All items verified"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "ruff check passed"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md unchanged"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "All 486 tests pass"}
+    }
+  },
+  "workLog": [
+    {"action": "Read issue #4847: untimestamped milestones create false causal edges"},
+    {"action": "Identified root cause in _event_order_relation: midnight < commit_time"},
+    {"action": "Added _is_synthetic_midnight and _MIDNIGHT_INCOMPARABLE_TYPES"},
+    {"action": "Modified _event_order_relation to return None for midnight milestones vs commits"},
+    {"action": "Added _real_edge_count for repair guard to exclude false edges"},
+    {"action": "Updated 4 existing tests and added 6 new tests"},
+    {"action": "Fixed pre-existing subprocess encoding violation"},
+    {"action": "All 486 memory tests pass, pre-push hooks pass"}
+  ],
+  "nextSteps": [],
+  "endingCommit": "bf862bb1d9ee42ad4791e64503c72ecfee36dec4"
+}

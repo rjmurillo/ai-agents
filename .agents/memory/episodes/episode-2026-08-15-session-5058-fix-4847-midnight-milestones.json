@@ -1,0 +1,110 @@
+{
+  "id": "episode-2026-08-15-session-5058-fix-4847-midnight-milestones",
+  "session": "2026-08-15-session-5058-fix-4847-midnight-milestones",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue #4847: untimestamped milestones create false causal edges",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4847: untimestamped milestones create false causal edges",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified root cause in _event_order_relation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _is_synthetic_midnight and _MIDNIGHT_INCOMPARABLE_TYPES",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Modified _event_order_relation to return None for midnight milestones vs commits",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _real_edge_count for repair guard to exclude false edges",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated 4 existing tests and added 6 new tests",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-existing subprocess encoding violation",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "All 486 memory tests pass, pre-push hooks pass",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T13:30:35+00:00",
+      "type": "commit",
+      "content": "Commit: bf862bb1d9ee42ad4791e64503c72ecfee36dec4",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified root cause in _event_order_relation: midnight < commit_time",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}
