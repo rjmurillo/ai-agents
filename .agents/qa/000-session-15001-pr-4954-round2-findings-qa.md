@@ -26,7 +26,9 @@ report.
 | `1301b4c09` | Demoted 2 MUST items to SHOULD with honest justification; corrected the CI-mode claim; fixed the episode causal-order bug via regeneration; split the QA revision history by actual commit |
 | `db7ead33f` | Added this session log and this QA report |
 | `ac53f6802` | Rewrote the per-issue handoff in place: removed all prohibited em-dashes, removed the leftover template placeholder, corrected the CI-mode and retrospective claims. Session `endingCommit` and this report's `qaCommit` rebound here, since this is the session's actual final commit |
-| `9996e0905` | Round-3 autofix (session-14706-pr4954-current) narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (analysis file is evidence this QA scope covers). `scripts/ci/validate_session_protocol.py` (live-head mode) flagged this session's QA report as stale once 9996e0905 landed; rebound `endingCommit` and this report's `qaCommit` to `9996e0905` |
+| `9996e0905` | Round-3 autofix narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (analysis file is evidence this QA scope covers). `scripts/ci/validate_session_protocol.py` (live-head mode) flagged this session's QA report as stale once 9996e0905 landed; rebound `endingCommit` and this report's `qaCommit` to `9996e0905` |
+| `42ce51f50` | Committed the `9996e0905` rebind above, but attributed it to "session-14706-pr4954-current" in this file, the session-15001 log, and `000-session-14695-adr-080-amendment-qa.md`, without a corresponding `.agents/sessions/*14706*` log existing anywhere in the repository; a subsequent Copilot review correctly flagged this as unauditable provenance |
+| (this commit) | Removed every "session-14706" pointer from this report, the session-15001 log, and `000-session-14695-adr-080-amendment-qa.md`; replaced each with a direct reference to commit `42ce51f50` (or `9996e0905`) and the relevant file's own revision history, both durable and checkable, instead of a session log that was never created. Wording only; no claim, measurement, or QA binding changed |
 
 ## Evidence
 
@@ -76,8 +78,11 @@ PASS. All 21 active findings from PR 4954's second Copilot review round are
 resolved across commits `c860ae452` and `1301b4c09`. The session-15001 log
 and this report were committed together at `db7ead33f`; the per-issue
 handoff rewrite landed afterward in a separate commit, `ac53f6802`. A
-round-3 autofix (`9996e0905`, session-14706-pr4954-current) narrowed two
-overclaiming analysis-file sentences flagged by a subsequent review and
-required rebinding both this report's and session-14695's QA `qaCommit`/
-`endingCommit` forward to `9996e0905`, which is now this report's `qaCommit`
-and the session's final rebind target.
+round-3 autofix (`9996e0905`) narrowed two overclaiming analysis-file
+sentences flagged by a subsequent review and required rebinding both this
+report's and session-14695's QA `qaCommit`/`endingCommit` forward to
+`9996e0905`, which is now this report's `qaCommit` and the session's final
+rebind target. That rebind was committed as `42ce51f50`, which
+inadvertently attributed the work to a non-existent "session-14706" log; a
+further commit removed that unauditable pointer in favor of the commit
+hashes and revision-history rows recorded above.

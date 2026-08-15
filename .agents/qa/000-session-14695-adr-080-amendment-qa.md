@@ -25,7 +25,9 @@ session-protocol correction.
 | `5f0b54233` | Regenerated the stale episode via `extract_session_episode.py --preserve` with an authoritative `episodeMetrics` override (6 files across all session-owned commits, `90be321b3..0edf6e063`); rebound this QA report and the session's `endingCommit` to `0edf6e063` |
 | `c860ae452` | Removed both prohibited em-dashes from the round-2 debate-log section (punctuation only, no finding/verdict/citation change); ran a second full 6-agent adr-review (6 of 6 ACCEPT) |
 | `1301b4c09` | Demoted `sessionStart.serenaInstructions` and `sessionEnd.serenaMemoryUpdated` from MUST to SHOULD with honest justification (Aug-12 session's live window is closed; no Serena tool evidence can be retroactively fabricated); corrected the prior incorrect claim that the local `git_hook_policy.py sessions` gate is CI-equivalent; regenerated the episode again via `--preserve` to fix a causal-order bug (a workLog entry lacked a timestamp, so its extracted event inherited the session's nominal 2026-08-12 date instead of its real 2026-08-15 commit time); rebound `endingCommit`/`episodeMetrics.comparison.head` and this QA report to `c860ae452` |
-| `9996e0905` | Round-3 autofix (session-14706-pr4954-current) narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (Copilot findings against round-2's fix commits: the "everything measured" overclaim, and the "agents are translated" overgeneralization now scoped to generated plugin agents only). No measurement, citation, or finding changed, only wording. Because the analysis file is evidence this QA scope covers, `scripts/ci/validate_session_protocol.py` (which sets `--validation-head` to the live PR head, unlike the local `validate_session_json.py` invocation used earlier in this report) correctly flagged the prior binding as stale; rebound `endingCommit`/`episodeMetrics.comparison.head` (now 10 files changed against base) and this QA report's `qaCommit` to `9996e0905`. |
+| `9996e0905` | Round-3 autofix narrowed two overclaiming sentences in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md` (Copilot findings against round-2's fix commits: the "everything measured" overclaim, and the "agents are translated" overgeneralization now scoped to generated plugin agents only). No measurement, citation, or finding changed, only wording. Because the analysis file is evidence this QA scope covers, `scripts/ci/validate_session_protocol.py` (which sets `--validation-head` to the live PR head, unlike the local `validate_session_json.py` invocation used earlier in this report) correctly flagged the prior binding as stale; rebound `endingCommit`/`episodeMetrics.comparison.head` (now 10 files changed against base) and this QA report's `qaCommit` to `9996e0905`. |
+| `42ce51f50` | Committed the `9996e0905` rebind above. Introduced its own new finding: this report and the session-15001 log/QA report referred to the rebind work as authored by "session-14706-pr4954-current" without any corresponding `.agents/sessions/*14706*` log existing in the repository, so a subsequent Copilot review correctly flagged the provenance as unauditable. |
+| (this commit) | Removed every "session-14706" pointer from this report, the session-15001 log, and its QA report; replaced each with a direct reference to commit `42ce51f50` (or `9996e0905`) and this file's own revision history, which are durable, checkable artifacts, instead of a session log that was never created. No claim, measurement, or QA binding changed; wording only. |
 
 ## Evidence
 
@@ -87,10 +89,10 @@ session-protocol correction.
   is stale; code changed after its commit:
   .agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md" once
   9996e0905 landed, since that file is evidence this QA scope covers.
-  Rebound as described in the revision-history row above; re-verified with
-  `PR_HEAD_SHA` set to this rebind commit's own hash after committing (see
-  session-14706's autofix session evidence) that the staleness error no
-  longer reproduces.
+  Rebound at commit `42ce51f50` as described in the revision-history row
+  above; re-verified with `PR_HEAD_SHA` set to `42ce51f50`'s own hash
+  after committing that the staleness error no longer reproduces for
+  either this log or `000-session-15001-pr-4954-round2-findings-qa.md`.
 
 ## Verdict
 
