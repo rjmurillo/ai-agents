@@ -15,3 +15,4 @@
 | skill scripts PreToolUse hook guard gh blocked approve pr review thread resolve check merge | [tools/github-skill-scripts-reference](tools/github-skill-scripts-reference.md) |
 | PR size resilience large diff files API 406 20000 lines | [github/github-cli-pr-size-resilience](github/github-cli-pr-size-resilience.md) |
 | merge REST authoritative mergeStateStatus BLOCKED merge_pr gate squash unblock | [github/github-merge-rest-is-authoritative-blocked-is-not](github/github-merge-rest-is-authoritative-blocked-is-not.md) |
+| gist githubusercontent raw revision file selector content integrity | [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) |

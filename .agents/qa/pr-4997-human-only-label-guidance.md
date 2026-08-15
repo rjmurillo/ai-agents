@@ -41,7 +41,7 @@ uv run pytest tests/validation/test_human_only_label_guidance.py \
   tests/test_pr_description.py tests/test_validation_pr_description.py \
   tests/validation/test_git_hook_policy_atomic_commit.py \
   tests/test_check_pr_bypass_label.py tests/validation/test_pr_commit_count.py -q
-567 passed in 8.93s
+567 passed in 12.21s
 ```
 
 The 9 new tests split into 6 positive assertions (both CONTRIBUTING.md

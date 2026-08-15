@@ -529,6 +529,13 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
+    assert (
+        f"vendored source prints `{len(plugin)} {sum(map(len, plugin.values()))}`" in architecture
+    )
+    assert "Three independent registration sources" in catalog
+    assert ".github/hooks/require-subagent-model.json" in _section_after(
+        catalog, "## Provenance and Maintenance", REPO_ROOT
+    )
     _refute(
         architecture,
         "registers 7 events",
@@ -562,9 +569,7 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     # discredits every other row in the skill's evidence layer. Pin both trees.
     settings_slash = f"{len(settings)} events / {sum(map(len, settings.values()))} groups"
     plugin_slash = f"{len(plugin)} events / {sum(map(len, plugin.values()))} groups"
-    copilot_slash = (
-        f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
-    )
+    copilot_slash = f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
     provenance_paths = (
         REPO_ROOT
         / ".claude"
@@ -572,16 +577,37 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         / "ai-agents-architecture-contract"
         / "references"
         / "provenance.md",
-        COPILOT_SKILL_ROOT
-        / "ai-agents-architecture-contract"
-        / "references"
-        / "provenance.md",
+        COPILOT_SKILL_ROOT / "ai-agents-architecture-contract" / "references" / "provenance.md",
     )
     for path in provenance_paths:
         surface = path.read_text(encoding="utf-8")
         assert settings_slash in surface, path
         assert plugin_slash in surface, path
         assert copilot_slash in surface, path
+
+    provenance = provenance_paths[0].read_text(encoding="utf-8")
+    weak_points = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "ai-agents-architecture-contract"
+        / "references"
+        / "weak-points.md"
+    ).read_text(encoding="utf-8")
+    date_patterns = (
+        (architecture, r"Registered \(re-verified (\d{4}-\d{2}-\d{2})\)"),
+        (architecture, r"facts re-verified against the working tree on (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Shape re-verified (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Audited (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (provenance, r"Verified (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (weak_points, r"Evidence \(as of (\d{4}-\d{2}-\d{2})\)"),
+    )
+    verified_dates: set[str] = set()
+    for text, pattern in date_patterns:
+        match = re.search(pattern, text)
+        assert match is not None, pattern
+        verified_dates.add(match.group(1))
+    assert len(verified_dates) == 1, verified_dates
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
@@ -618,23 +644,36 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    assert source_counts == {"PreToolUse": 2, "PostToolUse": 1}
-    assert source_total == 3
+    assert source_counts == {"PreToolUse": 3, "PostToolUse": 1}
+    assert source_total == 4
     assert host_total == 2
-    assert round(reduction, 1) == 33.3
-    assert "three registrations across two events" in adr_068
-    assert "two PreToolUse shims and one PostToolUse shim" in adr_068
-    assert "saves one host process start" in adr_068
-    assert len(pretool_manifest["shims"]) == 2
-    assert timeout_total == 100
-    assert "current PreToolUse manifest has two shims" in adr_068
-    assert "100 seconds of configured timeout" in adr_068
+    assert round(reduction, 1) == 50.0
+    assert "four registrations across two events" in adr_068
+    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    assert "not for matched-call process savings" in adr_068
+    assert len(pretool_manifest["shims"]) == 3
+    assert timeout_total == 110
+    assert "current PreToolUse manifest has three shims" in adr_068
+    assert "110 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
-    assert "a hang in the first can bypass the second" in adr_068
-    assert "three registrations across two events" in adr_085
-    assert "active manifest contains two shims" in adr_071
-    assert "100 seconds of configured timeout" in adr_071
+    assert "the in-process bypass is latent" in adr_068
+    assert "four registrations across two events" in adr_085
+    for stale in (
+        "requests 105 seconds",
+        "100 seconds of configured timeout",
+        "two-shim PreToolUse",
+        "manifest value is 100 seconds",
+        "saves one host process start",
+        "can skip later gates",
+        "No in-process timeout enforcement",
+        "the spawn cost this ADR removes",
+        "removes process startup",
+    ):
+        assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
+    assert "requests 105 seconds" not in adr_071
+    assert "active manifest contains three shims" in adr_071
+    assert "110 seconds of configured timeout" in adr_071
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 

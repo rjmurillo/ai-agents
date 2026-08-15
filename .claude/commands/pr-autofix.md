@@ -204,6 +204,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         sleep 0.01
@@ -222,6 +223,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         kill "$mutation_pid" 2>/dev/null || true
@@ -264,6 +266,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    stop_mutation_group "$mutation_pid"
     return "$mutation_rc"
 }
 # lease-renewal:end
@@ -325,13 +328,31 @@ run_pr_mutation_if_live() {
 # Per PR, immediately before any per-tier action:
 
 # Step 1: Acquire the branch-ownership lease (issue #3413, ADR-076 Phase 1).
-# Exit 1 = another agent holds the lease; skip this PR without touching it.
+# Exit 1 = SKIP. Branch on .Data.reason so a lease-store outage is surfaced as
+# a distinct diagnostic instead of being silently misreported as contention
+# (issue #4966 MEDIUM). .Data.held_by does not exist in the envelope; the
+# machine-readable field is .Data.reason (held-by:<owner> or
+# lease-store-unavailable).
 LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
     --pull-request "$PR" --session "$SESSION_ID" --output-format json) || {
     LEASE_RC=$?
     if [ "$LEASE_RC" -eq 1 ]; then
-        HELD_BY=$(echo "$LEASE" | jq -r '.Data.held_by // "unknown"')
-        echo "Lease held by $HELD_BY for #$PR; skipping."
+        LEASE_REASON=$(echo "$LEASE" | jq -r '.Data.reason // "unknown"')
+        case "$LEASE_REASON" in
+            lease-store-unavailable)
+                # Store unreachable: ownership is unknown and acquire fails
+                # CLOSED (issue #4966). This is NOT contention. Surface a clear
+                # diagnostic so a persistent outage cannot make every PR SKIP
+                # forever with no alert; investigate the API/network path.
+                echo "Lease store unreachable for #$PR (reason=$LEASE_REASON); ownership unknown, failing closed and skipping. Check GitHub API/network before retrying." >&2
+                ;;
+            held-by:*)
+                echo "Lease held by ${LEASE_REASON#held-by:} for #$PR; skipping."
+                ;;
+            *)
+                echo "Lease acquire returned SKIP for #$PR (reason=$LEASE_REASON); skipping."
+                ;;
+        esac
         continue
     fi
     echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
@@ -398,9 +419,13 @@ fi
 #   cleanup_pr_autofix
 ```
 
-Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
-loop. Do NOT push, do NOT arm auto-merge, do NOT post threads.  The `held_by`
-field identifies the owner so the operator can investigate a stale lease.
+Lease SKIP verdicts: when exit code is 1 the lease was not acquired. Branch on
+the `reason` field: `held-by:<owner>` means another autofix loop holds the
+lease (real contention), and `lease-store-unavailable` means the lease store
+was unreachable so ownership could not be verified and acquire failed CLOSED
+(issue #4966). In both cases do NOT push, do NOT arm auto-merge, do NOT post
+threads. A persistent `lease-store-unavailable` is an infrastructure signal,
+not contention: investigate the GitHub API or network path.
 
 LIVE-STATE SKIP verdicts are binding: do NOT push commits, do NOT arm
 auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP.
@@ -665,7 +690,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 
 Per PR processed:
 
-- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
+- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.

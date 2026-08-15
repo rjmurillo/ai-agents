@@ -25,7 +25,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -64,6 +63,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from paths import resolve_artifact_root  # noqa: E402
+from session_init.date_helpers import host_session_date  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
 from session_init.session_structure import build_session_log  # noqa: E402
 from session_init.template_helpers import get_descriptive_keywords  # noqa: E402
@@ -321,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = git_info["repo_root"]
 
     sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
-    current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    current_date = host_session_date()
 
     # Resolve session number
     session_number = args.session_number

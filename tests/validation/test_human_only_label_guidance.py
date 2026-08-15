@@ -158,14 +158,28 @@ def test_gotchas_defers_the_commit_limit_bypass_to_a_maintainer() -> None:
     validation-bypass" .agents/governance/GOTCHAS.md`` returns one hit, at
     line 251), so this guard checks the one label the file actually names,
     scoped to the section that carries it.
+
+    Also pins the fix for a self-contradiction a review caught: the entry
+    used to say relief was the label "and nothing else", while its own
+    closing sentence and the canonical source it cites
+    (``CONTRIBUTING.md:857``: "You MUST split the PR, or ask a human
+    maintainer to decide on the `commit-limit-bypass` label") both name
+    splitting as an equally sanctioned path. The assertion that
+    `"and nothing else"` is absent is a regression guard for that specific
+    false-exclusivity claim, not a general style check.
     """
     lines = GOTCHAS.read_text(encoding="utf-8").splitlines()
     assert _GOTCHAS_BYPASS_HEADING in lines, (
         f"GOTCHAS.md renamed or removed the section this guard pins: {_GOTCHAS_BYPASS_HEADING!r}"
     )
     section = _section_body(lines, _GOTCHAS_BYPASS_HEADING)
-    assert "human maintainer is the only party who may add it" in section, (
+    assert "human maintainer" in section, (
         "GOTCHAS.md no longer names the maintainer authority for commit-limit-bypass"
+    )
+    assert "split the PR" in section, "GOTCHAS.md dropped the split-the-PR sanctioned path"
+    assert "and nothing else" not in section, (
+        "GOTCHAS.md again claims the label is the only relief, contradicting "
+        "the split-the-PR path named in the same entry and in CONTRIBUTING.md:857"
     )
     assert "do not apply it yourself" in section, "GOTCHAS.md prohibition missing"
     match = _SELF_SERVICE_INSTRUCTION.search(section)

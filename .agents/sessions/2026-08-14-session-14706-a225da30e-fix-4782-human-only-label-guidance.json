@@ -104,7 +104,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest on the changed suites reported 566 passed; uv run ruff check clean on all changed Python files."
+        "Evidence": "uv run pytest on the changed suites reported 567 passed; uv run ruff check clean on all changed Python files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-14T21:00:00Z",
       "action": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
-      "detail": "Eight tests: the CONTRIBUTING.md citations still resolve, no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority, all three messages defer to a maintainer, and three no-over-fire controls prove the allowed paths carry no self-service instruction to apply the label: the push-gate-under-cap and description-validator paths never name the label at all, and the CI-blocker-with-label-present path drops the 'do not apply it yourself' lecture but still prints a bypass-applied notice (`::warning::Commit limit bypassed via 'commit-limit-bypass' label`, scripts/ci/enforce_pr_validation.py:73) that names the label. test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
+      "detail": "Nine tests: the CONTRIBUTING.md citations still resolve, scoped to the section each names; no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority; the GOTCHAS.md entry names the same maintainer-only constraint; all three enforcement messages defer to a maintainer; and three no-over-fire controls prove the allowed paths carry no self-service instruction to apply the label: the push-gate-under-cap and description-validator paths never name the label at all, and the CI-blocker-with-label-present path drops the 'do not apply it yourself' lecture but still prints a bypass-applied notice (`::warning::Commit limit bypassed via 'commit-limit-bypass' label`, scripts/ci/enforce_pr_validation.py:73) that names the label. test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
     },
     {
       "timestamp": "2026-08-14T21:10:00Z",

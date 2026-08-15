@@ -6,9 +6,9 @@ The full evidence for the honestly-weak parts of the repository structure. SKILL
 
 State these plainly when working near them; do not design as if they were sound.
 
-| Weak point | Evidence (as of 2026-08-12) | Consequence |
+| Weak point | Evidence (as of 2026-08-14) | Consequence |
 |---|---|---|
-| Hook sources serve different consumers | `.claude/settings.json` has 6 events and 7 groups; `.claude/hooks/hooks.json` has 2 events and 3 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
+| Hook sources serve different consumers | Re-verified 2026-08-14: `.claude/settings.json` has 6 events and 7 groups; `.claude/hooks/hooks.json` has 2 events and 4 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
 | `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
 | Stale docs contradict reality | `CONTRIBUTING.md:155` said the removed PowerShell Generate-Agents command until PR #2871 repointed it to `build/generate_agents.py`; zero `.ps1` files exist outside `.venv/` (ADR-042). `GENERATOR-FILES.md` lists `src/claude/` as a `generate_agents.py` output ("`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML)"), but `generate_agents.py` contains no `src/claude` write and no claude platform YAML exists | Following docs verbatim fails; quote the canonical source when correcting (FM-9) |
 | Ruff debt is ratcheted, not eliminated | `pytest.yml:135-186`, `ruff_ratchet.py`, and `ruff_count_ratchet.py` block changed-file and whole-tree regressions | Existing debt remains, but new violations and count growth block CI |

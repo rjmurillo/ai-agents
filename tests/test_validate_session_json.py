@@ -825,6 +825,63 @@ class TestValidateSessionSection:
 
         assert not any("future" in e for e in result.errors)
 
+    @pytest.mark.parametrize(
+        ("hour", "minute", "expected_future_errors"),
+        [(9, 59, 1), (10, 0, 0)],
+        ids=["before-utc-10", "at-utc-10"],
+    )
+    def test_host_local_tomorrow_at_utc_10_boundary(
+        self, hour: int, minute: int, expected_future_errors: int
+    ) -> None:
+        """UTC+14 reaches tomorrow precisely at 10:00 UTC (#4779)."""
+        from datetime import datetime, timedelta, timezone
+
+        fixed_now = datetime(2026, 8, 14, hour, minute, tzinfo=timezone.utc)
+        tomorrow = (fixed_now.date() + timedelta(days=1)).isoformat()
+        session = {
+            "number": 1,
+            "date": tomorrow,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
+
+        future_errors = [error for error in result.errors if "future" in error]
+        assert len(future_errors) == expected_future_errors
+        assert all(tomorrow in error for error in future_errors)
+
+    def test_date_two_days_ahead_of_utc_emits_error(self) -> None:
+        """Two days ahead exceeds the max timezone offset, so it is flagged (#4779).
+
+        No real timezone puts the host-local date two calendar days ahead of
+        UTC, so a +2 date is a placeholder or a wrong date, not a timezone
+        artifact.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        fixed_now = datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc)
+        two_days = (fixed_now.date() + timedelta(days=2)).isoformat()
+        session = {
+            "number": 1,
+            "date": two_days,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
+
+        assert any("future" in e for e in result.errors)
+        assert any(two_days in e for e in result.errors)
+
 
 class TestValidateSessionStart:
     """Tests for validate_session_start function."""
