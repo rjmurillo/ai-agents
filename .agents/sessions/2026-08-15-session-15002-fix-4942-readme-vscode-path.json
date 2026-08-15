@@ -132,5 +132,5 @@
     }
   },
   "endingCommit": "c60b03acd789f060f0778af36b8fbf9740f99385",
-  "retrospective": "## Retrospective\n\nDocumentation fix with regression test. Also fixes pre-existing subprocess encoding violation that was blocking the pre-push hook on main."
+  "retrospective": "## Retrospective\n\nDocumentation fix with regression test. Low risk."
 }
