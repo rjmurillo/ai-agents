@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14710,
+    "date": "2026-08-14",
+    "branch": "fix/5013-push-pr-guard-timeout",
+    "startingCommit": "ea4154ed6",
+    "objective": "Fix issue 5013 push-pr guard timeout denial"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/5013-push-pr-guard-timeout"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/5013-push-pr-guard-timeout"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ea4154ed6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-15T04:38:22-07:00",
+      "action": "Completed two-round adr-review for ADR-068, ADR-071, and ADR-085",
+      "result": "Consensus reached with four Accept and two Disagree-and-Commit votes; evidence recorded in .agents/critique/ADR-068-071-085-5013-debate-log.md"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

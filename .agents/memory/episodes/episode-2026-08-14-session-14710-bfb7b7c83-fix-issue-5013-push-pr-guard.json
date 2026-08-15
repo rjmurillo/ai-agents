@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard",
+  "session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix issue 5013 push-pr guard timeout denial",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T11:38:22+00:00",
+      "type": "milestone",
+      "content": "Completed two-round adr-review for ADR-068, ADR-071, and ADR-085",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14710-bfb7b7c83-fix-issue-5013-push-pr-guard"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
