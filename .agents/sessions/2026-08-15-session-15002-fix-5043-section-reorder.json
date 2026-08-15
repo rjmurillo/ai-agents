@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15002,
+    "date": "2026-08-15",
+    "branch": "fix/5043-frontmatter-section-reorder",
+    "startingCommit": "b97dabfd3dcfb3fa19dfefe47c3250bac4addc3a",
+    "objective": "Fix frontmatter bypass missing section reordering (issue #5043)"
+  },
+  "endingCommit": "05e717f5b6343ab9e7e635cd5e1fae1be93db3bb",
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {"complete": true, "level": "MUST", "evidence": "Read issue #5043 and PR #5030 review"},
+      "sessionLogCreated": {"complete": true, "level": "MUST", "evidence": "This file"},
+      "branchVerified": {"complete": true, "level": "MUST", "evidence": "fix/5043-frontmatter-section-reorder"},
+      "notOnMain": {"complete": true, "level": "MUST", "evidence": "On fix/5043-frontmatter-section-reorder"},
+      "usageMandatoryRead": {"complete": true, "level": "MUST", "evidence": "Read AGENTS.md"},
+      "constraintsRead": {"complete": true, "level": "MUST", "evidence": "Read project constraints"},
+      "memoriesLoaded": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"},
+      "serenaInstructions": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"},
+      "serenaActivated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"},
+      "skillScriptsListed": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"complete": true, "level": "MUST", "evidence": "All items recorded"},
+      "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
+      "markdownLintRun": {"complete": true, "level": "MUST", "evidence": "No markdown in code commit"},
+      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-5043-section-reorder-qa.md"},
+      "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed and pushed"},
+      "validationPassed": {"complete": true, "level": "MUST", "evidence": "1654 tests passed, mypy clean, ruff clean"},
+      "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; not applicable"}
+    }
+  },
+  "workLog": [
+    {"action": "implement", "description": "Replaced dict comparison with raw body-text comparison via _strip_frontmatter helper"},
+    {"action": "test", "description": "Added 4 tests: reorder blocks, identical passes, no-frontmatter, unclosed frontmatter"},
+    {"action": "verify", "description": "All 1654 build_scripts tests pass, mypy clean, ruff clean"}
+  ],
+  "nextSteps": [],
+  "outcome": {
+    "status": "success",
+    "summary": "Section reordering now correctly detected as body change in frontmatter bypass",
+    "filesChanged": ["build/scripts/validate_install_parity.py", "tests/build_scripts/test_install_parity_frontmatter_only.py"],
+    "testsAdded": 4,
+    "testsTotal": 1654,
+    "testsPassed": true
+  }
+}

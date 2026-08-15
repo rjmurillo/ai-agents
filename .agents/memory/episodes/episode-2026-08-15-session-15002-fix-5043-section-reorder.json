@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-15-session-15002-fix-5043-section-reorder",
+  "session": "2026-08-15-session-15002-fix-5043-section-reorder",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix frontmatter bypass missing section reordering (issue #5043)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15002-fix-5043-section-reorder"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15002-fix-5043-section-reorder"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15002-fix-5043-section-reorder"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T12:25:13+00:00",
+      "type": "commit",
+      "content": "Commit: 5a6ed8716741aa71051fc6e0b108a0aff9d66cbe",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-fix-5043-section-reorder"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T12:45:40+00:00",
+      "type": "commit",
+      "content": "Commit: 05e717f5b6343ab9e7e635cd5e1fae1be93db3bb",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15002-fix-5043-section-reorder"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
