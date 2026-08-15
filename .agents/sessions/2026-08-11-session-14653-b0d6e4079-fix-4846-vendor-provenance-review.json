@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to compound-checkout rejection 3bff6871aab50f309edf7c118b93fd37fc619587."
+        "Evidence": "QA evidence rebound to install-parity pin sync 8e944b4af1992633d852032fccc988c478b6ccff."
       },
       "validationPassed": {
         "level": "MUST",
@@ -271,8 +271,12 @@
     {
       "action": "Rejected compound checkout-index commands with skipped or swallowed execution.",
       "result": "Only unconditional full checkout commands satisfy later repository dependencies. 164 tests pass."
+    },
+    {
+      "action": "Synchronized the latest base-owned install-parity fix and refreshed its trust pin.",
+      "result": "229 provenance and install-parity tests pass."
     }
   ],
-  "endingCommit": "3bff6871aab50f309edf7c118b93fd37fc619587",
+  "endingCommit": "8e944b4af1992633d852032fccc988c478b6ccff",
   "nextSteps": []
 }
