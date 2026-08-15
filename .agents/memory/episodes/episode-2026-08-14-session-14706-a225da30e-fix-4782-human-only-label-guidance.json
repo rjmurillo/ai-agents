@@ -40,7 +40,7 @@
         "e002"
       ],
       "leads_to": [
-        "e004"
+        "e007"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
@@ -50,7 +50,7 @@
       "type": "milestone",
       "content": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
       "caused_by": [
-        "e003"
+        "e008"
       ],
       "leads_to": [
         "e006"
@@ -63,9 +63,11 @@
       "type": "milestone",
       "content": "Ran the four-mutant negative control.",
       "caused_by": [
-        "e006"
+        "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
@@ -77,8 +79,71 @@
         "e004"
       ],
       "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T20:56:27+00:00",
+      "type": "commit",
+      "content": "Commit: 5f351cf8d81c9b3c46595cab12f47eee6d5de201",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T20:58:24+00:00",
+      "type": "commit",
+      "content": "Commit: 76521cf2f58f701d3412761ab62d9a61d2658b44",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T21:07:03+00:00",
+      "type": "commit",
+      "content": "Commit: 0076e356293aa899ae80980b45f1d607c15d0c0d",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
         "e005"
       ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T21:10:18+00:00",
+      "type": "commit",
+      "content": "Commit: 1edbf4fb0e42d55bc36876d1c573b76bb8598a33",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T21:56:32+00:00",
+      "type": "commit",
+      "content": "Commit: 2ad3620319656d4517ce5a9d07a20d26ec390d34",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     }
   ],
@@ -87,7 +152,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 6,
     "files_changed": 9
   },
   "lessons": []
