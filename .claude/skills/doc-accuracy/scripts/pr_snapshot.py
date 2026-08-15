@@ -261,6 +261,10 @@ def _run_git(
         "-c", "core.fsmonitor=false",
         "-c", "protocol.file.allow=never",
         "-c", "transfer.fsckObjects=true",
+        "-c", "filter.lfs.clean=",
+        "-c", "filter.lfs.smudge=",
+        "-c", "filter.lfs.process=",
+        "-c", "core.autocrlf=false",
         "-c", "safe.bareRepository=all",
         *args,
     ]
@@ -655,7 +659,8 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     except SnapshotError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        output = {"status": "STALE", "error": str(exc)} if isinstance(exc, StaleError) else {"status": "ERROR", "error": str(exc)}
+        print(json.dumps(output), file=sys.stderr)
         return exc.exit_code
 
 
