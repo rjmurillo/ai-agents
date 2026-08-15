@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15000,
+    "date": "2026-08-15",
+    "branch": "fix/doc-accuracy-false-positives-4948",
+    "startingCommit": "333a80b74a",
+    "objective": "Fix issue #4948: doc-accuracy ASCII and PowerShell false positives"
+  },
+  "endingCommit": "b5b5d96591bfab0f040e5d761a1dd462984ef9a9",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools active via MCP; find_symbol responded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions read via serena tools"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; read-only reference noted"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/check_skill_exists.py --list-available executed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory read via serena-read_memory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/doc-accuracy-false-positives-4948"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/doc-accuracy-false-positives-4948"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory updates required for this bug fix"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "lefthook pre-commit ran markdown checks; 0 files matched"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5018-doc-accuracy-false-positives.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "b5b5d96591 fix(doc-accuracy): skip compilability check for languages without source extractors"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py all validations passed; lefthook pre-commit passed"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Identified root cause",
+      "outcome": "Compilability skip list uses denylist missing text and powershell"
+    },
+    {
+      "step": "Applied fix",
+      "outcome": "Replaced denylist with SYMBOL_EXTRACTORS allowlist check"
+    },
+    {
+      "step": "Added tests",
+      "outcome": "4 new tests: text fence, powershell, csharp positive control, empty language"
+    },
+    {
+      "step": "Verified",
+      "outcome": "93 tests pass in 1.61s; all hooks pass"
+    }
+  ],
+  "nextSteps": [
+    "Merge PR #5018 after CI passes"
+  ],
+  "episodeMetrics": {
+    "filesChanged": 3,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "333a80b74a981fdc6438977eda69ff03aa34aba2",
+      "head": "b5b5d96591bfab0f040e5d761a1dd462984ef9a9"
+    }
+  },
+  "retrospective": "## Retrospective\n\nLearning: denylist approaches for language filtering are fragile. An allowlist keyed on available extractors is self-maintaining and eliminates an entire category of false positives as new languages are added to fences."
+}
