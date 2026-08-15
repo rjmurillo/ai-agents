@@ -988,22 +988,25 @@ def _recent_date_prefixes() -> tuple[str, ...]:
 
     ``run_retrospective.build_parser`` defaults its dated scope through
     ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
-    undated scopes instead use UTC. A producer and scanner can differ by 26
-    hours (UTC+14 versus UTC-12), so search the scanner host date plus or minus
-    two days, then retain UTC today/yesterday for undated-scope compatibility.
+    undated scopes instead use UTC. Preserve the scanner host's today/yesterday
+    grace, then add only calendar dates that are physically current somewhere
+    in the UTC-12 through UTC+14 range. This finds a same-instant artifact from
+    another host without admitting an arbitrary scanner-relative ±2-day
+    window.
     """
-    host_today, _ = recent_host_session_dates()
-    host_anchor = date.fromisoformat(host_today)
-    host_dates = tuple(
-        (host_anchor + timedelta(days=offset)).isoformat()
-        for offset in (2, 1, 0, -1, -2)
-    )
+    host_dates = recent_host_session_dates()
     now_utc = datetime.now(tz=UTC)
+    earliest = (now_utc - timedelta(hours=12)).date()
+    latest = (now_utc + timedelta(hours=14)).date()
+    physically_current_dates = tuple(
+        (earliest + timedelta(days=offset)).isoformat()
+        for offset in range((latest - earliest).days + 1)
+    )
     utc_dates = (
         now_utc.strftime("%Y-%m-%d"),
         (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
     )
-    return tuple(dict.fromkeys((*host_dates, *utc_dates)))
+    return tuple(dict.fromkeys((*host_dates, *physically_current_dates, *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
