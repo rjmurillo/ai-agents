@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes.json
-qaCommit: 36441c75e4f25885891851cf1187964b5036a3a5
+qaCommit: 86c9767fb1ba8f2210b8c7bbdc7bf43bc8dbe0e1
 ---
 
 # QA Report: Session 14708

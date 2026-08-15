@@ -158,8 +158,12 @@
     {
       "task": "Rename QA report",
       "outcome": "Renamed to match pr-5010 glob pattern for CI validation"
+    },
+    {
+      "task": "Add AC-8/AC-10 eval tests",
+      "outcome": "Low-risk subset and deep review full-set tests pass"
     }
   ],
-  "endingCommit": "36441c75e4",
+  "endingCommit": "86c9767fb1",
   "nextSteps": []
 }

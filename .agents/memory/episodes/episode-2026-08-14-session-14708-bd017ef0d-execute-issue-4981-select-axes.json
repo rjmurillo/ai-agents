@@ -100,7 +100,8 @@
         "e012",
         "e013",
         "e014",
-        "e015"
+        "e015",
+        "e017"
       ],
       "leads_to": [
         "e009"
@@ -198,6 +199,30 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add AC-8/AC-10 eval tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T15:24:30+00:00",
+      "type": "commit",
+      "content": "Commit: 86c9767fb1",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
     }
@@ -207,7 +232,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 14
   },
   "lessons": []
