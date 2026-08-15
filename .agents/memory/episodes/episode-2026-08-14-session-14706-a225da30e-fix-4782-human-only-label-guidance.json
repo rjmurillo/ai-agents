@@ -40,7 +40,7 @@
         "e002"
       ],
       "leads_to": [
-        "e007"
+        "e010"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
@@ -50,10 +50,10 @@
       "type": "milestone",
       "content": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
-        "e006"
+        "e012"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
@@ -63,33 +63,33 @@
       "type": "milestone",
       "content": "Ran the four-mutant negative control.",
       "caused_by": [
-        "e009"
+        "e013"
       ],
       "leads_to": [
-        "e010"
+        "e014"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-14T21:01:16+00:00",
-      "type": "commit",
-      "content": "Commit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
+      "timestamp": "2026-08-15T08:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched and merged a concurrent session's independent fix for the same issue.",
       "caused_by": [
-        "e004"
+        "e019"
       ],
       "leads_to": [
-        "e009"
+        "e007"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-14T20:56:27+00:00",
-      "type": "commit",
-      "content": "Commit: 5f351cf8d81c9b3c46595cab12f47eee6d5de201",
+      "timestamp": "2026-08-15T08:20:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the eight active findings from review 4943283947 on the post-merge commit.",
       "caused_by": [
-        "e003"
+        "e006"
       ],
       "leads_to": [
         "e008"
@@ -98,37 +98,35 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-14T20:58:24+00:00",
-      "type": "commit",
-      "content": "Commit: 76521cf2f58f701d3412761ab62d9a61d2658b44",
+      "timestamp": "2026-08-15T08:30:00+00:00",
+      "type": "milestone",
+      "content": "Discovered and repaired a merge-index defect in git_hook_policy.py introduced while trimming the merge commit to the five-file authored-file cap.",
       "caused_by": [
         "e007"
       ],
       "leads_to": [
-        "e004"
+        "e020"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-14T21:07:03+00:00",
-      "type": "commit",
-      "content": "Commit: 0076e356293aa899ae80980b45f1d607c15d0c0d",
+      "timestamp": "2026-08-15T08:45:00+00:00",
+      "type": "milestone",
+      "content": "Rebound the QA report and this log's changesCommitted/endingCommit to the final code commit and regenerated the episode.",
       "caused_by": [
-        "e006"
+        "e022"
       ],
-      "leads_to": [
-        "e005"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-14T21:10:18+00:00",
+      "timestamp": "2026-08-14T20:56:27+00:00",
       "type": "commit",
-      "content": "Commit: 1edbf4fb0e42d55bc36876d1c573b76bb8598a33",
+      "content": "Commit: 5f351cf8d81c9b3c46595cab12f47eee6d5de201",
       "caused_by": [
-        "e005"
+        "e003"
       ],
       "leads_to": [
         "e011"
@@ -137,35 +135,167 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-14T21:56:32+00:00",
+      "timestamp": "2026-08-14T20:58:24+00:00",
       "type": "commit",
-      "content": "Commit: 2ad3620319656d4517ce5a9d07a20d26ec390d34",
+      "content": "Commit: 76521cf2f58f701d3412761ab62d9a61d2658b44",
       "caused_by": [
         "e010"
       ],
       "leads_to": [
-        "e012"
+        "e004"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
       "id": "e012",
+      "timestamp": "2026-08-14T21:01:16+00:00",
+      "type": "commit",
+      "content": "Commit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T21:07:03+00:00",
+      "type": "commit",
+      "content": "Commit: 0076e356293aa899ae80980b45f1d607c15d0c0d",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T21:10:18+00:00",
+      "type": "commit",
+      "content": "Commit: 1edbf4fb0e42d55bc36876d1c573b76bb8598a33",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T21:56:32+00:00",
+      "type": "commit",
+      "content": "Commit: 2ad3620319656d4517ce5a9d07a20d26ec390d34",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e016",
       "timestamp": "2026-08-15T07:12:18+00:00",
       "type": "commit",
       "content": "Commit: cd820953ed28263112dd3d52d81e5395f0c6192d",
       "caused_by": [
-        "e011"
+        "e015"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T07:12:49+00:00",
+      "type": "commit",
+      "content": "Commit: 8cf2d981af441e092a7c020c79849df0d56a64b6",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T07:13:59+00:00",
+      "type": "commit",
+      "content": "Commit: c6dc1d9e133d9ce661d04d5f1cae3d1bc8de07f9",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T07:25:41+00:00",
+      "type": "commit",
+      "content": "Commit: 1a7e136aa6b5314c972d9bc326d97bfad188b1d8",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-15T08:33:54+00:00",
+      "type": "commit",
+      "content": "Commit: 6993646f825a32f4047dcca0af0b538ddc4364fd",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T08:35:54+00:00",
+      "type": "commit",
+      "content": "Commit: 6b31cbebd6d4a0e1dae9ba15dd4da9191a18272e",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-15T08:40:04+00:00",
+      "type": "commit",
+      "content": "Commit: 0976ab80e7213d17be44e36d082b4c9d3931c2a9",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     }
   ],
   "metrics": {
-    "duration_minutes": 45,
+    "duration_minutes": 740,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 13,
     "files_changed": 11
   },
   "lessons": []
