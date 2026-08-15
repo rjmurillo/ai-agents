@@ -231,7 +231,11 @@ class TestRunDispatch:
         assert "registered shim missing on disk: missing.py" in capsys.readouterr().err
 
     def test_gate_shim_timeout_is_enforced(self, tmp_path, capsys):
-        """A hung gate shim blocks the tool call, so its timeout is enforced."""
+        """A hung gate shim is killed at its timeout and allows (issue #5013).
+
+        Infrastructure timeouts are not policy signals. The shim did not
+        evaluate its policy, so it has no standing to deny the tool.
+        """
         names = [_write_shim(tmp_path, "slow.py", "import time\ntime.sleep(10)\n")]
 
         start = time.monotonic()
@@ -239,7 +243,7 @@ class TestRunDispatch:
         elapsed = time.monotonic() - start
 
         assert elapsed < 5, "the gate shim was not terminated at its timeout"
-        assert rc == 2, "a timed-out gate shim must fail closed"
+        assert rc == 0, "a timed-out gate shim must allow (issue #5013)"
         assert "timed out" in capsys.readouterr().err
 
     def test_observe_mode_does_not_enforce_shim_timeouts(self, tmp_path, capsys):
@@ -332,7 +336,8 @@ class TestRunDispatch:
 
         assert rc == 2
 
-    def test_shim_timeout_fails_closed_and_stops_later_guard(self, tmp_path, capsys):
+    def test_shim_timeout_allows_and_continues_to_later_guard(self, tmp_path, capsys):
+        """A timed-out shim allows (exit 0), so later guards still run (#5013)."""
         marker = tmp_path / "later-ran"
         names = [
             _write_shim(
@@ -352,9 +357,9 @@ class TestRunDispatch:
         rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 0.1})
         elapsed = time.monotonic() - start
 
-        assert rc == 2
+        assert rc == 0
         assert elapsed < 2
-        assert not marker.exists()
+        assert marker.exists(), "later guard must run after a timed-out shim allows"
         assert "shim slow.py timed out after 0.1s" in capsys.readouterr().err
 
     def test_orphan_file_not_in_manifest_is_not_run(self, tmp_path):
@@ -900,7 +905,8 @@ class TestRunPermissionDispatch:
         assert rc == 2
         assert "invalid timeout 0" in captured.err
 
-    def test_decision_timeout_fails_closed(self, tmp_path, capsys):
+    def test_decision_timeout_allows_with_warning(self, tmp_path, capsys):
+        """A timed-out decision producer allows (issue #5013)."""
         name = _write_shim(
             tmp_path,
             "decision.py",
@@ -913,7 +919,7 @@ class TestRunPermissionDispatch:
         elapsed = time.monotonic() - start
 
         captured = capsys.readouterr()
-        assert rc == 2
+        assert rc == 0, "timed-out decision must allow (issue #5013)"
         assert elapsed < 2
         assert captured.out == ""
         assert "shim decision.py timed out after 0.1s" in captured.err
