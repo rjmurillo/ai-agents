@@ -116,6 +116,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T13:48:01+00:00",
+      "type": "commit",
+      "content": "Commit: 47466b7d1d834143a77a3bd10c6f4f581e71b2c5",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
     }
@@ -125,7 +138,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 24
   },
   "lessons": []
