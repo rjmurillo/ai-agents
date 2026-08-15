@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4920,
+    "date": "2026-08-15",
+    "branch": "fix/4920-scope-explosion-generated-files",
+    "startingCommit": "98f34a3e6b",
+    "objective": "Exclude generated files from scope explosion detector count"
+  },
+  "endingCommit": "d5ded8ef996b4f334f5d1068c9a6a1f1a922553b",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "serenaInstructions": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "handoffRead": {"complete": true, "level": "MUST", "evidence": "Read HANDOFF.md, AGENTS.md, CLAUDE.md"},
+      "sessionLogCreated": {"complete": true, "level": "MUST", "evidence": "Created 2026-08-15-session-4920-scope-explosion-generated-files.json"},
+      "skillScriptsListed": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "usageMandatoryRead": {"complete": true, "level": "MUST", "evidence": "Read AGENTS.md root"},
+      "constraintsRead": {"complete": true, "level": "MUST", "evidence": "Read project constraints from AGENTS.md"},
+      "memoriesLoaded": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "branchVerified": {"complete": true, "level": "MUST", "evidence": "fix/4920-scope-explosion-generated-files"},
+      "notOnMain": {"complete": true, "level": "MUST", "evidence": "On fix/4920-scope-explosion-generated-files"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"complete": true, "level": "MUST", "evidence": "All items recorded"},
+      "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
+      "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "markdownLintRun": {"complete": false, "level": "SHOULD", "evidence": "No markdown files changed"},
+      "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed"},
+      "validationPassed": {"complete": true, "level": "MUST", "evidence": "94 tests passed, ruff clean"}
+    }
+  },
+  "workLog": [
+    {"action": "reproduce", "detail": "Confirmed detect_scope_explosion.py counts generated files (no _is_generated filter)"},
+    {"action": "implement", "detail": "Added _partition_generated helper, imported _is_generated from git_hook_policy, filtered in detect_scope"},
+    {"action": "test", "detail": "Added 7 tests: generated excluded, authored blocks, only-generated, report note, no-note, episodes, merge-in-progress"}
+  ],
+  "nextSteps": [],
+  "outcome": {
+    "status": "COMPLETE",
+    "summary": "Filter generated files via _is_generated before scope threshold comparison",
+    "filesChanged": ["scripts/detect_scope_explosion.py", "tests/test_detect_scope_explosion.py"],
+    "testsAdded": 7,
+    "testsTotal": 94,
+    "testsPassed": true
+  }
+}
