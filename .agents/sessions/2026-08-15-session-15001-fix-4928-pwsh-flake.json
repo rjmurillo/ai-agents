@@ -26,7 +26,7 @@
       "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
       "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No memory updates required for this test fix"},
       "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "lefthook pre-commit ran; no markdown files changed"},
-      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5018-issue-4928-pwsh-flake.md"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5032-issue-4928-pwsh-flake.md"},
       "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "e94ffd1c20 fix(test): batch pwsh invocations to eliminate xdist timeout flake"},
       "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "35 tests pass; 5 xdist repetitions stable at ~2s each"}
     }
