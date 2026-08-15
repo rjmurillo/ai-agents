@@ -36,8 +36,11 @@ copilot -p "say PROBE" --agent <name> --allow-all-tools --no-color
 ```
 
 The delegation probe adds a parent agent carrying no `model:` and asks it to use
-the task tool, with `--model claude-opus-5 --log-dir ./logs --log-level debug`,
-then reads the resolution lines out of the debug log.
+the task tool, with `--model claude-opus-5 --log-level debug`, then reads the
+resolution lines out of the debug log. Treatment and control each write to
+their own `--log-dir` (`./logs-treatment` and `./logs-control`, detailed under
+"Delegation probe, with control" below) so the two runs cannot combine into a
+single extraction.
 
 ## Result table
 
