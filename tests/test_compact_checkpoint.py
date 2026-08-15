@@ -65,6 +65,8 @@ class TestFallbackRecentSessionLog:
         """The fallback finds an active log named by the old UTC creator."""
         utc_log = tmp_path / "2026-03-15-session-001.json"
         utc_log.write_text("{}", encoding="utf-8")
+        stale_local = tmp_path / "2026-03-13-session-001.json"
+        stale_local.write_text("{}", encoding="utf-8")
 
         class _FrozenDateTime(datetime):
             @classmethod

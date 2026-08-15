@@ -183,11 +183,18 @@ def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Pa
     candidates = list(sessions_dir.glob("*-session-*.json"))
     if not candidates:
         return None
-    today = today or date.fromisoformat(host_session_date())
-    target_days = [today, today - timedelta(days=1)]
-    if today == date.fromisoformat(host_session_date()):
+    host_today = date.fromisoformat(host_session_date())
+    today = today or host_today
+    if today == host_today:
         now_utc = datetime.now(tz=UTC)
-        target_days.extend((now_utc.date(), (now_utc - timedelta(days=1)).date()))
+        target_days = [
+            today,
+            now_utc.date(),
+            today - timedelta(days=1),
+            (now_utc - timedelta(days=1)).date(),
+        ]
+    else:
+        target_days = [today, today - timedelta(days=1)]
     for target_day in dict.fromkeys(target_days):
         prefix = f"{target_day.isoformat()}-session-"
         dated = [path for path in candidates if path.name.startswith(prefix)]

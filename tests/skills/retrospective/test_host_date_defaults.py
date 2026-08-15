@@ -49,6 +49,7 @@ def test_session_selector_finds_pre_migration_utc_tomorrow_log(
 ):
     sessions = tmp_path / ".agents" / "sessions"
     selected = _write_session(sessions, "2026-06-04-session-1-utc.json", "utc work")
+    _write_session(sessions, "2026-06-02-session-1-stale.json", "stale work")
     monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-03")
 
     class _FrozenDateTime(datetime):

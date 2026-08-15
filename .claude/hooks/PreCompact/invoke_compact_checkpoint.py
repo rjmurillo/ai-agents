@@ -29,6 +29,10 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+# vendor-portability: declared. The contributor-only
+# scripts/hook_utilities/utilities.py path below documents provenance; runtime
+# imports use the bundled lib/hook_utilities/utilities.py mirror.
+
 
 def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
     """Return the newest readable session log from today or yesterday.
@@ -61,8 +65,8 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
         dict.fromkeys(
             (
                 local_now.strftime("%Y-%m-%d"),
-                (local_now - timedelta(days=1)).strftime("%Y-%m-%d"),
                 utc_now.strftime("%Y-%m-%d"),
+                (local_now - timedelta(days=1)).strftime("%Y-%m-%d"),
                 (utc_now - timedelta(days=1)).strftime("%Y-%m-%d"),
             )
         )
