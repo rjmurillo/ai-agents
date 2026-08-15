@@ -229,11 +229,11 @@ class TestRetryBehavior:
         assert result.status == "PENDING"
 
     def test_unknown_status_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """UNKNOWN (API error) is NOT retried - only PENDING triggers retry."""
+        """UNKNOWN (API error) is NOT retried - only transient states trigger retry."""
         monkeypatch.setenv("GITHUB_OUTPUT", "")
         unknown = Resolution(status="UNKNOWN", reason="API error")
 
-        with patch("scripts.quality_gate.consume_pytest_signal.resolve", return_value=unknown):
+        with patch.object(mod, "resolve", return_value=unknown):
             result = mod._wait_for_resolution(
                 None,
                 repo="o/r",
@@ -246,6 +246,33 @@ class TestRetryBehavior:
             )
 
         assert result.status == "UNKNOWN"
+
+    def test_unknown_no_job_retries_then_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """UNKNOWN with no-job reason is transient (job not yet created)."""
+        monkeypatch.setenv("GITHUB_OUTPUT", "")
+        call_count = {"n": 0}
+        no_job = Resolution(status="UNKNOWN", reason=mod.REASON_NO_JOB)
+        passed = Resolution(status="PASS", reason="executor")
+
+        def mock_resolve(*args, **kwargs):
+            call_count["n"] += 1
+            return no_job if call_count["n"] == 1 else passed
+
+        with patch.object(mod, "resolve", side_effect=mock_resolve):
+            with patch("time.sleep"):
+                result = mod._wait_for_resolution(
+                    None,
+                    repo="o/r",
+                    pr="1",
+                    expected_sha="a" * 40,
+                    workflow="pytest.yml",
+                    job_name="Run Python Tests",
+                    deadline=30.0,
+                    poll_interval=1.0,
+                )
+
+        assert result.status == "PASS"
+        assert call_count["n"] == 2
 
 
 # ---------------------------------------------------------------------------

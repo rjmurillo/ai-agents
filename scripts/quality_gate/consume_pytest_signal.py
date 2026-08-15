@@ -59,6 +59,8 @@ STATUS_FAIL = _mod.STATUS_FAIL
 STATUS_PASS = _mod.STATUS_PASS
 STATUS_PENDING = _mod.STATUS_PENDING
 STATUS_SKIPPED = _mod.STATUS_SKIPPED
+STATUS_UNKNOWN = _mod.STATUS_UNKNOWN
+REASON_NO_JOB = _mod.REASON_NO_JOB
 Resolution = _mod.Resolution
 resolve = _mod.resolve
 run_gh = _mod.run_gh
@@ -71,7 +73,7 @@ _SUMMARY_TEMPLATES = {
     STATUS_PENDING: "pytest.yml has not completed yet",
 }
 
-DEFAULT_DEADLINE_SECONDS = 180.0
+DEFAULT_DEADLINE_SECONDS = 720.0
 DEFAULT_POLL_INTERVAL = 15.0
 MAX_POLL_INTERVAL = 60.0
 BACKOFF_FACTOR = 1.5
@@ -94,11 +96,21 @@ def _wait_for_resolution(
     resolution = resolve(
         runner, repo=repo, pr=pr, expected_sha=expected_sha, workflow=workflow, job_name=job_name
     )
-    while resolution.status == STATUS_PENDING and (time.monotonic() - start) < deadline:
+
+    def _is_transient(r: Resolution) -> bool:
+        """PENDING or UNKNOWN/no-job are transient (job not yet created)."""
+        if r.status == STATUS_PENDING:
+            return True
+        if r.status == STATUS_UNKNOWN and r.reason == REASON_NO_JOB:
+            return True
+        return False
+
+    while _is_transient(resolution) and (time.monotonic() - start) < deadline:
         sleep_time = min(interval, deadline - (time.monotonic() - start))
         if sleep_time <= 0:
             break
-        print(f"pytest.yml is pending, waiting {sleep_time:.0f}s...", file=sys.stderr)
+        label = "pending" if resolution.status == STATUS_PENDING else "waiting for job creation"
+        print(f"pytest.yml is {label}, waiting {sleep_time:.0f}s...", file=sys.stderr)
         time.sleep(sleep_time)
         interval = min(interval * BACKOFF_FACTOR, MAX_POLL_INTERVAL)
         resolution = resolve(
@@ -158,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validation
     import re
+    import subprocess
 
     if not re.match(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", repo):
         print("error: --repo or GITHUB_REPOSITORY must be owner/repo", file=sys.stderr)
@@ -165,6 +178,22 @@ def main(argv: list[str] | None = None) -> int:
     if not re.match(r"^[1-9][0-9]{0,9}$", pr):
         print("error: --pr or PR_NUMBER must be a positive integer", file=sys.stderr)
         return EXIT_CONFIG
+
+    # Resolve SHA from PR when not provided (e.g. workflow_dispatch)
+    if not expected_sha:
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{repo}/pulls/{pr}", "--jq", ".head.sha"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            expected_sha = result.stdout.strip().lower()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            print(f"error: failed to resolve head SHA for PR #{pr}: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
+
     if not re.match(r"^[0-9a-f]{40}$", expected_sha):
         print(
             "error: --expected-head-sha or EXPECTED_HEAD_SHA must be 40 hex characters",

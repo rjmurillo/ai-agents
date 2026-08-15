@@ -213,7 +213,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run-review == 'true'
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
       contents: read
       # Listing pytest.yml workflow runs and their jobs requires actions:read.
