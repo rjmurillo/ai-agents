@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-5066-prepush-fast-fail.json
-qaCommit: 57ef6bf85b36a375c2efea4d00663e4a36323b43
+qaCommit: f0538c821813901e0d582b39f89e4dd0df0693dd
 ---
 
 # QA Report: pre-push fast-fail staging (issue #5066)
@@ -72,6 +72,16 @@ pinned as a closed exception list so it cannot silently grow.
 - New coverage is positive (ordering holds, runtime clean-run control), negative (misordered synthetic config detected, stdin-in-parallel synthetic config detected, runtime fast-stage failure skips the expensive stage), and edge (unknown job name, config without pre-push, duration unit parsing, fast-stage timeout ceiling).
 
 ## Spec-validation response (PR #5083)
+
+Round 3: the expensive parallel group is now exact-pinned too
+(`EXPENSIVE_STAGE_ROSTER`), closing the validator's finding that a job added
+after security-scan was auto-accounted without a roster decision; every
+pre-push placement now requires editing a roster constant. The two remaining
+PARTIAL residuals are deliberate scope boundaries: the dash guard split is
+issue #5086, and an automated wall-clock budget gate would be new
+functionality outside this issue's "only ordering changes" criterion (a CI
+wall-clock threshold is also inherently machine-sensitive; see the MUST-16
+caveat below).
 
 The AI spec validation returned PARTIAL with two pin-strength findings, both
 addressed: the fast-stage rosters are now exact two-way membership pins with a
