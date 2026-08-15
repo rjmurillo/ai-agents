@@ -60,7 +60,32 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired root-container full-suite failures found during push",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T14:48:54+00:00",
+      "type": "commit",
+      "content": "Commit: ef7f749d1872c77f5141ee67ae8c165ba3161b4c",
+      "caused_by": [
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
@@ -71,8 +96,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }

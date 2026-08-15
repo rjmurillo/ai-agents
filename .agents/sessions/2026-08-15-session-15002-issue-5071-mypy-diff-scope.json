@@ -7,7 +7,7 @@
     "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
     "objective": "Fix issue #5071: scope pre-push mypy file set to the merge-base diff so commit-then-revert round trips contribute nothing"
   },
-  "endingCommit": "53fb210d728daecdeb8e88a6e8ffe73db330cea3",
+  "endingCommit": "ef7f749d1872c77f5141ee67ae8c165ba3161b4c",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
@@ -115,17 +115,21 @@
     {
       "step": "Added 8 tests",
       "outcome": "Positive (modified file checked and blocks), negative (round trip contributes nothing, mypy never invoked), edges (rename post-image kept, deletion filtered by existence check, empty diff exits 0, unresolvable base scans full set), real-git end-to-end wiring, and main(argv) CLI exit contract (1 in scope, 0 when round-tripped)"
+    },
+    {
+      "step": "Repaired root-container full-suite failures found during push",
+      "outcome": "Added _NO_PERMISSION_BARRIER skipif to two mode-bit tests (mirror regenerated), added sqlite3 and openssh-client to bootstrap-vm.sh; 20 unrelated pre-push failures resolved"
     }
   ],
   "nextSteps": [
     "Push branch, open draft PR with Fixes #5071, drive CI to green"
   ],
   "episodeMetrics": {
-    "filesChanged": 2,
+    "filesChanged": 6,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "430c206d21425c178f783daf84c7a7c48591160c",
-      "head": "53fb210d728daecdeb8e88a6e8ffe73db330cea3"
+      "head": "ef7f749d1872c77f5141ee67ae8c165ba3161b4c"
     }
   },
   "retrospective": "## Retrospective\n\nLearning: a line-level ratchet on top of an over-broad file set still lets the file set cause blocks through its failure fallbacks (fatal invocation output, unresolvable diff base) and wastes scan time. Scoping the input set to the merge-base diff removes the round-trip class entirely, and the same base ref serves both the file scope and the line ratchet so the two filters cannot disagree."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15002-issue-5071-mypy-diff-scope.json
-qaCommit: 53fb210d728daecdeb8e88a6e8ffe73db330cea3
+qaCommit: ef7f749d1872c77f5141ee67ae8c165ba3161b4c
 ---
 
 # QA Report: Issue 5071, pre-push mypy scoped to merge-base diff
@@ -80,6 +80,27 @@ blocking error in scope and 0 when the same file round-tripped out of scope
 - `ruff check` clean on both touched files; `mypy` clean on `git_hook_policy.py`
 - Taste count ratchet: OK (count == baseline 583) after extracting the filter helper
   to keep `run_mypy` at complexity 10
+
+## Pre-push Full-Suite Repair (found while pushing)
+
+The full pre-push suite (selected because this change touches
+`scripts/validation/git_hook_policy.py`) surfaced 20 failures unrelated to this
+diff, all environmental in a root CCR container:
+
+- 16 forgetful-import tests: `sqlite3` CLI missing. Fixed by adding `sqlite3`
+  to `scripts/bootstrap-vm.sh` prerequisites.
+- `test_a_signed_history_is_still_read`: `ssh-keygen` missing. Fixed by adding
+  `openssh-client` to `scripts/bootstrap-vm.sh`.
+- `test_the_tracked_scan_fails_config_on_an_unreadable_file` and
+  `test_permission_denied_file_returns_auth_exit_code` (plus the two
+  bundle-suite aggregates re-running the latter): both build their
+  precondition from file mode bits, which root ignores. Guarded with the
+  repo's existing `_NO_PERMISSION_BARRIER` skipif idiom
+  (`tests/test_gc_anchor_readers.py`); the orphan-ref-validator mirror was
+  regenerated via `build/scripts/build_all.py` and is byte-identical.
+
+After the repairs: the three named tests pass or skip under root, and the
+forgetful tests pass (41 passed).
 
 ## Acceptance Criteria Mapping (issue #5071)
 
