@@ -1,3 +1,9 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number.json
+qaCommit: 96ecae742848d9dbb34045cb42d83ea020b86c2b
+---
+
 # QA Report: PR #5092, Issue #4751 sibling-branch session-number allocation
 
 **Date**: 2026-08-15
