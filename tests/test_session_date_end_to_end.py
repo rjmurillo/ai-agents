@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -33,6 +33,7 @@ import new_session_log_json  # noqa: E402
 from scripts.hook_utilities.utilities import get_recent_session_log  # noqa: E402
 from scripts.validation.git_hook_policy import (  # noqa: E402
     _recent_session_candidates,
+    _session_log_for_branch,
 )
 
 # Both drift directions plus the no-offset control. Kiritimati is UTC+14, so its
@@ -106,6 +107,7 @@ def _create_then_scan_across_timezones(
     scanner_timezone: str,
     creator_date: str,
     scanner_today: str,
+    scanner_instant: datetime,
 ) -> Path:
     """Create for one host date, then scan from another fixed host date."""
     os.environ["TZ"] = creator_timezone
@@ -120,9 +122,17 @@ def _create_then_scan_across_timezones(
     scanner_yesterday = (
         date.fromisoformat(scanner_today) - timedelta(days=1)
     ).isoformat()
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(scanner_instant.timestamp(), tz)
+
     with patch(
         "scripts.validation.git_hook_policy.recent_host_session_dates",
         return_value=(scanner_today, scanner_yesterday),
+    ), patch(
+        "scripts.validation.git_hook_policy.datetime",
+        _FrozenDateTime,
     ):
         candidates = _recent_session_candidates(created.parent)
 
@@ -141,6 +151,7 @@ def test_git_hook_policy_finds_next_day_log_after_timezone_switch(tmp_path):
             scanner_timezone="UTC",
             creator_date="2026-08-09",
             scanner_today="2026-08-08",
+            scanner_instant=datetime(2026, 8, 8, 12, tzinfo=UTC),
         )
     finally:
         if original is None:
@@ -160,6 +171,7 @@ def test_git_hook_policy_finds_log_across_extreme_timezone_switch(tmp_path):
             scanner_timezone="Etc/GMT+12",
             creator_date="2026-08-10",
             scanner_today="2026-08-08",
+            scanner_instant=datetime(2026, 8, 9, 11, tzinfo=UTC),
         )
     finally:
         if original is None:
@@ -179,6 +191,7 @@ def test_git_hook_policy_finds_log_across_reverse_timezone_switch(tmp_path):
             scanner_timezone="Pacific/Kiritimati",
             creator_date="2026-08-08",
             scanner_today="2026-08-10",
+            scanner_instant=datetime(2026, 8, 9, 11, tzinfo=UTC),
         )
     finally:
         if original is None:
@@ -186,6 +199,29 @@ def test_git_hook_policy_finds_log_across_reverse_timezone_switch(tmp_path):
         else:
             os.environ["TZ"] = original
         time.tzset()
+
+
+def test_git_hook_policy_rejects_stale_same_branch_log(tmp_path):
+    """A scanner-relative two-day-old log cannot satisfy branch evidence."""
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True)
+    stale = sessions / "2026-03-13-session-1.json"
+    stale.write_text('{"session": {"branch": "fix/current"}}', encoding="utf-8")
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 3, 15, 0, 30, tzinfo=UTC)
+            return cls.fromtimestamp(instant.timestamp(), tz)
+
+    with patch(
+        "scripts.validation.git_hook_policy.recent_host_session_dates",
+        return_value=("2026-03-15", "2026-03-14"),
+    ), patch(
+        "scripts.validation.git_hook_policy.datetime",
+        _FrozenDateTime,
+    ):
+        assert _session_log_for_branch(sessions, "fix/current") is None
 
 
 def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_path):

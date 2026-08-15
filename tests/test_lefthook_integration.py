@@ -547,7 +547,7 @@ def test_retrospective_policy_accepts_utc_minus_12_current_artifact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A UTC-12 producer's current artifact satisfies a UTC+14-running gate."""
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 1, 0, tzinfo=UTC))
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 11, 0, tzinfo=UTC))
     monkeypatch.setattr(
         policy,
         "recent_host_session_dates",

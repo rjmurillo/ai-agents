@@ -32,10 +32,8 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
-
-UTC = timezone.utc
 
 
 def _resolve_paths_lib_dir() -> Path:

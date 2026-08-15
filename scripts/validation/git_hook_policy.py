@@ -24,7 +24,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -983,8 +983,21 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
+def _current_host_date_prefixes() -> tuple[str, ...]:
+    """Return scanner-local grace plus dates physically current worldwide."""
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    earliest = (now_utc - timedelta(hours=12)).date()
+    latest = (now_utc + timedelta(hours=14)).date()
+    physically_current_dates = tuple(
+        (earliest + timedelta(days=offset)).isoformat()
+        for offset in range((latest - earliest).days + 1)
+    )
+    return tuple(dict.fromkeys((*host_dates, *physically_current_dates)))
+
+
 def _recent_date_prefixes() -> tuple[str, ...]:
-    """Return host-local and UTC date prefixes for retrospective lookup.
+    """Return admissible host-local and UTC retrospective date prefixes.
 
     ``run_retrospective.build_parser`` defaults its dated scope through
     ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
@@ -994,40 +1007,29 @@ def _recent_date_prefixes() -> tuple[str, ...]:
     another host without admitting an arbitrary scanner-relative ±2-day
     window.
     """
-    host_dates = recent_host_session_dates()
     now_utc = datetime.now(tz=UTC)
-    earliest = (now_utc - timedelta(hours=12)).date()
-    latest = (now_utc + timedelta(hours=14)).date()
-    physically_current_dates = tuple(
-        (earliest + timedelta(days=offset)).isoformat()
-        for offset in range((latest - earliest).days + 1)
-    )
     utc_dates = (
         now_utc.strftime("%Y-%m-%d"),
         (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
     )
-    return tuple(dict.fromkeys((*host_dates, *physically_current_dates, *utc_dates)))
+    return tuple(dict.fromkeys((*_current_host_date_prefixes(), *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     """Return adjacent-date session logs, or None if unreadable.
 
-    The five-day window handles cross-midnight sessions and the full UTC+14 to
-    UTC-12 creator/scanner date range in either direction. Dates come from
-    ``recent_host_session_dates`` (host local), the same authority the creator
-    uses to name the file (Issue #4779); a UTC anchor here would make a
-    far-east session invisible near midnight. Returning None rather than an
-    empty list keeps "directory unreadable" distinguishable from "no logs
-    today", because both callers fail open on the former.
+    The scanner host's today/yesterday grace is augmented only by dates that
+    are physically current somewhere from UTC-12 through UTC+14. This finds a
+    same-instant log from another host without admitting arbitrary stale
+    scanner-relative dates. Returning None rather than an empty list keeps
+    "directory unreadable" distinguishable from "no logs today", because both
+    callers fail open on the former.
     """
     if not sessions_dir.is_dir():
         return None
-    today, _ = recent_host_session_dates()
-    anchor = date.fromisoformat(today)
     candidates: list[Path] = []
     try:
-        for day_offset in (2, 1, 0, -1, -2):
-            date_prefix = (anchor + timedelta(days=day_offset)).isoformat()
+        for date_prefix in _current_host_date_prefixes():
             candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None

@@ -43,9 +43,12 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
         return today, yesterday
 
     The installed plugin mirrors that helper at
-    ``lib/hook_utilities/utilities.py``. Unlike canonical, this fallback uses
-    inline ``datetime.now()`` and skips a date after a glob error instead of
-    warning and returning ``None``. Both use host-local dates (Issue #4779).
+    ``lib/hook_utilities/utilities.py``.
+
+    Stricter/looser/different than canonical:
+    Unlike canonical, this fallback uses inline ``datetime.now()`` and skips a
+    date after a glob error instead of warning and returning ``None``. Both use
+    host-local dates (Issue #4779).
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
