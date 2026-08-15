@@ -34,6 +34,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import importlib
 import math
 import os
 import sys
@@ -41,33 +42,27 @@ import time
 from functools import partial
 from pathlib import Path
 
+
 # Import the resolution machinery from the shadow module.
-try:
-    from .resolve_pytest_signal import (
-        EXIT_CONFIG,
-        EXIT_OK,
-        STATUS_FAIL,
-        STATUS_PASS,
-        STATUS_PENDING,
-        STATUS_SKIPPED,
-        Resolution,
-        resolve,
-        run_gh,
-        sanitize,
-    )
-except ImportError:  # pragma: no cover - script execution path
-    from resolve_pytest_signal import (  # type: ignore[no-redef]
-        EXIT_CONFIG,
-        EXIT_OK,
-        STATUS_FAIL,
-        STATUS_PASS,
-        STATUS_PENDING,
-        STATUS_SKIPPED,
-        Resolution,
-        resolve,
-        run_gh,
-        sanitize,
-    )
+# Supports both package-relative (pytest) and bare (script execution) paths.
+def _import_resolve_module():  # noqa: ANN202
+    try:
+        return importlib.import_module(".resolve_pytest_signal", __package__)
+    except (ImportError, TypeError):  # pragma: no cover - script execution path
+        return importlib.import_module("resolve_pytest_signal")
+
+
+_mod = _import_resolve_module()
+EXIT_CONFIG = _mod.EXIT_CONFIG
+EXIT_OK = _mod.EXIT_OK
+STATUS_FAIL = _mod.STATUS_FAIL
+STATUS_PASS = _mod.STATUS_PASS
+STATUS_PENDING = _mod.STATUS_PENDING
+STATUS_SKIPPED = _mod.STATUS_SKIPPED
+Resolution = _mod.Resolution
+resolve = _mod.resolve
+run_gh = _mod.run_gh
+sanitize = _mod.sanitize
 
 _SUMMARY_TEMPLATES = {
     STATUS_PASS: "All tests passed (resolved from pytest.yml)",
