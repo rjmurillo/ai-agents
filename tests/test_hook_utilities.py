@@ -8,11 +8,12 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+import scripts.hook_utilities.utilities as hook_utilities
 from scripts.hook_utilities import (
     coerce_to_list,
     format_work_item,
@@ -283,6 +284,29 @@ class TestGetRecentSessionLog:
         os.utime(yesterday_f, (time.time() + 100, time.time() + 100))
         result = get_recent_session_log(str(tmp_path))
         assert result is not None and result.name == today_f.name
+
+    def test_finds_pre_migration_utc_tomorrow_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A new local-date consumer finds an active old UTC-date log."""
+        utc_log = tmp_path / "2026-03-15-session-01.json"
+        utc_log.write_text("{}", encoding="utf-8")
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is not None:
+                    return cls(2026, 3, 15, 1, 30, tzinfo=UTC)
+                return cls(2026, 3, 14, 18, 30)
+
+        monkeypatch.setattr(
+            hook_utilities,
+            "recent_host_session_dates",
+            lambda: ("2026-03-14", "2026-03-13"),
+        )
+        monkeypatch.setattr(hook_utilities, "datetime", _FrozenDateTime)
+
+        assert get_recent_session_log(str(tmp_path)) == utc_log
 
     def test_skips_candidate_with_transient_stat_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

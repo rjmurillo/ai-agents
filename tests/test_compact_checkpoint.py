@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,6 +58,27 @@ class TestFallbackRecentSessionLog:
         )
 
         assert result == readable
+
+    def test_finds_pre_migration_utc_tomorrow_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The fallback finds an active log named by the old UTC creator."""
+        utc_log = tmp_path / "2026-03-15-session-001.json"
+        utc_log.write_text("{}", encoding="utf-8")
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is not None:
+                    return cls(2026, 3, 15, 1, 30, tzinfo=UTC)
+                return cls(2026, 3, 14, 18, 30)
+
+        monkeypatch.setattr(invoke_compact_checkpoint, "datetime", _FrozenDateTime)
+
+        assert (
+            invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path))
+            == utc_log
+        )
 
     def test_falls_back_to_yesterday_when_today_candidates_are_unreadable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

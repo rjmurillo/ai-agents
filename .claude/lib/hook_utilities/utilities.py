@@ -14,7 +14,7 @@ import re
 import sys
 import warnings
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
 
@@ -241,54 +241,46 @@ def get_today_session_logs(sessions_dir: str) -> list[Path]:
 
 
 def get_recent_session_log(sessions_dir: str) -> Path | None:
-    """Find the most recent session log for the current session.
+    """Find the newest recent session log using rollout-safe date priority.
 
-    Returns the newest today-prefixed session log when any today candidate
-    stats successfully. Falls back to the newest yesterday-prefixed session
-    log in two cases: (1) no today-prefixed file exists at all, and (2) today
-    candidates exist but every one of them fails stat() (a transient FS error
-    or race). The fallback supports sessions that span midnight and prevents
-    a single transient stat failure from blinding hooks to the session.
+    Host-local today and yesterday remain authoritative for newly created
+    logs. UTC today and yesterday follow as deduplicated compatibility
+    fallbacks for active logs created before Issue #4779 changed the creator's
+    date authority. The first prefix with a readable candidate wins.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
         warnings.warn(f"Session directory not found: {sessions_dir}", stacklevel=2)
         return None
 
-    today, yesterday = recent_host_session_dates()
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime(_ISO_DATE),
+        (now_utc - timedelta(days=1)).strftime(_ISO_DATE),
+    )
+    prefixes = tuple(dict.fromkeys((*host_dates, *utc_dates)))
 
-    # First, check for today's sessions
-    try:
-        today_candidates = list(sessions_path.glob(f"{today}-session-*.json"))
-    except OSError as exc:
-        warnings.warn(
-            f"Failed to read session logs from {sessions_dir}: {exc}",
-            stacklevel=2,
-        )
-        return None
+    for index, prefix in enumerate(prefixes):
+        try:
+            candidates = list(sessions_path.glob(f"{prefix}-session-*.json"))
+        except OSError as exc:
+            warnings.warn(
+                f"Failed to read session logs from {sessions_dir}: {exc}",
+                stacklevel=2,
+            )
+            return None
 
-    most_recent = _newest_by_mtime(today_candidates)
-    if most_recent is not None:
-        return most_recent
-    if today_candidates:
-        # All today candidates errored on stat. Fall through to yesterday so a
-        # single transient stat failure does not blind hooks to the session.
-        warnings.warn(
-            "All today session logs failed stat; falling back to yesterday",
-            stacklevel=2,
-        )
+        most_recent = _newest_by_mtime(candidates)
+        if most_recent is not None:
+            return most_recent
+        if candidates and index == 0:
+            warnings.warn(
+                "All today session logs failed stat; falling back to yesterday",
+                stacklevel=2,
+            )
 
-    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
-    try:
-        yesterday_candidates = list(sessions_path.glob(f"{yesterday}-session-*.json"))
-    except OSError as exc:
-        warnings.warn(
-            f"Failed to read session logs from {sessions_dir}: {exc}",
-            stacklevel=2,
-        )
-        return None
-
-    return _newest_by_mtime(yesterday_candidates)
+    return None
 
 
 def coerce_to_list(value: object) -> list[Any]:

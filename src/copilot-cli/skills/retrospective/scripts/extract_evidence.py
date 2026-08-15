@@ -32,7 +32,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 
@@ -173,7 +173,10 @@ def _session_log_date(path: Path) -> date | None:
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
     """Return the session log for a target date priority, or None when absent.
 
-    Prefers the target date, then the previous day, then the newest older log.
+    Prefers the target date and previous day. For the current host-local
+    scope, UTC today/yesterday follow as rollout compatibility for logs created
+    before Issue #4779; explicit historical scopes do not use that fallback.
+    The newest older log is the final fallback.
     """
     if not sessions_dir.is_dir():
         return None
@@ -181,7 +184,11 @@ def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Pa
     if not candidates:
         return None
     today = today or date.fromisoformat(host_session_date())
-    for target_day in (today, today - timedelta(days=1)):
+    target_days = [today, today - timedelta(days=1)]
+    if today == date.fromisoformat(host_session_date()):
+        now_utc = datetime.now(tz=UTC)
+        target_days.extend((now_utc.date(), (now_utc - timedelta(days=1)).date()))
+    for target_day in dict.fromkeys(target_days):
         prefix = f"{target_day.isoformat()}-session-"
         dated = [path for path in candidates if path.name.startswith(prefix)]
         if dated:

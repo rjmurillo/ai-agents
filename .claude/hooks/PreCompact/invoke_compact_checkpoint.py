@@ -47,18 +47,29 @@ def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
 
     Stricter/looser/different than canonical:
     Unlike canonical, this fallback uses inline ``datetime.now()`` and skips a
-    date after a glob error instead of warning and returning ``None``. Both use
-    host-local dates (Issue #4779).
+    date after a glob error instead of warning and returning ``None``. Both
+    prioritize host-local today/yesterday and retain UTC today/yesterday for
+    rollout compatibility with pre-Issue #4779 logs.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
         return None
 
-    now = datetime.now()  # host-local date authority (Issue #4779)
-    for offset in (0, 1):
-        date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+    local_now = datetime.now()  # host-local date authority (Issue #4779)
+    utc_now = datetime.now(tz=UTC)
+    prefixes = tuple(
+        dict.fromkeys(
+            (
+                local_now.strftime("%Y-%m-%d"),
+                (local_now - timedelta(days=1)).strftime("%Y-%m-%d"),
+                utc_now.strftime("%Y-%m-%d"),
+                (utc_now - timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
+        )
+    )
+    for date_prefix in prefixes:
         try:
-            candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+            candidates = list(sessions_path.glob(f"{date_prefix}-session-*.json"))
         except OSError:
             continue
 

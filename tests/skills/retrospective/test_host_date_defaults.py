@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import UTC, datetime
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
@@ -39,6 +40,23 @@ def test_session_selector_default_uses_host_local_date(tmp_path, monkeypatch):
     selected = _write_session(sessions, "2026-06-04-session-1-host-ahead.json", "ahead")
     _write_session(sessions, "2026-06-03-session-1-utc.json", "utc")
     monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-04")
+
+    assert _EXTRACT_EVIDENCE.find_recent_session_log(sessions) == selected
+
+
+def test_session_selector_finds_pre_migration_utc_tomorrow_log(
+    tmp_path, monkeypatch
+):
+    sessions = tmp_path / ".agents" / "sessions"
+    selected = _write_session(sessions, "2026-06-04-session-1-utc.json", "utc work")
+    monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-03")
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 6, 4, 1, 30, tzinfo=UTC)
+
+    monkeypatch.setattr(_EXTRACT_EVIDENCE, "datetime", _FrozenDateTime)
 
     assert _EXTRACT_EVIDENCE.find_recent_session_log(sessions) == selected
 
