@@ -301,7 +301,7 @@ def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) ->
             return set(tools)
 
     # Fallback: event not emitted (issue #4964 hosted-runner contract).
-    event_types = sorted({e.get("type", "<no type>") for e in events})
+    event_types = sorted(str(e.get("type", "<no type>")) for e in events)
     warnings.warn(
         f"session.custom_agents_updated not found for {agent!r}; "
         f"falling back to agent file. Events received: {event_types}",
