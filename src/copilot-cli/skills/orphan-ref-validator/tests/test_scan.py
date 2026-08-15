@@ -841,6 +841,10 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
     assert rc == 0
 
 
+@pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0,
+    reason="chmod-based permission denial is a no-op for root (web containers)",
+)
 def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys):
     target = fake_repo / "docs" / "locked.md"
     write(target, "Use skill `dead-skill`.\n")
