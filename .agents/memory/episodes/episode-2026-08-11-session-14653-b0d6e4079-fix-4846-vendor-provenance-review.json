@@ -100,7 +100,8 @@
         "e048",
         "e050",
         "e052",
-        "e054"
+        "e054",
+        "e056"
       ],
       "leads_to": [
         "e006"
@@ -714,6 +715,30 @@
       "caused_by": [
         "e053"
       ],
+      "leads_to": [
+        "e057"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e056",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main before the final push.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-08-15T03:41:07+00:00",
+      "type": "commit",
+      "content": "Commit: 35a22aafcc1b8c96c500c0b7aa728283c1ba396b",
+      "caused_by": [
+        "e055"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -723,7 +748,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 32,
+    "commits": 33,
     "files_changed": 52
   },
   "lessons": []

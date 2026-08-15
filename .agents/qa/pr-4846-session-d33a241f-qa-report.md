@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 81435955ad079765ea251cb07749e112409e8b0b
+qaCommit: 35a22aafcc1b8c96c500c0b7aa728283c1ba396b
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `81435955ad079765ea251cb07749e112409e8b0b`
+Validated the branch at commit `35a22aafcc1b8c96c500c0b7aa728283c1ba396b`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
