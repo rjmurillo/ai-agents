@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Six atomic commits on this branch (git log a225da30e..2ad3620319656d4517ce5a9d07a20d26ec390d34): 5f351cf8d81c9b3c46595cab12f47eee6d5de201 (CONTRIBUTING.md authority), 76521cf2f58f701d3412761ab62d9a61d2658b44 (the three enforcement messages with their tests), c7e1ff3339e5111c92226a3b56d79ef9841d4c43 (the GOTCHAS.md entry with this log), 0076e356293aa899ae80980b45f1d607c15d0c0d (the QA report and episode), 1edbf4fb0e42d55bc36876d1c573b76bb8598a33 (corrected the knowledge-persistence decision wording), 2ad3620319656d4517ce5a9d07a20d26ec390d34 (renamed the QA report so CI can find it)."
+        "Evidence": "Seven atomic commits on this branch (git log a225da30e..cd820953ed28263112dd3d52d81e5395f0c6192d): 5f351cf8d81c9b3c46595cab12f47eee6d5de201 (CONTRIBUTING.md authority), 76521cf2f58f701d3412761ab62d9a61d2658b44 (the three enforcement messages with their tests), c7e1ff3339e5111c92226a3b56d79ef9841d4c43 (the GOTCHAS.md entry with this log), 0076e356293aa899ae80980b45f1d607c15d0c0d (the QA report and episode), 1edbf4fb0e42d55bc36876d1c573b76bb8598a33 (corrected the knowledge-persistence decision wording), 2ad3620319656d4517ce5a9d07a20d26ec390d34 (renamed the QA report so CI can find it), cd820953ed28263112dd3d52d81e5395f0c6192d (a later review round: scoped the CONTRIBUTING.md declaration checks to their section, corrected MUST 10, and added the GOTCHAS.md guard test)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,7 +150,7 @@
       "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
     }
   ],
-  "endingCommit": "c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
+  "endingCommit": "cd820953ed28263112dd3d52d81e5395f0c6192d",
   "nextSteps": [
     "PR #4997 is open. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
   ]

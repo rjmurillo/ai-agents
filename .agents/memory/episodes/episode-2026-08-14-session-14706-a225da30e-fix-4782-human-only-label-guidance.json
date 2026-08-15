@@ -143,6 +143,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T07:12:18+00:00",
+      "type": "commit",
+      "content": "Commit: cd820953ed28263112dd3d52d81e5395f0c6192d",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     }
@@ -152,8 +165,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 9
+    "commits": 7,
+    "files_changed": 11
   },
   "lessons": []
 }

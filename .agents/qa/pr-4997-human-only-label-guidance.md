@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance.json
-qaCommit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43
+qaCommit: cd820953ed28263112dd3d52d81e5395f0c6192d
 ---
 
 # QA Report: PR #4997, issue #4782, enforcement messages naming a human-only label
@@ -9,7 +9,7 @@ qaCommit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43
 ## Scope
 
 Branch `fix/4782-push-gate-human-only-label`, base `a225da30e`
-(origin/main), validation commit `c7e1ff3339e5111c92226a3b56d79ef9841d4c43`.
+(origin/main), validation commit `cd820953ed28263112dd3d52d81e5395f0c6192d`.
 
 Under test: three enforcement messages that named a bypass label as the
 reader's own next step, the two CONTRIBUTING.md lines with the same shape,
