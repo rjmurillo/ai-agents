@@ -204,6 +204,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         sleep 0.01
@@ -222,6 +223,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         kill "$mutation_pid" 2>/dev/null || true
@@ -264,6 +266,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    stop_mutation_group "$mutation_pid"
     return "$mutation_rc"
 }
 # lease-renewal:end
