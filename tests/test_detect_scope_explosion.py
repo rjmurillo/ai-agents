@@ -1536,7 +1536,9 @@ class TestGeneratedFileExclusion:
     toward the scope explosion threshold.
     """
 
-    def test_generated_files_excluded_from_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_generated_files_excluded_from_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """A branch with 60 generated files and 3 authored files passes."""
         repo = tmp_path / "repo"
         _init_scope_repo(repo)
@@ -1557,7 +1559,9 @@ class TestGeneratedFileExclusion:
         assert result.file_count == 3
         assert result.generated_count == 60
 
-    def test_authored_files_still_block(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_authored_files_still_block(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """A branch with 55 authored files blocks even with generated files."""
         repo = tmp_path / "repo"
         _init_scope_repo(repo)
@@ -1578,7 +1582,9 @@ class TestGeneratedFileExclusion:
         assert result.file_count == 55
         assert result.generated_count == 10
 
-    def test_only_generated_files_yields_zero_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_only_generated_files_yields_zero_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """A branch with only generated files has file_count == 0."""
         repo = tmp_path / "repo"
         _init_scope_repo(repo)
@@ -1638,7 +1644,9 @@ class TestGeneratedFileExclusion:
         assert result.file_count == 1
         assert result.generated_count == 1
 
-    def test_merge_in_progress_also_excludes_generated(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_merge_in_progress_also_excludes_generated(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Generated files excluded even during an in-progress merge."""
         repo = tmp_path / "repo"
         _init_scope_repo(repo)
