@@ -39,6 +39,19 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14708-bf825392c-fix-issue-4992-leading-dot-github"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T06:33:34+00:00",
+      "type": "commit",
+      "content": "Commit: 2c9ec1e2b2",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14708-bf825392c-fix-issue-4992-leading-dot-github"
     }
@@ -48,7 +61,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 13
   },
   "lessons": []
