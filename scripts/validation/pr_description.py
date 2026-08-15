@@ -839,8 +839,24 @@ def validate_pr_description(
                         "`## Changed Files` are informational. Move the path "
                         "under one of those headings, use a bullet (`- path.ext`) "
                         "or bold (`**path.ext**`), or wrap it in a code fence. "
-                        f"For unrecoverable cases, apply the "
-                        f"'{DEFAULT_BYPASS_LABEL}' label to the PR."
+                        # CONTRIBUTING.md:912, section "Bypassing Description
+                        # Validation", reads verbatim: "1. A human maintainer
+                        # MUST add the `description-validation-bypass` label
+                        # (case-insensitive match)". Naming it as the reader's
+                        # own next step tells an agent to grant itself a
+                        # permission it does not hold (issue #4782).
+                        #
+                        # Stricter/looser/different than canonical:
+                        # CONTRIBUTING.md:912 states only who MAY add the
+                        # label. This message additionally states who may NOT
+                        # (the reader), because the load-bearing half for an
+                        # autonomous reader is the prohibition, not the
+                        # permission alone.
+                        f"For unrecoverable cases the '{DEFAULT_BYPASS_LABEL}' "
+                        "label clears this CRITICAL, but CONTRIBUTING.md "
+                        '("Bypassing Description Validation") requires a human '
+                        "maintainer to add it: ask a maintainer to decide, and "
+                        "do not apply it yourself."
                     ),
                 )
             )

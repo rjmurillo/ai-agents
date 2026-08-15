@@ -56,6 +56,7 @@ from checks_dash import validate_dash_prohibition
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
+    validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -253,6 +254,8 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
     # blocking step failed for any agent that ran the instruction literally.
     _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured

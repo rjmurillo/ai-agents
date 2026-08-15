@@ -5998,6 +5998,30 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 
 _NEEDS_SPLIT_LABEL = "needs-split"
 
+# Every message that names `commit-limit-bypass` carries this clause with it.
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
+# CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# Naming the label as the reader's next step tells whoever tripped the gate to
+# grant themselves a permission they do not hold. An agent reads that as
+# sanctioned remediation because it arrives from the enforcement mechanism
+# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
+# after this gate suggested it (issue #4782). Same shape as the atomic-commit
+# message, which states the local remedy and then closes the bypass door
+# ("Split this commit. This local pre-commit check has no PR-label bypass.",
+# added in commit e1fbc5a7a, PR #4245).
+#
+# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# who MAY add the label (a human maintainer). This message additionally
+# states who may NOT (the reader), because the load-bearing half for an
+# autonomous reader is the prohibition, not the permission; the canonical
+# line alone did not stop the PR #4735 agent from self-applying the label.
+_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
+    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _check_needs_split_bypass(
     update: PushUpdate, branch: str | None, repo_root: Path
@@ -6032,8 +6056,9 @@ def _check_needs_split_bypass(
         else "could not count new commits"
     )
     print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-        "use commit-limit-bypass to override the ceiling entirely.",
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
+        "Split the branch and push the parts separately. "
+        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
         file=sys.stderr,
     )
     return None
