@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15200-fix-4898-pr-snapshot.json
-qaCommit: f82b4fb5fbae5e6d2439d03842875b76930b33f2
+qaCommit: 8e0e6117e0c878ab80e74e1be8cd3b00d253a182
 ---
 
 # QA Report: PR #5044 - Immutable PR Snapshot
