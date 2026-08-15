@@ -1,8 +1,26 @@
-# ADR-094 debate log
+# ADR-095 debate log
 
-Subject: `.agents/architecture/ADR-094-scoped-re-review-axes.md` (`status: proposed`)
+Subject: `.agents/architecture/ADR-095-scoped-re-review-axes.md`
+(`status: rejected`). Drafted and debated as ADR-094 and renumbered on merge,
+because `ADR-094` is taken on `main` by
+`.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md` (accepted in
+PR #5024), which also owns `.agents/critique/ADR-094-debate-log.md`. Findings
+below cite `ADR-094:<line>` against the draft as debated; those line numbers
+refer to the 317-line draft, not to the 139-line rejection record that replaced
+it.
 
 Skill: `.claude/skills/adr-review/SKILL.md`, 6-agent debate, one round.
+
+## Outcome
+
+The maintainer rejected the ADR after this debate, going further than the
+debate's own verdict of "narrow and re-measure". The deciding finding was F1:
+the proposal's motivating incidents predate the mechanism it proposed to
+change, so its evidentiary basis is anachronistic. PR #5010 (`458028d2b`) had
+meanwhile shipped risk-based axis selection, which addresses the same cost on a
+sound key. `.agents/architecture/ADR-095-scoped-re-review-axes.md` records the
+rejection. No role voted to reject; see the vote table below and the dissent
+section.
 
 Roles run: architect, critic, independent-thinker, security, analyst,
 high-level-advisor. Each received the ADR, the repository, and the counter
@@ -230,7 +248,21 @@ yet.
 
 ## What the debate did not do
 
-It did not rewrite ADR-094. The findings above are the input to that revision,
-which is separate work. It did not change the ADR's `status`, which stays
-`proposed`. It did not evaluate the `--axes` implementation, which does not
-exist.
+It did not evaluate the `--axes` implementation, which was never built. It did
+not rewrite the ADR: the maintainer took the findings and rejected the proposal
+instead, and the ADR was renumbered to 095 and rewritten as a rejection record
+in that same decision.
+
+## What outlived the rejection
+
+Two items here are not about ADR-095 and should not be discarded with it.
+
+1. `validate_review_marker.py` accepts a subset axis list today. 14
+   `Reviewed-By: /review@` marker commits exist across all refs; 3 name the
+   full 15-axis set, 11 name a subset, and 4 of those name a `code-review` axis
+   for which no `references/code-review.md` exists. The validator parses the
+   list and never checks membership or completeness. This is a gap in the
+   shipped gate, independent of the rejected proposal, and wants its own issue.
+2. The re-measurement discipline in the verification section above. One role's
+   headline number did not reproduce and was caught only because it was
+   re-measured before it entered a committed artifact.

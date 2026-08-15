@@ -4,7 +4,7 @@
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Run the mandatory adr-review multi-agent debate on ADR-094 and land the debate log",
+  "task": "Run the mandatory adr-review debate on the scoped-re-review ADR, then land the maintainer's rejection",
   "decisions": [],
   "events": [
     {
@@ -97,10 +97,15 @@
         "e005",
         "e006",
         "e007",
-        "e009"
+        "e009",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016"
       ],
       "leads_to": [
-        "e010"
+        "e017"
       ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
@@ -121,7 +126,7 @@
       "type": "commit",
       "content": "Commit: 8b60aaabf",
       "caused_by": [
-        "e008"
+        "e017"
       ],
       "leads_to": [
         "e011"
@@ -136,6 +141,87 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Maintainer rejected the proposal on finding F1 after independently verifying the date precedence, and directed landing it as a rejection record rather than closing PR #5062 unmerged",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and hit an add/add conflict on .agents/critique/ADR-094-debate-log.md",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read what PR #5010 (458028d2b) actually shipped before describing it, per canonical-source-mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the ADR as a rejection record, deleting the contract-change list, required tests, and cost arithmetic rather than annotating them",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote .agents/retrospective/2026-08-15-adr-094-inert-hooks-and-number-collision.md for the retrospective-policy pre-push gate",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111d",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T16:36:52+00:00",
+      "type": "commit",
+      "content": "Commit: ff2493fefdb0b65ff6079ef70afdc922a81413d0",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
@@ -145,7 +231,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 5,
     "files_changed": 4
   },
   "lessons": []

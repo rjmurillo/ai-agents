@@ -5,7 +5,7 @@
     "date": "2026-08-15",
     "branch": "adr/094-scoped-review-axes",
     "startingCommit": "e137317ef468f70688671bd58f893273be52527f",
-    "objective": "Run the mandatory adr-review multi-agent debate on ADR-094 and land the debate log"
+    "objective": "Run the mandatory adr-review debate on the scoped-re-review ADR, then land the maintainer's rejection"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -158,6 +158,31 @@
       "timestamp": "2026-08-15",
       "action": "A second unattributed change appeared after commit 66cf2111d: a 187-line revision of ADR-094 adding contract changes 11 and 12, a new ship.md contributor-mode section, SHA-pinned axis discovery, and decision-makers: [rjmurillo]",
       "outcome": "Saved to the scratchpad and reverted, not committed. It is outside this session's stated commit scope, its provenance is unverified, and landing it would stale the debate log's F6, F12 and F14 findings in the same push that records them. Surfaced to the maintainer instead"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Maintainer rejected the proposal on finding F1 after independently verifying the date precedence, and directed landing it as a rejection record rather than closing PR #5062 unmerged",
+      "outcome": "Registered one disagreement first: no role voted reject (2 Block, 3 Accept-with-changes, 1 Disagree-and-Commit), and all six held the marker prohibition correct. Complied; the debate log records that no role voted reject"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Merged origin/main and hit an add/add conflict on .agents/critique/ADR-094-debate-log.md",
+      "outcome": "ADR-094 is already taken on main by ADR-094-govern-copilot-cli-compatibility.md (PR #5024), which owns that debate-log path. Kept main's file, renumbered this branch to ADR-095, and moved this debate log to .agents/critique/ADR-095-debate-log.md. Nothing in the repository validates a duplicate ADR id; the collision surfaced only because both branches wrote a critique file at the same path"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Read what PR #5010 (458028d2b) actually shipped before describing it, per canonical-source-mirror",
+      "outcome": "Risk-based axis selection: spec-compliance and analyst always run, callers pin extra always-on axes, remaining axes are selected from changed paths and diff effects, a skip records its reason and is not a PASS, and deep review runs the full 15. It solves the same cost on a sound key, which is the substantive reason the rejection holds"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Rewrote the ADR as a rejection record, deleting the contract-change list, required tests, and cost arithmetic rather than annotating them",
+      "outcome": "317 lines to 139. Kept the PR #5059 counter-evidence, because it is the concrete instance of the scoping-key finding"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Wrote .agents/retrospective/2026-08-15-adr-094-inert-hooks-and-number-collision.md for the retrospective-policy pre-push gate",
+      "outcome": "Five whys on how anachronistic evidence passed a QA pass and ten review threads: a citation that resolves is not a citation about the right thing"
     }
   ],
   "episodeMetrics": {
@@ -165,14 +190,13 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "e137317ef468f70688671bd58f893273be52527f",
-      "head": "66cf2111dcd098a96852f07d21c5cf5aa32b39b8"
+      "head": "ff2493fefdb0b65ff6079ef70afdc922a81413d0"
     }
   },
-  "endingCommit": "66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+  "endingCommit": "ff2493fefdb0b65ff6079ef70afdc922a81413d0",
   "nextSteps": [
-    "Maintainer reads .agents/critique/ADR-094-debate-log.md and decides accept, revise, or reject. ADR-094 stays status: proposed",
-    "Five P0 findings block acceptance: the cost citations predate the mechanism, the 24% signal figure is spliced, the marker prohibition has no writer script, the validator changes target a mirror, and two push-blocking consumers are missing from the impact table",
-    "Revising ADR-094 against the debate findings is separate work and was deliberately not done in this session",
+    "Subset review markers pass validate_review_marker.py today: 11 of 14 marker commits name a subset and 4 name a code-review axis that has no references file. This survives the rejection and wants its own issue",
+    "Nothing validates a duplicate ADR id. Two branches took 094 concurrently and the collision surfaced only by luck of a shared critique filename",
     "Two unattributed working-tree changes appeared during this session and were reverted; a concurrent writer has access to this worktree. Diffs are in the session scratchpad"
   ]
 }
