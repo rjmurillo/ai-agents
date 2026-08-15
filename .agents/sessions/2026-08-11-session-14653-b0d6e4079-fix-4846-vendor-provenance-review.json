@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to single-writer lifecycle commit 91a3a02a66c646e9a04a874ee977fb9eb84631e0."
+        "Evidence": "QA evidence rebound to GitHub output pin refresh c741740c1cab688af140b0099b34481b70e60f03."
       },
       "validationPassed": {
         "level": "MUST",
@@ -239,8 +239,12 @@
     {
       "action": "Serialized PR runs, retried transient Checks API failures, and removed fallback check rows.",
       "result": "The state machine has one create path and one PATCH path. 218 provenance tests pass. Independent security review returned PASS."
+    },
+    {
+      "action": "Merged current main and refreshed the mirrored GitHub output hashes.",
+      "result": "218 provenance tests and 253 GitHub core tests pass."
     }
   ],
-  "endingCommit": "91a3a02a66c646e9a04a874ee977fb9eb84631e0",
+  "endingCommit": "c741740c1cab688af140b0099b34481b70e60f03",
   "nextSteps": []
 }

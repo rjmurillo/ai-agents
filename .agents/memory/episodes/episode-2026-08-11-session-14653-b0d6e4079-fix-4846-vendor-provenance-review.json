@@ -111,7 +111,8 @@
         "e069",
         "e071",
         "e073",
-        "e075"
+        "e075",
+        "e077"
       ],
       "leads_to": [
         "e006"
@@ -976,6 +977,30 @@
       "caused_by": [
         "e074"
       ],
+      "leads_to": [
+        "e078"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e077",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and refreshed the mirrored GitHub output hashes.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e078",
+      "timestamp": "2026-08-15T09:33:54+00:00",
+      "type": "commit",
+      "content": "Commit: c741740c1cab688af140b0099b34481b70e60f03",
+      "caused_by": [
+        "e076"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -985,7 +1010,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 42,
+    "commits": 43,
     "files_changed": 52
   },
   "lessons": []
