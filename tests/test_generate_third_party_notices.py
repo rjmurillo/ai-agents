@@ -308,6 +308,20 @@ class TestOutputPathContainment:
         with pytest.raises(ValueError, match="escapes project root"):
             resolve_output_path(tmp_path, "../THIRD-PARTY-NOTICES.TXT")
 
+    def test_rejects_symlink_escape(self, tmp_path: Path) -> None:
+        project_root = tmp_path / "project"
+        outside = tmp_path / "outside"
+        project_root.mkdir()
+        outside.mkdir()
+        link = project_root / "linked"
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except OSError as error:
+            pytest.skip(f"symlink creation is unavailable: {error}")
+
+        with pytest.raises(ValueError, match="escapes project root"):
+            resolve_output_path(project_root, "linked/THIRD-PARTY-NOTICES.TXT")
+
     def test_cli_rejects_parent_traversal(
         self,
         tmp_path: Path,

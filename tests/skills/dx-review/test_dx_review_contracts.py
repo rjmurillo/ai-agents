@@ -97,6 +97,8 @@ def _scorecard_rows(text: str) -> list[list[str]]:
             continue
         cells = [cell.strip() for cell in line.split("|")[1:-1]]
         if len(cells) != 4:
+            if cells and cells[0] != "Dimension" and set(cells[0]) != {"-"}:
+                rows.append([cells[0], "", "", ""])
             continue
         if cells[0] == "Dimension" or set(cells[0]) == {"-"}:
             continue
@@ -374,6 +376,14 @@ def _remove_overall_dx_method(text: str) -> str:
     )
 
 
+def _remove_overall_dx_final_delimiter(text: str) -> str:
+    """Remove the final delimiter so the row has a malformed column count."""
+    return text.replace(
+        "| Overall DX           | __/10  | Mean: [sum]/[count]    | [actual]     |",
+        "| Overall DX           | __/10  | Mean: [sum]/[count]    | [actual]",
+    )
+
+
 class TestMutationsBash:
     """Mutations that re-add Bash must fail check_no_bash_preapproved."""
 
@@ -439,6 +449,10 @@ class TestMutationsScorecard:
 
     def test_remove_overall_dx_method(self) -> None:
         mutated = _remove_overall_dx_method(_load_skill())
+        assert not check_scorecard_rows_have_methods(mutated)
+
+    def test_remove_overall_dx_final_delimiter(self) -> None:
+        mutated = _remove_overall_dx_final_delimiter(_load_skill())
         assert not check_scorecard_rows_have_methods(mutated)
 
 
