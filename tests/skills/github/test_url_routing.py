@@ -112,7 +112,12 @@ def _run(url: str, capsys: pytest.CaptureFixture[str]) -> tuple[int, dict]:
         ),
     ],
 )
-def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: str, command: str) -> None:
+def test_routing_success(
+    capsys: pytest.CaptureFixture[str],
+    url: str,
+    method: str,
+    command: str,
+) -> None:
     module = _load_module()
     rc = module.main(["--url", url])
     output = json.loads(capsys.readouterr().out)
@@ -142,13 +147,28 @@ def test_routing_success(capsys: pytest.CaptureFixture[str], url: str, method: s
             'gh api "repos/rjmurillo/ai-agents/pulls/comments/456"',
         ),
         (
+            "https://github.com/rjmurillo/ai-agents/pull/123/checks#r456",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/pulls/comments/456"',
+        ),
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123#discussion_r987654321",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/pulls/comments/987654321"',
+        ),
+        (
             "https://github.com/rjmurillo/ai-agents/issues/456#issuecomment-789123456",
             "GhApi",
             'gh api "repos/rjmurillo/ai-agents/issues/comments/789123456"',
         ),
     ],
 )
-def test_fragment_routes_success(capsys: pytest.CaptureFixture[str], url: str, method: str, command: str) -> None:
+def test_fragment_routes_success(
+    capsys: pytest.CaptureFixture[str],
+    url: str,
+    method: str,
+    command: str,
+) -> None:
     module = _load_module()
     rc = module.main(["--url", url])
     output = json.loads(capsys.readouterr().out)
@@ -167,8 +187,6 @@ def test_fragment_routes_success(capsys: pytest.CaptureFixture[str], url: str, m
         "https://github.com/rjmurillo/ai-agents/commit/abcxyz",
         "https://github.com/rjmurillo/ai-agents/pull/123/checks/extra",
         "https://github.com/rjmurillo/ai-agents/actions/runs/123/job/456/extra",
-        "https://github.com/rjmurillo/ai-agents/pull/123/checks#r456",
-        "https://github.com/rjmurillo/ai-agents/pull/123#discussion_r987654321",
         "https://github.com/rjmurillo/ai-agents/pull/123#issuecomment-123456789",
         "https://github.com/rjmurillo/ai-agents/pull/123/files#issuecomment-789",
         "https://github.com/rjmurillo/ai-agents/pull/123/changes#issuecomment-789",

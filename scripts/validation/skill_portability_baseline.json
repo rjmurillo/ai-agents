@@ -10,7 +10,6 @@
     "skills/adr-review/scripts/detect_adr_changes.py": 3,
     "skills/chaos-experiment/scripts/generate_experiment.py": 1,
     "skills/chestertons-fence/scripts/investigate.py": 1,
-    "skills/github-url-intercept/scripts/test_url_routing.py": 2,
     "skills/github/scripts/issue/check_existing_pr_for_issue.py": 1,
     "skills/github/scripts/issue/claim_issue.py": 1,
     "skills/github/scripts/issue/close_issue.py": 1,

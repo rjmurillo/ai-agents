@@ -183,11 +183,21 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
 
     Returns None if the URL is invalid or contains dangerous characters.
     """
-    gist = parse_gist_url(url)
+    # Reject control characters that urlsplit would strip (CWE-20).
+    if any(character < "\x20" or "\x7f" <= character <= "\x9f" for character in url):
+        return None
+
+    try:
+        gist = parse_gist_url(url)
+    except ValueError:
+        return None
     if gist is not None:
         return gist
 
-    split = urlsplit(url)
+    try:
+        split = urlsplit(url)
+    except ValueError:
+        return None
     if split.scheme not in {"http", "https"} or split.netloc != "github.com":
         return None
 
@@ -213,7 +223,7 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
 
     if fragment_type == "pullrequestreview" and url_type != UrlType.PULL:
         return None
-    if fragment_type == "discussion_r" and (url_type != UrlType.PULL or subroute not in {"files", "changes"}):
+    if fragment_type == "discussion_r" and url_type != UrlType.PULL:
         return None
     if fragment_type == "issuecomment" and url_type != UrlType.ISSUE:
         return None
