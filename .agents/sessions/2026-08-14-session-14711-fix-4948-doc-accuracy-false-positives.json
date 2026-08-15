@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed in this fix, so no markdownlint autofix was needed."
+        "Evidence": "npx markdownlint-cli2 .agents/qa/issue-4948-doc-accuracy-false-positives.md returned 0 files because .agents/** is excluded."
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial fix commit 42c419a68 created; this follow-up session-log commit records the ending SHA."
+        "Evidence": "Initial fix commit 42c419a68 created; session-log metadata was finalized in follow-up commits."
       },
       "validationPassed": {
         "level": "MUST",
