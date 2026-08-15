@@ -227,6 +227,15 @@ class SkillValidator:
                 len(name) <= NAME_MAX_LENGTH,
                 f"Skill name too long ({len(name)} chars, max {NAME_MAX_LENGTH})"
             )
+            # Name must equal the containing directory name (agentskills.io
+            # specification, name field). A mismatch breaks tooling that maps a
+            # registry name back to a case-sensitive directory. Refs #4812.
+            dir_name = self.skill_path.name or self.skill_path.resolve().name
+            self.check(
+                "frontmatter.name.matches_directory",
+                name == dir_name,
+                f"Skill name {name!r} must match its directory name {dir_name!r}"
+            )
 
         # Validate description field (no angle brackets, length limit)
         if "description" in self.frontmatter:

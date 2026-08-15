@@ -264,13 +264,13 @@ Expected results:
 
 ```bash
 # Assets identical with upstream
-diff -rq /tmp/upstream/assets .claude/skills/SkillForge/assets  # empty = identical
+diff -rq /tmp/upstream/assets .claude/skills/skillforge/assets  # empty = identical
 
 # SKILL.md differs only in model field
-diff .claude/skills/SkillForge/SKILL.md /tmp/upstream/SKILL.md  # 6 lines changed, all model/subagent_model
+diff .claude/skills/skillforge/SKILL.md /tmp/upstream/SKILL.md  # 6 lines changed, all model/subagent_model
 
 # Total vendored files: 49 (up from 35 pre-sync)
-find .claude/skills/SkillForge -type f | wc -l
+find .claude/skills/skillforge -type f | wc -l
 ```
 
 ### Known TODO for next sync

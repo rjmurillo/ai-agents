@@ -79,5 +79,6 @@ Stop at two to three skills. Four or more lost about half the gain.
 ## Audit Command
 
 ```bash
-python3 .claude/skills/SkillForge/scripts/skill_modularity_audit.py [--json] [--ci]
+ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" [--json] [--ci]
 ```
