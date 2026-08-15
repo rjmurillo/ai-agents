@@ -48,15 +48,6 @@ def _git(args: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def _git_nocheck(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git"] + args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
 
 @pytest.fixture()
 def merge_repo(tmp_path: Path) -> dict[str, str]:
