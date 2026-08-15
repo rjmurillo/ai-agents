@@ -89,10 +89,14 @@ EXPENSIVE_JOBS = frozenset(
 # new stdin consumer belongs in the piped group or at the top level.
 PARALLEL_STDIN_EXCEPTIONS = frozenset({"hook-anchoring-e2e", "plugin-load-e2e"})
 
-# Ceiling for any job scheduled ahead of the expensive stage. Guards against
-# someone dropping a 30m job into the fast stage, which would rebuild the
-# serialization point issue #5066 removed.
-_FAST_STAGE_TIMEOUT_CEILING_SECONDS = 600.0
+# Ceilings for jobs scheduled ahead of the expensive stage, set to the
+# largest cap each stage half already carries (session-json-validation holds
+# 10m in the piped stdin group; every fast parallel gate holds 5m or less).
+# Job caps are sized for a loaded machine (ci-scripts.md MUST-16), so the
+# ceiling pins "no slower job class enters the fast stage" rather than the
+# stage's 60s wall-clock target, which caps cannot express.
+_FAST_STDIN_TIMEOUT_CEILING_SECONDS = 600.0
+_FAST_PARALLEL_TIMEOUT_CEILING_SECONDS = 300.0
 
 
 def _load_config(path: Path = _LEFTHOOK) -> dict[str, Any]:
@@ -307,24 +311,117 @@ class TestFastStageStaysFast:
         entries = _top_level_entries(config)
         scan_index = _entry_index_of(config, "security-scan")
         assert scan_index is not None
-        offenders = [
-            (str(job.get("name")), str(job.get("timeout")))
-            for entry in entries[:scan_index]
-            for job in _jobs_in_entry(entry)
-            if _duration_seconds(str(job.get("timeout")))
-            > _FAST_STAGE_TIMEOUT_CEILING_SECONDS
-        ]
+        offenders = []
+        for entry in entries[:scan_index]:
+            group = entry.get("group")
+            is_parallel = isinstance(group, dict) and group.get("parallel") is True
+            ceiling = (
+                _FAST_PARALLEL_TIMEOUT_CEILING_SECONDS
+                if is_parallel
+                else _FAST_STDIN_TIMEOUT_CEILING_SECONDS
+            )
+            for job in _jobs_in_entry(entry):
+                if _duration_seconds(str(job.get("timeout"))) > ceiling:
+                    offenders.append((str(job.get("name")), str(job.get("timeout"))))
         assert offenders == [], (
-            f"{offenders} sit ahead of security-scan with timeouts above "
-            f"{_FAST_STAGE_TIMEOUT_CEILING_SECONDS:.0f}s. The fast stage "
-            "exists so failures surface in seconds; move slow jobs into the "
-            "expensive group (issue #5066)."
+            f"{offenders} sit ahead of security-scan with timeouts above their "
+            "stage-half ceiling (5m for the fast parallel group, 10m for the "
+            "piped stdin group). The fast stage exists so failures surface in "
+            "seconds; move slow jobs into the expensive group (issue #5066)."
         )
 
     def test_duration_parser_handles_each_unit(self) -> None:
         assert _duration_seconds("30s") == 30.0
         assert _duration_seconds("5m") == 300.0
         assert _duration_seconds("1h") == 3600.0
+
+
+class TestFastStageMembershipIsExact:
+    """The stage rosters are two-way pins (spec-validation gap, PR #5083).
+
+    Relative-order tests alone let a *new* cheap blocking gate land in the
+    expensive group unnoticed, silently rebuilding the serialization point.
+    Exact membership forces every added, removed, or moved pre-push job
+    through a conscious roster decision in this module.
+    """
+
+    def test_fast_parallel_group_membership_matches_the_roster(self) -> None:
+        config = _load_config()
+        entries = _top_level_entries(config)
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None
+        parallel_groups = [
+            entry
+            for entry in entries[:scan_index]
+            if isinstance(entry.get("group"), dict)
+            and entry["group"].get("parallel") is True
+        ]
+        assert len(parallel_groups) == 1, (
+            "Exactly one fast parallel group is expected ahead of "
+            f"security-scan; found {len(parallel_groups)}."
+        )
+        names = {str(job.get("name")) for job in _jobs_in_entry(parallel_groups[0])}
+        assert names == set(FAST_PARALLEL_GATES), (
+            f"Fast parallel group is {sorted(names)}, roster is "
+            f"{sorted(FAST_PARALLEL_GATES)}. Update FAST_PARALLEL_GATES "
+            "deliberately when the stage composition changes (issue #5066)."
+        )
+
+    def test_fast_stdin_group_membership_matches_the_roster(self) -> None:
+        config = _load_config()
+        entries = _top_level_entries(config)
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None
+        stdin_groups = [
+            entry
+            for entry in entries[:scan_index]
+            if isinstance(entry.get("group"), dict)
+            and entry["group"].get("piped") is True
+        ]
+        assert len(stdin_groups) == 1
+        names = [str(job.get("name")) for job in _jobs_in_entry(stdin_groups[0])]
+        assert names == list(FAST_STDIN_GATES), (
+            f"Fast stdin group order is {names}, roster is "
+            f"{list(FAST_STDIN_GATES)}. Order is part of the pin: the group "
+            "is piped, so members run in sequence."
+        )
+
+    def test_every_pre_push_job_is_accounted_for_by_exactly_one_stage(self) -> None:
+        # The complement pin: any job not in a fast roster, not a singleton
+        # guard, and not security-scan must sit in the expensive group, so a
+        # brand-new job cannot land anywhere without a roster decision.
+        config = _load_config()
+        entries = _top_level_entries(config)
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None
+        singleton_guards = {
+            str(entry.get("name"))
+            for entry in entries[:scan_index]
+            if "group" not in entry
+        }
+        expensive_names = {
+            str(job.get("name"))
+            for entry in entries[scan_index + 1 :]
+            for job in _jobs_in_entry(entry)
+        }
+        all_names = {
+            str(job.get("name"))
+            for entry in entries
+            for job in _jobs_in_entry(entry)
+        }
+        accounted = (
+            singleton_guards
+            | set(FAST_STDIN_GATES)
+            | set(FAST_PARALLEL_GATES)
+            | {"security-scan"}
+            | expensive_names
+        )
+        unaccounted = all_names - accounted
+        assert unaccounted == set(), (
+            f"{sorted(unaccounted)} are pre-push jobs outside every pinned "
+            "stage. Add each to a roster in this module so its scheduling is "
+            "a decision, not an accident (issue #5066)."
+        )
 
 
 _requires_lefthook = pytest.mark.skipif(
