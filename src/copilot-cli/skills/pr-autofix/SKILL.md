@@ -26,7 +26,7 @@ which is a structural change that must be measured against the eval harness befo
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
 Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
-Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`
+Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
 Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
 vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents contributor fixtures; installed plugin consumers do not have these files.
 -->
@@ -234,6 +234,13 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    if lease_renewal_failed; then
+        stop_mutation_group "$mutation_pid"
+        wait "$mutation_pid" 2>/dev/null || true
+        echo "Stopping mutation for #$PR: lease ownership lost"
+        cleanup_pr_autofix
+        return 75
+    fi
     while kill -0 "$mutation_pid" 2>/dev/null; do
         if lease_renewal_failed; then
             sleep 0.02
@@ -384,11 +391,46 @@ if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
+# Step 2.5: Round-cap circuit breaker (BLOCKING for T3/T4, issue #5056).
+# T3/T4 PRs iterate: post a fix, wait for CI or a bot review, repeat. Nothing
+# capped how many times that loop could run, and prose caps have been
+# ignored repeatedly (the documented failure mode, not a hypothetical one):
+# PR #1887 ran 11+ bot review rounds over 46 hours wall clock before a human
+# intervened (see the pr-1887-iteration-paradox retrospective in this repo's
+# rjmurillo/ai-agents source, contributor-only); PRs #1965 and #1979 each ran
+# 18 rounds (see the CI-FEEDBACK-SUBLOOP governance doc, same source, line
+# 11). check_pr_round_cap.py records one round per call against a
+# hidden marker comment on the PR (same storage pattern as
+# pr_autofix_lease.py's ADR-076 lease) and returns Data.action=ESCALATE when
+# either the round count or the wall-clock budget is exceeded. Call it once
+# per pass through this loop for a T3/T4 PR, immediately after the tier is
+# known, before any thread-lifecycle or CI-fix action.
+# Tier comes from test_pr_merge_ready.py, the authoritative tier source;
+# check_pr_live_state.py emits no tier field, so reading $LIVE here would
+# pin TIER at UNKNOWN and silently disable this gate. Computed once, also
+# consumed by the auto-merge disarm gate below.
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
+if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
+        --pull-request "$PR" --output-format json)
+    ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    if [ "$ROUND_ACTION" != "ACT" ]; then
+        ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
+        echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
+        # check_pr_round_cap.py already posted a human-readable PR comment
+        # naming the round count, wall-clock elapsed, and both caps
+        # (issue #5056 item 4: leave a note, do not just stop silently).
+        # A human must review the remaining thread(s)/CI failure(s) directly.
+        cleanup_pr_autofix
+        continue
+    fi
+fi
+
 # Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+# TIER was computed at Step 2.5 (round-cap gate) above.
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -466,7 +508,8 @@ cleanup_pr_autofix
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
-5. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
+5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
+6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
@@ -481,18 +524,31 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -571,7 +627,23 @@ python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
 # the PR is merged/closed/draft or fully superseded by base.
 python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request {pr} --skip-fetch --output-format json
 
-# Get CI check logs
+# Round-cap circuit breaker (BLOCKING for T3/T4 per Phase 2; issue #5056).
+# Records one round against a hidden marker comment and returns exit 0 +
+# Data.action=ACT when both the round-count and wall-clock caps hold, exit 1
+# + Data.action=ESCALATE when either is exceeded. Defaults: 5 rounds / 4
+# hours, each overridable via --max-rounds/--max-hours or
+# $PR_AUTOFIX_MAX_ROUNDS/$PR_AUTOFIX_MAX_ROUND_HOURS.
+python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format json
+
+# CI-failure triage step 1 (BLOCKING, issue #5073): before reading any log or
+# starting any local investigation, ask whether the same check is red on
+# origin/main. Exit 0 = green on main (the PR introduced it; investigate the
+# PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
+# out main instead of debugging the PR). Exit 3 = cannot determine (probe
+# failure is not absence; never treat UNKNOWN as green).
+python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
+
+# Get CI check logs (step 2, only when the check is green on main)
 python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
   python3 "$SCRIPTS_DIR/get_pr_check_logs.py" --pull-request {pr} --checks-input -
 
@@ -694,6 +766,7 @@ Per PR processed:
 
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
+- [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, immediately after the tier was known (issue #5056): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent.
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
@@ -702,6 +775,7 @@ Per PR processed:
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
+- [ ] CI-failure triage step 1 ran before any log reading (T2/T4 only, issue #5073): `triage_red_check.py --check-name "<name>"` verdict recorded per failing check; RED_ON_MAIN failures were attributed to main with the EvidenceUrl, not investigated on the PR.
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).

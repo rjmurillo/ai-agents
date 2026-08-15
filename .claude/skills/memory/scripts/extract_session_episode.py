@@ -823,8 +823,20 @@ def _collect_shas(data: dict) -> list[str]:
             if not _already_seen(sha, seen):
                 seen.append(sha)
 
-    # endingCommit is the protocol's own field, so no prose heuristic applies.
-    _take(_SHA_RE.findall(str(data.get("endingCommit") or "")))
+    episode_metrics = _as_dict(data.get("episodeMetrics"))
+    comparison = _as_dict(episode_metrics.get("comparison"))
+    commit_head = str(episode_metrics.get("commitHead") or "")
+    comparison_head = str(comparison.get("head") or "")
+
+    # commitHead separates episode ownership from a later comparison.head used
+    # to bind QA evidence after another session changed the branch.
+    if _FULL_SHA_RE.fullmatch(commit_head):
+        _take([commit_head])
+    elif _FULL_SHA_RE.fullmatch(comparison_head):
+        _take([comparison_head])
+    else:
+        # endingCommit is the protocol's own field, so no prose heuristic applies.
+        _take(_SHA_RE.findall(str(data.get("endingCommit") or "")))
     # changesCommitted evidence is a free-text sentence rather than a bare SHA,
     # so the hex-letter filter applies: a 20-digit CI run id quoted there is not
     # a commit (issue #3301). Scanning it unfiltered also let a decimal-only

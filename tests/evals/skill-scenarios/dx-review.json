@@ -1,0 +1,28 @@
+{
+  "skill_path": ".claude/skills/dx-review/SKILL.md",
+  "skill_id": "dx-review",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "DX audit request with onboarding, docs, and scorecard language",
+      "input": "Run a DX audit of this CLI. Measure onboarding friction, inspect the docs, evaluate developer ergonomics, and produce a DX scorecard with next fixes. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Measure, do not guess",
+        "DX AUDIT SCORECARD",
+        "TESTED",
+        "PARTIAL",
+        "INFERRED"
+      ],
+      "expected_gate": "dx-review-scorecard",
+      "rationale": "The prompt uses three documented trigger phrases, `run a DX audit`, `measure onboarding friction`, and `DX scorecard`, without naming the skill. A response that frames the work as measured DX auditing, produces a scorecard, and reasons in the skill's TESTED/PARTIAL/INFERRED vocabulary is attributable to the skill rather than to generic review advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Generic code fix request stays outside the DX audit skill",
+      "input": "Fix the null pointer in auth.py and add regression tests. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This prompt asks for an implementation fix, not a developer-experience audit. It names no DX trigger phrase and does not request onboarding, documentation, or scorecard work, so dx-review should stay inactive."
+    }
+  ]
+}

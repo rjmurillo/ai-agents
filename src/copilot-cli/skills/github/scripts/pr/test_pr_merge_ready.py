@@ -1026,6 +1026,7 @@ def check_merge_readiness(
     ignore_threads: bool = False,
     include_non_required: bool = False,
     dispositions_file: str | None = None,
+    is_bot: bool = False,
 ) -> dict:
     """Check if a PR is ready to merge. Sergeant orchestrator."""
     op_start = time.monotonic()
@@ -1060,7 +1061,7 @@ def check_merge_readiness(
         + failed_non_required + pending_non_required,
         unresolved_count, can_merge, op_start,
     )
-    return {
+    result = {
         "Success": True,
         "ScriptCommit": _script_commit(),
         "CanMerge": can_merge,
@@ -1087,6 +1088,82 @@ def check_merge_readiness(
         "fetched_pages_complete": fetched_pages_complete,
         "Reasons": reasons,
     }
+    result["Tier"] = classify_tier(result, is_bot=is_bot)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tier classification (issue #4899)
+# ---------------------------------------------------------------------------
+
+# Total classifier: every PR maps to exactly one tier.  Merge-path states
+# (BEHIND, BLOCKED, DIRTY, SKIP) are separated from work-needed tiers
+# (T1-T5) so callers never invent ad-hoc buckets.
+
+_TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
+
+# Merge-path states resolved by lookup (no branching needed).
+_MERGE_STATE_TIERS: dict[str, str] = {
+    "BEHIND": "BEHIND",
+    "DIRTY": "DIRTY",
+    "BLOCKED": "BLOCKED",
+}
+
+
+def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
+    """Return the canonical tier for a merge-readiness result.
+
+    Parameters
+    ----------
+    result:
+        The dict returned by :func:`check_merge_readiness`.
+    is_bot:
+        Whether the PR author is a bot.  Bot PRs with any failure are T5.
+
+    Returns
+    -------
+    str
+        One of the values in :data:`_TIER_ORDER`.
+    """
+    # --- Non-actionable states (SKIP) ---
+    if result.get("IsDraft") or (result.get("State") or "").upper() in ("CLOSED", "MERGED"):
+        return "SKIP"
+
+    # --- Merge-path states (table lookup) ---
+    merge_state = result.get("MergeStateStatus") or ""
+    if merge_state in _MERGE_STATE_TIERS:
+        return _MERGE_STATE_TIERS[merge_state]
+
+    # --- Work-needed tiers ---
+    has_ci_failures = (
+        len(result.get("FailedRequiredChecks") or []) > 0
+        or len(result.get("UndisposedNonRequiredFailures") or []) > 0
+    )
+    has_threads = (result.get("UnresolvedThreads") or 0) > 0
+
+    # T5: bot PRs with any issue
+    if is_bot and (has_ci_failures or has_threads):
+        return "T5"
+
+    # T1: merge-ready (CanMerge covers CLEAN and UNSTABLE-with-dispositions)
+    if result.get("CanMerge"):
+        return "T1"
+
+    # T4/T2/T3: classify by failure type
+    if has_ci_failures and has_threads:
+        return "T4"
+    if has_ci_failures:
+        return "T2"
+    if has_threads:
+        return "T3"
+
+    # Fallback: pending checks count as T2 (CI work needed).
+    if len(result.get("PendingRequiredChecks") or []) > 0:
+        return "T2"
+
+    # Edge: all checks pass, no threads, but CanMerge is False for another
+    # reason (e.g. UNKNOWN merge state).  Treat as T4 (needs investigation).
+    return "T4"
 
 
 # ---------------------------------------------------------------------------
@@ -1120,6 +1197,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--dispositions-file", default=None,
         help="JSON file with per-check dispositions for non-required failures",
     )
+    parser.add_argument(
+        "--is-bot", action="store_true",
+        help="Indicate the PR author is a bot (affects tier classification)",
+    )
     return parser
 
 
@@ -1139,6 +1220,7 @@ def main(argv: list[str] | None = None) -> int:
         ignore_threads=args.ignore_threads,
         include_non_required=args.include_non_required,
         dispositions_file=args.dispositions_file,
+        is_bot=args.is_bot,
     )
 
     print(json.dumps(result, indent=2))

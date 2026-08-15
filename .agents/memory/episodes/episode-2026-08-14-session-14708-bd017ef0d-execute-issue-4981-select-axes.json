@@ -1,0 +1,239 @@
+{
+  "id": "episode-2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes",
+  "session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Execute issue #4981: select axes by change risk",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read review and session instructions",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expand review routing eval coverage",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate targeted review evals",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate broader eval subset",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "test",
+      "content": "PYTEST_ADDOPTS='' python3 -m pytest -o addopts='' tests/eval/test_eval_skill_router.py tests/eval/test_eval_knowledge_integration.py tests/eval/test_eval_runtime_parity.py tests/eval/test_eval_runtime_parity_report_contract.py tests/eval/test_eval_runtime_parity_review_fixes.py -q collected 80 tests, 74 passed, and 6 runtime-parity tests failed with pre-existing 'current worktree does not contain this evaluator' errors",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit review routing changes",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate session log",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T23:09:28+00:00",
+      "type": "commit",
+      "content": "Commit: bd398324901f268f1558e87512923c562e4d7abb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e017"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T13:25:03+00:00",
+      "type": "commit",
+      "content": "Commit: e10f7f433a",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T13:45:23+00:00",
+      "type": "commit",
+      "content": "Commit: 1759f14898",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T14:06:38+00:00",
+      "type": "commit",
+      "content": "Commit: d3fee53337",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix E501 lint violations",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix em dashes",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add axis routing contract tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rename QA report",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T14:54:09+00:00",
+      "type": "commit",
+      "content": "Commit: 36441c75e4",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add AC-8/AC-10 eval tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-15T15:24:30+00:00",
+      "type": "commit",
+      "content": "Commit: 86c9767fb1",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14708-bd017ef0d-execute-issue-4981-select-axes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 14
+  },
+  "lessons": []
+}

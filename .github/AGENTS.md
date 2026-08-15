@@ -642,20 +642,16 @@ returns exit 0), so the merged tree above is green and concurrent cleanup PRs
 never conflict on the shared line. Arming
 `strict_required_status_checks_policy` on ruleset `11104075` so the second PR
 had to be current before merging is not needed for this race: with the ratchet
-tolerating the drift there is no red `main` to prevent. Note that strict was
-nonetheless armed on 2026-08-04 (ruleset version `45433643`) for a different
-reason, as remediation for the red-`main` incident of that date, so it is on
-today and must stay on. See issue #4646 and
-`.serena/memories/decision-every-merge-invalidates-every-open-pr.md`.
+tolerating the drift there is no red `main` to prevent. Strict was armed on
+2026-08-04 (ruleset version `45433643`) as remediation for the red-`main`
+incident of that date, then reverted to `false` on 2026-08-10 (ruleset last
+updated). The ratchet tolerance alone prevents the race.
 
-**Status note, measured 2026-08-05.** That policy now reads `true` on ruleset
-`11104075`. The paragraph above stays accurate on its own terms: strict checks
-are not what resolves this particular race, and the ratchet tolerance is. Read
-it as a statement about the race, not as a claim about the current setting. Do
-not infer from it that being behind `main` is harmless, because it now blocks
-the merge outright. There is still no merge queue. Issue #4608 records an
-unverified hypothesis about how a future merge group would behave. See issue
-#4646.
+**Status note, measured 2026-08-14.** That policy reads `false` on ruleset
+`11104075`. Being behind `main` does not block merge via the ruleset. The count
+ratchets still enforce practical freshness for PRs touching ratcheted counts.
+There is still no merge queue. Issue #4608 records an unverified hypothesis
+about how a future merge group would behave. See issue #4646.
 
 **Residual cost.** The baseline sits above the true count until someone records
 it, and that gap absorbs one later regression without firing. `--update` closes
