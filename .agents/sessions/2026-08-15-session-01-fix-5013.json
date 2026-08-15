@@ -84,7 +84,7 @@
       "qaValidation": {
         "complete": true,
         "level": "MUST",
-        "evidence": ".agents/qa/2026-08-15-fix-5013-qa-report.md"
+        "evidence": ".agents/qa/pr-5034-fix-5013-qa-report.md"
       },
       "changesCommitted": {
         "complete": true,
