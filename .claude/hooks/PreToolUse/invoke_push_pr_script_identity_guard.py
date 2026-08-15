@@ -211,41 +211,67 @@ def _targets_new_pr(tokens: list[ShellToken], cwd: Path) -> bool:
     return target_mentioned and (python_mentioned or dynamic_command or direct_command)
 
 
-def _script_reference(tokens: list[ShellToken]) -> ShellToken:
-    values = [token.value for token in tokens]
-    if len(tokens) < 3 or values[:2] != ["python3", "-I"]:
+def _interpreter_offset(tokens: list[ShellToken], cwd: Path) -> int:
+    """Return the token index of ``python3`` after skipping env/wrappers."""
+    index = _effective_command_index(tokens)
+    if index is None:
         raise GuardViolationError("new_pr.py must run with python3 -I")
-    script_reference = tokens[2]
+    return index
+
+
+def _script_reference(tokens: list[ShellToken], cwd: Path) -> ShellToken:
+    offset = _interpreter_offset(tokens, cwd)
+    values = [token.value for token in tokens]
+    if len(tokens) < offset + 3 or values[offset : offset + 2] != ["python3", "-I"]:
+        raise GuardViolationError("new_pr.py must run with python3 -I")
+    script_reference = tokens[offset + 2]
     if script_reference.value.startswith("-"):
         raise GuardViolationError("new_pr.py script path is missing")
     if script_reference.value != _PLUGIN_SCRIPT_REFERENCE and any(
         marker in script_reference.raw for marker in ("$", "`", "\\\n", "{", "[", "*", "?")
     ):
         raise GuardViolationError("new_pr.py script path cannot use shell expansion")
-    if any(("$" in token.raw or "`" in token.raw) for token in tokens[3:]):
+    args_start = offset + 3
+    if any(("$" in token.raw or "`" in token.raw) for token in tokens[args_start:]):
         raise GuardViolationError("argument substitution is not allowed")
-    if any(_contains_active_shell_expansion(token.raw) for token in tokens[3:]):
+    if any(_contains_active_shell_expansion(token.raw) for token in tokens[args_start:]):
         raise GuardViolationError("argument shell expansion is not allowed")
     return script_reference
 
 
-def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path) -> None:
-    values = _new_pr_option_values(tokens)
-    if set(values) != {"--title", "--body-file"}:
-        raise GuardViolationError("new_pr.py requires exactly --title and --body-file")
+def _validate_new_pr_arguments(tokens: list[ShellToken], cwd: Path, offset: int) -> None:
+    args_start = offset + 3
+    values = _new_pr_option_values(tokens, args_start)
+    option_keys = set(values)
+    if option_keys == {"--prepare-body-file"}:
+        # Prepare mode: no further validation needed
+        return
+    if option_keys != {"--title", "--body-file"}:
+        raise GuardViolationError(
+            "new_pr.py requires exactly --title and --body-file, "
+            "or --prepare-body-file alone"
+        )
     if not values["--title"].strip():
         raise GuardViolationError("new_pr.py title cannot be empty")
     _validate_new_pr_body_file(values["--body-file"], cwd)
 
 
-def _new_pr_option_values(tokens: list[ShellToken]) -> dict[str, str]:
+def _new_pr_option_values(tokens: list[ShellToken], args_start: int) -> dict[str, str]:
     """Return the option/value pairs, rejecting anything outside the allowlist."""
+    _ALLOWED_OPTIONS = {"--title", "--body-file", "--prepare-body-file"}
     values: dict[str, str] = {}
-    index = 3
+    index = args_start
     while index < len(tokens):
         option = tokens[index].value
-        if option not in {"--title", "--body-file"}:
-            raise GuardViolationError("new_pr.py accepts only --title and --body-file here")
+        if option not in _ALLOWED_OPTIONS:
+            raise GuardViolationError(
+                "new_pr.py accepts only --title, --body-file, "
+                "or --prepare-body-file here"
+            )
+        if option == "--prepare-body-file":
+            values[option] = ""
+            index += 1
+            continue
         if option in values or index + 1 >= len(tokens):
             raise GuardViolationError(
                 f"new_pr.py option {option} is duplicate or missing its value"
@@ -312,8 +338,11 @@ def _script_path(script_reference: ShellToken, cwd: Path) -> Path:
 
 def _deny(reason: str) -> int:
     print(
-        "push-pr script identity denied: "
-        f"{reason}. Run only the repository or installed-plugin new_pr.py.",
+        f"push-pr script identity denied: {reason}.\n"
+        "Remediation: use the exact documented form:\n"
+        '  python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+        '/skills/github/scripts/pr/new_pr.py" --prepare-body-file\n'
+        "or with --title and --body-file for PR creation.",
         file=sys.stderr,
     )
     return 2
@@ -355,11 +384,12 @@ def _verify_new_pr_invocation(command: str, tokens: list[ShellToken], cwd: Path)
         if arguments is not None:
             raise GuardViolationError("Python execution is limited to the approved new_pr.py")
         raise GuardViolationError("command references new_pr.py through an unsupported launcher")
-    script = _script_path(_script_reference(tokens), cwd)
+    script = _script_path(_script_reference(tokens, cwd), cwd)
     if script != _runtime_script():
         raise GuardViolationError("resolved script is not an approved new_pr.py")
     _validate_runtime_bundle(script)
-    _validate_new_pr_arguments(tokens, cwd)
+    offset = _interpreter_offset(tokens, cwd)
+    _validate_new_pr_arguments(tokens, cwd, offset)
 
 
 def main() -> int:
