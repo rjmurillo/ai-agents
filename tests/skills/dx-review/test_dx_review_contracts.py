@@ -72,6 +72,16 @@ def _extract_block(text: str, heading: str, stop_prefixes: tuple[str, ...]) -> s
     return body[:end]
 
 
+def _normalize_space(text: str) -> str:
+    """Collapse all whitespace to single spaces."""
+    return " ".join(text.split())
+
+
+def _contains_any(text: str, fragments: tuple[str, ...]) -> bool:
+    """Return True when any fragment appears in text."""
+    return any(fragment in text for fragment in fragments)
+
+
 def _scorecard_rows(text: str) -> list[list[str]]:
     """Parse rows from the DX scorecard code block."""
     start = text.find("DX AUDIT SCORECARD")
@@ -136,19 +146,22 @@ def check_every_command_approval(text: str) -> bool:
     )
     if not step:
         return False
-    lower = step.lower()
-    has_every = (
-        "every command" in lower
-        or "every\ncommand" in lower
-        or "all commands" in lower
+    lower = _normalize_space(step.lower())
+    has_every = _contains_any(
+        lower,
+        ("every command", "every shell command", "all commands"),
     )
-    has_approval = (
-        "explicit user approval" in lower
-        or "explicit approval" in lower
+    has_approval = _contains_any(
+        lower,
+        ("explicit user approval", "explicit approval"),
     )
-    has_subset_scoping = (
-        "any command that writes outside" in lower
-        or "cannot be undone requires" in lower
+    has_subset_scoping = _contains_any(
+        lower,
+        (
+            "any command that writes outside",
+            "cannot be undone requires",
+            "commands derived from",
+        ),
     )
     return has_every and has_approval and not has_subset_scoping
 
@@ -290,23 +303,21 @@ def _inject_bash_multi_tool_scalar(text: str) -> str:
 
 def _weaken_approval_to_subset(text: str) -> str:
     """Replace every-command approval with subset-only approval."""
-    old = (
-        "Every\ncommand derived from README, docs, web pages, "
-        "or other project content requires\n"
-        "explicit user approval"
-    )
-    new = (
+    return re.sub(
+        r"Every\s+shell command requires explicit user approval via "
+        r"AskUserQuestion before\s+execution",
         "Any command that writes outside the temporary directory, "
         "changes shared state,\n"
         "or cannot be undone requires\n"
-        "explicit user approval"
+        "explicit user approval",
+        text,
+        count=1,
     )
-    return text.replace(old, new)
 
 
 def _remove_every_command(text: str) -> str:
     """Remove the 'every command' phrase entirely."""
-    return text.replace("Every\ncommand", "Some commands")
+    return re.sub(r"Every\s+shell command", "Some shell commands", text, count=1)
 
 
 def _make_tested_include_file_inspection(text: str) -> str:
@@ -358,8 +369,8 @@ def _append_tested_file_inspection_contradiction(text: str) -> str:
 def _remove_overall_dx_method(text: str) -> str:
     """Blank the Overall DX method column in the scorecard."""
     return text.replace(
-        "| Overall DX           | __/10  |                        | [actual]     |",
-        "| Overall DX           | __/10  |                        |              |",
+        "| Overall DX           | __/10  | Mean: [sum]/[count]    | [actual]     |",
+        "| Overall DX           | __/10  | Mean: [sum]/[count]    |              |",
     )
 
 
