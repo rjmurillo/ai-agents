@@ -142,9 +142,13 @@
     {
       "step": "Corrected three sessionStart MUST items that an earlier draft of this log recorded as unmet",
       "evidence": "The draft asserted Serena was unreachable in this container without probing it. Serena answered initial_instructions and list_memories on first call, so the items are recorded as met and the memory was written."
+    },
+    {
+      "step": "Re-bound qaCommit and endingCommit after the Serena memory commit",
+      "evidence": ".serena/ is absent from QA_EVIDENCE_PREFIXES in .claude/lib/qa_report.py, so commit e93af5c82 (memory plus index) counted as post-QA work and made the b22fa729b binding stale. Re-bound both to e93af5c82; every commit after it touches only .agents/qa, .agents/sessions, and .agents/memory/episodes, which are evidence."
     }
   ],
-  "endingCommit": "b22fa729b73d202fa4ff8611423ed6191382b79e",
+  "endingCommit": "e93af5c82d39a52102ea9e07a9c4f6fc5f361b57",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",

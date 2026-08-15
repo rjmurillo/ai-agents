@@ -73,7 +73,8 @@
         "e003",
         "e004",
         "e005",
-        "e008"
+        "e008",
+        "e012"
       ],
       "leads_to": [
         "e007"
@@ -138,6 +139,43 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-bound qaCommit and endingCommit after the Serena memory commit",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T16:16:03+00:00",
+      "type": "commit",
+      "content": "Commit: b22fa729b",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T16:19:14+00:00",
+      "type": "commit",
+      "content": "Commit: e93af5c82d39a52102ea9e07a9c4f6fc5f361b57",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
@@ -147,8 +185,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 10
+    "commits": 7,
+    "files_changed": 12
   },
   "lessons": []
 }

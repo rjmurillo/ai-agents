@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-issue-5096-qa-report-issue-fallback.json
-qaCommit: b22fa729b73d202fa4ff8611423ed6191382b79e
+qaCommit: e93af5c82d39a52102ea9e07a9c4f6fc5f361b57
 ---
 
 # Issue 5096 QA Report Issue Fallback QA
@@ -119,6 +119,14 @@ proposed change inside any line this PR adds. The test file's proposed changes
 are all collapses of the implicit string concatenation the existing module uses
 throughout, and the new tests follow that same house style. Reformatting either
 file wholesale is out of scope for this change.
+
+## End-to-End Evidence On This Branch
+
+The shipped script was driven against this repository with `PR_NUMBER` set to a
+number no report names and a stub body reading `Fixes #5096`. It resolved
+`.agents/qa/issue-5096-qa-report-issue-fallback.md`, ran the full
+`_validate_report` path against the real session log and real git ancestry, and
+returned 0. That is the same code path the `Validate PR` job takes.
 
 ## Known Gaps
 
