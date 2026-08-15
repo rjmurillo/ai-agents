@@ -282,6 +282,13 @@ class TestMatcherShimSuffixStripping:
         )
         assert result == ".claude/hooks/PostToolUse/my_hook.py"
 
+    def test_source_with_double_underscore_preserves_stem(self) -> None:
+        """Edge: canonical source named foo__bar.py survives suffix stripping."""
+        result = _mirror_source(
+            "src/copilot-cli/hooks/PreToolUse/foo__bar__Bash_f620ca.py"
+        )
+        assert result == ".claude/hooks/PreToolUse/foo__bar.py"
+
     def test_companion_without_suffix_is_unchanged(self) -> None:
         """Negative control: verbatim companions still resolve directly."""
         result = _mirror_source(

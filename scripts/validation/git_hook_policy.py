@@ -578,8 +578,11 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
-# Used to map a suffixed shim back to its canonical hook source. Refs #4857.
-_HOOK_MATCHER_SUFFIX_RE = re.compile(r"__(?:[A-Za-z0-9_]+_)?[0-9a-f]{6}(?=\.py$)")
+# The sanitized segment never contains __ (non-alnum runs collapse to single _),
+# so the last __ in a stem always marks the suffix boundary. Refs #4857.
+_HOOK_MATCHER_SUFFIX_RE = re.compile(
+    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
+)
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
