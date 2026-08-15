@@ -68,7 +68,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import shutil
 import signal
 import subprocess
@@ -590,23 +589,21 @@ def _local_pytest_commands(
         except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
             return [], f"{rel}: {type(exc).__name__}: {exc}"
         for index, entry in enumerate(_pytest_matrix_entries(data)):
-            pytest_args = entry.get("pytest_args") if isinstance(entry, dict) else None
-            if not isinstance(pytest_args, str) or not pytest_args.strip():
+            partition = entry.get("partition") if isinstance(entry, dict) else None
+            if not isinstance(partition, str) or not partition.strip():
                 continue
-            try:
-                command = [
-                    "uv",
-                    "run",
-                    "--frozen",
-                    "python",
-                    "scripts/ci/run_pytest_non_tmp.py",
-                    "--cov",
-                    "--cov-report=",
-                    f"--junitxml=pytest-{index}.xml",
-                    *shlex.split(pytest_args),
-                ]
-            except ValueError as exc:
-                return [], f"{rel}: invalid pytest_args: {exc}"
+            command = [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "scripts/ci/run_pytest_selected.py",
+                "--partition",
+                partition,
+                "--cov",
+                "--cov-report=",
+                f"--junitxml=pytest-{index}.xml",
+            ]
             commands.append(
                 (
                     command,
@@ -627,7 +624,7 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
         return StageResult(stage, False, error)
 
     if not commands:
-        return StageResult(stage, False, "no test matrix pytest_args found")
+        return StageResult(stage, False, "no test matrix partitions found")
 
     env = dict(os.environ)
     env.pop("ACT", None)
@@ -638,13 +635,21 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     with tempfile.TemporaryDirectory(prefix="ai-agents-pytest-") as temp_root:
         output_root = Path(temp_root)
         for command, partition_env in commands:
+            # merge_group forces the selection runner to run the whole partition,
+            # so local workflow validation exercises the full matrix rather than
+            # an import-graph subset of it.
             command_env = env | {
                 "COVERAGE_FILE": str(output_root / partition_env["COVERAGE_FILE"]),
                 "PYTEST_NON_TMP_ROOT": str(
                     output_root / partition_env["PYTEST_NON_TMP_ROOT"]
                 ),
+                "GITHUB_EVENT_NAME": "merge_group",
             }
-            command[7] = f"--junitxml={output_root / command[7].removeprefix('--junitxml=')}"
+            for position, token in enumerate(command):
+                if token.startswith("--junitxml="):
+                    relative = token.removeprefix("--junitxml=")
+                    command[position] = f"--junitxml={output_root / relative}"
+                    break
             returncode, stdout, stderr = _run(
                 command,
                 timeout=_ACT_FULL_TIMEOUT,
