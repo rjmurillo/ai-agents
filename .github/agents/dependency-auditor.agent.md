@@ -9,7 +9,6 @@ tools:
   - shell
   - cloudmcp-manager/*
   - serena/*
-model: claude-sonnet-4.6
 tier: builder
 ---
 # Dependency Auditor

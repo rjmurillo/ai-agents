@@ -576,6 +576,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
 )
+# Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
+# Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
+# The sanitized segment never contains __ (non-alnum runs collapse to single _),
+# so the last __ in a stem always marks the suffix boundary. Refs #4857.
+_HOOK_MATCHER_SUFFIX_RE = re.compile(
+    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
+)
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -2479,6 +2486,11 @@ def _mirror_source(relative_path: str) -> str | None:
             if not remainder.endswith(output_suffix):
                 continue
             remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
         return source_prefix + remainder
     return None
 
@@ -4109,6 +4121,10 @@ def _semgrep_command(
         "--exclude-rule",
         "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
+    # Semgrep's default 7 jobs can fail before scanning when io_uring cannot
+    # allocate its worker queues. One job scanned 100 files in 93 seconds.
+    # Its default 5-second rule timeout also rejected this validator; 30 seconds
+    # scanned the seven-file push set within the 840-second child budget.
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -4123,6 +4139,8 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        "--jobs=1",
+        "--timeout=30",
         *exclude_compat_rules,
         "--",
         *targets,
@@ -5986,6 +6004,30 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 
 _NEEDS_SPLIT_LABEL = "needs-split"
 
+# Every message that names `commit-limit-bypass` carries this clause with it.
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
+# CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# Naming the label as the reader's next step tells whoever tripped the gate to
+# grant themselves a permission they do not hold. An agent reads that as
+# sanctioned remediation because it arrives from the enforcement mechanism
+# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
+# after this gate suggested it (issue #4782). Same shape as the atomic-commit
+# message, which states the local remedy and then closes the bypass door
+# ("Split this commit. This local pre-commit check has no PR-label bypass.",
+# added in commit e1fbc5a7a, PR #4245).
+#
+# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# who MAY add the label (a human maintainer). This message additionally
+# states who may NOT (the reader), because the load-bearing half for an
+# autonomous reader is the prohibition, not the permission; the canonical
+# line alone did not stop the PR #4735 agent from self-applying the label.
+_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
+    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _check_needs_split_bypass(
     update: PushUpdate, branch: str | None, repo_root: Path
@@ -6020,8 +6062,9 @@ def _check_needs_split_bypass(
         else "could not count new commits"
     )
     print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-        "use commit-limit-bypass to override the ceiling entirely.",
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
+        "Split the branch and push the parts separately. "
+        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
         file=sys.stderr,
     )
     return None

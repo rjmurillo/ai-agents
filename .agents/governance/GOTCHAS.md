@@ -248,10 +248,13 @@ after the work is committed, not while it accumulates. Check it mid-session:
 git rev-list --count HEAD ^origin/main
 ```
 
-Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
-is often the wrong repair, because the five-file atomic-commit rule then makes
-the collapsed commit a violation of a different rule. Prefer the label when the
-branch is one coherent thread, and split into a second PR when it is not.
+Relief is one of two sanctioned paths (CONTRIBUTING.md:857): split the PR,
+or ask a human maintainer to decide on the `commit-limit-bypass` label; only
+that maintainer may add it (CONTRIBUTING.md, "Bypassing the Limit"): ask for
+it, and do not apply it yourself. Refs #4782. Squashing is often the wrong repair,
+because the five-file atomic-commit rule then makes the collapsed commit a
+violation of a different rule. Ask for the label when the branch is one
+coherent thread, and split into a second PR when it is not.
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
@@ -1116,17 +1119,18 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped: the setting is now `true`
-(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
-main can no longer land at all, so the two edits can no longer meet for the
-first time on main.
+that no longer existed. That remedy shipped as `true` on 2026-08-04 but has
+since been returned to `false` (measured 2026-08-15). The count ratchets block
+a behind branch only when main lowers a relevant baseline; they do not enforce
+universal freshness.
 
-What remains is the case strict does not cover. Ruleset 11104075 still has no
-`merge_queue` rule and no workflow handles a `merge_group` event, so admission
-is serialized only by the refresh requirement, not by testing the combined
-result before the merge. The exact-equality assertion above is therefore the
-gate that still catches a baseline and a count arriving out of step, and it
-fires locally on a tree nobody's diff touched.
+What remains is the case neither strict nor the ratchets cover. Ruleset
+11104075 still has no `merge_queue` rule and no workflow handles a
+`merge_group` event, so admission is serialized only by the one-front landing
+protocol (see `docs/landing-workflow.md`), not by testing the combined result
+before the merge. The exact-equality assertion above is therefore the gate that
+still catches a baseline and a count arriving out of step, and it fires locally
+on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline

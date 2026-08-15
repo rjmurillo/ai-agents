@@ -1,0 +1,28 @@
+name: Ruleset Required Context Drift
+
+on:
+  schedule:
+    - cron: '0 7 * * 2,5'
+  workflow_dispatch:
+
+concurrency:
+  group: ruleset-context-drift
+  cancel-in-progress: false
+
+jobs:
+  detect-drift:
+    name: Detect Ruleset Required Context Drift
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Compare live and pinned required contexts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH=. python3 scripts/ci/ruleset_context_drift.py --alert

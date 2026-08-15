@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15001,
+    "date": "2026-08-15",
+    "branch": "fix/4922-frontmatter-only-parity-bypass",
+    "startingCommit": "c23b46d201842d9913671da8561054fd65f2b107",
+    "objective": "Fix validate_install_parity blocking frontmatter-only generated-tree changes (issue #4922)"
+  },
+  "endingCommit": "1cc8a9da9445d229ed9f5d95cafcc91a5ae1db74",
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {"complete": true, "level": "MUST", "evidence": "Read issue #4922 and validator code"},
+      "sessionLogCreated": {"complete": true, "level": "MUST", "evidence": "This file"},
+      "branchVerified": {"complete": true, "level": "MUST", "evidence": "fix/4922-frontmatter-only-parity-bypass"},
+      "notOnMain": {"complete": true, "level": "MUST", "evidence": "On fix/4922-frontmatter-only-parity-bypass"},
+      "usageMandatoryRead": {"complete": true, "level": "MUST", "evidence": "Read AGENTS.md"},
+      "constraintsRead": {"complete": true, "level": "MUST", "evidence": "Read project constraints"},
+      "memoriesLoaded": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "serenaInstructions": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "serenaActivated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
+      "skillScriptsListed": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"complete": true, "level": "MUST", "evidence": "All items recorded"},
+      "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
+      "markdownLintRun": {"complete": true, "level": "MUST", "evidence": "No markdown in code commit"},
+      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-5030-issue-4922-frontmatter-parity-bypass-qa.md"},
+      "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed and pushed"},
+      "validationPassed": {"complete": true, "level": "MUST", "evidence": "1650 tests passed, mypy clean, ruff clean"},
+      "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"}
+    }
+  },
+  "workLog": [
+    {"action": "implement", "description": "Added _diff_is_frontmatter_only() helper and 4th carve-out to validate_install_parity.py"},
+    {"action": "test", "description": "Created 7 tests covering positive, negative, and edge cases"},
+    {"action": "verify", "description": "All 1650 build_scripts tests pass, mypy clean, ruff clean"}
+  ],
+  "nextSteps": [],
+  "outcome": {
+    "status": "success",
+    "summary": "Frontmatter-only changes to generated copies no longer blocked by parity gate",
+    "filesChanged": ["build/scripts/validate_install_parity.py", "tests/build_scripts/test_install_parity_frontmatter_only.py"],
+    "testsAdded": 7,
+    "testsTotal": 1650,
+    "testsPassed": true
+  }
+}

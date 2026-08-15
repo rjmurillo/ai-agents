@@ -168,7 +168,7 @@ GitHub URL detected in user input
 | `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
 | `/pull/{n}` (review comments) | `get_pr_review_comments.py` | `--pull-request {n}` |
 | `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
-| `/pull/{n}` (CI status) | `get_pr_checks.py` | `--pull-request {n}` |
+| `/pull/{n}/checks` | `get_pr_checks.py` | `--pull-request {n} --owner {o} --repo {r}` |
 | `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
 
 **Script location**: `.claude/skills/github/scripts/`
@@ -183,7 +183,7 @@ Use only when no script exists for the operation:
 | `/pull/{n}#discussion_r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}/files#r{id}` or `/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
-| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `get_pr_checks.py` |
+| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `get_pr_checks.py --owner {o} --repo {r}` |
 | `/issues/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
 | `/actions/runs/{run_id}` | `gh api repos/{o}/{r}/actions/runs/{run_id}` |
 | `/actions/runs/{run_id}/job/{job_id}` | `gh api repos/{o}/{r}/actions/jobs/{job_id}` |
