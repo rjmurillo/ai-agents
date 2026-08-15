@@ -642,21 +642,16 @@ returns exit 0), so the merged tree above is green and concurrent cleanup PRs
 never conflict on the shared line. Arming
 `strict_required_status_checks_policy` on ruleset `11104075` so the second PR
 had to be current before merging is not needed for this race: with the ratchet
-tolerating the drift there is no red `main` to prevent. Note that strict was
-nonetheless armed on 2026-08-04 (ruleset version `45433643`) for a different
-reason, as remediation for the red-`main` incident of that date. As of
-2026-08-15 it has been returned to `false`; the count ratchets block behind
-branches only when main lowers a relevant baseline. See
-`docs/landing-workflow.md` and
-`.serena/memories/decision-every-merge-invalidates-every-open-pr.md`.
+tolerating the drift there is no red `main` to prevent. Strict was armed on
+2026-08-04 (ruleset version `45433643`) as remediation for the red-`main`
+incident of that date, then reverted to `false` on 2026-08-10 (ruleset last
+updated). The ratchet tolerance alone prevents the race.
 
-**Status note, measured 2026-08-15.** That policy reads `false` on ruleset
-`11104075`. The paragraph above stays accurate on its own terms: strict checks
-are not what resolves this particular race, and the ratchet tolerance is. The
-count ratchets block a behind branch only when main has lowered a relevant
-baseline; they do not enforce universal freshness. There is still no merge
-queue (user-owned repo ineligible). See `docs/landing-workflow.md` for the full
-serial one-front landing protocol.
+**Status note, measured 2026-08-14.** That policy reads `false` on ruleset
+`11104075`. Being behind `main` does not block merge via the ruleset. The count
+ratchets still enforce practical freshness for PRs touching ratcheted counts.
+There is still no merge queue. Issue #4608 records an unverified hypothesis
+about how a future merge group would behave. See issue #4646.
 
 **Residual cost.** The baseline sits above the true count until someone records
 it, and that gap absorbs one later regression without firing. `--update` closes
