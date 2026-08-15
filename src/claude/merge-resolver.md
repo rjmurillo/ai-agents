@@ -91,14 +91,22 @@ git diff --name-only --diff-filter=U
 
 ### Phase 2: Conflict Classification
 
-For each conflicted file, classify as auto-resolvable or manual:
+For each conflicted file, classify as auto-resolvable, rename-both, or manual:
 
 **Auto-resolvable** (use resolve_pr_conflicts.py):
 
-- `.agents/*`, `.serena/*`, `templates/*`
+- `.agents/*` (modify/modify only; add/add on evidence artifacts uses the rename class below), `.serena/*`, `templates/*`
 - Lock files (`package-lock.json`, `yarn.lock`)
 - `.claude/skills/*`, `.claude/agents/*`, `.claude/commands/*`
 - `src/copilot-cli/*`, `src/vs-code-agents/*`, `src/claude/*`
+
+**Rename, never content-merge** (add/add on append-only evidence artifacts):
+
+- Session logs (`.agents/sessions/*`)
+- QA reports (`.agents/qa/*`)
+- Retrospectives (`.agents/retrospective/*`)
+
+An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
 **Manual resolution required**:
 
@@ -150,6 +158,7 @@ Apply these combination rules:
 | Conflicting logic | Prefer more recent or more tested |
 | Style conflicts | Accept either, prefer consistency with surrounding code |
 | Deletions vs modifications | Investigate why; deletion usually intentional |
+| Add/add on evidence artifacts | Keep both, rename ours, update references |
 
 ### Phase 5: Staging and Verification
 
@@ -233,7 +242,7 @@ See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
 
 ## Constraints
 
-- **Session files from main are immutable**. Accept theirs, rename ours to next number
+- **Session files from main are immutable**. Accept theirs, rename ours with a distinguishing suffix (PR #4856)
 - **HANDOFF.md is read-only**. Accept theirs (main is canonical)
 - **Lock files**: Accept base, regenerate with package manager
 - **Generated files**: Resolve in template/source, regenerate outputs
@@ -245,6 +254,7 @@ See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
 | Anti-Pattern | Correction |
 |--------------|------------|
 | Accept --ours for session files | Accept --theirs, rename ours |
+| Content-merge an add/add session-log conflict | Keep both files, rename ours with a suffix (PR #4856) |
 | Skip git blame analysis | Always check commit messages for intent |
 | Resolve before fetching PR context | Always get PR metadata first |
 | Manual edit of generated files | Edit template, run generator |
