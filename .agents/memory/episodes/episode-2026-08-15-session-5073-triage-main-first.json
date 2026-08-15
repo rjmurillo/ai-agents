@@ -3,7 +3,7 @@
   "session": "2026-08-15-session-5073-triage-main-first",
   "timestamp": "2026-08-15T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Implement issue #5073: make measure-main-before-blaming-the-PR a tooling step (triage_red_check.py) wired into pr-autofix and pr-comment-responder CI-failure triage",
   "decisions": [],
   "events": [
@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Read issue #5073 and the three cited Serena memories",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-15-session-5073-triage-main-first"
     },
     {
@@ -22,6 +24,68 @@
       "type": "milestone",
       "content": "Surveyed github skill script conventions",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented triage_red_check.py with three-verdict contract",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired docs as CI-failure triage step 1",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared taste count ratchet regression",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran QA",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T14:37:36+00:00",
+      "type": "commit",
+      "content": "Commit: 3f25c791819a046abd2a65033b8716dcb06fb74f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5073-triage-main-first"
     }
@@ -31,8 +95,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 5
+    "commits": 1,
+    "files_changed": 11
   },
   "lessons": []
 }
