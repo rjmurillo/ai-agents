@@ -65,7 +65,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     },
     {
@@ -80,6 +82,17 @@
         "e005"
       ],
       "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T06:39:29+00:00",
+      "type": "commit",
+      "content": "Commit: bda02516ea09a674c150464082faf79a55d46eb4",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance"
     }
   ],
   "metrics": {
@@ -87,8 +100,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 9
+    "commits": 2,
+    "files_changed": 11
   },
   "lessons": []
 }

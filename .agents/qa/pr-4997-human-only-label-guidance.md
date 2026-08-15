@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14706-a225da30e-fix-4782-human-only-label-guidance.json
-qaCommit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43
+qaCommit: bda02516ea09a674c150464082faf79a55d46eb4
 ---
 
 # QA Report: PR #4997, issue #4782, enforcement messages naming a human-only label
@@ -9,12 +9,13 @@ qaCommit: c7e1ff3339e5111c92226a3b56d79ef9841d4c43
 ## Scope
 
 Branch `fix/4782-push-gate-human-only-label`, base `a225da30e`
-(origin/main), validation commit `c7e1ff3339e5111c92226a3b56d79ef9841d4c43`.
+(origin/main), validation commit `bda02516ea09a674c150464082faf79a55d46eb4`.
 
 Under test: three enforcement messages that named a bypass label as the
 reader's own next step, the two CONTRIBUTING.md lines with the same shape,
-the GOTCHAS.md entry with the same shape, and the new guard test that pins
-all of them.
+the GOTCHAS.md entry with the same shape (now pinned by
+`test_gotchas_commit_ceiling_defers_the_bypass_to_a_maintainer`), and the
+new guard test that pins all of them.
 
 ## Verdict
 
@@ -49,7 +50,7 @@ citations still resolve; no CONTRIBUTING.md line pairs an imperative with a
 human-only label without naming the authority; each of the three messages
 defers to a maintainer) and 3 no-over-fire controls (push gate under the
 cap, CI blocker with the label already present, description validator on a
-clean description) proving the allowed paths still name no label at all.
+clean description) proving the allowed paths never emit the human-only notice.
 
 `tests/ci/test_pr_validation_workflow.py::TestBlockedMessageNamesTheLimitThatWasApplied::test_the_remediation_survives_every_shape`
 asserted the old contract (`"split this PR"`, lowercase, from the removed

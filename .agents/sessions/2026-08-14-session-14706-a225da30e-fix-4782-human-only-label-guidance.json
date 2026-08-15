@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-14T21:00:00Z",
       "action": "Added tests/validation/test_human_only_label_guidance.py and flipped one old-contract test.",
-      "detail": "Eight tests: the CONTRIBUTING.md citations still resolve, no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority, all three messages defer to a maintainer, and three no-over-fire controls prove the allowed paths never mention the bypass. test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
+      "detail": "Eight tests: the CONTRIBUTING.md citations still resolve, no CONTRIBUTING.md line pairs an imperative with a human-only label without naming the authority, all three messages defer to a maintainer, and three no-over-fire controls prove the allowed paths never emit the human-only notice (the bypass-present CI path still prints its own confirmation message, which is not the same defect). test_the_remediation_survives_every_shape in tests/ci/test_pr_validation_workflow.py asserted the old lowercase 'split this PR' wording and now asserts the new contract including the prohibition."
     },
     {
       "timestamp": "2026-08-14T21:10:00Z",
@@ -150,7 +150,7 @@
       "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
     }
   ],
-  "endingCommit": "c7e1ff3339e5111c92226a3b56d79ef9841d4c43",
+  "endingCommit": "bda02516ea09a674c150464082faf79a55d46eb4",
   "nextSteps": [
     "PR #4997 is open. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
   ]
