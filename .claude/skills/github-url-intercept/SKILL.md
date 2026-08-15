@@ -1,7 +1,7 @@
 ---
 name: github-url-intercept
 version: 2.1.0
-description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: pull/, issues/, blob/, tree/, commit/, compare/, discussions/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, gist.githubusercontent.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
 license: MIT
 metadata:
   domains:
@@ -42,6 +42,9 @@ gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
 
 # Commit URL → Use this
 gh api repos/{owner}/{repo}/commits/{sha}
+
+# Gist URL → Use this
+gh api gists/{id}
 
 # Comment fragment (#discussion_r{id}) → Use this
 gh api repos/{owner}/{repo}/pulls/comments/{id}
@@ -86,7 +89,8 @@ Use [github](../github/SKILL.md) instead when:
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
 | `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
 | `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
-| `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
+| `gist.github.com/...` | `https://gist.github.com/owner/0123456789abcdef0123` | Gist HTML includes page chrome |
+| `gist.githubusercontent.com/...` | `https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/file.txt` | Raw gist content |
 | Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
 | Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
 | Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
@@ -98,6 +102,9 @@ Use [github](../github/SKILL.md) instead when:
 
 ```text
 GitHub URL detected in user input
+│
+├─ Is gist.github.com/{owner}/{id}?
+│     Yes → gh api gists/{id}
 │
 ├─ Has fragment (#pullrequestreview-, #discussion_r, #issuecomment-)?
 │     Yes → Extract ID, use gh api for specific comment/review
@@ -128,8 +135,8 @@ GitHub URL detected in user input
 | Step | Action | Verification |
 |------|--------|--------------|
 | 1.1 | Detect github.com URL in user input | URL pattern matched |
-| 1.2 | Extract owner/repo from path | Both values non-empty |
-| 1.3 | Identify URL type (pull, issues, blob, tree, commit, compare) | Type classified |
+| 1.2 | Extract owner/repo, or gist owner/id, from path | Required values non-empty |
+| 1.3 | Identify URL type (gist, pull, issues, blob, tree, commit, compare) | Type classified |
 | 1.4 | Extract fragment ID if present | Fragment parsed or null |
 
 ### Phase 2: Route Selection
@@ -184,6 +191,7 @@ Use only when no script exists for the operation:
 | `/tree/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
 | `/commit/{sha}` | `gh api repos/{o}/{r}/commits/{sha}` |
 | `/compare/{base}...{head}` | `gh api repos/{o}/{r}/compare/{base}...{head}` |
+| `gist.github.com/{owner}/{id}` | `gh api gists/{id}` |
 
 ---
 
@@ -198,6 +206,10 @@ https://github.com/{owner}/{repo}/blob/{ref}/{path}
 https://github.com/{owner}/{repo}/tree/{ref}/{path}
 https://github.com/{owner}/{repo}/commit/{sha}
 https://github.com/{owner}/{repo}/compare/{base}...{head}
+https://gist.github.com/{owner}/{id}
+https://gist.github.com/{id}
+https://gist.github.com/{owner}/{id}.js
+https://gist.githubusercontent.com/{owner}/{id}/raw/{revision}/{path}
 ```
 
 **Fragment extraction** (when present):
@@ -242,6 +254,20 @@ Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
   2. Route: python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 735 --owner rjmurillo --repo ai-agents
 ```
+
+### Gist URL
+
+```text
+Input: "https://gist.github.com/owner/0123456789abcdef0123"
+
+Action:
+  1. Parse: owner=owner, gist=0123456789abcdef0123, type=gist
+  2. Route: gh api "gists/0123456789abcdef0123"
+```
+
+Ownerless URLs, query strings, file fragments, `.js` embed URLs, raw-content
+URLs, revision SHAs, and `/revisions` or `/raw` suffixes route through the gist
+API. Pinned revisions stay pinned. Raw file URLs return only the requested file.
 
 ### URL with Question After It
 
@@ -334,7 +360,7 @@ Action:
 Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
 
 ```bash
-python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-url>
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url <github-url>
 ```
 
 ---
@@ -353,14 +379,14 @@ python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-
 After routing a GitHub URL, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py --url "$GITHUB_URL"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url "$GITHUB_URL"
 echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
 ```
 
 - [ ] `test_url_routing.py` exited 0 (non-zero = invalid URL or unroutable type; routing is not valid)
-- [ ] Extracted owner/repo from URL path
-- [ ] Identified URL type (PR, issue, blob, commit, compare)
+- [ ] Extracted owner/repo or gist owner/id from URL path
+- [ ] Identified URL type (gist, PR, issue, blob, commit, compare)
 - [ ] Extracted fragment ID if present (#discussion_r, #issuecomment-, #pullrequestreview-)
 - [ ] Selected appropriate github skill script (primary) or gh command (fallback)
 - [ ] Did NOT use web_fetch, curl, or browser-based fetch on the URL
-- [ ] Received structured JSON response with `Success: true` (for scripts)
+- [ ] Received structured JSON response with `success: true`

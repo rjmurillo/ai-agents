@@ -6145,7 +6145,7 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
         result = _run_command(
             [
                 sys.executable,
-                ".claude/skills/SkillForge/scripts/validate-skill.py",
+                ".claude/skills/skillforge/scripts/validate-skill.py",
                 Path(path).parent.as_posix(),
             ],
             repo_root,

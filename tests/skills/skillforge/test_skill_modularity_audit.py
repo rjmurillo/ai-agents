@@ -30,7 +30,7 @@ _SKILL_DIR = (
     Path(__file__).resolve().parent.parent.parent.parent
     / ".claude"
     / "skills"
-    / "SkillForge"
+    / "skillforge"
     / "scripts"
 )
 
@@ -174,12 +174,12 @@ class TestCiMode:
 
         # The script resolves `.claude/skills` relative to cwd, so we must run
         # it from the worktree root, not from the test directory.
-        # _SKILL_DIR = .../ai-agents-scorehint/.claude/skills/SkillForge/scripts
+        # _SKILL_DIR = .../ai-agents-scorehint/.claude/skills/skillforge/scripts
         # parents[3] = .../ai-agents-scorehint
         worktree_root = _SKILL_DIR.parents[3]
         result = subprocess.run(
             ["uv", "run", "--frozen", "python",
-             ".claude/skills/SkillForge/scripts/skill_modularity_audit.py",
+             ".claude/skills/skillforge/scripts/skill_modularity_audit.py",
              "--ci"],
             cwd=worktree_root,
             capture_output=True,

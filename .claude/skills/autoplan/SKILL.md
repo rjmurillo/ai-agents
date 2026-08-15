@@ -103,7 +103,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Save progress, checkpoint | Skill: session-end |
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
-| New skill wanted | Skill: SkillForge |
+| New skill wanted | Skill: skillforge |
 | Multi-step, cross-cutting, or no row matches | Task(subagent_type="orchestrator") |
 
 The user naming a skill or command bypasses this table entirely. User
