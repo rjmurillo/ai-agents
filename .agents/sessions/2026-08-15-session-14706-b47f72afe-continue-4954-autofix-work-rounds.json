@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14706,
+    "date": "2026-08-15",
+    "branch": "fix/2840-adr-080-amendment",
+    "startingCommit": "aeaa13f1c",
+    "objective": "Continue PR 4954 autofix work (rounds 8 onward): resolve active Copilot review findings, rebind QA/session evidence, keep CI green"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP toolset available and used this session (find_symbol, read_memory, edit_memory)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena manual reviewed in an earlier turn of this session (rounds 1-8, prior to this log's creation)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only dashboard, points to session logs/Serena memory as the live context channel); .agents/sessions/handoffs/2026-08-15-2840-handoff.md read and rewritten for rounds 8-9"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/ enumerated (102 skill directories); used github/scripts/pr/*.py (run_completion_gate.py, get_unresolved_review_threads.py, get_pr_checks.py), session/scripts/new_session_log.py, memory/scripts/extract_session_episode.py this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory loaded; pr-autofix/fleet-operations loaded (lease discipline, two-commit rebind mechanics, atomic-commit cap on Commit B, QA-skip-string rejection)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2840-adr-080-amendment"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2840-adr-080-amendment"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short reviewed before each staging/commit step"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "aeaa13f1c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran run_completion_gate.py --pull-request 4954 for the first time this task",
+      "result": "FAIL: 5 unresolved review threads, 5 active suppressed Copilot findings. PASS: resolved-thread-commit-refs, not-already-merged. FAIL: PR-ready-to-merge (blocked by missing reviewDecision + the 5 unresolved threads)."
+    },
+    {
+      "action": "Ran get_unresolved_review_threads.py",
+      "result": "5 threads, all copilot-pull-request-reviewer. 3 is_outdated:true (already fixed by rounds 5/7 content, thread stale). 2 is_outdated:false, both about commit c860ae452 being claimed by both session-14695's and session-15001's episodes (dual attribution)."
+    },
+    {
+      "action": "Diffed session-14695 vs session-15001 workLogs/episodes to determine true owner of c860ae452",
+      "result": "session-15001 workLog entries 138-140 narrate running the second 6-agent review and committing the dash fix at c860ae452; session-14695's own workLog ends at 0edf6e063 with no dash-fix entry. session-15001 is the true owner (its commitHead ac53f680... plus 3 other SHAs already matches metrics.commits:4 correctly)."
+    },
+    {
+      "action": "Fixed session-14695's session log and episode to remove the c860ae452 misattribution",
+      "result": "episodeMetrics.commitHead corrected to 0edf6e0630ea141e7fdcacae9583fcd57695b345 (git rev-parse verified); Evidence text reworded to name session 15001 without a bare SHA (avoids _collect_shas() re-detecting it on regeneration); episode event e010 removed, e007/e009 leads_to cleaned, metrics.commits 4->3. Validated: validate_session_json.py PASS, extract_session_episode.py --validate PASS, fresh non-preserve regeneration to /tmp/episode-check matches modulo ID renumbering, jsonschema.validate against episode.schema.json VALID."
+    },
+    {
+      "action": "Reproduced the delegation-probe log-dir collision fix in a fresh scratch repo (/tmp/adr080-probe-repro2)",
+      "result": "Ran treatment with --log-dir ./logs-treatment and control (worker model: line deleted) with --log-dir ./logs-control; each directory holds exactly one separable transcript (GitHub Copilot CLI 1.0.81-0). Rewrote the analysis file's probe section with the real re-captured transcripts."
+    },
+    {
+      "action": "Rewrote .agents/sessions/handoffs/2026-08-15-2840-handoff.md",
+      "result": "Covers rounds 7-9 (Status/Files Modified/Decisions Made/Next Steps/Context/Verification/Related); removed the false 'rounds 3-7 intentionally have no session log' claim; references this new session-14706 log."
+    },
+    {
+      "action": "Staged all 7 touched files and ran git_hook_policy.py atomic-commit",
+      "result": "FAIL: 6 authored files (episode exempt as generated) exceeds MAX_AUTHORED_FILES_PER_COMMIT=5. Both QA reports (000-session-14695 and 000-session-15001) were part of the over-cap staged set."
+    },
+    {
+      "action": "Reverted the two QA report files to their committed (aeaa13f1c) state via git checkout --, re-planned as a two-commit split per pr-autofix/fleet-operations precedent (content fix now, QA/session rebind next once the content commit's SHA is known)",
+      "result": "5 remaining staged files (4 authored + 1 generated episode) pass atomic-commit."
+    },
+    {
+      "action": "Re-ran git_hook_policy.py session/staged-dashes/handoff/root-hygiene/staged-conflict-markers/adr-review/stage-generated episodes against the round-9 staged file set",
+      "result": "All PASS (exit 0)."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Commit round-9 content fix (this staged set) with lease renewal and fresh live-state check",
+    "Redo round-10 rebind: session-14695 and session-15001 endingCommit/episodeMetrics.comparison.head to the round-9 commit's SHA, plus both QA reports' stale current-state bullet, new revision-history rows, Verdict updates, and the '4 actually-produced commits' narrative correction",
+    "Push both commits, wait for CI, resolve the 5 bot-authored unresolved threads once fixes are confirmed live",
+    "Re-run run_completion_gate.py --pull-request 4954 for a final result",
+    "Complete this session's own sessionEnd fields honestly with a real QA report reference and endingCommit before releasing the lease"
+  ]
+}

@@ -87,9 +87,7 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [
-        "e010"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     },
     {
@@ -114,20 +112,6 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [
-        "e010"
-      ],
-      "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-15T10:33:10+00:00",
-      "type": "commit",
-      "content": "Commit: c860ae45263f20f4dbe22b3a4b3b971490b326b5",
-      "caused_by": [
-        "e007",
-        "e009"
-      ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14695-b47f72afe-amend-adr-080-measured-copilot-model"
     }
@@ -137,7 +121,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 3,
     "files_changed": 10
   },
   "lessons": []

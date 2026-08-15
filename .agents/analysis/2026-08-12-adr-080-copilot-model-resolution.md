@@ -87,22 +87,24 @@ model: claude-opus-4.6
 Reply: PROBE
 ```
 
-Invocation:
+Treatment invocation, worker's `model:` line present, its own log
+directory so the control run below cannot land in the same file:
 
 ```bash
+mkdir -p logs-treatment
 copilot -p "delegate to pinnedworker: say PROBE" --agent parent \
   --allow-all-tools --model claude-opus-5 \
-  --log-dir ./logs --log-level debug --no-color
+  --log-dir ./logs-treatment --log-level debug --no-color
 ```
 
 Log extraction:
 
 ```bash
 grep -E "Using model|definitionModel|resolved to candidate|capabilities override" \
-  logs/process-*.log
+  logs-treatment/process-*.log
 ```
 
-Treatment (worker's `model:` line present):
+Treatment transcript:
 
 ```text
 [DEBUG] Using model: claude-opus-5
@@ -115,8 +117,24 @@ Treatment (worker's `model:` line present):
 [DEBUG] Using model: claude-opus-4.6
 ```
 
-Control, identical command, worker's `model:` line deleted (`sed -i
-'/^model:/d' pinnedworker.agent.md`):
+Control: worker's `model:` line deleted (`sed -i '/^model:/d'
+pinnedworker.agent.md`), otherwise the identical command but pointed at
+a second, distinct log directory (`--log-dir ./logs-control`) so
+extraction cannot combine the two runs:
+
+```bash
+mkdir -p logs-control
+copilot -p "delegate to pinnedworker: say PROBE" --agent parent \
+  --allow-all-tools --model claude-opus-5 \
+  --log-dir ./logs-control --log-level debug --no-color
+```
+
+```bash
+grep -E "Using model|definitionModel|resolved to candidate|capabilities override" \
+  logs-control/process-*.log
+```
+
+Control transcript:
 
 ```text
 [DEBUG] Using model: claude-opus-5
@@ -129,11 +147,14 @@ Control, identical command, worker's `model:` line deleted (`sed -i
 ```
 
 Both transcripts above were reproduced against this exact fixture on
-2026-08-15 (`GitHub Copilot CLI 1.0.81-0`), confirming the original
-1.0.79 run: the treatment resolves to `claude-opus-4.6` once
-(`resolved to candidate`) and the control resolves to `claude-opus-5`
-for every one of the four logged resolutions, with no other change to
-either transcript's shape.
+2026-08-15 (`GitHub Copilot CLI 1.0.81-0`), each run writing to its own
+`--log-dir` (`logs-treatment/process-1786825491354-1918035.log` and
+`logs-control/process-1786825522428-1919913.log` respectively, one file
+per directory, confirming the two runs cannot combine into a single
+extraction), confirming the original 1.0.79 run: the treatment resolves
+to `claude-opus-4.6` once (`resolved to candidate`) and the control
+resolves to `claude-opus-5` for every one of the four logged
+resolutions, with no other change to either transcript's shape.
 
 ## Runtime-contract check on a shipped artifact
 
