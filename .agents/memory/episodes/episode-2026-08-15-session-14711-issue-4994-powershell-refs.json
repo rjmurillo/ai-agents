@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-15-session-14711-issue-4994-powershell-refs",
+  "session": "2026-08-15-session-14711-issue-4994-powershell-refs",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Replace stale PowerShell references in github-url-intercept patterns.md",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T08:24:45+00:00",
+      "type": "commit",
+      "content": "Commit: 3aa8a2b395",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14711-issue-4994-powershell-refs"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T10:32:52+00:00",
+      "type": "commit",
+      "content": "Commit: 0452c640e7",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14711-issue-4994-powershell-refs"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 7
+  },
+  "lessons": []
+}
