@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 15002,
+    "date": "2026-08-15",
+    "branch": "fix/4942-readme-vscode-agent-path",
+    "startingCommit": "3532ac5c0a30fb183aee3f562500ec81a9d272b6",
+    "objective": "Fix README/installation.md disagreement on VS Code agent path (issue #4942)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena tools active via MCP"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "initial_instructions read"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md read"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "Scripts directory checked"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "AGENTS.md read"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "CLAUDE.md constraints read"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "No relevant memories needed for doc fix"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "On fix/4942-readme-vscode-agent-path"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "Branch created from origin/main"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "All session items completed"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No memory updates required"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "README.md linted by pre-commit markdown-check hook"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/issue-4942-readme-vscode-path.md"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "Committed with conventional message"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "10/10 knowledge surface tests pass"}
+    }
+  },
+  "workLog": [
+    {"step": "Read issue #4942", "outcome": "README says src/vs-code-agents/ but installation.md says .github/agents/"},
+    {"step": "Verified generator output", "outcome": "src/vs-code-agents/ is build output, not consumer install path"},
+    {"step": "Fixed README", "outcome": "Changed line 217 from src/vs-code-agents/ to .github/agents/"},
+    {"step": "Added regression test", "outcome": "test_readme_and_installation_agree_on_vscode_agent_path passes"},
+    {"step": "Ran full test file", "outcome": "All 10 knowledge surface tests pass"}
+  ],
+  "nextSteps": ["Merge PR after CI passes"],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "3532ac5c0a30fb183aee3f562500ec81a9d272b6",
+      "head": "22adf045082aa9c676d53398077814efd59074c0"
+    }
+  },
+  "endingCommit": "22adf045082aa9c676d53398077814efd59074c0",
+  "retrospective": "## Retrospective\n\nDocumentation fix with regression test. Low complexity, no code changes beyond test."
+}
