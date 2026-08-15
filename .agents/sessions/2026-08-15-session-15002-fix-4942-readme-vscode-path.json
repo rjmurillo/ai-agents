@@ -25,7 +25,7 @@
       "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
       "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No memory updates required"},
       "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "README.md linted by pre-commit markdown-check hook"},
-      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/issue-4942-readme-vscode-path.md"},
+      "qaValidation": {"level": "MUST", "Complete": true, "Evidence": ".agents/qa/pr-5052-issue-4942-readme-vscode-path.md"},
       "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "Committed with conventional message"},
       "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "10/10 knowledge surface tests pass"}
     }
