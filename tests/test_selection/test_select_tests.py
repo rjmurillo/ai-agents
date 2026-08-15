@@ -91,6 +91,51 @@ def test_transitive_change_selects_dependent_test(tmp_path: Path) -> None:
     assert result.tests == ("tests/test_feature.py",)
 
 
+def test_literal_dynamic_import_test_is_selected(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(
+        tmp_path,
+        "tests/test_dynamic_literal.py",
+        'import importlib\nMODULE = importlib.import_module("pkg.core")\n',
+    )
+    result = _select(tmp_path, ["pkg/core.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_dynamic_literal.py", "tests/test_feature.py")
+
+
+def test_unresolvable_dynamic_import_test_is_selected_for_any_python_change(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(
+        tmp_path,
+        "tests/test_dynamic_wildcard.py",
+        (
+            "import importlib\n"
+            "module_name = 'pkg.core'\n"
+            "MODULE = importlib.import_module(module_name)\n"
+        ),
+    )
+    result = _select(tmp_path, ["pkg/orphan.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_dynamic_wildcard.py",)
+
+
+def test_unresolvable_dynamic_import_helper_selects_its_importing_test(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(
+        tmp_path,
+        "pkg/dynamic_loader.py",
+        (
+            "import importlib\n"
+            "module_name = 'pkg.core'\n"
+            "MODULE = importlib.import_module(module_name)\n"
+        ),
+    )
+    _write(tmp_path, "tests/test_dynamic_helper.py", "from pkg import dynamic_loader\n")
+    result = _select(tmp_path, ["pkg/orphan.py"])
+    assert not result.full
+    assert result.tests == ("tests/test_dynamic_helper.py",)
+
+
 def test_change_with_no_dependent_test_is_full(tmp_path: Path) -> None:
     _make_repo(tmp_path)
     result = _select(tmp_path, ["pkg/orphan.py"])

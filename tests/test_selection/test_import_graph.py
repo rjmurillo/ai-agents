@@ -36,6 +36,28 @@ def test_build_graph_maps_from_import_to_test(tmp_path: Path) -> None:
     assert "pkg/mid.py" in graph["tests/test_feature.py"]
 
 
+def test_build_graph_maps_literal_dynamic_import(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(
+        tmp_path,
+        "tests/test_dynamic.py",
+        'import importlib\nMODULE = importlib.import_module("pkg.core")\n',
+    )
+    graph = import_graph.build_graph(tmp_path)
+    assert "pkg/core.py" in graph["tests/test_dynamic.py"]
+
+
+def test_build_graph_data_marks_wildcard_dynamic_imports(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(
+        tmp_path,
+        "tests/test_dynamic.py",
+        "import importlib\nname = 'pkg.core'\nMODULE = importlib.import_module(name)\n",
+    )
+    graph_data = import_graph.build_graph_data(tmp_path)
+    assert graph_data.wildcard_dependents == frozenset({"tests/test_dynamic.py"})
+
+
 def test_reverse_graph_inverts_edges(tmp_path: Path) -> None:
     _make_repo(tmp_path)
     reverse = import_graph.reverse_graph(import_graph.build_graph(tmp_path))
@@ -90,13 +112,18 @@ def test_load_or_build_reuses_fresh_cache(tmp_path: Path) -> None:
     # Corrupt the on-disk graph, then confirm a fresh cache is trusted verbatim
     # instead of being rebuilt from the sources.
     cache.write_text(
-        f'{{"version": {import_graph.CACHE_VERSION}, "graph": {{"sentinel.py": ["marker.py"]}}}}',
+        (
+            f'{{"version": {import_graph.CACHE_VERSION}, '
+            '"graph": {"sentinel.py": ["marker.py"]}, '
+            '"wildcard_dependents": ["tests/test_dynamic.py"]}'
+        ),
         encoding="utf-8",
     )
     future = import_graph._newest_source_mtime(tmp_path) + 100
     os.utime(cache, (future, future))
-    graph = import_graph.load_or_build(tmp_path, cache)
-    assert graph == {"sentinel.py": frozenset({"marker.py"})}
+    graph_data = import_graph.load_or_build_data(tmp_path, cache)
+    assert graph_data.graph == {"sentinel.py": frozenset({"marker.py"})}
+    assert graph_data.wildcard_dependents == frozenset({"tests/test_dynamic.py"})
 
 
 def test_cache_stale_when_source_is_newer(tmp_path: Path) -> None:

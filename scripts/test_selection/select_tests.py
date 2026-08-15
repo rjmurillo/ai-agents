@@ -104,7 +104,12 @@ def has_dynamic_import(path: Path) -> bool:
             func = node.func
             if isinstance(func, ast.Name) and func.id == "__import__":
                 return True
-            if isinstance(func, ast.Attribute) and func.attr in {"import_module", "__import__"}:
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "import_module"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "importlib"
+            ):
                 return True
     return False
 
@@ -140,16 +145,19 @@ def select(
             return _full(f"dynamic import in changed file: {rel}")
 
     try:
-        graph = import_graph.load_or_build(repo_root, cache_path)
+        graph_data = import_graph.load_or_build_data(repo_root, cache_path)
     except RuntimeError as exc:
         return _full(f"import graph unavailable: {exc}")
 
+    graph = graph_data.graph
     unmapped = [rel for rel in changed if rel not in graph]
     if unmapped:
         return _full(f"unmapped changed files: {', '.join(sorted(unmapped))}")
 
     reverse = import_graph.reverse_graph(graph)
     affected = import_graph.affected_closure(changed, reverse)
+    if graph_data.wildcard_dependents:
+        affected.update(import_graph.affected_closure(graph_data.wildcard_dependents, reverse))
     tests = tuple(sorted(rel for rel in affected if _is_test_file(rel)))
     if not tests:
         return _full("no test transitively imports the changed files")
