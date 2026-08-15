@@ -160,10 +160,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "e137317ef468f70688671bd58f893273be52527f",
-      "head": "e137317ef468f70688671bd58f893273be52527f"
+      "head": "66cf2111dcd098a96852f07d21c5cf5aa32b39b8"
     }
   },
-  "endingCommit": "",
+  "endingCommit": "66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
   "nextSteps": [
     "Maintainer reads .agents/critique/ADR-094-debate-log.md and decides accept, revise, or reject. ADR-094 stays status: proposed",
     "Five P0 findings block acceptance: the cost citations predate the mechanism, the 24% signal figure is spliced, the marker prohibition has no writer script, the validator changes target a mirror, and two push-blocking consumers are missing from the impact table",

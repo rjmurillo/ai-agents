@@ -113,7 +113,7 @@
         "e008"
       ],
       "leads_to": [
-        "e010"
+        "e011"
       ],
       "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
     },
@@ -123,7 +123,33 @@
       "type": "commit",
       "content": "Commit: 3a6b96659",
       "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T15:31:24+00:00",
+      "type": "commit",
+      "content": "Commit: e2b2c7ba3",
+      "caused_by": [
         "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-99916-b79742bf0-triage-resolve-5062-review-threads"
@@ -134,8 +160,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 4
+    "commits": 6,
+    "files_changed": 11
   },
   "lessons": []
 }

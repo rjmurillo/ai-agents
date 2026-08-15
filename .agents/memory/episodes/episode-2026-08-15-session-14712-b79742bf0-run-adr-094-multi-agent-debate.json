@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Read the checker before writing anything: scripts/validation/git_hook_policy.py check_adr_review_policy requires adr-review evidence in the current branch's newest session log plus a .agents/critique/*debate*.md that names the staged ADR IDs",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Ran the 6-role adr-review debate in parallel (architect, critic, independent-thinker, security, analyst, high-level-advisor), each given ADR-094 plus the counter evidence from PR #5059 and PR #5062 that cuts against the ADR",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Re-measured the debate's own quantitative claims before recording them, per .claude/rules/canonical-source-mirror.md",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Corrected the independent-thinker's marker census against a direct count",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Verified the three reproducible P0 anchors directly: /review became a skill in c3ddc571a (2026-05-24) and the marker landed in 16c960418 (2026-06-04), both after PRs #1887, #1965 and #1979; 009-phase1-agent-comment-baseline.md:163 reports 52% over the 182 comments the ADR quotes while :178 reports 24% over a different 173-unit rollup",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -58,7 +68,9 @@
       "type": "milestone",
       "content": "Found three .agents files modified in the working tree during this session by a process this session did not direct (the QA report rebound to session 14711, that log's endingCommit advanced, and session 99916's qaValidation downgraded to SKIPPED)",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     },
     {
@@ -67,6 +79,25 @@
       "type": "milestone",
       "content": "Cleared the two pre-existing red session-log checks on PR #5062: session 14711 and session 99916 both claimed the same QA report, which only one log can own, and the report's qaCommit had gone stale behind commit e137317ef",
       "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14712-b79742bf0-run-adr-094-multi-agent-debate"
     }
@@ -76,7 +107,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
