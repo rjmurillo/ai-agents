@@ -7,7 +7,7 @@
     "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
     "objective": "Fix placeholder identity leak in pr-autofix cleanup commits"
   },
-  "endingCommit": "654b668325285da45d2ee1888f39c474473395c2",
+  "endingCommit": "35d11889de7ad65a9123987fde36523abfb3344c",
   "protocolCompliance": {
     "sessionStart": {
       "handoffRead": {
@@ -111,6 +111,9 @@
     {
       "action": "test",
       "detail": "Added 4 regression tests covering leaked identity, clean worktree, operator forwarding, and unset failure propagation"
+    },
+    {
+      "action": "Landing refresh: merged origin/main cleanly, verified the outdated exit-swallowing thread fixed on head, re-ran targeted suites, staleness gate, and ratchets"
     }
   ],
   "nextSteps": [],

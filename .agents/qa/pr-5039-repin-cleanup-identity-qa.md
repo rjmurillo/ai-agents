@@ -1,6 +1,6 @@
 ---
 qaVerdict: PASS
-qaCommit: 654b668325285da45d2ee1888f39c474473395c2
+qaCommit: 35d11889de7ad65a9123987fde36523abfb3344c
 qaSessionLog: .agents/sessions/2026-08-15-session-5008-replacement.json
 ---
 
@@ -57,3 +57,7 @@ $ uv run --frozen pytest tests/test_pr_autofix_worktree_identity.py tests/test_i
 - ruff: clean (0 errors on changed files)
 - mypy: clean (0 errors on changed files)
 - cli-exit-contract-ratchet: 27 == 27 (unchanged)
+
+## Refresh note (2026-08-15, landing coordinator)
+
+Merged `origin/main` (merge commit `35d11889d`) to re-run the required checks against current main; the merge was clean with no changes to this PR's scope. Re-verified on the merged tree: 100 targeted tests pass (placeholder-identity, worktree-identity, and batch-review suites), `check_generated_staleness.py` rc=0, taste (583), ruff (27), and type-ignore (44) ratchets unchanged. The one open review thread (range step swallowing the helper's exit) was verified already fixed on the head (plain assignment under bash -e propagates the failure) and resolved.
