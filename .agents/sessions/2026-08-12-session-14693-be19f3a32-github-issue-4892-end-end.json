@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14693,
+    "date": "2026-08-12",
+    "branch": "fix/issue-4892-markdown-gate",
+    "startingCommit": "57715aa9f",
+    "objective": "Own GitHub issue 4892 end to end"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server was pre-bound to the repository; activate_project was not exposed, and initial_instructions succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual loaded before code inspection"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as a read-only reference; no issue 4892 handoff existed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/check_skill_exists.py --list-available listed issue, PR, milestone, and reaction scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read through the documented fallback"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and path-scoped validation, Python, testing, and session rules read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, linting exclusions, pre-PR validation, fleet worktree, GitHub skill, and task completion memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4892-markdown-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4892-markdown-gate"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree status checked before reproduction, edits, tests, and commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "57715aa9f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4892-markdown-gate.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 69341f2cfc)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Triage issue 4892 and its linked discourse",
+      "outcome": "Confirmed the defect on origin/main, priority P1, and a merited fix; issue 4248 and PR 4478 established the worktree-ignore precedent"
+    },
+    {
+      "task": "Reproduce scratch target leakage and masked failure output",
+      "outcome": "Three root scratch probes entered the target list, and exit 249 with empty output printed only unrelated rule hints"
+    },
+    {
+      "task": "Implement the root-cause fix",
+      "outcome": "Filtered scratch roots before argv construction, added config ignores, bounded batches by count and Windows command length, and reported real failures"
+    },
+    {
+      "task": "Add regression coverage and validate",
+      "outcome": "60 targeted tests, ruff, a real markdownlint invocation, and full pre_pr validation passed"
+    },
+    {
+      "task": "Run independent review",
+      "outcome": "GPT-5.6 Sol found two valid batching issues; both were fixed, retested, and the final pass returned CLEAN"
+    }
+  ],
+  "endingCommit": "dd8dc0a65df6b0c10c11de83adb4787362a4f20e",
+  "nextSteps": [
+    "Push the branch and open a focused PR that closes only issue 4892",
+    "Do not alter active PR 4893; remove its issue 4892 claim before opening the focused PR"
+  ]
+}

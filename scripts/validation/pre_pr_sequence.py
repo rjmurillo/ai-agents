@@ -56,6 +56,7 @@ from checks_dash import validate_dash_prohibition
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
+    validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -73,6 +74,7 @@ from checks_spec import (
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
     validate_skill_md_portability,
+    validate_skill_memory_references,
     validate_skill_shells,
     validate_skill_skip_clauses,
     validate_spec_contradiction,
@@ -168,9 +170,11 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     override is passed positionally only when the environment supplies one.
     """
     deferral_repo = os.environ.get("GH_REPO")
-    return validate_no_orphaned_build_deferrals(
-        repo_root / "build" / "scripts" / "build_all.py",
-        *([deferral_repo] if deferral_repo else []),
+    return bool(
+        validate_no_orphaned_build_deferrals(
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
+        )
     )
 
 
@@ -185,7 +189,7 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return validate_copilot_routing_exclusions(repo_root)
+    return bool(validate_copilot_routing_exclusions(repo_root))
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
@@ -245,6 +249,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Fails when a skill or agent instruction commands read_memory or
+    # edit_memory on a name that resolves to no tracked memory. Issue #4897:
+    # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
+    # blocking step failed for any agent that ran the instruction literally.
+    _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured

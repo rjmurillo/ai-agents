@@ -23,6 +23,13 @@ HOOK_REQUIREMENT = (
 RUNTIME_ADR = (
     REPO_ROOT / ".agents" / "architecture" / "ADR-071-plugin-hook-runtime-contract-verification.md"
 )
+DISPATCHER_ADR = REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
+PERMISSION_ADR = (
+    REPO_ROOT
+    / ".agents"
+    / "architecture"
+    / "ADR-085-cross-harness-permission-surface-asymmetry.md"
+)
 PLATFORM_TEMPLATE = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
 
@@ -168,6 +175,20 @@ def _section_after(text: str, marker: str, path: Path) -> str:
     _, separator, remainder = text.partition(marker)
     assert separator, f"{path}: missing section {marker!r}"
     return remainder.split("\n##", 1)[0]
+
+
+def _paragraph_after(text: str, marker: str, path: Path) -> str:
+    """Return only the paragraph that starts at ``marker``.
+
+    ``_section_after`` stops at the next heading, so two prose paragraphs
+    inside the same ``## Status`` section (no heading between them) come back
+    concatenated. A current-vs-historical check on adjacent dated paragraphs
+    needs the blank-line boundary instead, or the historical paragraph's own
+    values leak into what should be a check of the paragraph after it.
+    """
+    _, separator, remainder = text.partition(marker)
+    assert separator, f"{path}: missing paragraph {marker!r}"
+    return remainder.split("\n\n", 1)[0]
 
 
 def test_official_sidecar_lists_both_exact_event_sets() -> None:
@@ -529,6 +550,13 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
+    assert (
+        f"vendored source prints `{len(plugin)} {sum(map(len, plugin.values()))}`" in architecture
+    )
+    assert "Three independent registration sources" in catalog
+    assert ".github/hooks/require-subagent-model.json" in _section_after(
+        catalog, "## Provenance and Maintenance", REPO_ROOT
+    )
     _refute(
         architecture,
         "registers 7 events",
@@ -562,9 +590,7 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     # discredits every other row in the skill's evidence layer. Pin both trees.
     settings_slash = f"{len(settings)} events / {sum(map(len, settings.values()))} groups"
     plugin_slash = f"{len(plugin)} events / {sum(map(len, plugin.values()))} groups"
-    copilot_slash = (
-        f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
-    )
+    copilot_slash = f"{len(copilot)} events / {sum(map(len, copilot.values()))} registrations"
     provenance_paths = (
         REPO_ROOT
         / ".claude"
@@ -572,16 +598,37 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         / "ai-agents-architecture-contract"
         / "references"
         / "provenance.md",
-        COPILOT_SKILL_ROOT
-        / "ai-agents-architecture-contract"
-        / "references"
-        / "provenance.md",
+        COPILOT_SKILL_ROOT / "ai-agents-architecture-contract" / "references" / "provenance.md",
     )
     for path in provenance_paths:
         surface = path.read_text(encoding="utf-8")
         assert settings_slash in surface, path
         assert plugin_slash in surface, path
         assert copilot_slash in surface, path
+
+    provenance = provenance_paths[0].read_text(encoding="utf-8")
+    weak_points = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "ai-agents-architecture-contract"
+        / "references"
+        / "weak-points.md"
+    ).read_text(encoding="utf-8")
+    date_patterns = (
+        (architecture, r"Registered \(re-verified (\d{4}-\d{2}-\d{2})\)"),
+        (architecture, r"facts re-verified against the working tree on (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Shape re-verified (\d{4}-\d{2}-\d{2})"),
+        (catalog, r"Audited (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (provenance, r"Verified (\d{4}-\d{2}-\d{2}) against the working tree"),
+        (weak_points, r"Evidence \(as of (\d{4}-\d{2}-\d{2})\)"),
+    )
+    verified_dates: set[str] = set()
+    for text, pattern in date_patterns:
+        match = re.search(pattern, text)
+        assert match is not None, pattern
+        verified_dates.add(match.group(1))
+    assert len(verified_dates) == 1, verified_dates
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
@@ -618,25 +665,278 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
+    # Issue #5013 (2026-08-14) excluded `push_pr_script_identity_guard` from
+    # the generated Copilot inventory only. The dynamic reads above now see
+    # two PreToolUse shims, not three; the expected values below are the
+    # independently reviewed current facts, not a self-confirming echo of
+    # whatever the generator happens to emit.
     assert source_counts == {"PreToolUse": 2, "PostToolUse": 1}
     assert source_total == 3
     assert host_total == 2
     assert round(reduction, 1) == 33.3
-    assert "three registrations across two events" in adr_068
-    assert "two PreToolUse shims and one PostToolUse shim" in adr_068
-    assert "saves one host process start" in adr_068
+    assert "four registrations across two events" in adr_068
+    assert "three PreToolUse shims and one PostToolUse shim" in adr_068
+    assert (
+        "three registrations across two events: two PreToolUse shims and "
+        "one PostToolUse shim" in adr_068
+    )
+    assert "not for matched-call process savings" in adr_068
     assert len(pretool_manifest["shims"]) == 2
     assert timeout_total == 100
     assert "current PreToolUse manifest has two shims" in adr_068
     assert "100 seconds of configured timeout" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
-    assert "a hang in the first can bypass the second" in adr_068
-    assert "three registrations across two events" in adr_085
-    assert "active manifest contains two shims" in adr_071
-    assert "100 seconds of configured timeout" in adr_071
+    assert "the in-process bypass is latent" in adr_068
+    assert "four registrations across two events" in adr_085
+    containment_note = (
+        "excluded `push_pr_script_identity_guard` from the generated "
+        "Copilot inventory only"
+    )
+    assert containment_note in adr_068
+    assert containment_note in adr_071
+    assert containment_note in adr_085
+    # The 2026-08-11 baseline (issue #4874) is a dated historical record, not
+    # a live claim, and stays pinned in both ADRs precisely because it was
+    # true then and the amendment paragraphs say so explicitly.
+    assert (
+        "growing the active manifest to three shims and 110 seconds of "
+        "summed timeout" in adr_068
+    )
+    assert "active manifest contains three shims" in adr_071
+    assert "110 seconds of configured timeout" in adr_071
+    for stale in (
+        "115 seconds",
+        "four starts on a `git push` today",
+        "direct registration would start at most two",
+        "two-shim PreToolUse",
+        "manifest value is 100 seconds",
+        "saves one host process start",
+        "can skip later gates",
+        "No in-process timeout enforcement",
+        "the spawn cost this ADR removes",
+        "removes process startup",
+    ):
+        assert stale not in adr_068, f"stale metric survives in ADR-068: {stale}"
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
+
+
+def test_adr_068_scopes_2026_08_11_and_2026_08_14_status_paragraphs() -> None:
+    """The two dated Status paragraphs must not blur into each other.
+
+    Round 1 found the 2026-08-14 paragraph framed as a blanket "facts
+    refresh" with no named policy authority. The fix must land in the
+    2026-08-14 paragraph specifically, and the 2026-08-11 paragraph must keep
+    its own historical numbers unchanged. Explicit reviewed values, not a
+    dynamic re-derivation of the same generator output the prose describes.
+    """
+    text = DISPATCHER_ADR.read_text(encoding="utf-8")
+    historical = _normalize(
+        _paragraph_after(text, "Amended 2026-08-11 (issue #4874):", DISPATCHER_ADR)
+    )
+    current = _normalize(
+        _paragraph_after(text, "Amended 2026-08-14 (issue #5013):", DISPATCHER_ADR)
+    )
+
+    assert "three shims and 110 seconds of summed timeout" in historical
+    assert "ADR-085 Decision 7 is the policy authority" in current
+    assert "scoped derived-metrics update" in current
+    assert "100 seconds of configured timeout" in current
+    assert "host entry requests 105 seconds" in current
+    assert "same file still lists the guard in Claude Code's canonical dispatch group" in current
+    assert (
+        "excluded `push_pr_script_identity_guard` from the generated Copilot "
+        "inventory only" in current
+    )
+    assert "ADR-068-071-085-5013-debate-log.md" in current
+    _refute(current, "three shims and 110 seconds of summed timeout")
+    _refute(historical, "scoped derived-metrics update", "ADR-085 Decision 7 is the policy")
+
+
+def test_adr_071_scopes_2026_08_11_and_2026_08_14_amendment_sections() -> None:
+    """Same current-vs-historical boundary, on ADR-071's dated subsections."""
+    text = RUNTIME_ADR.read_text(encoding="utf-8")
+    historical = _normalize(
+        _section_after(
+            text,
+            "### 2026-08-11 amendment: require-subagent-model gate (issue #4874)",
+            RUNTIME_ADR,
+        )
+    )
+    current = _normalize(
+        _section_after(
+            text,
+            "### 2026-08-14 amendment: push-pr identity guard excluded from "
+            "Copilot generation (issue #5013)",
+            RUNTIME_ADR,
+        )
+    )
+
+    assert "three shims with 110 seconds of configured timeout" in historical
+    assert "115 seconds" in historical
+    assert "ADR-085 Decision 7 is the policy authority" in current
+    assert "scoped runtime-contract update" in current
+    assert "100 seconds of configured timeout" in current
+    assert "105 seconds" in current
+    assert "Copilot excludes the guard from generation entirely" in current
+    assert "ADR-068-071-085-5013-debate-log.md" in current
+    _refute(current, "three shims with 110 seconds of configured timeout", "115 seconds")
+    _refute(historical, "scoped runtime-contract update", "ADR-085 Decision 7 is the policy")
+
+    status = _normalize(RUNTIME_ADR.read_text(encoding="utf-8"))
+    assert "Amended 2026-08-11 (issue #4874)" in status
+    assert "Amended 2026-08-14 (issue #5013)" in status
+    assert "ADR-068-071-085-metric-refresh-debate-log.md" in status
+    assert "ADR-068-071-085-5013-debate-log.md" in status
+
+
+def test_adr_085_decision_seven_applies_eligibility_test_to_the_exclusion() -> None:
+    """ADR-085 Decision 7 must apply Decision 1's test, not just cite it."""
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_seven = _normalize(
+        _section_after(
+            text,
+            "### 7. `push_pr_script_identity_guard`: temporary Copilot-only "
+            "exclusion, Claude retained (D-C)",
+            PERMISSION_ADR,
+        )
+    )
+
+    for label in ("**Portability.**", "**Fidelity.**", "**Policy safety.**"):
+        assert label in decision_seven, label
+    assert "Containment passes temporarily because" in decision_seven
+    assert (
+        "Copilot CLI has no guard against a prompt-injected repository "
+        "lookalike `new_pr.py` gaining user-level Python execution" in decision_seven
+    )
+    assert "Claude Code is unaffected because its host entry is not a timed" in decision_seven
+
+
+def test_adr_085_decision_seven_records_generic_field_governance() -> None:
+    """The nine governance requirements the ruling attaches to copilotExclude."""
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_seven = _normalize(
+        _section_after(
+            text,
+            "### 7. `push_pr_script_identity_guard`: temporary Copilot-only "
+            "exclusion, Claude retained (D-C)",
+            PERMISSION_ADR,
+        )
+    )
+
+    assert "**Generic field governance.**" in decision_seven
+    governance_requirements = (
+        "Strict boolean validation.",
+        "Plugin surface named.",
+        "Issue metadata.",
+        "Decision metadata.",
+        "Residual risk stated.",
+        "Unaffected-harness behavior stated.",
+        "Reintroduction criteria named.",
+        "Cleanup obligation named.",
+        "Tests required.",
+    )
+    for requirement in governance_requirements:
+        assert requirement in decision_seven, requirement
+
+
+def test_adr_085_decision_seven_records_the_eight_reintroduction_gates() -> None:
+    """The eight measurable gates from issue #5013, and their ownership."""
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    decision_seven = _normalize(
+        _section_after(
+            text,
+            "### 7. `push_pr_script_identity_guard`: temporary Copilot-only "
+            "exclusion, Claude retained (D-C)",
+            PERMISSION_ADR,
+        )
+    )
+
+    assert "**Reintroduction gates.**" in decision_seven
+    assert "Issue #5013 and assignee rjmurillo own reintroduction." in decision_seven
+    assert (
+        "Reintroduction is optional and requires rjmurillo's approval before "
+        "the field reverts to `false`." in decision_seven
+    )
+    eight_gates = (
+        "Unrelated commands never launch the guard's child process on Copilot.",
+        "The canonical `new_pr.py` invocation is allowed.",
+        "A prompt-injected repository lookalike `new_pr.py` is denied.",
+        "A dynamic launcher, `python -c`, `eval`, or shell substitution, "
+        "targeting `new_pr.py` is denied.",
+        "A Windows load test of 32 calls across 8 workers completes without "
+        "a false denial.",
+        "Latency stays under a 500ms p95 and a 1 second maximum across that "
+        "load test.",
+        "The measurement runs against a real Copilot CLI probe, not a "
+        "simulated harness.",
+        "The owner classifies the guard's disposition as deleted or "
+        "essential before it returns to the generated inventory.",
+    )
+    for gate in eight_gates:
+        assert gate in decision_seven, gate
+
+
+def test_issue_5013_adrs_refute_stale_framing_and_incomplete_lists() -> None:
+    """Round 1 findings that must stay fixed across every affected ADR.
+
+    ADR-068 and ADR-071 both described the issue #5013 exclusion as a
+    blanket "facts refresh" naming no policy authority; that framing is
+    retired everywhere, not only in the paragraph a reviewer happened to
+    read. ADR-068's settings inventory named five events for seven
+    registrations while a sixth event, PostToolUseFailure, holds one of
+    them.
+    """
+    for path in (DISPATCHER_ADR, RUNTIME_ADR, PERMISSION_ADR):
+        _refute(
+            path.read_text(encoding="utf-8"),
+            "This is a facts refresh",
+            "seven registrations across SessionStart, UserPromptSubmit, "
+            "PostToolUse, SessionEnd, and PreCompact",
+            source=path,
+        )
+    assert (
+        "seven registrations across SessionStart, UserPromptSubmit, "
+        "PostToolUse, PostToolUseFailure, SessionEnd, and PreCompact"
+        in _normalized_text(DISPATCHER_ADR)
+    )
+
+
+def test_issue_5013_adrs_state_claude_retention_and_copilot_exclusion() -> None:
+    """Every affected ADR must say, in its own words, who keeps the guard."""
+    exclusion_note = (
+        "excluded `push_pr_script_identity_guard` from the generated Copilot "
+        "inventory only"
+    )
+
+    for path in (DISPATCHER_ADR, RUNTIME_ADR, PERMISSION_ADR):
+        normalized = _normalized_text(path)
+        assert "canonical dispatch group" in normalized, path
+        assert ".claude/hooks/hooks.json` still registers" in normalized, path
+        assert exclusion_note in normalized, path
+
+    assert "Copilot excludes the guard from generation entirely" in _normalized_text(RUNTIME_ADR)
+    assert (
+        "Claude Code is unaffected because its host entry is not a timed "
+        "child process" in _normalized_text(PERMISSION_ADR)
+    )
+
+
+def test_adr_085_status_records_the_containment_incident() -> None:
+    """The incident numbers belong in Status, not only in Decision 7."""
+    text = PERMISSION_ADR.read_text(encoding="utf-8")
+    status = _normalize(_section_after(text, "## Status", PERMISSION_ADR))
+
+    assert "127 unrelated Bash commands" in status
+    assert "more than 21 minutes" in status
+    assert "owner applied immediate containment" in status
+    assert (
+        "root cause was the guard's broad `Bash` registration paired with a "
+        "timed child process that denies on overrun" in status
+    )
+    assert "dispatcher itself is unchanged" in status
+    assert "ADR-068-071-085-5013-debate-log.md" in status
 
 
 def test_current_memories_record_skill_first_guard_retirement() -> None:

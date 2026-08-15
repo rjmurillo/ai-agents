@@ -45,8 +45,12 @@ class TestExportDirectValidateOutputPath:
 
 class TestExportDirectGetCount:
     @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
-    def test_returns_negative_on_error(self) -> None:
-        result = _export_direct.get_count("/nonexistent.db", "SELECT 1;")
+    def test_returns_negative_on_error(self, tmp_path: Path) -> None:
+        # A directory is unopenable as a database, so the CLI fails at open in
+        # every sqlite3 version. A nonexistent file path does not error here:
+        # the shell creates the database lazily and "SELECT 1;" touches no
+        # table, so sqlite3 exits 0 and get_count returns 1.
+        result = _export_direct.get_count(str(tmp_path), "SELECT 1;")
         assert result == -1
 
 
@@ -76,6 +80,30 @@ class TestExportBackupValidateOutputPath:
         mem_dir.mkdir()
         output = mem_dir / ".." / "escape.json"
         assert _export_backup.validate_output_path(output, mem_dir) is False
+
+
+class TestSecurityReviewBoundary:
+    @pytest.mark.parametrize(
+        ("module", "runner_name"),
+        [
+            (_export_direct, "_run_security_review_direct"),
+            (_export_memories, "_run_security_review_memories"),
+            (_export_backup, "_run_security_review"),
+        ],
+        ids=["direct", "memories", "full-backup"],
+    )
+    def test_passes_export_path_positionally(
+        self,
+        module: object,
+        runner_name: str,
+        tmp_path: Path,
+    ) -> None:
+        export_file = tmp_path / "memory export.json"
+        export_file.write_text('{"data": "safe content"}', encoding="utf-8")
+
+        runner = getattr(module, runner_name)
+
+        assert runner(export_file) == 0
 
 
 class TestExportDirectMain:

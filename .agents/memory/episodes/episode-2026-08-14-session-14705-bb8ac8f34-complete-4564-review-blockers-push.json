@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push",
+  "session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Complete PR 4564 review blockers, push safely, and verify readiness",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T01:47:25+00:00",
+      "type": "milestone",
+      "content": "Acquired PR autofix lease and checked live state",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T01:53:00+00:00",
+      "type": "milestone",
+      "content": "Added failing positive, negative, and edge tests",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T01:55:00+00:00",
+      "type": "milestone",
+      "content": "Implemented review contract fixes",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T02:02:45+00:00",
+      "type": "milestone",
+      "content": "Updated PR body under renewed lease and late live-state gate",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T02:00:09+00:00",
+      "type": "commit",
+      "content": "Commit: 60dd7c125642ba30e031a1d76645c1708fc77dd2",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T02:12:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5027648d01",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705-bb8ac8f34-complete-4564-review-blockers-push"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 15,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 12
+  },
+  "lessons": []
+}

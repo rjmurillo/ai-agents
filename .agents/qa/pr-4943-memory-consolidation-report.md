@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes.json
-qaCommit: 3ff8d7fdfc6d8d5301382e11f95a7644eab450b2
+qaCommit: 90be321b3bfad576e3c1d440402d4333a87326c9
 ---
 
 # QA Report: PR 4943 Memory Consolidation
@@ -11,6 +11,9 @@ qaCommit: 3ff8d7fdfc6d8d5301382e11f95a7644eab450b2
 Validated the memory consolidation, reviewer fixes, episode regeneration, and
 memory index count baseline update at commit
 `3ff8d7fdfc6d8d5301382e11f95a7644eab450b2`.
+PR #4943 later squash-merged the reviewed changes at
+`90be321b3bfad576e3c1d440402d4333a87326c9`; the frontmatter binds this
+historical report to that reachable merge commit.
 
 ## Evidence
 

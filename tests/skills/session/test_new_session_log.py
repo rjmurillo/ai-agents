@@ -367,6 +367,45 @@ class TestMain:
         assert exit_code == 0
         mock_validate.assert_called_once()
 
+    @patch("new_session_log._origin_main_max_session", return_value=0)
+    @patch("new_session_log.get_git_info")
+    @patch("new_session_log.host_session_date", return_value="2026-08-15")
+    def test_main_filename_and_date_use_host_session_date(
+        self, _mock_date, mock_git, _mock_origin, tmp_path
+    ):
+        """main() stamps both the filename and session.date from host_session_date (#4779).
+
+        Patch the helper to a fixed sentinel that no wall clock would produce,
+        then drive the real main() and assert the written filename and the JSON
+        payload both carry it. This proves the shared host-date authority is
+        wired into the primary creator before the write, so a regression that
+        restored UTC on the filename path could not keep this test green.
+        """
+        mock_git.return_value = {
+            "repo_root": str(tmp_path),
+            "branch": "feat/test",
+            "commit": "abc1234",
+            "status": "clean",
+        }
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        exit_code = new_session_log.main(
+            [
+                "--session-number",
+                "1",
+                "--objective",
+                "test objective",
+                "--skip-validation",
+            ]
+        )
+        assert exit_code == 0
+        created = list(sessions_dir.glob("*.json"))
+        assert len(created) == 1
+        log_path = created[0]
+        assert log_path.name.startswith("2026-08-15-session-1")
+        payload = json.loads(log_path.read_text(encoding="utf-8"))
+        assert payload["session"]["date"] == "2026-08-15"
+
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(

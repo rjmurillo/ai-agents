@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14696,
+    "date": "2026-08-13",
+    "branch": "test/4923-cache-exclusion-coverage",
+    "startingCommit": "5dbc09bf1",
+    "objective": "Complete PR 4944 vendored pycache coverage follow-up"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project access confirmed by successful reads of usage-mandatory and decision-warm-pycache-before-push-never-purge."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed GitHub skill scripts and read the session-init and session-end skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the usage-mandatory Serena memory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, usage-mandatory, and decision-warm-pycache-before-push-never-purge."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "test/4923-cache-exclusion-coverage"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On test/4923-cache-exclusion-coverage"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified only the focused test modification and this untracked session log were present."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5dbc09bf1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory needed; the vendored cache boundary is unchanged and this session only repaired test and QA evidence."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED by session-end: its eligible-file selection read 0 Markdown files because the changed agent artifacts are excluded by .markdownlint-cli2.yaml. Post-merge explicit lint ran markdownlint-cli2@0.23.1 outside repository ignore discovery with --configPointer /config on the plan, retrospective, and sessions 14696/14697 QA Markdown; output was 'Linting: 4 files' and 'Summary: 0 issues in 0 files', exit 0."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4944-session-14696-vendored-cache-coverage.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Post-merge evidence repair was tested at 9093705a61a8c030d039cb29ee56605c133abcd3."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed after rebinding the squash-orphaned ending and QA commits."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recovery tasks and push, re-check, and merge next steps are recorded in this session log."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-13-pr-4944-push-gate-recovery.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-13T09:59:00Z",
+      "action": "Completed session initialization and context retrieval.",
+      "outcome": "Loaded Serena instructions, repository constraints, required skills, prior session context, and task-relevant memories."
+    },
+    {
+      "timestamp": "2026-08-13T09:59:01Z",
+      "action": "Confirmed focused QA evidence.",
+      "outcome": "12 integration tests passed; 8 E2E tests passed with 1 skip; Ruff and git diff --check passed."
+    },
+    {
+      "timestamp": "2026-08-13T09:59:02Z",
+      "action": "Completed a read-only PR sweep.",
+      "outcome": "No inline review comments or threads were open; the only failure was a non-required AI Quality Gate infrastructure check."
+    },
+    {
+      "timestamp": "2026-08-13T10:04:49Z",
+      "action": "Recorded validator-required QA rebinding for test commit 5d6c4fc4.",
+      "outcome": "The QA report targets this session and the full test commit; no duplicate cache-boundary memory was created."
+    },
+    {
+      "timestamp": "2026-08-13T10:17:00Z",
+      "action": "Diagnosed the failed hook-enabled push.",
+      "outcome": "The shared QA report invalidated session 14695, retrospective evidence was absent, and the stale branch lacked a generated dispatcher file."
+    },
+    {
+      "timestamp": "2026-08-13T10:22:00Z",
+      "action": "Merged current origin/main into the branch.",
+      "outcome": "The clean merge produced HEAD 18bb32f633 and restored the generated dispatcher file."
+    },
+    {
+      "timestamp": "2026-08-13T10:25:00Z",
+      "action": "Reran focused post-merge QA.",
+      "outcome": "12 integration tests and 8 E2E tests passed with 1 expected skip; Ruff and git diff --check passed."
+    },
+    {
+      "timestamp": "2026-08-13T10:28:00Z",
+      "action": "Repaired session-scoped QA evidence.",
+      "outcome": "Session 14695 regained its original report binding, and session 14696 received a unique report bound to HEAD 18bb32f633."
+    },
+    {
+      "timestamp": "2026-08-13T10:30:00Z",
+      "action": "Recorded the push-gate recovery retrospective.",
+      "outcome": "The retrospective documents the failure, recovery, and prevention rules without bypassing hooks."
+    },
+    {
+      "timestamp": "2026-08-13T11:18:00Z",
+      "action": "Addressed the active Copilot review findings.",
+      "outcome": "The test now covers nested package caches, session evidence states why no memory was needed, and the retrospective classifies the failure with owned remediation."
+    }
+  ],
+  "endingCommit": "9093705a61a8c030d039cb29ee56605c133abcd3",
+  "nextSteps": [
+    "Push test/4923-cache-exclusion-coverage.",
+    "Re-check PR #4944 reviews and required checks.",
+    "Merge PR #4944 after required checks pass."
+  ],
+  "episodeMetrics": {
+    "filesChanged": 8,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "5dbc09bf1",
+      "head": "9093705a61a8c030d039cb29ee56605c133abcd3"
+    }
+  }
+}

@@ -841,6 +841,13 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
     assert rc == 0
 
 
+# The precondition is built from file mode bits; root ignores them and
+# Windows does not carry them. Mirrors the idiom in
+# tests/test_gc_anchor_readers.py (_NO_PERMISSION_BARRIER).
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
 def test_permission_denied_file_returns_auth_exit_code(fake_repo, capsys):
     target = fake_repo / "docs" / "locked.md"
     write(target, "Use skill `dead-skill`.\n")

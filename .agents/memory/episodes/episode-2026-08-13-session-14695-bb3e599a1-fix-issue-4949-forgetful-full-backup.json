@@ -1,0 +1,104 @@
+{
+  "id": "episode-2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup",
+  "session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4949 forgetful full-backup import crash and ship verified merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced issue 4949 against the committed full backup",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified current and historical producer contracts",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented table-shape normalization and malformed-input validation",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and reviewed commit 1287c5557e56b0e077ccdd39d5ff64eddd7ce063",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T11:21:12+00:00",
+      "type": "commit",
+      "content": "Commit: 1287c5557e56b0e077ccdd39d5ff64eddd7ce063",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T11:32:24+00:00",
+      "type": "commit",
+      "content": "Commit: 6243f3aa24",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T12:34:48+00:00",
+      "type": "commit",
+      "content": "Commit: dbf1449b54",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bb3e599a1-fix-issue-4949-forgetful-full-backup"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 9
+  },
+  "lessons": []
+}

@@ -24,7 +24,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -41,6 +41,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
@@ -575,6 +576,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
 )
+# Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
+# Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
+# The sanitized segment never contains __ (non-alnum runs collapse to single _),
+# so the last __ in a stem always marks the suffix boundary. Refs #4857.
+_HOOK_MATCHER_SUFFIX_RE = re.compile(
+    r"__(?:(?!__)[A-Za-z0-9_])*[0-9a-f]{6}(?=\.py$)"
+)
 _PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
 _PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
 # build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
@@ -982,30 +990,54 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
-def _recent_date_prefixes() -> tuple[str, str]:
-    """Return today's and yesterday's UTC date strings for cross-midnight tolerance."""
-    from datetime import timedelta
+def _current_host_date_prefixes() -> tuple[str, ...]:
+    """Return scanner-local grace plus dates physically current worldwide."""
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    earliest = (now_utc - timedelta(hours=12)).date()
+    latest = (now_utc + timedelta(hours=14)).date()
+    physically_current_dates = tuple(
+        (earliest + timedelta(days=offset)).isoformat()
+        for offset in range((latest - earliest).days + 1)
+    )
+    return tuple(dict.fromkeys((*host_dates, *physically_current_dates)))
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    return today, yesterday
+
+def _recent_date_prefixes() -> tuple[str, ...]:
+    """Return admissible host-local and UTC retrospective date prefixes.
+
+    ``run_retrospective.build_parser`` defaults its dated scope through
+    ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
+    undated scopes instead use UTC. Preserve the scanner host's today/yesterday
+    grace, then add only calendar dates that are physically current somewhere
+    in the UTC-12 through UTC+14 range. This finds a same-instant artifact from
+    another host without admitting an arbitrary scanner-relative ±2-day
+    window.
+    """
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime("%Y-%m-%d"),
+        (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
+    )
+    return tuple(dict.fromkeys((*_current_host_date_prefixes(), *utc_dates)))
 
 
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
-    """Return today's and yesterday's session logs, or None if unreadable.
+    """Return adjacent-date session logs, or None if unreadable.
 
-    The two-day window handles cross-midnight UTC sessions. Returning None
-    rather than an empty list keeps "directory unreadable" distinguishable
-    from "no logs today", because both callers fail open on the former.
+    The scanner host's today/yesterday grace is augmented only by dates that
+    are physically current somewhere from UTC-12 through UTC+14. This finds a
+    same-instant log from another host without admitting arbitrary stale
+    scanner-relative dates. Returning None rather than an empty list keeps
+    "directory unreadable" distinguishable from "no logs today", because both
+    callers fail open on the former.
     """
     if not sessions_dir.is_dir():
         return None
-    today, yesterday = _recent_date_prefixes()
     candidates: list[Path] = []
     try:
-        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
-        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
+        for date_prefix in _current_host_date_prefixes():
+            candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
     except OSError:
         return None
     return candidates
@@ -1127,10 +1159,12 @@ def _is_committed_here(repo_root: Path, path: Path) -> bool:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
-    Checks both today's and yesterday's UTC dates to handle cross-midnight
-    sessions gracefully. Follows hook_utilities.get_today_session_log selection
-    semantics (newest UTC-dated session log by mtime) with the per-file stat
-    resilience of hook_utilities._newest_by_mtime: a single unreadable candidate
+    Delegates date selection to ``_recent_session_candidates``, whose window
+    covers cross-midnight sessions and the full host timezone range (Issue
+    #4779). Follows
+    hook_utilities.get_today_session_log selection semantics (newest dated
+    session log by mtime) with the per-file stat resilience of
+    hook_utilities._newest_by_mtime: a single unreadable candidate
     (deleted or renamed mid-scan, permission race) is skipped rather than
     blinding the check to every other valid log. An empty match or an unreadable
     directory yields None so branch-context checking fails open.
@@ -1579,9 +1613,8 @@ def _today_retrospective_exists(repo_root: Path) -> bool:
     retro_dir = repo_root / ".agents" / "retrospective"
     if not retro_dir.is_dir():
         return False
-    today, yesterday = _recent_date_prefixes()
     try:
-        for prefix in (today, yesterday):
+        for prefix in _recent_date_prefixes():
             if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
                 return True
         return False
@@ -2453,6 +2486,11 @@ def _mirror_source(relative_path: str) -> str | None:
             if not remainder.endswith(output_suffix):
                 continue
             remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
         return source_prefix + remainder
     return None
 
@@ -2721,6 +2759,45 @@ def _changed_line_map(
     return _parse_changed_lines(result.stdout)
 
 
+def _merge_base_scope(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the subset of ``paths`` that still differ from the merge base.
+
+    Lefthook's ``{push_files}`` names every file any pushed commit touched, so
+    a commit-then-revert round trip on a file with pre-existing type debt kept
+    that file in the mypy scope even though the push ships no change to it
+    (issue #5071). ``git diff --name-only base...HEAD`` names exactly what the
+    push ships: a round trip produces no entry, a rename names the post-image
+    path, and a deletion names the removed path (dropped earlier by the
+    file-existence check in ``run_mypy``).
+
+    ``None`` signals the base could not be resolved; callers then keep the
+    full pushed set so the gate is never weaker than before, mirroring the
+    ``_changed_line_map`` fallback.
+
+    Path identity uses ``_normalize_ratchet_path`` on both sides of the
+    comparison, so a pathological name that differs only by surrounding
+    whitespace can collide. Collisions only ADD names to the returned set,
+    never remove them: a file that differs from the merge base always
+    contributes its own normalized name, so a modified file can never be
+    dropped. The worst case is retaining a round-tripped file whose name
+    collides with a modified one, which merely scans it; the diff-line
+    ratchet still ignores its unchanged lines.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {_normalize_ratchet_path(name) for name in result.stdout.split("\0") if name.strip()}
+
+
 def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
     locations: list[tuple[str, int]] = []
     for line in stdout.splitlines():
@@ -2753,6 +2830,34 @@ def _mypy_result_blocks(
     )
 
 
+def _filter_to_merge_base_scope(
+    paths: list[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str]:
+    """Drop files that no longer differ from the merge base (issue #5071).
+
+    An unresolvable base keeps the full set so the gate is never weaker. The
+    scope report prints both counts so a run that kept nothing is
+    distinguishable from a run that examined nothing.
+    """
+    if not paths:
+        return paths
+    scope = _merge_base_scope(paths, repo_root, base_ref)
+    if scope is None:
+        print(
+            f"mypy scope: merge base {base_ref} unresolvable; "
+            f"scanning all {len(paths)} pushed file(s)"
+        )
+        return paths
+    kept = [path for path in paths if _normalize_ratchet_path(path) in scope]
+    print(
+        f"mypy scope: {len(kept)} of {len(paths)} pushed file(s) "
+        f"differ from {base_ref}; dropped {len(paths) - len(kept)} round-trip file(s)"
+    )
+    return kept
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -2773,10 +2878,12 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    base_ref = _mypy_ratchet_base_ref()
+    checked_paths = _filter_to_merge_base_scope(checked_paths, repo_root, base_ref)
     if not checked_paths:
         return 0
     pushed = {_normalize_ratchet_path(path) for path in checked_paths}
-    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
+    changed_lines = _changed_line_map(checked_paths, repo_root, base_ref)
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)
@@ -4083,6 +4190,10 @@ def _semgrep_command(
         "--exclude-rule",
         "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
+    # Semgrep's default 7 jobs can fail before scanning when io_uring cannot
+    # allocate its worker queues. One job scanned 100 files in 93 seconds.
+    # Its default 5-second rule timeout also rejected this validator; 30 seconds
+    # scanned the seven-file push set within the 840-second child budget.
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -4097,6 +4208,8 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        "--jobs=1",
+        "--timeout=30",
         *exclude_compat_rules,
         "--",
         *targets,
@@ -5960,6 +6073,30 @@ _NEEDS_SPLIT_NEW_COMMIT_CAP = 5
 
 _NEEDS_SPLIT_LABEL = "needs-split"
 
+# Every message that names `commit-limit-bypass` carries this clause with it.
+# CONTRIBUTING.md, section "Bypassing the Limit", is the canonical authority;
+# CONTRIBUTING.md:883 reads, verbatim:
+#     1. A human maintainer MUST add the `commit-limit-bypass` label
+# Naming the label as the reader's next step tells whoever tripped the gate to
+# grant themselves a permission they do not hold. An agent reads that as
+# sanctioned remediation because it arrives from the enforcement mechanism
+# itself, and one did: an agent applied the label to PR #4735 on 2026-08-08
+# after this gate suggested it (issue #4782). Same shape as the atomic-commit
+# message, which states the local remedy and then closes the bypass door
+# ("Split this commit. This local pre-commit check has no PR-label bypass.",
+# added in commit e1fbc5a7a, PR #4245).
+#
+# Stricter/looser/different than canonical: CONTRIBUTING.md:883 states only
+# who MAY add the label (a human maintainer). This message additionally
+# states who may NOT (the reader), because the load-bearing half for an
+# autonomous reader is the prohibition, not the permission; the canonical
+# line alone did not stop the PR #4735 agent from self-applying the label.
+_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY = (
+    "The 'commit-limit-bypass' label lifts the ceiling, but CONTRIBUTING.md "
+    '("Bypassing the Limit") requires a human maintainer to add it: ask a '
+    "maintainer to decide, and do not apply it yourself."
+)
+
 
 def _check_needs_split_bypass(
     update: PushUpdate, branch: str | None, repo_root: Path
@@ -5994,8 +6131,9 @@ def _check_needs_split_bypass(
         else "could not count new commits"
     )
     print(
-        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
-        "use commit-limit-bypass to override the ceiling entirely.",
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}. "
+        "Split the branch and push the parts separately. "
+        f"{_COMMIT_LIMIT_BYPASS_IS_HUMAN_ONLY}",
         file=sys.stderr,
     )
     return None
@@ -6124,7 +6262,7 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
         result = _run_command(
             [
                 sys.executable,
-                ".claude/skills/SkillForge/scripts/validate-skill.py",
+                ".claude/skills/skillforge/scripts/validate-skill.py",
                 Path(path).parent.as_posix(),
             ],
             repo_root,
@@ -7200,6 +7338,44 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
+def _handle_observations_push(args: argparse.Namespace) -> int:
+    # Mirrors the glob for observation-sync-advisory in lefthook.yml:
+    #     glob: ".serena/memories/**/*-observations.md"
+    # plus the top-level spelling, because fnmatch requires the "**/" segment
+    # while lefthook's glob does not. Lefthook's glob is a secondary filter
+    # only (ADR-006); the guard logic lives here.
+    #
+    # Stricter/looser/different than the e2e handlers above: on an
+    # unresolvable push range this handler SKIPS instead of failing open.
+    # The job is advisory (sync_observations always returns 0), and failing
+    # open means syncing every tracked observation file; without a reachable
+    # Forgetful service each file burns a 10s MCP timeout, so the full corpus
+    # (50 files when this landed) overruns the job's 5m lefthook cap and the
+    # timeout kill blocks the push (issue #5071 push evidence; same class as
+    # issue #4492).
+    observation_globs = (
+        ".serena/memories/*-observations.md",
+        ".serena/memories/**/*-observations.md",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is None:
+        print("observation-sync advisory skipped: push range unresolvable")
+        return 0
+    targets = sorted(
+        path
+        for path in changed
+        if _any_glob_match({path}, observation_globs) and (repo_root / path).is_file()
+    )
+    print(
+        f"observation-sync: {len(targets)} observation file(s) among "
+        f"{len(changed)} changed in push range"
+    )
+    if not targets:
+        return 0
+    return sync_observations(targets, repo_root)
+
+
 def _handle_sessions(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
     if args.paths:
@@ -7313,6 +7489,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("observations-push", _handle_observations_push),
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),

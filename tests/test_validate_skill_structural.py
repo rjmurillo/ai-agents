@@ -6,26 +6,26 @@ Covers P0 remediation items from critique review (issue #1380):
 - P0-2 (threshold): Trigger count range alignment (1-5 not 3-5)
 """
 
+# taste-lint: ignore file-size - structural regression cases intentionally stay
+# co-located to share dynamic import setup and catch collection-order interactions.
+
 from __future__ import annotations
 
 import importlib.util
 import os
-import sys
 from pathlib import Path
 from typing import Protocol
 
 import pytest
 
-# Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
     os.path.dirname(__file__),
     "..",
     ".claude",
     "skills",
-    "SkillForge",
+    "skillforge",
     "scripts",
 )
-sys.path.insert(0, os.path.abspath(_scripts_dir))
 
 # Import uses hyphenated filename, so use importlib
 _spec = importlib.util.spec_from_file_location(
@@ -436,4 +436,101 @@ class TestTriggerPhraseRepoWideGuard:
         assert msgs, "A skill dir with no readable SKILL.md must be reported as an offender"
         assert any("not found" in m.lower() or "returned False" in m for m in msgs), (
             f"Offender message should name the load failure, got: {msgs}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Name must equal the containing directory name (Refs #4812)
+# ---------------------------------------------------------------------------
+
+
+class TestNameMatchesDirectory:
+    """Verify frontmatter name must equal the skill's directory name."""
+
+    _MISMATCH = "must match its directory name"
+
+    @staticmethod
+    def _validator_for(tmp_path: Path, dir_name: str, skill_name: str) -> _ValidatorLike:
+        skill_dir = tmp_path / dir_name
+        skill_dir.mkdir()
+        content = (
+            f"---\nname: {skill_name}\n"
+            "description: This is a valid description with enough words here\n"
+            "---\n# Title\n## Triggers\n`one` `two` `three`\n"
+            "## Process\nSteps.\n## Verification\n- [ ] a\n- [ ] b\n"
+        )
+        (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+        orig = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            validator: _ValidatorLike = SkillValidator(str(skill_dir))
+        finally:
+            os.chdir(orig)
+        return validator
+
+    def test_name_equal_to_directory_passes(self, tmp_path: Path) -> None:
+        v = self._validator_for(tmp_path, "skillforge", "skillforge")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        errs = [e for e in v.errors if self._MISMATCH in e]
+        assert not errs, f"Unexpected directory-name error: {errs}"
+
+    def test_name_differs_from_directory_fails(self, tmp_path: Path) -> None:
+        v = self._validator_for(tmp_path, "skillforge", "other-name")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any(self._MISMATCH in e for e in v.errors), (
+            f"Expected directory-name mismatch error, got: {v.errors}"
+        )
+
+    def test_case_mismatch_fails(self, tmp_path: Path) -> None:
+        # The exact #4812 defect: a capitalized directory holding a lowercase
+        # name. The guard must fire on the case difference alone.
+        v = self._validator_for(tmp_path, "SkillForge", "skillforge")
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any(self._MISMATCH in e for e in v.errors), (
+            f"Expected directory-name mismatch error, got: {v.errors}"
+        )
+
+    def test_shipped_corpus_has_no_name_directory_mismatch(self) -> None:
+        # Corpus guard: synthetic cases prove the validator, this proves the
+        # wiring to the committed skills. Renaming a real skill directory or
+        # editing its frontmatter name to disagree with the directory must fail
+        # CI here, not pass green as the synthetic tests would. Scans both the
+        # canonical and Copilot mirror roots. Refs #4812.
+        repo_root = Path(__file__).resolve().parents[1]
+        roots = [
+            repo_root / ".claude" / "skills",
+            repo_root / "src" / "copilot-cli" / "skills",
+        ]
+        offenders: list[str] = []
+        scanned = 0
+        orig = os.getcwd()
+        os.chdir(repo_root)
+        try:
+            for root in roots:
+                if not root.is_dir():
+                    continue
+                for skill_md in sorted(root.glob("*/SKILL.md")):
+                    skill_dir = skill_md.parent
+                    scanned += 1
+                    v: _ValidatorLike = SkillValidator(str(skill_dir))
+                    v.load_skill()
+                    v.parse_frontmatter()
+                    v.validate_frontmatter()
+                    offenders.extend(
+                        f"{skill_dir.relative_to(repo_root)}: {e}"
+                        for e in v.errors
+                        if self._MISMATCH in e
+                    )
+        finally:
+            os.chdir(orig)
+        assert scanned > 0, "No shipped skills scanned; corpus guard did nothing"
+        assert not offenders, (
+            "Shipped skills whose frontmatter name does not equal their "
+            f"directory name: {offenders}"
         )

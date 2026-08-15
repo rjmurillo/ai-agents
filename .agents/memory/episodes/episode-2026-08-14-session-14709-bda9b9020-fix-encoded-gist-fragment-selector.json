@@ -1,0 +1,140 @@
+{
+  "id": "episode-2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector",
+  "session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix encoded gist fragment selector widening for issue 5001",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced encoded gist fragment widening from merged issue 4982 routing",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented complete fragment decoding and selector validation",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated and compared the Copilot runtime mirror",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and independently reviewed commit 6fd2fec803b018ee2137221b61947c3c40a5c8fb",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T22:10:53+00:00",
+      "type": "commit",
+      "content": "Commit: 6fd2fec803b018ee2137221b61947c3c40a5c8fb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e006",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and independently reviewed commits through b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T22:30:00+00:00",
+      "type": "commit",
+      "content": "Commit: b7371dbdb87bc7f81de3aaec06bc8c6aa59f2328",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR 5007 line-anchor review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated and independently reviewed commits through 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T23:08:10+00:00",
+      "type": "commit",
+      "content": "Commit: 250415ae96f3f83cb0411e9daf69897e97d0bbf7",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14709-bda9b9020-fix-encoded-gist-fragment-selector"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 9
+  },
+  "lessons": []
+}

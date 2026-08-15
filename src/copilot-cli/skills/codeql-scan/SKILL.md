@@ -193,7 +193,7 @@ Before completing a security scan task:
 - **CodeQL Documentation:** <https://codeql.github.com/docs/>
 - **SARIF Specification:** <https://sarifweb.azurewebsites.net/>
 - **ADR-035:** Exit code standardization
-- **ADR-005:** PowerShell-only scripting standard
+- **ADR-042:** Python migration strategy (supersedes ADR-005, PowerShell-only scripting)
 - **Session Protocol:** `.agents/SESSION-PROTOCOL.md`
 
 <details>

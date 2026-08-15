@@ -52,6 +52,7 @@ HOOK_PAYLOADS = (
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
     "scripts/validation/git_hook_policy.py",
+    "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
     "scripts/validation/__init__.py",
     "scripts/validation/check_pr_bypass_label.py",
@@ -518,6 +519,54 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     )
 
 
+def test_retrospective_policy_accepts_host_tomorrow_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC+14 producer's next-day artifact satisfies the UTC-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 12, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-14", "2026-03-13"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-15-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_accepts_utc_minus_12_current_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC-12 producer's current artifact satisfies a UTC+14-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 11, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
 def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -556,6 +605,11 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     so the widened window cannot silently accept arbitrarily stale sessions.
     """
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
     _write_lf(retro, "# Retrospective\nstale\n")
@@ -856,11 +910,19 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "python-type-check",
         "infrastructure-advisory",
         "workflow-local-run",
-        "observation-sync-advisory",
     ):
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
+    # observation-sync-advisory derives its file set from the push refs on
+    # stdin instead of {push_files}: the first-push fallback fed the whole
+    # observation corpus to the sync and overran the job's cap (#5071).
+    observation_job = pre_push_jobs["observation-sync-advisory"]
+    observation_run = observation_job["run"]
+    assert isinstance(observation_run, str)
+    assert observation_run.endswith("git_hook_policy.py observations-push")
+    assert "{push_files}" not in observation_run
+    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
     build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
@@ -1180,6 +1242,71 @@ def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout + result.stderr
     assert b"\n\n" not in packed_refs.read_bytes()
     assert packed_refs.with_name("packed-refs.before-repair").is_file()
+
+
+def _summary_lines(stdout: str, job: str) -> list[str]:
+    """Return the summary lines naming a job, one per execution lefthook ran."""
+    _, _, summary = stdout.partition("summary:")
+    return [line for line in summary.splitlines() if job in line]
+
+
+def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
+    tmp_path: Path,
+) -> None:
+    """The staleness job queries the remote git named, not a hardcoded default.
+
+    Issue #4634: the job passed ``{remote}``, which lefthook leaves verbatim, so
+    ``git ls-remote "{remote}" <ref>`` resolved no SHA, ``push_ref_staleness.py``
+    read that as a new branch, and the job reported success on every push. Its
+    duplicate hardcoded ``origin`` by passing no argument at all.
+
+    Two file-backed remotes make the wiring observable end to end. ``clean``
+    holds exactly the SHA the simulated push claims; ``advanced`` has moved one
+    commit past the local branch. Only naming ``advanced`` on the command line
+    may fail, so a run body that ignored its argument (or expanded it to a name
+    no remote resolves) could not produce this pair of outcomes.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    branch = "refs/heads/feature/test"
+
+    for name in ("clean", "advanced"):
+        _git(repo, "init", "-q", "--bare", str(tmp_path / f"{name}.git"))
+        _git(repo, "remote", "add", name, str(tmp_path / f"{name}.git"))
+        _git(repo, "push", "-q", name, f"HEAD:{branch}")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "test: remote-only commit")
+    _git(repo, "push", "-q", "advanced", f"HEAD:{branch}")
+    _git(repo, "reset", "-q", "--hard", head_sha)
+
+    # What git sends a pre-push hook: the local ref, what is being pushed, the
+    # remote ref, and the SHA git believes the remote holds.
+    push_input = f"{branch} {head_sha} {branch} {head_sha}\n"
+
+    def _run_against(remote: str) -> subprocess.CompletedProcess[str]:
+        return _run_lefthook(
+            repo,
+            "run",
+            "pre-push",
+            "--job",
+            "push-ref-staleness",
+            "--force",
+            remote,
+            str(tmp_path / f"{remote}.git"),
+            stdin=push_input,
+            check=False,
+        )
+
+    clean = _run_against("clean")
+    advanced = _run_against("advanced")
+
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert advanced.returncode != 0, advanced.stdout + advanced.stderr
+    assert "remote is at" in advanced.stdout + advanced.stderr
+    # One declaration, so one execution. The duplicate ran the job twice and
+    # reported both an OK and a FAILED line for the same name (issue #4634).
+    assert len(_summary_lines(clean.stdout, "push-ref-staleness")) == 1, clean.stdout
 
 
 def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
@@ -4821,6 +4948,190 @@ def test_mypy_ratchet_ignores_error_in_unpushed_file(
     )
 
     assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
+def test_merge_base_scope_drops_round_trip_keeps_modified_rename_deletion(
+    tmp_path: Path,
+) -> None:
+    # Issue #5071: the scope is what the push ships versus the merge base.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    _commit_file(repo, "round.py", "flag: bool = True\n")
+    _commit_file(repo, "old.py", "name: str = 'x'\n")
+    base = _commit_file(repo, "gone.py", "count: int = 0\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "mv", "old.py", "new.py")
+    _git(repo, "rm", "-q", "gone.py")
+    _git(repo, "add", "--", "keep.py", "round.py")
+    _git(repo, "commit", "-qm", "test: touch everything")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py to base content")
+
+    scope = policy._merge_base_scope(["keep.py", "round.py", "new.py", "gone.py"], repo, base)
+
+    assert scope is not None
+    assert "keep.py" in scope
+    assert "new.py" in scope
+    assert "gone.py" in scope
+    # The commit-then-revert round trip no longer differs from the merge
+    # base, so it contributes nothing to the mypy scope.
+    assert "round.py" not in scope
+
+
+def test_merge_base_scope_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "value: int = 1\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails and
+    # the caller must fall back to the unfiltered pushed set.
+    assert policy._merge_base_scope(["mod.py"], repo, "origin/main") is None
+
+
+def test_merge_base_scope_empty_paths_is_empty_set(tmp_path: Path) -> None:
+    assert policy._merge_base_scope([], tmp_path, "origin/main") == set()
+
+
+def test_mypy_scope_round_trip_file_is_not_scanned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Negative case for issue #5071: a file whose branch edits round-tripped
+    # back to the merge-base content is dropped before mypy ever runs, so its
+    # pre-existing type debt cannot block the push.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    invoked: list[Sequence[str]] = []
+
+    def fail_if_invoked(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(paths)
+        return _completed(1, "source.py:1: error: preexisting  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", fail_if_invoked)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+    assert invoked == []
+    # The scope report names both counts so an empty run is distinguishable
+    # from a run that examined nothing (ci-scripts rule: report scope size).
+    assert "0 of 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_keeps_modified_file_and_blocks_its_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Positive case for issue #5071: a file that still differs from the merge
+    # base stays in scope and its new-line errors still block.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Unresolvable merge base must never weaken the gate: the full pushed set
+    # is scanned, and the block-on-any-error fallback still applies.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: None)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    invoked: list[Sequence[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(1, "source.py:2: error: bad  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+    assert invoked == [["source.py"]]
+    # The fallback also reports its scope size (ci-scripts: report examined
+    # counts), so a full scan is distinguishable from a filtered one.
+    assert "scanning all 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Wiring proof over a real repository: run_mypy consults the real
+    # merge-base diff and hands mypy only the file that still differs.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    base = _commit_file(repo, "round.py", "flag: bool = True\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "commit", "-aqm", "test: edit both files")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    invoked: list[list[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["keep.py", "round.py"], repo) == 0
+    assert invoked == [["keep.py"]]
+
+
+def test_mypy_scope_end_to_end_blocks_changed_line_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Companion to the round-trip end-to-end test: blocking must also work
+    # through real merge-base discovery, not only through mocked seams.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "keep.py", "value: int = 1\n")
+    _write_file(repo, "keep.py", "value: int = 'broken'\n")
+    _git(repo, "commit", "-aqm", "test: break typing on line 1")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "keep.py:1: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["keep.py"], repo) == 1
+
+
+def test_mypy_cli_main_exit_codes_respect_merge_base_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ci-scripts CLI exit contract: drive main(argv), not the helper. The
+    # same blocking error must exit nonzero in scope and zero when the file
+    # round-tripped out of scope.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+    argv = ["--repo-root", str(tmp_path), "mypy", "source.py"]
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    assert policy.main(argv) == 1
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    assert policy.main(argv) == 0
 
 
 def test_mypy_invocation_sets_validation_path(
@@ -10315,7 +10626,10 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

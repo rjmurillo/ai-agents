@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-15-session-15001-fix-4922-frontmatter-parity",
+  "session": "2026-08-15-session-15001-fix-4922-frontmatter-parity",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix validate_install_parity blocking frontmatter-only generated-tree changes (issue #4922)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4922-frontmatter-parity"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4922-frontmatter-parity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4922-frontmatter-parity"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T09:24:46+00:00",
+      "type": "commit",
+      "content": "Commit: 5efa8993d2e52fd8b1a43c2e02162956f1e04a70",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4922-frontmatter-parity"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T10:08:11+00:00",
+      "type": "commit",
+      "content": "Commit: 1cc8a9da9445d229ed9f5d95cafcc91a5ae1db74",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15001-fix-4922-frontmatter-parity"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 2
+  },
+  "lessons": []
+}

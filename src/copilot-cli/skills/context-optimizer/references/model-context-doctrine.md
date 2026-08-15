@@ -176,7 +176,7 @@ as an implementer.
 
 Measured on this branch after the universal rule gained the same-checker item. Two numbers, and they are not interchangeable. The
 **always-on corpus is 7 rules, 70,233 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 98,982 bytes
+of what you touch. The **effective context on a `.py` edit is 98,162 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -207,7 +207,7 @@ always-on file.
 |---|---|---|---|---|
 | `code-quality.md` | 14,152 | always-on | 3 positive, 1 negative | none |
 | `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
-| `unified-software-engineering.md` | 8,289 | code files only | 3 positive, 1 negative | yes |
+| `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
 70,349-byte always-on corpus measured at source. `code-quality` and
@@ -281,7 +281,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 8.6x that threshold and a Python edit sees 12.1x,
+The always-on corpus is 8.6x that threshold and a Python edit sees 12.0x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look

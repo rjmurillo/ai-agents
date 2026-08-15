@@ -1,0 +1,127 @@
+{
+  "id": "episode-2026-08-12-session-4937-d33a241f-pr-autofix",
+  "session": "2026-08-12-session-4937-d33a241f-pr-autofix",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Run single-PR pr-autofix on PR #4937, repair the setup-uv contract test, and apply the Ready-to-Merge gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-triaged PR #4937.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated the workflow contract assertion to the v10 setup-uv SHA.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed the test fix through a live-state guarded safe push.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged the post-push AI quality gate failure.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged the Validate PR failure.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T14:47:31+00:00",
+      "type": "commit",
+      "content": "Commit: 0d2d19bd99bdf77b0017aa2ea7fd4d368cf82979",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed the branch from current main.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebound the QA report after the base refresh.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:39:32+00:00",
+      "type": "commit",
+      "content": "Commit: e1996a77cb79f07721541477f1ae4851144d3487",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-4937-d33a241f-pr-autofix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}

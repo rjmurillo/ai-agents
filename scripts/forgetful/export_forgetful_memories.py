@@ -5,7 +5,7 @@ Exports all data from Forgetful SQLite database to JSON file for backup,
 version control, and sharing across team members and installations.
 
 IMPORTANT: Security review is REQUIRED before committing exports to git.
-Run: python3 scripts/review_memory_export_security.py --export-file [file].json
+Run: python3 scripts/review_memory_export_security.py [file].json
 
 EXIT CODES:
   0  - Success
@@ -126,14 +126,21 @@ def _build_forgetful_output_path(args: argparse.Namespace) -> Path:
 
 
 def _run_security_review_forgetful(output_path: Path) -> int:
-    """Run the memory-export security review script; return 0 on pass or absence."""
+    """Run the memory-export security review script; return 0 only on pass."""
     security_script = _SCRIPT_DIR.parent / "review_memory_export_security.py"
     if not security_script.exists():
-        return 0
+        print(f"ERROR: Security review script not found: {security_script}", file=sys.stderr)
+        return 1
     print("\nRunning mandatory security review...")
     sys.stdout.flush()
     result = subprocess.run(
-        [sys.executable, str(security_script), "--export-file", str(output_path)]
+        [
+            sys.executable,
+            str(security_script),
+            "--forgetful-export",
+            "--",
+            str(output_path),
+        ]
     )
     if result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)

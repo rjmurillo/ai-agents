@@ -1,0 +1,104 @@
+{
+  "id": "episode-2026-08-15-session-15000-fix-4948-doc-accuracy",
+  "session": "2026-08-15-session-15000-fix-4948-doc-accuracy",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue #4948: doc-accuracy ASCII and PowerShell false positives",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified root cause",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied fix",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T06:07:41+00:00",
+      "type": "commit",
+      "content": "Commit: b5b5d96591bfab0f040e5d761a1dd462984ef9a9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T07:46:30+00:00",
+      "type": "commit",
+      "content": "Commit: 63530ed3399fa1217c969fcce3ac8207151280d9",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T07:48:49+00:00",
+      "type": "commit",
+      "content": "Commit: 1fa3c1f60b38992aa155a844636f80e332f95471",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15000-fix-4948-doc-accuracy"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 3
+  },
+  "lessons": []
+}

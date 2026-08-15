@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, cohesive CLI contract suite shares fixtures.
 """Tests for the issue-coordination skill scripts (issue #2477).
 
 Covers check_existing_pr_for_issue.py (duplicate-PR detection) and claim_issue.py
@@ -38,6 +39,31 @@ def _proc(rc: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedPr
     return subprocess.CompletedProcess(["gh"], rc, stdout=stdout, stderr=stderr)
 
 
+def _gh_dispatch(*, user=None, pulls=None):
+    """Return a ``subprocess.run`` fake that routes gh calls by command.
+
+    ``current_login`` runs ``gh api user`` and the preflight runs
+    ``gh api repos/<owner>/<repo>/pulls...``. A positional ``side_effect`` list
+    binds responses to call order, so a test can pass for the wrong reason if
+    the two calls swap. Dispatching on the command proves which call maps to
+    which outcome and rejects any unexpected call.
+    """
+    def _run(cmd, *args, **kwargs):
+        argv = list(cmd) if isinstance(cmd, (list, tuple)) else [cmd]
+        path = argv[2] if len(argv) > 2 else ""
+        if argv[:3] == ["gh", "api", "user"]:
+            if user is None:
+                raise AssertionError(f"unexpected `gh api user` call: {argv}")
+            return user
+        if "pulls" in path:
+            if pulls is None:
+                raise AssertionError(f"unexpected pulls call: {argv}")
+            return pulls
+        raise AssertionError(f"unexpected gh call: {argv}")
+
+    return _run
+
+
 class TestReferencesIssue:
     def test_fixes_keyword(self):
         assert _check.references_issue("Fixes #2477 in this PR", 2477) is True
@@ -62,10 +88,13 @@ class TestReferencesIssue:
             is False
         )
 
-    def test_closes_resolves_refs(self):
+    def test_closes_and_resolves_keywords(self):
         assert _check.references_issue("Closes #5", 5) is True
         assert _check.references_issue("Resolves #5", 5) is True
-        assert _check.references_issue("Refs #5", 5) is True
+
+    def test_ref_keywords_not_matched(self):
+        assert _check.references_issue("Ref #5", 5) is False
+        assert _check.references_issue("Refs #5", 5) is False
 
     def test_case_insensitive(self):
         assert _check.references_issue("FIXES #5", 5) is True
@@ -103,6 +132,26 @@ class TestFindOpenPrsForIssue:
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
+
+    def test_diagnostic_reference_does_not_claim_implementation(self):
+        prs = [
+            {
+                "number": 4866,
+                "title": "fix(workflows): rerun required checks after reopen",
+                "body": "Fixes #4827\n\nRefs #4859 as a diagnostic blocker.",
+                "html_url": "https://github.com/rjmurillo/ai-agents/pull/4866",
+                "head": {"ref": "fix/issue-4827-reopened-pr-workflows"},
+                "user": {"login": "rjmurillo"},
+            }
+        ]
+        with patch.object(
+            _check.subprocess,
+            "run",
+            return_value=_proc(0, json.dumps([prs])),
+        ):
+            out = _check.find_open_prs_for_issue("rjmurillo", "ai-agents", 4859)
+
+        assert out == []
 
     def test_no_match(self):
         prs = [
@@ -147,7 +196,9 @@ class TestFindOpenPrsForIssue:
             )
         assert [m["number"] for m in out] == [11]
 
-    def test_skips_own_pr_when_branch_context_missing(self):
+    def test_surfaces_own_pr_when_branch_context_missing(self):
+        # Detached HEAD / empty branch must NOT suppress the owner's PR (#4965).
+        # Previously this returned [] and hid every current-user PR.
         prs = [
             {
                 "number": 10,
@@ -165,7 +216,7 @@ class TestFindOpenPrsForIssue:
                 2477,
                 current_user_login="alice",
             )
-        assert out == []
+        assert [m["number"] for m in out] == [10]
 
     def test_same_branch_from_different_author_still_blocks(self):
         prs = [
@@ -222,6 +273,164 @@ class TestFindOpenPrsForIssue:
         assert raised
 
 
+def _owner_pr(number: int, head: str, login: str, issue: int = 2477):
+    return {
+        "number": number,
+        "title": "feat",
+        "body": f"Fixes #{issue}",
+        "html_url": f"u{number}",
+        "head": {"ref": head},
+        "user": {"login": login},
+    }
+
+
+class TestSelfBranchSuppression:
+    """Self-branch suppression fires only on an exact non-empty branch match (#4965)."""
+
+    def test_helper_same_branch_returns_true(self):
+        assert _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="work", current_user_login="alice"
+        )
+
+    def test_helper_detached_head_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="", current_user_login="alice"
+        )
+
+    def test_helper_different_branch_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "alice", "work", current_branch_name="other", current_user_login="alice"
+        )
+
+    def test_helper_different_author_returns_false(self):
+        assert not _check._is_self_branch_pr(
+            "bob", "work", current_branch_name="work", current_user_login="alice"
+        )
+
+    def test_helper_different_author_and_branch_returns_false(self):
+        # Truth-table cell: neither author nor branch matches. A different
+        # author on a different branch is never the current session's own PR,
+        # so suppression must not fire and the PR must surface.
+        assert not _check._is_self_branch_pr(
+            "bob", "other", current_branch_name="work", current_user_login="alice"
+        )
+
+    def test_detached_head_surfaces_owner_pr(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_empty_environment_surfaces_owner_pr(self, monkeypatch):
+        # Regression for the duplicate-test finding: the empty branch must come
+        # from the REAL resolution path, not a hardcoded "". CI without
+        # GITHUB_HEAD_REF plus a git call that reports no branch (detached HEAD)
+        # resolves current_branch() to "", which must not suppress the owner PR.
+        monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, "\n")):
+            resolved_branch = _check.current_branch()
+        assert resolved_branch == ""
+        prs = [[_owner_pr(10, "feature", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name=resolved_branch, current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_same_branch_still_suppressed(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="work", current_user_login="alice"
+        )
+        assert out == []
+
+    def test_different_branch_surfaced(self):
+        prs = [[_owner_pr(10, "work", "alice")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="feature-x", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_different_author_surfaced_from_detached_head(self):
+        prs = [[_owner_pr(10, "work", "bob")]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert [m["number"] for m in out] == [10]
+
+    def test_multiple_candidate_prs_all_surfaced(self):
+        prs = [[
+            _owner_pr(10, "work", "alice"),
+            _owner_pr(11, "other", "bob"),
+        ]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert sorted(m["number"] for m in out) == [10, 11]
+
+    def test_no_candidates_returns_empty(self):
+        prs = [[{
+            "number": 12,
+            "title": "chore",
+            "body": "unrelated work",
+            "html_url": "u12",
+            "head": {"ref": "b"},
+            "user": {"login": "alice"},
+        }]]
+        out = _check.filter_prs_for_issue(
+            prs, 2477, current_branch_name="", current_user_login="alice"
+        )
+        assert out == []
+
+
+class TestCheckExistingMain:
+    """End-to-end main() behavior for the detached-HEAD fix (#4965)."""
+
+    def test_detached_head_reports_existing_owner_pr(self):
+        prs = [_owner_pr(10, "work", "alice", issue=5)]
+        run = _gh_dispatch(
+            user=_proc(0, "alice\n"),
+            pulls=_proc(0, json.dumps([prs])),
+        )
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value=""),  # detached HEAD
+            patch.object(_check.subprocess, "run", side_effect=run),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _check.main(["--issue", "5", "--output-format", "json"])
+                code = 0
+            except SystemExit as exc:
+                code = exc.code
+        assert code == 1
+
+    def test_api_error_is_not_reported_as_no_pr(self):
+        # A failed gh pulls call must surface an external error, never a clean
+        # "no PR". Dispatch by command so the pulls failure, not a misordered
+        # login call, is what maps to exit 3.
+        run = _gh_dispatch(
+            user=_proc(0, "alice\n"),
+            pulls=_proc(1, stderr="gh api pulls failed"),
+        )
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value=""),
+            patch.object(_check.subprocess, "run", side_effect=run),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _check.main(["--issue", "5", "--output-format", "json"])
+                code = 0
+            except SystemExit as exc:
+                code = exc.code
+        assert code == 3
+
+
 class TestClaimIssueAssignees:
     def test_parses_assignees(self):
         payload = json.dumps({"assignees": [{"login": "alice"}, {"login": "bob"}]})
@@ -264,6 +473,25 @@ class TestCurrentLogin:
 
 
 class TestClaimMain:
+    def test_no_match_reports_no_implementation_claim(self, capsys):
+        calls = [
+            _proc(0, "alice\n"),
+            _proc(0, json.dumps([[]])),
+        ]
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value="work"),
+            patch.object(_check.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+
+            assert _check.main(["--issue", "5", "--output-format", "human"]) == 0
+
+        output = capsys.readouterr().out
+        assert "No open PR claims implementation ownership of issue #5" in output
+
     def test_duplicate_pr_exits_without_invalid_error_type(self):
         prs = [
             {

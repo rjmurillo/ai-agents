@@ -1,0 +1,159 @@
+{
+  "id": "episode-2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage",
+  "session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Complete PR 4944 vendored pycache coverage follow-up",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T09:59:00+00:00",
+      "type": "milestone",
+      "content": "Completed session initialization and context retrieval.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T09:59:01+00:00",
+      "type": "milestone",
+      "content": "Confirmed focused QA evidence.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T09:59:02+00:00",
+      "type": "milestone",
+      "content": "Completed a read-only PR sweep.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T10:04:49+00:00",
+      "type": "milestone",
+      "content": "Recorded validator-required QA rebinding for test commit 5d6c4fc4.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T10:17:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the failed hook-enabled push.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T10:22:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main into the branch.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:25:00+00:00",
+      "type": "milestone",
+      "content": "Reran focused post-merge QA.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T10:28:00+00:00",
+      "type": "milestone",
+      "content": "Repaired session-scoped QA evidence.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:30:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the push-gate recovery retrospective.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T11:18:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the active Copilot review findings.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-13T12:22:20+00:00",
+      "type": "commit",
+      "content": "Commit: 9093705a61a8c030d039cb29ee56605c133abcd3",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14696-b6330b9ad-complete-4944-vendored-pycache-coverage"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 79,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 8
+  },
+  "lessons": []
+}

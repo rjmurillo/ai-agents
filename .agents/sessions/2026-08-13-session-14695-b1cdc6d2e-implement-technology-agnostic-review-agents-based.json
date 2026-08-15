@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14695,
+    "date": "2026-08-13",
+    "branch": "feat/pr-review-toolkit-agents",
+    "startingCommit": "7514eb219",
+    "objective": "Implement technology-agnostic PR review agents based on Anthropic official pr-review-toolkit exemplars"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used committed .serena/memories/ fallback per AGENTS.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read AGENTS.md, SESSION-PROTOCOL.md, and PROJECT-CONSTRAINTS.md directly."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded autoplan, buy-vs-build-framework, agent-harness-reference, and session-end skills; session initialization listed GitHub skill scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and followed skill-first routing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and path-scoped agent instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/memory-index.md and decision-agent-files-are-not-canonical.md for agent mirror ownership."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/pr-review-toolkit-agents"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/pr-review-toolkit-agents"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch and worktree state before edits and before commits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7514eb219"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items contain measured evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/agents-two-pipeline-mirror-recipe.md and refreshed its memory-index token count."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint ran on 21 changed agent and catalog Markdown files with 0 issues; .agents and .serena artifacts are excluded by repository configuration."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/session-14695-pr-review-toolkit-agents-final.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, merged-main repair, review feedback fixes, generated catalog, QA evidence, and session artifacts committed through cf82bb1d7."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed on the completed log."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo database updated through final-agent-verification."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Integration pass (todo: integrate-agent-mirrors): verified four-way body parity for code-reviewer, code-simplifier, pr-test-analyzer, silent-failure-hunter across templates/agents/*.shared.md, src/claude/, .claude/agents/, .github/agents/",
+      "outcome": "build/scripts/check_agent_content_parity.py reports OK (33/33 files byte-identical between .claude/agents and src/claude); manual body-only diff (frontmatter stripped) confirms shared template == src/claude == .github/agents for all four agents. No parity fixes needed; the four commits already landed matching prose across mirrors."
+    },
+    {
+      "action": "Environment note: .python-version pins 3.14.6, which is not installable via `uv python install` in this environment (uv reports no download available); 3.14.5 is installed locally",
+      "outcome": "All uv run invocations in this pass used `uv run --python 3.14.5` explicitly. Plain `uv run python ...` fails with 'No interpreter found for Python 3.14.6'. Flagging as an environment gap for devops; not fixed in this pass (out of scope for agent-mirror integration)."
+    },
+    {
+      "action": "Ran build/generate_agents.py (write mode) to sync src/copilot-cli/agents/ and src/vs-code-agents/ from templates/agents/*.shared.md",
+      "outcome": "93 files generated; git diff shows changes ONLY to the four target agents (code-reviewer new, code-simplifier/pr-test-analyzer/silent-failure-hunter modified) plus new code-reviewer.agent.md mirrors. All other 27 agents regenerated byte-identical (no diff), confirming generator stability. --validate flag confirms 'VALIDATION PASSED: All generated files match committed files' after the write."
+    },
+    {
+      "action": "Ran build/generate_agent_catalog.py to regenerate docs/agent-catalog.md from templates/agents/*.shared.md",
+      "outcome": "Catalog now lists code-reviewer (was missing, new template) and updated line counts for code-simplifier (128->127), pr-test-analyzer (121->123), silent-failure-hunter (158->165). Count line updated 30->31 templates indexed. scripts/validation/validate_agent_catalog.py confirms 'OK: docs/agent-catalog.md matches templates/agents/' (no drift)."
+    },
+    {
+      "action": "Ran build/scripts/validate_install_parity.py to check for SHARED_AGENT drift",
+      "outcome": "Reports DRIFT: the four agents' new src/copilot-cli and src/vs-code-agents mirrors are flagged 'missing (required siblings)'. Root cause: this validator diffs `git diff --name-only base..HEAD` (committed history only) and cannot see the uncommitted generated files from this pass, since this task's instructions forbid committing. Expected to clear once a later step commits the template/install-copy edits together with the newly generated src/copilot-cli and src/vs-code-agents mirrors and docs/agent-catalog.md in the same commit."
+    },
+    {
+      "action": "Added ADR-057 behavioral eval scenario files for the four changed agents: tests/evals/code-reviewer-scenarios.json, code-simplifier-scenarios.json, pr-test-analyzer-scenarios.json, silent-failure-hunter-scenarios.json (2 scenarios each, one file per agent since scripts/eval/eval-prompt-change.py takes a single --prompt per run and each agent's verdict vocabulary is agent-specific)",
+      "outcome": "Scenarios cover: code-reviewer discovers conventions from manifests without assuming CLAUDE.md (CR1) and treats an embedded instruction in reviewed content as untrusted data (CR2); code-simplifier follows a documented repo convention over a generic ES-modules/house-style preference (CS1) and falls back to the language-native idiom when no convention exists (CS2); pr-test-analyzer discovers a non-pytest/non-GitHub Go test layout from go.mod (PTA1) and falls back to current working changes when no PR/diff/file-list scope is given (PTA2); silent-failure-hunter accepts a documented best-effort cleanup path where the original error still propagates (SFH1) and still flags a genuinely empty, silent catch block (SFH2, the no-over-fire mirror pair for SFH1)."
+    },
+    {
+      "action": "Structural check (per task scope: prove scenario files parse, do not run the full API-backed eval suite): ran `scripts/eval/eval-prompt-change.py --before <template> --after <template> --scenarios <file> --dry-run` for all four new scenario files, plus a standalone script mirroring the harness's REQUIRED_SCENARIO_FIELDS and verdict_options/expected_verdict membership contract (scripts/eval/eval-prompt-change.py lines 95-96, 145-169)",
+      "outcome": "All four --dry-run invocations exit 0 (scenarios load, prompt text loads, no API calls made). Standalone schema check reports all 8 scenarios structurally valid (required fields present, verdict_options unique after normalization, expected_verdict is a member). No API-based eval run (needs ANTHROPIC_API_KEY and costs tokens); that run is left to whichever step owns full validation."
+    },
+    {
+      "action": "Linted all touched and generated markdown with markdownlint-cli2: docs/agent-catalog.md, the four templates/agents/*.shared.md, the .claude/agents and src/claude hand-maintained copies, and the src/copilot-cli/src/vs-code-agents generated mirrors for the four agents",
+      "outcome": "0 issues in all 21 files checked. New JSON scenario files checked separately for U+2013/U+2014 (0 hits, matches the tests/evals dash-prohibition convention in tests/evals/test_no_unicode_dashes.py) and valid JSON parse."
+    },
+    {
+      "action": "Compared Anthropic official pr-review-toolkit agents with the repository agent catalog and mirror architecture.",
+      "outcome": "Reused five existing specialists, completed the missing cross-harness code-reviewer, and removed stack, vendor, repository, and hosting assumptions from the three prompts that contained them."
+    },
+    {
+      "action": "Ran independent review and QA passes, fixed the internal template-path leak and new model pin, then repeated focused validation.",
+      "outcome": "Final verification passed generation, catalog, parity, model pin, frontmatter, drift, eval schema and dry-run, forbidden-string, dash, and markdown checks."
+    },
+    {
+      "action": "Committed the final agent artifacts in logical groups.",
+      "outcome": "Final code commit validated by QA: e477568baf2f4d808f624068f30e00d32b34ee6c."
+    }
+  ],
+  "endingCommit": "cf82bb1d7",
+  "nextSteps": []
+}

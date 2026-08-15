@@ -131,7 +131,7 @@ def _run_security_review(output_path: Path) -> int:
     print("\nRunning security review...")
     sys.stdout.flush()
     result = subprocess.run(
-        [sys.executable, str(security_script), "--export-file", str(output_path)]
+        [sys.executable, str(security_script), "--", str(output_path)]
     )
     if result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)

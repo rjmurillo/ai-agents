@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion",
+  "session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship missing vendored cache exclusion coverage",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T14:14:04+00:00",
+      "type": "milestone",
+      "content": "Verified PR #4935 merged before the final review fix was pushed.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T15:02:51+00:00",
+      "type": "milestone",
+      "content": "Created a focused branch from current origin/main.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T15:09:09+00:00",
+      "type": "milestone",
+      "content": "Ran focused QA and adversarial review.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T15:02:53+00:00",
+      "type": "commit",
+      "content": "Commit: 808244996",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T15:35:52+00:00",
+      "type": "milestone",
+      "content": "Opened focused follow-up PR #4944.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T15:23:15+00:00",
+      "type": "commit",
+      "content": "Commit: 5692f717c",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T10:36:44+00:00",
+      "type": "commit",
+      "content": "Commit: caf50d855a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T11:20:18+00:00",
+      "type": "commit",
+      "content": "Commit: c8336cc37",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14695-b6330b9ad-ship-missing-vendored-cache-exclusion"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 81,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 9
+  },
+  "lessons": []
+}

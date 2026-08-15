@@ -90,6 +90,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
         "parse_drift_results.py is its implementation detail."
     ),
+    "ruleset_required_contexts.py": (
+        "Library holding the required-context contract shared by "
+        "ruleset_context_drift.py and test_merge_group_readiness.py. The "
+        "scheduled workflow invokes the detector, while both test files verify "
+        "the shared contract."
+    ),
 }
 
 

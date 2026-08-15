@@ -125,6 +125,16 @@ def find_recent_changes(target: str, limit: int = 5) -> list[str]:
     return []
 
 
+def _read_utf8_adr(adr_file: Path) -> str:
+    """Read an ADR as UTF-8 and identify the file when decoding fails."""
+    try:
+        return adr_file.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise UnicodeError(
+            f"Cannot decode ADR file '{adr_file}' as UTF-8: {error}"
+        ) from error
+
+
 def find_related_adrs(target: str) -> list[str]:
     """Search ADR files for references to the target."""
     adrs_dir = Path(".agents/architecture")
@@ -134,7 +144,7 @@ def find_related_adrs(target: str) -> list[str]:
     target_name = Path(target).stem
     related = []
     for adr_file in sorted(adrs_dir.glob("ADR-*.md")):
-        content = adr_file.read_text()
+        content = _read_utf8_adr(adr_file)
         if target_name in content or target in content:
             title_match = re.search(r"^# (.+)$", content, re.MULTILINE)
             title = title_match.group(1) if title_match else adr_file.name
@@ -205,7 +215,12 @@ def generate_report(result: InvestigationResult) -> str:
     if not template_path.exists():
         return _generate_inline_report(result)
 
-    report = template_path.read_text()
+    try:
+        report = template_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise UnicodeError(
+            f"Cannot decode report template '{template_path}' as UTF-8: {error}"
+        ) from error
     report = report.replace("[Component/System Name]", result.target)
 
     return report + _generate_findings_appendix(result)
@@ -341,7 +356,11 @@ Examples:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    result = investigate(args.target, args.change)
+    try:
+        result = investigate(args.target, args.change)
+    except UnicodeError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
 
     if args.format == "json":
         output = {
@@ -359,7 +378,11 @@ Examples:
         }
         print(json.dumps(output, indent=2))
     else:
-        report = generate_report(result)
+        try:
+            report = generate_report(result)
+        except UnicodeError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
         print(report)
 
     return 0

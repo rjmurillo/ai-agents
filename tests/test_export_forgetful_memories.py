@@ -9,6 +9,7 @@ import pytest
 
 from scripts.forgetful.export_forgetful_memories import (
     TABLE_MAPPING,
+    _run_security_review_forgetful,
     export_table,
     run_sqlite3,
     validate_output_path,
@@ -71,6 +72,54 @@ class TestRunSqlite3:
         with patch("subprocess.run", return_value=self._make_result(0, stdout="hello")):
             result = run_sqlite3("/fake/db", "SELECT 1")
         assert result == "hello"
+
+
+class TestRunSecurityReviewForgetful:
+    def test_missing_scanner_fails_closed(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        export_file = tmp_path / "clean.json"
+        with patch(
+            "scripts.forgetful.export_forgetful_memories._SCRIPT_DIR",
+            tmp_path / "forgetful",
+        ):
+            assert _run_security_review_forgetful(export_file) == 1
+        assert "Security review script not found" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("filename", ["clean.json", "memory export.json"])
+    def test_clean_export_passes_real_cli_boundary(
+        self,
+        tmp_path: Path,
+        filename: str,
+    ) -> None:
+        export_file = tmp_path / filename
+        export_file.write_text('{"data": "safe content"}', encoding="utf-8")
+
+        assert _run_security_review_forgetful(export_file) == 0
+
+    def test_dash_leading_relative_path_passes_real_cli_boundary(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        export_file = Path("-dash-leading.json")
+        export_file.write_text('{"data": "safe content"}', encoding="utf-8")
+
+        assert _run_security_review_forgetful(export_file) == 0
+
+    def test_sensitive_export_fails_real_cli_boundary(
+        self,
+        tmp_path: Path,
+        capfd: pytest.CaptureFixture[str],
+    ) -> None:
+        export_file = tmp_path / "sensitive.json"
+        export_file.write_text('{"api_key": "placeholder"}', encoding="utf-8")
+
+        assert _run_security_review_forgetful(export_file) == 1
+        assert "WARNING - Sensitive data patterns detected!" in capfd.readouterr().out
 
 
 class TestExportTable:

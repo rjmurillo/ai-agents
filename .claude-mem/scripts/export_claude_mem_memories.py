@@ -78,7 +78,7 @@ def _run_security_review_memories(output_path: Path) -> int:
     print("\nRunning mandatory security review...")
     sys.stdout.flush()
     sec_result = subprocess.run(
-        [sys.executable, str(security_script), "--export-file", str(output_path)]
+        [sys.executable, str(security_script), "--", str(output_path)]
     )
     if sec_result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)

@@ -31,20 +31,17 @@ Editing any agent's shared behavior. See `.claude/rules/claude-agents.md` MUST-1
 
 Source: issue/PR #2707 (MERGED); `.claude/rules/claude-agents.md`; `build/scripts/detect_agent_drift.py`.
 
-## Correction (2026-08-03): four hand-maintained surfaces, not two
+## Verified application (2026-08-03)
 
-The recipe above names two files to edit. Measurement says four. `build_all.py`
-prints `Output Root: <repo>/src` and writes only `src/copilot-cli/agents/` and
-`src/vs-code-agents/`. Every other agent surface is hand-maintained, so a
-one-character fix to the shared body has to be repeated by hand in three more
-places:
+The recipe above remains current. A shared agent has four hand-maintained
+surfaces and two generated surfaces:
 
 | Surface | Written by | Checked by |
 |---|---|---|
 | `templates/agents/<a>.shared.md` | hand | source of the two generated copies |
 | `src/claude/<a>.md` | hand | co-change parity (`validate_install_parity.py`) |
 | `.claude/agents/<a>.md` | hand | `check_agent_content_parity.py`: byte-identical to `src/claude/` |
-| `.github/agents/<a>.prompt.md` | hand | `detect_agent_drift.py` install-copy comparison vs `.claude/agents/` |
+| `.github/agents/<a>.agent.md` | hand | co-change parity and install drift checks |
 | `src/copilot-cli/agents/<a>.agent.md` | `build_all.py` | drift gate |
 | `src/vs-code-agents/<a>.agent.md` | `build_all.py` | drift gate |
 

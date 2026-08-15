@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14695,
+    "date": "2026-08-12",
+    "branch": "test/4923-cache-exclusion-coverage",
+    "startingCommit": "d938b9c13",
+    "objective": "Ship missing vendored cache exclusion coverage"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions were initialized in the parent issue workflow."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tool contract loaded before the follow-up branch was created."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read as a read-only reference in the parent workflow."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub, review, session, and memory skills were loaded."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md skill-first requirements applied."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root and tests path-scoped constraints were loaded before the test change."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #4923 history and the cache-boundary decision were supplied by the parent workflow."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "test/4923-cache-exclusion-coverage"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On test/4923-cache-exclusion-coverage"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified the external worktree and focused branch diff."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d938b9c13"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed and validated."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new cache-boundary memory needed. The parent issue workflow already recorded that decision."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only passed with no selected Markdown files."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4944-issue-4923-vendored-cache-coverage.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Focused test committed at 808244996; QA and session evidence are included with this session close."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Follow-up coverage work isolated on test/4923-cache-exclusion-coverage."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-12T14:14:04Z",
+      "action": "Verified PR #4935 merged before the final review fix was pushed.",
+      "outcome": "Merged main contains the cache-free helper and both consumer tests, but not direct coverage for every ignore pattern."
+    },
+    {
+      "timestamp": "2026-08-12T15:02:51Z",
+      "action": "Created a focused branch from current origin/main.",
+      "outcome": "The branch adds one helper regression test and no runtime changes."
+    },
+    {
+      "timestamp": "2026-08-12T15:09:09Z",
+      "action": "Ran focused QA and adversarial review.",
+      "outcome": "20 tests passed, 1 real-CLI test skipped, Ruff passed, and GPT-5.6 Sol returned PASS."
+    },
+    {
+      "timestamp": "2026-08-12T15:35:52Z",
+      "action": "Opened focused follow-up PR #4944.",
+      "outcome": "The PR references closed issue #4923 without a closing keyword and contains no runtime changes."
+    }
+  ],
+  "endingCommit": "c8336cc37",
+  "nextSteps": [
+    "Clear PR #4944 checks and reviews, then merge."
+  ]
+}

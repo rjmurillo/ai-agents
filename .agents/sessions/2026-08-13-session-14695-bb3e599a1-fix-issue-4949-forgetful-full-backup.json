@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14695,
+    "date": "2026-08-13",
+    "branch": "fix/4949-forgetful-import",
+    "startingCommit": "90be321b3",
+    "objective": "Fix issue 4949 forgetful full-backup import crash and ship verified merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active for ai-agents; semantic edits were unavailable in the external worktree, so direct file tools were used there"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions read"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as a read-only reference; no issue 4949 handoff exists"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills and .claude/skills/github/scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage-mandatory memory and applied repository GitHub skill routing"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, .agents/AGENT-INSTRUCTIONS.md, PROJECT-CONSTRAINTS.md, and binding ADRs"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, memory/forgetful-migration-plan, skills-github-cli-index, skills-pr-review-index, and relevant PR review memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4949-forgetful-import"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4949-forgetful-import"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree began clean on fix/4949-forgetful-import at 90be321b3"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "90be321b3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-13-pr-4958-issue-4949-forgetful-import.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: dbf1449b54)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced issue 4949 against the committed full backup",
+      "result": "The users object was treated as eight rows and crashed with AttributeError before correction exports could run."
+    },
+    {
+      "action": "Verified current and historical producer contracts",
+      "result": "The current exporter returns list[dict[str, Any]]. The historical PowerShell exporter assigned ConvertFrom-Json output directly for every table; the committed backup contains an object-shaped users row and a null empty association table."
+    },
+    {
+      "action": "Implemented table-shape normalization and malformed-input validation",
+      "result": "Null, singleton object, and object-array table shapes import safely. Invalid roots, data sections, table values, and rows report per-file diagnostics and later files continue."
+    },
+    {
+      "action": "Validated and reviewed commit 1287c5557e56b0e077ccdd39d5ff64eddd7ce063",
+      "result": "Focused suites passed 41 tests and the final full suite passed 27941 tests with 37 skipped. The committed backup inserted 2359 rows into a temporary database copy. Ruff, taste lints, CWE-78 scan, security review, fresh QA, and GPT-5.6 Sol review passed."
+    }
+  ],
+  "endingCommit": "dbf1449b54",
+  "nextSteps": [
+    "Complete repository validation, open one PR with Fixes #4949, resolve all checks and review threads, and merge.",
+    "After merge verification on origin/main, mark SQL todo fix-4949-forgetful-import done."
+  ]
+}

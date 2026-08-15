@@ -23,6 +23,10 @@ into a skill or references/ requires changing how the command is invoked and loa
 which is a structural change that must be measured against the eval harness before
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
+Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
+Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`
+Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
+vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents contributor fixtures; installed plugin consumers do not have these files.
 -->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
@@ -200,6 +204,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         sleep 0.01
@@ -218,6 +223,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         kill "$mutation_pid" 2>/dev/null || true
@@ -260,6 +266,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    stop_mutation_group "$mutation_pid"
     return "$mutation_rc"
 }
 # lease-renewal:end
@@ -321,13 +328,31 @@ run_pr_mutation_if_live() {
 # Per PR, immediately before any per-tier action:
 
 # Step 1: Acquire the branch-ownership lease (issue #3413, ADR-076 Phase 1).
-# Exit 1 = another agent holds the lease; skip this PR without touching it.
+# Exit 1 = SKIP. Branch on .Data.reason so a lease-store outage is surfaced as
+# a distinct diagnostic instead of being silently misreported as contention
+# (issue #4966 MEDIUM). .Data.held_by does not exist in the envelope; the
+# machine-readable field is .Data.reason (held-by:<owner> or
+# lease-store-unavailable).
 LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
     --pull-request "$PR" --session "$SESSION_ID" --output-format json) || {
     LEASE_RC=$?
     if [ "$LEASE_RC" -eq 1 ]; then
-        HELD_BY=$(echo "$LEASE" | jq -r '.Data.held_by // "unknown"')
-        echo "Lease held by $HELD_BY for #$PR; skipping."
+        LEASE_REASON=$(echo "$LEASE" | jq -r '.Data.reason // "unknown"')
+        case "$LEASE_REASON" in
+            lease-store-unavailable)
+                # Store unreachable: ownership is unknown and acquire fails
+                # CLOSED (issue #4966). This is NOT contention. Surface a clear
+                # diagnostic so a persistent outage cannot make every PR SKIP
+                # forever with no alert; investigate the API/network path.
+                echo "Lease store unreachable for #$PR (reason=$LEASE_REASON); ownership unknown, failing closed and skipping. Check GitHub API/network before retrying." >&2
+                ;;
+            held-by:*)
+                echo "Lease held by ${LEASE_REASON#held-by:} for #$PR; skipping."
+                ;;
+            *)
+                echo "Lease acquire returned SKIP for #$PR (reason=$LEASE_REASON); skipping."
+                ;;
+        esac
         continue
     fi
     echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
@@ -361,7 +386,7 @@ fi
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+TIER=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null | jq -r '.Data.Tier // "UNKNOWN"')
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -394,9 +419,13 @@ fi
 #   cleanup_pr_autofix
 ```
 
-Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
-loop. Do NOT push, do NOT arm auto-merge, do NOT post threads.  The `held_by`
-field identifies the owner so the operator can investigate a stale lease.
+Lease SKIP verdicts: when exit code is 1 the lease was not acquired. Branch on
+the `reason` field: `held-by:<owner>` means another autofix loop holds the
+lease (real contention), and `lease-store-unavailable` means the lease store
+was unreachable so ownership could not be verified and acquire failed CLOSED
+(issue #4966). In both cases do NOT push, do NOT arm auto-merge, do NOT post
+threads. A persistent `lease-store-unavailable` is an infrastructure signal,
+not contention: investigate the GitHub API or network path.
 
 LIVE-STATE SKIP verdicts are binding: do NOT push commits, do NOT arm
 auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP.
@@ -450,15 +479,27 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 
@@ -661,7 +702,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 
 Per PR processed:
 
-- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
+- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.

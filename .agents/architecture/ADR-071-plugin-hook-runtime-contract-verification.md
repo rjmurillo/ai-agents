@@ -15,9 +15,24 @@ The 2026-07-19 amendment review reached consensus with 3 Accept,
 3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
 section in the same debate log.
 
+Amended 2026-08-11 (issue #4874): the require-subagent-model gate joined the
+consolidated PreToolUse path. The dated amendment section below records the
+matcher, fail-open, and fail-closed contract for that gate (debate log:
+`.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+
+Amended 2026-08-14 (issue #5013): ADR-085 Decision 7 is the policy authority
+for excluding `push_pr_script_identity_guard` from the generated Copilot
+inventory only. It records the containment incident, the eligibility test
+applied to it, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision: Claude Code
+keeps running the guard unchanged in its own canonical dispatch group, and
+Copilot excludes it from generation. The dated amendment section below records
+the corrected shim count and timeout sum. Debate log:
+`.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
 ## Date
 
-2026-06-02
+2026-06-02; amended 2026-07-19, 2026-08-11, and 2026-08-14
 
 ## Context
 
@@ -143,16 +158,6 @@ The 1.0.72-1 probe did not independently measure the effect of generated
 `cwd: "."` for plugin hooks. Generated launchers do not use `cwd` to locate
 plugin scripts. They use the documented plugin-root variables.
 
-The consolidated PreToolUse dispatcher has a host-timeout residual. The host
-owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
-timeout. No in-process watchdog is implemented. After the 2026-07-22 hook
-purge and the issue #4764 identity gate, the active manifest contains two shims
-with 100 seconds of configured timeout. The generated host entry requests 105
-seconds, including five seconds of dispatcher headroom. A hung dispatcher can
-therefore allow the tool without completing every active guard. The probe tested
-only 2 seconds. No evidence shows whether the host grants, caps, or enforces 105
-seconds.
-
 Copilot parses at most one final JSON document per command hook. The active
 observe dispatcher captures nonblank stdout from one successful PostToolUse
 shim and emits one `additionalContext` object when captured output exists. It
@@ -195,6 +200,69 @@ validation and the no-auth runtime test catch artifact path defects under the
 simulated contract. Only an executed real-CLI smoke detects vendor launcher
 drift. An escaped launcher failure stays loud. Decision item 4 re-verifies on a
 material CLI version change.
+
+### 2026-08-11 amendment: require-subagent-model gate (issue #4874)
+
+The consolidated PreToolUse dispatcher keeps a bounded host-timeout residual.
+The host owns the aggregate timeout, and the measured 1.0.72-1 host fails open
+after a timeout. Since issue #4706 each timed gate shim runs in a child
+process and a shim timeout denies, so the unbounded-hang residual is limited
+to the dispatcher process itself. After the 2026-07-22 hook purge, the issue
+#4764 identity gate, and the issue #4874 sub-agent model gate, the active
+manifest contains three shims with 110 seconds of configured timeout. The
+generated host entry requests 115 seconds, including five seconds of
+dispatcher headroom. The require-subagent-model script fails open on its own
+internal errors (issue #4672 rationale, recorded in the script header), and
+that guarantee holds end to end on the repository-local `.github/hooks` path
+and on the Claude plugin path. On the Copilot plugin path the generated matcher shim inherits the source
+hook's fail-open policy for malformed stdin and missing tool names. A timed
+shim overrun still denies (#4706). The recorded Copilot plugin contract is
+therefore deny on timeout, allow on malformed input, and allow on the script's
+own internal failures. The Claude plugin path has no
+generated shim and no per-shim timeout: the host matcher filters, the script
+runs directly, and its fail-open covers malformed input there too (measured:
+malformed stdin exits 0; the group's 60-second host entry is the bound). The generated host matcher union
+now includes `Agent` and `Task` alongside the Bash forms; empirical matcher
+probes cover only `Bash`, so Agent and Task host-matcher behavior is unprobed.
+The shim self-filter repeats the `^(Agent|Task)$` test against the payload
+tool name. The canonical script also accepts the native lowercase `task`
+spelling, but on the plugin path the shim filters lowercase out before the
+script runs; the spelling is reachable only through the repository-local
+`.github/hooks` registration, which is also the only carrier under cloud agent
+(installed plugins do not load there). A lowercase matcher variant was built,
+measured, and rejected: a runtime-name token the generator cannot reduce to a
+Claude tool name drops the host-level matcher entirely, which respawns the
+dispatcher on every tool call (the #3075 regression). The residual is a host
+that fails to map `task` to `Agent` in a PascalCase payload, which no probe
+has observed and the documented contract forbids. The probe tested only 2
+seconds. No evidence shows whether the host grants, caps, or enforces 115
+seconds.
+
+### 2026-08-14 amendment: push-pr identity guard excluded from Copilot generation (issue #5013)
+
+ADR-085 Decision 7 is the policy authority for this exclusion. It records the
+containment incident, 127 unrelated Bash denials over more than 21 minutes
+caused by the guard's broad `Bash` registration combined with the Copilot
+dispatcher's timed child-process deny, the eligibility test applied to the
+exclusion, and the eight reintroduction gates. This ADR records only the
+derived runtime-contract metrics that follow from that decision.
+
+Issue #5013 excluded `push_pr_script_identity_guard` from the generated
+Copilot inventory only. `.claude/hooks/dispatch_groups.json` marks that
+group `copilotExclude: true`. The same file still lists the guard in Claude
+Code's canonical dispatch group, and `.claude/hooks/hooks.json` still
+registers that group. Copilot excludes the guard from generation entirely;
+no replacement producer runs there. The active Copilot PreToolUse manifest
+now contains two
+shims, `markdownlint_guard` and `require_subagent_model`, summing to 100
+seconds of configured timeout. The generated host entry requests 105 seconds,
+the same five seconds of dispatcher headroom as before. The
+require-subagent-model fail-open and fail-closed behavior recorded in the
+prior amendment is unchanged; only the Copilot-side shim count and timeout sum
+moved. The dispatcher, its matcher union, and its per-event mode contract are
+unchanged. This is a scoped runtime-contract update that follows from ADR-085
+Decision 7, not a re-evaluation of the verified runtime contract established
+above. Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
 
 ## Decision
 
@@ -373,4 +441,11 @@ item 5.)
   Official DOCS-SAY event and behavior contract.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
   fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
-  Windows contract simulation, artifact discovery, authenticated smoke).
+  Windows contract simulation, artifact discovery, authenticated smoke),
+  #4874 (require-subagent-model gate), #5013 (Copilot-only
+  `push_pr_script_identity_guard` exclusion; policy owned by ADR-085
+  Decision 7).
+- ADR-085. Cross-harness permission-surface asymmetry; owns the security
+  judgment behind the 2026-08-14 amendment above.
+- `.agents/critique/ADR-068-071-085-5013-debate-log.md`. Issue #5013
+  containment and exclusion review.

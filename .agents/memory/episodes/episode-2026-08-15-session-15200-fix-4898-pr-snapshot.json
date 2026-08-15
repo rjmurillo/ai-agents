@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-15-session-15200-fix-4898-pr-snapshot",
+  "session": "2026-08-15-session-15200-fix-4898-pr-snapshot",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve issue #4898: immutable PR snapshot for doc-accuracy review",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T06:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-15200-fix-4898-pr-snapshot"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T06:30:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-15200-fix-4898-pr-snapshot"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T07:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15200-fix-4898-pr-snapshot"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T07:30:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15200-fix-4898-pr-snapshot"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T14:59:53+00:00",
+      "type": "commit",
+      "content": "Commit: fb4ab55365e71fb423f84c76cb76992fed8a0440",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15200-fix-4898-pr-snapshot"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 90,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 7
+  },
+  "lessons": []
+}

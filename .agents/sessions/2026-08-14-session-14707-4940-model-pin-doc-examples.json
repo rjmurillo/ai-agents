@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14707,
+    "date": "2026-08-14",
+    "branch": "docs/4940-model-pin-examples",
+    "startingCommit": "a225da30e1b79d1df5487a0315d215b76301cc7f",
+    "objective": "Issue #4940: correct five docs that teach ADR-080-forbidden versioned model pins"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; project ai-agents active in worktree issue-4940"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only reference; not modified)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts: check_existing_pr_for_issue.py and issue/claim_issue.py invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md (root) plus .agents/CLAUDE.md read before editing"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-080 and ADR-040 read in full; scripts/validation/check_model_pins.py read (604 lines)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory tasks/issue-2840-model-pin-migration read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/4940-model-pin-examples"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/4940-model-pin-examples"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at worktree creation from origin/main a225da30e"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a225da30e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "sessionStart and sessionEnd items recorded with per-item evidence in this file"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start and left unmodified; this branch carries no handoff edit"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory tasks/issue-4940-model-pin-doc-examples written with the canonical contract and the gate-ordering findings"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 docs/SKILL-AUTHORING.md -> Summary: 0 issues; .agents/** is excluded by .markdownlint-cli2.yaml"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5003-issue-4940-model-pin-doc-examples.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1e1c9a1d0 guide, 79dadd0c6 architecture docs, c98f24b03 regression guard, 72c2f8934 ADR-040 amendment review"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest 17 passed; check_model_pins.py --mode warn exit 0; ruff check and ruff format clean; detect_adr_changes.py reported ADR-040 Modified and the review is recorded in .agents/critique"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4940 claimed via claim_issue.py; PR opened from docs/4940-model-pin-examples"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Findings captured in the Serena memory and in the QA report's Known Gaps section"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #4940 discourse and confirmed no existing PR",
+      "evidence": "gh issue view 4940; check_existing_pr_for_issue.py returned existing_pr_count 0"
+    },
+    {
+      "step": "Claimed issue and created external worktree from origin/main",
+      "evidence": "claim_issue.py --issue 4940 -> {\"claimed\":\"rjmurillo\"}; worktree issue-4940 on docs/4940-model-pin-examples at a225da30e"
+    },
+    {
+      "step": "Established canonical contract from source, not memory",
+      "evidence": "check_model_pins.py _VERSIONED_RE, ROLLING_ALIASES, DEFAULT_MODEL; copilot-cli.yaml model_tiers; _eval_common.py pricing; SkillForge _constants.py REQUIRED/OPTIONAL_PROPERTIES"
+    },
+    {
+      "step": "Corrected all five docs so every copyable example is conformant",
+      "evidence": "docs/SKILL-AUTHORING.md, .agents/steering/claude-skills.md, ADR-040, SKILL-STANDARDS-RECONCILED.md, DESIGN-REVIEW-context-optimizer-refactoring.md; historical decisions preserved via Superseded callouts"
+    },
+    {
+      "step": "Added a regression guard and proved it non-vacuous",
+      "evidence": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs"
+    },
+    {
+      "step": "Ran scoped validation",
+      "evidence": "markdownlint-cli2 docs/SKILL-AUTHORING.md -> 0 issues; check_model_pins.py --mode warn -> OK no new or changed pin violations; ruff check and ruff format clean"
+    },
+    {
+      "step": "adr-review pass on the ADR-040 amendment",
+      "evidence": ".agents/critique/ADR-040-amendment-2026-08-14-model-pin-examples-debate-log.md; detect_adr_changes.py --since-commit origin/main reported ADR-040 Modified; single-reviewer pass disclosed in the log (no subagent delegation available this session)"
+    },
+    {
+      "step": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
+      "evidence": "detect_infrastructure.py CRITICAL_PATTERNS entry '.*Auth.*\\.(cs|ts|js|py)$' matches the substring 'auth' in test_skill_authoring_docs_model_pins.py; the test reads repo markdown and runs no subprocess, no network, no user input"
+    },
+    {
+      "step": "Renamed the session log after an add/add conflict with origin/main",
+      "evidence": "origin/main already carries .agents/sessions/2026-08-14-session-14706.json; merge-tree-ratchet reported the conflict, so this log moved to session 14707 with a descriptive suffix"
+    },
+    {
+      "step": "Opened PR #5003 for the five corrected documents and the regression guard",
+      "evidence": "https://github.com/rjmurillo/ai-agents/pull/5003; body validated by new_pr_validations (conventional commit PASS, 2 issue keywords, template 4/4)"
+    },
+    {
+      "step": "Recorded why the sanctioned new_pr.py path could not run here",
+      "evidence": "identity guard allows no cd and new_pr.py resolves the repo from process cwd, which is the main checkout on an unrelated branch; separately, _session_log_for_validation validates a temp copy under .agents/scratch, so the QA binding compares qaSessionLog against the temp path and fails while the same log validates [PASS] in place"
+    },
+    {
+      "step": "Renamed the QA report to carry the PR number",
+      "evidence": "scripts/ci/check_pr_qa_report.py globs .agents/qa/*pr-{pr_number}*.md, so the Validate PR job reported 'No QA report found for code changes' until the file became pr-5003-issue-4940-model-pin-doc-examples.md"
+    },
+    {
+      "step": "Addressed the Copilot review on PR #5003",
+      "evidence": "5 findings: label window exempted the After fence (fixed, detector now finds 7 hits in SKILL-STANDARDS-RECONCILED.md on origin/main), wrong validator in the authoring checklist and in ADR-040 (skillforge job runs .claude/skills/SkillForge/scripts/validate-skill.py), model-rationale missing from the steering field inventory, ADR-040 attributed version and license to the SkillForge validator though _constants.py lists both under OPTIONAL_PROPERTIES, and the QA report overstated gate-message coverage"
+    }
+  ],
+  "endingCommit": "21736b962851c192c855b274a48689eec30d309d",
+  "nextSteps": [
+    "Follow-up: Serena memories claude/claude-code-skill-frontmatter-standards and skills/skillcreator-enhancement-patterns still teach retired claude-opus-4-5",
+    "Follow-up: .agents/analysis/claude-code-skill-frontmatter-2026.md carries the same stale pin guidance",
+    "Follow-up: file an issue for new_pr_validations._session_log_for_validation, whose temp-copy path breaks the QA report session-log binding for any PR shipping a QA report"
+  ]
+}

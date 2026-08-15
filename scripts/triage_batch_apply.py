@@ -92,6 +92,7 @@ class ManifestAction:
     rationale: str = ""
     labels: tuple[str, ...] = ()
     priority: str = ""
+    reproduction_verified: bool = False
 
     @classmethod
     def from_raw(cls, raw: object) -> ManifestAction | None:
@@ -116,12 +117,15 @@ class ManifestAction:
             if isinstance(labels_raw, list)
             else ()
         )
+        reproduction_raw = raw.get("reproduction_verified")
+        reproduction_verified = reproduction_raw is True
         return cls(
             issue=issue,
             category=category,
             rationale=str(raw.get("rationale") or ""),
             labels=labels,
             priority=str(raw.get("priority") or "").strip(),
+            reproduction_verified=reproduction_verified,
         )
 
 
@@ -287,10 +291,20 @@ def _apply_close(
             action.issue, action.category, OUTCOME_SKIPPED,
             f"close aborted: unverified {', '.join(unverified)}",
         )
-    # Unresolved-scope gate (#4625): if a human commented AFTER the fix
-    # evidence, the issue may have unaddressed scope. Block and report.
+    # Reproduction gate (#4624): a verified citation (PR merged on main, or
+    # commit exists) is necessary but not sufficient. The issue's falsifiable
+    # reproduction must have been run against main and passed. Without this,
+    # the campaign can close an issue whose defect is still reproducible.
     cited_prs = extract_pr_numbers(action.rationale)
     cited_shas = extract_commit_shas(action.rationale)
+    if (cited_prs or cited_shas) and not action.reproduction_verified:
+        return ActionOutcome(
+            action.issue, action.category, OUTCOME_SKIPPED,
+            "close aborted: reproduction not verified against main "
+            "(reproduction_verified must be true when citing a PR or commit)",
+        )
+    # Unresolved-scope gate (#4625): if a human commented AFTER the fix
+    # evidence, the issue may have unaddressed scope. Block and report.
     fix_ts: datetime.datetime | None = None
     for pr_num in cited_prs:
         fix_ts = gateway.get_pr_merge_time(pr_num)

@@ -1,0 +1,201 @@
+{
+  "id": "episode-2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only",
+  "session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only",
+  "timestamp": "2026-08-12T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve issue 4879 doc-accuracy docs-only false findings",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4879, its two comments, and linked issue and PR discussions; checked for an existing PR and claimed the issue.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the report against origin/main before changing code.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged current impact and priority.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed direct linked discussions and retried recursive retrieval.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented and generated the docs-only guard.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran positive, negative, edge, mutation, lint, generation, contract, manifest, and install checks.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered expired agent state and reconciled current repository state.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced current behavior against origin/main and the recovered fix.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the CLI positive control after current main isolation exposed an invalid fixture.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran repository validation and artifact-only adversarial review.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed validation for the exit-code documentation follow-up.",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T04:23:51+00:00",
+      "type": "commit",
+      "content": "Commit: b985c58bae",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T04:42:33+00:00",
+      "type": "commit",
+      "content": "Commit: 52a1c5414a",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T17:02:38+00:00",
+      "type": "commit",
+      "content": "Commit: 9aa3d27c182",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T18:24:03+00:00",
+      "type": "commit",
+      "content": "Commit: 92358004b8004da624d48215c3a47b7f8ea646b2",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 82
+  },
+  "lessons": []
+}

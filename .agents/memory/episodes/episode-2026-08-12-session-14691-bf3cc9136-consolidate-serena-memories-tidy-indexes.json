@@ -100,9 +100,22 @@
       "id": "e008",
       "timestamp": "2026-08-12T15:21:11+00:00",
       "type": "commit",
-      "content": "Commit: 3ff8d7fdfc",
+      "content": "Commit: 3ff8d7fdfc6d8d5301382e11f95a7644eab450b2",
       "caused_by": [
         "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T10:09:15+00:00",
+      "type": "commit",
+      "content": "Commit: 90be321b3bfad576e3c1d440402d4333a87326c9",
+      "caused_by": [
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-12-session-14691-bf3cc9136-consolidate-serena-memories-tidy-indexes"
@@ -113,8 +126,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 58
+    "commits": 4,
+    "files_changed": 54
   },
   "lessons": []
 }

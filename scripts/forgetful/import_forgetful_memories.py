@@ -18,6 +18,7 @@ import json
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -48,6 +49,18 @@ PRIMARY_KEYS: dict[str, list[str]] = {
 }
 
 
+@dataclass
+class ImportStats:
+    inserted: int = 0
+    updated: int = 0
+    skipped: int = 0
+
+    def add(self, inserted: int, updated: int, skipped: int) -> None:
+        self.inserted += inserted
+        self.updated += updated
+        self.skipped += skipped
+
+
 def run_sqlite3(db_path: str, query: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["sqlite3", db_path, query],
@@ -76,6 +89,35 @@ def escape_sql_value(value: object) -> str:
     if isinstance(value, (list, dict)):
         return "'" + json.dumps(value, separators=(",", ":")).replace("'", "''") + "'"
     return "'" + str(value).replace("'", "''") + "'"
+
+
+def normalize_table_rows(table: str, value: object) -> list[dict[str, object]]:
+    """Validate and normalize table rows.
+
+    Producer contract from `scripts/forgetful/export_forgetful_memories.py`:
+        def export_table(db_path: str, table: str) -> list[dict[str, Any]]:
+
+    Different than canonical: the importer accepts ``None`` as an empty table
+    and one object as one row for committed legacy exports. Other shapes fail
+    before that table's database writes.
+    """
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if not isinstance(value, list):
+        raise RuntimeError(
+            f"Table '{table}' must be an array of objects or one object; got {type(value).__name__}"
+        )
+
+    rows: list[dict[str, object]] = []
+    for index, row in enumerate(value):
+        if not isinstance(row, dict):
+            raise RuntimeError(
+                f"Table '{table}' row {index} must be an object; got {type(row).__name__}"
+            )
+        rows.append(row)
+    return rows
 
 
 def import_table(
@@ -124,9 +166,7 @@ def import_table(
             raise RuntimeError(f"Duplicate record in {table} (fail mode)")
 
         if result.returncode != 0 and "UNIQUE constraint" not in result.stderr:
-            raise RuntimeError(
-                f"Insert failed for {table} row: {(result.stderr or '').strip()}"
-            )
+            raise RuntimeError(f"Insert failed for {table} row: {(result.stderr or '').strip()}")
         elif merge_mode == "replace":
             if existed:
                 updated += 1
@@ -143,7 +183,7 @@ def import_table(
     return inserted, updated, skipped
 
 
-def main(argv: list[str] | None = None) -> int:
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Import Forgetful database from JSON")
     parser.add_argument("--input-files", nargs="*", default=[], help="JSON files to import")
     parser.add_argument(
@@ -158,108 +198,152 @@ def main(argv: list[str] | None = None) -> int:
         help="How to handle existing records",
     )
     parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
 
+
+def validate_environment(database_path: str) -> bool:
+    if shutil.which("sqlite3") and Path(database_path).exists():
+        return True
     if not shutil.which("sqlite3"):
         print("ERROR: sqlite3 is not installed or not in PATH", file=sys.stderr)
-        return 1
+        return False
+    print(f"ERROR: Forgetful database not found at: {database_path}", file=sys.stderr)
+    return False
 
-    if not Path(args.database_path).exists():
-        print(f"ERROR: Forgetful database not found at: {args.database_path}", file=sys.stderr)
-        return 1
 
-    input_files = args.input_files
+def resolve_input_files(input_files: list[str]) -> tuple[list[str], int | None]:
     if not input_files:
         if not _EXPORTS_DIR.exists():
             _EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
             print("No memory files to import")
-            return 0
+            return [], 0
         input_files = [str(f) for f in sorted(_EXPORTS_DIR.glob("*.json"))]
         if not input_files:
             print(f"No memory files to import from: {_EXPORTS_DIR}")
-            return 0
+            return [], 0
 
     missing = [f for f in input_files if not Path(f).exists()]
-    if missing:
-        print("ERROR: Input files not found:", file=sys.stderr)
-        for m in missing:
-            print(f"  - {m}", file=sys.stderr)
-        return 1
+    if not missing:
+        return input_files, None
+    print("ERROR: Input files not found:", file=sys.stderr)
+    for missing_file in missing:
+        print(f"  - {missing_file}", file=sys.stderr)
+    return [], 1
 
-    print(f"Importing {len(input_files)} memory file(s)")
-    print(f"   Merge mode: {args.merge_mode}")
 
-    total_inserted = 0
-    total_updated = 0
-    total_skipped = 0
-    failed_files: list[tuple[str, str]] = []
+def import_tables(
+    table_data: dict[str, object],
+    database_path: str,
+    merge_mode: str,
+    totals: ImportStats,
+) -> None:
+    for table in IMPORT_ORDER:
+        rows = normalize_table_rows(table, table_data.get(table, []))
+        if not rows:
+            continue
 
-    for file_path in input_files:
-        file_name = Path(file_path).name
-        print(f"  {file_name}")
+        schema_cols = get_schema_columns(database_path, table)
+        if not schema_cols:
+            print(f"    WARNING: Could not get schema for {table} (skipping)")
+            continue
 
-        try:
-            data = json.loads(Path(file_path).read_text(encoding="utf-8"))
+        print(f"     Importing {table} ({len(rows)} rows)...")
+        inserted, updated, skipped = import_table(
+            database_path,
+            table,
+            rows,
+            schema_cols,
+            merge_mode,
+        )
+        totals.add(inserted, updated, skipped)
+        print(f"       Inserted: {inserted}, Updated: {updated}, Skipped: {skipped}")
 
-            if "export_metadata" not in data:
-                print("    WARNING: Invalid format: missing export_metadata (skipping)")
-                failed_files.append((file_name, "Invalid export format"))
-                continue
 
-            if "data" not in data:
-                print("    WARNING: Invalid format: missing data section (skipping)")
-                failed_files.append((file_name, "Invalid export format"))
-                continue
+def import_file(
+    file_path: str,
+    database_path: str,
+    merge_mode: str,
+    totals: ImportStats,
+) -> str | None:
+    file_name = Path(file_path).name
+    try:
+        data = json.loads(Path(file_path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Export root must be an object; got {type(data).__name__}")
+        if "export_metadata" not in data:
+            print("    WARNING: Invalid format: missing export_metadata (skipping)")
+            return "Invalid export format"
+        if "data" not in data:
+            print("    WARNING: Invalid format: missing data section (skipping)")
+            return "Invalid export format"
 
-            for table in IMPORT_ORDER:
-                rows = data["data"].get(table, [])
-                if not rows:
-                    continue
-
-                schema_cols = get_schema_columns(args.database_path, table)
-                if not schema_cols:
-                    print(f"    WARNING: Could not get schema for {table} (skipping)")
-                    continue
-
-                print(f"     Importing {table} ({len(rows)} rows)...")
-                ins, upd, skp = import_table(
-                    args.database_path, table, rows, schema_cols, args.merge_mode
-                )
-                total_inserted += ins
-                total_updated += upd
-                total_skipped += skp
-                print(f"       Inserted: {ins}, Updated: {upd}, Skipped: {skp}")
-
-        except json.JSONDecodeError as e:
-            failed_files.append((file_name, f"Invalid JSON: {e}"))
-            print(f"    WARNING: Failed to parse {file_name}: {e}")
-        except KeyError as e:
-            failed_files.append((file_name, f"Missing key: {e}"))
-            print(f"    WARNING: Missing expected key {e} in {file_name}")
-        except RuntimeError as e:
-            failed_files.append((file_name, str(e)))
-            print(f"    WARNING: Import failed for {file_name}: {e}")
-        except subprocess.TimeoutExpired as e:
-            failed_files.append((file_name, f"Timeout: {e.timeout}s"))
-            print(f"    WARNING: Timeout importing {file_name}: {e.timeout}s")
-
-    print()
-    if not failed_files:
-        if args.merge_mode == "replace":
-            print(
-                f"Import complete: {total_inserted} inserted, "
-                f"{total_updated} updated, {total_skipped} unchanged"
+        table_data = data["data"]
+        if not isinstance(table_data, dict):
+            raise RuntimeError(
+                f"Data section must be an object of tables; got {type(table_data).__name__}"
             )
-        else:
-            print(f"Import complete: {total_inserted} inserted, {total_skipped} skipped")
-    else:
-        failed = len(failed_files)
-        print(f"Import completed with failures: {total_inserted} succeeded, {failed} failed")
+        import_tables(table_data, database_path, merge_mode, totals)
+        return None
+    except json.JSONDecodeError as error:
+        print(f"    WARNING: Failed to parse {file_name}: {error}")
+        return f"Invalid JSON: {error}"
+    except KeyError as error:
+        print(f"    WARNING: Missing expected key {error} in {file_name}")
+        return f"Missing key: {error}"
+    except RuntimeError as error:
+        print(f"    WARNING: Import failed for {file_name}: {error}")
+        return str(error)
+    except subprocess.TimeoutExpired as error:
+        print(f"    WARNING: Timeout importing {file_name}: {error.timeout}s")
+        return f"Timeout: {error.timeout}s"
+
+
+def report_results(
+    totals: ImportStats,
+    merge_mode: str,
+    failed_files: list[tuple[str, str]],
+) -> int:
+    print()
+    if failed_files:
+        print(
+            f"Import completed with failures: {totals.inserted} succeeded, "
+            f"{len(failed_files)} failed"
+        )
         for name, reason in failed_files:
             print(f"  FAIL {name}: {reason}")
         return 1
 
+    if merge_mode == "replace":
+        print(
+            f"Import complete: {totals.inserted} inserted, "
+            f"{totals.updated} updated, {totals.skipped} unchanged"
+        )
+        return 0
+    print(f"Import complete: {totals.inserted} inserted, {totals.skipped} skipped")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    if not validate_environment(args.database_path):
+        return 1
+
+    input_files, early_exit = resolve_input_files(args.input_files)
+    if early_exit is not None:
+        return early_exit
+
+    print(f"Importing {len(input_files)} memory file(s)")
+    print(f"   Merge mode: {args.merge_mode}")
+    totals = ImportStats()
+    failed_files: list[tuple[str, str]] = []
+    for file_path in input_files:
+        file_name = Path(file_path).name
+        print(f"  {file_name}")
+        failure = import_file(file_path, args.database_path, args.merge_mode, totals)
+        if failure:
+            failed_files.append((file_name, failure))
+
+    return report_results(totals, args.merge_mode, failed_files)
 
 
 if __name__ == "__main__":

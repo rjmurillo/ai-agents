@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14693,
+    "date": "2026-08-12",
+    "branch": "fix/4896-chestertons-fence-utf8",
+    "startingCommit": "57715aa9f",
+    "objective": "Own GitHub issue 4896 end to end"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server was project-bound; activate_project was unavailable, while list_memories and read_memory resolved repository memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only; no issue 4896 handoff existed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill context listed issue and PR scripts; check_existing_pr_for_issue.py and claim_issue.py ran before branch creation"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/GOTCHAS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index plus Copilot skill mirror, mutation coverage, stale bytecode, stale main ref, and linked-issue gate memories read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4896-chestertons-fence-utf8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4896-chestertons-fence-utf8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree started clean on origin/main; only issue 4896 files and this session log changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "57715aa9f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items completed before the final session artifact commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Persistence gate reviewed; existing mirror and mutation memories already cover the reusable findings"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-PR Markdown Linting passed on the changed QA report after merging origin/main"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/issue-4896-pr-4924-utf8-qa-report.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, mypy package-marker fix, session artifacts, and origin/main merge were committed"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed 51 of 51 checks; validate_session_json.py passed before the final session artifact commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fleet todo issue-4896 set to in_progress; final done update follows PR creation"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: no new durable learning beyond existing repository memories"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "triage",
+      "detail": "Read issue #4896 body and its sole comment through repository GitHub scripts. No linked issue or pull request required recursion. No existing PR existed, and claim_issue.py assigned rjmurillo."
+    },
+    {
+      "action": "reproduce",
+      "detail": "On origin/main commit 57715aa9f, the documented command succeeded under native UTF-8 but failed under LC_ALL=C, PYTHONUTF8=0 with UnicodeDecodeError at find_related_adrs line 137. Priority P1 and a fix are merited because the ADR gate fails before producing evidence on Windows."
+    },
+    {
+      "action": "implement",
+      "detail": "Added explicit UTF-8 reads for ADR and template text. ADR decode failures now return exit 1 with the exact file path and decoder error. Regenerated the Copilot CLI skill mirror. Removed the empty package marker from the hyphenated test directory so the changed-files mypy gate can type-check its tests."
+    },
+    {
+      "action": "test",
+      "detail": "Added positive, negative, and edge tests. The positive test simulates cp1252 as the platform default and fails when explicit UTF-8 is removed. The negative CLI test proves invalid UTF-8 produces no partial JSON and names the ADR path."
+    },
+    {
+      "action": "review",
+      "detail": "Separate GPT-5.6 Sol code-review agents received only the worktree diff before and after the mypy-gate repair. Both returned CLEAN. Independent evidence includes 64 passing targeted tests, Ruff and changed-files mypy clean, 51 of 51 pre-PR checks passed, canonical and generated scripts byte-identical, and text plus JSON runtime checks under an ASCII locale."
+    }
+  ],
+  "endingCommit": "7fd6772d4ce196ad744ace049e17fd60d7930872",
+  "nextSteps": []
+}

