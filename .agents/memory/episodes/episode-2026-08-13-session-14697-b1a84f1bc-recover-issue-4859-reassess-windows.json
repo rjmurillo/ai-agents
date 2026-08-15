@@ -1,0 +1,164 @@
+{
+  "id": "episode-2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows",
+  "session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Recover issue 4859, reassess Windows merge-tree ratchet failure, finish root-cause fix, tests, validation, focused PR, and adversarial review",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed issue 4859 and rebuilt stale state from GitHub, git refs, branches, pull requests, and external worktrees.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue 4859 discourse and its merge-tree and Ruff ratchet lineage.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both claims on exact current origin/main commit 784ad3d21aeb259e188de8352c4aef88de484819.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased the recovered unpublished fix onto current origin/main.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran local positive, negative, edge, lint, and merge-tree ratchet checks.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran GPT-5.6 Sol artifact-only review against the final diff and deterministic evidence.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T14:58:01+00:00",
+      "type": "commit",
+      "content": "Commit: 91459ce77c4baee3e6b0b975237ea9ef5a266cde",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched PR 4968 failure logs and reproduced the remaining Windows cleanup defect from the exact CI diagnostic.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added read-only attribute clearing through shutil.rmtree onexc while retaining bounded transient retries and explicit persistent-failure diagnostics.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main and combined its symlink/read-only cleanup work with the PR path-prefix and bounded retry fixes.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T15:06:24+00:00",
+      "type": "commit",
+      "content": "Commit: c020527ad974e73bb8d9cbccbd9f835ce08b0765",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T15:10:54+00:00",
+      "type": "commit",
+      "content": "Commit: 6d52dd5907897f61947f215884548280f3838994",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14697-b1a84f1bc-recover-issue-4859-reassess-windows"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 5
+  },
+  "lessons": []
+}

@@ -642,7 +642,12 @@ class TestExtractClaims:
 
 
 # ---------------------------------------------------------------------------
-# verify_claims (gh / git probes)
+# verify_claims (gh / GraphQL probes)
+#
+# Three outcomes per claim, not two (issue #4951): verified good, verified
+# bad (exit 1), and "the probe never answered" (exit 3 external, 4 auth).
+# Commit claims still probe REST directly; PR claims go through the shared
+# tri-state reader, so they are mocked at different seams.
 # ---------------------------------------------------------------------------
 
 
@@ -654,16 +659,60 @@ def _commit_missing():
     return _completed(stderr="Not Found", rc=1)
 
 
-def _pr_merged():
-    return _completed(stdout=json.dumps({"state": "closed", "merged": True}), rc=0)
+def _commit_probe_500():
+    return _completed(stderr="gh: Internal Server Error (HTTP 500)", rc=1)
 
 
-def _pr_open():
-    return _completed(stdout=json.dumps({"state": "open", "merged": False}), rc=0)
+def _commit_probe_auth_failure():
+    return _completed(stderr="gh: Bad credentials (HTTP 401)", rc=1)
 
 
-def _pr_closed_unmerged():
-    return _completed(stdout=json.dumps({"state": "closed", "merged": False}), rc=0)
+def _pr_state(status, *, number=1024, state=None, detail="", exit_code=0):
+    """Build a PrMergeState from the module under test.
+
+    Uses ``_mod.PrMergeState`` rather than importing the class through
+    ``scripts.github_core``: the script loads the plugin copy under
+    ``.claude/lib``, so the two enum objects are distinct and an ``is``
+    comparison across them would silently never match.
+    """
+    return _mod.PrMergeState(
+        owner="o",
+        repo="r",
+        number=number,
+        status=status,
+        state=state,
+        detail=detail,
+        exit_code=exit_code,
+    )
+
+
+def _pr_merged(number=1024):
+    return _pr_state(_mod.PrMergeStatus.MERGED, number=number, state="MERGED")
+
+
+def _pr_open(number=1024):
+    return _pr_state(_mod.PrMergeStatus.UNMERGED, number=number, state="OPEN")
+
+
+def _pr_closed_unmerged(number=1024):
+    return _pr_state(_mod.PrMergeStatus.UNMERGED, number=number, state="CLOSED")
+
+
+def _pr_absent(number=1024):
+    return _pr_state(_mod.PrMergeStatus.NOT_FOUND, number=number)
+
+
+def _pr_probe_failed(number=1024, detail="HTTP 502 Bad Gateway", exit_code=3):
+    return _pr_state(
+        _mod.PrMergeStatus.PROBE_FAILED,
+        number=number,
+        detail=detail,
+        exit_code=exit_code,
+    )
+
+
+def _patch_pr_reader(*states):
+    return patch("close_issue.read_pr_merge_state", side_effect=list(states))
 
 
 class TestVerifyClaims:
@@ -676,6 +725,9 @@ class TestVerifyClaims:
             repo="r",
         )
         assert result.failures == ()
+        assert result.probe_errors == ()
+        assert result.blocked is False
+        assert result.exit_code == 0
 
     def test_resolvable_commit_passes(self):
         with patch("subprocess.run", side_effect=[_commit_found()]) as mock_run:
@@ -684,24 +736,21 @@ class TestVerifyClaims:
                 owner="o",
                 repo="r",
             )
-        assert result.failures == ()
+        assert result.blocked is False
         # Probe used gh api repos/o/r/commits/abc1234.
         probe_args = mock_run.call_args_list[0].args[0]
         assert probe_args[:2] == ["gh", "api"]
         assert probe_args[2] == "repos/o/r/commits/abc1234"
 
-    def test_github_probes_decode_utf8_with_replacement(self):
-        with patch(
-            "subprocess.run",
-            side_effect=[_commit_found(), _pr_merged()],
-        ) as mock_run:
+    def test_commit_probe_decodes_utf8_with_replacement(self):
+        with patch("subprocess.run", side_effect=[_commit_found()]) as mock_run:
             result = _mod.verify_claims(
-                _mod.Claims(commits=("abc1234",), prs=(1024,)),
+                _mod.Claims(commits=("abc1234",), prs=()),
                 owner="o",
                 repo="r",
             )
 
-        assert result.failures == ()
+        assert result.blocked is False
         for call in mock_run.call_args_list:
             assert call.kwargs["encoding"] == "utf-8"
             assert call.kwargs["errors"] == "replace"
@@ -717,18 +766,82 @@ class TestVerifyClaims:
         assert len(result.failures) == 1
         assert "61c56cbe" in result.failures[0]
         assert "commit" in result.failures[0].lower()
+        assert result.exit_code == 1
+
+    def test_commit_probe_api_failure_is_not_a_missing_commit(self):
+        # A 500 says nothing about whether the commit exists.
+        with patch("subprocess.run", side_effect=[_commit_probe_500()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert len(result.probe_errors) == 1
+        assert "could not verify" in result.probe_errors[0]
+        assert "does not exist" not in result.probe_errors[0]
+        assert result.exit_code == 3
+
+    def test_commit_probe_auth_failure_exits_4(self):
+        with patch("subprocess.run", side_effect=[_commit_probe_auth_failure()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert result.exit_code == 4
+
+    def test_commit_probe_timeout_exits_3_not_1(self):
+        # subprocess.TimeoutExpired is not caught by the gh returncode check;
+        # uncaught it would end the process with Python's exit 1, which
+        # ADR-035 reserves for a verified logic failure.
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30),
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert result.exit_code == 3
+
+    def test_commit_probe_silent_failure_is_unverifiable(self):
+        # Nonzero exit with no output proves nothing; fail closed as external.
+        with patch("subprocess.run", side_effect=[_completed(rc=1)]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert result.exit_code == 3
 
     def test_merged_pr_passes(self):
-        with patch("subprocess.run", side_effect=[_pr_merged()]):
+        with _patch_pr_reader(_pr_merged()):
             result = _mod.verify_claims(
                 _mod.Claims(commits=(), prs=(1024,)),
                 owner="o",
                 repo="r",
             )
-        assert result.failures == ()
+        assert result.blocked is False
+        assert result.exit_code == 0
+
+    def test_pr_probe_reads_the_cited_number(self):
+        with patch(
+            "close_issue.read_pr_merge_state", return_value=_pr_merged(4729),
+        ) as mock_reader:
+            _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(4729,)),
+                owner="rjmurillo",
+                repo="ai-agents",
+            )
+        assert mock_reader.call_args.args == ("rjmurillo", "ai-agents", 4729)
 
     def test_open_pr_fails(self):
-        with patch("subprocess.run", side_effect=[_pr_open()]):
+        with _patch_pr_reader(_pr_open()):
             result = _mod.verify_claims(
                 _mod.Claims(commits=(), prs=(1024,)),
                 owner="o",
@@ -737,27 +850,118 @@ class TestVerifyClaims:
         assert len(result.failures) == 1
         assert "#1024" in result.failures[0]
         assert "merged" in result.failures[0].lower()
+        assert result.exit_code == 1
 
     def test_closed_unmerged_pr_fails(self):
-        with patch("subprocess.run", side_effect=[_pr_closed_unmerged()]):
+        with _patch_pr_reader(_pr_closed_unmerged()):
             result = _mod.verify_claims(
                 _mod.Claims(commits=(), prs=(1024,)),
                 owner="o",
                 repo="r",
             )
         assert len(result.failures) == 1
+        assert result.exit_code == 1
+
+    def test_absent_pr_fails_as_a_bad_claim(self):
+        with _patch_pr_reader(_pr_absent(999999)):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(999999,)),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 1
+        assert "does not exist" in result.failures[0]
+        assert result.exit_code == 1
+
+    def test_pr_probe_failure_is_not_reported_as_unmerged(self):
+        # The 2026-08-13 incident (issue #4951): PR #4729 merged 2026-08-07 and
+        # PR #3076 merged 2026-07-16 were both published as "not merged"
+        # because their REST probes failed.
+        with _patch_pr_reader(
+            _pr_probe_failed(4729), _pr_probe_failed(3076),
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(4729, 3076)),
+                owner="rjmurillo",
+                repo="ai-agents",
+            )
+        assert result.failures == ()
+        assert len(result.probe_errors) == 2
+        for message in result.probe_errors:
+            assert "not merged" not in message
+            assert "could not verify" in message
+        assert result.exit_code == 3
+
+    def test_pr_probe_auth_failure_exits_4(self):
+        with _patch_pr_reader(
+            _pr_probe_failed(detail="Bad credentials", exit_code=4),
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert result.exit_code == 4
+
+    def test_pr_probe_malformed_response_exits_3(self):
+        with _patch_pr_reader(
+            _pr_probe_failed(detail="GraphQL pullRequest.merged was not a boolean"),
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        assert result.exit_code == 3
+        assert "not a boolean" in result.probe_errors[0]
 
     def test_multiple_failures_collected(self):
         with patch(
-            "subprocess.run",
-            side_effect=[_commit_missing(), _pr_open()],
-        ):
+            "subprocess.run", side_effect=[_commit_missing()],
+        ), _patch_pr_reader(_pr_open()):
             result = _mod.verify_claims(
                 _mod.Claims(commits=("61c56cbe",), prs=(1024,)),
                 owner="o",
                 repo="r",
             )
         assert len(result.failures) == 2
+
+    def test_every_claim_is_probed_even_after_the_first_failure(self):
+        with _patch_pr_reader(_pr_open(1), _pr_probe_failed(2), _pr_merged(3)):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1, 2, 3)),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 1
+        assert len(result.probe_errors) == 1
+
+    def test_probe_failure_outranks_verified_failure(self):
+        # An incomplete pass cannot be published as a finished judgment, so
+        # the retryable code wins; the envelope still carries both lists.
+        with _patch_pr_reader(_pr_open(1), _pr_probe_failed(2)):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1, 2)),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures
+        assert result.probe_errors
+        assert result.exit_code == 3
+
+    def test_auth_probe_failure_outranks_external_probe_failure(self):
+        with _patch_pr_reader(
+            _pr_probe_failed(1, detail="HTTP 502", exit_code=3),
+            _pr_probe_failed(2, detail="Bad credentials", exit_code=4),
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1, 2)),
+                owner="o",
+                repo="r",
+            )
+        assert result.exit_code == 4
 
 
 # ---------------------------------------------------------------------------
@@ -844,8 +1048,8 @@ class TestVerifyClaimsGate:
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
-            side_effect=[_state_open(), _pr_open()],
-        ) as mock_run:
+            side_effect=[_state_open()],
+        ) as mock_run, _patch_pr_reader(_pr_open()):
             rc = main(
                 [
                     "--issue",
@@ -856,11 +1060,95 @@ class TestVerifyClaimsGate:
                 ],
             )
         assert rc == 1
-        # State check + PR probe; no close, no comment POST.
-        assert mock_run.call_count == 2
+        # State check only; no close, no comment POST.
+        assert mock_run.call_count == 1
         env = _envelope(capsys)
         assert env["Error"]["Type"] == "VerificationFailed"
         assert "#1024" in env["Error"]["Message"]
+        assert env["Data"]["probeErrors"] == []
+
+    def test_verify_claims_api_failure_exits_3_not_1(self, capsys):
+        # Issue #4951: a failed probe used to be published as exit 1 with the
+        # sentence "cited PR #N is not merged".
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ) as mock_run, _patch_pr_reader(_pr_probe_failed(4729)):
+            rc = main(
+                [
+                    "--issue",
+                    "4858",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #4729.",
+                ],
+            )
+        assert rc == 3
+        # No close was attempted: unverifiable still fails closed.
+        assert mock_run.call_count == 1
+        env = _envelope(capsys)
+        assert env["Error"]["Code"] == 3
+        assert env["Error"]["Type"] == "ApiError"
+        assert "not merged" not in env["Error"]["Message"]
+        assert env["Data"]["failures"] == []
+        assert len(env["Data"]["probeErrors"]) == 1
+
+    def test_verify_claims_auth_failure_exits_4(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(
+            _pr_probe_failed(1024, detail="Bad credentials", exit_code=4),
+        ):
+            rc = main(
+                [
+                    "--issue",
+                    "139",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #1024.",
+                ],
+            )
+        assert rc == 4
+        env = _envelope(capsys)
+        assert env["Error"]["Code"] == 4
+        assert env["Error"]["Type"] == "AuthError"
+        assert "not merged" not in env["Error"]["Message"]
+
+    def test_verify_claims_malformed_response_exits_3(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(
+            _pr_probe_failed(
+                1024, detail="GraphQL pullRequest.merged was not a boolean",
+            ),
+        ):
+            rc = main(
+                [
+                    "--issue",
+                    "139",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #1024.",
+                ],
+            )
+        assert rc == 3
+        env = _envelope(capsys)
+        assert env["Error"]["Type"] == "ApiError"
+        assert "not a boolean" in env["Error"]["Message"]
 
     def test_verify_claims_passes_when_commit_and_pr_resolve(self, capsys):
         with patch(
@@ -873,11 +1161,10 @@ class TestVerifyClaimsGate:
             side_effect=[
                 _state_open(),
                 _commit_found(),
-                _pr_merged(),
                 _completed(rc=0),
                 _completed(stdout="{}", rc=0),
             ],
-        ) as mock_run:
+        ) as mock_run, _patch_pr_reader(_pr_merged(999)):
             rc = main(
                 [
                     "--issue",
@@ -888,8 +1175,8 @@ class TestVerifyClaimsGate:
                 ],
             )
         assert rc == 0
-        # State + commit probe + PR probe + close + comment POST.
-        assert mock_run.call_count == 5
+        # State + commit probe + close + comment POST (the PR probe is GraphQL).
+        assert mock_run.call_count == 4
         data = _envelope(capsys)["Data"]
         assert data["state"] == "closed"
         assert data["commented"] is True
@@ -938,3 +1225,65 @@ class TestVerifyClaimsGate:
             rc = main(["--issue", "60", "--verify-claims"])
         assert rc == 0
         assert mock_run.call_count == 2
+
+    def test_verified_failure_keeps_the_documented_headline(self, capsys):
+        """Exit 1 keeps the #2481 wording other readers depend on.
+
+        `.serena/memories/github-skill/issue-comment-file-must-live-inside-the-repo.md`
+        quotes this sentence as the thing an operator sees, and callers grep
+        for it. Issue #4951 changed which situations reach it, not the words.
+        """
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(_pr_open()):
+            rc = main(
+                [
+                    "--issue",
+                    "139",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #1024.",
+                ],
+            )
+        assert rc == 1
+        message = _envelope(capsys)["Error"]["Message"]
+        assert message.startswith(
+            "Closing comment cites unverifiable artifact(s); aborting close."
+        )
+
+    def test_probe_failure_headline_cannot_be_read_as_a_verdict(self, capsys):
+        """Exit 3/4 must not reuse the exit-1 sentence.
+
+        The two outcomes are different facts. Sharing a headline is how the
+        #4951 incident read as a verdict on PR #4729 when the probe had
+        simply fallen over.
+        """
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run", side_effect=[_state_open()],
+        ), _patch_pr_reader(_pr_probe_failed(4729)):
+            rc = main(
+                [
+                    "--issue",
+                    "4858",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #4729.",
+                ],
+            )
+        assert rc == 3
+        message = _envelope(capsys)["Error"]["Message"]
+        assert message.startswith(
+            "Could not verify closing comment claim(s) against GitHub; "
+            "aborting close without judging them."
+        )
+        assert "cites unverifiable artifact" not in message

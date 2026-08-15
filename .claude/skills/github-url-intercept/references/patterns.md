@@ -25,6 +25,10 @@ PR files tab:
   https://github.com/owner/repo/pull/123/files
   → get_pr_context.py --pull-request 123 --include-changed-files
 
+PR changes tab:
+  https://github.com/owner/repo/pull/123/changes#r987654321
+  → get_pr_context.py --pull-request 123 --include-diff
+
 PR commits tab:
   https://github.com/owner/repo/pull/123/commits
   → get_pr_context.py --pull-request 123 (includes commit count)
@@ -39,11 +43,23 @@ PR checks tab:
 ```text
 Standard issue:
   https://github.com/owner/repo/issues/456
-  → Get-IssueContext.ps1 -Issue "456" -Owner "owner" -Repo "repo"
+  → get_issue_context.py --issue 456 --owner owner --repo repo
 
 Issue with comment:
   https://github.com/owner/repo/issues/456#issuecomment-789123456
   → gh api "repos/owner/repo/issues/comments/789123456"
+
+Discussion:
+  https://github.com/owner/repo/discussions/789
+  → gh api "repos/owner/repo/discussions/789"
+
+Actions run:
+  https://github.com/owner/repo/actions/runs/123
+  → gh api "repos/owner/repo/actions/runs/123"
+
+Actions job:
+  https://github.com/owner/repo/actions/runs/123/job/456
+  → gh api "repos/owner/repo/actions/jobs/456"
 ```
 
 ### File/Tree URLs
@@ -82,6 +98,30 @@ Tag comparison:
   → gh api "repos/owner/repo/compare/v1.0.0...v2.0.0"
 ```
 
+### Gist URLs
+
+```text
+Standard gist:
+  https://gist.github.com/owner/0123456789abcdef0123
+  → gh api "gists/0123456789abcdef0123"
+
+Ownerless gist:
+  https://gist.github.com/0123456789abcdef0123
+  → gh api "gists/0123456789abcdef0123"
+
+Gist revisions:
+  https://gist.github.com/0123456789abcdef0123/0123456789abcdef0123456789abcdef01234567
+  → gh api "gists/0123456789abcdef0123/0123456789abcdef0123456789abcdef01234567"
+
+Gist embed:
+  https://gist.github.com/owner/0123456789abcdef0123.js
+  → gh api "gists/0123456789abcdef0123"
+
+Raw gist content:
+  https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/0123456789abcdef0123456789abcdef01234567/file.txt
+  → gh api 'https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/0123456789abcdef0123456789abcdef01234567/file.txt'
+```
+
 ## Script Selection Guide
 
 ### When to Use Scripts (Primary)
@@ -92,7 +132,7 @@ Tag comparison:
 | Review comments | Get-PRReviewComments.ps1 (legacy) | Pagination handled, threading preserved |
 | Review threads | get_pr_review_threads.py | Full thread context |
 | CI status | get_pr_checks.py | Can wait for completion, structured output |
-| Issue overview | Get-IssueContext.ps1 | Structured JSON, proper error handling |
+| Issue overview | get_issue_context.py | Structured JSON, proper error handling |
 
 ### When to Use gh api (Fallback)
 
@@ -103,6 +143,7 @@ Tag comparison:
 | File contents | `gh api repos/{o}/{r}/contents/{path}` | File operations not in github skill |
 | Commit details | `gh api repos/{o}/{r}/commits/{sha}` | Commit operations not in github skill |
 | Branch comparison | `gh api repos/{o}/{r}/compare/{base}...{head}` | Compare not in github skill |
+| Gist content | `gh api gists/{id}` | Gist operations not in github skill |
 
 ## Context Optimization
 
@@ -115,6 +156,7 @@ Tag comparison:
 | File blob | 1-5 MB | 1-500 KB | 2-10x |
 | Commit | 2-8 MB | 10-100 KB | 20-80x |
 | Compare | 3-10 MB | 50-500 KB | 6-20x |
+| Gist | 1-5 MB | 1-500 KB | 2-10x |
 
 ### When Size Matters Most
 

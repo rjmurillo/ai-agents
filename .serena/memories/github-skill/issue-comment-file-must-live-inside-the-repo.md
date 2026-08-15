@@ -157,14 +157,29 @@ as context.** A closing comment mentioning `#4017` purely as a note for whoever
 lands that branch aborts the close:
 
 ```
-[FAIL] Closing comment cites unverifiable artifact(s); aborting close.
-cited PR #4017 is not merged on rjmurillo/ai-agents
+[FAIL] Closing comment cites unverifiable artifact(s); aborting close. cited PR #4017 is not merged on rjmurillo/ai-agents
 ```
 
 The guard exists for "resolved by PR X" claims naming a phantom or unmerged PR
 (issue #2481), and it cannot tell a resolution claim from an aside. Refer to the
 branch by name rather than by number when the mention is contextual, or drop
 `--verify-claims` and accept the weaker check.
+
+**A failed check reads differently from a failed claim (issue #4951).** The
+message above is a verdict: the remote answered, and the answer was no. When
+the remote cannot be reached, the script says so instead of guessing:
+
+```
+[FAIL] Could not verify closing comment claim(s) against GitHub; aborting close without judging them. could not verify cited PR #4729 on rjmurillo/ai-agents: HTTP 502: Bad Gateway
+```
+
+Exit 1 means a claim was checked and failed. Exit 3 (external) or 4 (auth)
+means it was never checked, and the word "merged" will not appear. Both abort
+the close. The exit-1 line also names the state the remote reported when it
+has one, so an unmerged PR now reads `... is not merged on OWNER/REPO (state
+OPEN)`. Before #4951 an API failure printed the exit-1 wording above, so
+`cited PR #N is not merged` could mean the probe fell over: on 2026-08-13 it
+said that about two PRs that had been merged for weeks.
 
 ## Also worth knowing
 

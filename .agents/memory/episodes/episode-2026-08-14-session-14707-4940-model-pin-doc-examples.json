@@ -1,0 +1,276 @@
+{
+  "id": "episode-2026-08-14-session-14707-4940-model-pin-doc-examples",
+  "session": "2026-08-14-session-14707-4940-model-pin-doc-examples",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #4940: correct five docs that teach ADR-080-forbidden versioned model pins",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #4940 discourse and confirmed no existing PR",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed issue and created external worktree from origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established canonical contract from source, not memory",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected all five docs so every copyable example is conformant",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a regression guard and proved it non-vacuous",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "test",
+      "content": "tests/test_skill_authoring_docs_model_pins.py: 17 passed; detector run against origin/main copies flags 5/5 pre-fix docs",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran scoped validation",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review pass on the ADR-040 amendment",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Security detection reviewed: CRITICAL flag on the new test is a name collision, not a security surface",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the session log after an add/add conflict with origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T21:29:18+00:00",
+      "type": "commit",
+      "content": "Commit: 1e1c9a1d0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e015",
+        "e016",
+        "e017",
+        "e018"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-14T21:30:08+00:00",
+      "type": "commit",
+      "content": "Commit: 79dadd0c6",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-14T21:30:37+00:00",
+      "type": "commit",
+      "content": "Commit: c98f24b03",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-14T21:37:27+00:00",
+      "type": "commit",
+      "content": "Commit: 72c2f893484ee56e611e00bfb3aae25d0ef6792b",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR #5003 for the five corrected documents and the regression guard",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded why the sanctioned new_pr.py path could not run here",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renamed the QA report to carry the PR number",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-14T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the Copilot review on PR #5003",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-14T21:37:27+00:00",
+      "type": "commit",
+      "content": "Commit: 72c2f8934",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-14T23:20:37+00:00",
+      "type": "commit",
+      "content": "Commit: cd65c4c06f228b66c64de8ade4a41bc12ec0a8d2",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-14T23:23:49+00:00",
+      "type": "commit",
+      "content": "Commit: 21736b962851c192c855b274a48689eec30d309d",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14707-4940-model-pin-doc-examples"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 13
+  },
+  "lessons": []
+}

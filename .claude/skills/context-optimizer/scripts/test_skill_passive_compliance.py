@@ -3,7 +3,7 @@
 Skill/Passive Context Compliance Validator.
 
 Validates that content placement follows the skill vs passive context decision framework.
-Checks 6 compliance rules and returns structured JSON with violations and recommendations.
+Returns structured JSON with evaluated checks, measurements, scope, and recommendations.
 
 Exit codes:
     0: All compliance checks passed
@@ -42,14 +42,26 @@ class ComplianceResults:
     violations: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[dict[str, Any]] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
+    scope: dict[str, Any] = field(default_factory=dict)
+    size_exceptions: list[dict[str, Any]] = field(default_factory=list)
     summary: dict[str, int] = field(
         default_factory=lambda: {
             "total_checks": 0,
             "passed": 0,
             "failed": 0,
             "warnings": 0,
+            "measurements": 0,
         }
     )
+
+
+CLAUDE_MD_MEMORY_DOCS = "https://docs.anthropic.com/en/docs/claude-code/memory"
+SIZE_EXCEPTION_FIELDS = (
+    "Preserved invariant",
+    "Behavioral tests",
+    "Review trigger",
+)
+HTML_COMMENT = re.compile(r"<!--(?P<body>.*?)-->", re.DOTALL)
 
 
 def find_repository_root() -> Path:
@@ -67,9 +79,7 @@ def check_skill_has_actions(skill_path: Path) -> CheckResult:
     skill_md = skill_path / "SKILL.md"
 
     if not skill_md.exists():
-        return CheckResult(
-            passed=False, severity="error", message="SKILL.md not found"
-        )
+        return CheckResult(passed=False, severity="error", message="SKILL.md not found")
 
     content = skill_md.read_text()
 
@@ -99,7 +109,8 @@ def check_skill_has_actions(skill_path: Path) -> CheckResult:
     ]
 
     found_verbs = [
-        verb for verb in action_verbs
+        verb
+        for verb in action_verbs
         if re.search(rf"\b{verb}\b", content, re.IGNORECASE)  # nosemgrep: skill-ldap-injection
     ]
 
@@ -109,9 +120,7 @@ def check_skill_has_actions(skill_path: Path) -> CheckResult:
 
     # Check for tool execution in prompt
     tool_patterns = ["Bash", "Read", "Write", "Edit", "pwsh", "gh ", "git "]
-    found_tools = [
-        tool for tool in tool_patterns if re.search(re.escape(tool), content)
-    ]
+    found_tools = [tool for tool in tool_patterns if re.search(re.escape(tool), content)]
 
     if not found_verbs and not has_scripts and not found_tools:
         return CheckResult(
@@ -142,9 +151,7 @@ def check_passive_context_knowledge_only(file_path: Path) -> CheckResult:
         r"Invoke-",
     ]
 
-    found_actions = [
-        pattern for pattern in action_indicators if re.search(pattern, content)
-    ]
+    found_actions = [pattern for pattern in action_indicators if re.search(pattern, content)]
 
     if found_actions:
         return CheckResult(
@@ -153,42 +160,161 @@ def check_passive_context_knowledge_only(file_path: Path) -> CheckResult:
             message=f"Contains {len(found_actions)} action pattern(s)",
         )
 
-    return CheckResult(
-        passed=True, severity="none", message="Knowledge-only content"
-    )
+    return CheckResult(passed=True, severity="none", message="Knowledge-only content")
 
 
-def check_claude_md_line_count(file_path: Path) -> CheckResult:
-    """Check if CLAUDE.md is under 200 lines (Anthropic recommendation)."""
+def measure_claude_md_single_file(file_path: Path) -> CheckResult:
+    """Measure one CLAUDE.md without claiming a vendor line limit."""
     if not file_path.exists():
         return CheckResult(passed=False, severity="error", message="CLAUDE.md not found")
 
     line_count = len(file_path.read_text().splitlines())
 
-    if line_count > 200:
+    return CheckResult(
+        passed=True,
+        severity="none",
+        message=(
+            f"Measured {line_count} lines in this CLAUDE.md. No vendor line limit was applied."
+        ),
+        details={
+            "lineCount": line_count,
+            "measurement": "single-file",
+        },
+    )
+
+
+def find_size_exception_comment(content: str) -> str:
+    """Return the structured size-exception comment body, if present."""
+    for match in HTML_COMMENT.finditer(content):
+        if "size-exception rationale" in match.group("body").lower():
+            return match.group("body")
+    return ""
+
+
+def parse_size_exception_fields(comment_body: str) -> dict[str, str]:
+    """Extract the required evidence fields from a size-exception comment."""
+    fields: dict[str, str] = {}
+    for field_name in SIZE_EXCEPTION_FIELDS:
+        field_match = re.search(
+            rf"^{re.escape(field_name)}:\s*(.+)$",
+            comment_body,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if field_match:
+            fields[field_name] = field_match.group(1).strip()
+    return fields
+
+
+def parse_size_exception_rationale(comment_body: str) -> str:
+    """Extract rationale prose before the structured evidence fields."""
+    rationale_lines = []
+    for line in comment_body.splitlines():
+        is_evidence_field = any(
+            line.strip().lower().startswith(f"{field_name.lower()}:")
+            for field_name in SIZE_EXCEPTION_FIELDS
+        )
+        if is_evidence_field:
+            break
+        rationale_lines.append(line)
+
+    rationale = " ".join(" ".join(rationale_lines).split())
+    return re.sub(
+        r"^size-exception rationale(?:\s*\([^)]*\))?[:.]?\s*",
+        "",
+        rationale,
+        flags=re.IGNORECASE,
+    )
+
+
+def audit_size_exception(skill_path: Path) -> CheckResult | None:
+    """Audit structured evidence for a declared skill size exception."""
+    skill_md = skill_path / "SKILL.md"
+    content = skill_md.read_text()
+    # Parse only YAML frontmatter for size-exception declaration,
+    # matching the canonical parser at SkillForge/scripts/frontmatter.py.
+    has_exception = False
+    if content.startswith("---"):
+        fm_lines = content.split("\n")
+        for i in range(1, len(fm_lines)):
+            if fm_lines[i].strip() == "---":
+                frontmatter_block = "\n".join(fm_lines[1:i])
+                has_exception = bool(re.search(
+                    r"^\s*size-exception:\s*true\s*(?:#.*)?$",
+                    frontmatter_block,
+                    re.IGNORECASE | re.MULTILINE,
+                ))
+                break
+    if not has_exception:
+        return None
+
+    comment_body = find_size_exception_comment(content)
+    fields = parse_size_exception_fields(comment_body)
+    rationale = parse_size_exception_rationale(comment_body)
+
+    missing_fields = [
+        field_name for field_name in SIZE_EXCEPTION_FIELDS if field_name not in fields
+    ]
+    audit_issues = [f"Missing field: {field_name}" for field_name in missing_fields]
+    if not rationale:
+        audit_issues.append("Missing rationale")
+
+    details = {
+        "skill": skill_path.name,
+        "rationale": rationale,
+        "preservedInvariant": fields.get("Preserved invariant", ""),
+        "behavioralTests": fields.get("Behavioral tests", ""),
+        "reviewTrigger": fields.get("Review trigger", ""),
+        "missingFields": missing_fields,
+        "auditIssues": audit_issues,
+    }
+
+    if audit_issues:
         return CheckResult(
             passed=False,
             severity="error",
-            message=f"CLAUDE.md has {line_count} lines (exceeds 200 limit)",
-        )
-
-    if line_count > 150:
-        return CheckResult(
-            passed=True,
-            severity="warning",
-            message=f"CLAUDE.md has {line_count} lines (approaching 200 line limit)",
+            message="Size exception lacks audit evidence: " + "; ".join(audit_issues),
+            details=details,
         )
 
     return CheckResult(
         passed=True,
         severity="none",
-        message=f"CLAUDE.md has {line_count} lines (within limit)",
+        message="Size exception includes rationale and safeguard evidence",
+        details=details,
     )
 
 
-def check_imported_files_exist(
-    claude_md_path: Path, repository_root: Path
-) -> CheckResult:
+def record_size_exception_audit(
+    results: ComplianceResults,
+    skill_dir: Path,
+    skill_name: str,
+) -> None:
+    """Add a declared size exception and any audit failure to the result."""
+    exception_check = audit_size_exception(skill_dir)
+    if exception_check is None:
+        return
+
+    results.summary["total_checks"] += 1
+    results.size_exceptions.append(exception_check.details)
+    if exception_check.passed:
+        results.summary["passed"] += 1
+        return
+
+    results.summary["failed"] += 1
+    results.violations.append(
+        {
+            "check": f"Size Exception Audit ({skill_name})",
+            "severity": exception_check.severity,
+            "message": exception_check.message,
+            "recommendation": (
+                "Add a substantive rationale, preserved invariant, "
+                "existing behavior-test paths, and review trigger"
+            ),
+        }
+    )
+
+
+def check_imported_files_exist(claude_md_path: Path, repository_root: Path) -> CheckResult:
     """Check if all @imported files exist and are readable."""
     if not claude_md_path.exists():
         return CheckResult(passed=False, severity="error", message="CLAUDE.md not found")
@@ -211,9 +337,7 @@ def check_imported_files_exist(
     for import_path in imports:
         try:
             # CWE-22: Validate resolved path stays within repository root
-            full_path = validate_path_within_repo(
-                Path(import_path), repo_root=repository_root
-            )
+            full_path = validate_path_within_repo(Path(import_path), repo_root=repository_root)
             exists = full_path.exists()
             readable = False
 
@@ -262,9 +386,7 @@ def check_skill_frontmatter(skill_path: Path) -> CheckResult:
     skill_md = skill_path / "SKILL.md"
 
     if not skill_md.exists():
-        return CheckResult(
-            passed=False, severity="error", message="SKILL.md not found"
-        )
+        return CheckResult(passed=False, severity="error", message="SKILL.md not found")
 
     content = skill_md.read_text()
 
@@ -323,9 +445,7 @@ def check_skill_frontmatter(skill_path: Path) -> CheckResult:
     )
 
 
-def check_no_duplicate_content(
-    skill_path: Path, passive_context_files: list[Path]
-) -> CheckResult:
+def check_no_duplicate_content(skill_path: Path, passive_context_files: list[Path]) -> CheckResult:
     """Check for duplicate content between skills and passive context."""
     skill_md = skill_path / "SKILL.md"
 
@@ -362,9 +482,7 @@ def check_no_duplicate_content(
 
         for phrase in skill_phrases:
             if len(phrase) > 30 and phrase in passive_content:
-                duplicates.append(
-                    {"phrase": phrase[:50], "file": passive_file.name}
-                )
+                duplicates.append({"phrase": phrase[:50], "file": passive_file.name})
 
     if duplicates:
         return CheckResult(
@@ -377,9 +495,7 @@ def check_no_duplicate_content(
     return CheckResult(passed=True, severity="none", message="No obvious duplicates found")
 
 
-def run_compliance_checks(
-    path: Path, claude_md_path: Path
-) -> ComplianceResults:
+def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults:
     """Run all compliance checks and return results."""
     repo_root = find_repository_root()
     full_path = path if path.is_absolute() else repo_root / path
@@ -391,27 +507,69 @@ def run_compliance_checks(
         timestamp=datetime.now().isoformat(),
         path=str(path),
         claude_md_path=str(claude_md_path),
+        scope={
+            "claudeMdMeasurement": (
+                "Measures only the selected CLAUDE.md file. Imports, hierarchical "
+                "CLAUDE.md and AGENTS.md files, generated instructions, and plugin "
+                "context are not included in its line count."
+            ),
+            "notEvaluated": [
+                "@imported file size",
+                "hierarchical CLAUDE.md and AGENTS.md files",
+                "generated instruction layers",
+                "plugin-provided context",
+            ],
+            "requiredSeparateChecks": [
+                f"Contributors: run skill_size.py separately for the scanned skill tree: {path} (upstream rjmurillo/ai-agents only)",
+            ],
+            "vendorGuidance": {
+                "claudeMd": (
+                    "Claude Code loads CLAUDE.md files in full. Shorter files can "
+                    "improve instruction adherence, but the vendor does not set a "
+                    "200-line CLAUDE.md compliance limit."
+                ),
+                "memoryMd": (
+                    "The first 200 lines or 25 KB limit applies to auto-memory MEMORY.md."
+                ),
+                "source": CLAUDE_MD_MEMORY_DOCS,
+                "localCommandPolicy": (
+                    "command_size.py owns this repository's local 200-line "
+                    "command-file ratchet. It does not apply to CLAUDE.md."
+                ),
+            },
+            "contentQualityReview": {
+                "automation": (
+                    "This validator detects action patterns and duplicate phrases. "
+                    "It does not infer whether prose is valuable from lexical matches."
+                ),
+                "manualCategories": [
+                    "non-inferable gotchas with cited evidence",
+                    "local arbitration between otherwise reasonable rules",
+                    "costly-failure safeguards",
+                    "task procedures that belong in skills",
+                    "inferable restatement that should be removed",
+                ],
+            },
+        },
     )
 
-    # Check 1: CLAUDE.md line count
-    results.summary["total_checks"] += 1
-    line_check = check_claude_md_line_count(full_claude_md_path)
-
-    if line_check.passed:
-        results.summary["passed"] += 1
-        if line_check.severity == "warning":
-            results.warnings.append(
-                {"check": "CLAUDE.md Line Count", "message": line_check.message}
-            )
-            results.summary["warnings"] += 1
+    # Measurement: one CLAUDE.md file, without a compliance threshold
+    measurement = measure_claude_md_single_file(full_claude_md_path)
+    if measurement.passed:
+        results.summary["measurements"] += 1
+        results.scope["claudeMdMeasurementResult"] = {
+            "message": measurement.message,
+            **measurement.details,
+        }
     else:
+        results.summary["total_checks"] += 1
         results.summary["failed"] += 1
         results.violations.append(
             {
-                "check": "CLAUDE.md Line Count",
-                "severity": line_check.severity,
-                "message": line_check.message,
-                "recommendation": "Split content into separate files and use @imports",
+                "check": "CLAUDE.md Single-File Measurement",
+                "severity": measurement.severity,
+                "message": measurement.message,
+                "recommendation": "Provide a readable CLAUDE.md path",
             }
         )
 
@@ -472,11 +630,11 @@ def run_compliance_checks(
 
     # Check 4-6: Skills (if scanning skills directory)
     if full_path.exists():
-        skill_dirs = [
-            d
-            for d in full_path.iterdir()
-            if d.is_dir() and (d / "SKILL.md").exists()
-        ]
+        skill_dirs = sorted(
+            skill_md.parent
+            for skill_md in full_path.rglob("SKILL.md")
+            if not skill_md.resolve().is_relative_to((repo_root / ".claude" / "worktrees").resolve())
+        )
 
         for skill_dir in skill_dirs:
             skill_name = skill_dir.name
@@ -529,11 +687,12 @@ def run_compliance_checks(
                     }
                 )
 
+            # Check: Declared size exception includes audit evidence
+            record_size_exception_audit(results, skill_dir, skill_name)
+
             # Check: No duplicate content
             results.summary["total_checks"] += 1
-            duplicate_check = check_no_duplicate_content(
-                skill_dir, passive_context_files
-            )
+            duplicate_check = check_no_duplicate_content(skill_dir, passive_context_files)
 
             if duplicate_check.passed:
                 results.summary["passed"] += 1
@@ -552,6 +711,36 @@ def run_compliance_checks(
     return results
 
 
+def print_scope(results: ComplianceResults) -> None:
+    """Print the measurement boundary and required companion checks."""
+    print("\nScope:")
+    print(f"  {results.scope['claudeMdMeasurement']}")
+    print("  Not evaluated:")
+    for item in results.scope["notEvaluated"]:
+        print(f"    - {item}")
+    print("  Required separate checks:")
+    for command in results.scope["requiredSeparateChecks"]:
+        print(f"    - {command}")
+
+    measurement = results.scope.get("claudeMdMeasurementResult")
+    if measurement:
+        print(f"  CLAUDE.md Single-File Measurement: {measurement['message']}")
+
+
+def print_size_exceptions(results: ComplianceResults) -> None:
+    """Print audit evidence for declared size exceptions."""
+    if not results.size_exceptions:
+        return
+
+    print("\nSize Exceptions:")
+    for exception in results.size_exceptions:
+        print(f"  {exception['skill']}")
+        print(f"    Rationale: {exception['rationale']}")
+        print(f"    Preserved invariant: {exception['preservedInvariant']}")
+        print(f"    Behavioral tests: {exception['behavioralTests']}")
+        print(f"    Review trigger: {exception['reviewTrigger']}")
+
+
 def print_table_format(results: ComplianceResults) -> None:
     """Print results in human-readable table format."""
     print("\nSkill/Passive Context Compliance Check")
@@ -566,6 +755,10 @@ def print_table_format(results: ComplianceResults) -> None:
     print(f"  Passed: {results.summary['passed']}")
     print(f"  Failed: {results.summary['failed']}")
     print(f"  Warnings: {results.summary['warnings']}")
+    print(f"  Measurements: {results.summary['measurements']}")
+
+    print_scope(results)
+    print_size_exceptions(results)
 
     if results.violations:
         print("\nViolations:")
@@ -590,7 +783,7 @@ def print_table_format(results: ComplianceResults) -> None:
 
     print()
     if results.summary["failed"] == 0:
-        print("[PASS] All compliance checks passed")
+        print("[PASS] All evaluated checks passed. See scope and separate checks.")
     else:
         print("[FAIL] Compliance violations detected")
 
@@ -635,6 +828,8 @@ def main() -> int:
                 "violations": results.violations,
                 "warnings": results.warnings,
                 "recommendations": results.recommendations,
+                "scope": results.scope,
+                "sizeExceptions": results.size_exceptions,
                 "summary": results.summary,
             }
             print(json.dumps(output, indent=2))

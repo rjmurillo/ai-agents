@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code",
+  "session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 4956 doc-accuracy exit code documentation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T01:25:34.788942+00:00",
+      "type": "milestone",
+      "content": "Session started",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T02:30:00+00:00",
+      "type": "milestone",
+      "content": "Implemented exit-code documentation fix",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T02:58:00+00:00",
+      "type": "milestone",
+      "content": "Validated focused behavior and generated artifacts",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T04:30:00+00:00",
+      "type": "milestone",
+      "content": "Applied completion-gate follow-up",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T04:23:51+00:00",
+      "type": "commit",
+      "content": "Commit: b985c58bae",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T04:42:33+00:00",
+      "type": "commit",
+      "content": "Commit: 52a1c5414a",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-14T17:02:38+00:00",
+      "type": "commit",
+      "content": "Commit: 9aa3d27c182",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T18:24:03+00:00",
+      "type": "commit",
+      "content": "Commit: 92358004b8004da624d48215c3a47b7f8ea646b2",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 184,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 23
+  },
+  "lessons": []
+}

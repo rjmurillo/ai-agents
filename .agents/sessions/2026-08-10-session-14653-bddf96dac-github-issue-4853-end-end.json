@@ -1,0 +1,200 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14653,
+    "date": "2026-08-10",
+    "branch": "fix/issue-4853-9d8546d8",
+    "startingCommit": "8f8b6696d",
+    "objective": "Own GitHub issue 4853 end to end"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP responded; this host exposed no activate_project function for the external worktree."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions returned the toolbox contract."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no *-4853-handoff.md file existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts contained 53 Python scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded eval-harness-surface-enumeration, eval-harness-observations, decision-eval-fixture-provenance-closed-loop, eval-multiprovider-transport, and agent-prompt-optimization-observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4853-9d8546d8"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4853-9d8546d8"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "External worktree verified on fix/issue-4853-9d8546d8; origin/main behind count was zero before triage."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8f8b6696d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; no issue handoff existed."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory added. Runtime behavior is encoded in tests, and issue 2840 already owns the model-pin fact."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 returned 0 for scripts/eval/README.md; QA artifact follows the same Markdown rules."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4877-issue-4853-runtime-parity-validation.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, fresh-head review fixes, test refactoring, documentation, and base refresh are ancestors of 2a75e36db65dc3ac249228185688f6ebf1701758."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed before the session artifact commit."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Claimed and triaged issue 4853",
+      "result": "No existing PR; issue is valid, priority P1, and assigned to rjmurillo."
+    },
+    {
+      "action": "Reproduced the runtime measurement gap",
+      "result": "Current main had prompt-only API and Copilot ACP transports, but no real Claude and Copilot CLI parity runner."
+    },
+    {
+      "action": "Implemented the bounded runtime evaluator",
+      "result": "Added isolated profiles, exact model checks, prompt hashes, raw JSONL, traces, four fixtures, and deterministic controls."
+    },
+    {
+      "action": "Validated deterministic behavior",
+      "result": "Ruff passed; 16 pytest cases passed with 89 percent coverage; dry-run loaded four fixtures and both controls."
+    },
+    {
+      "action": "Probed real Copilot CLI 1.0.79",
+      "result": "Resume and edit fixtures passed, sentinel stayed absent, and agent model pin resolved to 4.6 instead of requested 5."
+    },
+    {
+      "action": "Probed real Claude Code 2.1.179",
+      "result": "Binary resolved claude-opus-5 but exited 4 because no Claude authentication exists on this machine."
+    },
+    {
+      "action": "Fixed pre-PR subprocess decoding finding",
+      "result": "Added errors=replace to the git init subprocess and the exact encoding validator passed."
+    },
+    {
+      "action": "Created draft PR 4877 and checked CI",
+      "result": "PR description passed. Validate PR required a PR-numbered QA report, so the report was renamed."
+    },
+    {
+      "action": "Closed the final three review findings",
+      "result": "Exposed each harness question capability, rejected malformed JSONL as an external failure, split credentials by harness, and passed 1975 eval tests with 4 skipped."
+    },
+    {
+      "action": "Closed the post-head review findings",
+      "result": "Unified runtime failure records, renamed agent digest fields, preserved CRLF agent files, passed 44 targeted tests, and refreshed the branch from main."
+    },
+    {
+      "action": "Closed the fresh-head suppressed findings",
+      "result": "Reports now hash installed agent bytes, retain stderr diagnostics, and score structured question payloads without fallback prose. Forty-eight targeted tests and the pre-push Python suite passed after merging current main."
+    },
+    {
+      "action": "Closed the second fresh-head review",
+      "result": "Question model attribution now comes from the question event. Version probes are isolated, Copilot auto-update is disabled, fail-closed errors are explicit, and git initialization maps to exit 3. Fifty-two targeted tests passed."
+    },
+    {
+      "action": "Closed the third fresh-head review",
+      "result": "Existing runs fail before probes, only top-level agent names are rewritten, empty versions fail closed, and writes require the evaluator worktree. Fifty-five targeted tests passed."
+    },
+    {
+      "action": "Closed the fourth fresh-head review",
+      "result": "Writes now require cwd inside Git's reported worktree. The validation handoff names Claude authentication and a model both CLIs resolve identically. Fifty-six targeted tests passed."
+    },
+    {
+      "action": "Closed the fifth fresh-head review",
+      "result": "The default now matches the selected Copilot agents, version probes disable Copilot auto-update, and runtime orchestration functions stay within 60 lines. A real four-fixture dry run passed."
+    },
+    {
+      "action": "Closed the sixth fresh-head review",
+      "result": "Copilot scoring now joins all answer messages, and behavioral failures continue through every fixture. Runtime errors and model mismatches still stop immediately. Fifty-eight targeted tests passed."
+    },
+    {
+      "action": "Closed the seventh fresh-head review",
+      "result": "Nested git initialization drops inherited repository context, and the resume fixture now requires an exact reply with no surrounding prose. Sixty targeted tests passed."
+    }
+  ],
+  "endingCommit": "b3317cacfdaa4dcf157adfed8d3ba2b65909969b",
+  "nextSteps": [
+    "Authenticate Claude Code, then run all four live fixtures before closing issue 4853."
+  ]
+}

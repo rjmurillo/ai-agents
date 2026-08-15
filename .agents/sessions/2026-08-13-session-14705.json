@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14705,
+    "date": "2026-08-13",
+    "branch": "fix/4921-codeql-skill-python-wrappers",
+    "startingCommit": "ab9c636de5",
+    "objective": "Fix issue 4921: codeql-scan skill wrappers reference removed PowerShell scripts"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; list_memories returned repository memories"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools used; memories read via read_memory"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only per ADR-014); no 4921 handoff in .agents/sessions/handoffs/"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts/issue/ listed; used check_existing_pr_for_issue.py and claim_issue.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read (ADR-042 Python-first confirmed)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "codeql/codeql-security-integration read (CodeQL has no PowerShell support)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4921-codeql-skill-python-wrappers"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4921-codeql-skill-python-wrappers"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean external worktree created from origin/main ab9c636de5"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ab9c636de5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session Start and Session End tables complete in this log"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unmodified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/codeql/codeql-scan-wrapper-python-delegates.md written"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on changed markdown: 0 issues"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-issue-4921-codeql-scan-wrapper-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "8 commits on fix/4921-codeql-skill-python-wrappers"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py exit 0; full pytest 27860 passed after flush fix; build_all.py --check exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #4921 claimed via claim_issue.py"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Findings captured in Serena memory and QA report"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced #4921 in a linked worktree",
+      "result": "Both wrappers exit 3: 'Configuration script not found: .codeql/scripts/Test-CodeQLConfig.ps1'"
+    },
+    {
+      "action": "Verified delegate CLI contracts at level 1",
+      "result": "Read build_parser() in test_codeql_config.py, invoke_codeql_scan.py, install_codeql.py; flags --use-cache, --languages, --ci, --add-to-path confirmed"
+    },
+    {
+      "action": "Fixed both canonical wrappers (commit 0ddffe8768)",
+      "result": "Delegate via sys.executable, cwd=repo root; removed pwsh gate that returned 0 without scanning"
+    },
+    {
+      "action": "Fixed two further siblings with the same failure shape",
+      "result": "install_codeql_integration.py reported 'skill missing' when installed; 5 VSCode tasks invoked removed .ps1"
+    },
+    {
+      "action": "Added real-repo delegate test (commit 5c20686cc7)",
+      "result": "29 tests; mutation-verified: ps1 name 10 fail, --useCache 3 fail, drop cwd 2 fail"
+    },
+    {
+      "action": "Flipped 6 tests asserting the removed PowerShell names",
+      "result": "Fabricated .ps1 fixtures replaced with real delegate names"
+    },
+    {
+      "action": "Regenerated copilot tree via build_all.py (commit e57717137d)",
+      "result": "src/copilot-cli/skills/codeql-scan now identical to canonical; --check reports no drift"
+    },
+    {
+      "action": "Validation",
+      "result": "2363 pytest passed; ruff clean; markdownlint 0 issues; pre_pr.py exit 0"
+    },
+    {
+      "action": "Fixed stdout flush adjacency broken by the _run_delegate extraction",
+      "result": "tests/test_stdout_flush_before_spawn.py 30 passed; flush moved inside try, immediately before the spawn"
+    }
+  ],
+  "endingCommit": "7cabac1dca91690af708637ded7d9dc574a5e747",
+  "nextSteps": [
+    "Open PR with Fixes #4921",
+    "Follow-up: invoke_codeql_scan_skill.py duplicates invoke_codeql_scan.py and is undocumented in SKILL.md (skillforge warning); consider consolidating to one wrapper",
+    "Follow-up: test_codeql_config.py derives repo root as Path(config_path).parent.parent, which yields .github and produces spurious 'Path does not exist' warnings"
+  ]
+}

@@ -122,7 +122,7 @@ Step-by-step instructions the agent follows when this skill is invoked.
 The SkillForge skill automates skill creation:
 
 ```text
-/SkillForge create a skill that validates JSON schemas against a directory of files
+/skillforge create a skill that validates JSON schemas against a directory of files
 ```
 
 SkillForge analyzes your request, checks for existing skills that overlap, and generates the skill following project conventions.

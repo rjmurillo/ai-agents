@@ -62,8 +62,8 @@ indented code and HTML comments for free, since none of them parse as a table.
 
 Scoping this way is what makes the no-allowlist invariant affordable, which in
 turn is what lets the gate catch typos. It also removes a case-sensitivity trap:
-an earlier revision matched only lowercase names and was blind to the live
-``Skill: SkillForge`` route.
+an earlier revision matched only lowercase names and was blind to a
+mixed-case name such as ``Skill: SkillForge``.
 
 A cell may list several skills, as ``Skill: analyze, Skill: context-gather``
 does today, so a captured name is unwrapped before it is resolved: balanced
@@ -104,7 +104,7 @@ rather than in the shared parser, which reports structure and decides nothing.
 Known limitation: a route written outside a table, say as a bullet reading
 ``- Skill: foo``, is not checked. That is a deliberate trade. Every one of the
 17 live routes per root is a table cell, and the non-table ``Skill:`` hits are
-all prose: five example headings in ``SkillForge/references/evolution-scoring
+all prose: five example headings in ``skillforge/references/evolution-scoring
 .md`` and one checklist item where ``create`` is an English verb. None of them
 names a real skill. If routing outside tables ever becomes a real authoring
 pattern, widen the scope here and expect to pay for it in false positives.
@@ -204,8 +204,9 @@ PRUNED_DIRS = frozenset(
 # Captures whatever follows ``Skill:`` up to whitespace, so a malformed name is
 # seen rather than silently truncated to its leading legal segment. The
 # lookbehind rejects a compound word such as MetaSkill:. Matching is
-# case-sensitive on the keyword but not on the name: the live tree routes to
-# ``Skill: SkillForge``. The lookbehind rejects a compound word or a path
+# case-sensitive on the keyword but not on the name, so a mixed-case name
+# such as ``Skill: SkillForge`` is captured rather than dropped. The
+# lookbehind rejects a compound word or a path
 # segment, so ``Meta-Skill:``, ``Task/Skill:`` and ``docs\Skill:`` are prose
 # rather than routes. The live tree carries 148 such compound forms.
 _ROUTE_RE = re.compile(r"(?<![\w./\\-])Skill:\s*(\S+)?")
