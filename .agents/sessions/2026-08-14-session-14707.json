@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validated code commit a020f2e18701193ec7dd824a11b72e734400983d; final evidence committed separately"
+        "Evidence": "Validated code commit 219c790f285293780972c49d8f90c886b74857a8; final evidence committed separately"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "857 final consumer, policy, and retrospective tests passed; Ruff, build_all.py --check, review-axis drift, and diff checks passed"
+        "Evidence": "953 complete date-behavior tests passed; Ruff, build_all.py --check, review-axis drift, and diff checks passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -194,9 +194,13 @@
     {
       "action": "Closed the final four suppressed review findings.",
       "outcome": "Corrected the physical timezone instant, documented fallback divergence, removed dead UTC definitions with regenerated mirror, and restricted same-branch session selection to host grace plus physically current cross-host dates; 857 tests passed."
+    },
+    {
+      "action": "Preserved compatibility with active logs from the UTC-date release.",
+      "outcome": "Primary utility, retrospective evidence, and PreCompact fallback prioritize host-local dates then deduplicated UTC dates; explicit historical scopes remain bounded; 953 tests passed."
     }
   ],
-  "endingCommit": "a020f2e18701193ec7dd824a11b72e734400983d",
+  "endingCommit": "219c790f285293780972c49d8f90c886b74857a8",
   "nextSteps": [
     "Commit and push refreshed QA/session evidence with SHA safety.",
     "Wait for required checks and run the completion gate.",
