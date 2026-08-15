@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review.json
-qaCommit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8
+qaCommit: fa39b0200c8cdb8b9e1a56a38bfc9a15c42377b0
 ---
 
 # QA: ADR-094 draft (session 14711)
@@ -23,7 +23,7 @@ already on PR #5062 before the adr-review debate ran. This report gives session
 
 ## Scope
 
-One added file at the time: `.agents/architecture/ADR-094-scoped-re-review-axes.md`,
+One added file at the time: `.agents/architecture/ADR-095-scoped-re-review-axes.md (drafted as ADR-094)`,
 a `status: proposed` ADR draft. No code, no generated artifact, no shipped skill
 change.
 
