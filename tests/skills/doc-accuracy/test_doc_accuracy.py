@@ -31,6 +31,7 @@ Finding = mod.Finding
 run_assessment = mod.run_assessment
 run_claim_extraction = mod.run_claim_extraction
 run_compilability_check = mod.run_compilability_check
+SYMBOL_EXTRACTORS = mod.SYMBOL_EXTRACTORS
 check_gate = mod.check_gate
 generate_markdown_report = mod.generate_markdown_report
 main = mod.main
@@ -1324,6 +1325,82 @@ class TestRunClaimExtraction:
         result = run_claim_extraction(tmp_path, assessment)
         assert result["claims"] == []
 
+    def test_skips_go_fences(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```go\nfunc UndefinedFunc() {}\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_skips_rust_fences(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```rust\nfn undefined_func() {}\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_skips_java_fences(self, tmp_path: Path) -> None:
+        md = "# Doc\n\n```java\npublic class UndefinedClass {}\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        assert result["claims"] == []
+
+    def test_resolves_symbol_extractor_languages(self, tmp_path: Path) -> None:
+        """Every language with a SYMBOL_EXTRACTORS entry must still be extracted.
+
+        This is the inverse of test_skips_go_fences/test_skips_rust_fences/
+        test_skips_java_fences: the SYMBOL_EXTRACTORS-based skip must not
+        over-fire on a language it is meant to support. Parametrized over the
+        live mod.SYMBOL_EXTRACTORS keys (csharp, python, javascript,
+        typescript today) rather than a hardcoded duplicate list, so this test
+        keeps covering the real allowlist if it ever changes.
+        """
+        for lang in sorted(SYMBOL_EXTRACTORS.keys()):
+            doc_path = tmp_path / f"doc_{lang}.md"
+            doc_path.write_text(f"# Doc\n\n```{lang}\nSomeIdentifier()\n```\n")
+
+            assessment = {
+                "documentation_files": [{
+                    "path": doc_path.name,
+                    "mapped_source_files": [],
+                    "referenced_symbols": [],
+                }],
+                "source_symbols": [],
+            }
+            result = run_claim_extraction(tmp_path, assessment)
+            code_examples = [
+                c for c in result["claims"] if c["type"] == "code_example"
+            ]
+            assert len(code_examples) == 1, (
+                f"expected one code_example claim for language {lang!r}"
+            )
+            assert code_examples[0]["language"] == lang
+
     def test_leaves_unmapped_code_example_without_source(self, tmp_path: Path) -> None:
         md = "# Doc\n\n```csharp\nConsole.WriteLine(42)\n```\n"
         (tmp_path / "doc.md").write_text(md)
@@ -1420,6 +1497,77 @@ class TestRunCompilabilityCheck:
         }
         result = run_compilability_check(assessment, claims)
         assert result["findings"] == []
+
+    def test_skips_go_code_examples(self) -> None:
+        assessment: dict[str, Any] = {"source_symbols": []}
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "code_example", "language": "go",
+                "content": "func UndefinedFunc() {}",
+                "symbols_referenced": ["UndefinedFunc"],
+                "mapped_source": "",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_skips_rust_code_examples(self) -> None:
+        assessment: dict[str, Any] = {"source_symbols": []}
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "code_example", "language": "rust",
+                "content": "struct UndefinedStruct;",
+                "symbols_referenced": ["UndefinedStruct"],
+                "mapped_source": "",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_skips_java_code_examples(self) -> None:
+        assessment: dict[str, Any] = {"source_symbols": []}
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "code_example", "language": "java",
+                "content": "public class UndefinedClass {}",
+                "symbols_referenced": ["UndefinedClass"],
+                "mapped_source": "",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_resolves_symbol_extractor_languages(self) -> None:
+        """Every SYMBOL_EXTRACTORS language must still be checked for findings.
+
+        Inverse of test_skips_go_code_examples/test_skips_rust_code_examples/
+        test_skips_java_code_examples: a code_example claim in a language that
+        DOES have a symbol extractor must reach the unresolved-symbol check
+        rather than being skipped. Uses an unresolvable CamelCase identifier
+        (matching the same shape the skip tests use) so a skipped claim and a
+        checked-but-resolved claim cannot be confused: only "checked and
+        unresolved" produces a finding here. Parametrized over the live
+        mod.SYMBOL_EXTRACTORS keys.
+        """
+        for lang in sorted(SYMBOL_EXTRACTORS.keys()):
+            assessment: dict[str, Any] = {"source_symbols": []}
+            claims = {
+                "claims": [{
+                    "id": "claim-0001", "file": "doc.md", "line": 1,
+                    "type": "code_example", "language": lang,
+                    "content": "TotallyUnresolvedSymbolXyz()",
+                    "symbols_referenced": ["TotallyUnresolvedSymbolXyz"],
+                    "mapped_source": "",
+                }],
+            }
+            result = run_compilability_check(assessment, claims)
+            assert len(result["findings"]) == 1, (
+                f"expected one finding for language {lang!r}"
+            )
+            assert result["findings"][0]["category"] == "unresolved_symbol"
 
 
 class TestCheckGate:

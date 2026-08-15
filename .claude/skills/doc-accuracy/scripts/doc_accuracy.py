@@ -162,26 +162,6 @@ EXCLUDE_DIRS = {
     ".doc-accuracy",
 }
 
-NON_COMPILABLE_LANGUAGES = frozenset({
-    "text",
-    "plaintext",
-    "txt",
-    "ascii",
-    "mermaid",
-    "diff",
-    "log",
-    "output",
-    "console",
-    "csv",
-    "ini",
-    "toml",
-    "conf",
-    "nolang",
-    "powershell",
-    "ps1",
-    "pwsh",
-})
-
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
 # Environment variables that can redirect git to a foreign repository,
@@ -852,7 +832,15 @@ def run_claim_extraction(
                     i += 1
                     continue
 
-                if lang in NON_COMPILABLE_LANGUAGES:
+                # A code_example claim is only useful when Phase 3 can check
+                # its identifiers against real source symbols. Phase 1 only
+                # extracts source_symbols for languages in SYMBOL_EXTRACTORS
+                # (currently csharp, python, javascript, typescript), so any
+                # other normalized language, prose fences (text, mermaid),
+                # shell/config fences (bash, yaml, json), and languages Phase 1
+                # never parses for symbols (go, rust, java) have nothing to
+                # verify against and are skipped here.
+                if lang not in SYMBOL_EXTRACTORS:
                     i += 1
                     continue
 
@@ -966,10 +954,13 @@ def run_compilability_check(
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
 
-        # Skip non-code languages
-        if lang in ("bash", "shell", "yaml", "yml", "json", "xml", "markdown", "") or lang in NON_COMPILABLE_LANGUAGES:
-            if claim_dict["type"] == "code_example":
-                continue
+        # A code_example claim can only be checked for compilability when its
+        # normalized language has a symbol extractor (Phase 1 only populates
+        # source_symbols for SYMBOL_EXTRACTORS keys). method_signature claims
+        # carry language="" but are never skipped here: their content came
+        # from prose, not a fence, so there is no fence language to gate on.
+        if lang not in SYMBOL_EXTRACTORS and claim_dict["type"] == "code_example":
+            continue
 
         symbols_ref = claim_dict.get("symbols_referenced", [])
         if not symbols_ref:
