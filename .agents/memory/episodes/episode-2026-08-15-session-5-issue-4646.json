@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-08-15-session-5-issue-4646",
+  "session": "2026-08-15-session-5-issue-4646",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct stale strict_required_status_checks_policy assertions and add drift check (issue #4646)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b0472460f466d3e24f18be9bbf9e1fac66c10e49",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5-issue-4646"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
