@@ -3527,6 +3527,8 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
+    assert "--jobs=1" in calls[0]
+    assert "--timeout=30" in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]

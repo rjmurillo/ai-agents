@@ -4109,6 +4109,10 @@ def _semgrep_command(
         "--exclude-rule",
         "python.lang.compatibility.python37.python37-compatibility-Popen2",
     ]
+    # Semgrep's default 7 jobs can fail before scanning when io_uring cannot
+    # allocate its worker queues. One job scanned 100 files in 93 seconds.
+    # Its default 5-second rule timeout also rejected this validator; 30 seconds
+    # scanned the seven-file push set within the 840-second child budget.
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -4123,6 +4127,8 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        "--jobs=1",
+        "--timeout=30",
         *exclude_compat_rules,
         "--",
         *targets,
