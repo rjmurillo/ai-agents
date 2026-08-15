@@ -350,7 +350,7 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
 
     # The creator records its host-local date (issue #4779). UTC+14 is the
     # furthest possible host offset, so reject dates later than the date there
-    # at this instant; branch-context-policy would miss such logs (issue #3717).
+    # at this instant as physically impossible (issue #3717).
     session_date_str = session.get("date")
     if isinstance(session_date_str, str):
         try:
@@ -362,8 +362,8 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
                     f"Session date '{session_date_str}' is in the future "
                     f"(later than the latest possible host date "
                     f"{latest_host_date.isoformat()} at {now_utc.isoformat()}); "
-                    "it looks like a placeholder or a wrong date and "
-                    "branch-context-policy will not pick up this log"
+                    "that date is physically impossible for a current host and "
+                    "looks like a placeholder or a wrong date"
                 )
         except ValueError:
             pass  # Schema already rejects non-date strings via its pattern
