@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "3f8fa69466ab2761b0e76307bf067659c97b986a"
+        "Evidence": "ecd19db2798332ad188d1ccac1a008d78ec9cb63"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,11 +146,43 @@
         ".agents/qa/session-14710-issue-4939-qa.md",
         ".agents/sessions/handoffs/2026-08-15-4939-handoff.md"
       ]
+    },
+    {
+      "action": "Ran ADR-044 amendment review Round 1 with architect, critic, independent-thinker, security, analyst, and high-level-advisor.",
+      "result": "Five reviewers blocked and one disagreed-and-committed. Shared blockers: an implemented ADR cannot be rewritten, the validator is not the version authority, runtime drift is warn-only, and live contributor guidance still recommended 0.0.397.",
+      "files": [
+        ".agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md"
+      ]
+    },
+    {
+      "action": "Replaced the in-place amendment with ADR-094 and corrected dependent guidance.",
+      "result": "ADR-044 preserves its original decision and points to ADR-094. ADR-094 assigns executable owners, scopes the known-bad guard, records immediate retirement, and defers model policy to ADR-080.",
+      "files": [
+        ".agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md",
+        ".agents/architecture/ADR-094-govern-copilot-cli-compatibility.md",
+        "CONTRIBUTING.md",
+        ".serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md"
+      ]
+    },
+    {
+      "action": "Ran ADR review Round 2 against the revised artifacts.",
+      "result": "All six reviewers accepted. The debate log records both rounds and the resolved findings.",
+      "files": [
+        ".agents/critique/ADR-094-debate-log.md"
+      ]
+    },
+    {
+      "action": "Ran targeted validation.",
+      "result": "15 validator tests passed; repository pin 1.0.63 passed; ADR numbers were unique; CONTRIBUTING markdown passed; diff check and stale-guidance searches passed.",
+      "files": [
+        ".agents/qa/session-14710-issue-4939-qa.md"
+      ]
     }
   ],
-  "endingCommit": "3f8fa69466ab2761b0e76307bf067659c97b986a",
+  "endingCommit": "ecd19db2798332ad188d1ccac1a008d78ec9cb63",
   "nextSteps": [
-    "Open a PR when campaign timing allows.",
-    "Re-run the validator and markdownlint if the ADR text changes again."
+    "Commit the accepted ADR and companion guidance.",
+    "Run the full pre-PR gate.",
+    "Open one PR for issue #4939."
   ]
 }
