@@ -16,9 +16,9 @@ that ``_root_only`` resolves at call time.
 Coverage:
 
 - positive: both checks clean gives exit 0 and prints the examined count.
-- negative: either check non-zero gives exit 1; a missing script gives exit 1;
-  a non-directory root gives exit 2; removing the gate from ``_SEQUENCE`` fails
-  the wiring test.
+- negative: a drift report gives exit 1; a missing script gives config exit 2;
+  a non-directory root gives exit 2; a killed child gives external exit 3;
+  removing the gate from ``_SEQUENCE`` fails the wiring test.
 - edge: a failing first check leaves the second unrun, asserted on a marker
   file the second stub would have written.
 """
@@ -26,6 +26,7 @@ Coverage:
 from __future__ import annotations
 
 import io
+import subprocess
 import sys
 from collections.abc import Callable
 from contextlib import redirect_stdout
@@ -98,11 +99,16 @@ class TestExitCodes:
 
         assert check_generated_staleness.main([str(root)]) == 1
 
-    def test_an_absent_script_fails_closed(self, tmp_path: Path) -> None:
+    def test_an_absent_script_is_a_config_error_not_drift(
+        self, tmp_path: Path
+    ) -> None:
+        # The module's exit table promises 2 for an absent script: the gate
+        # could not run and the script needs restoring, where the drift remedy
+        # (regenerate and commit) would be the wrong action.
         root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
         (root / "build" / "scripts" / "build_all.py").unlink()
 
-        assert check_generated_staleness.main([str(root)]) == 1
+        assert check_generated_staleness.main([str(root)]) == 2
 
     def test_a_root_that_is_not_a_directory_is_a_config_error(
         self, tmp_path: Path
@@ -111,12 +117,74 @@ class TestExitCodes:
 
         assert check_generated_staleness.main([str(missing)]) == 2
 
+    def test_a_killed_child_is_an_external_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # ADR-035: a timeout kill means the tree was never scored, which is
+        # external (3), not drift (1). The stub sleeps past a 1s cap.
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        _stub(
+            root / "scripts" / "sync_plugin_lib.py",
+            "import time\ntime.sleep(30)\nsys.exit(0)",
+        )
+        monkeypatch.setattr(
+            check_generated_staleness,
+            "_CHECKS",
+            (
+                ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py"), 1.0),
+                ("build_all.py --check", ("build", "scripts", "build_all.py"), None),
+            ),
+        )
+
+        assert check_generated_staleness.main([str(root)]) == 3
+
+    def test_a_killed_child_keeps_the_output_it_already_flushed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The timeout branch must preserve TimeoutExpired.stdout/.stderr and
+        # append the kill marker, not discard the diagnosis the child already
+        # emitted.
+        root = _fake_repo(tmp_path, sync_exit=0, build_exit=0)
+
+        def fake_run(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired(
+                cmd=["sync"], timeout=1.0, output=b"partial diagnosis\n", stderr=None
+            )
+
+        monkeypatch.setattr(check_generated_staleness.subprocess, "run", fake_run)
+        code, output = check_generated_staleness._run_check(
+            root / "scripts" / "sync_plugin_lib.py", root, 1.0
+        )
+
+        assert code is None
+        assert "partial diagnosis" in output
+        assert "exceeded 1.0s" in output
+
+
+class TestTimeoutAsymmetry:
+    """The per-row caps are a contract, pinned in both directions."""
+
+    def test_build_all_carries_no_external_kill(self) -> None:
+        # SIGKILL skips build_all's snapshot-restoring finally and corrupts
+        # the caller's worktree (reproduced: 15 dirty paths). This row must
+        # never grow a cap.
+        by_label = {label: timeout for label, _, timeout in check_generated_staleness._CHECKS}
+
+        assert by_label["build_all.py --check"] is None
+
+    def test_the_dry_run_row_does_carry_a_cap(self) -> None:
+        # The control: without it, deleting every cap in the table would pass
+        # the assertion above and the reason for the asymmetry would be lost.
+        by_label = {label: timeout for label, _, timeout in check_generated_staleness._CHECKS}
+
+        assert by_label["sync_plugin_lib.py --check"] is not None
+
 
 class TestGeneratorOrder:
     """sync before build, per .claude/rules/generated-artifacts.md."""
 
     def test_sync_is_checked_before_build_all(self) -> None:
-        labels = [label for label, _ in check_generated_staleness._CHECKS]
+        labels = [label for label, _, _ in check_generated_staleness._CHECKS]
 
         assert labels == ["sync_plugin_lib.py --check", "build_all.py --check"]
 
