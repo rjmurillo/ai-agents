@@ -106,7 +106,8 @@
         "e059",
         "e061",
         "e063",
-        "e065"
+        "e065",
+        "e067"
       ],
       "leads_to": [
         "e006"
@@ -851,6 +852,30 @@
       "caused_by": [
         "e064"
       ],
+      "leads_to": [
+        "e068"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e067",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Required a double-quoted absolute workspace prefix for checkout-index.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e068",
+      "timestamp": "2026-08-15T06:21:35+00:00",
+      "type": "commit",
+      "content": "Commit: beb9d64b24bd2c7040425e1bdf7e18e34d77c950",
+      "caused_by": [
+        "e066"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -860,7 +885,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 37,
+    "commits": 38,
     "files_changed": 52
   },
   "lessons": []

@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to command-segment parser commit f1deafdf28794d52abf31b335880b7804171b7c8."
+        "Evidence": "QA evidence rebound to quoted-workspace-prefix commit beb9d64b24bd2c7040425e1bdf7e18e34d77c950."
       },
       "validationPassed": {
         "level": "MUST",
@@ -219,8 +219,12 @@
     {
       "action": "Restricted checkout detection to actual shell command segments.",
       "result": "Compound echo text no longer satisfies checkout state. Real compound git checkout-index still works. 151 tests pass."
+    },
+    {
+      "action": "Required a double-quoted absolute workspace prefix for checkout-index.",
+      "result": "Empty, omitted, relative, and single-quoted variable prefixes fail closed. 154 tests pass."
     }
   ],
-  "endingCommit": "f1deafdf28794d52abf31b335880b7804171b7c8",
+  "endingCommit": "beb9d64b24bd2c7040425e1bdf7e18e34d77c950",
   "nextSteps": []
 }
