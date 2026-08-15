@@ -274,6 +274,7 @@ class TestCloseVerificationGate:
             issue=5,
             category=ACTION_CLOSE,
             rationale="resolved by commit abc1234",
+            reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_APPLIED
@@ -294,7 +295,10 @@ class TestCloseVerificationGate:
 
     def test_cited_merged_pr_proceeds(self):
         gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({1024}))
-        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024",
+            reproduction_verified=True,
+        )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_APPLIED
         assert gw.closed == [5]
@@ -317,6 +321,82 @@ class TestCloseVerificationGate:
         outcome = apply_action(action, gw, mutate=False)
         assert outcome.outcome == OUTCOME_SKIPPED
         assert "unverified" in outcome.detail
+
+
+class TestReproductionGate:
+    """Issue #4624: a merged-on-main PR still requires a green reproduction."""
+
+    def test_cited_pr_without_reproduction_blocks_close(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({1024}))
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024",
+            reproduction_verified=False,
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "reproduction not verified" in outcome.detail
+        assert gw.closed == []
+
+    def test_cited_commit_without_reproduction_blocks_close(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+            reproduction_verified=False,
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "reproduction not verified" in outcome.detail
+        assert gw.closed == []
+
+    def test_cited_pr_with_reproduction_verified_proceeds(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({1024}))
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024",
+            reproduction_verified=True,
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_no_citation_does_not_require_reproduction(self):
+        gw = FakeGateway({5: _open(5)})
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="stale, superseded by new design",
+            reproduction_verified=False,
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_reproduction_gate_applies_in_dry_run(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({99}))
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE, rationale="fixed via PR #99",
+            reproduction_verified=False,
+        )
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "reproduction not verified" in outcome.detail
+
+    def test_from_raw_parses_reproduction_verified_true(self):
+        raw = {"issue": 1, "category": "close", "reproduction_verified": True}
+        action = ManifestAction.from_raw(raw)
+        assert action is not None
+        assert action.reproduction_verified is True
+
+    def test_from_raw_defaults_reproduction_verified_false(self):
+        raw = {"issue": 1, "category": "close"}
+        action = ManifestAction.from_raw(raw)
+        assert action is not None
+        assert action.reproduction_verified is False
+
+    def test_from_raw_rejects_non_bool_reproduction_verified(self):
+        raw = {"issue": 1, "category": "close", "reproduction_verified": "yes"}
+        action = ManifestAction.from_raw(raw)
+        assert action is not None
+        assert action.reproduction_verified is False
 
 
 class TestParseActions:
@@ -487,6 +567,7 @@ class TestCommitOnlyClosureScopeGate:
             issue=5,
             category=ACTION_CLOSE,
             rationale="resolved by commit abc1234",
+            reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED
@@ -500,6 +581,7 @@ class TestCommitOnlyClosureScopeGate:
             issue=5,
             category=ACTION_CLOSE,
             rationale="resolved by commit abc1234",
+            reproduction_verified=True,
         )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED
