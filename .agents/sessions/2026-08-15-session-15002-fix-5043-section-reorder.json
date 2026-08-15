@@ -7,7 +7,7 @@
     "startingCommit": "b97dabfd3dcfb3fa19dfefe47c3250bac4addc3a",
     "objective": "Fix frontmatter bypass missing section reordering (issue #5043)"
   },
-  "endingCommit": "05e717f5b6343ab9e7e635cd5e1fae1be93db3bb",
+  "endingCommit": "c35be0aff07bf6cc545e8e414ba724f5e1cac1e3",
   "protocolCompliance": {
     "sessionStart": {
       "handoffRead": {"complete": true, "level": "MUST", "evidence": "Read issue #5043 and PR #5030 review"},

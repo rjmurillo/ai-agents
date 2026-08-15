@@ -1,5 +1,5 @@
 ---
-qaCommit: 05e717f5b6343ab9e7e635cd5e1fae1be93db3bb
+qaCommit: c35be0aff07bf6cc545e8e414ba724f5e1cac1e3
 linkedIssue: 5043
 qaSessionLog: .agents/sessions/2026-08-15-session-15002-fix-5043-section-reorder.json
 qaVerdict: PASS
