@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number",
+  "session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4751 session number allocation scans unmerged sibling branches",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T14:55:24+00:00",
+      "type": "commit",
+      "content": "Commit: 41d30814f",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T15:31:08+00:00",
+      "type": "commit",
+      "content": "Commit: a308888cb",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T15:43:32+00:00",
+      "type": "commit",
+      "content": "Commit: 96ecae742848d9dbb34045cb42d83ea020b86c2b",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T16:32:07+00:00",
+      "type": "commit",
+      "content": "Commit: 77aa1a14fc673575f752b29f9aaac541e7d8d90e",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T19:36:19+00:00",
+      "type": "commit",
+      "content": "Commit: 00d5f07e9a8148433345b499ee08069ce8b7e07b",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T23:25:18+00:00",
+      "type": "commit",
+      "content": "Commit: 2d16788294e53535d587c533f91035d44f68e1e6",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-99916-b5147e7a0-fix-issue-4751-session-number"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 1120,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 20
+  },
+  "lessons": []
+}

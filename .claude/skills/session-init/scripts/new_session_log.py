@@ -63,6 +63,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from paths import resolve_artifact_root  # noqa: E402
+from session_init import allocation  # noqa: E402
 from session_init.date_helpers import host_session_date  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
 from session_init.session_structure import build_session_log  # noqa: E402
@@ -92,8 +93,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-_SESSION_NUM_RE = re.compile(r"session-(\d+)")
-
 # Width of the branch-name hash used as a filename discriminator (hex characters).
 # At 8 hex chars (4 bytes, 4.3 billion values), the birthday-problem collision
 # probability for 940 branches is ~0.01%.  The birthday bound reaches 1% at
@@ -120,81 +119,82 @@ def _branch_discriminator(branch: str) -> str:
     return digest[:_BRANCH_DISCRIMINATOR_WIDTH]
 
 
-def _max_session_in_names(names: list[str]) -> int:
-    """Highest session number among `*.json` file names, or 0 when none."""
-    max_num = 0
-    for name in names:
-        m = _SESSION_NUM_RE.search(name)
-        if m and name.endswith(".json"):
-            max_num = max(max_num, int(m.group(1)))
-    return max_num
+# Patchable module-level seams over the shared allocation module. Tests patch
+# these names on THIS module; _remote_max_session resolves them at call time.
+_max_session_in_names = allocation.max_session_in_names
+_origin_main_max_session = allocation.origin_main_max_session
+_sibling_refs_max_session = allocation.sibling_refs_max_session
 
 
-def _origin_main_max_session(repo_root: str | None = None) -> int:
-    """Highest session number recorded under origin/main, or 0 when unknown.
+def _remote_max_session(repo_root: str | None = None) -> int:
+    """Best-available remote session max: sibling refs, else origin/main.
 
-    Parallel autofix branches fork from the same main and each scans only its
-    own working tree, so two branches can allocate the same next number
-    (issue #2379). Reading the session files already on origin/main lets every
-    branch see numbers committed by siblings that have already merged.
-
-    origin/main is a local remote-tracking ref, so `git ls-tree` does not hit
-    the network. The call is best-effort: any failure (no origin, no ref,
-    timeout, git missing) returns 0 so allocation falls back to the local scan.
+    Delegates the policy to session_init.allocation.remote_max_session; the
+    injected callables route through this module's patchable names. The cast
+    is for mypy only: the module resolves through the runtime sys.path
+    bootstrap, so the checker sees it as Any.
     """
-    try:
-        result = subprocess.run(
-            ["git", "ls-tree", "--name-only", "origin/main", ".agents/sessions/"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-            cwd=repo_root,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return 0
-    if result.returncode != 0:
-        return 0
-    names = [os.path.basename(line) for line in result.stdout.splitlines() if line.strip()]
-    return _max_session_in_names(names)
+    return cast(
+        int,
+        allocation.remote_max_session(
+            repo_root,
+            sibling_scan=_sibling_refs_max_session,
+            origin_scan=_origin_main_max_session,
+        ),
+    )
 
 
 def _repo_root_for_origin_scan(sessions_dir: str, repo_root: str | None) -> str:
     return repo_root or os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
 
 
-def _auto_detect_session_number(sessions_dir: str, repo_root: str | None = None) -> int:
-    """Auto-increment session number across the local tree and origin/main.
+def _auto_detect_session_number(
+    sessions_dir: str,
+    repo_root: str | None = None,
+    remote_max: int | None = None,
+) -> int:
+    """Auto-increment session number across the local tree and remote refs.
 
     Takes the max of the local working-tree scan and the session numbers
-    already on origin/main so parallel branches do not reuse a number a sibling
-    already committed (issue #2379).
+    visible on remote-tracking refs (all sibling branches, falling back to
+    origin/main on probe failure) so parallel branches do not reuse a number a
+    sibling already committed or pushed (issues #2379, #4751).
+
+    ``remote_max`` lets main() compute the remote scan once and share it with
+    _get_max_existing_session instead of walking the refs twice.
     """
     local_max = 0
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
-    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
-    combined_max = max(local_max, _origin_main_max_session(scan_root))
+    if remote_max is None:
+        scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+        remote_max = _remote_max_session(scan_root)
+    combined_max = max(local_max, remote_max)
     return combined_max + 1 if combined_max else 1
 
 
-def _get_max_existing_session(sessions_dir: str, repo_root: str | None = None) -> int | None:
-    """Get the maximum existing session number across local tree and origin/main.
+def _get_max_existing_session(
+    sessions_dir: str,
+    repo_root: str | None = None,
+    remote_max: int | None = None,
+) -> int | None:
+    """Get the maximum existing session number across local tree and remote refs.
 
-    Includes origin/main so the DoS ceiling in main() stays consistent with
-    cross-branch allocation: a number derived from a sibling's committed session
-    must not be falsely rejected as a jump (issue #2379).
+    Includes remote-tracking refs so the DoS ceiling in main() stays consistent
+    with cross-branch allocation: a number derived from a sibling's committed
+    session must not be falsely rejected as a jump (issues #2379, #4751).
     """
     local_max = 0
     found = False
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
         found = local_max > 0
-    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
-    origin_max = _origin_main_max_session(scan_root)
-    if origin_max > 0:
+    if remote_max is None:
+        scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+        remote_max = _remote_max_session(scan_root)
+    if remote_max > 0:
         found = True
-    combined = max(local_max, origin_max)
+    combined = max(local_max, remote_max)
     return combined if found else None
 
 
@@ -323,13 +323,16 @@ def main(argv: list[str] | None = None) -> int:
     sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
     current_date = host_session_date()
 
-    # Resolve session number
+    # Resolve session number. Walk the remote refs once and share the result
+    # between allocation and the ceiling check below.
+    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+    remote_max = _remote_max_session(scan_root)
     session_number = args.session_number
     if session_number == 0:
-        session_number = _auto_detect_session_number(sessions_dir, repo_root)
+        session_number = _auto_detect_session_number(sessions_dir, repo_root, remote_max=remote_max)
 
     # CWE-400: Reject session number jumps larger than 10 above max existing
-    max_existing = _get_max_existing_session(sessions_dir, repo_root)
+    max_existing = _get_max_existing_session(sessions_dir, repo_root, remote_max=remote_max)
     if max_existing is not None and session_number > max_existing + 10:
         print(
             f"ERROR: Session number {session_number} exceeds ceiling "
