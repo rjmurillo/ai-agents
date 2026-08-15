@@ -558,7 +558,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/output.py",
-        "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
+        "6aad33f8092a3f1c222808a761b5592346314856dc986b52b556ca1ce43fa2e5",
         "Lib: .claude/lib/github_core/output.py",
     ),
     (
@@ -758,7 +758,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/output.py",
-        "0e2d424dc3b069dcd0b2cf612cc88b995e649da3aa818a6859ef7e0c5fe73f8a",
+        "6aad33f8092a3f1c222808a761b5592346314856dc986b52b556ca1ce43fa2e5",
         "Lib: src/copilot-cli/lib/github_core/output.py",
     ),
     (
