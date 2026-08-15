@@ -168,7 +168,7 @@ _ARGUMENT_HINT_WARNING = "argument-hint"
 # Claude CLI auth-failure markers (issue #4861). The CLI emits these in its
 # stream-json output or stderr when the local OAuth session is expired or absent.
 # Keep lowercased for case-insensitive matching (same pattern as Copilot markers).
-CLAUDE_AUTH_EXPIRED_MARKERS: tuple[str, ...] = (
+_CLAUDE_AUTH_EXPIRED_MARKERS: tuple[str, ...] = (
     "oauth session expired",
     "failed to authenticate",
     "could not be refreshed",
@@ -259,7 +259,7 @@ def _claude_init_tools(agent: str) -> set[str]:
     )
     if run.returncode != 0:
         haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
-        if any(marker in haystack for marker in CLAUDE_AUTH_EXPIRED_MARKERS):
+        if any(marker in haystack for marker in _CLAUDE_AUTH_EXPIRED_MARKERS):
             pytest.skip(
                 f"Claude OAuth session expired or could not authenticate for "
                 f"agent {agent!r}; re-run after `claude auth login`."
@@ -1005,7 +1005,7 @@ def test_empty_plugin_negative_control_skips_classified_block(
 
 
 @pytest.mark.parametrize(
-    "stdout_fragment",
+    "auth_error_text",
     [
         '"result":"Failed to authenticate: OAuth session expired and could not be refreshed"',
         '"result":"Failed to authenticate: token invalid"',
@@ -1014,11 +1014,12 @@ def test_empty_plugin_negative_control_skips_classified_block(
     ids=["expired-oauth-json", "failed-auth-generic", "bare-marker"],
 )
 def test_claude_probe_skips_on_expired_oauth(
-    monkeypatch: pytest.MonkeyPatch, stdout_fragment: str
+    monkeypatch: pytest.MonkeyPatch, auth_error_text: str
 ) -> None:
-    """Claude probe skips (not fails) when auth is expired (issue #4861)."""
+    """Claude probe skips (not fails) when auth is expired or cannot
+    authenticate (issue #4861); markers match on stdout or stderr."""
     expired = subprocess.CompletedProcess(
-        ["claude"], 1, stdout=stdout_fragment, stderr=""
+        ["claude"], 1, stdout=auth_error_text, stderr=""
     )
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
