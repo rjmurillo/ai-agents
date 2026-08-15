@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: c089d2e6f4ec3b9a40ca675f8f86339c34e8306a
+qaCommit: f2d54701559a1545b1758ccf8abc75b6b2640f09
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607)
@@ -73,6 +73,14 @@ module's read seam, making it deterministic for every euid; the
 `src/copilot-cli` mirror is byte-identical. Verified: the test and both
 bundle-tree suites pass. Unrelated to issue #4607; flagged in the PR
 description per the ownership rule.
+
+Two more tests of the same class were fixed in a follow-up commit: the
+tracked-scan unreadable-file test (chmod 0, same CAP_DAC_OVERRIDE issue)
+and the claude-mem `get_count` error test (sqlite3 creates
+`/nonexistent.db` when the caller can write `/`, so root got success where
+other users got the intended error). Both now exercise their failure paths
+for every euid. Full-suite evidence: 28,856 passed with only these 3
+environmental failures before the fixes; each fixed test passes after.
 
 ## Residual risk
 
