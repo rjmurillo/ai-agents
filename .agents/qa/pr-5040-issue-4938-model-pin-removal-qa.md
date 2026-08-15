@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14938.json
-qaCommit: 8d0d3a59c5a87774400857588b49f9af32c2f774
+qaCommit: 5cc07092184bff0ae9034406a2d3431330587dd1
 ---
 
 # Issue #4938 QA Report
