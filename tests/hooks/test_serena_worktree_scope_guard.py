@@ -30,6 +30,14 @@ import invoke_serena_worktree_scope_guard as guard
 def fake_git_repo(tmp_path: Path) -> Path:
     """Create a minimal git repo with .serena/project.yml."""
     subprocess.run(["git", "init", str(tmp_path)], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "test@test.local"],
+        capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
+        capture_output=True, check=True,
+    )
     serena_dir = tmp_path / ".serena"
     serena_dir.mkdir()
     (serena_dir / "project.yml").write_text('project_name: "test"\n')
