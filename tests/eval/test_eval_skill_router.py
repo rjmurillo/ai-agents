@@ -20,7 +20,9 @@ import pytest
 
 # Ensure scripts/eval is importable.
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-_SKILL_ROUTER_FIXTURES = Path(__file__).resolve().parents[2] / "evals" / "skill-router-spike" / "fixtures.json"
+_SKILL_ROUTER_FIXTURES = (
+    Path(__file__).resolve().parents[2] / "evals" / "skill-router-spike" / "fixtures.json"
+)
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
@@ -266,7 +268,8 @@ class TestOldBehaviorWouldFail:
 
 class TestReviewRoutingCoverage:
     def test_review_routing_cases_are_present(self) -> None:
-        fixtures = {fx["id"]: fx for fx in json.loads(_SKILL_ROUTER_FIXTURES.read_text(encoding="utf-8"))}
+        raw = json.loads(_SKILL_ROUTER_FIXTURES.read_text(encoding="utf-8"))
+        fixtures = {fx["id"]: fx for fx in raw}
 
         expected = {
             "review-05-low-risk-review": "review",
