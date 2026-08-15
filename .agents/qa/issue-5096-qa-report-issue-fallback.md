@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-issue-5096-qa-report-issue-fallback.json
-qaCommit: PENDING
+qaCommit: b22fa729b73d202fa4ff8611423ed6191382b79e
 ---
 
 # Issue 5096 QA Report Issue Fallback QA
@@ -130,10 +130,10 @@ file wholesale is out of scope for this change.
   omits the issue link from the body still gets the old failure. That is the
   correct failure: `.claude/rules/universal.md` MUST 2 already requires the
   link.
-- Serena and Forgetful were unreachable in this container, so no memory search
-  ran. The corroborating prior-cost evidence came from
-  `.agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json`,
-  whose workLog records the rename this change removes.
+- The prior-cost evidence is one recorded instance, not a rate:
+  `.agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json`
+  logs the rename verbatim. No sweep counted how many PRs paid it, so the "every
+  code PR" reading follows from the glob's contract rather than from a census.
 
 ## Security
 

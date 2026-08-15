@@ -72,7 +72,8 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e008"
       ],
       "leads_to": [
         "e007"
@@ -87,6 +88,56 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected three sessionStart MUST items that an earlier draft of this log recorded as unmet",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T16:09:21+00:00",
+      "type": "commit",
+      "content": "Commit: fdb34a279",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T16:12:28+00:00",
+      "type": "commit",
+      "content": "Commit: b495930a5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T16:16:03+00:00",
+      "type": "commit",
+      "content": "Commit: b22fa729b73d202fa4ff8611423ed6191382b79e",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
@@ -96,8 +147,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 3
+    "commits": 5,
+    "files_changed": 10
   },
   "lessons": []
 }

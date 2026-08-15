@@ -11,13 +11,13 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Serena MCP not reachable from this delegated worktree agent; navigated with Read, Grep, and Glob instead and recorded the gap here"
+        "Complete": true,
+        "Evidence": "Serena MCP tools reachable; list_memories returned the full corpus for project ai-agents"
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Not read; same unavailability as serenaActivated"
+        "Complete": true,
+        "Evidence": "serena initial_instructions read this session"
       },
       "handoffRead": {
         "level": "MUST",
@@ -46,8 +46,8 @@
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Serena and Forgetful both unreachable in this container; corroborating evidence taken from .agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json, whose workLog records the same rename cost this issue reports"
+        "Complete": true,
+        "Evidence": "Read ci/ci-validate-pr-is-many-gates-only-some-read-the-body, which maps this gate to step 8 of Validate PR, and git/git-rebase-after-push-costs-two-cycles, which prices the second push cycle this change removes"
       },
       "branchVerified": {
         "level": "MUST",
@@ -83,8 +83,8 @@
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Serena MCP unreachable; the finding is recorded in this log and in the QA report instead"
+        "Complete": true,
+        "Evidence": "Wrote ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr and indexed it in memory-index.md per .claude/rules/knowledge-persistence.md MUST 5"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recorded in workLog with per-commit SHAs"
+        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,9 +138,13 @@
     {
       "step": "Named this session's QA report for the issue, not the PR",
       "evidence": ".agents/qa/issue-5096-qa-report-issue-fallback.md exercises the new fallback path on the PR that introduces it"
+    },
+    {
+      "step": "Corrected three sessionStart MUST items that an earlier draft of this log recorded as unmet",
+      "evidence": "The draft asserted Serena was unreachable in this container without probing it. Serena answered initial_instructions and list_memories on first call, so the items are recorded as met and the memory was written."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "b22fa729b73d202fa4ff8611423ed6191382b79e",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",
