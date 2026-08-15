@@ -13,7 +13,7 @@ Branch `fix/4782-push-gate-human-only-label`, base `a225da30e`
 
 Under test: three enforcement messages that named a bypass label as the
 reader's own next step, the two CONTRIBUTING.md lines with the same shape,
-the GOTCHAS.md entry with the same shape, and the new guard test that pins
+the GOTCHAS.md entry with the same shape, and the new guard tests that pin
 all of them.
 
 ## Verdict
@@ -30,7 +30,7 @@ PASS.
 | The message forbids self-application | All three end with "do not apply it yourself"; pinned by the same helper |
 | Audit the other bypass surfaces named in the issue | Recorded below under "Audit result" |
 | Docs agents read carry the same constraint | `CONTRIBUTING.md` lines 857 and 910, `.agents/governance/GOTCHAS.md` line 251 |
-| Regression coverage | `tests/validation/test_human_only_label_guidance.py`, 8 tests |
+| Regression coverage | `tests/validation/test_human_only_label_guidance.py`, 9 tests |
 
 ## Tests
 
@@ -41,15 +41,21 @@ uv run pytest tests/validation/test_human_only_label_guidance.py \
   tests/test_pr_description.py tests/test_validation_pr_description.py \
   tests/validation/test_git_hook_policy_atomic_commit.py \
   tests/test_check_pr_bypass_label.py tests/validation/test_pr_commit_count.py -q
-566 passed in 4.53s
+567 passed in 8.93s
 ```
 
-The 8 new tests split into 5 positive assertions (both CONTRIBUTING.md
-citations still resolve; no CONTRIBUTING.md line pairs an imperative with a
-human-only label without naming the authority; each of the three messages
-defers to a maintainer) and 3 no-over-fire controls (push gate under the
-cap, CI blocker with the label already present, description validator on a
-clean description) proving the allowed paths still name no label at all.
+The 9 new tests split into 6 positive assertions (both CONTRIBUTING.md
+citations still resolve, scoped to the section each names; no CONTRIBUTING.md
+line pairs an imperative with a human-only label without naming the
+authority; the GOTCHAS.md entry names the same maintainer-only constraint;
+each of the three enforcement messages defers to a maintainer) and 3
+no-over-fire controls (push gate under the cap, CI blocker with the label
+already present, description validator on a clean description) proving the
+allowed paths carry no self-service instruction to apply the label. Two of
+the three never name the label at all; the third (CI blocker with the label
+already present) drops the "do not apply it yourself" lecture but still
+prints a bypass-applied notice naming the label
+(`scripts/ci/enforce_pr_validation.py:73`).
 
 `tests/ci/test_pr_validation_workflow.py::TestBlockedMessageNamesTheLimitThatWasApplied::test_the_remediation_survives_every_shape`
 asserted the old contract (`"split this PR"`, lowercase, from the removed
