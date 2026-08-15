@@ -7,7 +7,7 @@
     "startingCommit": "430c206d21425c178f783daf84c7a7c48591160c",
     "objective": "Fix issue #5071: scope pre-push mypy file set to the merge-base diff so commit-then-revert round trips contribute nothing"
   },
-  "endingCommit": "",
+  "endingCommit": "53fb210d728daecdeb8e88a6e8ffe73db330cea3",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
@@ -85,7 +85,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-XXXX-issue-5071-mypy-diff-scope.md (renamed with PR number after PR creation)"
+        "Evidence": ".agents/qa/issue-5071-mypy-diff-scope.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -125,7 +125,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "430c206d21425c178f783daf84c7a7c48591160c",
-      "head": "430c206d21425c178f783daf84c7a7c48591160c"
+      "head": "53fb210d728daecdeb8e88a6e8ffe73db330cea3"
     }
   },
   "retrospective": "## Retrospective\n\nLearning: a line-level ratchet on top of an over-broad file set still lets the file set cause blocks through its failure fallbacks (fatal invocation output, unresolvable diff base) and wastes scan time. Scoping the input set to the merge-base diff removes the round-trip class entirely, and the same base ref serves both the file scope and the line ratchet so the two filters cannot disagree."

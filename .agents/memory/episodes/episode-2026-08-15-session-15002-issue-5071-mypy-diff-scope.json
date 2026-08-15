@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Investigated pre-push mypy scoping",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Added _merge_base_scope to git_hook_policy.py",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Wired scope filter into run_mypy",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     },
     {
@@ -40,6 +46,22 @@
       "type": "milestone",
       "content": "Added 8 tests",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T14:30:36+00:00",
+      "type": "commit",
+      "content": "Commit: 53fb210d728daecdeb8e88a6e8ffe73db330cea3",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
     }
@@ -49,7 +71,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 2
   },
   "lessons": []
