@@ -11,18 +11,18 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Serena MCP live: read_memory('usage-mandatory') and write_memory('review/review-full-rerun-cost-and-ship-marker-amplifier') both returned successfully"
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called; manual in context"
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only per ADR-014; not modified)"
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,23 +31,23 @@
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "ls .claude/skills/review/scripts/ -> validate_findings_scope.py, validate_review_marker.py; references/ -> 12 axis prompts"
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Content in context"
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; .claude/rules/{governance,generated-artifacts,claude-agents,plugin-self-containment,universal,voice}.md in context"
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "search_memory.py 'review skill axes cost convergence marker' -> 6 results, none covering /review axis cost; gap confirmed"
       },
       "branchVerified": {
         "level": "MUST",
@@ -61,8 +61,8 @@
       },
       "gitStatusVerified": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git status --porcelain clean at HEAD 9574338dd"
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,37 +74,37 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "Some MUST items still incomplete"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 2 files"
       },
       "qaValidation": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/qa/adr-094-scoped-re-review-axes.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "Uncommitted changes remain"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": false,
-        "Evidence": ""
+        "Evidence": "validate_session_json.py failed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,10 +115,46 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
-  "workLog": [],
-  "endingCommit": "",
-  "nextSteps": []
+  "workLog": [
+    {
+      "timestamp": "2026-08-15",
+      "action": "Read CI-FEEDBACK-SUBLOOP.md and .claude/skills/review/SKILL.md in full",
+      "outcome": "Confirmed 15 uncached axes per run and the marker contract at SKILL.md:139-170"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "ADR precedent search over .agents/architecture/ for sub-loop, CI-feedback, scoped review, convergence",
+      "outcome": "No ADR covers this ground; 2 unrelated hits on the word convergence. Next free number is ADR-094"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Verified the claim that pr-autofix invokes /review per PR at T3/T4",
+      "outcome": "FALSE. No /review invocation in .claude/commands/pr-autofix.md. Amplifier is the /ship SHA-bound marker instead"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "Drafted .agents/architecture/ADR-094-scoped-re-review-axes.md",
+      "outcome": "Proposes /review --axes=<list> that writes no marker; recommends against promoting the sub-loop doctrine wholesale"
+    },
+    {
+      "timestamp": "2026-08-15",
+      "action": "QA pass: dash scan, banned vocabulary, ADR number collision, 13 cited paths, 5 quoted lines",
+      "outcome": "PASS, recorded at .agents/qa/adr-094-scoped-re-review-axes.md"
+    }
+  ],
+  "endingCommit": "9574338dd16e0ef581eec9c760b97e83759db7f5",
+  "nextSteps": [
+    "Human maintainer reviews ADR-094 and decides accept, revise, or reject (governance.md MUST-1)",
+    "On acceptance, orchestrator invokes the adr-review skill for multi-agent validation",
+    "Populate the empty decision-makers frontmatter field",
+    "Resolve the AGENTS.md citation of the non-normative CI-FEEDBACK-SUBLOOP.md"
+  ]
 }
