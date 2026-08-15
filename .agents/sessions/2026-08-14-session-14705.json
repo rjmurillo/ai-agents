@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, attribution, review fixes, pre-push stabilization, retrospective evidence, latest main, final output gates, and loaded timing calibration committed through 2efc836ae; evidence-only updates follow."
+        "Evidence": "Session-authored implementation, attribution, and QA changes committed through 186c49540; later commits only rebind QA evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,6 +170,14 @@
       ]
     }
   ],
+  "episodeMetrics": {
+    "filesChanged": 14,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "639eebc0f596e58437bf565b47bfc8ab01e30a72",
+      "head": "186c49540dfe0436e7ca8cbb96db64aa2dbb9f94"
+    }
+  },
   "endingCommit": "2efc836aef09a1df655ec0d3d638eef48e6c72e6",
   "nextSteps": [
     "Push feat/dx-review and create the pull request.",
