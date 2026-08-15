@@ -1,5 +1,5 @@
 ---
-qaCommit: 2aa84b2d239577b36f6ad2635bd85834ab17d7cc
+qaCommit: d676271b6aa5f33ae7129c3aa3103ffec90db1d5
 qaSessionLog: .agents/sessions/2026-08-15-session-4820.json
 qaVerdict: PASS
 pr: null
