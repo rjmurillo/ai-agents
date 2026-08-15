@@ -18,7 +18,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -66,6 +65,7 @@ from pr_snapshot import (  # noqa: E402
     verify_caller_unchanged,
 )
 
+
 def _run_git_allow_file(
     args: list[str],
     *,
@@ -77,11 +77,16 @@ def _run_git_allow_file(
     cmd = [
         "git",
         "--no-replace-objects",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false",
-        "-c", "protocol.file.allow=always",
-        "-c", "safe.bareRepository=all",
-        "-c", "transfer.fsckObjects=true",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "protocol.file.allow=always",
+        "-c",
+        "safe.bareRepository=all",
+        "-c",
+        "transfer.fsckObjects=true",
         *args,
     ]
     env = _git_env()
@@ -98,11 +103,10 @@ def _run_git_allow_file(
     )
 
 
-
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_identity() -> PrIdentity:
@@ -154,6 +158,7 @@ def real_git_repo(tmp_path: Path):
 # Unit tests: Input validation
 # ---------------------------------------------------------------------------
 
+
 class TestValidation:
     def test_valid_owner(self) -> None:
         _validate_owner("octocat")
@@ -200,6 +205,7 @@ class TestValidation:
 # Unit tests: Exit codes (ADR-035)
 # ---------------------------------------------------------------------------
 
+
 class TestExitCodes:
     def test_exit_ok_is_zero(self) -> None:
         assert EXIT_OK == 0
@@ -236,6 +242,7 @@ class TestExitCodes:
 # Unit tests: PrIdentity
 # ---------------------------------------------------------------------------
 
+
 class TestPrIdentity:
     def test_to_dict_roundtrip(self, sample_identity: PrIdentity) -> None:
         d = sample_identity.to_dict()
@@ -260,11 +267,12 @@ class TestPrIdentity:
 # Unit tests: resolve_pr_identity
 # ---------------------------------------------------------------------------
 
+
 class TestResolvePrIdentity:
     @patch("pr_snapshot.subprocess.run")
     def test_resolves_same_repo_pr(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(
-            stdout=f"{'a'*40}\n{'b'*40}\nmain\nownerX/repoY\nownerX/repoY\n",
+            stdout=f"{'a' * 40}\n{'b' * 40}\nmain\nownerX/repoY\nownerX/repoY\n",
             returncode=0,
         )
         ident = resolve_pr_identity("ownerX", "repoY", 7)
@@ -275,7 +283,7 @@ class TestResolvePrIdentity:
     @patch("pr_snapshot.subprocess.run")
     def test_rejects_fork_pr(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(
-            stdout=f"{'a'*40}\n{'b'*40}\nmain\nfork/repo\nowner/repo\n",
+            stdout=f"{'a' * 40}\n{'b' * 40}\nmain\nfork/repo\nowner/repo\n",
             returncode=0,
         )
         with pytest.raises(VerifyError, match="Cross-repository"):
@@ -283,17 +291,13 @@ class TestResolvePrIdentity:
 
     @patch("pr_snapshot.subprocess.run")
     def test_auth_failure_raises_auth_error(self, mock_run: MagicMock) -> None:
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "gh", stderr="401 Unauthorized"
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="401 Unauthorized")
         with pytest.raises(AuthError):
             resolve_pr_identity("o", "r", 1)
 
     @patch("pr_snapshot.subprocess.run")
     def test_not_found_raises_external(self, mock_run: MagicMock) -> None:
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "gh", stderr="404 Not Found"
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="404 Not Found")
         with pytest.raises(ExternalError, match="not found"):
             resolve_pr_identity("o", "r", 1)
 
@@ -317,6 +321,7 @@ class TestResolvePrIdentity:
 # Unit tests: check_staleness
 # ---------------------------------------------------------------------------
 
+
 class TestCheckStaleness:
     @patch("pr_snapshot.resolve_pr_identity")
     def test_unchanged_passes(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
@@ -324,7 +329,9 @@ class TestCheckStaleness:
         check_staleness(sample_identity)  # should not raise
 
     @patch("pr_snapshot.resolve_pr_identity")
-    def test_head_changed_raises_stale(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
+    def test_head_changed_raises_stale(
+        self, mock_resolve: MagicMock, sample_identity: PrIdentity
+    ) -> None:
         changed = PrIdentity(
             owner=sample_identity.owner,
             repo=sample_identity.repo,
@@ -340,7 +347,9 @@ class TestCheckStaleness:
             check_staleness(sample_identity)
 
     @patch("pr_snapshot.resolve_pr_identity")
-    def test_base_branch_changed_raises_stale(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
+    def test_base_branch_changed_raises_stale(
+        self, mock_resolve: MagicMock, sample_identity: PrIdentity
+    ) -> None:
         changed = PrIdentity(
             owner=sample_identity.owner,
             repo=sample_identity.repo,
@@ -356,7 +365,9 @@ class TestCheckStaleness:
             check_staleness(sample_identity)
 
     @patch("pr_snapshot.resolve_pr_identity")
-    def test_repo_transfer_raises_stale(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
+    def test_repo_transfer_raises_stale(
+        self, mock_resolve: MagicMock, sample_identity: PrIdentity
+    ) -> None:
         changed = PrIdentity(
             owner=sample_identity.owner,
             repo=sample_identity.repo,
@@ -372,13 +383,17 @@ class TestCheckStaleness:
             check_staleness(sample_identity)
 
     @patch("pr_snapshot.resolve_pr_identity")
-    def test_network_failure_raises_stale(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
+    def test_network_failure_raises_stale(
+        self, mock_resolve: MagicMock, sample_identity: PrIdentity
+    ) -> None:
         mock_resolve.side_effect = ExternalError("timeout")
         with pytest.raises(StaleError, match="network"):
             check_staleness(sample_identity)
 
     @patch("pr_snapshot.resolve_pr_identity")
-    def test_auth_failure_propagates(self, mock_resolve: MagicMock, sample_identity: PrIdentity) -> None:
+    def test_auth_failure_propagates(
+        self, mock_resolve: MagicMock, sample_identity: PrIdentity
+    ) -> None:
         mock_resolve.side_effect = AuthError("token expired")
         with pytest.raises(AuthError):
             check_staleness(sample_identity)
@@ -387,6 +402,7 @@ class TestCheckStaleness:
 # ---------------------------------------------------------------------------
 # Unit tests: Git environment sanitization
 # ---------------------------------------------------------------------------
+
 
 class TestGitEnv:
     def test_strips_git_dir(self) -> None:
@@ -421,6 +437,7 @@ class TestGitEnv:
 # Unit tests: CLI
 # ---------------------------------------------------------------------------
 
+
 class TestCli:
     def test_check_stale_no_identity_file(self) -> None:
         code = main(["--owner", "o", "--repo", "r", "--pull-request", "1", "--check-stale"])
@@ -429,7 +446,14 @@ class TestCli:
     @patch("pr_snapshot.resolve_pr_identity")
     @patch("pr_snapshot.capture_snapshot")
     @patch("pr_snapshot.check_staleness")
-    def test_full_workflow(self, mock_stale: MagicMock, mock_capture: MagicMock, mock_resolve: MagicMock, sample_identity: PrIdentity, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_full_workflow(
+        self,
+        mock_stale: MagicMock,
+        mock_capture: MagicMock,
+        mock_resolve: MagicMock,
+        sample_identity: PrIdentity,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         mock_resolve.return_value = sample_identity
         mock_capture.return_value = Snapshot(
             identity=sample_identity,
@@ -455,6 +479,7 @@ class TestCli:
 # Integration tests: Real Git operations
 # ---------------------------------------------------------------------------
 
+
 class TestIntegrationCapture:
     """Real Git integration tests for capture_snapshot.
 
@@ -462,7 +487,9 @@ class TestIntegrationCapture:
     snapshot captures them correctly.
     """
 
-    def _make_repo_with_pr(self, tmp_path: Path, files: dict[str, bytes | str]) -> tuple[Path, str, str]:
+    def _make_repo_with_pr(
+        self, tmp_path: Path, files: dict[str, bytes | str]
+    ) -> tuple[Path, str, str]:
         """Create a bare repo with two commits simulating a PR.
 
         Returns (bare_path, base_sha, head_sha).
@@ -473,16 +500,30 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         # Base commit
         (work / "base.txt").write_text("base\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work,
-            capture_output=True, text=True, check=True, env=env,
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         # Head commit with PR changes
@@ -494,15 +535,30 @@ class TestIntegrationCapture:
             else:
                 p.write_text(content, encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "pr changes"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "pr changes"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work,
-            capture_output=True, text=True, check=True, env=env,
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         # Create a bare clone to serve as "remote"
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         return bare, base_sha, head_sha
 
@@ -512,9 +568,14 @@ class TestIntegrationCapture:
             tmp_path, {"new_file.py": "print('hello')\n"}
         )
         identity = PrIdentity(
-            owner="local", repo="test", number=1,
-            head_sha=head_sha, base_sha=base_sha, base_branch="main",
-            head_repo_full_name="local/test", base_repo_full_name="local/test",
+            owner="local",
+            repo="test",
+            number=1,
+            head_sha=head_sha,
+            base_sha=base_sha,
+            base_branch="main",
+            head_repo_full_name="local/test",
+            base_repo_full_name="local/test",
         )
         snap_dir = tmp_path / "snap"
         snap_dir.mkdir()
@@ -542,24 +603,57 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "old_name.py").write_text("content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
-        subprocess.run(["git", "mv", "old_name.py", "new_name.py"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "rename"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "mv", "old_name.py", "new_name.py"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "rename"], cwd=work, check=True, capture_output=True, env=env
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         # Use _compute_changed_paths directly against our bare repo
         changed = _compute_changed_paths(bare, base_sha, head_sha)
@@ -573,25 +667,52 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "to_delete.py").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         (work / "to_delete.py").unlink()
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "delete"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "delete"], cwd=work, check=True, capture_output=True, env=env
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         changed = _compute_changed_paths(bare, base_sha, head_sha)
         assert "to_delete.py" in changed
@@ -604,25 +725,56 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "readme.md").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         (work / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "add binary"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "add binary"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         changed = _compute_changed_paths(bare, base_sha, head_sha)
         assert "image.png" in changed
@@ -635,26 +787,53 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "base.txt").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         unicode_name = "ñoño_日本語.txt"
         (work / unicode_name).write_text("unicode content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "unicode"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "unicode"], cwd=work, check=True, capture_output=True, env=env
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         changed = _compute_changed_paths(bare, base_sha, head_sha)
         assert unicode_name in changed
@@ -667,26 +846,57 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "base.txt").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         newline_name = "file\nwith\nnewlines.txt"
         (work / newline_name).write_text("content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "newline path"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "newline path"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         changed = _compute_changed_paths(bare, base_sha, head_sha)
         assert newline_name in changed
@@ -699,27 +909,54 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         (work / "a.txt").write_text("1\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "c1"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "c1"], cwd=work, check=True, capture_output=True, env=env
+        )
         (work / "b.txt").write_text("2\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "c2"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "c2"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         # Create a shallow clone (depth=1)
         shallow = tmp_path / "shallow.git"
         subprocess.run(
-            ["git", "-c", "protocol.file.allow=always", "clone", "--bare", "--depth=1", "file://" + str(work), str(shallow)],
-            check=True, capture_output=True, env=env,
+            [
+                "git",
+                "-c",
+                "protocol.file.allow=always",
+                "clone",
+                "--bare",
+                "--depth=1",
+                "file://" + str(work),
+                str(shallow),
+            ],
+            check=True,
+            capture_output=True,
+            env=env,
         )
 
         # Verify it IS shallow
         result = subprocess.run(
             ["git", "rev-parse", "--is-shallow-repository"],
-            cwd=shallow, capture_output=True, text=True, check=True, env=env,
+            cwd=shallow,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         )
         assert result.stdout.strip() == "true"
 
@@ -735,8 +972,16 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         # Install a post-checkout hook that would create a marker file
         hooks_dir = work / ".git" / "hooks"
@@ -747,14 +992,26 @@ class TestIntegrationCapture:
 
         (work / "file.txt").write_text("content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "initial"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         # Create worktree using our sanitized _run_git (hooks disabled)
         wt = tmp_path / "wt"
@@ -762,7 +1019,7 @@ class TestIntegrationCapture:
 
         # The hook marker should NOT exist
         # (We can't easily test /tmp markers, but we verify our config disables hooks)
-        result = _run_git(["config", "--get", "core.hooksPath"], cwd=bare, check=False)
+        _run_git(["config", "--get", "core.hooksPath"], cwd=bare, check=False)
         # core.hooksPath set via -c flag, not persisted - that's OK, the -c flag overrides
 
     def test_no_submodule_init(self, tmp_path: Path) -> None:
@@ -773,8 +1030,16 @@ class TestIntegrationCapture:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         # Create a .gitmodules file (simulating submodule config)
         (work / ".gitmodules").write_text(
@@ -783,14 +1048,30 @@ class TestIntegrationCapture:
         )
         (work / "file.txt").write_text("content\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "with submodule config"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "with submodule config"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "bare.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         # Create worktree
         wt = tmp_path / "wt"
@@ -833,6 +1114,7 @@ class TestIntegrationCapture:
 # Integration: Full capture_snapshot with local file:// remote
 # ---------------------------------------------------------------------------
 
+
 class TestFullCaptureIntegration:
     """End-to-end capture_snapshot using a local bare repo as remote."""
 
@@ -844,15 +1126,30 @@ class TestFullCaptureIntegration:
         work = tmp_path / "work"
         work.mkdir()
         subprocess.run(["git", "init", str(work)], check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=work,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"], cwd=work, check=True, capture_output=True, env=env
+        )
 
         # Base commit
         (work / "existing.py").write_text("x = 1\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=work, check=True, capture_output=True, env=env
+        )
         base_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         # PR changes: add, modify, rename, binary, unicode
@@ -860,18 +1157,35 @@ class TestFullCaptureIntegration:
         (work / "existing.py").write_text("x = 2\n", encoding="utf-8")
         (work / "binary.bin").write_bytes(b"\x00\x01\x02\x03")
         subprocess.run(["git", "add", "."], cwd=work, check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "pr"], cwd=work, check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "commit", "-m", "pr"], cwd=work, check=True, capture_output=True, env=env
+        )
         head_sha = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True, env=env
+            ["git", "rev-parse", "HEAD"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         bare = tmp_path / "remote.git"
-        subprocess.run(["git", "clone", "--bare", str(work), str(bare)], check=True, capture_output=True, env=env)
+        subprocess.run(
+            ["git", "clone", "--bare", str(work), str(bare)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
 
         identity = PrIdentity(
-            owner="local", repo="test", number=99,
-            head_sha=head_sha, base_sha=base_sha, base_branch="main",
-            head_repo_full_name="local/test", base_repo_full_name="local/test",
+            owner="local",
+            repo="test",
+            number=99,
+            head_sha=head_sha,
+            base_sha=base_sha,
+            base_branch="main",
+            head_repo_full_name="local/test",
+            base_repo_full_name="local/test",
         )
         return identity, bare
 

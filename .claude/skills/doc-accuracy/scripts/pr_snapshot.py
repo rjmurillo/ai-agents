@@ -25,6 +25,7 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -34,7 +35,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Exit codes (ADR-035)
@@ -133,7 +133,7 @@ class PrIdentity:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "PrIdentity":
+    def from_dict(cls, d: dict[str, Any]) -> PrIdentity:
         return cls(
             owner=d["owner"],
             repo=d["repo"],
@@ -494,7 +494,7 @@ def check_staleness(identity: PrIdentity) -> None:
     except AuthError:
         raise
     except SnapshotError:
-        raise StaleError("Cannot verify PR identity (network failure)")
+        raise StaleError("Cannot verify PR identity (network failure)") from None
 
     changes: list[str] = []
     if current.head_sha != identity.head_sha:
@@ -560,8 +560,7 @@ def run_scanner(
 # ---------------------------------------------------------------------------
 
 
-def _build_parser() -> "argparse.ArgumentParser":
-    import argparse
+def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description="Capture immutable PR snapshot for doc-accuracy review"
