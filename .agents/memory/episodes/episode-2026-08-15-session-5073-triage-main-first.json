@@ -1,0 +1,38 @@
+{
+  "id": "episode-2026-08-15-session-5073-triage-main-first",
+  "session": "2026-08-15-session-5073-triage-main-first",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Implement issue #5073: make measure-main-before-blaming-the-PR a tooling step (triage_red_check.py) wired into pr-autofix and pr-comment-responder CI-failure triage",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #5073 and the three cited Serena memories",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Surveyed github skill script conventions",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5073-triage-main-first"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
