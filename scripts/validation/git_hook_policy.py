@@ -2759,6 +2759,45 @@ def _changed_line_map(
     return _parse_changed_lines(result.stdout)
 
 
+def _merge_base_scope(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the subset of ``paths`` that still differ from the merge base.
+
+    Lefthook's ``{push_files}`` names every file any pushed commit touched, so
+    a commit-then-revert round trip on a file with pre-existing type debt kept
+    that file in the mypy scope even though the push ships no change to it
+    (issue #5071). ``git diff --name-only base...HEAD`` names exactly what the
+    push ships: a round trip produces no entry, a rename names the post-image
+    path, and a deletion names the removed path (dropped earlier by the
+    file-existence check in ``run_mypy``).
+
+    ``None`` signals the base could not be resolved; callers then keep the
+    full pushed set so the gate is never weaker than before, mirroring the
+    ``_changed_line_map`` fallback.
+
+    Path identity uses ``_normalize_ratchet_path`` on both sides of the
+    comparison, so a pathological name that differs only by surrounding
+    whitespace can collide. Collisions only ADD names to the returned set,
+    never remove them: a file that differs from the merge base always
+    contributes its own normalized name, so a modified file can never be
+    dropped. The worst case is retaining a round-tripped file whose name
+    collides with a modified one, which merely scans it; the diff-line
+    ratchet still ignores its unchanged lines.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {_normalize_ratchet_path(name) for name in result.stdout.split("\0") if name.strip()}
+
+
 def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
     locations: list[tuple[str, int]] = []
     for line in stdout.splitlines():
@@ -2791,6 +2830,34 @@ def _mypy_result_blocks(
     )
 
 
+def _filter_to_merge_base_scope(
+    paths: list[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str]:
+    """Drop files that no longer differ from the merge base (issue #5071).
+
+    An unresolvable base keeps the full set so the gate is never weaker. The
+    scope report prints both counts so a run that kept nothing is
+    distinguishable from a run that examined nothing.
+    """
+    if not paths:
+        return paths
+    scope = _merge_base_scope(paths, repo_root, base_ref)
+    if scope is None:
+        print(
+            f"mypy scope: merge base {base_ref} unresolvable; "
+            f"scanning all {len(paths)} pushed file(s)"
+        )
+        return paths
+    kept = [path for path in paths if _normalize_ratchet_path(path) in scope]
+    print(
+        f"mypy scope: {len(kept)} of {len(paths)} pushed file(s) "
+        f"differ from {base_ref}; dropped {len(paths) - len(kept)} round-trip file(s)"
+    )
+    return kept
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -2811,10 +2878,12 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    base_ref = _mypy_ratchet_base_ref()
+    checked_paths = _filter_to_merge_base_scope(checked_paths, repo_root, base_ref)
     if not checked_paths:
         return 0
     pushed = {_normalize_ratchet_path(path) for path in checked_paths}
-    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
+    changed_lines = _changed_line_map(checked_paths, repo_root, base_ref)
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)
@@ -6898,8 +6967,48 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
+# The observation-sync-advisory lefthook job carries a 5m timeout, and a
+# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
+# the kill lands before any || branch runs), so this advisory's worst case must
+# be held under the cap from the inside. Each file costs up to ~10s when the
+# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
+# 10.0 seconds per request), and the first push of a new branch sweeps every
+# tracked observation file into the job, so an unreachable MCP server
+# overruns the cap and blocks the push. Invariant, pinned by
+# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
+# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
+# under the lefthook cap, so even an unclamped straggler cannot outlive it;
+# the remainder is headroom for uv startup on a loaded machine. Each child is
+# additionally clamped to the remaining budget inside the loop.
+_OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
+
+
 def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    for path in paths:
+    """Import pushed observation files into forgetful, best-effort.
+
+    The job is advisory by contract: every per-file failure is a WARNING and
+    the return value is always 0. The one failure mode that contract cannot
+    absorb is lefthook's own ``timeout:`` kill (a killed job exits non-zero
+    before any guard runs), so the loop holds an internal budget below the
+    configured 5m cap. When forgetful is unreachable, each import burns one
+    ~10s MCP-call timeout per observation entry, up to the 90s child cap, so
+    a push whose file set carries 30+ observation files otherwise outlives
+    the lefthook cap deterministically. Skipped files are named per the
+    no-silent-caps rule; they import on the next push that carries them.
+    """
+    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
+    for index, path in enumerate(paths):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            skipped = len(paths) - index
+            print(
+                f"WARNING: observation sync budget "
+                f"({_OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
+                f"{index} of {len(paths)} file(s); skipped {skipped} of "
+                f"{len(paths)}: " + ", ".join(repr(p) for p in paths[index:]),
+                file=sys.stderr,
+            )
+            break
         result = _run_command(
             [
                 sys.executable,
@@ -6911,10 +7020,15 @@ def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
                 "MED",
             ],
             repo_root,
+            # Clamp the child to the remaining budget so total wall clock is
+            # bounded by the budget, not budget plus one full child timeout.
+            # A clamped kill returns 3 and lands in the WARNING below, which
+            # keeps the advisory contract intact.
+            timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining),
         )
         _print_process_output(result)
         if result.returncode != 0:
-            print(f"WARNING: observation sync failed for {path}", file=sys.stderr)
+            print(f"WARNING: observation sync failed for {path!r}", file=sys.stderr)
     return 0
 
 
@@ -7269,6 +7383,44 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
 
 
+def _handle_observations_push(args: argparse.Namespace) -> int:
+    # Mirrors the glob for observation-sync-advisory in lefthook.yml:
+    #     glob: ".serena/memories/**/*-observations.md"
+    # plus the top-level spelling, because fnmatch requires the "**/" segment
+    # while lefthook's glob does not. Lefthook's glob is a secondary filter
+    # only (ADR-006); the guard logic lives here.
+    #
+    # Stricter/looser/different than the e2e handlers above: on an
+    # unresolvable push range this handler SKIPS instead of failing open.
+    # The job is advisory (sync_observations always returns 0), and failing
+    # open means syncing every tracked observation file; without a reachable
+    # Forgetful service each file burns a 10s MCP timeout, so the full corpus
+    # (50 files when this landed) overruns the job's 5m lefthook cap and the
+    # timeout kill blocks the push (issue #5071 push evidence; same class as
+    # issue #4492).
+    observation_globs = (
+        ".serena/memories/*-observations.md",
+        ".serena/memories/**/*-observations.md",
+    )
+    repo_root = _repo_root(args)
+    changed = _push_range_changed_files(sys.stdin, repo_root)
+    if changed is None:
+        print("observation-sync advisory skipped: push range unresolvable")
+        return 0
+    targets = sorted(
+        path
+        for path in changed
+        if _any_glob_match({path}, observation_globs) and (repo_root / path).is_file()
+    )
+    print(
+        f"observation-sync: {len(targets)} observation file(s) among "
+        f"{len(changed)} changed in push range"
+    )
+    if not targets:
+        return 0
+    return sync_observations(targets, repo_root)
+
+
 def _handle_sessions(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
     if args.paths:
@@ -7382,6 +7534,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("observations-push", _handle_observations_push),
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),

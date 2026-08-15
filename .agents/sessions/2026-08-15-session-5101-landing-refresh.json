@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5101,
+    "date": "2026-08-15",
+    "branch": "fix/claude-probe-expired-oauth-skip",
+    "startingCommit": "24a6290b5",
+    "objective": "Landing refresh for PR #5101: merge main, apply the two review renames, verify the auth-skip tests"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Landing coordinator session; repo tooling active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Instructions loaded at session start"
+      },
+      "handoffRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read HANDOFF.md"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Validation scripts under scripts/ci and scripts/validation used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read constraints"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded landing-workflow memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/claude-probe-expired-oauth-skip"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/claude-probe-expired-oauth-skip"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "retrospectiveWritten": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings recorded in workLog"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5101-landing-refresh-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status clean"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new memories needed"
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items verified"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint clean on the QA report"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "5/5 targeted auth-skip tests pass; ruff clean on the changed file"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Merged origin/main into the branch (clean) to re-run required checks against current main"
+    },
+    {
+      "action": "Applied review renames: _CLAUDE_AUTH_EXPIRED_MARKERS underscore prefix per module convention; stdout_fragment renamed to auth_error_text with a docstring covering non-expiry auth failures and stdout-or-stderr matching"
+    },
+    {
+      "action": "Verified the five targeted claude-probe auth tests pass and ruff is clean"
+    }
+  ],
+  "nextSteps": [
+    "None; the branch is ready to merge"
+  ],
+  "endingCommit": "dc396bfc9dab0766342a0de4282ab802f3218dd9"
+}

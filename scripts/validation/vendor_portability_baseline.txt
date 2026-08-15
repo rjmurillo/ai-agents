@@ -30,6 +30,13 @@
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
 .claude/skills/session-end/scripts/rework_warning.py
+# allocation.py: the '.agents/sessions/' literal is a git tree-path argument to
+# `git ls-tree`, naming where session logs live inside the repository's git
+# history (issues #2379, #4561, #4751). It is never opened as a filesystem
+# path, so resolve_artifact_root (which resolves consumer-workspace write
+# locations) does not apply. Same literal previously shipped inside
+# new_session_log.py, exempt there only because that file imports the helper.
+.claude/skills/session-init/session_init/allocation.py
 .claude/skills/session/scripts/test_investigation_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
