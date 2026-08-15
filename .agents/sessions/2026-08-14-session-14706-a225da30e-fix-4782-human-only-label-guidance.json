@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Seven atomic commits on this branch (git log a225da30e..cd820953ed28263112dd3d52d81e5395f0c6192d): 5f351cf8d81c9b3c46595cab12f47eee6d5de201 (CONTRIBUTING.md authority), 76521cf2f58f701d3412761ab62d9a61d2658b44 (the three enforcement messages with their tests), c7e1ff3339e5111c92226a3b56d79ef9841d4c43 (the GOTCHAS.md entry with this log), 0076e356293aa899ae80980b45f1d607c15d0c0d (the QA report and episode), 1edbf4fb0e42d55bc36876d1c573b76bb8598a33 (corrected the knowledge-persistence decision wording), 2ad3620319656d4517ce5a9d07a20d26ec390d34 (renamed the QA report so CI can find it), cd820953ed28263112dd3d52d81e5395f0c6192d (a later review round: scoped the CONTRIBUTING.md declaration checks to their section, corrected MUST 10, and added the GOTCHAS.md guard test)."
+        "Evidence": "Thirteen atomic commits on this branch, session 14706's own work (excludes a concurrent session's four commits 754909b99, bda02516e, fc25b5828, e835e1d0e, which fixed the same three review threads independently before this session's branch merged them): 5f351cf8d81c9b3c46595cab12f47eee6d5de201 (CONTRIBUTING.md authority), 76521cf2f58f701d3412761ab62d9a61d2658b44 (the three enforcement messages with their tests), c7e1ff3339e5111c92226a3b56d79ef9841d4c43 (the GOTCHAS.md entry with this log), 0076e356293aa899ae80980b45f1d607c15d0c0d (the QA report and episode), 1edbf4fb0e42d55bc36876d1c573b76bb8598a33 (corrected the knowledge-persistence decision wording), 2ad3620319656d4517ce5a9d07a20d26ec390d34 (renamed the QA report so CI can find it), cd820953ed28263112dd3d52d81e5395f0c6192d (a later review round: scoped the CONTRIBUTING.md declaration checks to their section, corrected MUST 10, and added the GOTCHAS.md guard test), 8cf2d981af441e092a7c020c79849df0d56a64b6 (aligned the QA report with the new guard and the real bypass-present path), c6dc1d9e133d9ce661d04d5f1cae3d1bc8de07f9 (recorded every authored SHA and corrected two evidence claims), 1a7e136aa6b5314c972d9bc326d97bfad188b1d8 (advanced the QA binding past that round's test fix), 6993646f825a32f4047dcca0af0b538ddc4364fd (merged the concurrent session's branch, keeping this session's section-scoped guard and removing its duplicate weaker GOTCHAS test), 6b31cbebd6d4a0e1dae9ba15dd4da9191a18272e (fixed GOTCHAS.md's 'and nothing else' self-contradiction), 0976ab80e7213d17be44e36d082b4c9d3931c2a9 (named the canonical-mirror divergence in both bypass-message comments and repaired a merge-index defect in git_hook_policy.py)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,7 +150,7 @@
       "detail": "Restored each pre-fix message in turn, purged __pycache__, and reran the guard: DEAD on all four (git_hook_policy.py, enforce_pr_validation.py, pr_description.py, CONTRIBUTING.md). The inverted control on the unmutated tree passed, and every mutant verified exactly one occurrence of its target literal before patching."
     }
   ],
-  "endingCommit": "cd820953ed28263112dd3d52d81e5395f0c6192d",
+  "endingCommit": "0976ab80e7213d17be44e36d082b4c9d3931c2a9",
   "nextSteps": [
     "PR #4997 is open. Do not merge; .claude/rules/governance.md MUST 1 requires human approval for the .agents/governance/GOTCHAS.md change."
   ]
