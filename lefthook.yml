@@ -167,6 +167,11 @@ pre-commit:
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
 
+          - name: colocated-skill-tests
+            timeout: 1m
+            run: uv run --frozen python scripts/validation/check_colocated_skill_tests.py --staged-only
+            glob: "{.claude/skills,src/copilot-cli/skills,src/claude/skills}/**/tests/**test*.py"
+
           - name: command-size
             timeout: 5m
             run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
