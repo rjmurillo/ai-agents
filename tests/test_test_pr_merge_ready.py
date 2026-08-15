@@ -36,6 +36,7 @@ main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
+classify_tier = _mod.classify_tier
 
 
 class TestScriptCommit:
@@ -1262,3 +1263,228 @@ class TestMergeReadinessWithDispositions:
             result = check_merge_readiness("o", "r", 42)
         assert result["CanMerge"] is True
         assert result["UndisposedNonRequiredFailures"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tier classification tests (issue #4899)
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyTier:
+    """Total tier classifier covers all mergeStateStatus values."""
+
+    def test_clean_can_merge_is_t1(self):
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T1"
+
+    def test_unstable_with_dispositions_is_t1(self):
+        """UNSTABLE + all non-required disposed = T1 (PR #5033 model)."""
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T1"
+
+    def test_unstable_undisposed_is_t2(self):
+        """UNSTABLE with undisposed failures = T2 (CI work needed)."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": ["lint"],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_blocked_state(self):
+        """BLOCKED mergeStateStatus maps to BLOCKED tier."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "BLOCKED",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "BLOCKED"
+
+    def test_behind_state(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "BEHIND",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "BEHIND"
+
+    def test_dirty_state(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "DIRTY",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "DIRTY"
+
+    def test_draft_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": True,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_closed_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "CLOSED",
+            "MergeStateStatus": "",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_merged_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "MERGED",
+            "MergeStateStatus": "",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_ci_failures_only_is_t2(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "tests"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_threads_only_is_t3(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 3,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T3"
+
+    def test_ci_and_threads_is_t4(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "lint"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 2,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T4"
+
+    def test_bot_with_failures_is_t5(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "tests"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result, is_bot=True) == "T5"
+
+    def test_bot_clean_is_t1(self):
+        """Bot PRs that are fully clean still classify as T1."""
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result, is_bot=True) == "T1"
+
+    def test_pending_required_only_is_t2(self):
+        """Pending required checks with no failures = T2 (waiting on CI)."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [{"name": "build"}],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_tier_order_tuple_is_complete(self):
+        """Verify _TIER_ORDER contains all possible classifier outputs."""
+        from test_pr_merge_ready import _TIER_ORDER
+        expected = {"T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"}
+        assert set(_TIER_ORDER) == expected
+
+
+class TestTierInMergeReadinessOutput:
+    """Verify Tier field appears in check_merge_readiness output."""
+
+    def test_tier_field_present_in_output(self):
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+        assert "Tier" in result
+        assert result["Tier"] in _mod._TIER_ORDER

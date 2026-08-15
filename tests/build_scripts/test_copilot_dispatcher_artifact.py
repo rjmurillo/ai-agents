@@ -18,10 +18,13 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "build" / "scripts"))
 
 from generate_hooks_body import is_shimmed  # noqa: E402
+from generate_hooks_events import _COMPANIONS_BY_OWNER  # noqa: E402
 from regen_guard import detect_reason_strict  # noqa: E402
 
 _COPILOT = _REPO / "src" / "copilot-cli"
@@ -236,3 +239,111 @@ class TestDispatcherArtifacts:
                 f"{event}: observe dispatcher returned {proc.returncode}\n"
                 f"{proc.stderr.decode()[:600]}"
             )
+
+    def test_push_pr_identity_guard_excluded_from_pretooluse_manifest_and_hooks(self):
+        """Issue #5013: the push-pr identity guard must not ship to Copilot.
+
+        dispatch_groups.json marks the guard's shim entry
+        ``copilotExclude: true``; generate_hooks_expand.py drops any such
+        shim before it reaches the Copilot tree (#5013). This asserts the
+        COMMITTED artifact reflects that: no shim file, no timeout entry, and
+        no mention in the hooks.json dispatcher registration strings, while
+        the other active PreToolUse shims are still registered.
+        """
+        guard_marker = "push_pr_script_identity_guard"
+        event_dir = _COPILOT / "hooks" / _GATING
+        manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+
+        assert not any(guard_marker in shim for shim in manifest["shims"]), manifest["shims"]
+        assert not any(guard_marker in shim for shim in manifest["timeouts"]), (
+            manifest["timeouts"]
+        )
+
+        # Other active PreToolUse shims remain registered; the guard's
+        # exclusion must not have taken a sibling down with it.
+        assert any("invoke_markdownlint_guard" in shim for shim in manifest["shims"])
+        assert any("invoke_require_subagent_model" in shim for shim in manifest["shims"])
+
+        for entry in _hooks()[_GATING]:
+            assert guard_marker not in entry.get("bash", "")
+            assert guard_marker not in entry.get("powershell", "")
+
+        # The shim file itself must not be shipped either; a generator
+        # omission that left a stray copy on disk would still be a partial
+        # decommission Copilot's file-scan in _dispatch.py could pick back up.
+        stale = [p.name for p in event_dir.glob("*.py") if guard_marker in p.name]
+        assert stale == [], f"guard file still shipped despite exclusion: {stale}"
+
+    def test_push_pr_identity_guard_companions_absent_from_copilot_but_kept_for_claude(self):
+        """Issue #5013: the guard's runtime companions must not ship either.
+
+        The guard's own shim file not containing ``push_pr_script_identity_guard``
+        in its name (the previous test's ``stale`` check) does NOT prove its
+        NINE companion modules (``_push_pr_guard_commands.py`` and siblings,
+        looked up here from the OWNERSHIP TABLE
+        ``generate_hooks_events._COMPANIONS_BY_OWNER`` -- an "ownership table
+        that already names its companions" -- not a hardcoded list) are gone
+        too: none of their filenames contain that marker, so a generator that
+        dropped only the owner and left every companion behind would still
+        pass that check. ``find_stale_matcher_shims`` only recognizes
+        shim-WRAPPED files (``is_shimmed``); a companion is a plain,
+        never-shimmed module, so this is the one test that would catch that
+        specific miss. The canonical Claude source companions must remain
+        untouched: Claude Code keeps running the guard unchanged.
+        """
+        owner_key = "PreToolUse/invoke_push_pr_script_identity_guard.py"
+        companions = _COMPANIONS_BY_OWNER[owner_key]
+        assert len(companions) == 9, companions
+
+        claude_dir = _REPO / ".claude" / "hooks" / "PreToolUse"
+        for companion_name in companions:
+            assert (claude_dir / companion_name).is_file(), (
+                f"canonical Claude companion missing: {companion_name}"
+            )
+
+        copilot_event_dir = _COPILOT / "hooks" / _GATING
+        for companion_name in companions:
+            assert not (copilot_event_dir / companion_name).exists(), (
+                f"companion still shipped to Copilot despite owner exclusion: {companion_name}"
+            )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param("echo hello world", id="ordinary-unrelated-command"),
+            pytest.param(
+                "python3 attacker/pr/new_pr.py --title fix",
+                id="pre-5013-denied-lookalike",
+            ),
+        ],
+    )
+    def test_pretooluse_bash_payload_never_launches_push_pr_guard(self, command: str):
+        """A Bash payload must not launch or reference the retired push-pr
+        identity guard through the generated manifest path.
+
+        Two shapes: an ordinary unrelated command that never touched the
+        guard, and the pre-#5013 attack shape (a repository-controlled
+        ``new_pr.py`` lookalike) the guard used to deny. The second shape is
+        the meaningful control: if the shim were still wired in by accident,
+        THIS command would come back denied where the first would not
+        detect it. This runs the SHIPPED
+        ``src/copilot-cli/hooks/PreToolUse/_dispatch.py`` end to end (not
+        the generator) and asserts both allow and silence: the guard's
+        module name must not appear anywhere in the dispatcher's own
+        diagnostics.
+        """
+        guard_marker = "push_pr_script_identity_guard"
+        proc = _run_entry(
+            _GATING,
+            {
+                "tool_name": "Bash",
+                "tool_input": {"command": command},
+                "cwd": str(_REPO),
+            },
+        )
+
+        assert proc.returncode == 0, (
+            f"payload was denied: {proc.returncode}\n{proc.stderr.decode()[:600]}"
+        )
+        combined = proc.stdout.decode(errors="replace") + proc.stderr.decode(errors="replace")
+        assert guard_marker not in combined, combined[:600]
