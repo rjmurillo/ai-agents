@@ -175,9 +175,20 @@
       "result": "The isolated import probe now requires a completion token printed after RepoInfo imports. Added unit and CLI cases for api.py calling sys.exit(0). Commit ca96f2f68; 20 targeted tests passed and Ruff was clean."
     }
   ],
-  "endingCommit": "ca96f2f68c04420132da984c5cb7a0b4c8629354",
+  "endingCommit": "c3139bcd9519b3f7fd2de33bd4d36d6c05a532a7",
   "nextSteps": [
     "Watch CI on the PR for the merge-resolver skill tests.",
     "Consider a follow-up issue: other skill scripts still collapse COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with 'or', which shadows a valid root when the first is set but foreign."
+  ],
+  "qaEvidence": [
+    {
+      "round": 2,
+      "commit": "c3139bcd95",
+      "threads_addressed": [
+        "PRRT_kwDOQoWRls6ZeeKs",
+        "PRRT_kwDOQoWRls6ZeogN"
+      ],
+      "tests_passed": 115
+    }
   ]
 }

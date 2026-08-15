@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-14-session-14707-acf145278-fix-4961-copilot-plugin-root.json
-qaCommit: ca96f2f68c04420132da984c5cb7a0b4c8629354
+qaCommit: c3139bcd9519b3f7fd2de33bd4d36d6c05a532a7
 ---
 
 # Issue 4961 Session 14707 QA Report
@@ -100,3 +100,37 @@ tests and scoped Ruff is clean.
 PASS. The acceptance criteria in issue 4961 are met: both harness roots
 resolve, foreign and incomplete roots fall through instead of ending the run,
 and the fail-closed exit 2 path is preserved and asserted.
+
+## Round 2: Plugin Identity Validation (c3139bcd95)
+
+### Changes validated
+
+- `_is_own_plugin()`: reads `.claude-plugin/plugin.json` and verifies
+  `name == "project-toolkit"` before the import probe.
+- Subprocess probe: requires explicit sentinel `_IMPORT_PROBE_OK` in stdout;
+  a module calling `sys.exit(0)` during import is rejected.
+- Test file split: `test_plugin_identity.py` extracted to stay under 500-line
+  taste limit.
+
+### Test results
+
+```
+tests/skills/merge-resolver/test_resolve_lib_dir.py ................ (20 passed)
+tests/skills/merge-resolver/test_plugin_identity.py ..              (2 passed)
+tests/test_guard_diff.py ................                            (16 passed)
+tests/test_plugin_path_resolution.py .......                        (7 passed)
+Total: 115 passed, 0 failed
+```
+
+### Ratchets
+
+- taste count: 583 (unchanged)
+- type-ignore count: unchanged
+- mypy: 0 errors on changed files
+
+### Review threads addressed
+
+| Thread | Reviewer | Issue | Resolution |
+|--------|----------|-------|------------|
+| PRRT_kwDOQoWRls6ZeeKs | copilot | sys.exit(0) during import fakes success | Sentinel-based probe (ca96f2f68) |
+| PRRT_kwDOQoWRls6ZeogN | copilot | Foreign plugin with valid RepoInfo passes | Plugin identity gate (c3139bcd95) |
