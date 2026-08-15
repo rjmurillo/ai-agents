@@ -26,7 +26,7 @@
       "handoffPreserved": {"complete": true, "level": "MUST", "evidence": "No handoff changes"},
       "serenaMemoryUpdated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},
       "markdownLintRun": {"complete": true, "level": "MUST", "evidence": "No markdown changes in code commit"},
-      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-4857-matcher-shim-atomic-count.md"},
+      "qaValidation": {"complete": true, "level": "MUST", "evidence": ".agents/qa/pr-5025-issue-4857-matcher-shim-atomic-count.md"},
       "changesCommitted": {"complete": true, "level": "MUST", "evidence": "All changes committed"},
       "validationPassed": {"complete": true, "level": "MUST", "evidence": "41 tests passed, ruff clean"}
     }
