@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review",
+  "session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Draft ADR-094 proposing scoped re-review axes flag for review skill to cut uncached full re-run cost",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read CI-FEEDBACK-SUBLOOP.md and .claude/skills/review/SKILL.md in full",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR precedent search over .agents/architecture/ for sub-loop, CI-feedback, scoped review, convergence",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the claim that pr-autofix invokes /review per PR at T3/T4",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drafted .agents/architecture/ADR-094-scoped-re-review-axes.md",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "QA pass: dash scan, banned vocabulary, ADR number collision, 13 cited paths, 5 quoted lines",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T14:01:32+00:00",
+      "type": "commit",
+      "content": "Commit: 48ac127d6f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T16:15:56+00:00",
+      "type": "commit",
+      "content": "Commit: 66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14711-b79742bf0-draft-adr-094-proposing-scoped-re-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 13
+  },
+  "lessons": []
+}

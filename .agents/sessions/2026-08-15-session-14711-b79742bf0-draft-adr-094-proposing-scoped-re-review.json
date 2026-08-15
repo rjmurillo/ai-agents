@@ -94,7 +94,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/qa-adr-094-scoped-re-review-axes.md"
+        "Evidence": ".agents/qa/qa-adr-094-draft.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -150,7 +150,7 @@
       "outcome": "PASS, recorded at .agents/qa/qa-adr-094-scoped-re-review-axes.md"
     }
   ],
-  "endingCommit": "48ac127d6f",
+  "endingCommit": "66cf2111dcd098a96852f07d21c5cf5aa32b39b8",
   "nextSteps": [
     "adr-review skill runs on this ADR edit per AGENTS.md:44, before human approval per ADR-073:156, not after",
     "Human maintainer reviews the adr-review consensus evidence and decides accept, revise, or reject (governance.md MUST-1)",
