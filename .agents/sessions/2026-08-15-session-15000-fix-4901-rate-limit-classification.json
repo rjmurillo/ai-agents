@@ -4,7 +4,7 @@
     "number": 15000,
     "date": "2026-08-15",
     "branch": "fix/4901-list-issues-rate-limit",
-    "startingCommit": "origin/main",
+    "startingCommit": "5bb3a54004",
     "objective": "Preserve GraphQL rate-limit classification in list_issues (issue #4901)"
   },
   "protocolCompliance": {
