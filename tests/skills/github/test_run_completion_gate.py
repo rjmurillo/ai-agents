@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -65,8 +66,20 @@ def repo_root(tmp_path, monkeypatch):
     block path traversal (CWE-22). Tests need to write throwaway configs
     in tmp_path; monkeypatching the resolved root preserves the
     production guard while keeping the tests hermetic.
+
+    The CWE-829 config trust check is stubbed to "trusted" here because
+    tmp_path is not a git repository and these tests exercise dispatch,
+    DSL, and schema logic, not the trust boundary. The trust boundary
+    has its own dedicated tests (TestConfigTrustBoundary) that drive
+    ``main`` against a real git repository with NO stubbing, which
+    proves the wiring this fixture bypasses.
     """
     monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        _dispatcher,
+        "_verify_config_trust",
+        lambda *_a, **_k: _dispatcher.TrustCheck(_dispatcher.TRUST_TRUSTED, ""),
+    )
     return tmp_path
 
 
@@ -1306,3 +1319,383 @@ class TestTableModeShowsEvidence:
         assert "command:" in out
         assert "stdout:" in out
         assert "warning from verifier" in out
+
+# ---------------------------------------------------------------------------
+# CWE-829 config trust boundary (issue #5072)
+# ---------------------------------------------------------------------------
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run git hermetically: no user/system config, no signing, no hooks."""
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(cwd),
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }
+    proc = subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+         *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, f"git {args} failed: {proc.stderr}"
+    return proc
+
+
+@pytest.fixture
+def git_repo(tmp_path, monkeypatch):
+    """A real git repository standing in for the project root.
+
+    Unlike ``repo_root``, this fixture does NOT stub
+    ``_verify_config_trust``: tests using it drive ``main`` through the
+    real trust check, proving the wiring end to end.
+    """
+    monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+    _git(tmp_path, "init", "-q")
+    return tmp_path
+
+
+def _commit_as_trusted(repo: Path, *paths: Path) -> None:
+    """Commit paths and point refs/remotes/origin/main at the result."""
+    _git(repo, "add", *[str(p.relative_to(repo)) for p in paths])
+    _git(repo, "commit", "-q", "-m", "trusted config")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+
+def _marker_criterion(tmp_path: Path, marker: Path) -> list[dict]:
+    """A criterion whose command PROVABLY executed: it writes a marker file.
+
+    The marker is the isolating assertion for the negative controls: if
+    the dispatcher executes the command, the marker exists; a halt that
+    happened only after execution cannot hide.
+    """
+    verifier = tmp_path / "verifier.py"
+    verifier.write_text(
+        "import json, pathlib, sys\n"
+        f"pathlib.Path({str(marker)!r}).write_text('ran')\n"
+        "print(json.dumps({'ok': True}))\n",
+        encoding="utf-8",
+    )
+    return [
+        {
+            "name": "MarkerCriterion",
+            "verification": "command",
+            "command": f"{sys.executable} {verifier}",
+            "pass_when": "stdout-json.ok == true",
+        },
+    ]
+
+
+class TestConfigTrustBoundary:
+    """The dispatcher must not execute a config that diverges from the
+    trusted ref (CWE-829). No subprocess stubbing: real git, real
+    dispatch, marker files proving execution or its absence.
+    """
+
+    def test_identical_config_proceeds_and_executes(
+        self, git_repo, tmp_path, capsys,
+    ):
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        assert marker.exists(), "trusted config must dispatch normally"
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["config_trust"] == {
+            "status": "trusted",
+            "trusted_ref": "origin/main",
+            "approved": False,
+        }
+
+    def test_tampered_config_halts_without_executing_command(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # Trusted copy holds a benign criterion; the PR tree rewrites the
+        # command. The marker file is the negative control: it must NOT
+        # appear, proving the tampered command never ran.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Benign",
+                    "verification": "command",
+                    "command": "echo benign",
+                    "pass_when": "stdout-json.ok == true",
+                },
+            ],
+        )
+        _commit_as_trusted(git_repo, config_path)
+        marker = tmp_path / "pwned.txt"
+        _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), (
+            "tampered completion_criteria.command must never execute"
+        )
+        err = capsys.readouterr().err
+        assert "HALT" in err
+        assert "diverged" in err
+        assert "MarkerCriterion" in err, "the halt must surface the diff"
+        assert "--approve-untrusted-config" in err
+
+    def test_whitespace_only_change_halts(self, git_repo, tmp_path, capsys):
+        # Byte identity is the contract: even a trailing newline halts.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+        config_path.write_bytes(config_path.read_bytes() + b"\n")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "diverged" in capsys.readouterr().err
+
+    def test_config_missing_from_trusted_ref_halts(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # origin/main exists but never carried the config: fail closed,
+        # because tampering is indistinguishable from a new file.
+        dummy = tmp_path / "README.md"
+        dummy.write_text("x", encoding="utf-8")
+        _commit_as_trusted(git_repo, dummy)
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "missing-base" in capsys.readouterr().err
+
+    def test_trusted_ref_absent_fails_closed(self, git_repo, tmp_path, capsys):
+        # A repo with commits but no origin/main: verification is
+        # impossible, so the gate halts with the external-error code.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "no origin ref")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
+        assert "git-error" in capsys.readouterr().err
+
+    def test_not_a_git_repo_fails_closed(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 3
+        assert not marker.exists()
+        assert "git-error" in capsys.readouterr().err
+
+    def test_approval_flag_executes_diverged_config_with_warning(
+        self, git_repo, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Benign",
+                    "verification": "command",
+                    "command": "echo benign",
+                    "pass_when": "stdout-json.ok == true",
+                },
+            ],
+        )
+        _commit_as_trusted(git_repo, config_path)
+        marker = tmp_path / "approved.txt"
+        _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--json",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 0
+        assert marker.exists(), "explicit approval must allow dispatch"
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err
+        payload = json.loads(captured.out)
+        assert payload["config_trust"]["status"] == "diverged"
+        assert payload["config_trust"]["approved"] is True
+
+    def test_approval_flag_covers_missing_base(self, git_repo, tmp_path, capsys):
+        dummy = tmp_path / "README.md"
+        dummy.write_text("x", encoding="utf-8")
+        _commit_as_trusted(git_repo, dummy)
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--approve-untrusted-config",
+            ],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+        assert "WARNING" in capsys.readouterr().err
+
+    def test_malformed_trusted_ref_rejected_before_git_runs(
+        self, git_repo, tmp_path, capsys,
+    ):
+        # A ref starting with "-" could be parsed as a git option
+        # (argument injection); it must be rejected up front.
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _commit_as_trusted(git_repo, config_path)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--trusted-ref=--upload-pack=/bin/true",
+            ],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "malformed --trusted-ref" in capsys.readouterr().err
+
+    def test_custom_trusted_ref_is_honored(self, git_repo, tmp_path):
+        marker = tmp_path / "ran.txt"
+        config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
+        _git(git_repo, "add", str(config_path.relative_to(git_repo)))
+        _git(git_repo, "commit", "-q", "-m", "trusted on a custom ref")
+        _git(git_repo, "update-ref", "refs/remotes/upstream/release", "HEAD")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config_path),
+                "--pull-request", "1",
+                "--trusted-ref", "upstream/release",
+            ],
+        )
+
+        assert rc == 0
+        assert marker.exists()
+
+
+class TestVerifyConfigTrustErrorBranches:
+    """Unit coverage for _verify_config_trust branches that need fault
+    injection (100% coverage requirement for security-critical code).
+    """
+
+    def test_git_timeout_reports_git_error(self, tmp_path, monkeypatch):
+        def _boom(args, cwd):
+            raise subprocess.TimeoutExpired(cmd=["git", *args], timeout=30)
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _boom)
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        result = _dispatcher._verify_config_trust(config, "origin/main")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
+        assert "trust verification failed" in result.detail
+
+    def test_git_binary_missing_reports_git_error(self, tmp_path, monkeypatch):
+        def _boom(args, cwd):
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _boom)
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        result = _dispatcher._verify_config_trust(config, "origin/main")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
+
+    def test_config_outside_toplevel_reports_git_error(
+        self, tmp_path, monkeypatch,
+    ):
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+
+        def _fake(args, cwd):
+            if args[:2] == ["rev-parse", "--show-toplevel"]:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout=str(elsewhere).encode() + b"\n", stderr=b"",
+                )
+            raise AssertionError(f"unexpected git call: {args}")
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        result = _dispatcher._verify_config_trust(config, "origin/main")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
+        assert "outside git work tree" in result.detail
+
+    def test_git_show_failure_reports_git_error(self, tmp_path, monkeypatch):
+        def _fake(args, cwd):
+            if args[0] == "show":
+                return subprocess.CompletedProcess(
+                    args=args, returncode=128, stdout=b"", stderr=b"boom",
+                )
+            return subprocess.CompletedProcess(
+                args=args, returncode=0,
+                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+        config = tmp_path / "c.yaml"
+        config.write_text("{}", encoding="utf-8")
+
+        result = _dispatcher._verify_config_trust(config, "origin/main")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
+        assert "git show" in result.detail
+
+    def test_unreadable_config_reports_git_error(self, tmp_path, monkeypatch):
+        def _fake(args, cwd):
+            return subprocess.CompletedProcess(
+                args=args, returncode=0,
+                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+            )
+
+        monkeypatch.setattr(_dispatcher, "_run_git", _fake)
+        config = tmp_path / "c.yaml"
+        # Never created on disk: read_bytes raises OSError.
+
+        result = _dispatcher._verify_config_trust(config, "origin/main")
+
+        assert result.status == _dispatcher.TRUST_GIT_ERROR
