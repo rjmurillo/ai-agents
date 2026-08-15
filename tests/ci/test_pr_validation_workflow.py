@@ -42,10 +42,11 @@ def _write_qa_artifacts(
     session_log: str = ".agents/sessions/session.json",
     report_commit: str = "a" * 40,
     session_commit: str | None = None,
+    report_name: str = "qa-pr-42.md",
 ) -> Path:
     report_dir = root / ".agents" / "qa"
-    report_dir.mkdir(parents=True)
-    report = report_dir / "qa-pr-42.md"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report = report_dir / report_name
     report.write_text(
         "---\n"
         f"qaVerdict: {verdict}\n"
@@ -56,7 +57,7 @@ def _write_qa_artifacts(
         encoding="utf-8",
     )
     session_path = root / ".agents" / "sessions" / "session.json"
-    session_path.parent.mkdir(parents=True)
+    session_path.parent.mkdir(parents=True, exist_ok=True)
     session_path.write_text(
         json.dumps(
             {
@@ -326,6 +327,8 @@ def test_qa_report_requires_qa_when_code_is_renamed_into_evidence(
 
     def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
         assert args[-2] == "--jq"
+        if args[-1] == ".body":
+            return subprocess.CompletedProcess(args, 0, "no linked issue here\n")
         assert "previous_filename" in args[-1]
         return subprocess.CompletedProcess(
             args,
@@ -364,6 +367,240 @@ def test_qa_report_blocks_when_code_changes_lack_report(
         "qa_report_exists=false\n"
     )
     assert "::error::No QA report found for code changes" in capsys.readouterr().out
+
+
+def _qa_gh_fake(
+    *,
+    body: str = "",
+    body_returncode: int = 0,
+    changed: str = "src/app.py\n",
+    post_qa_paths: str = ".agents/qa/report.md\0",
+    calls: list[list[str]] | None = None,
+):
+    """A subprocess fake dispatched on its argument vector, not on call order.
+
+    The QA gate issues a different number of ``gh api`` calls depending on
+    whether a PR-numbered report was found, so a positional ``side_effect`` list
+    would hand the body response to the wrong command as soon as that branch
+    changes (``.claude/rules/testing.md`` SHOULD 11).
+    """
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        if calls is not None:
+            calls.append(list(args))
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(args, 0, changed)
+        if args[:2] == ["gh", "api"] and args[-1] == ".body":
+            return subprocess.CompletedProcess(args, body_returncode, body)
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
+            return subprocess.CompletedProcess(args, 0, post_qa_paths)
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    return fake_run
+
+
+def _run_qa_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_run,
+) -> Path:
+    """Point the gate at ``tmp_path`` for PR 42 and return the output file."""
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+    return output
+
+
+def test_linked_issues_are_deduplicated_and_numerically_ordered() -> None:
+    body = "Fixes #9000\nrefs #300\nCloses #9000\n"
+
+    assert qa_mod._linked_issues(body) == ["300", "9000"]
+
+
+def test_qa_report_prefers_the_pr_named_report_over_a_linked_issue_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_qa_artifacts(tmp_path)
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    calls: list[list[str]] = []
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Fixes #5096\n", calls=calls),
+    )
+
+    assert qa_mod.main() == 0
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=true\n"
+        "qa_report=qa-pr-42.md\n"
+    )
+    assert "✓ QA report found: qa-pr-42.md" in capsys.readouterr().out
+    assert not [args for args in calls if args[-1] == ".body"]
+
+
+def test_qa_report_accepts_a_report_named_for_a_linked_issue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Fixes #5096\n"),
+    )
+
+    assert qa_mod.main() == 0
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=true\n"
+        "qa_report=issue-5096-qa.md\n"
+    )
+    assert "✓ QA report found: issue-5096-qa.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5096",
+        "fixes #5096",
+        "Fixed #5096",
+        "Fix #5096",
+        "Closes #5096",
+        "Closed #5096",
+        "Close #5096",
+        "Resolves #5096",
+        "Resolved #5096",
+        "Refs #5096",
+        "Ref #5096",
+        "Body text\n\nRefs  #5096\n",
+    ],
+)
+def test_a_link_keyword_resolves_the_issue_named_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(tmp_path, monkeypatch, _qa_gh_fake(body=body))
+
+    assert qa_mod.main() == 0
+    assert "qa_report=issue-5096-qa.md\n" in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "#5096",
+        "See #5096 for context",
+        "Related to #5096",
+        "This prefix #5096 is not a keyword",
+        "Issue 5096 has no hash",
+        "",
+    ],
+)
+def test_a_bare_mention_never_resolves_an_issue_named_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    body: str,
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(tmp_path, monkeypatch, _qa_gh_fake(body=body))
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "::error::No QA report found for code changes" in capsys.readouterr().out
+
+
+def test_qa_report_blocks_when_the_linked_issue_has_no_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(tmp_path, monkeypatch, _qa_gh_fake(body="Fixes #999\n"))
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+
+
+def test_the_lowest_numbered_linked_issue_wins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-9000-qa.md")
+    _write_qa_artifacts(tmp_path, report_name="issue-300-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Refs #9000\nFixes #300\n"),
+    )
+
+    assert qa_mod.main() == 0
+    assert "qa_report=issue-300-qa.md\n" in output.read_text(encoding="utf-8")
+
+
+def test_a_failed_body_fetch_is_an_external_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_qa_artifacts(tmp_path, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="", body_returncode=1),
+    )
+
+    assert qa_mod.main() == 3
+    assert output.read_text(encoding="utf-8") == "has_code_changes=True\n"
+    assert "::error::gh api failed for repos/o/r/pulls/42" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("verdict", "post_qa_paths", "expected_error"),
+    [
+        ("FAIL", ".agents/qa/report.md\0", "::error::Invalid QA report:"),
+        ("PASS", "scripts/new_code.py\0", "QA report is stale"),
+    ],
+)
+def test_an_issue_named_report_faces_the_same_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    verdict: str,
+    post_qa_paths: str,
+    expected_error: str,
+) -> None:
+    _write_qa_artifacts(tmp_path, verdict=verdict, report_name="issue-5096-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Fixes #5096\n", post_qa_paths=post_qa_paths),
+    )
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert expected_error in capsys.readouterr().out
 
 
 def test_report_builds_fail_status_and_outputs_status(

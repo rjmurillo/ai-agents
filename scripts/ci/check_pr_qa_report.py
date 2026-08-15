@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,11 @@ CONFIG_ERROR = 2
 EXTERNAL_ERROR = 3
 LOGIC_ERROR = 1
 CODE_EXTENSIONS = {".ps1", ".cs", ".ts", ".js", ".py", ".yml", ".yaml", ".json"}
+
+# The closing and reference keywords a PR body uses to link an issue. A bare
+# "#123" is not a link under this pattern: an issue number is only read from a
+# keyword, so a passing mention of another issue cannot pull in its QA report.
+LINKED_ISSUE = re.compile(r"(?i)\b(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?|refs?)\s+#(\d+)")
 
 
 def _append_output(name: str, value: str) -> int:
@@ -87,6 +93,74 @@ def _find_qa_report(pr_number: str) -> Path | None:
         artifact_dir("qa", base=Path.cwd()).glob(f"*pr-{pr_number}*.md")
     )
     return reports[0] if reports else None
+
+
+def _pr_body(repository: str, pr_number: str) -> str | None:
+    """The PR body text, or None when the API call failed.
+
+    Mirrors ``_pr_head_sha`` above: same ``gh api`` shape, same ``check=False``,
+    same read of ``returncode`` before the output is trusted. It returns None
+    instead of raising because the caller reports a failed lookup as
+    EXTERNAL_ERROR, the way ``_changed_files`` does, rather than as an invalid
+    report.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/pulls/{pr_number}",
+            "--jq",
+            ".body",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _linked_issues(body: str) -> list[str]:
+    """Issue numbers the body links, deduplicated and in numeric order."""
+    return sorted({match.group(1) for match in LINKED_ISSUE.finditer(body)}, key=int)
+
+
+def _find_issue_qa_report(issue_numbers: list[str]) -> Path | None:
+    qa_dir = artifact_dir("qa", base=Path.cwd())
+    for issue_number in issue_numbers:
+        reports = sorted(qa_dir.glob(f"*issue-{issue_number}*.md"))
+        if reports:
+            return reports[0]
+    return None
+
+
+def _resolve_qa_report(
+    repository: str,
+    pr_number: str,
+) -> tuple[Path | None, int | None]:
+    """The QA report for this PR, plus an exit code when the lookup itself failed.
+
+    Issue #5096: a report named for the PR number cannot be written before the
+    PR exists, so the first push of every code PR failed this gate and paid a
+    rename commit plus a second full push cycle. A report named for an issue the
+    PR body links can be written up front, so it is accepted when no PR-numbered
+    report exists. The PR-numbered name stays preferred, and whichever report
+    resolves goes through ``_validate_report`` unchanged.
+    """
+    report = _find_qa_report(pr_number)
+    if report is not None:
+        return report, None
+    body = _pr_body(repository, pr_number)
+    if body is None:
+        print(
+            f"::error::gh api failed for repos/{repository}/pulls/{pr_number}",
+            file=sys.stderr,
+        )
+        return None, EXTERNAL_ERROR
+    return _find_issue_qa_report(_linked_issues(body)), None
 
 
 def _resolve_commit(commit: str) -> str | None:
@@ -241,7 +315,9 @@ def main(argv: list[str] | None = None) -> int:
         return output_error
     if not has_code_changes:
         return _record_no_qa_required()
-    qa_report = _find_qa_report(pr_number)
+    qa_report, lookup_error = _resolve_qa_report(repository, pr_number)
+    if lookup_error is not None:
+        return lookup_error
     if qa_report:
         try:
             _validate_report(repository, pr_number, qa_report)
