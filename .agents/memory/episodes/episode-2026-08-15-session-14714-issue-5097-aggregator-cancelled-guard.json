@@ -1,0 +1,127 @@
+{
+  "id": "episode-2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard",
+  "session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #5097: stop result-aggregator CI jobs from converting a superseded run's cancelled dependencies into red failure check runs",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cherry-picked the shared container unblock commit before any other work",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Established the GitHub Actions contract from the vendor docs rather than memory",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited every workflow for the aggregator shape with a parsed-YAML detector",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced always() with !cancelled() in the five unguarded aggregators",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flipped the two existing tests that pinned the old always() contract",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the parsed-structure regression guard with a negative control",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the Serena memory that prescribed the defect",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T15:15:45+00:00",
+      "type": "commit",
+      "content": "Commit: c0d7bf451",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T16:02:46+00:00",
+      "type": "commit",
+      "content": "Commit: 1521e2d05",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14714-issue-5097-aggregator-cancelled-guard"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}
