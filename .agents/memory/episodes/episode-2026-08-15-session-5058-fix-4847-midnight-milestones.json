@@ -85,7 +85,9 @@
       "type": "commit",
       "content": "Commit: bf862bb1d9ee42ad4791e64503c72ecfee36dec4",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e011"
+      ],
       "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
     },
     {
@@ -96,6 +98,17 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T15:57:01+00:00",
+      "type": "commit",
+      "content": "Commit: 13d891b1ed36bb8676e23209893c602ba0f6bea4",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5058-fix-4847-midnight-milestones"
     }
   ],
   "metrics": {
@@ -103,8 +116,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 2,
+    "files_changed": 11
   },
   "lessons": []
 }
