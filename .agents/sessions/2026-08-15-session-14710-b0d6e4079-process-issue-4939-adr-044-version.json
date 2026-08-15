@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "e0962301a3ad12dfae638308fa59e6dbb110d030"
+        "Evidence": "66eea82edc2bc82639ea5d513c149a27e6f47cd0"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py passed after updating workLog and QA evidence"
+        "Evidence": "uv run python scripts/validation/pre_pr.py passed all 51 validations"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -179,7 +179,7 @@
       ]
     }
   ],
-  "endingCommit": "e0962301a3ad12dfae638308fa59e6dbb110d030",
+  "endingCommit": "66eea82edc2bc82639ea5d513c149a27e6f47cd0",
   "nextSteps": [
     "Run the full pre-PR gate.",
     "Open one PR for issue #4939."

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
-qaCommit: e0962301a3ad12dfae638308fa59e6dbb110d030
+qaCommit: 66eea82edc2bc82639ea5d513c149a27e6f47cd0
 ---
 
 # QA Report, issue 4939
@@ -22,6 +22,7 @@ ADR-094 supersession policy, ADR-044 lifecycle update, contributor guidance, and
 - Diff integrity: `git diff --check` passed.
 - Stale guidance search: no live contributor or runbook instruction still recommends `0.0.397`.
 - ADR review: Round 1 blocked 5 to 1. Round 2 accepted 6 to 0 after ADR-094 replaced the in-place amendment.
+- Full gate: `uv run python scripts/validation/pre_pr.py` passed all 51 validations.
 
 ## Result
 
