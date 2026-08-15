@@ -40,6 +40,7 @@
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (885)
+|ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]

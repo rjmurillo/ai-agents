@@ -1,0 +1,33 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-15-session-15001-fix-4928-pwsh-flake.json
+qaCommit: 62730bf58efe9544acc2df1c508fe839d16f1541
+---
+
+# QA Report: PowerShell runtime contract flake fix (#4928)
+
+## Scope
+
+Verified the batched pwsh invocation eliminates subprocess timeout flakes.
+
+## Evidence
+
+| Check | Result |
+|---|---|
+| Single run | 1 passed in 1.66s |
+| 30x xdist runs (-n 2) | 30/30 pass consistently |
+| Full test file | 35 passed in 1.96s |
+| No regressions | All assertions preserved |
+
+## Root Cause
+
+N separate pwsh subprocess spawns (one per hook entry x 2 scenarios)
+contended for process slots under xdist parallelism. With 66+ existing pwsh
+processes, individual spawns exceeded the 30-second timeout.
+
+## Fix Verification
+
+Batching all Test-Path checks into a single pwsh -Command per scenario
+reduces spawns from Nx2 to 2 total. Runtime dropped from 30s+ to ~2s.
+
+## VERDICT: PASS
