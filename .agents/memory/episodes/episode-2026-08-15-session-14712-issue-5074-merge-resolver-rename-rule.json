@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule",
+  "session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Issue #5074: encode rename-never-content-merge for session-log add/add conflicts in merge-resolver guidance",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #5074 and the PR #4856 retrospective evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the template rules and confirmed the asymmetric generation seam",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the rename-never-content-merge conflict class to the template and all three hand-maintained copies with identical wording",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the wrong classification that listed session artifacts as blanket accept-base",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated platform agents and re-measured the merge-resolver drift baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extended the merge-resolver skill guidance with the same rule",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flagged the resolve_pr_conflicts.py behavior gap without changing the script",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated before push",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest tests/test_detect_agent_drift.py -x: 52 passed; ruff clean; markdownlint-cli2 0 issues on changed files; pre_pr.py run",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T14:25:41+00:00",
+      "type": "commit",
+      "content": "Commit: 581fabb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14712-issue-5074-merge-resolver-rename-rule"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
