@@ -140,9 +140,9 @@ an organization or GitHub must expand eligibility before the ruleset gains a
 `merge_queue` rule.
 
 `strict_required_status_checks_policy` is `false` as of 2026-08-15. The count
-ratchets enforce effective branch freshness independently: a branch behind main
-fails CI because its recorded baseline exceeds main's lowered value. The serial
-one-front landing protocol controls concurrency. See `docs/landing-workflow.md`.
+ratchets block a behind branch only when main has lowered a relevant baseline
+(not universally). The serial one-front landing protocol controls concurrency.
+See `docs/landing-workflow.md`.
 
 ## Corollary: the merged result can be red even when every input was green
 

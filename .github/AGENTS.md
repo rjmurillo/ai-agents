@@ -645,16 +645,17 @@ had to be current before merging is not needed for this race: with the ratchet
 tolerating the drift there is no red `main` to prevent. Note that strict was
 nonetheless armed on 2026-08-04 (ruleset version `45433643`) for a different
 reason, as remediation for the red-`main` incident of that date. As of
-2026-08-15 it has been returned to `false`; the count ratchets enforce
-effective freshness independently. See `docs/landing-workflow.md` and
+2026-08-15 it has been returned to `false`; the count ratchets block behind
+branches only when main lowers a relevant baseline. See
+`docs/landing-workflow.md` and
 `.serena/memories/decision-every-merge-invalidates-every-open-pr.md`.
 
 **Status note, measured 2026-08-15.** That policy reads `false` on ruleset
 `11104075`. The paragraph above stays accurate on its own terms: strict checks
 are not what resolves this particular race, and the ratchet tolerance is. The
-count ratchets enforce effective branch freshness regardless of the strict
-setting, so a branch behind main still fails CI. There is still no merge queue
-(user-owned repo ineligible). See `docs/landing-workflow.md` for the full
+count ratchets block a behind branch only when main has lowered a relevant
+baseline; they do not enforce universal freshness. There is still no merge
+queue (user-owned repo ineligible). See `docs/landing-workflow.md` for the full
 serial one-front landing protocol.
 
 **Residual cost.** The baseline sits above the true count until someone records

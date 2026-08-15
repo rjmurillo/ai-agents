@@ -1117,9 +1117,9 @@ own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
 that no longer existed. That remedy shipped as `true` on 2026-08-04 but has
-since been returned to `false` (measured 2026-08-15). The count ratchets
-enforce effective branch freshness regardless: a branch behind main fails CI
-because its recorded baseline exceeds main's lowered value.
+since been returned to `false` (measured 2026-08-15). The count ratchets block
+a behind branch only when main lowers a relevant baseline; they do not enforce
+universal freshness.
 
 What remains is the case neither strict nor the ratchets cover. Ruleset
 11104075 still has no `merge_queue` rule and no workflow handles a

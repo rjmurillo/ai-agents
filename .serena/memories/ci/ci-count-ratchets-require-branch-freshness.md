@@ -1,4 +1,4 @@
-# The count ratchets enforce branch freshness independent of the ruleset strict setting
+# The count ratchets block behind branches when main lowers a baseline
 
 ## Question
 
@@ -8,9 +8,10 @@ state as of 2026-08-15)?
 
 ## Answer
 
-Yes. The ruleset strict setting and the count ratchets are independent gates.
-The ratchets enforced freshness on their own even while strict was false, and
-continue to do so now that strict has returned to false.
+Conditionally. The ratchets block a behind branch only when main has lowered a
+relevant baseline. If main changes code without lowering a baseline, a behind
+branch whose recorded baseline still matches main's can pass and merge. The
+ratchets are not a universal freshness gate; strict mode was that mechanism.
 `scripts/ci/count_ratchet.py::_base_ref_verdict` blocks whenever the branch's
 recorded baseline is above the base ref's:
 

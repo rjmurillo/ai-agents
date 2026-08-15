@@ -74,15 +74,17 @@ wall time.
 ## Strict policy status
 
 As of 2026-08-15, `strict_required_status_checks_policy` is `false` on ruleset
-11104075. The count ratchets still enforce effective branch freshness because
-they compare against the base ref tree, so a branch behind main fails CI even
-though GitHub does not block the merge button. The operational effect is the
-same: merge main before pushing.
+11104075. When main lowers a count baseline (which occurs on most merges that
+fix violations), the ratchets block every behind branch until it picks up the
+new value. This is not universal: a behind branch whose baselines still match
+main can pass without merging. The operational recommendation remains the same:
+merge main before pushing to avoid surprises.
 
 Historical note: strict was set to `true` between 2026-08-04 and some point
-before 2026-08-15. The serial one-front workflow is independent of this
-setting; it controls CI cost regardless of whether GitHub or the ratchets
-enforce freshness.
+before 2026-08-15. With strict on, GitHub rejected every stale branch
+unconditionally. With strict off, only branches whose baselines are above
+main's lowered values are blocked by the ratchets. The serial one-front
+workflow is independent of this setting; it controls CI cost regardless.
 
 ## Governance
 
