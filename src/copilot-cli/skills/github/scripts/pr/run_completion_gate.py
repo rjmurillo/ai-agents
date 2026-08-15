@@ -1008,7 +1008,7 @@ def _try_write_evidence(path_arg: str, payload: dict) -> bool:
     return True
 
 
-def _extract_criteria(config: dict) -> list | None:
+def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
     """Return the completion_criteria list, or None (with stderr) if invalid.
 
     Rejects anything other than a non-empty list. The previous inline
@@ -1064,7 +1064,7 @@ def main(argv: list[str] | None = None) -> int:
     if criteria is None:
         return 2
 
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     try:
         for criterion in criteria:
             rows.append(_evaluate_criterion(criterion, args.pull_request))
