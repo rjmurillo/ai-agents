@@ -88,7 +88,7 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Evidence": "commits 6695b28 (module + tests) and 849ecda (wiring), re-signed",
+        "Evidence": "module, tests, and wiring landed as signed commits on the branch",
         "Complete": true
       },
       "validationPassed": {
@@ -124,7 +124,7 @@
       "description": "Pre-push python-tests gate failed on environment gaps unrelated to the diff: installed missing sqlite3 CLI, and made the orphan-ref-validator permission-denied test euid-independent (chmod 0 is ignored under root CAP_DAC_OVERRIDE); mirror synced byte-for-byte"
     }
   ],
-  "endingCommit": "341fe22c28a6010c81b0582a0539d1519d20142e",
+  "endingCommit": "56308f0e17b97a7e5fcc29eec11e43e851bbe879",
   "nextSteps": [
     "Owner: mint BOT_PAT from rjmurillo-bot (id 250269933), store as repository secret, confirm the identity step reports MATCH"
   ]

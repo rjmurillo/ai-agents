@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4607-bot-pat-identity.json
-qaCommit: 341fe22c28a6010c81b0582a0539d1519d20142e
+qaCommit: 56308f0e17b97a7e5fcc29eec11e43e851bbe879
 ---
 
 # QA Report: Bot identity diagnostic (Issue #4607, PR #5093)
@@ -86,6 +86,18 @@ probe). The merge adopted main's versions, so these files carry no diff
 against main in this PR; the euid-guarded tests skip under root, which
 also keeps this container's pre-push suite green. Verified post-merge:
 37 passed, 2 skipped across the affected files plus the identity tests.
+
+## Review-driven hardening (round 2, Copilot)
+
+Copilot review raised four code findings, all addressed:
+non-object JSON payloads no longer crash the probe (UNKNOWN instead);
+strict-mode 401 exits 4 (auth) per the exit-code contract while 403/5xx
+stay 3 (external); the diagnostic now runs before the first BOT_PAT call
+in ai-metrics-analysis, update-reviewer-stats, and auto-assign-reviewer
+(previously only ai-review action callers and pr-maintenance had it); and
+the wiring test pins every consumer unconditional, non-strict, and ordered
+before the first BOT_PAT API step. The session episode was regenerated to
+drop a duplicated abbreviated commit spelling. 38 identity tests pass.
 
 ## Review-driven hardening
 
