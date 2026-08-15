@@ -97,7 +97,8 @@
         "e044",
         "e045",
         "e047",
-        "e048"
+        "e048",
+        "e050"
       ],
       "leads_to": [
         "e006"
@@ -639,6 +640,30 @@
       "caused_by": [
         "e046"
       ],
+      "leads_to": [
+        "e051"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e050",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Compressed superseded QA history before retrying the guarded push.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e051",
+      "timestamp": "2026-08-15T02:31:59+00:00",
+      "type": "commit",
+      "content": "Commit: 99f2ce4f65f4d9c164ee570ac68bd8bd128849f2",
+      "caused_by": [
+        "e049"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -648,7 +673,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 29,
+    "commits": 30,
     "files_changed": 51
   },
   "lessons": []

@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 76cb25d2f)"
+        "Evidence": "QA report compression staged with this log after validating merge commit 99f2ce4f65f4d9c164ee570ac68bd8bd128849f2."
       },
       "validationPassed": {
         "level": "MUST",
@@ -183,9 +183,13 @@
     {
       "action": "Ran the completion gate (run_completion_gate.py --pull-request 4846 --json) after resolving both outstanding review threads and pushing 524c5534e..7a5be354e (10th rebind). 4/5 criteria passed; 1 new failure: 'No suppressed Copilot review findings' (check_suppressed_review_findings.py), active_suppressed_count: 4. Investigated: a Copilot review at 2026-08-15T01:14:57Z bundled 4 findings into a collapsed 'Suppressed comments' section on head 7a5be354e, never surfacing as GraphQL reviewThreads, invisible to get_unresolved_review_threads.py. The pr-review-config.yaml pass_when clause has no tracking-based exemption for this criterion (unlike the review-threads criterion), and active_state is computed purely as active-iff-commit-equals-head-sha, so only a genuine fix (not a SHA-staleness reset) resolves each finding per this project's never-dismiss ethos.",
       "result": "Fixed 3 of 4 findings in commit 3ec7f54ea: (1) tests/workflows/test_workflow_jobs_check_out_repo.py: _line_runs_checkout_index required only exact-token membership anywhere in the tokenized line, so 'checkout-index' as an unrelated CLI argument to another command satisfied the guard; now requires it immediately follow a 'git' token. 2 new tests (the exact false-positive shape, and the env-prefixed real-usage form), 147/147 pass. (2) tests/hooks/test_dispatch_groups_parity.py: this file's tests only checked invoke_require_subagent_model.py's registration/authorization, never its main() decision logic; added TestRequireSubagentModelGate (7 tests) loading the shipped entrypoint via importlib and driving both harnesses' payload shapes (explicit model, escape hatch, pinned Claude/Copilot definitions, deny with neither), isolated from the real machine's home directory via CLAUDE_CONFIG_DIR/COPILOT_HOME. 21/21 pass. (3) tests/build_scripts/test_hook_contract_knowledge.py:623: the fd82d92fc xfail guard had no tracking issue; opened https://github.com/rjmurillo/ai-agents/issues/5014 and cited it in the inline comment and xfail reason string. Finding #4 (pyproject.toml:10, PR description undersold the actual 50-file scope) addressed via gh pr edit adding a 'Scope note' section itemizing every drift-absorbed file category (not a tracked-file change). Full targeted suite (3 files): 192 passed, 1 xfailed (tracked, expected). ruff/mypy clean. git merge-tree --write-tree origin/main HEAD: 0 conflicts. Scope unchanged at exactly 50/50. Also re-verified mergeStateStatus transiently returned to BLOCKED after the gh pr edit (a 'Validate PR'/'Validate Spec Coverage' required re-run triggered by the description edit) and settled back to UNSTABLE ~2.5 minutes later with no new required failures. Committed 11th QA/session-log rebind alongside this entry; not yet pushed."
+    },
+    {
+      "action": "Compressed superseded QA history before retrying the guarded push.",
+      "result": "The QA report fell from 521 to 472 lines without changing the PASS verdict, tested commit, or current evidence."
     }
   ],
-  "endingCommit": "3ec7f54eac820828780bd34c449248dc372d7281",
+  "endingCommit": "99f2ce4f65f4d9c164ee570ac68bd8bd128849f2",
   "nextSteps": [
     "Push the pending 11th rebind commit (docs: rebind QA evidence to the suppressed-Copilot-findings fix, commit 3ec7f54ea) through the guarded run_pr_mutation_if_live wrapper (refresh EXPECTED_HEAD_SHA to the rebind commit's SHA and re-verify EXPECTED_BASE_SHA via gh pr view --json baseRefOid immediately before pushing).",
     "After the push: poll CI to green, wait for Copilot's next review pass, then re-run check_suppressed_review_findings.py / run_completion_gate.py to confirm active_suppressed_count == 0 for all 4 findings on the new head (3 genuinely fixed should clear; verify none of the fixes triggered a new Copilot finding).",

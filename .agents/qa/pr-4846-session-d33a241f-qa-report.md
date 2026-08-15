@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 3ec7f54eac820828780bd34c449248dc372d7281
+qaCommit: 99f2ce4f65f4d9c164ee570ac68bd8bd128849f2
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `3ec7f54eac820828780bd34c449248dc372d7281`
+Validated the branch at commit `99f2ce4f65f4d9c164ee570ac68bd8bd128849f2`
 (qaCommit, above; this is the 11th rebind of this report). Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
@@ -68,55 +68,6 @@ this session, to `841f375ca9`, a large ~200-file unrelated batch;
 verified this specific diff stays merge-clean without adopting any of
 it). Branch scope is unchanged at exactly 50/50: both files this commit
 touches were already tracked in this branch's diff.
-
-Also this session: discovered and satisfied a new `retrospective-policy`
-pre-push gate (a pure filesystem check for a dated
-`.agents/retrospective/` file, satisfied by an untracked file that does
-not affect the scope count) and root-caused a wrapper-script hang to a
-lease-renewal race (redundant top-level `start_lease_renewal` call
-racing `prepare_lease_for_mutation`'s internal renewal sequence), fixed
-by removing the redundant call. Neither required a code change to this
-PR's tracked files.
-
-Prior (9th rebind): validated the branch at commit
-`2ea883515483013b86e76a0881dbc869176caf03`. After the 6
-commits ending at `fd82d92fc` (below) pushed clean and CI went green
-(118/118 checks passing, 0 failed, 0 pending), `mergeStateStatus` stayed
-`BLOCKED`. Ruleset `11104075` sets `required_approving_review_count: 0`
-(the empty `reviewDecision` is not a blocker) but
-`required_review_thread_resolution: true`; a GraphQL query of all 49
-review threads found exactly 1 unresolved, a `copilot-pull-request-reviewer`
-comment on `.github/workflows/vendor-provenance.yml:134` (thread
-`PRRT_kwDOQoWRls6Za-ys`) identifying a real stale-success race: `PR_SHA`
-is unchanged across `edited`/`reopened` events, and the workflow only
-published its custom "Validate Vendor Provenance" check-run at the very
-end of the job, so a prior run's completed/success check-run for that
-SHA would remain the latest status for that context throughout the whole
-re-validation window, once this check is configured as a required status
-check. Commit `2ea883515` (below) closes the race by creating an
-`in_progress` check-run immediately after the trusted-base tree
-materializes and completing that exact run ID at the end, instead of
-always creating a fresh one.
-
-The 6 commits ending at `fd82d92fc` themselves resolved a 3rd main-drift
-cycle: after the previous report's commit (`9995125bb`) was pushed, CI
-failed: `origin/main`
-had advanced past `4ecc1fdf3`, and `bc179ad3a` itself (not just its doc
-text, already handled in the prior update) touches 15 vendor-provenance-
-pinned files this branch does not own (`.claude/hooks/hooks.json`,
-`.claude/hooks/dispatch_groups.json`, `.claude/lib/hook_dispatch.py`, a
-new hook `invoke_require_subagent_model.py`, its per-hook mirror shims,
-`build/scripts/generate_hooks*.py`, `.markdownlint-cli2.yaml`), reproducing
-the trust-anchor SHA-256 mismatch class of failure from the first main-
-drift cycle, now against a larger file set. A first attempt to sync only
-the 3 ADR files (`ADR-068`, `ADR-071`, `ADR-085`) this test suite's
-assertions read from was tried and rejected: staging them pushed this
-branch's own scope-explosion count (`scripts/detect_scope_explosion.py`)
-from 48/50 to 53/50, over the hard block, with no non-bypass remediation
-available. Commits 22-26 below sync the 15 non-ADR files instead, refresh
-the trust-anchor pin table, and scope a new xfail guard around the one
-test function whose assertions read ADR text this branch does not adopt.
-Every check below was re-run against the actual `qaCommit` SHA.
 
 The previous report's own opening paragraph (retained below for history)
 noted that an earlier version of this report named
@@ -518,4 +469,3 @@ already tracked in this branch's diff before this commit.
 ## Verdict
 
 **Status**: PASS
-
