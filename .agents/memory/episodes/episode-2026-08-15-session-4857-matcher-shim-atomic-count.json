@@ -50,6 +50,19 @@
         "e002",
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T09:00:28+00:00",
+      "type": "commit",
+      "content": "Commit: f2afec898b455e7fad5769acfb2f3c5535b2e5f1",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-4857-matcher-shim-atomic-count"
     }
@@ -59,8 +72,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }

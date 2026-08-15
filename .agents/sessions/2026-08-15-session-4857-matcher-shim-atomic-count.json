@@ -7,7 +7,7 @@
     "startingCommit": "944427e0a9",
     "objective": "Fix atomic-commit counter treating generated Copilot hook shims as authored files"
   },
-  "endingCommit": "9f69eec1dc1bdc81ae6b2b0ad232189d71df0d59",
+  "endingCommit": "f2afec898b455e7fad5769acfb2f3c5535b2e5f1",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {"complete": false, "level": "SHOULD", "evidence": "SHOULD: implementer session; item not applicable"},

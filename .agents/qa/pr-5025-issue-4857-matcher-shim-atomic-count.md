@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-4857-matcher-shim-atomic-count.json
-qaCommit: 9f69eec1dc1bdc81ae6b2b0ad232189d71df0d59
+qaCommit: f2afec898b455e7fad5769acfb2f3c5535b2e5f1
 ---
 
 # PR 4857 Matcher Shim Atomic Count QA Report
