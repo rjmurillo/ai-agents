@@ -4942,6 +4942,165 @@ def test_mypy_ratchet_ignores_error_in_unpushed_file(
     assert policy.run_mypy(["source.py"], tmp_path) == 0
 
 
+def test_merge_base_scope_drops_round_trip_keeps_modified_rename_deletion(
+    tmp_path: Path,
+) -> None:
+    # Issue #5071: the scope is what the push ships versus the merge base.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    _commit_file(repo, "round.py", "flag: bool = True\n")
+    _commit_file(repo, "old.py", "name: str = 'x'\n")
+    base = _commit_file(repo, "gone.py", "count: int = 0\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "mv", "old.py", "new.py")
+    _git(repo, "rm", "-q", "gone.py")
+    _git(repo, "add", "--", "keep.py", "round.py")
+    _git(repo, "commit", "-qm", "test: touch everything")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py to base content")
+
+    scope = policy._merge_base_scope(["keep.py", "round.py", "new.py", "gone.py"], repo, base)
+
+    assert scope is not None
+    assert "keep.py" in scope
+    assert "new.py" in scope
+    assert "gone.py" in scope
+    # The commit-then-revert round trip no longer differs from the merge
+    # base, so it contributes nothing to the mypy scope.
+    assert "round.py" not in scope
+
+
+def test_merge_base_scope_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "value: int = 1\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails and
+    # the caller must fall back to the unfiltered pushed set.
+    assert policy._merge_base_scope(["mod.py"], repo, "origin/main") is None
+
+
+def test_merge_base_scope_empty_paths_is_empty_set(tmp_path: Path) -> None:
+    assert policy._merge_base_scope([], tmp_path, "origin/main") == set()
+
+
+def test_mypy_scope_round_trip_file_is_not_scanned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Negative case for issue #5071: a file whose branch edits round-tripped
+    # back to the merge-base content is dropped before mypy ever runs, so its
+    # pre-existing type debt cannot block the push.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    invoked: list[Sequence[str]] = []
+
+    def fail_if_invoked(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(paths)
+        return _completed(1, "source.py:1: error: preexisting  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", fail_if_invoked)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+    assert invoked == []
+    # The scope report names both counts so an empty run is distinguishable
+    # from a run that examined nothing (ci-scripts rule: report scope size).
+    assert "0 of 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_keeps_modified_file_and_blocks_its_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Positive case for issue #5071: a file that still differs from the merge
+    # base stays in scope and its new-line errors still block.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Unresolvable merge base must never weaken the gate: the full pushed set
+    # is scanned, and the block-on-any-error fallback still applies.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: None)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    invoked: list[Sequence[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(1, "source.py:2: error: bad  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+    assert invoked == [["source.py"]]
+
+
+def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Wiring proof over a real repository: run_mypy consults the real
+    # merge-base diff and hands mypy only the file that still differs.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    base = _commit_file(repo, "round.py", "flag: bool = True\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "commit", "-aqm", "test: edit both files")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    invoked: list[list[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["keep.py", "round.py"], repo) == 0
+    assert invoked == [["keep.py"]]
+
+
+def test_mypy_cli_main_exit_codes_respect_merge_base_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ci-scripts CLI exit contract: drive main(argv), not the helper. The
+    # same blocking error must exit nonzero in scope and zero when the file
+    # round-tripped out of scope.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+    argv = ["--repo-root", str(tmp_path), "mypy", "source.py"]
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    assert policy.main(argv) == 1
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    assert policy.main(argv) == 0
+
+
 def test_mypy_invocation_sets_validation_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

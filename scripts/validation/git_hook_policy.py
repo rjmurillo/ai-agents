@@ -2759,6 +2759,36 @@ def _changed_line_map(
     return _parse_changed_lines(result.stdout)
 
 
+def _merge_base_scope(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the subset of ``paths`` that still differ from the merge base.
+
+    Lefthook's ``{push_files}`` names every file any pushed commit touched, so
+    a commit-then-revert round trip on a file with pre-existing type debt kept
+    that file in the mypy scope even though the push ships no change to it
+    (issue #5071). ``git diff --name-only base...HEAD`` names exactly what the
+    push ships: a round trip produces no entry, a rename names the post-image
+    path, and a deletion names the removed path (dropped earlier by the
+    file-existence check in ``run_mypy``).
+
+    ``None`` signals the base could not be resolved; callers then keep the
+    full pushed set so the gate is never weaker than before, mirroring the
+    ``_changed_line_map`` fallback.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {_normalize_ratchet_path(name) for name in result.stdout.split("\0") if name.strip()}
+
+
 def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
     locations: list[tuple[str, int]] = []
     for line in stdout.splitlines():
@@ -2791,6 +2821,30 @@ def _mypy_result_blocks(
     )
 
 
+def _filter_to_merge_base_scope(
+    paths: list[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str]:
+    """Drop files that no longer differ from the merge base (issue #5071).
+
+    An unresolvable base keeps the full set so the gate is never weaker. The
+    scope report prints both counts so a run that kept nothing is
+    distinguishable from a run that examined nothing.
+    """
+    if not paths:
+        return paths
+    scope = _merge_base_scope(paths, repo_root, base_ref)
+    if scope is None:
+        return paths
+    kept = [path for path in paths if _normalize_ratchet_path(path) in scope]
+    print(
+        f"mypy scope: {len(kept)} of {len(paths)} pushed file(s) "
+        f"differ from {base_ref}; dropped {len(paths) - len(kept)} round-trip file(s)"
+    )
+    return kept
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -2811,10 +2865,12 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    base_ref = _mypy_ratchet_base_ref()
+    checked_paths = _filter_to_merge_base_scope(checked_paths, repo_root, base_ref)
     if not checked_paths:
         return 0
     pushed = {_normalize_ratchet_path(path) for path in checked_paths}
-    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
+    changed_lines = _changed_line_map(checked_paths, repo_root, base_ref)
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)

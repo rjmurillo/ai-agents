@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-15-session-15002-issue-5071-mypy-diff-scope",
+  "session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue #5071: scope pre-push mypy file set to the merge-base diff so commit-then-revert round trips contribute nothing",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated pre-push mypy scoping",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _merge_base_scope to git_hook_policy.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired scope filter into run_mypy",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 8 tests",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15002-issue-5071-mypy-diff-scope"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
