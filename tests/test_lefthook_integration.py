@@ -10434,20 +10434,32 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Silently continuing would report clean on a tree the scan never read."""
+    """Silently continuing would report clean on a tree the scan never read.
+
+    chmod 0 cannot model the unreadable file portably: it is a no-op on
+    Windows and CAP_DAC_OVERRIDE lets euid 0 read the file anyway, so the
+    chmod form failed in any root container. Inject the PermissionError at
+    the scan's read seam so the same code path fires for every platform
+    and euid.
+    """
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "tracked.txt", "clean\n")
-    (repo / "tracked.txt").chmod(0)
-    try:
-        assert policy.check_tracked_conflict_markers(repo) == 2
-    finally:
-        (repo / "tracked.txt").chmod(0o644)
+    real_read = policy._tracked_file_bytes
+
+    def deny(path: Path) -> bytes | None:
+        if path.name == "tracked.txt":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_read(path)
+
+    monkeypatch.setattr(policy, "_tracked_file_bytes", deny)
+
+    assert policy.check_tracked_conflict_markers(repo) == 2
     assert "could not read tracked file" in capsys.readouterr().err
 
 
