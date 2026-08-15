@@ -1,15 +1,4 @@
-"""Every job that runs a repo file must check the repository out first.
-
-Found the hard way. ``nightly-cli-smoke.yml``'s reporter job ran
-``python3 scripts/ci/require_job_results.py`` with no checkout step, so it died
-with ``Errno 2 No such file or directory`` on six consecutive nightly runs and
-masked the real smoke result behind a file-not-found.
-
-The ADR-006 campaign moves shell out of ``run:`` blocks and into repo scripts,
-which converts jobs that needed no checkout into jobs that do. Nothing else
-catches the omission before it reaches a runner, and a job whose only purpose
-is reporting can stay broken for a long time before anyone reads the log.
-"""
+"""Require repository materialization before workflow steps use repo files."""
 
 from __future__ import annotations
 
@@ -23,7 +12,6 @@ import yaml
 WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Lines that only print a path do not need the file to exist.
 _PRINTING = re.compile(r"^\s*(echo|printf|cat\s+<<|#)")
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
@@ -34,7 +22,6 @@ _WORKSPACE_PREFIX_FORMS = (
     '--prefix "${GITHUB_WORKSPACE}/"',
 )
 _WORKSPACE_PREFIX_VALUES = frozenset({"$GITHUB_WORKSPACE/", "${GITHUB_WORKSPACE}/"})
-# A ``cd`` target or ``GIT_WORK_TREE`` value that names the job workspace itself.
 _WORKSPACE_REFERENCES = frozenset({".", "./", "$GITHUB_WORKSPACE", "${GITHUB_WORKSPACE}"})
 
 # A token is a repo reference when it looks like a relative path into one of
@@ -201,7 +188,7 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
     tokens = _tokenize_command_line(line)
     token_segments = _shell_command_segments(tokens)
     raw_segments = _raw_shell_segments(line)
-    if len(token_segments) != len(raw_segments):
+    if len(token_segments) != 1 or len(raw_segments) != 1:
         return False, in_workspace
     for segment, raw_segment in zip(token_segments, raw_segments, strict=False):
         assignments = _segment_assignments(segment)
@@ -423,7 +410,7 @@ class TestFirstUnmetRepoDependency:
             (
                 "true && git checkout-index -a "
                 '--prefix="$GITHUB_WORKSPACE/"\npython3 scripts/ci/x.py',
-                None,
+                ("Materialize", "scripts/ci/x.py"),
             ),
             (
                 'git checkout-index -a --prefix=""\npython3 scripts/ci/x.py',
@@ -468,6 +455,16 @@ class TestFirstUnmetRepoDependency:
                 "python3 scripts/ci/x.py",
                 ("Materialize", "scripts/ci/x.py"),
             ),
+            (
+                'git checkout-index -a --prefix="$GITHUB_WORKSPACE/" || true\n'
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
+            (
+                'false && git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                "python3 scripts/ci/x.py",
+                ("Materialize", "scripts/ci/x.py"),
+            ),
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
@@ -480,7 +477,7 @@ class TestFirstUnmetRepoDependency:
             "checkout_index_with_external_prefix_does_not_satisfy_a_dependency",
             "continued_external_prefix_does_not_satisfy_a_dependency",
             "compound_echo_does_not_satisfy_a_dependency",
-            "compound_real_checkout_satisfies_a_dependency",
+            "compound_real_checkout_fails_closed",
             "empty_prefix_does_not_satisfy_a_dependency",
             "single_quoted_workspace_prefix_does_not_satisfy_a_dependency",
             "checkout_index_with_workspace_prefix_satisfies_a_dependency",
@@ -489,6 +486,8 @@ class TestFirstUnmetRepoDependency:
             "quoted_pipe_segment_mismatch_fails_closed",
             "selective_checkout_does_not_satisfy_repo_dependency",
             "comment_cannot_supply_prefix_quote_evidence",
+            "error_swallowed_checkout_fails_closed",
+            "skipped_checkout_fails_closed",
         ],
     )
     def test_materialize_step_dependency_scenarios(
