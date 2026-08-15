@@ -1409,6 +1409,91 @@ class TestRunCompilabilityCheck:
         assert result["status"] == "DID_NOT_RUN"
         assert result["findings"] == []
 
+    def test_skips_text_fence_ascii_diagram(self) -> None:
+        """text fences (ASCII diagrams) must not produce unresolved-symbol findings."""
+        assessment = {
+            "source_symbols": [{
+                "name": "ExistingClass", "kind": "class",
+                "file": "a.cs", "line": 1,
+                "signature": "class ExistingClass", "visibility": "public",
+            }],
+        }
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "workflow.md", "line": 5,
+                "type": "code_example", "language": "text",
+                "content": "P1 --> P2 --> P3\nEvaluation\nREADY",
+                "symbols_referenced": ["Evaluation", "READY"],
+                "mapped_source": "a.cs",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_skips_powershell_code_example(self) -> None:
+        """PowerShell examples must not resolve against the C# symbol index."""
+        assessment = {
+            "source_symbols": [{
+                "name": "ExistingClass", "kind": "class",
+                "file": "a.cs", "line": 1,
+                "signature": "class ExistingClass", "visibility": "public",
+            }],
+        }
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "ops.md", "line": 10,
+                "type": "code_example", "language": "powershell",
+                "content": "Search-WorkItems.ps1 -FailOnTruncation -SearchText foo",
+                "symbols_referenced": ["FailOnTruncation", "SearchText"],
+                "mapped_source": "a.cs",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
+    def test_still_checks_csharp_code_example(self) -> None:
+        """C# code examples must still be verified (positive control)."""
+        assessment = {
+            "source_symbols": [{
+                "name": "RealClass", "kind": "class",
+                "file": "a.cs", "line": 1,
+                "signature": "class RealClass", "visibility": "public",
+            }],
+        }
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "api.md", "line": 3,
+                "type": "code_example", "language": "csharp",
+                "content": "var x = new FakeWidget();",
+                "symbols_referenced": ["FakeWidget"],
+                "mapped_source": "a.cs",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert len(result["findings"]) == 1
+        assert result["findings"][0]["category"] == "unresolved_symbol"
+
+    def test_skips_unlabeled_fence_code_example(self) -> None:
+        """Fences with no language label (empty string) are skipped."""
+        assessment = {
+            "source_symbols": [{
+                "name": "ExistingClass", "kind": "class",
+                "file": "a.cs", "line": 1,
+                "signature": "class ExistingClass", "visibility": "public",
+            }],
+        }
+        claims = {
+            "claims": [{
+                "id": "claim-0001", "file": "doc.md", "line": 1,
+                "type": "code_example", "language": "",
+                "content": "SomeIdentifier here",
+                "symbols_referenced": ["SomeIdentifier"],
+                "mapped_source": "a.cs",
+            }],
+        }
+        result = run_compilability_check(assessment, claims)
+        assert result["findings"] == []
+
 
 class TestCheckGate:
     def test_pass_no_findings(self) -> None:

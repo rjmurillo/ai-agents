@@ -955,8 +955,10 @@ def run_compilability_check(
         content = claim_dict["content"]
         lang = claim_dict.get("language", "")
 
-        # Skip non-code languages
-        if lang in ("bash", "shell", "yaml", "yml", "json", "xml", "markdown", ""):
+        # Skip languages without source-symbol extractors (e.g. text/ASCII
+        # diagrams, PowerShell, bash).  Only languages present in
+        # SYMBOL_EXTRACTORS can be meaningfully verified against the index.
+        if lang not in SYMBOL_EXTRACTORS:
             if claim_dict["type"] == "code_example":
                 continue
 
