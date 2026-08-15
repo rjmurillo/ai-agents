@@ -78,7 +78,11 @@ def install_copilot_cli(
             f"::warning::Expected version {copilot_version} but got {version}. "
             "Binary may have auto-updated."
         )
-        print("::warning::See ADR-094 for version-drift diagnostics and runbook.")
+        print(
+            "::warning::Version-drift runbook: "
+            ".serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md "
+            "(policy: ADR-094)."
+        )
     return EXIT_OK
 
 
