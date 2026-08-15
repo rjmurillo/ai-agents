@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, pre-push gate, and retrospective changes committed through afd035053ef860735383e1551116f66beaa2faf4; evidence-only updates follow."
+        "Evidence": "All implementation, pre-push gate, retrospective, latest-main, and final review changes committed through 3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191; evidence-only updates follow."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,7 +142,7 @@
     {
       "timestamp": "2026-08-15T04:15Z",
       "action": "record-qa",
-      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit afd035053ef860735383e1551116f66beaa2faf4."
+      "details": "Created PASS QA evidence at .agents/qa/pr-5009-dx-review-qa-report.md bound to commit 3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191."
     },
     {
       "timestamp": "2026-08-15T06:20Z",
@@ -168,9 +168,14 @@
       "timestamp": "2026-08-15T08:05Z",
       "action": "write-retrospective",
       "details": "Recorded the remote-head replay, process-race stabilization, Semgrep calibration, and evidence deduplication in .agents/retrospective/2026-08-15-pr-5009-autofix.md."
+    },
+    {
+      "timestamp": "2026-08-15T10:25Z",
+      "action": "close-final-review-findings",
+      "details": "Merged current main for the documented 40-commit relief, required approval for every shell command, defined Overall DX aggregation, added blocking Evidence and Review Gates, pinned review to read-only code-review, and prohibited delegated command execution. All 23 dx-review tests passed and security re-review approved."
     }
   ],
-  "endingCommit": "afd035053ef860735383e1551116f66beaa2faf4",
+  "endingCommit": "3fb0b0ac5e3e82e374495cae5ecfc2bb1064a191",
   "nextSteps": [
     "Push feat/dx-review under the lease and live-state guard.",
     "Reply to and resolve all seven review threads.",
