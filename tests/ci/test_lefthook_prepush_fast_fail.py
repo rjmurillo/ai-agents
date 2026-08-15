@@ -1,0 +1,473 @@
+"""Fast-fail staging tests for the pre-push hook (issue #5066).
+
+The pre-push hook declares ``piped: true``, so lefthook runs its top-level
+entries in order and a failing entry (job or group) skips everything after
+it. Issue #5066 leans on that to stage the hook: cheap blocking gates run
+first, the expensive jobs (python-tests at roughly twelve minutes,
+workflow-local-run, build-all-check, python-type-check, the e2e smokes,
+pre-pr-validation) run last, so a failure that is detectable in seconds never
+costs a full pytest run.
+
+Structural tests parse ``lefthook.yml`` and assert on the object graph
+(testing.md MUST 9: never substring a structured file). The runtime tests
+drive the real lefthook binary against a fixture repository, pinning the two
+scheduling facts the staging relies on:
+
+1. A failure inside a ``parallel: true`` group under a ``piped: true`` hook
+   skips every later top-level entry.
+2. A top-level ``use_stdin: true`` job placed after groups still receives the
+   full ref-update payload, which is why security-scan can sit between the
+   stages without violating ci-scripts.md MUST-21 (no ``use_stdin`` inside a
+   ``parallel: true`` group).
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_LEFTHOOK = _REPO_ROOT / "lefthook.yml"
+_LEFTHOOK_BIN = shutil.which("lefthook")
+
+# lefthook executes `run:` strings through sh even on Windows, where a native
+# sys.executable path has its backslashes eaten. as_posix() is a no-op on
+# POSIX (same rationale as tests/test_lefthook_integration.py, refs #3289).
+_PYTHON_POSIX = Path(sys.executable).as_posix()
+
+# The fast stage: every blocking gate that must fail before the expensive
+# stage starts. The stdin gates sit in the piped group; the rest sit in the
+# fast parallel group.
+FAST_STDIN_GATES = (
+    "push-ref-policy",
+    "security-suppression-policy",
+    "placeholder-identity",
+    "session-json-validation",
+)
+FAST_PARALLEL_GATES = frozenset(
+    {
+        "retrospective-policy",
+        "python-lint-ratchet",
+        "python-lint-count-ratchet",
+        "taste-count-ratchet",
+        "type-ignore-count-ratchet",
+        "memory-index-count-ratchet",
+        "cli-exit-contract-ratchet",
+        "memory-index-token-ratchet",
+        "python-unreachable-statements",
+        "merge-tree-ratchet",
+        "path-normalization",
+        "planning-artifacts",
+        "branch-scope",
+        "branch-context-policy",
+        "review-axis-drift",
+    }
+)
+
+# The expensive stage: nothing here may start until every fast gate passed.
+EXPENSIVE_JOBS = frozenset(
+    {
+        "pre-pr-validation",
+        "python-tests",
+        "python-type-check",
+        "workflow-local-run",
+        "build-all-check",
+        "hook-anchoring-e2e",
+        "plugin-load-e2e",
+    }
+)
+
+# Pre-#5066 exception, preserved as-is: these two carry `use_stdin: true`
+# inside the expensive `parallel: true` group. They predate MUST-21 and only
+# use the payload to derive the changed-file range. Do not grow this set; a
+# new stdin consumer belongs in the piped group or at the top level.
+PARALLEL_STDIN_EXCEPTIONS = frozenset({"hook-anchoring-e2e", "plugin-load-e2e"})
+
+# Ceiling for any job scheduled ahead of the expensive stage. Guards against
+# someone dropping a 30m job into the fast stage, which would rebuild the
+# serialization point issue #5066 removed.
+_FAST_STAGE_TIMEOUT_CEILING_SECONDS = 600.0
+
+
+def _load_config(path: Path = _LEFTHOOK) -> dict[str, Any]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(data, dict), "lefthook.yml must parse to a YAML mapping."
+    return data
+
+
+def _top_level_entries(config: dict[str, Any]) -> list[dict[str, Any]]:
+    pre_push = config.get("pre-push")
+    assert isinstance(pre_push, dict), "config must declare a pre-push mapping."
+    jobs = pre_push.get("jobs")
+    assert isinstance(jobs, list), "pre-push must declare a jobs list."
+    return [entry for entry in jobs if isinstance(entry, dict)]
+
+
+def _jobs_in_entry(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the job mappings a top-level entry schedules, groups descended."""
+    group = entry.get("group")
+    if not isinstance(group, dict):
+        return [entry]
+    out: list[dict[str, Any]] = []
+    for job in group.get("jobs", []):
+        if isinstance(job, dict):
+            out.extend(_jobs_in_entry(job))
+    return out
+
+
+def _entry_index_of(config: dict[str, Any], job_name: str) -> int | None:
+    """Return the top-level position of the entry that schedules ``job_name``."""
+    for index, entry in enumerate(_top_level_entries(config)):
+        if any(job.get("name") == job_name for job in _jobs_in_entry(entry)):
+            return index
+    return None
+
+
+def _duration_seconds(value: str) -> float:
+    units = {"h": 3600.0, "m": 60.0, "s": 1.0}
+    if value and value[-1] in units:
+        return float(value[:-1]) * units[value[-1]]
+    return float(value)
+
+
+class TestStageOrdering:
+    """Every fast gate must be scheduled before every expensive job."""
+
+    def test_pre_push_hook_is_piped(self) -> None:
+        # The staging only fails fast because the hook is piped; flipping
+        # this to parallel would run both stages at once.
+        config = _load_config()
+        assert config["pre-push"].get("piped") is True
+
+    @pytest.mark.parametrize("gate", sorted(FAST_PARALLEL_GATES) + list(FAST_STDIN_GATES))
+    def test_fast_gate_exists_and_precedes_the_expensive_stage(self, gate: str) -> None:
+        config = _load_config()
+        gate_index = _entry_index_of(config, gate)
+        assert gate_index is not None, (
+            f"Fast gate {gate!r} is missing from pre-push. If it was renamed "
+            "or removed on purpose, update this test's stage roster."
+        )
+        for expensive in sorted(EXPENSIVE_JOBS):
+            expensive_index = _entry_index_of(config, expensive)
+            assert expensive_index is not None, f"{expensive!r} missing from pre-push."
+            assert gate_index < expensive_index, (
+                f"{gate!r} (entry {gate_index}) no longer precedes "
+                f"{expensive!r} (entry {expensive_index}). A cheap failure "
+                "would again surface only after the expensive jobs burned "
+                "(issue #5066)."
+            )
+
+    def test_security_scan_sits_between_the_stages(self) -> None:
+        config = _load_config()
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None, "security-scan missing from pre-push."
+        for gate in FAST_PARALLEL_GATES | set(FAST_STDIN_GATES):
+            gate_index = _entry_index_of(config, gate)
+            assert gate_index is not None and gate_index < scan_index, (
+                f"{gate!r} must precede security-scan so a cheap failure "
+                "skips the semgrep scan."
+            )
+        for expensive in EXPENSIVE_JOBS:
+            expensive_index = _entry_index_of(config, expensive)
+            assert expensive_index is not None and scan_index < expensive_index, (
+                f"security-scan must precede {expensive!r}; it consumes stdin "
+                "and MUST-21 keeps it out of the parallel group."
+            )
+
+    def test_expensive_jobs_share_one_parallel_group(self) -> None:
+        config = _load_config()
+        indices = {_entry_index_of(config, name) for name in EXPENSIVE_JOBS}
+        found = sorted(i for i in indices if i is not None)
+        assert len(indices) == 1, (
+            f"The expensive jobs spread across entries {found}; they are "
+            "meant to run concurrently in a single parallel group."
+        )
+        (index,) = indices
+        assert index is not None
+        entry = _top_level_entries(config)[index]
+        group = entry.get("group")
+        assert isinstance(group, dict) and group.get("parallel") is True
+
+    def test_detector_flags_a_fast_gate_scheduled_after_the_expensive_stage(self) -> None:
+        # Negative control: the index comparison must actually invert on a
+        # misordered config, or every assertion above is vacuous.
+        misordered = yaml.safe_load(
+            """
+            pre-push:
+              jobs:
+                - group:
+                    parallel: true
+                    jobs:
+                      - name: python-tests
+                        run: pytest
+                - name: taste-count-ratchet
+                  run: ratchet
+            """
+        )
+        gate = _entry_index_of(misordered, "taste-count-ratchet")
+        expensive = _entry_index_of(misordered, "python-tests")
+        assert gate is not None and expensive is not None
+        assert not gate < expensive
+
+    def test_entry_index_returns_none_for_an_unknown_job(self) -> None:
+        assert _entry_index_of(_load_config(), "no-such-job") is None
+
+    def test_entry_index_rejects_a_config_without_pre_push(self) -> None:
+        with pytest.raises(AssertionError, match="pre-push"):
+            _entry_index_of({"pre-commit": {"jobs": []}}, "python-tests")
+
+
+class TestStdinPlacement:
+    """ci-scripts.md MUST-21: stdin consumers stay serialized."""
+
+    def test_no_new_stdin_job_inside_a_parallel_group(self) -> None:
+        config = _load_config()
+        offenders: list[str] = []
+        for entry in _top_level_entries(config):
+            group = entry.get("group")
+            if not isinstance(group, dict) or group.get("parallel") is not True:
+                continue
+            for job in _jobs_in_entry(entry):
+                name = str(job.get("name"))
+                if job.get("use_stdin") is True and name not in PARALLEL_STDIN_EXCEPTIONS:
+                    offenders.append(name)
+        assert offenders == [], (
+            f"{offenders} declare use_stdin inside a parallel group. Parallel "
+            "stdin consumers race the shared stream and can read a truncated "
+            "payload (ci-scripts.md MUST-21). Put the job in the piped group "
+            "or at the top level of the piped hook."
+        )
+
+    def test_the_documented_exceptions_still_carry_use_stdin(self) -> None:
+        # If either e2e job stops reading stdin, the exception list above is
+        # stale and should shrink rather than silently over-allow.
+        config = _load_config()
+        for name in sorted(PARALLEL_STDIN_EXCEPTIONS):
+            index = _entry_index_of(config, name)
+            assert index is not None, f"{name!r} missing from pre-push."
+            entry = _top_level_entries(config)[index]
+            job = next(j for j in _jobs_in_entry(entry) if j.get("name") == name)
+            assert job.get("use_stdin") is True, (
+                f"{name!r} no longer reads stdin; remove it from "
+                "PARALLEL_STDIN_EXCEPTIONS."
+            )
+
+    def test_security_scan_is_a_top_level_stdin_job(self) -> None:
+        config = _load_config()
+        entries = _top_level_entries(config)
+        matches = [
+            entry
+            for entry in entries
+            if "group" not in entry and entry.get("name") == "security-scan"
+        ]
+        assert len(matches) == 1, (
+            "security-scan must be a top-level job of the piped hook: that "
+            "serializes its stdin delivery (MUST-21) while letting the fast "
+            "stage fail without waiting on semgrep."
+        )
+        assert matches[0].get("use_stdin") is True
+
+    def test_detector_flags_a_stdin_job_added_to_a_parallel_group(self) -> None:
+        # Negative control for the offender scan above.
+        bad = yaml.safe_load(
+            """
+            pre-push:
+              jobs:
+                - group:
+                    parallel: true
+                    jobs:
+                      - name: new-scanner
+                        run: scan
+                        use_stdin: true
+            """
+        )
+        offenders = [
+            str(job.get("name"))
+            for entry in _top_level_entries(bad)
+            if isinstance(entry.get("group"), dict)
+            and entry["group"].get("parallel") is True
+            for job in _jobs_in_entry(entry)
+            if job.get("use_stdin") is True
+            and str(job.get("name")) not in PARALLEL_STDIN_EXCEPTIONS
+        ]
+        assert offenders == ["new-scanner"]
+
+
+class TestFastStageStaysFast:
+    """No job ahead of the expensive stage may carry an expensive timeout."""
+
+    def test_every_pre_expensive_job_fits_the_fast_ceiling(self) -> None:
+        config = _load_config()
+        entries = _top_level_entries(config)
+        scan_index = _entry_index_of(config, "security-scan")
+        assert scan_index is not None
+        offenders = [
+            (str(job.get("name")), str(job.get("timeout")))
+            for entry in entries[:scan_index]
+            for job in _jobs_in_entry(entry)
+            if _duration_seconds(str(job.get("timeout")))
+            > _FAST_STAGE_TIMEOUT_CEILING_SECONDS
+        ]
+        assert offenders == [], (
+            f"{offenders} sit ahead of security-scan with timeouts above "
+            f"{_FAST_STAGE_TIMEOUT_CEILING_SECONDS:.0f}s. The fast stage "
+            "exists so failures surface in seconds; move slow jobs into the "
+            "expensive group (issue #5066)."
+        )
+
+    def test_duration_parser_handles_each_unit(self) -> None:
+        assert _duration_seconds("30s") == 30.0
+        assert _duration_seconds("5m") == 300.0
+        assert _duration_seconds("1h") == 3600.0
+
+
+_requires_lefthook = pytest.mark.skipif(
+    _LEFTHOOK_BIN is None, reason="requires the lefthook binary"
+)
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+def _write_fixture_repo(repo: Path, fail_fast_stage: bool) -> None:
+    """Build a minimal repo whose pre-push mirrors the staged shape.
+
+    ``marker.py`` appends its argument to ``jobs.log`` so the test can read
+    which jobs ran; ``capture.py`` copies stdin to a file so the test can
+    read what payload a late stdin consumer received.
+    """
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "config", "user.email", "t@example.com")
+    (repo / "marker.py").write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "log = Path('jobs.log')\n"
+        "log.write_text(log.read_text() + sys.argv[1] + '\\n'"
+        " if log.exists() else sys.argv[1] + '\\n')\n"
+        "sys.exit(int(sys.argv[2]) if len(sys.argv) > 2 else 0)\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (repo / "capture.py").write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "Path(sys.argv[1]).write_text(sys.stdin.read())\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    fast_exit = "1" if fail_fast_stage else "0"
+    config = {
+        "pre-push": {
+            "piped": True,
+            "jobs": [
+                {
+                    "group": {
+                        "parallel": True,
+                        "jobs": [
+                            {
+                                "name": "fast-gate",
+                                "run": f'"{_PYTHON_POSIX}" marker.py fast-gate {fast_exit}',
+                            },
+                            {
+                                "name": "fast-peer",
+                                "run": f'"{_PYTHON_POSIX}" marker.py fast-peer',
+                            },
+                        ],
+                    }
+                },
+                {
+                    "name": "late-stdin",
+                    "run": f'"{_PYTHON_POSIX}" capture.py payload.txt',
+                    "use_stdin": True,
+                },
+                {
+                    "group": {
+                        "parallel": True,
+                        "jobs": [
+                            {
+                                "name": "expensive",
+                                "run": f'"{_PYTHON_POSIX}" marker.py expensive',
+                            }
+                        ],
+                    }
+                },
+            ],
+        }
+    }
+    (repo / "lefthook.yml").write_text(
+        yaml.safe_dump(config, sort_keys=False), encoding="utf-8", newline="\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "init")
+
+
+def _run_fixture_hook(repo: Path) -> subprocess.CompletedProcess[str]:
+    assert _LEFTHOOK_BIN is not None
+    return subprocess.run(
+        [_LEFTHOOK_BIN, "run", "pre-push"],
+        cwd=repo,
+        input="refs/heads/main aaaa refs/heads/main bbbb\n",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+@_requires_lefthook
+class TestRuntimeFastFail:
+    """Pin the lefthook semantics the staged config relies on."""
+
+    def test_a_fast_stage_failure_skips_the_later_entries(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        _write_fixture_repo(repo, fail_fast_stage=True)
+
+        result = _run_fixture_hook(repo)
+
+        assert result.returncode != 0
+        ran = (repo / "jobs.log").read_text(encoding="utf-8").splitlines()
+        assert "fast-gate" in ran, "the failing gate itself must have run"
+        assert "expensive" not in ran, (
+            "a fast-stage failure must skip the expensive group; lefthook "
+            "no longer pipes group failures and the staging is broken:\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+        assert not (repo / "payload.txt").exists(), (
+            "the later top-level stdin job must be skipped too"
+        )
+
+    def test_a_clean_fast_stage_lets_everything_run_with_full_stdin(
+        self, tmp_path: Path
+    ) -> None:
+        # Positive control: without it, the test above passes on a harness
+        # where nothing after the first group ever runs.
+        repo = tmp_path / "repo"
+        _write_fixture_repo(repo, fail_fast_stage=False)
+
+        result = _run_fixture_hook(repo)
+
+        assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+        ran = (repo / "jobs.log").read_text(encoding="utf-8").splitlines()
+        assert {"fast-gate", "fast-peer", "expensive"} <= set(ran)
+        payload = (repo / "payload.txt").read_text(encoding="utf-8")
+        assert payload == "refs/heads/main aaaa refs/heads/main bbbb\n", (
+            "a top-level use_stdin job after a group must receive the full "
+            "ref-update payload; security-scan depends on this"
+        )
