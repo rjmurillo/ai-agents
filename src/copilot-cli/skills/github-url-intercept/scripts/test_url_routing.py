@@ -104,7 +104,7 @@ def _parse_blob(
     ref, path = match.groups()
     if not is_safe_input(ref, SAFE_REF_RE):
         return None
-    if not is_safe_input(path, SAFE_PATH_RE):
+    if not is_safe_input(path, SAFE_PATH_RE, reject_path_traversal=True):
         return None
     return UrlType.BLOB, None, ref, path
 
@@ -115,7 +115,12 @@ def _parse_tree(
     ref, path = match.groups()
     if not is_safe_input(ref, SAFE_REF_RE):
         return None
-    if path and not is_safe_input(path, SAFE_PATH_RE, allow_empty=True):
+    if path and not is_safe_input(
+        path,
+        SAFE_PATH_RE,
+        allow_empty=True,
+        reject_path_traversal=True,
+    ):
         return None
     return UrlType.TREE, None, ref, path
 

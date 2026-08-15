@@ -29,6 +29,7 @@
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
+|github url path dotfile leading dot traversal encoded blob tree: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object: [skills-jq-index](skills-jq-index.md) (356)
 |pr autofix lease bare checkout wrong branch local: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
