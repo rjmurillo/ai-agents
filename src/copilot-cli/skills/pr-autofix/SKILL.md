@@ -481,15 +481,27 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 
