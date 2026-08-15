@@ -203,8 +203,9 @@ jobs:
 # ==============================================================================
 #
 # The QA agent runs via Copilot CLI (text-in/text-out) with no shell access.
-# This job executes tests and passes results as context to the QA agent,
-# enabling empirical test verification in QA verdicts.
+# Issue #4822: instead of re-running the full pytest suite (already executed
+# by pytest.yml), this job resolves the authoritative verdict from pytest.yml
+# and passes the result as context to the QA agent.
 
   run-tests:
     name: Run Tests
@@ -212,13 +213,10 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run-review == 'true'
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: read
-      # Issue #4822 phase 1: the shadow step below lists pytest.yml workflow
-      # runs and their jobs, which needs actions:read. Re-reading the live PR
-      # head uses the Git references endpoint, already covered by
-      # contents:read, so no pull-requests scope is added.
+      # Listing pytest.yml workflow runs and their jobs requires actions:read.
       actions: read
 
     outputs:
@@ -238,10 +236,18 @@ jobs:
           enable-python: 'true'
           enable-git-hooks: 'false'
 
-      - name: Run pytest
+      # Issue #4822: resolve the pytest.yml verdict instead of re-running the
+      # suite. The script waits up to 180s for pytest.yml to complete, then
+      # outputs pytest_status and pytest_summary in the same format the old
+      # run_pytest.py produced.
+      - name: Resolve pytest signal from pytest.yml
         id: pytest
         continue-on-error: true
-        run: python3 scripts/quality_gate/run_pytest.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/quality_gate/consume_pytest_signal.py
 
       - name: Generate test summary
         id: summary
@@ -249,31 +255,6 @@ jobs:
           PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
           PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
         run: python3 scripts/quality_gate/generate_test_summary.py
-
-      # Issue #4822 phase 1, shadow mode. Resolves the verdict pytest.yml
-      # already produced for this head commit and warns when it disagrees with
-      # the local run above. Observation only: no job output exposes it, no
-      # consumer reads it, and continue-on-error keeps the job outcome and
-      # every existing check name unchanged. The duplicate run above stays
-      # authoritative until the measured disagreement rate justifies the swap.
-      #
-      # Liveness: the script prints one "shadow-pytest-sample" notice per run
-      # and warns when it produced no comparison, so a phase that silently
-      # collects zero samples is distinguishable from a healthy one. The
-      # condition is !cancelled() rather than success() so a failed pytest step
-      # still yields a sample, which is the most interesting case to compare,
-      # while a cancelled job (this workflow sets cancel-in-progress) does not
-      # burn API calls.
-      - name: Resolve shadow pytest signal
-        id: shadow-signal
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LOCAL_PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status }}
-        run: python3 scripts/quality_gate/resolve_pytest_signal.py
 
 # ==============================================================================
 # Agent Review Jobs (10 Static Jobs)

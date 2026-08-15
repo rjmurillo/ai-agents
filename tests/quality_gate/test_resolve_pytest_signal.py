@@ -486,13 +486,19 @@ class TestMain:
         assert "shadow_pytest_status=STALE" in out
         assert "shadow_pytest_agreement=UNCOMPARED" in out
 
-    def test_shadow_step_passes_missing_local_status_through(self) -> None:
+    def test_consume_step_replaces_shadow_step(self) -> None:
+        """The quality gate workflow consumes pytest.yml signal instead of running tests locally."""
         workflow = yaml.safe_load(
             (Path(__file__).parents[2] / ".github/workflows/ai-pr-quality-gate.yml").read_text(
                 encoding="utf-8"
             )
         )
         steps = workflow["jobs"]["run-tests"]["steps"]
-        shadow = next(step for step in steps if step.get("name") == "Resolve shadow pytest signal")
-        assert shadow["env"]["PR_NUMBER"] == "${{ github.event.pull_request.number }}"
-        assert shadow["env"]["LOCAL_PYTEST_STATUS"] == "${{ steps.pytest.outputs.pytest_status }}"
+        # Shadow step should no longer exist
+        shadow_steps = [s for s in steps if "shadow" in s.get("name", "").lower()]
+        assert shadow_steps == [], "Shadow pytest step should be removed"
+        # Consume step should exist
+        consume = next(
+            (s for s in steps if "resolve pytest signal" in s.get("name", "").lower()), None
+        )
+        assert consume is not None, "Consume pytest signal step must exist"
