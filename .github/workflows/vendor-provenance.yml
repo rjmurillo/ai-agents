@@ -43,8 +43,8 @@ jobs:
     env:
       PR_SHA: ${{ github.event.pull_request.head.sha }}
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      PR_AUTHOR: ${{ github.event.pull_request.user.login || '' }}
-      PR_SENDER: ${{ github.event.sender.login }}
+      PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+      PR_SENDER_ID: ${{ github.event.sender.id }}
       PR_ACTION: ${{ github.event.action }}
 
     steps:
@@ -52,7 +52,7 @@ jobs:
         if: github.event_name == 'pull_request_target'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: >-
-          timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending" || echo "::warning::Bootstrap pending status failed; trusted head gates will retry"
+          for delay in 0 1 2; do timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending" && exit 0; sleep "$delay"; done; echo "::warning::Bootstrap pending status failed after 3 attempts; trusted head gates will retry"
 
       - name: Fetch immutable base and candidate SHAs
         env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}'}
@@ -160,8 +160,8 @@ jobs:
             --candidate-root /tmp/candidate \
             --base-root /tmp/base \
             --pr-sha "$PR_SHA" \
-            --pull-request-author "$PR_AUTHOR" \
-            --pull-request-sender "$PR_SENDER" \
+            --pull-request-author-id "$PR_AUTHOR_ID" \
+            --pull-request-sender-id "$PR_SENDER_ID" \
             --pull-request-action "$PR_ACTION"
 
       - name: No-op for unrelated PRs

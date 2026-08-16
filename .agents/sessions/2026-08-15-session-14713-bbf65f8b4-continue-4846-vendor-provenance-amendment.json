@@ -174,6 +174,14 @@
     {
       "action": "Disabled checkout content filters during immutable materialization.",
       "result": "All base and candidate checkout-index calls use --no-filter, so candidate .gitattributes cannot invoke smudge filters or transform bytes before hashing."
+    },
+    {
+      "action": "Replaced mutable login authorization with numeric GitHub user IDs.",
+      "result": "Both pull request author and event sender IDs must equal 6811113 on opened or synchronize events. Six ADR roles reached ACCEPT or Disagree-and-Commit, and 232 provenance tests pass."
+    },
+    {
+      "action": "Expanded authenticated identity exclusions across origin heads.",
+      "result": "git ls-remote enumerates all origin branches, but only locally present objects are excluded. Cross-feature history passes without allowing fake or unfetched refs. Seven focused tests pass."
     }
   ],
   "endingCommit": "98f7d293df4eff61b0b0031fc74a5bde260830c6",

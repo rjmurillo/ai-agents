@@ -849,7 +849,7 @@ _VENDOR_ONLY_PREFIXES = (
     ".claude/hooks/PreToolUse/_vendor/",
 )
 
-_TRUSTED_UPDATE_ACTORS = frozenset({"rjmurillo"})
+_TRUSTED_UPDATE_ACTOR_IDS = frozenset({"6811113"})
 _TRUSTED_UPDATE_ACTIONS = frozenset({"opened", "synchronize"})
 _VENDOR_PAYLOAD = PurePosixPath(".claude/hooks/PreToolUse/_vendor/markdownlint")
 _MAX_MARKDOWNLINT_CONFIG_BYTES = 256 * 1024
@@ -1313,12 +1313,12 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
     return errors
 
 
-def _is_update_authorized(author: str, sender: str, action: str) -> bool:
+def _is_update_authorized(author_id: str, sender_id: str, action: str) -> bool:
     if action == "merge_group":
         return False
     return (
-        author in _TRUSTED_UPDATE_ACTORS
-        and sender in _TRUSTED_UPDATE_ACTORS
+        author_id in _TRUSTED_UPDATE_ACTOR_IDS
+        and sender_id in _TRUSTED_UPDATE_ACTOR_IDS
         and action in _TRUSTED_UPDATE_ACTIONS
     )
 
@@ -2134,14 +2134,14 @@ def main() -> int:
         help="Read NUL-delimited file list from stdin for relevance check",
     )
     parser.add_argument(
-        "--pull-request-author",
+        "--pull-request-author-id",
         default="",
-        help="GitHub-authenticated PR author supplied by the base-owned workflow",
+        help="GitHub-authenticated PR author numeric user ID",
     )
     parser.add_argument(
-        "--pull-request-sender",
+        "--pull-request-sender-id",
         default="",
-        help="GitHub-authenticated actor that created the current PR event",
+        help="GitHub-authenticated event sender numeric user ID",
     )
     parser.add_argument(
         "--pull-request-action",
@@ -2295,8 +2295,8 @@ def main() -> int:
     all_errors: list[str] = []
     vendor = root / ".claude" / "hooks" / "PreToolUse" / "_vendor" / "markdownlint"
     update_authorized = _is_update_authorized(
-        args.pull_request_author,
-        args.pull_request_sender,
+        args.pull_request_author_id,
+        args.pull_request_sender_id,
         args.pull_request_action,
     )
     pins = _PINNED_ARTIFACTS

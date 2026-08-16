@@ -59,8 +59,9 @@ The workflow and validator follow these rules:
 7. Workflow runs use a per-pull-request concurrency group with cancellation.
 8. The validator pins every repository-owned executable, generator, manifest,
    and configuration file in its execution closure with SHA-256.
-9. Pin changes require trusted author and sender identities. Unknown identities
-   cannot modify or delete the gate.
+9. Pin changes require trusted author and sender numeric GitHub user IDs.
+   Mutable login names are not authorization identities. Unknown IDs cannot
+   modify or delete the gate.
 10. The workflow does not subscribe to `merge_group`. That event executes from
     the synthetic queue head, so candidate changes can replace a privileged
     workflow that relies on `pull_request_target` base ownership. Merge queue
@@ -254,7 +255,8 @@ is intentional. An unreviewed executable must not enter the trusted closure.
   vendor provenance relevance set.
 - A total GitHub API outage cannot replace an old head status.
 - Vendor reconstruction depends on registry access and fails closed on outage.
-- `_TRUSTED_UPDATE_ACTORS` contains one identity. This matches the current
+- `_TRUSTED_UPDATE_ACTOR_IDS` contains one immutable numeric identity. This
+  matches the current
   single-maintainer model and has no in-repository succession path. Compromise
   of that account defeats this repository's maintainer-level controls, not only
   this gate. Adding a second trusted actor requires its own reviewed change.
@@ -304,9 +306,9 @@ the ADR and gate implementation merge.
 - Candidate configuration and executable rejection:
   `TestUnpinnedExecutables`, `TestNpmrcRejection`, `TestUvTomlRejection`,
   `TestRootMarkdownlintConfigInjection`, and `TestMarkdownlintConfigPolicy`.
-- PR #4846 currently reports author and head repository owner as `rjmurillo`,
-  matching `_TRUSTED_UPDATE_ACTORS`. A successful trusted-update workflow run
-  must still verify the event sender before required-check activation.
+- PR #4846 reports author and sender user ID `6811113`, matching
+  `_TRUSTED_UPDATE_ACTOR_IDS`. A successful trusted-update workflow run must
+  still verify both event IDs before required-check activation.
 
 Review this ADR before merge queue enablement, when a second trusted maintainer
 is added, or when the pin-refresh threshold above is exceeded.
