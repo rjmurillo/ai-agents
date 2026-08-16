@@ -128,7 +128,8 @@
         "e100",
         "e101",
         "e102",
-        "e104"
+        "e104",
+        "e107"
       ],
       "leads_to": [
         "e006"
@@ -1361,6 +1362,30 @@
       "caused_by": [
         "e103"
       ],
+      "leads_to": [
+        "e108"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e107",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the reliability review's outbound-call timeout findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e108",
+      "timestamp": "2026-08-16T04:50:50+00:00",
+      "type": "commit",
+      "content": "Commit: c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9",
+      "caused_by": [
+        "e106"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1370,7 +1395,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 55,
+    "commits": 56,
     "files_changed": 56
   },
   "lessons": []

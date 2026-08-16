@@ -1,15 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: ceb2e6720a953fd7fda43c007614ea00896aa459
+qaCommit: c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `ceb2e6720a953fd7fda43c007614ea00896aa459`
-(qaCommit, above; this is the 13th rebind of this report). The latest fix
+Validated the branch at commit `c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9`
+(qaCommit, above; this is the 14th rebind of this report). The latest fix
+adds a 30-second limit to the direct GitHub API call and a 120-second limit
+to immutable Git fetch. The combined provenance and workflow suites pass
+397 tests. Actionlint, workflow validation, and Ruff pass.
+
+The 13th rebind validated
+`ceb2e6720a953fd7fda43c007614ea00896aa459`. The prior fix
 preserves executable command segments after a leading `echo`, `printf`, or
 heredoc segment. The regression case
 `echo ready && python3 scripts/ci/x.py` is now detected before checkout.
