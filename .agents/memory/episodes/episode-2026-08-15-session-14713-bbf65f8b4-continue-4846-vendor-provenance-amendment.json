@@ -26,7 +26,8 @@
       "caused_by": [
         "e001",
         "e003",
-        "e004"
+        "e004",
+        "e006"
       ],
       "leads_to": [
         "e005"
@@ -63,6 +64,30 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the final-head checkout guard finding.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-16T06:34:12+00:00",
+      "type": "commit",
+      "content": "Commit: b7f4caae2d5445af9c1d168bccb21237bc74d5f3",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -72,8 +97,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 10
+    "commits": 3,
+    "files_changed": 11
   },
   "lessons": []
 }

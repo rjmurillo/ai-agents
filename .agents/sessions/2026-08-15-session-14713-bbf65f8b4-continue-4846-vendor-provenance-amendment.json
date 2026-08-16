@@ -125,7 +125,7 @@
     },
     {
       "action": "Generated the session episode after binding the content commit.",
-      "result": "The episode was regenerated after the exact Node.js pin fix and records the current reachable content commit."
+      "result": "The episode was regenerated after the final checkout guard fix and records the current reachable content commit."
     },
     {
       "action": "Fixed two current-head suppressed Copilot findings.",
