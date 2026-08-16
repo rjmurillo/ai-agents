@@ -204,7 +204,7 @@
       "result": "The PR-body edits (Acceptance Criteria, Changes section) are applied directly via gh pr edit, outside git history, so they need no commit or rebind. The analysis-file wording fix and this log's own two Evidence corrections land in one content commit alongside the handoff rewrite; because the analysis file is evidence session-14695's and session-15001's QA reports cover, that again stales their endingCommit/qaCommit bindings, requiring the same rebind split as prior rounds (session-14695+session-15001+their 2 QA reports naming the new content commit directly; session-14706's own log+its own QA report doing the same), with no new self-referential placeholder row for either rebind commit, per the still-standing round-12 convention."
     }
   ],
-  "endingCommit": "391d0f99daf93304c7f9fc360bc9db1b02a51a49",
+  "endingCommit": "e3af5bcc7e61893298efb58f8d6f34b2563f3763",
   "nextSteps": [
     "Renew the lease and confirm fresh live-state (OPEN, ACT) immediately before each commit; run the full validation suite (git_hook_policy.py checks, targeted pytest, pre_pr.py --quick) before staging round 13's content-fix and rebind commits.",
     "Push round 13's content-fix and rebind commits under lease renewal; re-verify PR_HEAD_SHA=<pushed HEAD> scripts/ci/validate_session_protocol.py is COMPLIANT for every touched session log at the new head.",
