@@ -130,11 +130,6 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "Generated push_guard_base mirror",
     ),
     (
-        "src/copilot-cli/hooks/PreToolUse/invoke_push_pr_script_identity_guard__Bash_f620ca.py",
-        "03ed67c363ef927d78c2e6db3e521fbcc1cc982e1bdfcfcbf6c8a0f1d6bd972c",
-        "Generated push PR script identity guard mirror",
-    ),
-    (
         "src/copilot-cli/hooks/PreToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
         "1ace4b27be46dd7105430073e92eac466854fe52799f1fda19c5709ccffe3969",
         "Generated markdownlint guard mirror",
@@ -143,51 +138,6 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
         "src/copilot-cli/hooks/PreToolUse/invoke_require_subagent_model__Agent_Task_456aac.py",
         "a08cfc5d0510b44943ea9f4056b929ac1d1a458ffa8464195d5f522d279ca93b",
         "Generated require-subagent-model guard mirror",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_commands.py",
-        "46f925781cdd1e457ed014958854c6ee5add0c89d569272f499856c7e4b148ea",
-        "Generated push PR guard module: push pr guard commands",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_evaluators.py",
-        "115b1f81659f3be5444a9d801ee62aa1b6ef4579be49b175b051b40835f456f1",
-        "Generated push PR guard module: push pr guard evaluators",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_expansion.py",
-        "40596f004d3574fdf0bba7c873f13ef51901581603d727e0b55f56c7099ce1ad",
-        "Generated push PR guard module: push pr guard expansion",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_git.py",
-        "b6868f509bb5deb0291f1080bdf5e87e6c177e2da1323251adf084e3da077351",
-        "Generated push PR guard module: push pr guard git",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_git_tables.py",
-        "e477634738dff882dffe89538ef7253ff9b7909ea7817d59ce8e8ba8780a8315",
-        "Generated push PR guard module: push pr guard git tables",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_identity.py",
-        "5ccfbb7e642e3a251fb35407163f41416dbbb6a28cb780f66b14705dccdda88a",
-        "Generated push PR guard module: push pr guard identity",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_lex.py",
-        "e9883faf41923afac71cd2be833ebea3172ab2c84ce3115448833116d547aefd",
-        "Generated push PR guard module: push pr guard lex",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_scope.py",
-        "a37ca8af1a722c8b7c90612177549794e15031145872ab89f6afba1174ee6c60",
-        "Generated push PR guard module: push pr guard scope",
-    ),
-    (
-        "src/copilot-cli/hooks/PreToolUse/_push_pr_guard_tables.py",
-        "5bd3c988ec672d9de57950832bf1d0d44955294f408522a54ad1e1e042e431f5",
-        "Generated push PR guard module: push pr guard tables",
     ),
     (
         "src/copilot-cli/hooks/PreToolUse/markdownlint-safe-config.yaml",
@@ -203,12 +153,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Generator surface (full local import closure) ---
     (
         "build/scripts/generate_hooks_events.py",
-        "79f0a6622aedb37760de7ceef0a1d69f2ae18a5acee5738900981820ca0e60e8",
+        "a63cbb47f8ea15fc98ad5e0cfebe40db90c0c5e9408d9326cea47fba5fa2f898",
         "Hook event generator",
     ),
     (
         "build/scripts/generate_dispatcher.py",
-        "0de2b8992132d74993f97f351cea2addf491e3e8d3da2f9e48fad28ae7e4bfed",
+        "18a075dd6cb367aeba80a9fd108a24d04baabc710d63ac8f0d7f91588c097026",
         "Build script (hooks generator import)",
     ),
     (
@@ -223,7 +173,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/generate_hooks_expand.py",
-        "213005f52f9b66c7495304bc9cc65a71ffc7f7ee0bab55121752b1f559c793cd",
+        "236a96d3844bd1e74632c8ad6b85e63c1d6e2aaf9208b6c8e4a70d810b626a85",
         "Build script (hooks generator import)",
     ),
     (
@@ -346,7 +296,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "build/scripts/detect_agent_drift.py",
-        "5d7f2c0ac3a2d938a2ae7a35b4e9186ddf3877fbd27fea3e91a118be46545f3c",
+        "6b917154f11b5d8496691fb97044421f8c25e8a2ac78f58c436af10f03fb9e63",
         "Build script",
     ),
     (
@@ -417,12 +367,12 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     # --- Hook wiring / config inputs ---
     (
         "src/copilot-cli/hooks/PreToolUse/_manifest.json",
-        "6ae49c235033af22ca24395b63e248b87c3ffc9e2b2c44b353a2f477f1904eba",
+        "284ca55488321d877e49688617762fd07e0d1e9ddf608c56863a6ce018405610",
         "Hook wiring manifest",
     ),
     (
         ".claude/hooks/dispatch_groups.json",
-        "97de568309304b92387a806bb0e68a65c5aba286132afaead769b9bb0cb9dd86",
+        "cd7c7bd7bde91afe0d1abda8a912a640f18b65d6f6ffb56ef6aba20848562017",
         "Hook wiring dispatch groups",
     ),
     (
@@ -452,7 +402,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/hooks/hooks.json",
-        "47d4ef54c7f0459083c5cbebc7952d5323c16c89dcfd80d062ff4f28c3a0c86e",
+        "daa5a7ac00c99bae40387142cf3a8b3cca986314d177aac200b916b223e8a910",
         "Hook wiring",
     ),
     # --- Lib: full import closure (.claude/lib + src/copilot-cli/lib) ---
@@ -598,7 +548,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         ".claude/lib/github_core/worktree_identity.py",
-        "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
+        "f7eeb0660651498e7df9725df24a408a9d8872ad305ba5663ee9e634ca0cceae",
         "Lib: .claude/lib/github_core/worktree_identity.py",
     ),
     (
@@ -803,7 +753,7 @@ _PINNED_ARTIFACTS: list[tuple[str, str, str]] = [
     ),
     (
         "src/copilot-cli/lib/github_core/worktree_identity.py",
-        "70be96d7a0130cceadfaada781394ae7c40209cdafa0028c29cd9a1b44956f62",
+        "f7eeb0660651498e7df9725df24a408a9d8872ad305ba5663ee9e634ca0cceae",
         "Lib: src/copilot-cli/lib/github_core/worktree_identity.py",
     ),
     (

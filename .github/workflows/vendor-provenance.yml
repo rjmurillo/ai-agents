@@ -61,6 +61,7 @@ jobs:
           -f state=pending
           -f context="Validate Vendor Provenance"
           -f description="Vendor provenance is pending"
+          || echo "::warning::Pending head status failed; trusted head gates will retry"
 
       - name: Materialize trusted base (immutable SHA)
         env:
