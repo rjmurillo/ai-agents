@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd
+qaCommit: fb672edb0aaccb59e46965333f8dba9919b67c62
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd` on branch
+PASS for commit `fb672edb0aaccb59e46965333f8dba9919b67c62` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -42,8 +42,8 @@ shell operators.
 - Merge queue runs fetch both immutable SHAs before materialization.
 - `|&`, multiline control flow, and heredoc text cannot hide an unmet
   repository dependency.
-- A run-token pending status publishes before the immutable fetch, so fetch
-  failure cannot leave an earlier success green.
+- A run-token pending status is attempted before the immutable fetch. API
+  failure continues to the retried dual-channel startup.
 - Bootstrap pending status is pull-request-only, so merge-group runs cannot
   leave a same-named status pending.
 - Only authenticated remote tips already present in the local object database
