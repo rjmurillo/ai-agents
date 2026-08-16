@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: fb672edb0aaccb59e46965333f8dba9919b67c62
+qaCommit: 9646c3d42e446b24259552572c76e44d545769b7
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `fb672edb0aaccb59e46965333f8dba9919b67c62` on branch
+PASS for commit `9646c3d42e446b24259552572c76e44d545769b7` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -17,9 +17,9 @@ shell operators.
 
 ## Evidence
 
-- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 231 passed.
+- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 232 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
-  193 passed.
+  198 passed.
 - Ruff passed for both modified test files.
 - Actionlint passed for `.github/workflows/vendor-provenance.yml`.
 - `scripts/validate_workflows.py` passed with existing line-count warnings.
@@ -50,6 +50,9 @@ shell operators.
   are excluded from identity scanning.
 - The privileged workflow does not subscribe to `merge_group`; ADR-096
   requires a separate base-owned merge queue design.
+- Markdownlint policy rejects config symlinks before any stat or read.
+- Brace groups, subshells, functions, and backslash-newline continuations
+  cannot hide repository dependencies.
 
 ## Scope
 

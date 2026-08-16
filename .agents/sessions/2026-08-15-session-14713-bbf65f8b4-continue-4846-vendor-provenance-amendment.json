@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit fb672edb0aaccb59e46965333f8dba9919b67c62"
+        "Evidence": "Content commit 9646c3d42e446b24259552572c76e44d545769b7"
       },
       "validationPassed": {
         "level": "MUST",
@@ -166,8 +166,12 @@
     {
       "action": "Kept bootstrap pending publication best-effort.",
       "result": "A bootstrap API failure warns and continues to the base validator, where retried Commit Status and Check Run startup preserve the dual-channel recovery path."
+    },
+    {
+      "action": "Closed config symlink and shell parser gaps.",
+      "result": "Markdownlint policy rejects symlinks before reads. The checkout guard rejects brace groups, subshells, function bodies, heredocs, and multiline control flow, and preserves backslash-newline token semantics. All 232 provenance and 198 workflow checkout tests pass."
     }
   ],
-  "endingCommit": "fb672edb0aaccb59e46965333f8dba9919b67c62",
+  "endingCommit": "9646c3d42e446b24259552572c76e44d545769b7",
   "nextSteps": []
 }
