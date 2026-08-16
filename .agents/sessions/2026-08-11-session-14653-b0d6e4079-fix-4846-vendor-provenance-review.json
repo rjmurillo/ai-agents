@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA and session evidence bind to content commit 48b5ad34819938af3217d8b39956c93c5555e89b."
+        "Evidence": "QA and session evidence bind to content commit ceb2e6720a953fd7fda43c007614ea00896aa459."
       },
       "validationPassed": {
         "level": "MUST",
@@ -309,6 +309,6 @@
       "result": "Printing segments are ignored individually instead of dropping the full compound shell line. Dependencies after echo or printf remain visible. All 172 workflow checkout tests pass and Ruff reports zero findings."
     }
   ],
-  "endingCommit": "48b5ad34819938af3217d8b39956c93c5555e89b",
+  "endingCommit": "ceb2e6720a953fd7fda43c007614ea00896aa459",
   "nextSteps": []
 }

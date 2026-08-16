@@ -1,15 +1,22 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 48b5ad34819938af3217d8b39956c93c5555e89b
+qaCommit: ceb2e6720a953fd7fda43c007614ea00896aa459
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `48b5ad34819938af3217d8b39956c93c5555e89b`
-(qaCommit, above; this is the 12th rebind of this report). ADR-096 reached
+Validated the branch at commit `ceb2e6720a953fd7fda43c007614ea00896aa459`
+(qaCommit, above; this is the 13th rebind of this report). The latest fix
+preserves executable command segments after a leading `echo`, `printf`, or
+heredoc segment. The regression case
+`echo ready && python3 scripts/ci/x.py` is now detected before checkout.
+All 172 workflow checkout tests pass and Ruff reports zero findings.
+
+The 12th rebind validated
+`48b5ad34819938af3217d8b39956c93c5555e89b`. ADR-096 reached
 6 of 6 ACCEPT after four review rounds. The final content commit adds the
 ADR-006 exception analysis, objective rollback detection, immediate
 authentication-failure classification, and two one-attempt regression cases.
