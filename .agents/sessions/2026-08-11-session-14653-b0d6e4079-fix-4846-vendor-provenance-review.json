@@ -303,6 +303,10 @@
     {
       "action": "Tightened GitHub API retry classification and rollback observability.",
       "result": "Authentication errors stop after one attempt. Rollback now has objective confirmation criteria, an alert path, and a measurable 30-minute target. The provenance suite passes 224 tests and Ruff reports zero findings."
+    },
+    {
+      "action": "Fixed a current-head suppressed review finding in the workflow dependency parser.",
+      "result": "Printing segments are ignored individually instead of dropping the full compound shell line. Dependencies after echo or printf remain visible. All 172 workflow checkout tests pass and Ruff reports zero findings."
     }
   ],
   "endingCommit": "48b5ad34819938af3217d8b39956c93c5555e89b",

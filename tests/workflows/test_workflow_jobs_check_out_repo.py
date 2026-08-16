@@ -12,7 +12,6 @@ import yaml
 WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_PRINTING = re.compile(r"^\s*(echo|printf|cat\s+<<|#)")
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
 _WORKSPACE_PREFIX_FORMS = (
@@ -45,13 +44,7 @@ def _jobs(doc: object) -> dict[str, dict]:
 
 
 def _tokenize_command_line(line: str) -> list[str]:
-    """Tokenize one shell line, skipping printing/comment lines entirely.
-
-    Returns an empty token list for ``echo``/``printf``/comment lines so
-    callers never mistake a documentation string for an executed command.
-    """
-    if _PRINTING.match(line):
-        return []
+    """Tokenize one shell line while preserving compound command segments."""
     try:
         return shlex.split(line, comments=True)
     except ValueError:
@@ -84,6 +77,13 @@ def _shell_command_segments(tokens: list[str]) -> list[list[str]]:
     return [segment for segment in segments if segment]
 
 
+def _is_printing_segment(tokens: list[str]) -> bool:
+    command = _strip_environment_assignments(tokens)
+    if command[:1] in (["echo"], ["printf"]):
+        return True
+    return command[:1] == ["cat"] and len(command) > 1 and command[1].startswith("<<")
+
+
 def _raw_shell_segments(line: str) -> list[str]:
     return [
         segment.strip()
@@ -108,9 +108,13 @@ def repo_paths_in_run(run: str) -> list[str]:
     """
     found: list[str] = []
     for line in run.splitlines():
-        for token in _tokenize_command_line(line):
-            if _REPO_PATH.match(token):
-                found.append(token.lstrip("./"))
+        segments = _shell_command_segments(_tokenize_command_line(line))
+        for segment in segments:
+            if _is_printing_segment(segment):
+                continue
+            for token in segment:
+                if _REPO_PATH.match(token):
+                    found.append(token.lstrip("./"))
     return found
 
 
@@ -244,9 +248,12 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
         for line in _logical_shell_commands(run_text):
             tokens = _tokenize_command_line(line)
             if not checked_out:
-                for token in tokens:
-                    if _REPO_PATH.match(token):
-                        return label, token.lstrip("./")
+                for segment in _shell_command_segments(tokens):
+                    if _is_printing_segment(segment):
+                        continue
+                    for token in segment:
+                        if _REPO_PATH.match(token):
+                            return label, token.lstrip("./")
             materialized_workspace, in_workspace = _checkout_index_effect(
                 line,
                 in_workspace,
@@ -318,6 +325,11 @@ class TestRepoPathsInRun:
         block = 'echo "starting"\npython3 scripts/ci/x.py\n'
         assert repo_paths_in_run(block) == ["scripts/ci/x.py"]
 
+    def test_finds_a_path_after_echo_in_a_compound_line(self) -> None:
+        assert repo_paths_in_run(
+            "echo ready && python3 scripts/ci/x.py"
+        ) == ["scripts/ci/x.py"]
+
     def test_unbalanced_quotes_do_not_raise(self) -> None:
         assert repo_paths_in_run("python3 scripts/ci/x.py 'unclosed") == ["scripts/ci/x.py"]
 
@@ -351,6 +363,14 @@ class TestFirstUnmetRepoDependency:
 
     def test_a_job_without_checkout_is_flagged(self) -> None:
         job = {"steps": [{"name": "Run", "run": "python3 scripts/ci/x.py"}]}
+        assert first_unmet_repo_dependency(job) == ("Run", "scripts/ci/x.py")
+
+    def test_a_dependency_after_echo_on_the_same_line_is_flagged(self) -> None:
+        job = {
+            "steps": [
+                {"name": "Run", "run": "echo ready && python3 scripts/ci/x.py"}
+            ]
+        }
         assert first_unmet_repo_dependency(job) == ("Run", "scripts/ci/x.py")
 
     def test_a_checkout_after_the_use_is_too_late(self) -> None:
