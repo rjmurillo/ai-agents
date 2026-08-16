@@ -36,7 +36,8 @@
         "e017",
         "e019",
         "e021",
-        "e023"
+        "e023",
+        "e025"
       ],
       "leads_to": [
         "e005"
@@ -300,6 +301,30 @@
       "caused_by": [
         "e022"
       ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disabled checkout content filters during immutable materialization.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-16T09:52:58+00:00",
+      "type": "commit",
+      "content": "Commit: 98f7d293df4eff61b0b0031fc74a5bde260830c6",
+      "caused_by": [
+        "e024"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -309,7 +334,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 11,
+    "commits": 12,
     "files_changed": 15
   },
   "lessons": []
