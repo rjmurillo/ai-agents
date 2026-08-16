@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb"
+        "Evidence": "Content commit 55c2c68be40d3be46155b1f7995e61d686a9c98f"
       },
       "validationPassed": {
         "level": "MUST",
@@ -186,8 +186,12 @@
     {
       "action": "Recorded numeric identity debate and cross-branch evidence.",
       "result": "The debate log records five ACCEPT votes and one Disagree-and-Commit vote. Cross-feature remote history has a dedicated regression test."
+    },
+    {
+      "action": "Fixed stale populated-index state after read-tree --empty.",
+      "result": "Effective empty operations discard their target index, dry runs preserve state, and --index-output clears only its destination. All 201 workflow checkout tests pass."
     }
   ],
-  "endingCommit": "5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb",
+  "endingCommit": "55c2c68be40d3be46155b1f7995e61d686a9c98f",
   "nextSteps": []
 }

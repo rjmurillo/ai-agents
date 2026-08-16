@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb
+qaCommit: 55c2c68be40d3be46155b1f7995e61d686a9c98f
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb`
-(qaCommit, above; this is the 30th rebind). Changes since the 11th rebind:
+Validated the branch at commit `55c2c68be40d3be46155b1f7995e61d686a9c98f`
+(qaCommit, above; this is the 31st rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
@@ -17,7 +17,7 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 232 provenance tests passed, 198 workflow
+as platform trust roots. Evidence: 232 provenance tests passed, 201 workflow
 checkout tests passed. Ruff, actionlint, workflow validation, ADR review, ADR
 detection, session validation, literal-path markdownlint, and exact Node.js
 `24.19.0` pin passed. Run generations reject superseded writes. Identity scans

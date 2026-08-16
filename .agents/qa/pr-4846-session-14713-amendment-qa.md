@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb
+qaCommit: 55c2c68be40d3be46155b1f7995e61d686a9c98f
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb` on branch
+PASS for commit `55c2c68be40d3be46155b1f7995e61d686a9c98f` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -19,7 +19,7 @@ shell operators.
 
 - `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 232 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
-  198 passed.
+  201 passed.
 - Ruff passed for both modified test files.
 - Actionlint passed for `.github/workflows/vendor-provenance.yml`.
 - `scripts/validate_workflows.py` passed with existing line-count warnings.
@@ -59,6 +59,8 @@ shell operators.
   cannot hide repository dependencies.
 - Every checkout-index materialization uses `--no-filter`, so candidate
   `.gitattributes` cannot invoke smudge filters or transform hashed bytes.
+- Effective `git read-tree --empty` clears populated index state; dry-run
+  empty and a different `--index-output` preserve the active index correctly.
 
 ## Scope
 
