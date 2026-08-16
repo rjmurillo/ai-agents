@@ -1,21 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 8cd4e480b3382235b5544025a096b7ef38486add
+qaCommit: 57c8af89be1c72bd91e7417e0caeacefd96080d1
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `8cd4e480b3382235b5544025a096b7ef38486add`
-(qaCommit, above; this is the 15th rebind). Changes since the 11th rebind:
+Validated the branch at commit `57c8af89be1c72bd91e7417e0caeacefd96080d1`
+(qaCommit, above; this is the 16th rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
-`checkout-index` requires a prior non-empty `git read-tree` using the same
-effective `GIT_INDEX_FILE`. Evidence: 224 provenance tests passed, 175
-workflow checkout tests passed, the combined suites passed 397 tests, and
+`checkout-index` requires a prior matching `git read-tree`; and npm shrinkwrap
+files or symlinks are rejected. Evidence: 227 provenance tests passed, 175
+workflow checkout tests passed, and
 Ruff, actionlint, workflow validation, ADR review, ADR detection, session
 validation, and literal-path markdownlint passed.
 

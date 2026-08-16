@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA and session evidence bind to content commit 8cd4e480b3382235b5544025a096b7ef38486add."
+        "Evidence": "QA and session evidence bind to content commit 57c8af89be1c72bd91e7417e0caeacefd96080d1."
       },
       "validationPassed": {
         "level": "MUST",
@@ -321,6 +321,6 @@
       "result": "npm-shrinkwrap.json files and symlinks are rejected before package-lock.json validation, so npm cannot install from an unvalidated higher-precedence lockfile. All 227 provenance tests pass and Ruff reports zero findings."
     }
   ],
-  "endingCommit": "8cd4e480b3382235b5544025a096b7ef38486add",
+  "endingCommit": "57c8af89be1c72bd91e7417e0caeacefd96080d1",
   "nextSteps": []
 }

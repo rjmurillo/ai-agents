@@ -130,7 +130,8 @@
         "e102",
         "e104",
         "e107",
-        "e109"
+        "e109",
+        "e111"
       ],
       "leads_to": [
         "e006"
@@ -1411,6 +1412,30 @@
       "caused_by": [
         "e108"
       ],
+      "leads_to": [
+        "e112"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e111",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed npm lockfile precedence in vendor reconstruction.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e112",
+      "timestamp": "2026-08-16T05:22:06+00:00",
+      "type": "commit",
+      "content": "Commit: 57c8af89be1c72bd91e7417e0caeacefd96080d1",
+      "caused_by": [
+        "e110"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1420,7 +1445,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 57,
+    "commits": 58,
     "files_changed": 56
   },
   "lessons": []
