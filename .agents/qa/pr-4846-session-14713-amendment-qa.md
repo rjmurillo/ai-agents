@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 98f7d293df4eff61b0b0031fc74a5bde260830c6
+qaCommit: 4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `98f7d293df4eff61b0b0031fc74a5bde260830c6` on branch
+PASS for commit `4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -36,7 +36,7 @@ shell operators.
 - Head-state writes reject a lower run ID after a newer generation claims the
   same PR head.
 - `uv run pytest -q tests/test_lefthook_integration.py -k
-  placeholder_identity`: 6 passed. Commits already reachable from authenticated
+  placeholder_identity`: 7 passed. Commits already reachable from authenticated
   origin tips are excluded, local fake refs are ignored, and new placeholder
   identities remain blocked.
 - Merge queue runs fetch both immutable SHAs before materialization.
@@ -48,6 +48,10 @@ shell operators.
   leave a same-named status pending.
 - Only authenticated remote tips already present in the local object database
   are excluded from identity scanning.
+- Trusted update authorization requires immutable author and sender user ID
+  `6811113`; mutable login names are not used.
+- Bootstrap pending publication uses three bounded attempts before the retried
+  dual-channel startup.
 - The privileged workflow does not subscribe to `merge_group`; ADR-096
   requires a separate base-owned merge queue design.
 - Markdownlint policy rejects config symlinks before any stat or read.

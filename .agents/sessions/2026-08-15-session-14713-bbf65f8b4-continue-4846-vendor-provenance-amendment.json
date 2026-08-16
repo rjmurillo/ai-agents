@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 98f7d293df4eff61b0b0031fc74a5bde260830c6"
+        "Evidence": "Content commit 4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8"
       },
       "validationPassed": {
         "level": "MUST",
@@ -188,6 +188,6 @@
       "result": "The debate log records five ACCEPT votes and one Disagree-and-Commit vote. Cross-feature remote history has a dedicated regression test."
     }
   ],
-  "endingCommit": "98f7d293df4eff61b0b0031fc74a5bde260830c6",
+  "endingCommit": "4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8",
   "nextSteps": []
 }
