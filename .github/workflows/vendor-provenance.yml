@@ -83,7 +83,7 @@ jobs:
           # Populate workspace with trusted base code (read-tree ignores
           # candidate .gitattributes export-ignore directives)
           git read-tree "$BASE_SHA"
-          git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"
+          git checkout-index -a -f --no-filter --prefix="$GITHUB_WORKSPACE/"
 
       - name: Create in-progress check run
         # Runs as early as the trusted-base checkout allows (this workflow
@@ -112,11 +112,11 @@ jobs:
           # Candidate tree via read-tree (immune to export-ignore)
           mkdir -p /tmp/candidate
           GIT_INDEX_FILE=/tmp/idx-pr git read-tree "$PR_SHA"
-          GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a --prefix=/tmp/candidate/
+          GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a --no-filter --prefix=/tmp/candidate/
           # Base tree for deletion detection
           mkdir -p /tmp/base
           GIT_INDEX_FILE=/tmp/idx-base git read-tree "$BASE_SHA"
-          GIT_INDEX_FILE=/tmp/idx-base git checkout-index -a --prefix=/tmp/base/
+          GIT_INDEX_FILE=/tmp/idx-base git checkout-index -a --no-filter --prefix=/tmp/base/
 
       - name: Reject gitlinks in candidate tree
         run: |

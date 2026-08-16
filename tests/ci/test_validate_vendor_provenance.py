@@ -859,6 +859,8 @@ class TestWorkflowContractRegression:
         )[1].split("- name:", 1)[0]
         assert "if: github.event_name == 'pull_request_target'" in bootstrap_step
         assert "trusted head gates will retry" in bootstrap_step
+        assert workflow.count("checkout-index -a") == 3
+        assert workflow.count("--no-filter --prefix=") == 3
 
     def test_workflow_bounds_direct_network_calls(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
