@@ -37,7 +37,10 @@
         "e019",
         "e021",
         "e023",
-        "e025"
+        "e025",
+        "e027",
+        "e028",
+        "e029"
       ],
       "leads_to": [
         "e005"
@@ -325,6 +328,52 @@
       "caused_by": [
         "e024"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced mutable login authorization with numeric GitHub user IDs.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expanded authenticated identity exclusions across origin heads.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded numeric identity debate and cross-branch evidence.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-16T10:22:49+00:00",
+      "type": "commit",
+      "content": "Commit: 4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8",
+      "caused_by": [
+        "e026"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -334,7 +383,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 12,
+    "commits": 13,
     "files_changed": 15
   },
   "lessons": []
