@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9"
+        "Evidence": "Content commit b7f4caae2d5445af9c1d168bccb21237bc74d5f3"
       },
       "validationPassed": {
         "level": "MUST",
@@ -136,6 +136,6 @@
       "result": "git read-tree -n and --dry-run no longer populate index state. --index-output records the actual destination index. All 189 workflow checkout tests pass."
     }
   ],
-  "endingCommit": "1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9",
+  "endingCommit": "b7f4caae2d5445af9c1d168bccb21237bc74d5f3",
   "nextSteps": []
 }

@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9
+qaCommit: b7f4caae2d5445af9c1d168bccb21237bc74d5f3
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9` on branch
+PASS for commit `b7f4caae2d5445af9c1d168bccb21237bc74d5f3` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
