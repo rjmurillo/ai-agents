@@ -33,7 +33,8 @@
         "e011",
         "e013",
         "e015",
-        "e017"
+        "e017",
+        "e019"
       ],
       "leads_to": [
         "e005"
@@ -225,6 +226,30 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed unsafe merge_group execution from the privileged workflow.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-16T08:55:16+00:00",
+      "type": "commit",
+      "content": "Commit: 474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -234,7 +259,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 15
   },
   "lessons": []
