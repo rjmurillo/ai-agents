@@ -288,7 +288,7 @@ workflow's documented invariant ("Git and pipeline failures fail
 closed"). The glob was also incomplete: `.??*` requires at least two
 characters after the leading dot, so single- and two-character dotfiles
 (e.g. `.a`) were never matched and would survive the cleanup. If a
-residual file this untouched by `checkout-index`, the later base-owned
+residual file is untouched by `checkout-index`, the later base-owned
 Python validator process could read or import content that was never
 part of `BASE_SHA`, undermining the property this gate exists to
 guarantee. The fix drops the error-masking redirect and `|| true` so a

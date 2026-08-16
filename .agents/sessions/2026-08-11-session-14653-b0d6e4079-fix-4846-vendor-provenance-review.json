@@ -279,6 +279,10 @@
     {
       "action": "Removed pins for generated mirrors absent from current main and refreshed nine changed hashes.",
       "result": "The current production tree passes all 222 provenance tests. Independent security review returned PASS."
+    },
+    {
+      "action": "Corrected the final QA wording defect without changing the validated commit.",
+      "result": "The security-impact explanation now states the residual-file condition grammatically."
     }
   ],
   "endingCommit": "02ddfac1a53d0f8f91ea6932cda16fe285924ccc",
