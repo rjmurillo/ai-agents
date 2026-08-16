@@ -28,7 +28,9 @@
         "e003",
         "e004",
         "e006",
-        "e008"
+        "e008",
+        "e010",
+        "e011"
       ],
       "leads_to": [
         "e005"
@@ -113,6 +115,41 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added explicit workflow generation ownership.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Excluded commits already reachable from origin tips in the placeholder identity guard.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-16T07:25:59+00:00",
+      "type": "commit",
+      "content": "Commit: 346ad9896acd646a1627a9e637e3eded83b366e5",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -122,8 +159,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 11
+    "commits": 5,
+    "files_changed": 15
   },
   "lessons": []
 }
