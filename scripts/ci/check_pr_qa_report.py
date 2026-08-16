@@ -34,6 +34,18 @@ CODE_EXTENSIONS = {".ps1", ".cs", ".ts", ".js", ".py", ".yml", ".yaml", ".json"}
 # keyword, so a passing mention of another issue cannot pull in its QA report.
 LINKED_ISSUE = re.compile(r"(?i)\b(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?|refs?)\s+#(\d+)")
 
+# Closing keywords, matched against the start of a LINKED_ISSUE match's full
+# text, to split closing links from bare `Refs #n` links. A PR that closes an
+# issue is authoritative about that issue's scope; a PR that merely refs one
+# is not, so closing links must be tried first (issue #5096, criterion 6).
+_CLOSING_KEYWORD = re.compile(r"(?i)\A(?:close[sd]?|fixe?[sd]?|fix|resolve[sd]?)\s+#\d+\Z")
+
+# A `pr-<digits>` token inside a QA report filename, used to reject an
+# issue-named report that was actually written for a different PR (issue
+# #5096, criterion 7). Requires a non-alnum boundary before "pr-" so a
+# filename like "expression-5.md" cannot false-positive.
+PR_TOKEN = re.compile(r"(?<![0-9a-zA-Z])pr-(\d+)")
+
 
 def _append_output(name: str, value: str) -> int:
     output_path = os.environ.get("GITHUB_OUTPUT")
@@ -124,16 +136,41 @@ def _pr_body(repository: str, pr_number: str) -> str | None:
 
 
 def _linked_issues(body: str) -> list[str]:
-    """Issue numbers the body links, deduplicated and in numeric order."""
-    return sorted({match.group(1) for match in LINKED_ISSUE.finditer(body)}, key=int)
+    """Issue numbers the body links: closing keywords first, then bare refs.
+
+    Order is body appearance within each tier; a number seen twice keeps only
+    its first (highest-priority) occurrence. A closing link is authoritative
+    about an issue's scope, so it is tried before a `Refs #n` link that only
+    mentions the issue without claiming to resolve it (issue #5096).
+    """
+    closing: list[str] = []
+    refs: list[str] = []
+    seen: set[str] = set()
+    for match in LINKED_ISSUE.finditer(body):
+        number = match.group(1)
+        if number in seen:
+            continue
+        seen.add(number)
+        bucket = closing if _CLOSING_KEYWORD.fullmatch(match.group(0)) else refs
+        bucket.append(number)
+    return closing + refs
 
 
-def _find_issue_qa_report(issue_numbers: list[str]) -> Path | None:
+def _find_issue_qa_report(issue_numbers: list[str], pr_number: str) -> Path | None:
+    """The first issue-named report not bound to a different PR by filename.
+
+    A report carrying a `pr-<digits>` token in its filename was written for
+    that PR, not this one; resolving it here would validate this PR against
+    another PR's QA evidence and ancestry (issue #5096, criterion 7).
+    """
     qa_dir: Path = artifact_dir("qa", base=Path.cwd())
     for issue_number in issue_numbers:
         reports: list[Path] = sorted(qa_dir.glob(f"*issue-{issue_number}*.md"))
-        if reports:
-            return reports[0]
+        for report in reports:
+            token = PR_TOKEN.search(report.name)
+            if token is not None and token.group(1) != pr_number:
+                continue
+            return report
     return None
 
 
@@ -160,7 +197,7 @@ def _resolve_qa_report(
             file=sys.stderr,
         )
         return None, EXTERNAL_ERROR
-    return _find_issue_qa_report(_linked_issues(body)), None
+    return _find_issue_qa_report(_linked_issues(body), pr_number), None
 
 
 def _resolve_commit(commit: str) -> str | None:

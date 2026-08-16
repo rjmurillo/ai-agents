@@ -418,10 +418,16 @@ def _run_qa_gate(
     return output
 
 
-def test_linked_issues_are_deduplicated_and_numerically_ordered() -> None:
+def test_linked_issues_are_deduplicated_closing_keywords_before_refs() -> None:
     body = "Fixes #9000\nrefs #300\nCloses #9000\n"
 
-    assert qa_mod._linked_issues(body) == ["300", "9000"]
+    assert qa_mod._linked_issues(body) == ["9000", "300"]
+
+
+def test_linked_issues_preserve_body_appearance_order_within_a_tier() -> None:
+    body = "Refs #500\nFixes #300\nRefs #100\nCloses #700\n"
+
+    assert qa_mod._linked_issues(body) == ["300", "700", "500", "100"]
 
 
 def test_qa_report_prefers_the_pr_named_report_over_a_linked_issue_report(
@@ -540,7 +546,7 @@ def test_qa_report_blocks_when_the_linked_issue_has_no_report(
     )
 
 
-def test_the_lowest_numbered_linked_issue_wins(
+def test_a_closing_keyword_issue_wins_over_a_lower_numbered_ref(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -554,6 +560,62 @@ def test_the_lowest_numbered_linked_issue_wins(
 
     assert qa_mod.main() == 0
     assert "qa_report=issue-300-qa.md\n" in output.read_text(encoding="utf-8")
+
+
+def test_a_closing_keyword_issue_outranks_a_lower_numbered_bare_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tiering, not numeric order, decides: the ref (#100) is lower but loses."""
+    _write_qa_artifacts(tmp_path, report_name="issue-100-qa.md")
+    _write_qa_artifacts(tmp_path, report_name="issue-9000-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Refs #100\nFixes #9000\n"),
+    )
+
+    assert qa_mod.main() == 0
+    assert "qa_report=issue-9000-qa.md\n" in output.read_text(encoding="utf-8")
+
+
+def test_find_issue_qa_report_allows_a_token_matching_this_pr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PR-token filter rejects a *different* PR's number, not any token.
+
+    Called directly (bypassing `_find_qa_report`) because a report whose
+    filename carries this PR's own number is always resolved by the
+    PR-numbered lookup first, so the "token matches" branch of the fallback
+    is otherwise unreachable through `main()`.
+    """
+    _write_qa_artifacts(tmp_path, report_name="pr-42-issue-5096-qa.md")
+    monkeypatch.chdir(tmp_path)
+
+    report = qa_mod._find_issue_qa_report(["5096"], "42")
+
+    assert report is not None
+    assert report.name == "pr-42-issue-5096-qa.md"
+
+
+def test_an_issue_report_bound_to_a_different_pr_is_skipped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A report filename carrying another PR's number is never resolved."""
+    _write_qa_artifacts(tmp_path, report_name="pr-999-issue-5096-qa.md")
+    output = _run_qa_gate(
+        tmp_path,
+        monkeypatch,
+        _qa_gh_fake(body="Fixes #5096\n"),
+    )
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
 
 
 def test_a_failed_body_fetch_is_an_external_error(
