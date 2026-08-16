@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit b7f4caae2d5445af9c1d168bccb21237bc74d5f3"
+        "Evidence": "Content commit e8c4059a663bb5bb346c424d47f7f0f76594cf70"
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,6 +140,6 @@
       "result": "Cancelled predecessor runs skip check-run creation and final publication, so a replacement run cannot have its pending or success verdict overwritten. All 229 provenance tests pass."
     }
   ],
-  "endingCommit": "b7f4caae2d5445af9c1d168bccb21237bc74d5f3",
+  "endingCommit": "e8c4059a663bb5bb346c424d47f7f0f76594cf70",
   "nextSteps": []
 }
