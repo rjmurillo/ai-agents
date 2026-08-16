@@ -1,0 +1,54 @@
+{
+  "id": "episode-2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment",
+  "session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Continue PR 4846 vendor provenance amendment review",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the post-acceptance adr-review amendment round for ADR-096.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-16T05:55:01+00:00",
+      "type": "commit",
+      "content": "Commit: 09f76b24ebf55ab7a56e976f3309126bd9c92250",
+      "caused_by": [
+        "e001",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Generated the session episode after binding the content commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
