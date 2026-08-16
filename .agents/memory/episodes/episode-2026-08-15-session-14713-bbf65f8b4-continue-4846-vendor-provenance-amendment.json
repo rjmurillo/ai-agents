@@ -31,7 +31,8 @@
         "e008",
         "e010",
         "e011",
-        "e013"
+        "e013",
+        "e015"
       ],
       "leads_to": [
         "e005"
@@ -175,6 +176,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the pre-fetch stale-success and local-ref trust gaps.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-16T08:06:11+00:00",
+      "type": "commit",
+      "content": "Commit: 2b0185f96e318ec5f3c2f838c9975b5a84a02903",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -184,7 +209,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 15
   },
   "lessons": []
