@@ -858,6 +858,8 @@ class TestWorkflowContractRegression:
             "- name: Publish bootstrap pending status", 1
         )[1].split("- name:", 1)[0]
         assert "if: github.event_name == 'pull_request_target'" in bootstrap_step
+        assert "commits/$PR_SHA/statuses?per_page=100" in bootstrap_step
+        assert '"$GITHUB_RUN_ID" -lt "$LATEST"' in bootstrap_step
         assert "for delay in 0 1 2" in bootstrap_step
         assert "trusted head gates will retry" in bootstrap_step
         assert workflow.count("checkout-index -a") == 3

@@ -52,7 +52,7 @@ jobs:
         if: github.event_name == 'pull_request_target'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: >-
-          for delay in 0 1 2; do timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending" && exit 0; sleep "$delay"; done; echo "::warning::Bootstrap pending status failed after 3 attempts; trusted head gates will retry"
+          LATEST=$(timeout 30s gh api "repos/${{ github.repository }}/commits/$PR_SHA/statuses?per_page=100" --jq '[.[] | select(.context == "Validate Vendor Provenance") | .description | capture("^Vendor provenance run (?<id>[0-9]+):").id | tonumber] | max // 0') || { echo "::warning::Bootstrap generation query failed; trusted head gates will retry"; exit 0; }; if [ "$GITHUB_RUN_ID" -lt "$LATEST" ]; then exit 0; fi; for delay in 0 1 2; do timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending" && exit 0; sleep "$delay"; done; echo "::warning::Bootstrap pending status failed after 3 attempts; trusted head gates will retry"
 
       - name: Fetch immutable base and candidate SHAs
         env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}'}
