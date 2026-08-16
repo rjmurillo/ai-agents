@@ -92,6 +92,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Hook Anchoring (Claude + Copilot)',
     'Copilot Agent Frontmatter',
     'Argument-Hint Frontmatter',
+    'Git Hook Health (core.hooksPath)',
     'Lefthook Installed',
     'Workflow Local Run',
     'Review Marker (SHA-bound /review)',
