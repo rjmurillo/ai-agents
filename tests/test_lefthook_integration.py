@@ -894,11 +894,20 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert piped_stdin_groups[0].get("parallel") is not True
     assert [job["name"] for job in piped_stdin_groups[0]["jobs"]] == [
         "push-ref-policy",
-        "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
         "session-json-validation",
     ]
+    # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
+    # fast-stage failure no longer waits on it. It stays a top-level job
+    # under the piped hook, which serializes stdin delivery exactly as the
+    # piped group does (ci-scripts.md MUST-21 forbids parallel use_stdin).
+    top_level_names = [
+        str(item.get("name"))
+        for item in pre_push["jobs"]
+        if isinstance(item, dict) and "group" not in item
+    ]
+    assert "security-scan" in top_level_names
     markdown_groups = [
         item["group"]
         for item in pre_commit["jobs"]
