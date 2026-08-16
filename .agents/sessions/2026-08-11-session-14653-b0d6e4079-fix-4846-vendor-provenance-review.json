@@ -311,6 +311,10 @@
     {
       "action": "Addressed the reliability review's outbound-call timeout findings.",
       "result": "The pre-materialization GitHub API call now has a 30-second limit, and immutable Git fetch has a 120-second limit. Combined provenance and workflow suites pass 397 tests. Actionlint, workflow validation, and Ruff pass."
+    },
+    {
+      "action": "Fixed a new Copilot thread about empty Git indexes satisfying checkout.",
+      "result": "Workspace materialization now requires a prior non-empty git read-tree using the same effective GIT_INDEX_FILE. Empty and mismatched index cases fail closed. All 175 workflow checkout tests pass and Ruff reports zero findings."
     }
   ],
   "endingCommit": "c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9",

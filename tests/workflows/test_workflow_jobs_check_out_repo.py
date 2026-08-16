@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
+_DEFAULT_GIT_INDEX = ".git/index"
 _WORKSPACE_PREFIX_FORMS = (
     '--prefix="$GITHUB_WORKSPACE/"',
     '--prefix="${GITHUB_WORKSPACE}/"',
@@ -182,7 +183,11 @@ def _prefixes_into_workspace(command_tokens: list[str], raw_segment: str) -> boo
     return False
 
 
-def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
+def _checkout_index_effect(
+    line: str,
+    in_workspace: bool,
+    populated_indexes: set[str],
+) -> tuple[bool, bool]:
     """Return whether *line* checks out into the workspace and the resulting cwd state.
 
     Uses the same tokenizer as ``repo_paths_in_run`` so an ``echo`` line or a
@@ -207,8 +212,18 @@ def _checkout_index_effect(line: str, in_workspace: bool) -> tuple[bool, bool]:
         if command[:1] == ["cd"] and len(command) > 1:
             in_workspace = _is_workspace_reference(command[1])
             continue
+        index_file = assignments.get("GIT_INDEX_FILE", _DEFAULT_GIT_INDEX)
+        if command[:2] == ["git", "read-tree"]:
+            tree_arguments = [
+                token for token in command[2:] if not token.startswith("-")
+            ]
+            if tree_arguments and "--empty" not in command[2:]:
+                populated_indexes.add(index_file)
+            continue
         if command[:2] != ["git", "checkout-index"]:
             continue
+        if index_file not in populated_indexes:
+            return False, in_workspace
         if "-a" not in command[2:] and "--all" not in command[2:]:
             return False, in_workspace
         work_tree = assignments.get("GIT_WORK_TREE")
@@ -226,6 +241,7 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
     """Return (step label, dependency) for the first step needing an absent checkout."""
     checked_out = False
     in_workspace = True
+    populated_indexes: set[str] = set()
     for step in job.get("steps") or []:
         if not isinstance(step, dict):
             continue
@@ -257,6 +273,7 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
             materialized_workspace, in_workspace = _checkout_index_effect(
                 line,
                 in_workspace,
+                populated_indexes,
             )
             if materialized_workspace:
                 checked_out = True
@@ -407,7 +424,13 @@ class TestFirstUnmetRepoDependency:
     def test_cd_state_does_not_cross_step_boundaries(self) -> None:
         job = {"steps": [
             {"run": "cd /tmp"},
-            {"run": 'git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\npython3 scripts/x.py'},
+            {
+                "run": (
+                    'git read-tree "$BASE_SHA"\n'
+                    'git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                    "python3 scripts/x.py"
+                )
+            },
         ]}
         assert first_unmet_repo_dependency(job) is None
 
@@ -421,7 +444,16 @@ class TestFirstUnmetRepoDependency:
     @pytest.mark.parametrize(
         ("run_text", "expected"),
         [
-            _case('git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"', None),
+            _case(
+                'git read-tree "$BASE_SHA"\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"',
+                None,
+            ),
+            _case('git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'),
+            _case(
+                'git read-tree --empty\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
+            ),
             _case("cd /tmp && git checkout-index -a"),
             _case("GIT_WORK_TREE=/tmp/tree git checkout-index -a"),
             # The false positive that made a substring search unusable (PR #4846).
@@ -439,8 +471,15 @@ class TestFirstUnmetRepoDependency:
             _case('git checkout-index -a --prefix=""'),
             _case("git checkout-index -a --prefix='$GITHUB_WORKSPACE/'"),
             _case(
-                'GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a --prefix="$GITHUB_WORKSPACE/"',
+                'GIT_INDEX_FILE=/tmp/idx-pr git read-tree "$PR_SHA"\n'
+                'GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a '
+                '--prefix="$GITHUB_WORKSPACE/"',
                 None,
+            ),
+            _case(
+                'GIT_INDEX_FILE=/tmp/idx-base git read-tree "$BASE_SHA"\n'
+                'GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a '
+                '--prefix="$GITHUB_WORKSPACE/"'
             ),
             _case(
                 "git checkout-index -a --prefix=/tmp/candidate/ && "
@@ -464,6 +503,8 @@ class TestFirstUnmetRepoDependency:
         ],
         ids=[
             "workspace_checkout_index_satisfies_a_later_dependency",
+            "empty_index_checkout_does_not_satisfy_a_dependency",
+            "explicit_empty_read_tree_does_not_satisfy_a_dependency",
             "checkout_index_without_prefix_does_not_prove_workspace_checkout",
             "checkout_index_with_external_work_tree_does_not_satisfy_dependency",
             "an_echoed_checkout_index_does_not_satisfy_a_dependency",
@@ -477,6 +518,7 @@ class TestFirstUnmetRepoDependency:
             "empty_prefix_does_not_satisfy_a_dependency",
             "single_quoted_workspace_prefix_does_not_satisfy_a_dependency",
             "checkout_index_with_workspace_prefix_satisfies_a_dependency",
+            "checkout_index_requires_the_matching_populated_index",
             "later_print_segment_cannot_supply_workspace_prefix",
             "nonleading_work_tree_assignment_is_not_environment",
             "quoted_pipe_segment_mismatch_fails_closed",
