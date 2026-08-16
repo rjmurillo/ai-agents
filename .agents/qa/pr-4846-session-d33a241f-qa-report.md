@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 09f76b24ebf55ab7a56e976f3309126bd9c92250
+qaCommit: 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `09f76b24ebf55ab7a56e976f3309126bd9c92250`
-(qaCommit, above; this is the 17th rebind). Changes since the 11th rebind:
+Validated the branch at commit `1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9`
+(qaCommit, above; this is the 18th rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
@@ -21,6 +21,7 @@ as platform trust roots. Evidence: 228 provenance tests passed, 185 workflow
 checkout tests passed, and
 Ruff, actionlint, workflow validation, ADR review, ADR detection, session
 validation, and literal-path markdownlint passed.
+Node.js is pinned to reviewed release `24.19.0`.
 
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th

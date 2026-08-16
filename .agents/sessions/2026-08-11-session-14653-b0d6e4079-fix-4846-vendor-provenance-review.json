@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA and session evidence bind to content commit 09f76b24ebf55ab7a56e976f3309126bd9c92250."
+        "Evidence": "QA and session evidence bind to content commit 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9."
       },
       "validationPassed": {
         "level": "MUST",
@@ -337,6 +337,6 @@
       "result": "The QA report now records GitHub's 12-file PR diff. The session evidence states that colon-prefixed literal paths with --no-globs linted both requested files."
     }
   ],
-  "endingCommit": "09f76b24ebf55ab7a56e976f3309126bd9c92250",
+  "endingCommit": "1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9",
   "nextSteps": []
 }
