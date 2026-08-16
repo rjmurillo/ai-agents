@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log"
+        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log, 15100b3d2 second main merge, 2bf7e4268 tiered ordering plus foreign-PR filter"
       },
       "validationPassed": {
         "level": "MUST",
@@ -154,12 +154,28 @@
     {
       "step": "First push rejected by a load-sensitive test unrelated to this diff",
       "evidence": "Every pre-push job passed except python-tests (779.03s), which failed only tests/test_mutation_workspace_signals.py::test_catchable_signal_removes_marker_and_scratch[15] on a hardcoded process.wait(timeout=30). Three 30-run samples on this container: this branch with 7 concurrent git push processes running, 7 failed of 30; origin/main detached with load falling, 0 of 30; this branch with 1 push process, 0 of 30. Load is the variable that moves it, not branch content, and neither this diff nor the cherry-picked d00ca216c touches scripts/testing/mutation_workspace.py. Matches .claude/rules/ci-scripts.md MUST 16: a cap sized on an idle run is a cap a real push can exceed."
+    },
+    {
+      "step": "Merged origin/main a second time after the PR sat open; resolved the git_hook_policy.py and test_lefthook_integration.py conflicts on their merits",
+      "evidence": "Local main was 85 commits behind origin/main. Both conflicts were the observation-sync budget function this branch had cherry-picked from PR #5087 (d00ca216c) against main's own later, fuller version (docstring, per-child clamp, the test_observation_sync_budget_sits_below_the_lefthook_cap invariant). Took main's side in full for both hunks in both files; post-body code in sync_observations already referenced the `remaining` variable main's version defines. git diff origin/main HEAD confirms zero remaining diff in either file, so they no longer appear in the Changes list."
+    },
+    {
+      "step": "Diagnosed the two failing required checks against the merged head, not the stale pre-merge run",
+      "evidence": "Validate PR's failure (run 31907921830) cited 'fatal: Not a valid commit name 31482e962bad85...' for _pr_head_sha's ancestry check; that SHA does not exist anywhere in this repository's history, local or remote, and is unrelated to qaCommit (2989ad94e, confirmed an ancestor of HEAD). The run predates this session's merge and rebind; not reproducible against current state, expected to clear once CI re-runs against the new head."
+    },
+    {
+      "step": "Found Validate Spec Coverage's failure was real, not stale: the PR body claimed behavior the code never implemented",
+      "evidence": "Run 31907921910 graded criterion 6 (closing keywords outrank refs) PARTIAL and criterion 7 (foreign-PR filename filter) NOT SATISFIED. git log --follow on scripts/ci/check_pr_qa_report.py confirms only fdb34a279 (fallback) and b495930a5 (mypy annotation) ever touched the file; no commit implemented tiering or a PR_TOKEN filter. Confirmed check_pr_qa_report.py was byte-identical to the pre-merge head (git diff empty), so this predates the merge."
+    },
+    {
+      "step": "Implemented tiered issue ordering and the foreign-PR filename filter, matching the PR body's existing claims",
+      "evidence": "commit 2bf7e4268. _linked_issues buckets LINKED_ISSUE matches by a new _CLOSING_KEYWORD fullmatch on each match's full text, preserving body order per tier and deduping on first occurrence. _find_issue_qa_report takes pr_number and skips a candidate whose filename's PR_TOKEN names a different PR. Four new tests plus two renamed/updated existing tests; 96 -> 100 passed. Six mutation controls (up from four) each match the PR body's pre-existing claimed counts exactly: ordering-reverted-to-numeric fails 3, foreign-PR-filter-removed fails 1."
     }
   ],
-  "endingCommit": "2989ad94e7b4eaf47cc24c7dbf101df5f4c0e225",
+  "endingCommit": "2bf7e4268971aed1025b50ffc7e262363b378bfa",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",
-    "Follow-up: the cherry-picked container unblock commit d00ca216c should drop out on rebase once PR #5087 merges"
+    "Follow-up: the cherry-picked container unblock commit d00ca216c dropped out on the second main merge; PR #5087's own version is now what main carries"
   ]
 }
