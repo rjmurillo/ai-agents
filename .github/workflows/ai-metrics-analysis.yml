@@ -33,6 +33,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
+      # resolves to before the first API call so a mis-issued secret is
+      # visible in the run log. Non-blocking until the secret is rotated.
+      - name: Report BOT_PAT identity
+        env:
+          IDENTITY_TOKEN: ${{ secrets.BOT_PAT }}
+          EXPECTED_BOT_ID: '250269933'
+          EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
+        run: python3 scripts/ci/check_bot_identity.py
+
       - name: Install gh-metrics extension
         shell: bash
         env:

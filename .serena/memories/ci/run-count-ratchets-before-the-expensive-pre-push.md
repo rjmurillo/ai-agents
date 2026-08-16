@@ -1,5 +1,16 @@
 # Run the count ratchets before you push, because pre-push finds them last
 
+## Update 2026-08-15: the ordering is fixed in tooling (issue #5066)
+
+`lefthook.yml` pre-push is now staged: the count ratchets and the other
+seconds-scale blocking gates run in a fast stage ahead of `python-tests`,
+semgrep, mypy, `build_all --check`, and the e2e smokes, and the hook is
+piped, so a ratchet failure aborts before the expensive jobs start. The
+trap below describes the pre-#5066 shape. Running the ratchets by hand
+before pushing is still the cheapest loop (no hook startup, no stdin
+group), but a forgotten ratchet no longer costs a 12 minute pytest run;
+it costs the fast stage, seconds.
+
 ## The trap
 
 A pre-push in this repository runs the full pytest suite. Measured 2026-08-06:

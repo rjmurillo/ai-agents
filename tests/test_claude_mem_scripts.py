@@ -53,6 +53,12 @@ class TestExportDirectGetCount:
         result = _export_direct.get_count(str(tmp_path), "SELECT 1;")
         assert result == -1
 
+    @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
+    def test_returns_negative_on_non_numeric_output(self, tmp_path: Path) -> None:
+        db = tmp_path / "real.db"
+        result = _export_direct.get_count(str(db), "SELECT 'not-a-number';")
+        assert result == -1
+
 
 class TestExportMemoriesValidateOutputPath:
     def test_accepts_valid_path(self, tmp_path: Path) -> None:

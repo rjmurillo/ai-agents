@@ -690,7 +690,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
-        "build-all-check",
         "placeholder-identity",
         "branch-scope",
         "additions-advisory",
@@ -864,7 +863,14 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert "merge" not in skip
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
-    assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
+    assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "SKIP_AUTOFIX": "1",
+        # The job's own timeout in seconds, consumed by the
+        # generated-staleness gate's outer-cap clamp; the cross-check
+        # against the actual timeout lives in
+        # tests/validation/test_check_generated_staleness.py.
+        "PRE_PR_OUTER_CAP_SECONDS": "900",
+    }
     assert pre_push_jobs["python-tests"]["env"] == {
         "AI_AGENTS_PYTEST_WORKER_CAP": "4"
     }
@@ -888,11 +894,20 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert piped_stdin_groups[0].get("parallel") is not True
     assert [job["name"] for job in piped_stdin_groups[0]["jobs"]] == [
         "push-ref-policy",
-        "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
         "session-json-validation",
     ]
+    # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
+    # fast-stage failure no longer waits on it. It stays a top-level job
+    # under the piped hook, which serializes stdin delivery exactly as the
+    # piped group does (ci-scripts.md MUST-21 forbids parallel use_stdin).
+    top_level_names = [
+        str(item.get("name"))
+        for item in pre_push["jobs"]
+        if isinstance(item, dict) and "group" not in item
+    ]
+    assert "security-scan" in top_level_names
     markdown_groups = [
         item["group"]
         for item in pre_commit["jobs"]
@@ -924,14 +939,18 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "{push_files}" not in observation_run
     assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(build_run, str)
     assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert build_run.endswith("build_all.py --check")
     assert "origin/main" in branch_scope_run
+    # Issue #5079 review: the standalone build-all-check job is gone on
+    # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
+    # build_all.py --check inside the sequence; a second concurrent
+    # invocation in the same parallel group raced its snapshot/restore over
+    # the same owned prefixes, and its 15m lefthook timeout was a SIGKILL
+    # that skipped build_all's restoring finally.
+    assert "build-all-check" not in pre_push_jobs
     pre_commit_parallel = False
     for item in pre_commit["jobs"]:
         group = item.get("group")
@@ -7423,7 +7442,7 @@ def test_sync_observations_stops_at_its_internal_budget(
     """
     synced: list[str] = []
 
-    def _record(command: list[str], _root: Path) -> object:
+    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
         synced.append(command[3])
         return _completed(0)
 
@@ -8182,6 +8201,125 @@ def test_remaining_policy_success_and_error_branches(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "10\t0\tfile\n"))
     assert policy.additions_advisory(tmp_path) == 0
     assert "recommended maximum" not in capsys.readouterr().out
+
+
+def test_observation_sync_runs_every_file_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Positive: with budget headroom every pushed file is imported once,
+    each child clamped to at most the remaining budget."""
+    commands: list[list[str]] = []
+    timeouts: list[float] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        timeouts.append(_kwargs["timeout_seconds"])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    imported = [command[3] for command in commands]
+    assert imported == ["a-observations.md", "b-observations.md"]
+    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
+    assert all(t > 0 for t in timeouts)
+    assert "budget" not in capsys.readouterr().err
+
+
+def test_observation_sync_stays_advisory_on_per_file_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Negative: a failing import warns, continues, and never blocks the push."""
+    results = iter([_completed(1), _completed(0)])
+    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "observation sync failed for 'bad-observations.md'" in err
+    assert "budget" not in err
+
+
+def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
+    so the loop's own budget must stop it first, name every skipped file (no
+    silent caps), and still return 0."""
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
+    calls: list[list[str]] = []
+
+    def _forbidden(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _forbidden)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert calls == []
+    err = capsys.readouterr().err
+    assert "budget" in err
+    assert "skipped 2" in err
+    assert "'a-observations.md', 'b-observations.md'" in err
+
+
+def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline passing between files keeps the files already
+    imported and skips exactly the remainder, naming them."""
+    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
+
+    def _tick() -> float:
+        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
+
+    monkeypatch.setattr(policy.time, "monotonic", _tick)
+    commands: list[list[str]] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert [command[3] for command in commands] == ["a-observations.md"]
+    err = capsys.readouterr().err
+    assert "exhausted after 1 of 2" in err
+    assert "'b-observations.md'" in err
+    assert "'a-observations.md'," not in err
+
+
+def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
+    """The budget protects the job only if budget plus one worst-case child
+    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def _find(jobs):
+        for job in jobs:
+            if job.get("name") == "observation-sync-advisory":
+                return job
+            if "group" in job:
+                found = _find(job["group"].get("jobs", []))
+                if found is not None:
+                    return found
+        return None
+
+    job = _find(config["pre-push"]["jobs"])
+    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
+    cap_text = job["timeout"]
+    assert cap_text.endswith("m")
+    cap_seconds = float(cap_text[:-1]) * 60
+    assert (
+        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+        <= cap_seconds
+    )
 
 
 def test_changed_commit_path_and_scan_edge_cases(
