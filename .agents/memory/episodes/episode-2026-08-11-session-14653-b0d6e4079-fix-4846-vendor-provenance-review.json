@@ -1562,6 +1562,19 @@
       "caused_by": [
         "e121"
       ],
+      "leads_to": [
+        "e123"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e123",
+      "timestamp": "2026-08-16T08:25:14+00:00",
+      "type": "commit",
+      "content": "Commit: fa0e1490d17dd92f4a08c52c769d18c0417dcd42",
+      "caused_by": [
+        "e122"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1571,7 +1584,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 64,
+    "commits": 65,
     "files_changed": 60
   },
   "lessons": []
