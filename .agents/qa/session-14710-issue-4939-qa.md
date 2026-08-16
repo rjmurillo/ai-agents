@@ -34,4 +34,4 @@ PASS
 - Review fix: version-drift warning now points at the runbook memory path, keeping ADR-094 as the policy citation.
 - Review fix: episode 14710 milestone e011 recorded one second before commit e012 in the session source; causal chain corrected to e010 -> e011 -> e012 -> e013 -> e014. Episode validation: zero violations.
 - Targeted tests at qaCommit: tests/test_check_copilot_version_pin.py plus tests/ci: 2519 passed, 11 skipped. ruff clean on the edited script.
-- Regression test added for the drift-warning branch (tests/ci/test_ai_review_action_setup.py): 9 passed at qaCommit; episode metrics restored to session-authored counts (11 files, 3 commits).
+- Regression test added for the drift-warning branch (tests/ci/test_ai_review_action_setup.py): 9 passed at qaCommit; episode metrics are branch-span counts maintained by the extract-session-episodes pre-commit hook (they include the origin/main merge, so they exceed this PR's authored diff of 5 files; the hook is authoritative and overwrites hand edits).
