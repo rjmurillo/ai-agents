@@ -265,7 +265,38 @@ git show REBASE_HEAD:<file> # Version being rebased
 
 | File Type | Typical Resolution |
 |-----------|-------------------|
-| Session logs | Keep both, different dates |
+| Session logs | Keep both; rename ours with a distinguishing suffix |
+| QA reports | Keep both; rename ours with a distinguishing suffix |
+| Retrospectives | Keep both; rename ours with a distinguishing suffix |
 | ADRs with same number | Renumber incoming |
 
-<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. Issue #2050. -->
+## Append-Only Evidence Artifacts (Add/Add)
+
+Session logs (`.agents/sessions/*`), QA reports (`.agents/qa/*`), and retrospectives (`.agents/retrospective/*`) are append-only evidence records. An add/add conflict on one of these means two branches wrote different records to the same filename, usually because two sessions allocated the same session number.
+
+**Rename, never content-merge.** Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix, and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (see `.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+
+For session logs, keep the session number in the renamed filename and append an issue or topic slug (for example `2026-08-10-session-14653-issue-4842-repository-name-dots.json`). The filename number parser in `scripts/validate_session_json.py` stops the digit run at a hyphen, so the suffixed name still reads as the same number and agrees with `session.number` inside the JSON. Renaming to the next available number would contradict `session.number` and require editing the record itself.
+
+```bash
+# Keep main's record at the original name
+git checkout --theirs .agents/sessions/<date>-session-<N>.json
+
+# Restore our record under a suffixed name
+git show HEAD:.agents/sessions/<date>-session-<N>.json \
+    > .agents/sessions/<date>-session-<N>-<slug>.json
+
+git add .agents/sessions/<date>-session-<N>.json \
+    .agents/sessions/<date>-session-<N>-<slug>.json
+
+# Repoint anything that referenced our record (QA reports, indexes)
+git grep -l "session-<N>" -- ".agents/qa/*.md"
+```
+
+This recipe assumes a merge in progress (`git merge`), where `--theirs` is the
+base branch and `HEAD` is your branch. During a rebase the sides invert:
+`--theirs` is the commit being replayed (your branch's record) and `HEAD`
+carries the base, so extract your record with `git show REBASE_HEAD:<path>`
+instead; see Rebase Add/Add Conflicts above.
+
+<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json, QA reports under .agents/qa/, retrospectives under .agents/retrospective/) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) and the filename number parser note (scripts/validate_session_json.py) are upstream paths in the rjmurillo/ai-agents repository. Issue #2050. -->

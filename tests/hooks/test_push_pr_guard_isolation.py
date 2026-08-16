@@ -6,8 +6,15 @@ matrix for both harnesses in one module. Dispatcher runners, the payload shape,
 and the temporary repository layout live in
 ``tests/hooks/push_pr_guard_harness.py`` so no module re-derives them.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
+Issue #5013 retired the guard from the generated Copilot shim tree
+(dispatch_groups.json marks it copilotExclude, so the generator omits it).
+Guard POLICY cases (the ``runner`` parametrizations below) run through the
+Claude dispatcher only now, which is where the guard still runs;
+invoke_dispatch_claude.py does not read copilotExclude. A few tests here
+still call the Copilot dispatcher directly, but to check the Copilot
+dispatcher's OWN behavior (it still allows an installed reference, it still
+allows a non-matching command, it no longer runs the retired guard), not to
+check the guard's policy.
 """
 
 from __future__ import annotations
@@ -26,6 +33,9 @@ from tests.hooks.push_pr_guard_harness import (
     PLUGIN_SCRIPT_REFERENCE,
     REPO_ROOT,
     SCRIPT_RELATIVE,
+)
+from tests.hooks.push_pr_guard_harness import (
+    RUNNERS as _RUNNERS,
 )
 from tests.hooks.push_pr_guard_harness import (
     body_file as _body_file,
@@ -154,7 +164,7 @@ def test_isolated_description_validator_blocks_sibling_shadow(
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize("runner", _RUNNERS)
 def test_dispatcher_isolated_mode_blocks_pythonpath_injection(
     tmp_path: Path,
     runner,
@@ -198,14 +208,48 @@ def test_copilot_dispatcher_allows_installed_script_reference(
     assert result.returncode == 0, result.stderr
 
 
-def test_copilot_dispatcher_denies_repository_lookalike(
+def test_copilot_dispatcher_allows_repository_lookalike_after_exclusion(
     tmp_path: Path,
 ) -> None:
+    """Issue #5013: Copilot no longer runs the push-pr identity guard.
+
+    Before #5013 this exact payload was denied on Copilot too (exit 2,
+    "push-pr script identity denied"). dispatch_groups.json now marks the
+    guard's shim entry ``copilotExclude: true``, generate_hooks_expand.py
+    omits it from the Copilot tree, and the committed
+    src/copilot-cli/hooks/PreToolUse/_manifest.json carries no guard shim
+    (the shim file itself was deleted). Asserting the old denial here would
+    test a file that no longer ships; this asserts the current, intentional
+    behavior, so a regression that silently reintroduces the shim shows up
+    as an unexpected denial instead of passing unnoticed.
+
+    The canonical guard still runs and still denies this exact command on
+    the Claude dispatcher: see
+    ``test_claude_dispatcher_denies_repository_lookalike`` below.
+    """
     repository = tmp_path / "repository"
     (repository / ".git").mkdir(parents=True)
     lookalike = _write_script(repository / "attacker" / "pr" / "new_pr.py")
 
     result = _run_copilot(f"python3 '{lookalike}' --title fix", repository)
+
+    assert result.returncode == 0, f"copilot ran the retired guard and denied: {result.stderr}"
+
+
+def test_claude_dispatcher_denies_repository_lookalike(
+    tmp_path: Path,
+) -> None:
+    """The canonical Claude guard still denies a repository-controlled lookalike.
+
+    Companion control for the Copilot exclusion above: issue #5013 removed
+    the guard from ONE surface only. invoke_dispatch_claude.py does not read
+    ``copilotExclude``, so the guard must still run, unchanged, on Claude.
+    """
+    repository = tmp_path / "repository"
+    (repository / ".git").mkdir(parents=True)
+    lookalike = _write_script(repository / "attacker" / "pr" / "new_pr.py")
+
+    result = _run_claude(f"python3 '{lookalike}' --title fix", repository)
 
     assert result.returncode == 2
     assert "push-pr script identity denied" in result.stderr

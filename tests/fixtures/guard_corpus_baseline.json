@@ -352,10 +352,6 @@
       [
         "result = subprocess.run(",
         0
-      ],
-      [
-        "result = subprocess.run(",
-        1
       ]
     ],
     "session-init/scripts/new_session_log_json.py": [

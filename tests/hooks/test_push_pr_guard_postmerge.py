@@ -6,9 +6,12 @@ identity (#4825)"). The measured behavior is recorded in the docstring of each
 test so a future reader can tell what the test is defending, and so a reviewer
 can replay the measurement rather than trust this file.
 
-Every case runs through BOTH dispatchers, because the guard ships twice: once
-as the canonical Claude hook and once as the generated Copilot matcher shim.
-A fix applied to only one surface is a half fix.
+Every case ran through both dispatchers before issue #5013 retired the guard
+from the generated Copilot shim tree (dispatch_groups.json now marks it
+copilotExclude, so the generator omits it). These regressions are guard
+POLICY, so they run on the Claude dispatcher only from here on;
+invoke_dispatch_claude.py does not read copilotExclude and keeps running the
+guard unchanged.
 """
 
 from __future__ import annotations
@@ -24,7 +27,6 @@ from tests.hooks.push_pr_guard_harness import (
     body_file,
     repository,
     run_claude,
-    run_copilot,
 )
 
 # Commands that Bash expands onto the real new_pr.py through extglob. Bash
@@ -90,7 +92,7 @@ PRESERVED_DENIALS = (
 
 
 @pytest.mark.parametrize("command", EXTGLOB_EXECUTIONS)
-def test_dispatchers_deny_extglob_execution_of_new_pr(tmp_path, command) -> None:
+def test_claude_denies_extglob_execution_of_new_pr(tmp_path, command) -> None:
     """Extglob patterns that Bash expands onto new_pr.py must be denied.
 
     Measured on the merged tree (both dispatchers returned 0):
@@ -106,14 +108,12 @@ def test_dispatchers_deny_extglob_execution_of_new_pr(tmp_path, command) -> None
     root, _ = repository(tmp_path)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 2, f"claude allowed extglob bypass: {claude.stdout}"
-    assert copilot.returncode == 2, f"copilot allowed extglob bypass: {copilot.stdout}"
 
 
 @pytest.mark.parametrize("command", UNRELATED_EXTGLOB)
-def test_dispatchers_allow_extglob_unrelated_to_new_pr(tmp_path, command) -> None:
+def test_claude_allows_extglob_unrelated_to_new_pr(tmp_path, command) -> None:
     """Ordinary extglob commands stay out of scope.
 
     The bypass fix widens what counts as a name for new_pr.py. It must not
@@ -123,14 +123,12 @@ def test_dispatchers_allow_extglob_unrelated_to_new_pr(tmp_path, command) -> Non
     root, _ = repository(tmp_path)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 0, f"claude denied unrelated extglob: {claude.stderr}"
-    assert copilot.returncode == 0, f"copilot denied unrelated extglob: {copilot.stderr}"
 
 
 @pytest.mark.parametrize("command", DATA_ONLY_REFERENCES)
-def test_dispatchers_allow_data_only_references(tmp_path, command) -> None:
+def test_claude_allows_data_only_references(tmp_path, command) -> None:
     """Naming new_pr.py in a data position is not an execution.
 
     Measured on the merged tree, both dispatchers returned 2:
@@ -151,10 +149,8 @@ def test_dispatchers_allow_data_only_references(tmp_path, command) -> None:
     root, _ = repository(tmp_path)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 0, f"claude falsely denied: {claude.stderr}"
-    assert copilot.returncode == 0, f"copilot falsely denied: {copilot.stderr}"
 
 
 @pytest.mark.parametrize("command", DATA_ONLY_REFERENCES)
@@ -174,14 +170,12 @@ def test_data_only_references_pass_against_the_real_repository(command) -> None:
     other.
     """
     claude = run_claude(command, REPO_ROOT)
-    copilot = run_copilot(command, REPO_ROOT)
 
     assert claude.returncode == 0, f"claude falsely denied in-repo: {claude.stderr}"
-    assert copilot.returncode == 0, f"copilot falsely denied in-repo: {copilot.stderr}"
 
 
 @pytest.mark.parametrize("command", PRESERVED_DENIALS)
-def test_dispatchers_still_deny_execution_paths(tmp_path, command) -> None:
+def test_claude_still_denies_execution_paths(tmp_path, command) -> None:
     """Narrowing relevance to execution positions keeps every execution path denied.
 
     This is the inverse control for the false-denial fix. Each command reaches
@@ -195,10 +189,8 @@ def test_dispatchers_still_deny_execution_paths(tmp_path, command) -> None:
     body_file(root)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 2, f"claude allowed an execution path: {claude.stdout}"
-    assert copilot.returncode == 2, f"copilot allowed an execution path: {copilot.stdout}"
 
 
 # Pipelines whose reader prints an execution of new_pr.py into a program that
@@ -254,7 +246,7 @@ PIPELINE_READS = (
 
 
 @pytest.mark.parametrize("command", PIPELINE_EXECUTIONS + GIT_COMMAND_RUNNER_EXECUTIONS)
-def test_dispatchers_deny_delegated_execution_of_new_pr(tmp_path, command) -> None:
+def test_claude_denies_delegated_execution_of_new_pr(tmp_path, command) -> None:
     """A path handed to a program runner is an execution, whatever segment it sits in.
 
     Both families reach new_pr.py without ever naming it in a command
@@ -272,14 +264,12 @@ def test_dispatchers_deny_delegated_execution_of_new_pr(tmp_path, command) -> No
     body_file(root)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 2, f"claude allowed delegated execution: {claude.stdout}"
-    assert copilot.returncode == 2, f"copilot allowed delegated execution: {copilot.stdout}"
 
 
 @pytest.mark.parametrize("command", PIPELINE_READS)
-def test_dispatchers_allow_pipelines_that_only_read(command) -> None:
+def test_claude_allows_pipelines_that_only_read(command) -> None:
     """Inverse control: a pipeline that ends in a reader stays out of scope.
 
     The pipe rule asks whether the text a segment prints reaches a program
@@ -287,10 +277,8 @@ def test_dispatchers_allow_pipelines_that_only_read(command) -> None:
     is no and the reference stays data.
     """
     claude = run_claude(command, REPO_ROOT)
-    copilot = run_copilot(command, REPO_ROOT)
 
     assert claude.returncode == 0, f"claude falsely denied a read pipeline: {claude.stderr}"
-    assert copilot.returncode == 0, f"copilot falsely denied a read pipeline: {copilot.stderr}"
 
 
 # A consumer the lexer cannot tokenize still occupies its place in the
@@ -311,7 +299,7 @@ UNPARSEABLE_CONSUMER_EXECUTIONS = (
 
 
 @pytest.mark.parametrize("command", UNPARSEABLE_CONSUMER_EXECUTIONS)
-def test_dispatchers_deny_pipelines_into_an_unparseable_consumer(tmp_path, command) -> None:
+def test_claude_denies_pipelines_into_an_unparseable_consumer(tmp_path, command) -> None:
     """A pipeline consumer the guard cannot read must be assumed to execute.
 
     The guard has no parser for a subshell, so it cannot name what the segment
@@ -322,13 +310,11 @@ def test_dispatchers_deny_pipelines_into_an_unparseable_consumer(tmp_path, comma
     body_file(root)
 
     claude = run_claude(command, root)
-    copilot = run_copilot(command, root)
 
     assert claude.returncode == 2, f"claude allowed a subshell consumer: {claude.stdout}"
-    assert copilot.returncode == 2, f"copilot allowed a subshell consumer: {copilot.stdout}"
 
 
-def test_dispatchers_allow_a_subshell_that_reaches_nothing(tmp_path) -> None:
+def test_claude_allows_a_subshell_that_reaches_nothing(tmp_path) -> None:
     """Inverse control: an unparseable segment is not itself a reason to deny.
 
     Failing closed on the pipe relation must not turn every subshell into a
@@ -339,13 +325,11 @@ def test_dispatchers_allow_a_subshell_that_reaches_nothing(tmp_path) -> None:
 
     for command in ("(git status)", "echo hi | (cat)", "(cd /tmp && ls)"):
         claude = run_claude(command, root)
-        copilot = run_copilot(command, root)
 
         assert claude.returncode == 0, f"claude denied {command}: {claude.stderr}"
-        assert copilot.returncode == 0, f"copilot denied {command}: {copilot.stderr}"
 
 
-def test_dispatchers_deny_a_renamed_copy_handed_to_a_pipeline(tmp_path) -> None:
+def test_claude_denies_a_renamed_copy_handed_to_a_pipeline(tmp_path) -> None:
     """Scope rule C must see the operands the pipe rule opened up.
 
     The pipe fix threaded the reader exemption into the path rule but not into
@@ -364,7 +348,5 @@ def test_dispatchers_deny_a_renamed_copy_handed_to_a_pipeline(tmp_path) -> None:
         "echo python3 tools_copy.py | tee /dev/null | sh",
     ):
         claude = run_claude(command, root)
-        copilot = run_copilot(command, root)
 
         assert claude.returncode == 2, f"claude allowed a piped renamed copy: {claude.stdout}"
-        assert copilot.returncode == 2, f"copilot allowed a piped renamed copy: {copilot.stdout}"

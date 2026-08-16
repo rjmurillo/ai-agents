@@ -160,17 +160,25 @@ def main(argv: list[str] | None = None) -> int:
     metrics = measure_workspace_files(repo_root)
     result = validate_budget(metrics, args.total_budget, args.per_file_budget)
 
-    # Print file summary
+    # Print file summary using the same effective ceilings as validate_budget()
+    pool_total = 0
     for fm in result.files:
         if not fm.exists:
             status = "MISSING"
-        elif fm.size_bytes > args.per_file_budget:
-            status = "OVER"
+            ceiling_label = ""
         else:
-            status = "OK"
-        print(f"  {fm.path}: {fm.size_bytes:,} bytes [{status}]")
+            effective_ceiling = FILE_CEILING_BYTES.get(fm.path, args.per_file_budget)
+            in_pool = fm.path not in FILE_CEILING_BYTES
+            if in_pool:
+                pool_total += fm.size_bytes
+            if fm.size_bytes > effective_ceiling:
+                status = "OVER"
+            else:
+                status = "OK"
+            ceiling_label = f" (limit {effective_ceiling:,})"
+        print(f"  {fm.path}: {fm.size_bytes:,} bytes{ceiling_label} [{status}]")
 
-    print(f"  Total: {result.total_bytes:,} / {args.total_budget:,} bytes")
+    print(f"  Pool total: {pool_total:,} / {args.total_budget:,} bytes")
 
     for error in result.errors:
         print(f"ERROR: {error}")

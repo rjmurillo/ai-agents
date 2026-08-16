@@ -78,6 +78,54 @@
     "correct": "taste-lints"
   },
   {
+    "id": "review-05-low-risk-review",
+    "query": "This is a low-risk docs-only tweak plus a tiny cleanup. Give me a normal pre-merge review, but keep the routing tight.",
+    "candidates": ["review", "quality-grades", "code-qualities-assessment"],
+    "correct": "review"
+  },
+  {
+    "id": "review-06-security-routing",
+    "query": "This change touches auth, untrusted input, and shell execution. Route it to the security review.",
+    "candidates": ["security", "review", "devops"],
+    "correct": "security"
+  },
+  {
+    "id": "review-07-dependency-routing",
+    "query": "I bumped a third-party package and need a dependency risk check before merge.",
+    "candidates": ["architect", "review", "security"],
+    "correct": "architect"
+  },
+  {
+    "id": "review-08-ci-routing",
+    "query": "This PR changes a GitHub Actions workflow and needs pipeline review.",
+    "candidates": ["devops", "review", "security"],
+    "correct": "devops"
+  },
+  {
+    "id": "review-09-type-routing",
+    "query": "I introduced a new type and need invariant and encapsulation feedback.",
+    "candidates": ["architect", "review", "code-qualities-assessment"],
+    "correct": "architect"
+  },
+  {
+    "id": "review-10-test-routing",
+    "query": "I changed behavior and want the tests reviewed for coverage and edge cases.",
+    "candidates": ["qa", "review", "quality-grades"],
+    "correct": "qa"
+  },
+  {
+    "id": "review-11-error-routing",
+    "query": "I touched catch blocks and fallback behavior, so look for silent failures.",
+    "candidates": ["qa", "review", "implementer"],
+    "correct": "qa"
+  },
+  {
+    "id": "review-12-fail-closed-additive",
+    "query": "This PR spans tests and error handling, and I cannot classify the risk confidently. Review it in the safest fail-closed way.",
+    "candidates": ["review", "qa", "implementer", "security"],
+    "correct": "review"
+  },
+  {
     "id": "planning-01-epic-to-milestones",
     "query": "Break this epic into milestones and plan this roadmap item with dependencies.",
     "candidates": ["milestone-planner", "task-decomposer"],

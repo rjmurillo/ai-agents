@@ -217,6 +217,16 @@ def test_metadata_files_excluded() -> None:
     assert mod.is_agent_path(".claude/agents/CLAUDE.md") is False
 
 
+def test_reference_docs_excluded() -> None:
+    """Reference docs under agents/*/references/ are not agents (#4813)."""
+    refs = ".claude/agents/security/references/"
+    assert mod.is_agent_path(refs + "threat-model-template.md") is False
+    assert mod.is_agent_path(refs + "dependency-risk-scoring.md") is False
+    assert mod.is_agent_path(".claude/agents/foo/references/bar.md") is False
+    # Real agents in subdirs still included
+    assert mod.is_agent_path(".claude/agents/security/analyst.md") is True
+
+
 def test_agent_and_shared_template_paths_included() -> None:
     assert mod.is_agent_path(".claude/agents/devops.md") is True
     assert mod.is_agent_path("templates/agents/devops.shared.md") is True

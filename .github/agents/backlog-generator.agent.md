@@ -13,7 +13,6 @@ tools:
   - github/search_pull_requests
   - github/search_repositories
   - serena/*
-model: claude-opus-4.6
 tier: integration
 ---
 
