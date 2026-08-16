@@ -131,7 +131,11 @@
         "e104",
         "e107",
         "e109",
-        "e111"
+        "e111",
+        "e113",
+        "e114",
+        "e115",
+        "e116"
       ],
       "leads_to": [
         "e006"
@@ -1436,6 +1440,63 @@
       "caused_by": [
         "e110"
       ],
+      "leads_to": [
+        "e117"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e113",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed compact shell operator parsing in the workflow dependency guard.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e114",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored and documented repository-wide gitlink rejection.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e115",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Narrowed ADR-096 trust claims to repository-owned artifacts.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e116",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected final evidence scope and markdownlint wording.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e117",
+      "timestamp": "2026-08-16T06:15:03+00:00",
+      "type": "commit",
+      "content": "Commit: 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9",
+      "caused_by": [
+        "e112"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1445,8 +1506,8 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 58,
-    "files_changed": 56
+    "commits": 59,
+    "files_changed": 59
   },
   "lessons": []
 }

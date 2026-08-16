@@ -25,9 +25,12 @@
       "content": "Commit: 09f76b24ebf55ab7a56e976f3309126bd9c92250",
       "caused_by": [
         "e001",
-        "e003"
+        "e003",
+        "e004"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     },
     {
@@ -40,6 +43,28 @@
         "e002"
       ],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed two current-head suppressed Copilot findings.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-16T06:15:03+00:00",
+      "type": "commit",
+      "content": "Commit: 1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
   ],
   "metrics": {
@@ -47,8 +72,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 2,
+    "files_changed": 10
   },
   "lessons": []
 }
