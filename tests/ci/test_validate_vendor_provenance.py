@@ -834,19 +834,20 @@ class TestWorkflowContractRegression:
         assert "group: vendor-provenance-" in workflow
         assert "cancel-in-progress: true" in workflow
         assert "statuses: write" in workflow
+        assert "--claim-head-generation" in workflow
         assert "--start-head-gates" in workflow
         assert "--finish-head-gates" in workflow
-        assert workflow.index("Publish pending status before materialization") < workflow.index(
-            "Materialize trusted base"
-        )
+        assert workflow.index(
+            "Fetch trusted base and claim head generation"
+        ) < workflow.index("Materialize trusted base")
 
     def test_workflow_bounds_direct_network_calls(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
             encoding="utf-8"
         )
 
-        assert 'timeout 30s gh api "repos/$REPOSITORY/statuses/$PR_SHA"' in workflow
         assert 'timeout 120s git -c "http.extraHeader=' in workflow
+        assert "statuses/$PR_SHA" not in workflow
 
     def test_workflow_rejects_gitlinks_before_relevance(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
@@ -2672,11 +2673,14 @@ class TestCreateCheckRun:
 
 
 class TestPublishCommitStatus:
-    def test_pending_status_targets_head_sha(self) -> None:
+    def test_pending_status_targets_head_sha(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from unittest.mock import patch
 
         from scripts.ci.validate_vendor_provenance import _publish_commit_status
 
+        monkeypatch.setenv("GITHUB_RUN_ID", "123")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "{}"
@@ -2687,6 +2691,7 @@ class TestPublishCommitStatus:
         payload = json.loads(mock_run.call_args.kwargs["input"])
         assert payload["state"] == "pending"
         assert payload["context"] == "Validate Vendor Provenance"
+        assert payload["description"] == "Vendor provenance run 123: pending"
 
     def test_invalid_state_fails_before_api_call(self) -> None:
         from unittest.mock import patch
@@ -2698,6 +2703,74 @@ class TestPublishCommitStatus:
         mock_run.assert_not_called()
 
 
+class TestCurrentRunOwnsHead:
+    def test_current_run_owns_head_when_no_newer_generation_exists(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from subprocess import CompletedProcess
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _current_run_owns_head
+
+        monkeypatch.setenv("GITHUB_RUN_ID", "123")
+        statuses = CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps([
+                {
+                    "context": "Validate Vendor Provenance",
+                    "description": "Vendor provenance run 122: success",
+                }
+            ]),
+            stderr="",
+        )
+        with patch(
+            "scripts.ci.validate_vendor_provenance._run_gh_api",
+            return_value=statuses,
+        ):
+            assert _current_run_owns_head("owner/repo", "abc123") is True
+
+    def test_newer_status_generation_supersedes_current(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from subprocess import CompletedProcess
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _current_run_owns_head
+
+        monkeypatch.setenv("GITHUB_RUN_ID", "123")
+        statuses = CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps([
+                {
+                    "context": "Validate Vendor Provenance",
+                    "description": "Vendor provenance run 124: pending",
+                }
+            ]),
+            stderr="",
+        )
+        with patch(
+            "scripts.ci.validate_vendor_provenance._run_gh_api",
+            return_value=statuses,
+        ):
+            assert _current_run_owns_head("owner/repo", "abc123") is False
+
+    def test_missing_run_id_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _current_run_owns_head
+
+        monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+        with patch(
+            "scripts.ci.validate_vendor_provenance._run_gh_api"
+        ) as run_gh_api:
+            assert _current_run_owns_head("owner/repo", "abc123") is False
+        run_gh_api.assert_not_called()
+
+
 class TestHeadGateOrchestration:
     def test_start_attempts_both_channels_when_status_fails(self) -> None:
         from unittest.mock import patch
@@ -2705,6 +2778,10 @@ class TestHeadGateOrchestration:
         from scripts.ci.validate_vendor_provenance import _start_head_gates
 
         with (
+            patch(
+                "scripts.ci.validate_vendor_provenance._current_run_owns_head",
+                return_value=True,
+            ),
             patch(
                 "scripts.ci.validate_vendor_provenance._publish_commit_status",
                 return_value=1,
@@ -2727,6 +2804,10 @@ class TestHeadGateOrchestration:
 
         with (
             patch(
+                "scripts.ci.validate_vendor_provenance._current_run_owns_head",
+                return_value=True,
+            ),
+            patch(
                 "scripts.ci.validate_vendor_provenance._publish_commit_status",
                 return_value=0,
             ) as publish_status,
@@ -2748,6 +2829,10 @@ class TestHeadGateOrchestration:
 
         with (
             patch(
+                "scripts.ci.validate_vendor_provenance._current_run_owns_head",
+                return_value=True,
+            ),
+            patch(
                 "scripts.ci.validate_vendor_provenance._publish_check_run",
                 return_value=1,
             ) as publish_check,
@@ -2765,6 +2850,28 @@ class TestHeadGateOrchestration:
         assert result == 1
         publish_check.assert_called_once()
         publish_status.assert_called_once_with("owner/repo", "abc123", "failure")
+
+    def test_superseded_run_publishes_neither_channel(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _finish_head_gates
+
+        with (
+            patch(
+                "scripts.ci.validate_vendor_provenance._current_run_owns_head",
+                return_value=False,
+            ),
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_check_run",
+            ) as publish_check,
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_commit_status",
+            ) as publish_status,
+        ):
+            result = _finish_head_gates("owner/repo", "abc123", "failure", "999")
+        assert result == 1
+        publish_check.assert_not_called()
+        publish_status.assert_not_called()
 
 
 class TestCheckRunArgValidation:

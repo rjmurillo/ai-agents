@@ -51,36 +51,36 @@ jobs:
       PR_ACTION: ${{ github.event_name == 'merge_group' && 'merge_group' || github.event.action }}
 
     steps:
-      - name: Publish pending status before materialization
+      - name: Fetch trusted base and claim head generation
         if: github.event_name == 'pull_request_target'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: >-
-          timeout 30s gh api "repos/$REPOSITORY/statuses/$PR_SHA" -X POST
-          -f state=pending
-          -f context="Validate Vendor Provenance"
-          -f description="Vendor provenance is pending"
-          || echo "::warning::Pending head status failed; trusted head gates will retry"
-
-      - name: Materialize trusted base (immutable SHA)
-        env:
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
         run: |
           set -euo pipefail
-          # Start from an empty workspace with a bare git repo. `-f` makes rm
-          # ignore nonexistent-file errors from unmatched glob patterns (safe,
-          # not a fail-open mask); any other rm failure (e.g. permission
-          # denied) still trips `set -e` per this workflow's fail-closed
-          # contract. The three-pattern glob (`*`, `.[!.]*`, `..?*`) matches
-          # regular files, single/two-char dotfiles, and multi-dot names,
-          # while `.` and `..` are never matched by any pattern.
           cd "$GITHUB_WORKSPACE"
+          # Start from an empty workspace. `-f` ignores unmatched globs, while
+          # permission and filesystem failures still stop under `set -e`.
+          # The patterns cover normal files, short dotfiles, and longer
+          # dotfiles without matching `.` or `..`. Fetch both immutable event
+          # SHAs before loading the base-owned validator into runner temp.
+          # The generation claim runs before any candidate tree materializes.
+          # A newer run ID blocks every later head-state write from this run.
           rm -rf -- * .[!.]* ..?*
           git init --quiet
           git remote add origin "https://github.com/${{ github.repository }}.git"
           timeout 120s git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
             fetch origin "$BASE_SHA" "$PR_SHA"
+          git show "$BASE_SHA:scripts/ci/validate_vendor_provenance.py" \
+            > "$RUNNER_TEMP/validate_vendor_provenance.py"
+          python3 "$RUNNER_TEMP/validate_vendor_provenance.py" \
+            --claim-head-generation "${{ github.repository }}" "$PR_SHA"
+
+      - name: Materialize trusted base (immutable SHA)
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
           # Populate workspace with trusted base code (read-tree ignores
           # candidate .gitattributes export-ignore directives)
           git read-tree "$BASE_SHA"
@@ -143,7 +143,7 @@ jobs:
         with:
           python-version: '3.14.6'
 
-      - name: Setup uv
+      - name: Set up uv
         if: steps.relevance.outputs.dominated == 'true'
         uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d  # v10.0.0
         with:

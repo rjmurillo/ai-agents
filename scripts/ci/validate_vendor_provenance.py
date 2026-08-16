@@ -1772,15 +1772,17 @@ def _publish_commit_status(
     head_sha: str,
     state: str,
 ) -> int:
-    import json as _json
-
     repo = _validate_repo_slug(repo)
     if state not in {"pending", "success", "failure"}:
         raise SystemExit(f"refusing invalid commit-status state: {state!r}")
-    payload = _json.dumps({
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not _CHECK_RUN_ID_PATTERN.match(run_id):
+        print("ERROR: GITHUB_RUN_ID is missing or malformed", file=sys.stderr)
+        return 1
+    payload = json.dumps({
         "state": state,
         "context": "Validate Vendor Provenance",
-        "description": f"Vendor provenance is {state}",
+        "description": f"Vendor provenance run {run_id}: {state}",
     })
     result = _run_gh_api(
         [
@@ -1798,8 +1800,57 @@ def _publish_commit_status(
     return 0
 
 
+def _current_run_owns_head(repo: str, head_sha: str) -> bool:
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not _CHECK_RUN_ID_PATTERN.match(run_id):
+        print("ERROR: GITHUB_RUN_ID is missing or malformed", file=sys.stderr)
+        return False
+
+    statuses_result = _run_gh_api(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/commits/{head_sha}/statuses?per_page=100",
+        ],
+        "",
+    )
+    if statuses_result is None or statuses_result.returncode != 0:
+        print("ERROR: could not read PR head status generations", file=sys.stderr)
+        return False
+    try:
+        statuses = json.loads(statuses_result.stdout)
+        generations = [
+            int(match.group(1))
+            for status in statuses
+            if status.get("context") == "Validate Vendor Provenance"
+            and (
+                match := re.fullmatch(
+                    r"Vendor provenance run (\d+): (?:pending|success|failure)",
+                    str(status.get("description", "")),
+                )
+            )
+        ]
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        print(f"ERROR: PR head statuses response is malformed: {exc}", file=sys.stderr)
+        return False
+    if generations and int(run_id) < max(generations):
+        print("ERROR: a newer workflow run owns the PR head", file=sys.stderr)
+        return False
+    return True
+
+
+def _claim_head_generation(repo: str, head_sha: str) -> int:
+    if not _current_run_owns_head(repo, head_sha):
+        return 1
+    return _publish_commit_status(repo, head_sha, "pending")
+
+
 def _start_head_gates(repo: str, head_sha: str) -> tuple[str | None, int]:
+    if not _current_run_owns_head(repo, head_sha):
+        return None, 1
     _publish_commit_status(repo, head_sha, "pending")
+    if not _current_run_owns_head(repo, head_sha):
+        return None, 1
     check_run_id = _create_check_run(repo, head_sha)
     return check_run_id, 0 if check_run_id else 1
 
@@ -1810,6 +1861,8 @@ def _finish_head_gates(
     conclusion: str,
     check_run_id: str | None,
 ) -> int:
+    if not _current_run_owns_head(repo, head_sha):
+        return 1
     check_result = _publish_check_run(
         repo,
         head_sha,
@@ -1817,6 +1870,8 @@ def _finish_head_gates(
         f"Vendor provenance is {conclusion}",
         check_run_id=check_run_id,
     )
+    if not _current_run_owns_head(repo, head_sha):
+        return 1
     status_result = _publish_commit_status(repo, head_sha, conclusion)
     return 0 if check_result == 0 and status_result == 0 else 1
 
@@ -2127,6 +2182,12 @@ def main() -> int:
         help="Publish pending|success|failure status on the PR head SHA",
     )
     parser.add_argument(
+        "--claim-head-generation",
+        nargs=2,
+        metavar=("REPO", "HEAD_SHA"),
+        help="Claim the PR head for this GITHUB_RUN_ID and publish pending",
+    )
+    parser.add_argument(
         "--start-head-gates",
         nargs=2,
         metavar=("REPO", "HEAD_SHA"),
@@ -2167,6 +2228,10 @@ def main() -> int:
     if args.publish_commit_status:
         repo, head_sha, state = args.publish_commit_status
         return _publish_commit_status(repo, head_sha, state)
+
+    if args.claim_head_generation:
+        repo, head_sha = args.claim_head_generation
+        return _claim_head_generation(repo, head_sha)
 
     if args.start_head_gates:
         repo, head_sha = args.start_head_gates
