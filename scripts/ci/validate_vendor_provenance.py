@@ -1919,6 +1919,9 @@ def _validate_markdownlint_config_policy(candidate: Path) -> list[str]:
     errors: list[str] = []
     for rel in _MARKDOWNLINT_POLICY_PATHS:
         path = candidate / rel
+        if path.is_symlink():
+            errors.append(f"{rel}: config symlinks are forbidden")
+            continue
         if not path.is_file():
             continue
         try:

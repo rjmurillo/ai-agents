@@ -64,7 +64,7 @@ def _logical_shell_commands(run_text: str) -> list[str]:
     for line in run_text.splitlines():
         stripped = line.rstrip()
         if stripped.endswith("\\"):
-            current += f"{stripped[:-1]} "
+            current += stripped[:-1]
             continue
         commands.append(f"{current}{line}")
         current = ""
@@ -105,7 +105,10 @@ def _has_multiline_shell_structure(run_text: str) -> bool:
     for line in _logical_shell_commands(run_text):
         for segment in _shell_command_segments(_tokenize_command_line(line)):
             command = _strip_environment_assignments(segment)
-            if command[:1] and command[0] in _MULTILINE_CONTROL_WORDS:
+            if command[:1] and (
+                command[0] in _MULTILINE_CONTROL_WORDS
+                or any(token in {"{", "}", "(", ")"} for token in command)
+            ):
                 return True
     return False
 
@@ -125,7 +128,7 @@ def repo_paths_in_run(run: str) -> list[str]:
     parser and not a substring search.
     """
     found: list[str] = []
-    for line in run.splitlines():
+    for line in _logical_shell_commands(run):
         segments = _shell_command_segments(_tokenize_command_line(line))
         for segment in segments:
             if _is_printing_segment(segment):
@@ -398,6 +401,12 @@ class TestRepoPathsInRun:
             f"echo ready{operator}python3 scripts/ci/x.py"
         ) == ["scripts/ci/x.py"]
 
+    def test_backslash_newline_does_not_insert_whitespace(self) -> None:
+        assert repo_paths_in_run("python3 scripts/\\\nx.py") == ["scripts/x.py"]
+
+    def test_existing_space_before_backslash_is_preserved(self) -> None:
+        assert repo_paths_in_run("python3 scripts/ \\\nx.py") == []
+
     def test_unbalanced_quotes_do_not_raise(self) -> None:
         assert repo_paths_in_run("python3 scripts/ci/x.py 'unclosed") == ["scripts/ci/x.py"]
 
@@ -523,8 +532,35 @@ class TestFirstUnmetRepoDependency:
                 "EOF\n"
                 "python3 scripts/x.py"
             ),
+            (
+                "false && {\n"
+                '  git read-tree "$BASE_SHA"\n'
+                '  git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                "}\n"
+                "python3 scripts/x.py"
+            ),
+            (
+                "(\n"
+                '  git read-tree "$BASE_SHA"\n'
+                '  git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                ")\n"
+                "python3 scripts/x.py"
+            ),
+            (
+                "materialize() {\n"
+                '  git read-tree "$BASE_SHA"\n'
+                '  git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                "}\n"
+                "python3 scripts/x.py"
+            ),
         ],
-        ids=["false_multiline_if", "heredoc_text"],
+        ids=[
+            "false_multiline_if",
+            "heredoc_text",
+            "brace_group",
+            "subshell_group",
+            "function_body",
+        ],
     )
     def test_nested_materialization_fails_closed(self, run_text: str) -> None:
         job = {"steps": [{"name": "Materialize", "run": run_text}]}

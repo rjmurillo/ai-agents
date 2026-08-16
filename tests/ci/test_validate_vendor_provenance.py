@@ -2411,6 +2411,21 @@ class TestMarkdownlintConfigPolicy:
 
         assert any("config exceeds" in error for error in errors)
 
+    def test_config_symlink_is_rejected_before_reading(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import (
+            _validate_markdownlint_config_policy,
+        )
+
+        candidate = tmp_path / "candidate"
+        candidate.mkdir()
+        outside = tmp_path / "outside.yaml"
+        outside.write_text("config:\n  MD040: true\n")
+        (candidate / ".markdownlint-cli2.yaml").symlink_to(outside)
+
+        errors = _validate_markdownlint_config_policy(candidate)
+
+        assert errors == [".markdownlint-cli2.yaml: config symlinks are forbidden"]
+
     def test_generated_cli2_config_is_checked(self, tmp_path: Path) -> None:
         from scripts.ci.validate_vendor_provenance import (
             _validate_markdownlint_config_policy,
