@@ -140,6 +140,27 @@ Decision item 10 matched the workflow, direct measurement returned 181 and
 | analyst | ACCEPT |
 | high-level-advisor | ACCEPT |
 
+### Immutable maintainer identity amendment
+
+A later review found that mutable GitHub login names can be renamed and later
+reacquired. Trust-anchor authorization now uses numeric GitHub user IDs from
+`pull_request.user.id` and `sender.id`. Both IDs must match the immutable
+allowlist, and only `opened` or `synchronize` can authorize updates.
+
+Five roles voted ACCEPT. The independent-thinker voted Disagree-and-Commit,
+recording single-maintainer succession, collaborative `edited` event failures,
+automated dependency pin churn, and signed-commit alternatives as follow-up
+risks. Security found no unresolved P0 or P1 issue in the numeric-ID flow.
+
+| Role | Numeric identity amendment vote |
+|---|---|
+| architect | ACCEPT |
+| critic | ACCEPT |
+| independent-thinker | DISAGREE-AND-COMMIT |
+| security | ACCEPT |
+| analyst | ACCEPT |
+| high-level-advisor | ACCEPT |
+
 ## Verification
 
 From `/home/richard/sessions/pr-autofix-4846`:

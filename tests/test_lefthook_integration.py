@@ -7657,6 +7657,57 @@ def test_placeholder_identity_ignores_fake_local_remote_tip(
     assert result.returncode == 1
 
 
+def test_placeholder_identity_excludes_other_authenticated_origin_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tainted commit already accepted on another origin branch is not new."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "tracked.txt", "clean base\n")
+    _git(repo, "branch", "other", remote_sha)
+    _git(repo, "switch", "other")
+    other_sha = _plant_placeholder_commit(repo, "other.txt", "already remote\n")
+    _git(repo, "switch", "feature/test")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge other", "other")
+    local_sha = _commit_file(repo, "tracked.txt", "clean follow-up\n")
+    push_ref = policy.PushRef(
+        "refs/heads/feature/test",
+        local_sha,
+        "refs/heads/feature/test",
+        remote_sha,
+    )
+    run_git = policy._run_git
+
+    def _authenticated_remote(
+        root: Path,
+        arguments: list[str],
+    ) -> subprocess.CompletedProcess[str]:
+        if arguments[:2] == ["ls-remote", "--heads"]:
+            return _completed(
+                0,
+                f"{remote_sha}\trefs/heads/feature/test\n"
+                f"{other_sha}\trefs/heads/other\n",
+            )
+        return run_git(root, arguments)
+
+    monkeypatch.setattr(policy, "_run_git", _authenticated_remote)
+
+    push_range, exclude_refs = policy._placeholder_identity_scan(push_ref, repo)
+
+    assert other_sha in exclude_refs
+    from scripts.validation import check_placeholder_identity
+    from scripts.validation.check_placeholder_identity import run_check
+
+    with mock.patch.object(check_placeholder_identity, "_is_pytest_tmp", return_value=False):
+        result = run_check(
+            push_range=push_range,
+            repo_root=repo,
+            exclude_refs=exclude_refs,
+        )
+    assert result.returncode == 0
+
+
 def test_placeholder_identity_still_blocks_new_taint_on_existing_ref(tmp_path: Path) -> None:
     """A genuinely new placeholder-identity commit in this push must still be caught."""
     repo = tmp_path / "repo"

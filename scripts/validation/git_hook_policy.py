@@ -6842,12 +6842,9 @@ def _placeholder_identity_scan(
     push_ref: PushRef,
     repo_root: Path,
 ) -> tuple[str, tuple[str, ...]]:
-    remote_patterns = ["refs/heads/main"]
-    if push_ref.remote_ref.startswith("refs/heads/"):
-        remote_patterns.append(push_ref.remote_ref)
     result = _run_git(
         repo_root,
-        ["ls-remote", "--heads", "origin", *remote_patterns],
+        ["ls-remote", "--heads", "origin"],
     )
     if result.returncode != 0:
         return _placeholder_identity_range(push_ref, repo_root), ()
