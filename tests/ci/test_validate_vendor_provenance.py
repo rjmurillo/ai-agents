@@ -817,13 +817,14 @@ class TestWorkflowContractRegression:
         r = _run(["--candidate-root", str(root)])
         assert r.returncode == 0
 
-    def test_workflow_pins_python_and_uv_versions(self) -> None:
+    def test_workflow_pins_tool_versions(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
             encoding="utf-8"
         )
 
         assert "python-version: '3.14.6'" in workflow
         assert "version: '0.12.0'" in workflow
+        assert "node-version: '24.19.0'" in workflow
 
     def test_workflow_serializes_runs_per_pull_request(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(

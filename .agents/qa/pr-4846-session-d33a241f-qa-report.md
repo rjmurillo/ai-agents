@@ -44,7 +44,7 @@ pass), and an `xfail` shipped without an open tracking issue
 it in the reason string). The 4th finding (`pyproject.toml:10`, PR
 description undersold the branch's historical 50-file scope) was addressed
 via `gh pr edit`. That was the branch-local measurement before later base
-merges; GitHub now reports a 12-file PR diff. Full targeted suite:
+merges; GitHub now reports a 15-file PR diff. Full targeted suite:
 192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this
