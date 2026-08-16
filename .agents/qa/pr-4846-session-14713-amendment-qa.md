@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 9646c3d42e446b24259552572c76e44d545769b7
+qaCommit: 98f7d293df4eff61b0b0031fc74a5bde260830c6
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `9646c3d42e446b24259552572c76e44d545769b7` on branch
+PASS for commit `98f7d293df4eff61b0b0031fc74a5bde260830c6` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -53,6 +53,8 @@ shell operators.
 - Markdownlint policy rejects config symlinks before any stat or read.
 - Brace groups, subshells, functions, and backslash-newline continuations
   cannot hide repository dependencies.
+- Every checkout-index materialization uses `--no-filter`, so candidate
+  `.gitattributes` cannot invoke smudge filters or transform hashed bytes.
 
 ## Scope
 

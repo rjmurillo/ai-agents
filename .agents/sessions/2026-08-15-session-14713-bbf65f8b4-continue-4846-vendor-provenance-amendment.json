@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 9646c3d42e446b24259552572c76e44d545769b7"
+        "Evidence": "Content commit 98f7d293df4eff61b0b0031fc74a5bde260830c6"
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,8 +170,12 @@
     {
       "action": "Closed config symlink and shell parser gaps.",
       "result": "Markdownlint policy rejects symlinks before reads. The checkout guard rejects brace groups, subshells, function bodies, heredocs, and multiline control flow, and preserves backslash-newline token semantics. All 232 provenance and 198 workflow checkout tests pass."
+    },
+    {
+      "action": "Disabled checkout content filters during immutable materialization.",
+      "result": "All base and candidate checkout-index calls use --no-filter, so candidate .gitattributes cannot invoke smudge filters or transform bytes before hashing."
     }
   ],
-  "endingCommit": "9646c3d42e446b24259552572c76e44d545769b7",
+  "endingCommit": "98f7d293df4eff61b0b0031fc74a5bde260830c6",
   "nextSteps": []
 }
