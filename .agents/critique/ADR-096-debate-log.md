@@ -111,6 +111,35 @@ and names hosted runner tools as platform trust roots.
 | analyst | ACCEPT |
 | high-level-advisor | ACCEPT |
 
+### Merge queue trust amendment
+
+A later security review found that `merge_group` executes workflow YAML from
+the synthetic queue head. Candidate changes could therefore replace the
+privileged workflow and retain its required name and write permissions.
+
+The workflow removed its `merge_group` trigger. ADR-096 now states that merge
+queue support needs a separate base-owned execution design. It also records
+that this user-owned repository is currently ineligible for merge queues.
+
+The architect initially voted BLOCK because two stale tests still required
+`merge_group`, and no test pinned the workflow exception measurement. Those
+tests were removed. Static coverage now asserts that `merge_group` is absent
+and that the workflow remains 181 total and 125 non-comment lines.
+
+The analyst twice resolved project-scoped tools against the wrong checkout.
+Final deterministic evidence used the exact worktree path: ADR-096 existed,
+Decision item 10 matched the workflow, direct measurement returned 181 and
+125, and the provenance suite passed 231 tests.
+
+| Role | Merge queue amendment vote |
+|---|---|
+| architect | ACCEPT |
+| critic | ACCEPT |
+| independent-thinker | ACCEPT |
+| security | ACCEPT |
+| analyst | ACCEPT |
+| high-level-advisor | ACCEPT |
+
 ## Verification
 
 From `/home/richard/sessions/pr-autofix-4846`:

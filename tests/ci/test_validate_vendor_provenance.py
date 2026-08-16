@@ -833,6 +833,15 @@ class TestWorkflowContractRegression:
 
         assert "group: vendor-provenance-" in workflow
         assert "cancel-in-progress: true" in workflow
+        assert "merge_group:" not in workflow
+        lines = workflow.splitlines()
+        non_comment = [
+            line
+            for line in lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        assert len(lines) == 181
+        assert len(non_comment) == 125
         assert "statuses: write" in workflow
         assert "--claim-head-generation" in workflow
         assert "--start-head-gates" in workflow
@@ -902,19 +911,8 @@ class TestRelevance:
         wf = Path(".github/workflows/vendor-provenance.yml").read_text()
 
         assert "pull_request_target:\n    types:" in wf
-        assert wf.count("branches: [main]") == 2
-
-    def test_workflow_produces_check_for_merge_group(self) -> None:
-        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-
-        assert "merge_group:\n    types: [checks_requested]\n    branches: [main]" in wf
-        assert "github.event.merge_group.head_sha" in wf
-        assert "github.event.merge_group.base_sha" in wf
-
-    def test_workflow_marks_merge_group_authorization_context(self) -> None:
-        wf = Path(".github/workflows/vendor-provenance.yml").read_text()
-
-        assert "&& 'merge_group' || github.event.action" in wf
+        assert wf.count("branches: [main]") == 1
+        assert "merge_group:" not in wf
 
     def test_watched_file_triggers(self) -> None:
         from scripts.ci.validate_vendor_provenance import check_relevance

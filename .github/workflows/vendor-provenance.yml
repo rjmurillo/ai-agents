@@ -17,7 +17,7 @@
 name: Vendor Provenance
 
 concurrency:
-  group: vendor-provenance-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  group: vendor-provenance-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -28,9 +28,6 @@ permissions:
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited]
-    branches: [main]
-  merge_group:
-    types: [checks_requested]
     branches: [main]
 
 jobs:
@@ -44,11 +41,11 @@ jobs:
       statuses: write
 
     env:
-      PR_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
-      BASE_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+      PR_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_AUTHOR: ${{ github.event.pull_request.user.login || '' }}
       PR_SENDER: ${{ github.event.sender.login }}
-      PR_ACTION: ${{ github.event_name == 'merge_group' && 'merge_group' || github.event.action }}
+      PR_ACTION: ${{ github.event.action }}
 
     steps:
       - name: Publish bootstrap pending status

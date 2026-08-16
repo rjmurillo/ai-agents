@@ -61,11 +61,12 @@ The workflow and validator follow these rules:
    and configuration file in its execution closure with SHA-256.
 9. Pin changes require trusted author and sender identities. Unknown identities
    cannot modify or delete the gate.
-10. `merge_group` events fail closed for trust-anchor and candidate pin
-    updates. The synthetic event does not expose the originating PR identity.
-    Merge queues are unavailable to this user-owned repository today. If
-    repository ownership or platform support changes, originating-PR identity
-    resolution must land before merge queue activation.
+10. The workflow does not subscribe to `merge_group`. That event executes from
+    the synthetic queue head, so candidate changes can replace a privileged
+    workflow that relies on `pull_request_target` base ownership. Merge queue
+    support requires a separate base-owned execution design before activation.
+    This user-owned repository is currently ineligible for merge queues; the
+    boundary still applies if repository ownership or platform support changes.
 11. The workflow rejects gitlinks, escaping symlinks within the trusted scan
     roots, unpinned executables,
     `.npmrc`, `uv.toml`, unsafe markdownlint configuration, and mirror drift.
@@ -103,7 +104,7 @@ ADR-006 states:
 The rule prevents policy logic from becoming untestable YAML. ADR-096 keeps
 authorization, pin validation, tree inspection, and GitHub API orchestration
 in `scripts/ci/validate_vendor_provenance.py`, with pytest coverage. The
-workflow has 184 total lines and 128 non-comment lines. The 28 non-comment
+workflow has 181 total lines and 125 non-comment lines. The 25 non-comment
 lines above ADR-006's target express GitHub-owned trust boundaries:
 permissions, trusted event selection, concurrency, immutable base and candidate
 fetches, worktree materialization, and exact runtime inputs. Moving those
@@ -119,7 +120,7 @@ make it more testable.
 
 #### Impact and boundary
 
-- **Debt created**: 184 total workflow lines, with 128 non-comment lines,
+- **Debt created**: 181 total workflow lines, with 125 non-comment lines,
   instead of ADR-006's 100-line target.
 - **Testing impact**: workflow syntax and wiring use `actionlint`,
   `validate_github_workflows.py`, and static workflow tests. Policy logic stays
@@ -130,7 +131,7 @@ make it more testable.
 - **Reversibility**: delete this workflow and remove both required contexts.
   If GitHub exposes a smaller trusted primitive, migrate the wiring and retire
   this exception.
-- **Review trigger**: any increase above 128 non-comment lines requires a new
+- **Review trigger**: any increase above 125 non-comment lines requires a new
   ADR review and evidence that policy logic did not move into YAML.
 
 ### Bootstrap ordering
@@ -140,8 +141,8 @@ Observe at least one `edited` or `reopened` event on an existing pull request.
 Then require the `Validate Vendor Provenance` context.
 
 Do not enable merge queue support before the direct pull request context is
-required and verified. Merge queue enablement requires originating-PR identity
-resolution and a separate security review.
+required and verified. Merge queue enablement requires a separate base-owned
+execution design and security review.
 
 Trusted pin updates MAY land the artifact and matching content hash together.
 The validator parses the candidate pin table as data and accepts it only when
@@ -272,11 +273,11 @@ candidate is a separate authenticated manifest with a smaller review surface.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
-| `.github/workflows/vendor-provenance.yml` | Direct | Keep trigger, permissions, concurrency, and head-gate ordering aligned | High |
+| `.github/workflows/vendor-provenance.yml` | Direct | Keep the pull-request-only trigger, permissions, concurrency, and head-gate ordering aligned | High |
 | `scripts/ci/validate_vendor_provenance.py` | Direct | Keep pin closure and dual head-gate state machine aligned | High |
 | `tests/ci/test_validate_vendor_provenance.py` | Direct | Cover pins, API failures, ordering, and production tree | Medium |
 | Branch ruleset, direct PR merge | External | Require context only after smoke validation | High |
-| Merge queue configuration | External | Keep disabled until originating-PR identity resolution and security review land | High |
+| Merge queue configuration | External | Keep disabled until a base-owned execution design and security review land | High |
 | Hook and generator changes | Indirect | Refresh pins in a follow-up evidence commit | Medium |
 | `secrets.VENDOR_PROVENANCE_PAT` | External | Fine-grained, single-repo, contents-read token; rotate or use `github.token` fallback | Medium |
 | npm registry | External | Supplies integrity-pinned packages for reconstruction; outage blocks | Low |
