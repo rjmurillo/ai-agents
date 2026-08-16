@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 2b0185f96e318ec5f3c2f838c9975b5a84a02903
+qaCommit: fa0e1490d17dd92f4a08c52c769d18c0417dcd42
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `2b0185f96e318ec5f3c2f838c9975b5a84a02903` on branch
+PASS for commit `fa0e1490d17dd92f4a08c52c769d18c0417dcd42` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -44,6 +44,10 @@ shell operators.
   repository dependency.
 - A run-token pending status publishes before the immutable fetch, so fetch
   failure cannot leave an earlier success green.
+- Bootstrap pending status is pull-request-only, so merge-group runs cannot
+  leave a same-named status pending.
+- Only authenticated remote tips already present in the local object database
+  are excluded from identity scanning.
 
 ## Scope
 
