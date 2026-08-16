@@ -17,11 +17,11 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 228 provenance tests passed, 189 workflow
+as platform trust roots. Evidence: 229 provenance tests passed, 189 workflow
 checkout tests passed, and
 Ruff, actionlint, workflow validation, ADR review, ADR detection, session
-validation, and literal-path markdownlint passed.
-Node.js is pinned to reviewed release `24.19.0`.
+validation, literal-path markdownlint, and the exact Node.js `24.19.0` pin
+passed. Cancelled predecessor runs cannot publish head-state updates.
 
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th

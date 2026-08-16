@@ -2017,6 +2017,18 @@ class TestDiffTreeEmptyCollapse:
 
         assert "|| true" not in create_step
 
+    def test_cancelled_runs_do_not_publish_head_state(self):
+        wf_path = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
+        content = wf_path.read_text()
+
+        for step_name in (
+            "Create in-progress check run",
+            "Publish check run on PR head SHA",
+        ):
+            step = content.split(f"- name: {step_name}", 1)[1]
+            step = step.split("- name:", 1)[0]
+            assert "!cancelled()" in step
+
 
 # ── Pinned hook_utilities coverage ──
 

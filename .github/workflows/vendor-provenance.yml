@@ -97,7 +97,7 @@ jobs:
         # any such stale success. Bounded retries absorb transient API
         # failures. If creation still fails, the job fails and the final
         # publisher refuses to create a second competing check-run row.
-        if: always() && github.event_name == 'pull_request_target'
+        if: always() && !cancelled() && github.event_name == 'pull_request_target'
         id: create_check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,7 +172,7 @@ jobs:
         run: echo "No hook/vendor files changed. Provenance check not required."
 
       - name: Publish check run on PR head SHA
-        if: always() && github.event_name == 'pull_request_target'
+        if: always() && !cancelled() && github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ github.token }}
           CHECK_RUN_ID: ${{ steps.create_check.outputs.check_run_id }}
