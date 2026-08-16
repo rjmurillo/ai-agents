@@ -99,11 +99,12 @@ session-protocol correction.
   authored, per the schema's "count of files owned by this session"
   definition (`session-log.schema.json`).
 - `session_qa_binding()`/`validate_qa_report()` resolve cleanly end-to-end
-  against `e3af5bcc7` (this report's `qaCommit`, the session's
+  against `36071d573` (this report's `qaCommit`, the session's
   `endingCommit`, and `episodeMetrics.comparison.head` all agree, after the
-  round-13 content fix and this round-13 rebind; the binding passed through
+  round-14 content fix and this round-14a rebind; the binding passed through
   `1a841d53d` at round 6, `0d0657c6b` at round 8, `a959d4506` at round 10,
-  `ae927ffc7` at round 11, and `391d0f99d` at round 12 before landing here).
+  `ae927ffc7` at round 11, `391d0f99d` at round 12, and `e3af5bcc7` at
+  round 13 before landing here).
 - Round-3 fix: `scripts/ci/validate_session_protocol.py --session-file
   <this log>` (which passes `--validation-head` from the live PR head,
   unlike a bare `validate_session_json.py` invocation) reported "QA report

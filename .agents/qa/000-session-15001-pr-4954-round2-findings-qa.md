@@ -65,12 +65,12 @@ report.
   validated directly against `episode.schema.json` via
   `jsonschema.validate`.
 - QA binding: `session_qa_binding()`/`validate_qa_report()` resolve cleanly
-  for `000-session-14695-adr-080-amendment-qa.md` against `e3af5bcc7`
+  for `000-session-14695-adr-080-amendment-qa.md` against `36071d573`
   (session-14695's `endingCommit`/`episodeMetrics.comparison.head`, rebound
   through `1a841d53d` at round 6, `0d0657c6b` at round 8, `a959d4506` at
-  round 10, `ae927ffc7` at round 11, `391d0f99d` at round 12, and now
-  `e3af5bcc7` at round 13), and
-  for this report against `e3af5bcc7` (session-15001's `endingCommit`,
+  round 10, `ae927ffc7` at round 11, `391d0f99d` at round 12, `e3af5bcc7`
+  at round 13, and now `36071d573` at round 14), and
+  for this report against `36071d573` (session-15001's `endingCommit`,
   rebound the same way, since each content-fix round after round 6 touched
   paths outside `QA_EVIDENCE_PREFIXES` from `post_qa_code_changes()`'s
   `git log -m`

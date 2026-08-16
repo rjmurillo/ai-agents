@@ -51,6 +51,7 @@ remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
 | `391d0f99d` | Round-12: a review against `7de4606b2` raised 7 active findings, 3 of which touch this session's own artifacts: this QA report's revision-history table (above) still read `(this commit)` for the round-11b row instead of naming `7de4606b2`; the analysis file's "Other CLI versions. 1.0.79 only" sentence contradicted the delegation probe's documented second measurement on CLI 1.0.81-0; and this session log's own `nextSteps` still listed an already-completed "push commits" instruction. The other 4 findings touch session-14695's and the sibling QA reports, fixed in the same commit and the following rebind. Fixed the analysis-file wording, corrected session-14695's `episodeMetrics.filesChanged` (10 to 5) and its episode's matching metric, cleaned up this session log's `nextSteps`, rewrote the handoff, and appended a workLog entry documenting the discovery and this 3-commit split. Committed as `391d0f99d`. |
 | `e3af5bcc7` | Round-13: a review against `09222ab35` raised 6 active findings, 4 of which touch this session's own artifacts: this session log's `changesCommitted.Evidence` still called round-10b (`49ea48f0d`) "this session's own closing commit" though the session continued through rounds 11 and 12; this log's `validationPassed.Evidence` still carried a future-tense "must be re-verified" placeholder even though the workLog later recorded the concrete `49ea48f0d` COMPLIANT result; the handoff was stale, still describing round 12 as in-progress; and the analysis file's "(the four model-tier/threshold resolutions)" wording, left by round 12, wrongly described the candidate-value matrix instead of the delegation probe's control transcript. The other 2 findings (a PR-body acceptance-criteria overclaim, a PR-body Changes-section gap) were fixed live via `gh pr edit`, outside git history. Corrected both `sessionEnd.Evidence` fields with the real commit history and observed COMPLIANT results, corrected the analysis file's wording to "seven explicit values plus the absent control," and rewrote the handoff to cover round 12's completion and round 13's findings. Committed as `e3af5bcc7`. |
 | `36071d573` | Round-14: a review against `eb1a89e7e` raised 6 active findings, 2 of which touch this session's own artifacts: this session log's `validationPassed.Evidence` still carried a future-tense "re-verified again... once its own SHA is known post-push" placeholder for round-13b instead of the actual observed COMPLIANT result at `eb1a89e7e`; and this QA report's own Evidence made the identical future-tense promise instead of stating that same observed result. The other 4 findings (ADR-080's repository-level-agents bare-alias gap resolved by an already-merged upstream fix, the analysis file's unlabeled console transcript, the handoff's stale round-13 framing, and session-15001's stale `nextSteps`) touch session-14695's, session-15001's, and the sibling QA reports, fixed in the same commit and the following rebinds (see `000-session-14695-adr-080-amendment-qa.md` and `000-session-15001-pr-4954-round2-findings-qa.md`). Corrected this session log's `validationPassed.Evidence` and `changesCommitted.Evidence` with the observed COMPLIANT result and full commit chain, appended 2 workLog entries, and rewrote `nextSteps` for round-14/15 continuation. Committed as `36071d573`. |
+| this commit | Round-15: a review against `3c8bbce2f` raised 9 active findings. 7 touch this session's own artifacts or the sibling QA reports without requiring a code change: this session log's own `nextSteps` still listed 3 already-completed round-14 actions; this QA report's Evidence still cited `endingCommit` as `e3af5bcc7` instead of `36071d573`; this session log's own `validationPassed.Evidence` still carried a future-tense placeholder; the handoff still claimed the round-14 rebind was pending; this QA report's own Verdict table above retained a literal `(this commit)` self-reference for the round-14b row; and both sibling QA reports (`000-session-14695-adr-080-amendment-qa.md`, `000-session-15001-pr-4954-round2-findings-qa.md`) still cited the stale `e3af5bcc7` binding instead of `36071d573`. Fixed all 7 in this commit. The remaining 2 findings (session-14695's and session-15001's own `endingCommit` fields, flagged as false historical session provenance) require relaxing `session_qa_binding()`'s enforced `endingCommit`/`comparison.head` equality, an intentional, tested behavior (`tests/test_validate_session_json.py::test_rejects_qa_commit_disagreement`); with the PR at 39 of the `MAIN_MERGE_BLOCK_THRESHOLD=40` authored-commit ceiling, this commit is the last one this session can make, leaving no budget for that cross-cutting change. Resolved via an author-owned PR reply citing `episodeMetrics.commitHead` (already holding `0edf6e063`/`ac53f6802`, each session's true own final commit, unaffected by any `endingCommit` rebind) as the pre-existing answer to "use a separate field," rather than a commit. |
 
 ## Evidence
 
@@ -79,7 +80,7 @@ remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
 - Session/QA binding: `validate_session_json.py --pre-commit` PASS for every
   touched session log at each commit. `session_qa_binding()`/
   `validate_qa_report()` resolve cleanly for this report against this
-  session log's `endingCommit` (`e3af5bcc7`, after this round-13b rebind).
+  session log's `endingCommit` (`36071d573`, after this round-14b rebind).
 - CI-mode verification: `PR_HEAD_SHA=a959d4506 scripts/ci/validate_session_protocol.py
   --session-file <this log>` reported COMPLIANT while `a959d4506` was still
   the tip. `PR_HEAD_SHA=ee57202b8` (after `ee57202b8` landed on top, without
@@ -202,5 +203,25 @@ trimmed session-15001's `nextSteps`; and corrected this session log's
 placeholder with the observed COMPLIANT result at `eb1a89e7e`, matching
 the GitHub Actions "Session Protocol Results" check's own SUCCESS
 conclusion; the round-14a/14b rebinds
-(`2c103ec4f`/this commit) bind `endingCommit`/`qaCommit` forward to
-`36071d573`. `qaCommit` is `36071d573`.
+(`2c103ec4f`/`3c8bbce2f`) bind `endingCommit`/`qaCommit` forward to
+`36071d573`. `qaCommit` is `36071d573`. Round 15 (this commit) fixed 7 of
+9 findings from a review against `3c8bbce2f`: trimmed this session log's
+own `nextSteps` of 3 already-completed round-14 actions; corrected this
+session log's `validationPassed.Evidence` with the observed COMPLIANT
+result at `3c8bbce2f`; refreshed the handoff to cover round 14's
+completion and round 15's own findings; corrected this report's own
+Evidence to name `36071d573` (not `e3af5bcc7`) as the session log's
+`endingCommit`, and this table's own round-14 row above to name
+`3c8bbce2f` (not `this commit`) for the round-14b rebind; and corrected
+both sibling QA reports' stale `e3af5bcc7` present-tense binding claims to
+`36071d573`. The remaining 2 findings (session-14695's and session-15001's
+own `endingCommit` fields, flagged as false historical session provenance
+despite the pre-existing disclaimer in each log's `changesCommitted.Evidence`
+and the pre-existing `episodeMetrics.commitHead` field already recording
+each session's true own final commit) require a `session_qa_binding()`
+schema change outside this commit's file budget, and outside the PR's
+remaining commit budget (39 of 40 authored commits used before this one;
+this is the last authored commit this branch can take without a
+maintainer-approved commit-limit-bypass label or a squash). Resolved via
+an author-owned PR reply rather than a commit; documented here and in the
+handoff as a known, reported gate blocker, not a silent bypass.
