@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to current-main trust closure repair 02ddfac1a53d0f8f91ea6932cda16fe285924ccc."
+        "Evidence": "QA evidence rebound to per-step shell-state fix b453dbfcd43306d55fd09ef0a3aacec8d122db8a."
       },
       "validationPassed": {
         "level": "MUST",
@@ -283,8 +283,12 @@
     {
       "action": "Corrected the final QA wording defect without changing the validated commit.",
       "result": "The security-impact explanation now states the residual-file condition grammatically."
+    },
+    {
+      "action": "Reset shell working-directory state for each workflow run step.",
+      "result": "Cross-step cd state no longer leaks, explicit external working directories fail closed, and 170 tests pass."
     }
   ],
-  "endingCommit": "02ddfac1a53d0f8f91ea6932cda16fe285924ccc",
+  "endingCommit": "b453dbfcd43306d55fd09ef0a3aacec8d122db8a",
   "nextSteps": []
 }

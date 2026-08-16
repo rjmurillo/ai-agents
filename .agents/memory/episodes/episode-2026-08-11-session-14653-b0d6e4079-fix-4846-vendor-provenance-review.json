@@ -120,7 +120,10 @@
         "e087",
         "e089",
         "e091",
-        "e093"
+        "e093",
+        "e095",
+        "e096",
+        "e097"
       ],
       "leads_to": [
         "e006"
@@ -1201,6 +1204,52 @@
       "caused_by": [
         "e092"
       ],
+      "leads_to": [
+        "e098"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e095",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed pins for generated mirrors absent from current main and refreshed nine changed hashes.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e096",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the final QA wording defect without changing the validated commit.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e097",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reset shell working-directory state for each workflow run step.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e098",
+      "timestamp": "2026-08-16T03:02:34+00:00",
+      "type": "commit",
+      "content": "Commit: b453dbfcd43306d55fd09ef0a3aacec8d122db8a",
+      "caused_by": [
+        "e094"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1210,7 +1259,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 51,
+    "commits": 52,
     "files_changed": 54
   },
   "lessons": []
