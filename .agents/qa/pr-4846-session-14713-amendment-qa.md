@@ -19,7 +19,7 @@ shell operators.
 
 - `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 228 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
-  185 passed.
+  189 passed.
 - Ruff passed for both modified test files.
 - Actionlint passed for `.github/workflows/vendor-provenance.yml`.
 - `scripts/validate_workflows.py` passed with existing line-count warnings.
@@ -29,6 +29,8 @@ shell operators.
 - Literal-path markdownlint checked both ADR files with zero issues.
 - Node.js is pinned to reviewed release `24.19.0`, and the version assertion
   passes in the 228-test provenance suite.
+- `git read-tree` dry runs do not mark an index populated. `--index-output`
+  records only its actual output index.
 
 ## Scope
 

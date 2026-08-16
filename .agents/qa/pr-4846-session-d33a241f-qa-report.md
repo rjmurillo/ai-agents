@@ -17,7 +17,7 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 228 provenance tests passed, 185 workflow
+as platform trust roots. Evidence: 228 provenance tests passed, 189 workflow
 checkout tests passed, and
 Ruff, actionlint, workflow validation, ADR review, ADR detection, session
 validation, and literal-path markdownlint passed.

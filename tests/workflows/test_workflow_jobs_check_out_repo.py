@@ -186,6 +186,27 @@ def _prefixes_into_workspace(command_tokens: list[str], raw_segment: str) -> boo
     return False
 
 
+def _read_tree_output_index(command: list[str], index_file: str) -> str | None:
+    arguments = command[2:]
+    if "-n" in arguments or "--dry-run" in arguments or "--empty" in arguments:
+        return None
+
+    output_index = index_file
+    has_tree = False
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument.startswith("--index-output="):
+            output_index = argument.partition("=")[2]
+        elif argument == "--index-output" and index + 1 < len(arguments):
+            index += 1
+            output_index = arguments[index]
+        elif not argument.startswith("-"):
+            has_tree = True
+        index += 1
+    return output_index if has_tree and output_index else None
+
+
 def _checkout_index_effect(
     line: str,
     in_workspace: bool,
@@ -217,11 +238,9 @@ def _checkout_index_effect(
             continue
         index_file = assignments.get("GIT_INDEX_FILE", _DEFAULT_GIT_INDEX)
         if command[:2] == ["git", "read-tree"]:
-            tree_arguments = [
-                token for token in command[2:] if not token.startswith("-")
-            ]
-            if tree_arguments and "--empty" not in command[2:]:
-                populated_indexes.add(index_file)
+            output_index = _read_tree_output_index(command, index_file)
+            if output_index is not None:
+                populated_indexes.add(output_index)
             continue
         if command[:2] != ["git", "checkout-index"]:
             continue
@@ -479,6 +498,14 @@ class TestFirstUnmetRepoDependency:
                 'git read-tree --empty\n'
                 'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
             ),
+            _case(
+                'git read-tree --dry-run "$BASE_SHA"\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
+            ),
+            _case(
+                'git read-tree -n "$BASE_SHA"\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
+            ),
             _case("cd /tmp && git checkout-index -a"),
             _case("GIT_WORK_TREE=/tmp/tree git checkout-index -a"),
             # The false positive that made a substring search unusable (PR #4846).
@@ -507,6 +534,18 @@ class TestFirstUnmetRepoDependency:
                 '--prefix="$GITHUB_WORKSPACE/"'
             ),
             _case(
+                'GIT_INDEX_FILE=/tmp/idx-pr git read-tree '
+                '--index-output=/tmp/idx-other "$BASE_SHA"\n'
+                'GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a '
+                '--prefix="$GITHUB_WORKSPACE/"'
+            ),
+            _case(
+                'git read-tree --index-output=/tmp/idx-other "$BASE_SHA"\n'
+                'GIT_INDEX_FILE=/tmp/idx-other git checkout-index -a '
+                '--prefix="$GITHUB_WORKSPACE/"',
+                None,
+            ),
+            _case(
                 "git checkout-index -a --prefix=/tmp/candidate/ && "
                 "printf '%s' '--prefix=\"$GITHUB_WORKSPACE/\"'"
             ),
@@ -530,6 +569,8 @@ class TestFirstUnmetRepoDependency:
             "workspace_checkout_index_satisfies_a_later_dependency",
             "empty_index_checkout_does_not_satisfy_a_dependency",
             "explicit_empty_read_tree_does_not_satisfy_a_dependency",
+            "dry_run_read_tree_does_not_populate_the_index",
+            "short_dry_run_read_tree_does_not_populate_the_index",
             "checkout_index_without_prefix_does_not_prove_workspace_checkout",
             "checkout_index_with_external_work_tree_does_not_satisfy_dependency",
             "an_echoed_checkout_index_does_not_satisfy_a_dependency",
@@ -544,6 +585,8 @@ class TestFirstUnmetRepoDependency:
             "single_quoted_workspace_prefix_does_not_satisfy_a_dependency",
             "checkout_index_with_workspace_prefix_satisfies_a_dependency",
             "checkout_index_requires_the_matching_populated_index",
+            "read_tree_index_output_does_not_populate_the_active_index",
+            "checkout_index_accepts_the_read_tree_output_index",
             "later_print_segment_cannot_supply_workspace_prefix",
             "nonleading_work_tree_assignment_is_not_environment",
             "quoted_pipe_segment_mismatch_fails_closed",

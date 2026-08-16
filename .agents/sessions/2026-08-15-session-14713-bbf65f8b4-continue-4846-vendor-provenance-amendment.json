@@ -130,6 +130,10 @@
     {
       "action": "Fixed two current-head suppressed Copilot findings.",
       "result": "The QA scope now matches GitHub's 15-file count. Node.js is pinned to reviewed release 24.19.0, and the workflow version test asserts Python, uv, and Node.js exact versions."
+    },
+    {
+      "action": "Fixed the final-head checkout guard finding.",
+      "result": "git read-tree -n and --dry-run no longer populate index state. --index-output records the actual destination index. All 189 workflow checkout tests pass."
     }
   ],
   "endingCommit": "1f3a6222bfb45332757ad1bad2e5a5a4a0f46bd9",
