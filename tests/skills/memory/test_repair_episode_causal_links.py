@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -188,14 +189,23 @@ class TestFalseEdgeRemoval:
         # the rebuilt file must not carry the edge. The date is derived from
         # the commit so the fixture cannot drift cross-date and turn the
         # pair comparable again.
+        #
+        # %cI preserves the commit's local offset, not UTC (issue #5096
+        # follow-up: this test failed deterministically on a -07:00 host
+        # whenever the commit's local clock read late enough to cross the
+        # UTC day boundary, e.g. 20:53-07:00 is 03:53 UTC the next day).
+        # Production code (_parse_causal_timestamp) always compares
+        # UTC-normalized dates, so the fixture must normalize the same way
+        # instead of slicing the local-offset string.
         sha = _resolvable_sha()
-        commit_date = subprocess.run(
+        raw_commit_ts = subprocess.run(
             ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
             check=True,
-        ).stdout.strip()[:10]
+        ).stdout.strip()
+        commit_date = datetime.fromisoformat(raw_commit_ts).astimezone(UTC).date().isoformat()
         midnight = f"{commit_date}T00:00:00+00:00"
         episode = _flat_episode(sha)
         for evt in episode["events"]:
