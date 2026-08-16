@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: fa0e1490d17dd92f4a08c52c769d18c0417dcd42
+qaCommit: 474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `fa0e1490d17dd92f4a08c52c769d18c0417dcd42`
-(qaCommit, above; this is the 24th rebind). Changes since the 11th rebind:
+Validated the branch at commit `474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd`
+(qaCommit, above; this is the 25th rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
@@ -17,12 +17,12 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 233 provenance tests passed, 193 workflow
+as platform trust roots. Evidence: 231 provenance tests passed, 193 workflow
 checkout tests passed. Ruff, actionlint, workflow validation, ADR review, ADR
 detection, session validation, literal-path markdownlint, and exact Node.js
 `24.19.0` pin passed. Run generations reject superseded writes. Identity scans
 exclude authenticated local objects. Pending is PR-only and publishes before
-fetch. Merge queue fetches both SHAs. Nested shell structures fail closed.
+fetch. Unsafe merge queue execution is disabled. Nested shell structures fail closed.
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot

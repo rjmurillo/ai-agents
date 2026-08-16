@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit fa0e1490d17dd92f4a08c52c769d18c0417dcd42"
+        "Evidence": "Content commit 474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd"
       },
       "validationPassed": {
         "level": "MUST",
@@ -164,6 +164,6 @@
       "result": "ADR-096 now requires a separate base-owned merge queue design. Six amendment roles voted ACCEPT after stale merge-group tests were removed and exact 181/125 line-count assertions were added. The provenance suite passes 231 tests."
     }
   ],
-  "endingCommit": "fa0e1490d17dd92f4a08c52c769d18c0417dcd42",
+  "endingCommit": "474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd",
   "nextSteps": []
 }

@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: fa0e1490d17dd92f4a08c52c769d18c0417dcd42
+qaCommit: 474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `fa0e1490d17dd92f4a08c52c769d18c0417dcd42` on branch
+PASS for commit `474438f51e5a86b0adbdd4a5d277b0aeb41ad9cd` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -17,7 +17,7 @@ shell operators.
 
 ## Evidence
 
-- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 233 passed.
+- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 231 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
   193 passed.
 - Ruff passed for both modified test files.
@@ -48,6 +48,8 @@ shell operators.
   leave a same-named status pending.
 - Only authenticated remote tips already present in the local object database
   are excluded from identity scanning.
+- The privileged workflow does not subscribe to `merge_group`; ADR-096
+  requires a separate base-owned merge queue design.
 
 ## Scope
 
