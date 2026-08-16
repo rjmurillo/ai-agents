@@ -837,9 +837,10 @@ class TestWorkflowContractRegression:
         assert "--claim-head-generation" in workflow
         assert "--start-head-gates" in workflow
         assert "--finish-head-gates" in workflow
-        assert workflow.index(
-            "Fetch trusted base and claim head generation"
-        ) < workflow.index("Materialize trusted base")
+        fetch = workflow.index("Fetch immutable base and candidate SHAs")
+        claim = workflow.index("Claim PR head generation")
+        materialize = workflow.index("Materialize trusted base")
+        assert fetch < claim < materialize
 
     def test_workflow_bounds_direct_network_calls(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(

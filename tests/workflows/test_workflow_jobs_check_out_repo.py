@@ -13,7 +13,10 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "&"})
+_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "|&", "&"})
+_MULTILINE_CONTROL_WORDS = frozenset(
+    {"if", "then", "elif", "else", "fi", "for", "while", "until", "case", "esac", "do", "done"}
+)
 _DEFAULT_GIT_INDEX = ".git/index"
 _WORKSPACE_PREFIX_FORMS = (
     '--prefix="$GITHUB_WORKSPACE/"',
@@ -91,9 +94,20 @@ def _is_printing_segment(tokens: list[str]) -> bool:
 def _raw_shell_segments(line: str) -> list[str]:
     return [
         segment.strip()
-        for segment in re.split(r"\s*(?:&&|\|\||;|\|)\s*", line)
+        for segment in re.split(r"\s*(?:\|&|&&|\|\||;|\||&)\s*", line)
         if segment.strip()
     ]
+
+
+def _has_multiline_shell_structure(run_text: str) -> bool:
+    if re.search(r"(?m)(?:^|\s)<<-?\s*['\"]?[A-Za-z_]", run_text):
+        return True
+    for line in _logical_shell_commands(run_text):
+        for segment in _shell_command_segments(_tokenize_command_line(line)):
+            command = _strip_environment_assignments(segment)
+            if command[:1] and command[0] in _MULTILINE_CONTROL_WORDS:
+                return True
+    return False
 
 
 def _strip_environment_assignments(tokens: list[str]) -> list[str]:
@@ -211,6 +225,7 @@ def _checkout_index_effect(
     line: str,
     in_workspace: bool,
     populated_indexes: set[str],
+    allow_materialization: bool,
 ) -> tuple[bool, bool]:
     """Return whether *line* checks out into the workspace and the resulting cwd state.
 
@@ -238,11 +253,15 @@ def _checkout_index_effect(
             continue
         index_file = assignments.get("GIT_INDEX_FILE", _DEFAULT_GIT_INDEX)
         if command[:2] == ["git", "read-tree"]:
+            if not allow_materialization:
+                continue
             output_index = _read_tree_output_index(command, index_file)
             if output_index is not None:
                 populated_indexes.add(output_index)
             continue
         if command[:2] != ["git", "checkout-index"]:
+            continue
+        if not allow_materialization:
             continue
         if index_file not in populated_indexes:
             return False, in_workspace
@@ -283,6 +302,7 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
         # the check (issue found in PR #4846 review).
         run_text = str(step.get("run") or "")
         in_workspace = _step_starts_in_workspace(step)
+        allow_materialization = not _has_multiline_shell_structure(run_text)
         for line in _logical_shell_commands(run_text):
             tokens = _tokenize_command_line(line)
             if not checked_out:
@@ -296,6 +316,7 @@ def first_unmet_repo_dependency(job: dict) -> tuple[str, str] | None:
                 line,
                 in_workspace,
                 populated_indexes,
+                allow_materialization,
             )
             if materialized_workspace:
                 checked_out = True
@@ -369,7 +390,7 @@ class TestRepoPathsInRun:
             "echo ready && python3 scripts/ci/x.py"
         ) == ["scripts/ci/x.py"]
 
-    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "&"])
+    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "|&", "&"])
     def test_finds_a_path_after_a_compact_shell_operator(
         self, operator: str
     ) -> None:
@@ -420,7 +441,7 @@ class TestFirstUnmetRepoDependency:
         }
         assert first_unmet_repo_dependency(job) == ("Run", "scripts/ci/x.py")
 
-    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "&"])
+    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "|&", "&"])
     def test_a_dependency_after_a_compact_shell_operator_is_flagged(
         self, operator: str
     ) -> None:
@@ -484,6 +505,30 @@ class TestFirstUnmetRepoDependency:
             "run": 'git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\npython3 scripts/x.py',
         }]}
         assert first_unmet_repo_dependency(job) == ("<unnamed>", "scripts/x.py")
+
+    @pytest.mark.parametrize(
+        "run_text",
+        [
+            (
+                'if false; then\n'
+                '  git read-tree "$BASE_SHA"\n'
+                '  git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                "fi\n"
+                "python3 scripts/x.py"
+            ),
+            (
+                "cat <<'EOF'\n"
+                'git read-tree "$BASE_SHA"\n'
+                'git checkout-index -a --prefix="$GITHUB_WORKSPACE/"\n'
+                "EOF\n"
+                "python3 scripts/x.py"
+            ),
+        ],
+        ids=["false_multiline_if", "heredoc_text"],
+    )
+    def test_nested_materialization_fails_closed(self, run_text: str) -> None:
+        job = {"steps": [{"name": "Materialize", "run": run_text}]}
+        assert first_unmet_repo_dependency(job) == ("Materialize", "scripts/x.py")
 
     @pytest.mark.parametrize(
         ("run_text", "expected"),

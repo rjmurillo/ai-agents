@@ -51,27 +51,29 @@ jobs:
       PR_ACTION: ${{ github.event_name == 'merge_group' && 'merge_group' || github.event.action }}
 
     steps:
-      - name: Fetch trusted base and claim head generation
-        if: github.event_name == 'pull_request_target'
+      - name: Fetch immutable base and candidate SHAs
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
+        env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}'}
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           # Start from an empty workspace. `-f` ignores unmatched globs, while
           # permission and filesystem failures still stop under `set -e`.
-          # The patterns cover normal files, short dotfiles, and longer
-          # dotfiles without matching `.` or `..`. Fetch both immutable event
+          # The patterns cover normal files and dotfiles without matching
+          # `.` or `..`. Fetch both immutable event
           # SHAs before loading the base-owned validator into runner temp.
-          # The generation claim runs before any candidate tree materializes.
           # A newer run ID blocks every later head-state write from this run.
           rm -rf -- * .[!.]* ..?*
           git init --quiet
           git remote add origin "https://github.com/${{ github.repository }}.git"
           timeout 120s git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
             fetch origin "$BASE_SHA" "$PR_SHA"
+
+      - name: Claim PR head generation
+        if: github.event_name == 'pull_request_target'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euo pipefail
           git show "$BASE_SHA:scripts/ci/validate_vendor_provenance.py" \
             > "$RUNNER_TEMP/validate_vendor_provenance.py"
           python3 "$RUNNER_TEMP/validate_vendor_provenance.py" \
@@ -146,14 +148,12 @@ jobs:
       - name: Set up uv
         if: steps.relevance.outputs.dominated == 'true'
         uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d  # v10.0.0
-        with:
-          version: '0.12.0'
+        with: {version: '0.12.0'}
 
       - name: Setup Node.js
         if: steps.relevance.outputs.dominated == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
-        with:
-          node-version: '24.19.0'
+        with: {node-version: '24.19.0'}
 
       - name: Validate vendor provenance (trusted gate)
         if: steps.relevance.outputs.dominated == 'true'
