@@ -27,7 +27,8 @@
         "e001",
         "e003",
         "e004",
-        "e006"
+        "e006",
+        "e008"
       ],
       "leads_to": [
         "e005"
@@ -88,6 +89,30 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the cancelled-run head-state race.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-16T06:52:00+00:00",
+      "type": "commit",
+      "content": "Commit: e8c4059a663bb5bb346c424d47f7f0f76594cf70",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -97,7 +122,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 11
   },
   "lessons": []
