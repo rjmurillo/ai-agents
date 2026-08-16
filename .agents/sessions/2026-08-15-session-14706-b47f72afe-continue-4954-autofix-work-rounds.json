@@ -212,7 +212,7 @@
       "result": "The ADR and analysis-file fixes touch evidence paths outside QA_EVIDENCE_PREFIXES, restaling session-14695's, session-15001's, and session-14706's own QA/session bindings (all currently bound to e3af5bcc7). This content fix and the session-15001 nextSteps trim land in one round-14 commit alongside the handoff rewrite; the QA-14706 report's own Evidence correction, this log's Evidence corrections, and the ADR/analysis-file rebind land in the same two-commit split pattern as prior rounds (session-14695+session-15001+their 2 QA reports; session-14706's own log+its own QA report), with no new self-referential placeholder row for either rebind commit, per the still-standing round-12 convention."
     }
   ],
-  "endingCommit": "e3af5bcc7e61893298efb58f8d6f34b2563f3763",
+  "endingCommit": "36071d57374619430daa8a73b06b4b0f2a11ad84",
   "nextSteps": [
     "Renew the lease and confirm fresh live-state (OPEN, ACT) immediately before each commit; run the full validation suite (git_hook_policy.py checks, targeted pytest, pre_pr.py --quick) before staging round 14's content-fix and rebind commits.",
     "Push round 14's content-fix and rebind commits under lease renewal; re-verify PR_HEAD_SHA=<pushed HEAD> scripts/ci/validate_session_protocol.py is COMPLIANT for every touched session log at the new head.",

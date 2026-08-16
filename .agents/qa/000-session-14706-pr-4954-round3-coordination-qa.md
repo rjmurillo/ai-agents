@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14706-b47f72afe-continue-4954-autofix-work-rounds.json
-qaCommit: e3af5bcc7e61893298efb58f8d6f34b2563f3763
+qaCommit: 36071d57374619430daa8a73b06b4b0f2a11ad84
 ---
 
 # QA Report: Session 14706, PR 4954 round 3 coordination
 
 ## Scope
 
-Validates session-14706's own round-3 (this task's rounds 8-13) autofix
+Validates session-14706's own round-3 (this task's rounds 8-14) autofix
 coordination work on PR 4954: resolving the round-8 review's active
 findings (session-14695/session-15001 dual attribution of commit
 `c860ae452`, the delegation probe's shared `--log-dir`, a stale handoff
@@ -21,11 +21,19 @@ round-12's 7 further findings (analysis-file wording, session-14695's
 `filesChanged` metric, two more stale `"(this commit)"` self-references,
 and another stale handoff/`nextSteps` claim), fixed by a content commit
 (`391d0f99d`) and a two-commit rebind split (round-12a: `a1f0a638a`;
-round-12b: `09222ab35`), and round-13's 6 further findings (an analysis-file
+round-12b: `09222ab35`), round-13's 6 further findings (an analysis-file
 wording correction, a PR-body acceptance-criteria overclaim, a PR-body
 Changes-section gap, a stale handoff, and two stale `sessionEnd.Evidence`
 fields in this session's own log), fixed by a content commit (`e3af5bcc7`)
-and this round-13b rebind. Does not re-validate the underlying ADR-080
+and a two-commit rebind split (round-13a: `a85ace032`; round-13b:
+`eb1a89e7e`), and round-14's 6 further findings (an ADR-080 gap
+description made stale by an unrelated upstream fix, a stale handoff, a
+stale session-15001 `nextSteps` entry, this session's own log's
+`validationPassed.Evidence` future-tense promise, this QA report's own
+future-tense promise, and an analysis-file transcript needing a
+measurement-date label), fixed by a content commit (`36071d573`) and a
+two-commit rebind split (round-14a: `2c103ec4f`; round-14b: this commit).
+Does not re-validate the underlying ADR-080
 amendment content itself, which remains covered by
 `000-session-14695-adr-080-amendment-qa.md`, nor session-15001's own round-2
 remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
@@ -42,6 +50,7 @@ remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
 | `7de4606b2` | Round-11b: rebound this session log's own `endingCommit` from `a959d4506` to `ae927ffc7` and this QA report's `qaCommit` to match, since `ae927ffc7` again edited the analysis file (evidence this report's scope covers); corrected this table's round-10b row above, which had been left reading `(this commit)` since it was committed, to name `49ea48f0d` explicitly |
 | `391d0f99d` | Round-12: a review against `7de4606b2` raised 7 active findings, 3 of which touch this session's own artifacts: this QA report's revision-history table (above) still read `(this commit)` for the round-11b row instead of naming `7de4606b2`; the analysis file's "Other CLI versions. 1.0.79 only" sentence contradicted the delegation probe's documented second measurement on CLI 1.0.81-0; and this session log's own `nextSteps` still listed an already-completed "push commits" instruction. The other 4 findings touch session-14695's and the sibling QA reports, fixed in the same commit and the following rebind. Fixed the analysis-file wording, corrected session-14695's `episodeMetrics.filesChanged` (10 to 5) and its episode's matching metric, cleaned up this session log's `nextSteps`, rewrote the handoff, and appended a workLog entry documenting the discovery and this 3-commit split. Committed as `391d0f99d`. |
 | `e3af5bcc7` | Round-13: a review against `09222ab35` raised 6 active findings, 4 of which touch this session's own artifacts: this session log's `changesCommitted.Evidence` still called round-10b (`49ea48f0d`) "this session's own closing commit" though the session continued through rounds 11 and 12; this log's `validationPassed.Evidence` still carried a future-tense "must be re-verified" placeholder even though the workLog later recorded the concrete `49ea48f0d` COMPLIANT result; the handoff was stale, still describing round 12 as in-progress; and the analysis file's "(the four model-tier/threshold resolutions)" wording, left by round 12, wrongly described the candidate-value matrix instead of the delegation probe's control transcript. The other 2 findings (a PR-body acceptance-criteria overclaim, a PR-body Changes-section gap) were fixed live via `gh pr edit`, outside git history. Corrected both `sessionEnd.Evidence` fields with the real commit history and observed COMPLIANT results, corrected the analysis file's wording to "seven explicit values plus the absent control," and rewrote the handoff to cover round 12's completion and round 13's findings. Committed as `e3af5bcc7`. |
+| `36071d573` | Round-14: a review against `eb1a89e7e` raised 6 active findings, 2 of which touch this session's own artifacts: this session log's `validationPassed.Evidence` still carried a future-tense "re-verified again... once its own SHA is known post-push" placeholder for round-13b instead of the actual observed COMPLIANT result at `eb1a89e7e`; and this QA report's own Evidence made the identical future-tense promise instead of stating that same observed result. The other 4 findings (ADR-080's repository-level-agents bare-alias gap resolved by an already-merged upstream fix, the analysis file's unlabeled console transcript, the handoff's stale round-13 framing, and session-15001's stale `nextSteps`) touch session-14695's, session-15001's, and the sibling QA reports, fixed in the same commit and the following rebinds (see `000-session-14695-adr-080-amendment-qa.md` and `000-session-15001-pr-4954-round2-findings-qa.md`). Corrected this session log's `validationPassed.Evidence` and `changesCommitted.Evidence` with the observed COMPLIANT result and full commit chain, appended 2 workLog entries, and rewrote `nextSteps` for round-14/15 continuation. Committed as `36071d573`. |
 
 ## Evidence
 
@@ -93,11 +102,13 @@ remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
   `PR_HEAD_SHA=e3af5bcc7` (after the round-13 content fix landed,
   `endingCommit` still bound to `391d0f99d`) reported the identical
   "QA report commit does not match current session commit" mismatch for
-  this session's own log; resolved by this round-13b rebind, confirmed
-  COMPLIANT for session-14695 and session-15001 at
+  this session's own log; resolved by this round-13b rebind (`eb1a89e7e`),
+  confirmed COMPLIANT for session-14695 and session-15001 at
   `PR_HEAD_SHA=a85ace032` (the round-13a rebind commit) and for this
-  session's own log once this commit's own SHA lands as `endingCommit`'s
-  ancestor.
+  session's own log at
+  `PR_HEAD_SHA=eb1a89e7e90f2ae0cda53f68eb3fd6709e1e81b6`, matching the
+  GitHub Actions "Session Protocol Results" check's own SUCCESS
+  conclusion observed at that head.
 - Tests: `pytest tests/test_validate_session_json.py
   tests/skills/memory/test_extract_session_episode.py
   tests/ci/test_validate_session_protocol.py` reports 720 passed for the
@@ -145,33 +156,51 @@ remediation, covered by `000-session-15001-pr-4954-round2-findings-qa.md`.
 
 ## Verdict
 
-PASS. Session-14706's round-3 coordination work (rounds 8-13) is complete:
+PASS. Session-14706's round-3 coordination work (rounds 8-14) is complete:
 the round-8 active findings are fixed, the round-10a/10b, round-11a/11b,
-round-12a/12b, and round-13a/13b QA-freshness rebinds are all bound
-correctly, and this session's own protocol-compliance record is genuine
-rather than deferred past the point where CI would treat it as required.
-Round 11 (`ae927ffc7`) fixed a wording error in the analysis file's
-delegation-probe summary and refreshed the stale handoff; the round-11b
-rebind (`7de4606b2`) bound `endingCommit`/`qaCommit` to `ae927ffc7` and
-corrected this table's stale round-10b self-reference to name `49ea48f0d`
-explicitly. Round 12 (`391d0f99d`) corrected session-14695's
-`filesChanged` metric, reworded the analysis file's CLI-version overclaim,
-and refreshed the handoff again; the round-12a/12b rebinds
-(`a1f0a638a`/`09222ab35`) bound `endingCommit`/`qaCommit` to `391d0f99d`
-and corrected this table's stale round-11b self-reference to name
-`7de4606b2` explicitly; CI reached `OverallState: FAILURE` with exactly 1
-non-required failing check ("Check placeholder identity," caused by 8
-pre-session historical commits, issue #2466). Round 13 (`e3af5bcc7`)
-corrected the analysis file's "(the four model-tier/threshold
-resolutions)" wording, which round 12 had left wrongly describing the
-candidate-value matrix instead of the delegation probe's control
-transcript, to "seven explicit values plus the absent control"; refreshed
-the handoff to cover round 12's completion and round 13's own findings;
-corrected this session log's `changesCommitted.Evidence` (real commit
-chain, no false "closing commit" framing) and `validationPassed.Evidence`
-(observed COMPLIANT results, not a future-tense placeholder); the
-round-13a/13b rebinds (`a85ace032`/this commit) bind
-`endingCommit`/`qaCommit` forward to `e3af5bcc7`. Two of round 13's 6
-findings (a PR-body acceptance-criteria overclaim, a PR-body
-Changes-section gap) were fixed live via `gh pr edit`, outside this
-report's scope. `qaCommit` is `e3af5bcc7`.
+round-12a/12b, round-13a/13b, and round-14a/14b QA-freshness rebinds are
+all bound correctly, and this session's own protocol-compliance record is
+genuine rather than deferred past the point where CI would treat it as
+required. Round 11 (`ae927ffc7`) fixed a wording error in the analysis
+file's delegation-probe summary and refreshed the stale handoff; the
+round-11b rebind (`7de4606b2`) bound `endingCommit`/`qaCommit` to
+`ae927ffc7` and corrected this table's stale round-10b self-reference to
+name `49ea48f0d` explicitly. Round 12 (`391d0f99d`) corrected
+session-14695's `filesChanged` metric, reworded the analysis file's
+CLI-version overclaim, and refreshed the handoff again; the round-12a/12b
+rebinds (`a1f0a638a`/`09222ab35`) bound `endingCommit`/`qaCommit` to
+`391d0f99d` and corrected this table's stale round-11b self-reference to
+name `7de4606b2` explicitly; CI reached `OverallState: FAILURE` with
+exactly 1 non-required failing check ("Check placeholder identity,"
+caused by 8 pre-session historical commits, issue #2466). Round 13
+(`e3af5bcc7`) corrected the analysis file's "(the four
+model-tier/threshold resolutions)" wording, which round 12 had left
+wrongly describing the candidate-value matrix instead of the delegation
+probe's control transcript, to "seven explicit values plus the absent
+control"; refreshed the handoff to cover round 12's completion and round
+13's own findings; corrected this session log's `changesCommitted.Evidence`
+(real commit chain, no false "closing commit" framing) and
+`validationPassed.Evidence` (observed COMPLIANT results, not a
+future-tense placeholder); the round-13a/13b rebinds
+(`a85ace032`/`eb1a89e7e`) bound `endingCommit`/`qaCommit` forward to
+`e3af5bcc7`. Two of round 13's 6 findings (a PR-body acceptance-criteria
+overclaim, a PR-body Changes-section gap) were fixed live via `gh pr
+edit`, outside this report's scope. CI at `eb1a89e7e` again reached
+`OverallState: FAILURE` with only the same non-required "Check placeholder
+identity" check failing; all 115 other checks, including "Session Protocol
+Results," succeeded. Round 14 (`36071d573`) time-qualified ADR-080's
+repository-level-agents paragraph, which still called
+`quality-auditor.agent.md`'s bare `model: sonnet` value an open gap, as
+the 2026-08-12 probe's observed state, since `fix(agents): remove
+rejected model pins from .github/agents and gate the tree (#5040)`
+(2026-08-15, already an ancestor of this branch via the round-6 relief
+merge) has since removed that line; labeled the analysis file's
+alias-resolution console transcript with its measurement date; refreshed
+the handoff to cover round 13's completion and round 14's own findings;
+trimmed session-15001's `nextSteps`; and corrected this session log's
+`validationPassed.Evidence`, replacing the stale future-tense round-13b
+placeholder with the observed COMPLIANT result at `eb1a89e7e`, matching
+the GitHub Actions "Session Protocol Results" check's own SUCCESS
+conclusion; the round-14a/14b rebinds
+(`2c103ec4f`/this commit) bind `endingCommit`/`qaCommit` forward to
+`36071d573`. `qaCommit` is `36071d573`.
