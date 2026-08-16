@@ -52,10 +52,12 @@ jobs:
 
     steps:
       - name: Fetch immutable base and candidate SHAs
-        shell: bash
-        env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}'}
+        env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}', GH_TOKEN: '${{ github.token }}'}
         run: |
           set -euo pipefail
+          timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST \
+            -f state=pending -f context="Validate Vendor Provenance" \
+            -f description="Vendor provenance run $GITHUB_RUN_ID: pending"
           cd "$GITHUB_WORKSPACE"
           # Start from an empty workspace. `-f` ignores unmatched globs, while
           # permission and filesystem failures still stop under `set -e`.
@@ -72,12 +74,10 @@ jobs:
       - name: Claim PR head generation
         if: github.event_name == 'pull_request_target'
         env: {GH_TOKEN: '${{ github.token }}'}
-        run: |
-          set -euo pipefail
-          git show "$BASE_SHA:scripts/ci/validate_vendor_provenance.py" \
-            > "$RUNNER_TEMP/validate_vendor_provenance.py"
-          python3 "$RUNNER_TEMP/validate_vendor_provenance.py" \
-            --claim-head-generation "${{ github.repository }}" "$PR_SHA"
+        run: >-
+          set -euo pipefail; git show "$BASE_SHA:scripts/ci/validate_vendor_provenance.py"
+          > "$RUNNER_TEMP/validate_vendor_provenance.py"; python3 "$RUNNER_TEMP/validate_vendor_provenance.py"
+          --claim-head-generation "${{ github.repository }}" "$PR_SHA"
 
       - name: Materialize trusted base (immutable SHA)
         run: |

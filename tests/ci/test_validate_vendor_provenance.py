@@ -841,14 +841,18 @@ class TestWorkflowContractRegression:
         claim = workflow.index("Claim PR head generation")
         materialize = workflow.index("Materialize trusted base")
         assert fetch < claim < materialize
+        bootstrap_pending = workflow.index(
+            "Vendor provenance run $GITHUB_RUN_ID: pending"
+        )
+        assert bootstrap_pending < workflow.index("git init --quiet")
 
     def test_workflow_bounds_direct_network_calls(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
             encoding="utf-8"
         )
 
+        assert 'timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA"' in workflow
         assert 'timeout 120s git -c "http.extraHeader=' in workflow
-        assert "statuses/$PR_SHA" not in workflow
 
     def test_workflow_rejects_gitlinks_before_relevance(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
