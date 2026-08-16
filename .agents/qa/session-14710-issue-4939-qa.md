@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
-qaCommit: 605bd8d2c94d02c53d459b75ccaaa0a31814233d
+qaCommit: c1dcea5a51e92268663aba1f528079528009377d
 ---
 
 # QA Report, issue 4939
@@ -34,3 +34,4 @@ PASS
 - Review fix: version-drift warning now points at the runbook memory path, keeping ADR-094 as the policy citation.
 - Review fix: episode 14710 milestone e011 recorded one second before commit e012 in the session source; causal chain corrected to e010 -> e011 -> e012 -> e013 -> e014. Episode validation: zero violations.
 - Targeted tests at qaCommit: tests/test_check_copilot_version_pin.py plus tests/ci: 2519 passed, 11 skipped. ruff clean on the edited script.
+- Regression test added for the drift-warning branch (tests/ci/test_ai_review_action_setup.py): 9 passed at qaCommit; episode metrics restored to session-authored counts (11 files, 3 commits).
