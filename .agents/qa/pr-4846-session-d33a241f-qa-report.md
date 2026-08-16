@@ -1,15 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9
+qaCommit: 8cd4e480b3382235b5544025a096b7ef38486add
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9`
-(qaCommit, above; this is the 14th rebind of this report). The latest fix
+Validated the branch at commit `8cd4e480b3382235b5544025a096b7ef38486add`
+(qaCommit, above; this is the 15th rebind of this report). The latest fix
+requires a prior non-empty `git read-tree` with the same effective
+`GIT_INDEX_FILE` before `checkout-index` can prove workspace materialization.
+All 175 workflow checkout tests pass and Ruff reports zero findings.
+
+The 14th rebind validated
+`c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9`. The prior fix
 adds a 30-second limit to the direct GitHub API call and a 120-second limit
 to immutable Git fetch. The combined provenance and workflow suites pass
 397 tests. Actionlint, workflow validation, and Ruff pass.

@@ -129,7 +129,8 @@
         "e101",
         "e102",
         "e104",
-        "e107"
+        "e107",
+        "e109"
       ],
       "leads_to": [
         "e006"
@@ -1386,6 +1387,30 @@
       "caused_by": [
         "e106"
       ],
+      "leads_to": [
+        "e110"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e109",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a new Copilot thread about empty Git indexes satisfying checkout.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e110",
+      "timestamp": "2026-08-16T05:03:18+00:00",
+      "type": "commit",
+      "content": "Commit: 8cd4e480b3382235b5544025a096b7ef38486add",
+      "caused_by": [
+        "e108"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1395,7 +1420,7 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 56,
+    "commits": 57,
     "files_changed": 56
   },
   "lessons": []

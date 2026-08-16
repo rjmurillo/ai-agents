@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA and session evidence bind to content commit c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9."
+        "Evidence": "QA and session evidence bind to content commit 8cd4e480b3382235b5544025a096b7ef38486add."
       },
       "validationPassed": {
         "level": "MUST",
@@ -317,6 +317,6 @@
       "result": "Workspace materialization now requires a prior non-empty git read-tree using the same effective GIT_INDEX_FILE. Empty and mismatched index cases fail closed. All 175 workflow checkout tests pass and Ruff reports zero findings."
     }
   ],
-  "endingCommit": "c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9",
+  "endingCommit": "8cd4e480b3382235b5544025a096b7ef38486add",
   "nextSteps": []
 }
