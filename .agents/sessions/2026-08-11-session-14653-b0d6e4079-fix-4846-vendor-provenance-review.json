@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to install-parity pin sync 8e944b4af1992633d852032fccc988c478b6ccff."
+        "Evidence": "QA evidence rebound to current-main trust closure repair 02ddfac1a53d0f8f91ea6932cda16fe285924ccc."
       },
       "validationPassed": {
         "level": "MUST",
@@ -275,8 +275,12 @@
     {
       "action": "Synchronized the latest base-owned install-parity fix and refreshed its trust pin.",
       "result": "229 provenance and install-parity tests pass."
+    },
+    {
+      "action": "Removed pins for generated mirrors absent from current main and refreshed nine changed hashes.",
+      "result": "The current production tree passes all 222 provenance tests. Independent security review returned PASS."
     }
   ],
-  "endingCommit": "8e944b4af1992633d852032fccc988c478b6ccff",
+  "endingCommit": "02ddfac1a53d0f8f91ea6932cda16fe285924ccc",
   "nextSteps": []
 }
