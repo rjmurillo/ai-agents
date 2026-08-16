@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log, 15100b3d2 second main merge, 2bf7e4268 tiered ordering plus foreign-PR filter"
+        "Evidence": "d00ca216c cherry-picked container unblock, fdb34a279 fallback plus tests, b495930a5 mypy annotation, b22fa729b QA report and session log, 15100b3d2 second main merge, 2bf7e4268 tiered ordering plus foreign-PR filter, 15476b5e5 pre-push blocker fix"
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,9 +170,17 @@
     {
       "step": "Implemented tiered issue ordering and the foreign-PR filename filter, matching the PR body's existing claims",
       "evidence": "commit 2bf7e4268. _linked_issues buckets LINKED_ISSUE matches by a new _CLOSING_KEYWORD fullmatch on each match's full text, preserving body order per tier and deduping on first occurrence. _find_issue_qa_report takes pr_number and skips a candidate whose filename's PR_TOKEN names a different PR. Four new tests plus two renamed/updated existing tests; 96 -> 100 passed. Six mutation controls (up from four) each match the PR body's pre-existing claimed counts exactly: ordering-reverted-to-numeric fails 3, foreign-PR-filter-removed fails 1."
+    },
+    {
+      "step": "Push blocked twice with an opaque local pre-push hook rejection; GIT_TRACE=1 on a third attempt isolated the cause to a real test failure, not a server rejection",
+      "evidence": "error: failed to push some refs to '...' with no hint text is the local-hook-nonzero-exit shape, not a server rejection: no git-receive-pack POST ever appears in the GIT_TRACE log, only the initial info/refs GET. The lefthook python-tests job's own pytest output showed FAILED tests/skills/memory/test_repair_episode_causal_links.py::TestFalseEdgeRemoval::test_false_milestone_to_commit_edge_is_removed, reproduced standalone (not a load-induced flake)."
+    },
+    {
+      "step": "Fixed the pre-existing timezone bug blocking the push gate, on a path never touched by this branch before",
+      "evidence": "commit 15476b5e5. git diff origin/main HEAD on the test file and its implementation (extract_session_episode.py, repair_episode_causal_links.py) was empty before this commit, confirming the bug predates this branch and traces to PR #5058 (8bc289fc1) already merged into main. The test built its UTC fixture date from git show --format=%cI sliced to 10 characters, which keeps the commit's local offset; on this host (-07:00) a late commit crosses the UTC day boundary and the fixture landed on the wrong day. Fixed by parsing with datetime.fromisoformat(...).astimezone(UTC).date(), matching how production code (_parse_causal_timestamp) already normalizes. 12/12 tests in the file pass; reverting the fix reproduces the original failure."
     }
   ],
-  "endingCommit": "2bf7e4268971aed1025b50ffc7e262363b378bfa",
+  "endingCommit": "15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f",
   "nextSteps": [
     "Orchestrator opens the PR for this branch and links issue #5096",
     "Follow-up: both globs match a numeric prefix, so *issue-509* style collisions are possible (issue-5096 also matches a hypothetical issue-50960 report). The PR-numbered glob has carried the same weakness since it was written; tightening both belongs in one change, not this one.",

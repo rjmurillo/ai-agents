@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-issue-5096-qa-report-issue-fallback.json
-qaCommit: 2bf7e4268971aed1025b50ffc7e262363b378bfa
+qaCommit: 15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f
 ---
 
 # Issue 5096 QA Report Issue Fallback QA
@@ -140,6 +140,7 @@ mutant and the full suite returned to 100 passed.
 - `uv run mypy scripts/ci/check_pr_qa_report.py`: Success, no issues found.
 - `uv run python scripts/validation/validate_python_syntax.py`: exit 0 (the 3.10 hook-portability floor; the fallback adds only stdlib `re`, which matters because `.github/workflows/pr-validation.yml` line 129 invokes this script with bare `python3`).
 - `uv run python scripts/validation/pre_pr.py`: run on the merged tree (commit `2bf7e4268`) after `origin/main` was merged in a second time to pick up the 85 commits it had gained since the previous merge. Exit 0, `RESULT: All validations passed`, 54 checks, 54 passed, 0 failed, 89.49s.
+- Pre-push (`lefthook`, `python-tests` job): the first two push attempts on this host failed with `error: failed to push some refs`, no server-side hint, because the local pre-push hook exited nonzero. `GIT_TRACE=1` on a third attempt showed the actual `git-receive-pack` POST never ran; the hook itself blocked it. Root cause: `tests/skills/memory/test_repair_episode_causal_links.py::TestFalseEdgeRemoval::test_false_milestone_to_commit_edge_is_removed`, a pre-existing test on `origin/main` (PR #5058, commit `8bc289fc1`, zero diff on this branch before the fix), sliced a `%cI` git timestamp's first 10 characters to build a UTC fixture date, but `%cI` preserves the commit's local offset. On this host (committer offset `-07:00`) a late-evening commit crosses the UTC day boundary, so the fixture landed on the wrong calendar day and the #4847 "same UTC date" incomparability rule never fired. Fixed in commit `15476b5e5`, scoped to the test file only; unrelated to issue #5096 but required to clear this branch's own push gate. `uv run pytest tests/skills/memory/test_repair_episode_causal_links.py -q`: 12 passed (was 11 passed, 1 failed before the fix).
 
 `ruff format --check` reports both touched files as needing reformatting. That
 is pre-existing: the same command on the clean tree at `origin/main` reports the

@@ -296,7 +296,9 @@
         "e019",
         "e020",
         "e021",
-        "e022"
+        "e022",
+        "e026",
+        "e027"
       ],
       "leads_to": [
         "e025"
@@ -311,6 +313,54 @@
       "caused_by": [
         "e024"
       ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push blocked twice with an opaque local pre-push hook rejection; GIT_TRACE=1 on a third attempt isolated the cause to a real test failure, not a server rejection",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the pre-existing timezone bug blocking the push gate, on a path never touched by this branch before",
+      "caused_by": [],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-16T03:45:26+00:00",
+      "type": "commit",
+      "content": "Commit: 2bf7e4268",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-16T04:40:54+00:00",
+      "type": "commit",
+      "content": "Commit: 15476b5e5c2c99cdbdfdf2fdac69f34ddfd7bb7f",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-issue-5096-qa-report-issue-fallback"
     }
@@ -320,8 +370,8 @@
     "tool_calls": null,
     "errors": 7,
     "recoveries": 0,
-    "commits": 10,
-    "files_changed": 12
+    "commits": 12,
+    "files_changed": 13
   },
   "lessons": []
 }
