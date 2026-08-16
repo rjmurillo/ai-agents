@@ -46,7 +46,6 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 # Delete a line when you give that job its own permissions block.
 _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
-        ("ai-issue-triage.yml", "ai-issue-triage"),
         ("ai-metrics-analysis.yml", "analyze-metrics"),
         ("ai-session-protocol.yml", "aggregate"),
         ("ai-session-protocol.yml", "check-changes"),
@@ -63,9 +62,7 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
         ("claude.yml", "claude-response"),
         ("copilot-context-synthesis.yml", "sweep-missed"),
         ("copilot-context-synthesis.yml", "synthesize-single"),
-        ("homework-scanner.yml", "scan"),
         ("investigation-claim-backstop.yml", "validate-claims"),
-        ("label-issues.yml", "label"),
         ("label-pr.yml", "label"),
         ("memory-health.yml", "check-paths"),
         ("memory-health.yml", "health-check"),
