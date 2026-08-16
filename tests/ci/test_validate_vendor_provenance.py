@@ -2237,7 +2237,7 @@ class TestTrustedUpdateAuthorization:
             ("rjmurillo", "rjmurillo", "reopened", False),
             ("rjmurillo", "untrusted-contributor", "synchronize", False),
             ("untrusted-contributor", "rjmurillo", "synchronize", False),
-            ("", "untrusted-contributor", "merge_group", True),
+            ("", "untrusted-contributor", "merge_group", False),
         ],
     )
     def test_only_trusted_head_transition_events_authorize_updates(
@@ -2497,6 +2497,7 @@ class TestPublishCheckRun:
                 "owner/repo", "abc123", "success", "ok", check_run_id="999"
             )
         assert result == 1
+        assert mock_run.call_count == 1
 
     def test_timeout_returns_1(self) -> None:
         import subprocess
@@ -2559,16 +2560,20 @@ class TestCreateCheckRun:
         assert call_args[2] == "repos/owner/repo/check-runs"
         assert call_args[call_args.index("-X") + 1] == "POST"
 
-    def test_api_failure_returns_none(self) -> None:
+    @pytest.mark.parametrize("message", ["unauthorized", "not logged in"])
+    def test_authentication_failure_returns_none_without_retry(
+        self, message: str
+    ) -> None:
         from unittest.mock import patch
 
         from scripts.ci.validate_vendor_provenance import _create_check_run
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 1
-            mock_run.return_value.stderr = "unauthorized"
+            mock_run.return_value.stderr = message
             result = _create_check_run("owner/repo", "abc123")
         assert result is None
+        assert mock_run.call_count == 1
 
     def test_transient_failure_retries_then_succeeds(self) -> None:
         from subprocess import CompletedProcess
@@ -2655,6 +2660,27 @@ class TestHeadGateOrchestration:
         ):
             check_run_id, result = _start_head_gates("owner/repo", "abc123")
         assert check_run_id == "999"
+        assert result == 0
+        publish_status.assert_called_once()
+        create_check.assert_called_once()
+
+    def test_start_fails_when_check_creation_fails(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.ci.validate_vendor_provenance import _start_head_gates
+
+        with (
+            patch(
+                "scripts.ci.validate_vendor_provenance._publish_commit_status",
+                return_value=0,
+            ) as publish_status,
+            patch(
+                "scripts.ci.validate_vendor_provenance._create_check_run",
+                return_value=None,
+            ) as create_check,
+        ):
+            check_run_id, result = _start_head_gates("owner/repo", "abc123")
+        assert check_run_id is None
         assert result == 1
         publish_status.assert_called_once()
         create_check.assert_called_once()

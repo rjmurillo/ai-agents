@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "NOT LINTED: pre_pr.py --markdown-lint-only selected 0 of 1 files"
+        "Evidence": "markdownlint-cli2 checked literal ADR-096 and debate-log paths with 0 issues"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA evidence rebound to per-step shell-state fix b453dbfcd43306d55fd09ef0a3aacec8d122db8a."
+        "Evidence": "Interim QA anchor b453dbfcd43306d55fd09ef0a3aacec8d122db8a; final evidence rebind follows the ADR content commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -287,6 +287,22 @@
     {
       "action": "Reset shell working-directory state for each workflow run step.",
       "result": "Cross-step cd state no longer leaks, explicit external working directories fail closed, and 170 tests pass."
+    },
+    {
+      "action": "Documented the trusted vendor provenance architecture in ADR-096.",
+      "result": "The proposed ADR records trigger trust, candidate isolation, dual head gates, pin governance, bootstrap order, failure policy, and rollback."
+    },
+    {
+      "action": "Ran four ADR-096 debate rounds across architect, critic, independent-thinker, security, analyst, and high-level-advisor roles.",
+      "result": "Resolved every P0 and P1 finding. Final convergence was 6 of 6 ACCEPT and is recorded in .agents/critique/ADR-096-debate-log.md."
+    },
+    {
+      "action": "Added the ADR-006 workflow-size exception analysis required by ADR-053 governance.",
+      "result": "Recorded the original rationale, two alternatives, exact scope, quantified debt, testing impact, precedent control, reversibility, and review trigger."
+    },
+    {
+      "action": "Tightened GitHub API retry classification and rollback observability.",
+      "result": "Authentication errors stop after one attempt. Rollback now has objective confirmation criteria, an alert path, and a measurable 30-minute target. The provenance suite passes 224 tests and Ruff reports zero findings."
     }
   ],
   "endingCommit": "b453dbfcd43306d55fd09ef0a3aacec8d122db8a",

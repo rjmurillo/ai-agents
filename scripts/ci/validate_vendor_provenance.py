@@ -1311,10 +1311,8 @@ def _validate_lockfile(lockfile: Path) -> list[str]:
 
 
 def _is_update_authorized(author: str, sender: str, action: str) -> bool:
-    # Merge queue admission proves the PR-head provenance check already passed.
-    # The synthetic merge_group event does not expose the originating PR identity.
     if action == "merge_group":
-        return True
+        return False
     return (
         author in _TRUSTED_UPDATE_ACTORS
         and sender in _TRUSTED_UPDATE_ACTORS
@@ -1616,6 +1614,17 @@ def _validate_check_run_id(check_run_id: str) -> str:
 
 
 def _is_retryable_gh_error(stderr: str) -> bool:
+    normalized = stderr.lower()
+    if any(
+        marker in normalized
+        for marker in (
+            "authentication",
+            "forbidden",
+            "not logged in",
+            "unauthorized",
+        )
+    ):
+        return False
     match = re.search(r"HTTP\s+(\d{3})", stderr)
     if match is None:
         return True
@@ -1787,9 +1796,9 @@ def _publish_commit_status(
 
 
 def _start_head_gates(repo: str, head_sha: str) -> tuple[str | None, int]:
-    status_result = _publish_commit_status(repo, head_sha, "pending")
+    _publish_commit_status(repo, head_sha, "pending")
     check_run_id = _create_check_run(repo, head_sha)
-    return check_run_id, 0 if status_result == 0 and check_run_id else 1
+    return check_run_id, 0 if check_run_id else 1
 
 
 def _finish_head_gates(
