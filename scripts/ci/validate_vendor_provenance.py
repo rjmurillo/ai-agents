@@ -1285,6 +1285,9 @@ def _validate_package_entry(name: str, meta: dict[str, object]) -> list[str]:
 
 
 def _validate_lockfile(lockfile: Path) -> list[str]:
+    shrinkwrap = lockfile.with_name("npm-shrinkwrap.json")
+    if shrinkwrap.exists() or shrinkwrap.is_symlink():
+        return ["npm-shrinkwrap.json is forbidden; package-lock.json is required"]
     if not lockfile.is_file():
         vendor_dir = lockfile.parent
         if vendor_dir.exists() or vendor_dir.is_symlink():

@@ -315,6 +315,10 @@
     {
       "action": "Fixed a new Copilot thread about empty Git indexes satisfying checkout.",
       "result": "Workspace materialization now requires a prior non-empty git read-tree using the same effective GIT_INDEX_FILE. Empty and mismatched index cases fail closed. All 175 workflow checkout tests pass and Ruff reports zero findings."
+    },
+    {
+      "action": "Fixed npm lockfile precedence in vendor reconstruction.",
+      "result": "npm-shrinkwrap.json files and symlinks are rejected before package-lock.json validation, so npm cannot install from an unvalidated higher-precedence lockfile. All 227 provenance tests pass and Ruff reports zero findings."
     }
   ],
   "endingCommit": "8cd4e480b3382235b5544025a096b7ef38486add",

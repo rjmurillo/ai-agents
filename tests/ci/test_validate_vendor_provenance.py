@@ -153,6 +153,30 @@ class TestLockfilePolicy:
         assert result.returncode == 1
         assert "vendor directory exists without package-lock.json" in result.stdout
 
+    def test_shrinkwrap_rejected_when_package_lock_exists(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_lockfile
+
+        vendor = self._vendor(tmp_path)
+        lockfile = vendor / "package-lock.json"
+        _write(lockfile, "{}")
+        _write(vendor / "npm-shrinkwrap.json", "{}")
+
+        assert _validate_lockfile(lockfile) == [
+            "npm-shrinkwrap.json is forbidden; package-lock.json is required"
+        ]
+
+    def test_shrinkwrap_symlink_is_rejected(self, tmp_path: Path) -> None:
+        from scripts.ci.validate_vendor_provenance import _validate_lockfile
+
+        vendor = self._vendor(tmp_path)
+        lockfile = vendor / "package-lock.json"
+        _write(lockfile, "{}")
+        (vendor / "npm-shrinkwrap.json").symlink_to("package-lock.json")
+
+        assert _validate_lockfile(lockfile) == [
+            "npm-shrinkwrap.json is forbidden; package-lock.json is required"
+        ]
+
     def test_lockfile_v1_rejected(self, tmp_path: Path) -> None:
         root = tmp_path / "c"
         v = self._vendor(root)
