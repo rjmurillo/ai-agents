@@ -35,7 +35,8 @@
         "e015",
         "e017",
         "e019",
-        "e021"
+        "e021",
+        "e023"
       ],
       "leads_to": [
         "e005"
@@ -275,6 +276,30 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed config symlink and shell parser gaps.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-16T09:35:47+00:00",
+      "type": "commit",
+      "content": "Commit: 9646c3d42e446b24259552572c76e44d545769b7",
+      "caused_by": [
+        "e022"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -284,7 +309,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 10,
+    "commits": 11,
     "files_changed": 15
   },
   "lessons": []
