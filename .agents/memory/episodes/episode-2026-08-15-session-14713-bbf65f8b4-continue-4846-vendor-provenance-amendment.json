@@ -30,7 +30,8 @@
         "e006",
         "e008",
         "e010",
-        "e011"
+        "e011",
+        "e013"
       ],
       "leads_to": [
         "e005"
@@ -150,6 +151,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed three final review gaps.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-16T07:47:41+00:00",
+      "type": "commit",
+      "content": "Commit: 8fe8262aa637264d5115a52b09b51a45b1b6387a",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -159,7 +184,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 15
   },
   "lessons": []
