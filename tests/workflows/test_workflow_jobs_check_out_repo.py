@@ -203,13 +203,9 @@ def _prefixes_into_workspace(command_tokens: list[str], raw_segment: str) -> boo
     return False
 
 
-def _read_tree_output_index(command: list[str], index_file: str) -> str | None:
+def _read_tree_target_index(command: list[str], index_file: str) -> str:
     arguments = command[2:]
-    if "-n" in arguments or "--dry-run" in arguments or "--empty" in arguments:
-        return None
-
     output_index = index_file
-    has_tree = False
     index = 0
     while index < len(arguments):
         argument = arguments[index]
@@ -218,9 +214,24 @@ def _read_tree_output_index(command: list[str], index_file: str) -> str | None:
         elif argument == "--index-output" and index + 1 < len(arguments):
             index += 1
             output_index = arguments[index]
+        index += 1
+    return output_index
+
+
+def _read_tree_output_index(command: list[str], index_file: str) -> str | None:
+    arguments = command[2:]
+    if "-n" in arguments or "--dry-run" in arguments or "--empty" in arguments:
+        return None
+    has_tree = False
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--index-output" and index + 1 < len(arguments):
+            index += 1
         elif not argument.startswith("-"):
             has_tree = True
         index += 1
+    output_index = _read_tree_target_index(command, index_file)
     return output_index if has_tree and output_index else None
 
 
@@ -257,6 +268,16 @@ def _checkout_index_effect(
         index_file = assignments.get("GIT_INDEX_FILE", _DEFAULT_GIT_INDEX)
         if command[:2] == ["git", "read-tree"]:
             if not allow_materialization:
+                continue
+            arguments = command[2:]
+            if (
+                "--empty" in arguments
+                and "-n" not in arguments
+                and "--dry-run" not in arguments
+            ):
+                populated_indexes.discard(
+                    _read_tree_target_index(command, index_file)
+                )
                 continue
             output_index = _read_tree_output_index(command, index_file)
             if output_index is not None:
@@ -580,6 +601,25 @@ class TestFirstUnmetRepoDependency:
                 'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
             ),
             _case(
+                'git read-tree "$BASE_SHA"\n'
+                'git read-tree --empty\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
+            ),
+            _case(
+                'git read-tree "$BASE_SHA"\n'
+                'git read-tree --dry-run --empty\n'
+                'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"',
+                None,
+            ),
+            _case(
+                'GIT_INDEX_FILE=/tmp/idx-pr git read-tree "$BASE_SHA"\n'
+                'GIT_INDEX_FILE=/tmp/idx-pr git read-tree '
+                '--index-output=/tmp/idx-other --empty\n'
+                'GIT_INDEX_FILE=/tmp/idx-pr git checkout-index -a '
+                '--prefix="$GITHUB_WORKSPACE/"',
+                None,
+            ),
+            _case(
                 'git read-tree --dry-run "$BASE_SHA"\n'
                 'git checkout-index -a -f --prefix="$GITHUB_WORKSPACE/"'
             ),
@@ -650,6 +690,9 @@ class TestFirstUnmetRepoDependency:
             "workspace_checkout_index_satisfies_a_later_dependency",
             "empty_index_checkout_does_not_satisfy_a_dependency",
             "explicit_empty_read_tree_does_not_satisfy_a_dependency",
+            "read_tree_empty_clears_a_populated_index",
+            "dry_run_empty_preserves_a_populated_index",
+            "empty_index_output_does_not_clear_the_active_index",
             "dry_run_read_tree_does_not_populate_the_index",
             "short_dry_run_read_tree_does_not_populate_the_index",
             "checkout_index_without_prefix_does_not_prove_workspace_checkout",
