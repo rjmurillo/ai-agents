@@ -34,7 +34,8 @@
         "e013",
         "e015",
         "e017",
-        "e019"
+        "e019",
+        "e021"
       ],
       "leads_to": [
         "e005"
@@ -250,6 +251,30 @@
       "caused_by": [
         "e018"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kept bootstrap pending publication best-effort.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-16T09:15:13+00:00",
+      "type": "commit",
+      "content": "Commit: fb672edb0aaccb59e46965333f8dba9919b67c62",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -259,7 +284,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 10,
     "files_changed": 15
   },
   "lessons": []
