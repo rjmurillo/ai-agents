@@ -52,7 +52,7 @@ jobs:
         if: github.event_name == 'pull_request_target'
         env: {GH_TOKEN: '${{ github.token }}'}
         run: >-
-          timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending"
+          timeout 30s gh api "repos/${{ github.repository }}/statuses/$PR_SHA" -X POST -f state=pending -f context="Validate Vendor Provenance" -f description="Vendor provenance run $GITHUB_RUN_ID: pending" || echo "::warning::Bootstrap pending status failed; trusted head gates will retry"
 
       - name: Fetch immutable base and candidate SHAs
         env: {GH_FETCH_TOKEN: '${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}'}
