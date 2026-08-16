@@ -57,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: >-
-          gh api "repos/$REPOSITORY/statuses/$PR_SHA" -X POST
+          timeout 30s gh api "repos/$REPOSITORY/statuses/$PR_SHA" -X POST
           -f state=pending
           -f context="Validate Vendor Provenance"
           -f description="Vendor provenance is pending"
@@ -79,7 +79,7 @@ jobs:
           rm -rf -- * .[!.]* ..?*
           git init --quiet
           git remote add origin "https://github.com/${{ github.repository }}.git"
-          git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
+          timeout 120s git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}" \
             fetch origin "$BASE_SHA" "$PR_SHA"
           # Populate workspace with trusted base code (read-tree ignores
           # candidate .gitattributes export-ignore directives)

@@ -307,6 +307,10 @@
     {
       "action": "Fixed a current-head suppressed review finding in the workflow dependency parser.",
       "result": "Printing segments are ignored individually instead of dropping the full compound shell line. Dependencies after echo or printf remain visible. All 172 workflow checkout tests pass and Ruff reports zero findings."
+    },
+    {
+      "action": "Addressed the reliability review's outbound-call timeout findings.",
+      "result": "The pre-materialization GitHub API call now has a 30-second limit, and immutable Git fetch has a 120-second limit. Combined provenance and workflow suites pass 397 tests. Actionlint, workflow validation, and Ruff pass."
     }
   ],
   "endingCommit": "ceb2e6720a953fd7fda43c007614ea00896aa459",
