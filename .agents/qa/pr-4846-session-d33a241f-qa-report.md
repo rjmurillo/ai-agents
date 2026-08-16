@@ -9,31 +9,15 @@ qaCommit: 8cd4e480b3382235b5544025a096b7ef38486add
 ## Summary
 
 Validated the branch at commit `8cd4e480b3382235b5544025a096b7ef38486add`
-(qaCommit, above; this is the 15th rebind of this report). The latest fix
-requires a prior non-empty `git read-tree` with the same effective
-`GIT_INDEX_FILE` before `checkout-index` can prove workspace materialization.
-All 175 workflow checkout tests pass and Ruff reports zero findings.
-
-The 14th rebind validated
-`c2fbe9f6563b1ebda0b97d4eafd260b66d3124c9`. The prior fix
-adds a 30-second limit to the direct GitHub API call and a 120-second limit
-to immutable Git fetch. The combined provenance and workflow suites pass
-397 tests. Actionlint, workflow validation, and Ruff pass.
-
-The 13th rebind validated
-`ceb2e6720a953fd7fda43c007614ea00896aa459`. The prior fix
-preserves executable command segments after a leading `echo`, `printf`, or
-heredoc segment. The regression case
-`echo ready && python3 scripts/ci/x.py` is now detected before checkout.
-All 172 workflow checkout tests pass and Ruff reports zero findings.
-
-The 12th rebind validated
-`48b5ad34819938af3217d8b39956c93c5555e89b`. ADR-096 reached
-6 of 6 ACCEPT after four review rounds. The final content commit adds the
-ADR-006 exception analysis, objective rollback detection, immediate
-authentication-failure classification, and two one-attempt regression cases.
-The exact worktree passed 224 provenance tests, Ruff, the ADR review gate,
-the ADR detector, session validation, and literal-path markdownlint.
+(qaCommit, above; this is the 15th rebind). Changes since the 11th rebind:
+ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
+attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
+limits; command parsing preserves executable segments after printing; and
+`checkout-index` requires a prior non-empty `git read-tree` using the same
+effective `GIT_INDEX_FILE`. Evidence: 224 provenance tests passed, 175
+workflow checkout tests passed, the combined suites passed 397 tests, and
+Ruff, actionlint, workflow validation, ADR review, ADR detection, session
+validation, and literal-path markdownlint passed.
 
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th
