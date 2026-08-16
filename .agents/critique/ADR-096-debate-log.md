@@ -3,7 +3,8 @@
 Subject:
 `.agents/architecture/ADR-096-trusted-vendor-provenance-gate.md`
 
-Skill: `.claude/skills/adr-review/SKILL.md`, six-agent debate, four rounds.
+Skill: `.claude/skills/adr-review/SKILL.md`, six-agent debate, four rounds plus
+one post-acceptance amendment review.
 
 ## Outcome
 
@@ -80,6 +81,35 @@ requested absolute worktree showed that `_start_head_gates`,
 `_finish_head_gates`, and their CLI flags were present. The reviewer retracted
 the finding and voted ACCEPT. The critic also rechecked the same paths and
 confirmed the correction.
+
+### Post-acceptance amendment review
+
+Later review findings changed ADR-096's trust-boundary wording and gitlink
+policy record. All six roles reviewed the amended ADR and implementation.
+
+The architect initially voted BLOCK because gitlink rejection had been moved
+behind relevance filtering. The workflow was restored to reject every gitlink
+before relevance. ADR-096 now records a repository-wide submodule ban because
+a gitlink delegates code identity to an external repository outside the
+authenticated tree.
+
+The high-level advisor initially voted BLOCK after a sampled read skipped
+`tests/ci/test_validate_vendor_provenance.py:850-857`. A direct absolute-path
+read confirmed that `test_workflow_rejects_gitlinks_before_relevance` asserts
+both required invariants: gitlink rejection precedes relevance, and the
+gitlink step has no `if:` key. The advisor retracted the finding.
+
+The amended ADR also limits SHA-256 trust claims to repository-owned artifacts
+and names hosted runner tools as platform trust roots.
+
+| Role | Amendment vote |
+|---|---|
+| architect | ACCEPT |
+| critic | ACCEPT |
+| independent-thinker | ACCEPT |
+| security | ACCEPT |
+| analyst | ACCEPT |
+| high-level-advisor | ACCEPT |
 
 ## Verification
 

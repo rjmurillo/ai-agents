@@ -13,7 +13,7 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|"})
+_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "&"})
 _DEFAULT_GIT_INDEX = ".git/index"
 _WORKSPACE_PREFIX_FORMS = (
     '--prefix="$GITHUB_WORKSPACE/"',
@@ -47,7 +47,10 @@ def _jobs(doc: object) -> dict[str, dict]:
 def _tokenize_command_line(line: str) -> list[str]:
     """Tokenize one shell line while preserving compound command segments."""
     try:
-        return shlex.split(line, comments=True)
+        lexer = shlex.shlex(line, posix=True, punctuation_chars="&|;")
+        lexer.whitespace_split = True
+        lexer.commenters = "#"
+        return list(lexer)
     except ValueError:
         return line.split()
 
@@ -347,6 +350,14 @@ class TestRepoPathsInRun:
             "echo ready && python3 scripts/ci/x.py"
         ) == ["scripts/ci/x.py"]
 
+    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "&"])
+    def test_finds_a_path_after_a_compact_shell_operator(
+        self, operator: str
+    ) -> None:
+        assert repo_paths_in_run(
+            f"echo ready{operator}python3 scripts/ci/x.py"
+        ) == ["scripts/ci/x.py"]
+
     def test_unbalanced_quotes_do_not_raise(self) -> None:
         assert repo_paths_in_run("python3 scripts/ci/x.py 'unclosed") == ["scripts/ci/x.py"]
 
@@ -386,6 +397,20 @@ class TestFirstUnmetRepoDependency:
         job = {
             "steps": [
                 {"name": "Run", "run": "echo ready && python3 scripts/ci/x.py"}
+            ]
+        }
+        assert first_unmet_repo_dependency(job) == ("Run", "scripts/ci/x.py")
+
+    @pytest.mark.parametrize("operator", ["&&", "||", ";", "|", "&"])
+    def test_a_dependency_after_a_compact_shell_operator_is_flagged(
+        self, operator: str
+    ) -> None:
+        job = {
+            "steps": [
+                {
+                    "name": "Run",
+                    "run": f"echo ready{operator}python3 scripts/ci/x.py",
+                }
             ]
         }
         assert first_unmet_repo_dependency(job) == ("Run", "scripts/ci/x.py")

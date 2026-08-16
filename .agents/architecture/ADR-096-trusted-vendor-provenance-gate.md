@@ -34,7 +34,8 @@ The gate must satisfy these constraints:
 3. Validate the candidate by immutable commit SHA and Git tree objects.
 4. Publish a required result on the pull request head SHA.
 5. Prevent a prior success on an unchanged SHA from masking revalidation.
-6. Authenticate every executable and configuration file used before verdict.
+6. Authenticate every repository-owned executable and configuration file used
+   before verdict.
 7. Fail closed on missing files, API failures, malformed inputs, and drift.
 
 ## Decision
@@ -56,8 +57,8 @@ The workflow and validator follow these rules:
 6. `_finish_head_gates` attempts both final channels and aggregates failures.
    The Check Run is patched by ID. No fallback row is created.
 7. Workflow runs use a per-pull-request concurrency group with cancellation.
-8. The validator pins every executable, generator, manifest, and configuration
-   file in its execution closure with SHA-256.
+8. The validator pins every repository-owned executable, generator, manifest,
+   and configuration file in its execution closure with SHA-256.
 9. Pin changes require trusted author and sender identities. Unknown identities
    cannot modify or delete the gate.
 10. `merge_group` events fail closed for trust-anchor and candidate pin
@@ -68,11 +69,19 @@ The workflow and validator follow these rules:
 11. The workflow rejects gitlinks, escaping symlinks within the trusted scan
     roots, unpinned executables,
     `.npmrc`, `uv.toml`, unsafe markdownlint configuration, and mirror drift.
+    Gitlink rejection is repository-wide and runs before relevance filtering.
+    This repository does not permit submodules because a gitlink delegates code
+    identity to an external repository outside this gate's authenticated tree.
 12. Lockfile reconstruction installs candidate-declared npm packages with
     `npm ci --ignore-scripts` only after registry, scheme, and SHA-512 integrity
     validation. It does not execute package lifecycle scripts.
 13. All pipeline and validation failures return non-zero. No success-shaped
     fallback satisfies the required result.
+
+The hosted GitHub runner and its preinstalled `timeout`, `gh`, `rm`, `git`,
+and `python3` commands are platform trust roots. Setup actions are pinned to
+immutable commits. Python, uv, and Node.js versions are exact. SHA-256 pins
+cover the repository-owned execution closure, not the hosted toolchain.
 
 The workflow exceeds ADR-006's 100-line target. The excess is orchestration:
 immutable Git materialization, dual head-state publication, and tool setup.
@@ -230,7 +239,7 @@ is intentional. An unreviewed executable must not enter the trusted closure.
 ### Positive
 
 - Candidate code cannot modify the validator that executes for its own review.
-- Every trusted executable has immutable identity.
+- Every trusted repository-owned executable has immutable identity.
 - Edited and reopened pull requests receive a fresh pending head state.
 - Missing or malformed trust inputs block instead of degrading to success.
 - Concurrency limits competing verdict writers on one pull request.
@@ -240,6 +249,8 @@ is intentional. An unreviewed executable must not enter the trusted closure.
 - Base changes can invalidate open branches until pins refresh.
 - The workflow depends on GitHub APIs for head-state publication.
 - Pin maintenance can cause repeated CI cycles in a high-merge repository.
+- Any pull request adding a gitlink is blocked, including paths outside the
+  vendor provenance relevance set.
 - A total GitHub API outage cannot replace an old head status.
 - Vendor reconstruction depends on registry access and fails closed on outage.
 - `_TRUSTED_UPDATE_ACTORS` contains one identity. This matches the current

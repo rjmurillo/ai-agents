@@ -847,6 +847,17 @@ class TestWorkflowContractRegression:
         assert 'timeout 30s gh api "repos/$REPOSITORY/statuses/$PR_SHA"' in workflow
         assert 'timeout 120s git -c "http.extraHeader=' in workflow
 
+    def test_workflow_rejects_gitlinks_before_relevance(self) -> None:
+        workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
+            encoding="utf-8"
+        )
+
+        relevance = workflow.index("- name: Check relevance (NUL-safe)")
+        gitlinks = workflow.index("- name: Reject gitlinks in candidate tree")
+        assert gitlinks < relevance
+        gitlink_step = workflow[gitlinks:relevance]
+        assert "if:" not in gitlink_step
+
 
 # ── Relevance check (exercises production helper) ──
 
