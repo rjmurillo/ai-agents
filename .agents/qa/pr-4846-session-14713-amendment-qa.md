@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 346ad9896acd646a1627a9e637e3eded83b366e5
+qaCommit: 8fe8262aa637264d5115a52b09b51a45b1b6387a
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `346ad9896acd646a1627a9e637e3eded83b366e5` on branch
+PASS for commit `8fe8262aa637264d5115a52b09b51a45b1b6387a` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -19,7 +19,7 @@ shell operators.
 
 - `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 233 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
-  189 passed.
+  193 passed.
 - Ruff passed for both modified test files.
 - Actionlint passed for `.github/workflows/vendor-provenance.yml`.
 - `scripts/validate_workflows.py` passed with existing line-count warnings.
@@ -38,6 +38,9 @@ shell operators.
 - `uv run pytest -q tests/test_lefthook_integration.py -k
   placeholder_identity`: 5 passed. Commits already reachable from origin tips
   are excluded while new placeholder identities remain blocked.
+- Merge queue runs fetch both immutable SHAs before materialization.
+- `|&`, multiline control flow, and heredoc text cannot hide an unmet
+  repository dependency.
 
 ## Scope
 

@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 346ad9896acd646a1627a9e637e3eded83b366e5
+qaCommit: 8fe8262aa637264d5115a52b09b51a45b1b6387a
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `346ad9896acd646a1627a9e637e3eded83b366e5`
-(qaCommit, above; this is the 21st rebind). Changes since the 11th rebind:
+Validated the branch at commit `8fe8262aa637264d5115a52b09b51a45b1b6387a`
+(qaCommit, above; this is the 22nd rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
@@ -17,12 +17,12 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 233 provenance tests passed, 189 workflow
+as platform trust roots. Evidence: 233 provenance tests passed, 193 workflow
 checkout tests passed. Ruff, actionlint, workflow validation, ADR review, ADR
-detection, session
-validation, literal-path markdownlint, and the exact Node.js `24.19.0` pin
-passed. Run generations reject superseded writes. Identity scans exclude
-commits already reachable from origin tips.
+detection, session validation, literal-path markdownlint, and exact Node.js
+`24.19.0` pin passed. Run generations reject superseded writes. Identity scans
+exclude origin tips. Merge queue fetches both SHAs. Nested shell structures
+fail closed.
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
@@ -45,7 +45,7 @@ pass), and an `xfail` shipped without an open tracking issue
 it in the reason string). The 4th finding (`pyproject.toml:10`, PR
 description undersold the branch's historical 50-file scope) was addressed
 via `gh pr edit`. That was the branch-local measurement before later base
-merges; GitHub now reports a 15-file PR diff. Full targeted suite:
+merges; GitHub now reports a 16-file PR diff. Full targeted suite:
 192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this

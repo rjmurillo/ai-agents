@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 346ad9896acd646a1627a9e637e3eded83b366e5"
+        "Evidence": "Content commit 8fe8262aa637264d5115a52b09b51a45b1b6387a"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,8 +146,12 @@
     {
       "action": "Excluded commits already reachable from origin tips in the placeholder identity guard.",
       "result": "Merging a placeholder-authored commit already on origin/main no longer blocks a clean feature push, while a new placeholder commit remains blocked. Five focused tests pass."
+    },
+    {
+      "action": "Closed three final review gaps.",
+      "result": "Merge queue runs fetch immutable SHAs before materialization. The workflow parser handles |& and rejects materialization nested in multiline control flow or heredoc text. All 233 provenance and 193 workflow checkout tests pass."
     }
   ],
-  "endingCommit": "346ad9896acd646a1627a9e637e3eded83b366e5",
+  "endingCommit": "8fe8262aa637264d5115a52b09b51a45b1b6387a",
   "nextSteps": []
 }
