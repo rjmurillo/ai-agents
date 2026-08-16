@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit 8fe8262aa637264d5115a52b09b51a45b1b6387a"
+        "Evidence": "Content commit 2b0185f96e318ec5f3c2f838c9975b5a84a02903"
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,8 +150,12 @@
     {
       "action": "Closed three final review gaps.",
       "result": "Merge queue runs fetch immutable SHAs before materialization. The workflow parser handles |& and rejects materialization nested in multiline control flow or heredoc text. All 233 provenance and 193 workflow checkout tests pass."
+    },
+    {
+      "action": "Closed the pre-fetch stale-success and local-ref trust gaps.",
+      "result": "A run-token pending status publishes before any Git operation. Placeholder exclusions come from authenticated git ls-remote output, and a fake local refs/remotes entry cannot hide a new placeholder commit. Six focused identity tests pass."
     }
   ],
-  "endingCommit": "8fe8262aa637264d5115a52b09b51a45b1b6387a",
+  "endingCommit": "2b0185f96e318ec5f3c2f838c9975b5a84a02903",
   "nextSteps": []
 }

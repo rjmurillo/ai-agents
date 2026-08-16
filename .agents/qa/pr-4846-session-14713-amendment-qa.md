@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 8fe8262aa637264d5115a52b09b51a45b1b6387a
+qaCommit: 2b0185f96e318ec5f3c2f838c9975b5a84a02903
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `8fe8262aa637264d5115a52b09b51a45b1b6387a` on branch
+PASS for commit `2b0185f96e318ec5f3c2f838c9975b5a84a02903` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -36,11 +36,14 @@ shell operators.
 - Head-state writes reject a lower run ID after a newer generation claims the
   same PR head.
 - `uv run pytest -q tests/test_lefthook_integration.py -k
-  placeholder_identity`: 5 passed. Commits already reachable from origin tips
-  are excluded while new placeholder identities remain blocked.
+  placeholder_identity`: 6 passed. Commits already reachable from authenticated
+  origin tips are excluded, local fake refs are ignored, and new placeholder
+  identities remain blocked.
 - Merge queue runs fetch both immutable SHAs before materialization.
 - `|&`, multiline control flow, and heredoc text cannot hide an unmet
   repository dependency.
+- A run-token pending status publishes before the immutable fetch, so fetch
+  failure cannot leave an earlier success green.
 
 ## Scope
 
