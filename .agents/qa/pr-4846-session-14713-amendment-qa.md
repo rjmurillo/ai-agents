@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: e8c4059a663bb5bb346c424d47f7f0f76594cf70
+qaCommit: 346ad9896acd646a1627a9e637e3eded83b366e5
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `e8c4059a663bb5bb346c424d47f7f0f76594cf70` on branch
+PASS for commit `346ad9896acd646a1627a9e637e3eded83b366e5` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -17,7 +17,7 @@ shell operators.
 
 ## Evidence
 
-- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 229 passed.
+- `uv run pytest -q tests/ci/test_validate_vendor_provenance.py`: 233 passed.
 - `uv run pytest -q tests/workflows/test_workflow_jobs_check_out_repo.py`:
   189 passed.
 - Ruff passed for both modified test files.
@@ -33,8 +33,13 @@ shell operators.
   records only its actual output index.
 - Cancelled predecessor runs skip both check-run creation and final head-state
   publication, so replacements own the current verdict.
+- Head-state writes reject a lower run ID after a newer generation claims the
+  same PR head.
+- `uv run pytest -q tests/test_lefthook_integration.py -k
+  placeholder_identity`: 5 passed. Commits already reachable from origin tips
+  are excluded while new placeholder identities remain blocked.
 
 ## Scope
 
-This report covers the ADR amendment and its two regression tests. PR-level
+This report covers the ADR amendment and final review regressions. PR-level
 remote checks and current-head review remain part of the PR completion gate.

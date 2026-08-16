@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit e8c4059a663bb5bb346c424d47f7f0f76594cf70"
+        "Evidence": "Content commit 346ad9896acd646a1627a9e637e3eded83b366e5"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,8 +138,16 @@
     {
       "action": "Closed the cancelled-run head-state race.",
       "result": "Cancelled predecessor runs skip check-run creation and final publication, so a replacement run cannot have its pending or success verdict overwritten. All 229 provenance tests pass."
+    },
+    {
+      "action": "Added explicit workflow generation ownership.",
+      "result": "The base validator claims the PR head with GITHUB_RUN_ID before candidate materialization. Every later head-state write rejects an older generation. All 233 provenance tests pass."
+    },
+    {
+      "action": "Excluded commits already reachable from origin tips in the placeholder identity guard.",
+      "result": "Merging a placeholder-authored commit already on origin/main no longer blocks a clean feature push, while a new placeholder commit remains blocked. Five focused tests pass."
     }
   ],
-  "endingCommit": "e8c4059a663bb5bb346c424d47f7f0f76594cf70",
+  "endingCommit": "346ad9896acd646a1627a9e637e3eded83b366e5",
   "nextSteps": []
 }

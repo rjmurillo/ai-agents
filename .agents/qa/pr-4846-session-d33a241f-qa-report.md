@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: e8c4059a663bb5bb346c424d47f7f0f76594cf70
+qaCommit: 346ad9896acd646a1627a9e637e3eded83b366e5
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `e8c4059a663bb5bb346c424d47f7f0f76594cf70`
-(qaCommit, above; this is the 20th rebind). Changes since the 11th rebind:
+Validated the branch at commit `346ad9896acd646a1627a9e637e3eded83b366e5`
+(qaCommit, above; this is the 21st rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
@@ -17,12 +17,12 @@ limits; command parsing preserves executable segments after printing; and
 files or symlinks are rejected. Compact shell operators are parsed without
 surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
 limits trust pins to repository-owned artifacts and names hosted runner tools
-as platform trust roots. Evidence: 229 provenance tests passed, 189 workflow
-checkout tests passed, and
-Ruff, actionlint, workflow validation, ADR review, ADR detection, session
+as platform trust roots. Evidence: 233 provenance tests passed, 189 workflow
+checkout tests passed. Ruff, actionlint, workflow validation, ADR review, ADR
+detection, session
 validation, literal-path markdownlint, and the exact Node.js `24.19.0` pin
-passed. Cancelled predecessor runs cannot publish head-state updates.
-
+passed. Run generations reject superseded writes. Identity scans exclude
+commits already reachable from origin tips.
 The 11th rebind validated
 `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
