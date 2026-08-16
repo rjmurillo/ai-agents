@@ -6844,18 +6844,16 @@ def _placeholder_identity_scan(
 ) -> tuple[str, tuple[str, ...]]:
     result = _run_git(
         repo_root,
-        ["for-each-ref", "--format=%(objectname)", "refs/remotes/origin/"],
+        ["ls-remote", "--heads", "origin"],
     )
     if result.returncode != 0:
         return _placeholder_identity_range(push_ref, repo_root), ()
 
     remote_tips = {
-        line.strip()
+        fields[0]
         for line in result.stdout.splitlines()
-        if len(line.strip()) == 40
+        if len(fields := line.split()) == 2 and len(fields[0]) == 40
     }
-    if not push_ref.is_new and _commit_ref_exists(repo_root, push_ref.remote_sha):
-        remote_tips.add(push_ref.remote_sha)
     if not remote_tips:
         return _placeholder_identity_range(push_ref, repo_root), ()
     return push_ref.local_sha, tuple(sorted(remote_tips))

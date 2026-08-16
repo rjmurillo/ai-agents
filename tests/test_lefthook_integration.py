@@ -7547,6 +7547,7 @@ def test_placeholder_identity_ignores_already_pushed_taint(tmp_path: Path) -> No
 
 def test_placeholder_identity_excludes_taint_merged_from_remote_main(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A main commit already on origin must not block a feature push."""
     repo = tmp_path / "repo"
@@ -7566,6 +7567,15 @@ def test_placeholder_identity_excludes_taint_merged_from_remote_main(
         "refs/heads/feature/test",
         remote_sha,
     )
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(
+            0,
+            f"{remote_sha}\trefs/heads/feature/test\n"
+            f"{main_sha}\trefs/heads/main\n",
+        ),
+    )
 
     push_range, exclude_refs = policy._placeholder_identity_scan(push_ref, repo)
 
@@ -7582,6 +7592,47 @@ def test_placeholder_identity_excludes_taint_merged_from_remote_main(
             exclude_refs=exclude_refs,
         )
     assert result.returncode == 0
+
+
+def test_placeholder_identity_ignores_fake_local_remote_tip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A forged refs/remotes entry cannot hide a new placeholder commit."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "tracked.txt", "clean base\n")
+    local_sha = _plant_placeholder_commit(repo, "tracked.txt", "new taint\n")
+    _git(repo, "update-ref", "refs/remotes/origin/fake", local_sha)
+    push_ref = policy.PushRef(
+        "refs/heads/feature/test",
+        local_sha,
+        "refs/heads/feature/test",
+        remote_sha,
+    )
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(
+            0,
+            f"{remote_sha}\trefs/heads/feature/test\n",
+        ),
+    )
+
+    push_range, exclude_refs = policy._placeholder_identity_scan(push_ref, repo)
+
+    assert push_range == local_sha
+    assert local_sha not in exclude_refs
+    from scripts.validation import check_placeholder_identity
+    from scripts.validation.check_placeholder_identity import run_check
+
+    with mock.patch.object(check_placeholder_identity, "_is_pytest_tmp", return_value=False):
+        result = run_check(
+            push_range=push_range,
+            repo_root=repo,
+            exclude_refs=exclude_refs,
+        )
+    assert result.returncode == 1
 
 
 def test_placeholder_identity_still_blocks_new_taint_on_existing_ref(tmp_path: Path) -> None:
