@@ -303,8 +303,14 @@ inferred from finding 1's mechanism, not separately reproduced. Whether that
 override is acceptable for generated agents, and how it interacts with rule
 3's cost exception, is undecided here and remains an open gap. For
 **repository-level agents** (`.github/agents/`), bare aliases such as
-`model: sonnet` in `quality-auditor.agent.md` reach Copilot unresolved and fall
-back; this gap remains open. For **skills** there is no such translation, and
+`model: sonnet` in `quality-auditor.agent.md` reached Copilot unresolved and
+fell back; this was the state observed during the 2026-08-12 probe. It has
+since been resolved for this specific instance: `fix(agents): remove rejected
+model pins from .github/agents and gate the tree (#5040)` (2026-08-15)
+removed the `model: sonnet` line, and `.github/agents/quality-auditor.agent.md`
+now carries no `model:` field. A repository-wide search finds no other bare
+`sonnet`, `opus`, or `haiku` model value under `.github/agents`, so this
+specific class of drift is closed there. For **skills** there is no such translation, and
 `src/copilot-cli/skills` ships 8 raw aliases today (7 `haiku`, 1 `opus`). Those
 are precisely the units rule 3's cost exception exists for, and their
 cheap-tier intent is silently discarded in favour of the session default,

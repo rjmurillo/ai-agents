@@ -179,6 +179,8 @@ delegated to from a parent at `--model claude-opus-5`:
 The alias problem is real but it is not where the first draft said. Generated
 plugin agents are translated; repository-level agents and skills are not.
 
+Measured 2026-08-12:
+
 ```console
 $ grep -m1 -E '^(model|model_tier):' .claude/agents/quality-auditor.md
 model: sonnet
@@ -194,6 +196,13 @@ model: sonnet
 `build/generate_agents_common.py`, resolves the tier for the generated agent.
 `.github/agents` is hand-maintained and did not get the resolution, so that file
 is drift, not a policy failure.
+
+This transcript is preserved as historical evidence of the 2026-08-12
+measurement. The `.github/agents/quality-auditor.agent.md` hand-copy drift
+shown in the last command above is no longer present: `fix(agents): remove
+rejected model pins from .github/agents and gate the tree (#5040)`
+(2026-08-15) deleted its `model: sonnet` line, so the file now has no
+`model:` field and no longer contradicts the resolution rule described here.
 
 Skills have no equivalent translation and ship raw:
 
