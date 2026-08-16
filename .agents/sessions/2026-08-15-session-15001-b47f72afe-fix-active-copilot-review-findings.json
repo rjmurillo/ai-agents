@@ -150,7 +150,7 @@
       "timestamp": "2026-08-15T10:45:00Z"
     }
   ],
-  "endingCommit": "e3af5bcc7e61893298efb58f8d6f34b2563f3763",
+  "endingCommit": "36071d57374619430daa8a73b06b4b0f2a11ad84",
   "nextSteps": [
     "If desired, open a follow-up issue to independently probe (not just infer) whether model_tier-resolved plugin agents actually override an operator's explicit session model, closing the open gap recorded in ADR-080 finding 4."
   ],
@@ -160,7 +160,7 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "8f1cb1177cc136d924a77ecaa1094d5d8bc399ec",
-      "head": "e3af5bcc7e61893298efb58f8d6f34b2563f3763"
+      "head": "36071d57374619430daa8a73b06b4b0f2a11ad84"
     }
   },
   "retrospective": {

@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-15001-b47f72afe-fix-active-copilot-review-findings.json
-qaCommit: e3af5bcc7e61893298efb58f8d6f34b2563f3763
+qaCommit: 36071d57374619430daa8a73b06b4b0f2a11ad84
 ---
 
 # QA Report: Session 15001, PR 4954 round 2 findings
@@ -42,6 +42,7 @@ report.
 | `fd8fa1522` | Rebound `endingCommit` and this report's `qaCommit` from `a959d4506` to `ae927ffc7`, and likewise `000-session-14695-adr-080-amendment-qa.md`'s `qaCommit`/`endingCommit`/`episodeMetrics.comparison.head`, mirroring the established two-commit content-fix-then-rebind pattern; also corrected this table's `ee57202b8` row (see above), left reading "(this commit)" since that commit was pushed. |
 | `391d0f99d` | A review against `7de4606b2` raised 7 active findings: this analysis file's "Other CLI versions. 1.0.79 only" sentence contradicted the delegation probe's documented second measurement on CLI 1.0.81-0, needing scope to the candidate-value matrix specifically; session-14695's `episodeMetrics.filesChanged` read 10 but its 3 actually-produced commits touch only 5 unique files (verified via `git show --stat`), and its episode's `metrics.files_changed` had the same error; this table's `fd8fa1522` row (below) and `000-session-14695-adr-080-amendment-qa.md`'s equivalent row both read literally "(this commit)"; session-14706's own report had the same stale placeholder for its `7de4606b2` row; the handoff was stale, still describing round 11 as "being fixed now"; and session-14706's own `nextSteps` still listed an already-completed "push commits" instruction. Corrected `filesChanged` to 5 in session-14695's log and its episode, reworded the analysis file, rewrote the handoff, and cleaned up session-14706's `nextSteps`. Because the analysis file and session-14695's log are evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports; the follow-up rebind commit fixing that does not add a new self-referential row of its own, per this round's review instruction. |
 | `e3af5bcc7` | A review against `09222ab35` raised 6 active findings, 2 of which touch this QA scope: this analysis file's "(the four model-tier/threshold resolutions)" wrongly described the candidate-value matrix (the 4-count belongs to the delegation probe's control transcript further down, not the 7-explicit-plus-1-absent matrix); a PR-body acceptance-criteria claim overstated the candidate-value probe as producing "reproducible transcripts" when it records only summarized outcomes and exit-code assertions. Corrected the analysis file's wording to "seven explicit values plus the absent control"; narrowed the PR body's acceptance-criteria claim via `gh pr edit` (no commit, outside git history). The other 4 findings (a PR-body Changes-section gap, this handoff's staleness, and two stale `sessionEnd.Evidence` fields in session-14706's own log) were fixed in the same commit but do not touch this QA scope's own evidence paths. Because the analysis file is evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports; the follow-up rebind commit fixing that does not get a separate row of its own, per the still-standing round-12 review instruction. |
+| `36071d573` | A review against `eb1a89e7e` raised 6 active findings, 4 of which touch this QA scope: session-15001's own `nextSteps` still instructed an already-completed handoff-rewrite action and a stale "did not push" claim (the finding named commit `ac53f6802`, session-15001's own real round-2 handoff-rewrite commit, as evidence, not a hallucinated SHA); the handoff was stale, still describing round 13 as pending when `e3af5bcc7`/`a85ace032`/`eb1a89e7e` had already landed; this analysis file's alias-resolution console transcript needed a measurement-date label and a note that the `.github/agents/quality-auditor.agent.md` hand-copy drift it shows is no longer present; and ADR-080's repository-level-agents paragraph still called that same file's bare `model: sonnet` value an open gap, when `fix(agents): remove rejected model pins from .github/agents and gate the tree (#5040)` (2026-08-15, already an ancestor of this branch via the round-6 relief merge) had since removed it. Trimmed session-15001's `nextSteps` from 3 entries to 1, keeping only the still-open model-tier probe follow-up; rewrote the handoff to cover rounds 13/13a/13b as complete and round 14's findings; added the measurement-date label and closing note to the analysis file; and time-qualified the ADR paragraph. The other 2 findings (stale `sessionEnd.Evidence` fields in session-14706's own log) were fixed in the same commit but do not touch this QA scope's own evidence paths. Because the analysis file and session-15001's log are evidence this QA scope covers, this again stales `qaCommit`/`endingCommit` for all three session logs/QA reports; the follow-up rebind commit fixing that does not get a separate row of its own, per the still-standing round-12 review instruction. |
 
 ## Evidence
 
@@ -301,4 +302,23 @@ forward to `e3af5bcc7`, again without adding a new self-referential row
 for itself. The only CI failure observed against `09222ab35`/`e3af5bcc7`
 ("Check placeholder identity") is confirmed non-required and caused by 8
 pre-session historical commits, out of this QA scope's authority to fix.
-`qaCommit` is `e3af5bcc7`.
+`qaCommit` is `e3af5bcc7`. Round 14 (`36071d573`) trimmed this
+session's own `nextSteps` from 3 entries to 1, removing an already-
+completed handoff-rewrite instruction and a stale "did not push" claim
+(the finding correctly named `ac53f6802`, this session's own real round-2
+handoff-rewrite commit, as evidence); rewrote the handoff to cover rounds
+13/13a/13b as complete and round 14's findings; labeled the analysis
+file's alias-resolution console transcript with its 2026-08-12
+measurement date and noted the
+`.github/agents/quality-auditor.agent.md` drift it shows is no longer
+present; and time-qualified ADR-080's repository-level-agents paragraph
+as that same probe's observed state, since `fix(agents): remove rejected
+model pins from .github/agents and gate the tree (#5040)` (2026-08-15,
+already an ancestor of this branch via the round-6 relief merge) has
+since removed the `model: sonnet` line it described as an open gap; the
+follow-up rebind commit sets both reports' `qaCommit`/`endingCommit`
+forward to `36071d573`, again without adding a new self-referential row
+for itself. The only CI failure observed against
+`09222ab35`/`e3af5bcc7`/`36071d573` ("Check placeholder identity") is
+confirmed non-required and caused by 8 pre-session historical commits,
+out of this QA scope's authority to fix. `qaCommit` is `36071d573`.
