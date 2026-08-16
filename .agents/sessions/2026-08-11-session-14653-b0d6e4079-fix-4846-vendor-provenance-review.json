@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Interim QA anchor b453dbfcd43306d55fd09ef0a3aacec8d122db8a; final evidence rebind follows the ADR content commit."
+        "Evidence": "QA and session evidence bind to content commit 48b5ad34819938af3217d8b39956c93c5555e89b."
       },
       "validationPassed": {
         "level": "MUST",
@@ -305,6 +305,6 @@
       "result": "Authentication errors stop after one attempt. Rollback now has objective confirmation criteria, an alert path, and a measurable 30-minute target. The provenance suite passes 224 tests and Ruff reports zero findings."
     }
   ],
-  "endingCommit": "b453dbfcd43306d55fd09ef0a3aacec8d122db8a",
+  "endingCommit": "48b5ad34819938af3217d8b39956c93c5555e89b",
   "nextSteps": []
 }

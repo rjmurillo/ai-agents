@@ -1,15 +1,23 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: b453dbfcd43306d55fd09ef0a3aacec8d122db8a
+qaCommit: 48b5ad34819938af3217d8b39956c93c5555e89b
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `b453dbfcd43306d55fd09ef0a3aacec8d122db8a`
-(qaCommit, above; this is the 11th rebind of this report). Since the 10th
+Validated the branch at commit `48b5ad34819938af3217d8b39956c93c5555e89b`
+(qaCommit, above; this is the 12th rebind of this report). ADR-096 reached
+6 of 6 ACCEPT after four review rounds. The final content commit adds the
+ADR-006 exception analysis, objective rollback detection, immediate
+authentication-failure classification, and two one-attempt regression cases.
+The exact worktree passed 224 provenance tests, Ruff, the ADR review gate,
+the ADR detector, session validation, and literal-path markdownlint.
+
+The 11th rebind validated
+`b453dbfcd43306d55fd09ef0a3aacec8d122db8a`. Since the 10th
 rebind (`b3d89b4c9`, below), the completion gate's "No suppressed Copilot
 review findings" criterion surfaced 4 active findings from a Copilot
 review at `2026-08-15T01:14:57Z` bundled into a collapsed

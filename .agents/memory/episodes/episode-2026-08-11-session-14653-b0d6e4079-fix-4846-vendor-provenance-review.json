@@ -123,7 +123,11 @@
         "e093",
         "e095",
         "e096",
-        "e097"
+        "e097",
+        "e099",
+        "e100",
+        "e101",
+        "e102"
       ],
       "leads_to": [
         "e006"
@@ -1250,6 +1254,63 @@
       "caused_by": [
         "e094"
       ],
+      "leads_to": [
+        "e103"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e099",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Documented the trusted vendor provenance architecture in ADR-096.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e100",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran four ADR-096 debate rounds across architect, critic, independent-thinker, security, analyst, and high-level-advisor roles.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e101",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added the ADR-006 workflow-size exception analysis required by ADR-053 governance.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e102",
+      "timestamp": "2026-08-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tightened GitHub API retry classification and rollback observability.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
+    },
+    {
+      "id": "e103",
+      "timestamp": "2026-08-16T04:20:01+00:00",
+      "type": "commit",
+      "content": "Commit: 48b5ad34819938af3217d8b39956c93c5555e89b",
+      "caused_by": [
+        "e098"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review"
     }
@@ -1259,8 +1320,8 @@
     "tool_calls": null,
     "errors": 1,
     "recoveries": 0,
-    "commits": 52,
-    "files_changed": 54
+    "commits": 53,
+    "files_changed": 56
   },
   "lessons": []
 }
