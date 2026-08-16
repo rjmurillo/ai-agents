@@ -1,12 +1,12 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment.json
-qaCommit: 4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8
+qaCommit: 5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb
 ---
 
 # QA report: PR #4846 ADR-096 amendment
 
-PASS for commit `4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8` on branch
+PASS for commit `5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb` on branch
 `fix/vendor-provenance-bootstrap-v2`.
 
 ## What was validated
@@ -39,7 +39,7 @@ shell operators.
   placeholder_identity`: 7 passed. Commits already reachable from authenticated
   origin tips are excluded, local fake refs are ignored, and new placeholder
   identities remain blocked.
-- Merge queue runs fetch both immutable SHAs before materialization.
+- Pull-request runs fetch both immutable SHAs before materialization.
 - `|&`, multiline control flow, and heredoc text cannot hide an unmet
   repository dependency.
 - A run-token pending status is attempted before the immutable fetch. API

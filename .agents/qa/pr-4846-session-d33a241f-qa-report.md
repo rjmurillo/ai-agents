@@ -1,15 +1,15 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8
+qaCommit: 5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `4d6513c1a0733cd8e6fbb1d69f93b752d7dca2e8`
-(qaCommit, above; this is the 29th rebind). Changes since the 11th rebind:
+Validated the branch at commit `5c5c82ada24dede4e6edb40ceb9efd6a7cb534fb`
+(qaCommit, above; this is the 30th rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
