@@ -40,7 +40,8 @@
         "e025",
         "e027",
         "e028",
-        "e029"
+        "e029",
+        "e032"
       ],
       "leads_to": [
         "e005"
@@ -387,6 +388,30 @@
       "caused_by": [
         "e030"
       ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed stale populated-index state after read-tree --empty.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-16T11:00:02+00:00",
+      "type": "commit",
+      "content": "Commit: 55c2c68be40d3be46155b1f7995e61d686a9c98f",
+      "caused_by": [
+        "e031"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-15-session-14713-bbf65f8b4-continue-4846-vendor-provenance-amendment"
     }
@@ -396,7 +421,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 15,
     "files_changed": 15
   },
   "lessons": []
