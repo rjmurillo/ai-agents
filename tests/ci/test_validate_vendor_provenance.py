@@ -845,6 +845,10 @@ class TestWorkflowContractRegression:
             "Vendor provenance run $GITHUB_RUN_ID: pending"
         )
         assert bootstrap_pending < workflow.index("git init --quiet")
+        bootstrap_step = workflow.split(
+            "- name: Publish bootstrap pending status", 1
+        )[1].split("- name:", 1)[0]
+        assert "if: github.event_name == 'pull_request_target'" in bootstrap_step
 
     def test_workflow_bounds_direct_network_calls(self) -> None:
         workflow = (WT / ".github/workflows/vendor-provenance.yml").read_text(
