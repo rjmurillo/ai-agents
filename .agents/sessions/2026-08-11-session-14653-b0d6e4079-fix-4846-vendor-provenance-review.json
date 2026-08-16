@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 checked literal ADR-096 and debate-log paths with 0 issues"
+        "Evidence": "markdownlint-cli2 used colon-prefixed literal paths with --no-globs; output reported Linting: 4 files and 0 issues"
       },
       "qaValidation": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "QA and session evidence bind to content commit 57c8af89be1c72bd91e7417e0caeacefd96080d1."
+        "Evidence": "QA and session evidence bind to content commit 09f76b24ebf55ab7a56e976f3309126bd9c92250."
       },
       "validationPassed": {
         "level": "MUST",
@@ -319,8 +319,24 @@
     {
       "action": "Fixed npm lockfile precedence in vendor reconstruction.",
       "result": "npm-shrinkwrap.json files and symlinks are rejected before package-lock.json validation, so npm cannot install from an unvalidated higher-precedence lockfile. All 227 provenance tests pass and Ruff reports zero findings."
+    },
+    {
+      "action": "Fixed compact shell operator parsing in the workflow dependency guard.",
+      "result": "The parser now preserves compact &&, ||, ;, |, and & boundaries, so repository dependencies after printing commands remain visible without surrounding spaces. All 185 workflow checkout tests pass."
+    },
+    {
+      "action": "Restored and documented repository-wide gitlink rejection.",
+      "result": "Gitlink rejection remains unconditional and precedes relevance filtering. ADR-096 records the repository-wide submodule ban and its external code identity risk. The static ordering test passes within the 228-test provenance suite."
+    },
+    {
+      "action": "Narrowed ADR-096 trust claims to repository-owned artifacts.",
+      "result": "The ADR now names the hosted runner toolchain as a platform trust root and limits SHA-256 execution-closure claims to repository-owned files."
+    },
+    {
+      "action": "Corrected final evidence scope and markdownlint wording.",
+      "result": "The QA report now records GitHub's 12-file PR diff. The session evidence states that colon-prefixed literal paths with --no-globs linted both requested files."
     }
   ],
-  "endingCommit": "57c8af89be1c72bd91e7417e0caeacefd96080d1",
+  "endingCommit": "09f76b24ebf55ab7a56e976f3309126bd9c92250",
   "nextSteps": []
 }

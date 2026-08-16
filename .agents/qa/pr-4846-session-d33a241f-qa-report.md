@@ -1,21 +1,24 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-11-session-14653-b0d6e4079-fix-4846-vendor-provenance-review.json
-qaCommit: 57c8af89be1c72bd91e7417e0caeacefd96080d1
+qaCommit: 09f76b24ebf55ab7a56e976f3309126bd9c92250
 ---
 
 # QA Report: PR #4846 vendor provenance autofix (updated)
 
 ## Summary
 
-Validated the branch at commit `57c8af89be1c72bd91e7417e0caeacefd96080d1`
-(qaCommit, above; this is the 16th rebind). Changes since the 11th rebind:
+Validated the branch at commit `09f76b24ebf55ab7a56e976f3309126bd9c92250`
+(qaCommit, above; this is the 17th rebind). Changes since the 11th rebind:
 ADR-096 reached 6 of 6 ACCEPT; authentication failures stop after one API
 attempt; direct `gh api` and `git fetch` calls have 30-second and 120-second
 limits; command parsing preserves executable segments after printing; and
 `checkout-index` requires a prior matching `git read-tree`; and npm shrinkwrap
-files or symlinks are rejected. Evidence: 227 provenance tests passed, 175
-workflow checkout tests passed, and
+files or symlinks are rejected. Compact shell operators are parsed without
+surrounding spaces. Gitlinks are rejected before relevance filtering. ADR-096
+limits trust pins to repository-owned artifacts and names hosted runner tools
+as platform trust roots. Evidence: 228 provenance tests passed, 185 workflow
+checkout tests passed, and
 Ruff, actionlint, workflow validation, ADR review, ADR detection, session
 validation, and literal-path markdownlint passed.
 
@@ -41,7 +44,7 @@ pass), and an `xfail` shipped without an open tracking issue
 it in the reason string). The 4th finding (`pyproject.toml:10`, PR
 description undersold the branch's historical 50-file scope) was addressed
 via `gh pr edit`. That was the branch-local measurement before later base
-merges; GitHub now reports a 10-file PR diff. Full targeted suite:
+merges; GitHub now reports a 12-file PR diff. Full targeted suite:
 192 passed, 1 xfailed (the tracked, expected one). `ruff`/`mypy` clean.
 `git merge-tree --write-tree origin/main HEAD`: 0 conflicts. Branch
 scope unchanged at exactly 50/50 (all 3 files already tracked in this
