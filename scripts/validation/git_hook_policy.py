@@ -6838,6 +6838,29 @@ def _placeholder_identity_range(push_ref: PushRef, repo_root: Path) -> str:
     return resolve_push_update(push_ref, repo_root).range_spec
 
 
+def _placeholder_identity_scan(
+    push_ref: PushRef,
+    repo_root: Path,
+) -> tuple[str, tuple[str, ...]]:
+    result = _run_git(
+        repo_root,
+        ["for-each-ref", "--format=%(objectname)", "refs/remotes/origin/"],
+    )
+    if result.returncode != 0:
+        return _placeholder_identity_range(push_ref, repo_root), ()
+
+    remote_tips = {
+        line.strip()
+        for line in result.stdout.splitlines()
+        if len(line.strip()) == 40
+    }
+    if not push_ref.is_new and _commit_ref_exists(repo_root, push_ref.remote_sha):
+        remote_tips.add(push_ref.remote_sha)
+    if not remote_tips:
+        return _placeholder_identity_range(push_ref, repo_root), ()
+    return push_ref.local_sha, tuple(sorted(remote_tips))
+
+
 def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
     try:
         refs = parse_push_refs(stream)
@@ -6848,7 +6871,7 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
         if push_ref.is_deletion:
             continue
         try:
-            range_spec = _placeholder_identity_range(push_ref, repo_root)
+            range_spec, exclude_refs = _placeholder_identity_scan(push_ref, repo_root)
         except PushUpdateConfigError as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
@@ -6858,6 +6881,11 @@ def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
                 "scripts/validation/check_placeholder_identity.py",
                 "--push-range",
                 range_spec,
+                *(
+                    argument
+                    for exclude_ref in exclude_refs
+                    for argument in ("--exclude-ref", exclude_ref)
+                ),
                 "--repo-root",
                 str(repo_root),
             ],

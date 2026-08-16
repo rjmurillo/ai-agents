@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import NamedTuple
 
@@ -67,7 +68,11 @@ class _CommitIdentity(NamedTuple):
     committer_email: str
 
 
-def _list_commits(push_range: str, repo_root: Path) -> list[_CommitIdentity]:
+def _list_commits(
+    push_range: str,
+    repo_root: Path,
+    exclude_refs: Sequence[str] = (),
+) -> list[_CommitIdentity]:
     """Return commit identities for the push range via git log."""
     env = os.environ.copy()
     env["LC_ALL"] = "C"
@@ -78,6 +83,7 @@ def _list_commits(push_range: str, repo_root: Path) -> list[_CommitIdentity]:
             "git", "log",
             "--format=%H|%an|%ae|%cn|%ce",
             push_range,
+            *(f"^{ref}" for ref in exclude_refs),
         ],
         cwd=repo_root,
         capture_output=True,
@@ -118,7 +124,11 @@ class CheckResult(NamedTuple):
     stderr: str
 
 
-def run_check(push_range: str, repo_root: Path) -> CheckResult:
+def run_check(
+    push_range: str,
+    repo_root: Path,
+    exclude_refs: Sequence[str] = (),
+) -> CheckResult:
     """Run the placeholder check and return a CheckResult.
 
     Separated from main() so tests can call it directly without spawning
@@ -131,7 +141,7 @@ def run_check(push_range: str, repo_root: Path) -> CheckResult:
         msg = f"SKIP: placeholder identity check (repo is under pytest tmp_path: {repo_root})\n"
         return CheckResult(returncode=0, stdout=msg, stderr="")
 
-    commits = _list_commits(push_range, repo_root)
+    commits = _list_commits(push_range, repo_root, exclude_refs)
     violations: list[str] = []
 
     for commit in commits:
@@ -171,6 +181,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Git range to check, e.g. <base>..<head>",
     )
     parser.add_argument(
+        "--exclude-ref",
+        action="append",
+        default=[],
+        help="Exclude commits reachable from this already-remote ref",
+    )
+    parser.add_argument(
         "--repo-root",
         type=Path,
         default=Path.cwd(),
@@ -178,7 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    result = run_check(push_range=args.push_range, repo_root=args.repo_root)
+    result = run_check(
+        push_range=args.push_range,
+        repo_root=args.repo_root,
+        exclude_refs=args.exclude_ref,
+    )
 
     if result.stdout:
         print(result.stdout, end="")
