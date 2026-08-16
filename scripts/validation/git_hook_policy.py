@@ -6842,9 +6842,12 @@ def _placeholder_identity_scan(
     push_ref: PushRef,
     repo_root: Path,
 ) -> tuple[str, tuple[str, ...]]:
+    remote_patterns = ["refs/heads/main"]
+    if push_ref.remote_ref.startswith("refs/heads/"):
+        remote_patterns.append(push_ref.remote_ref)
     result = _run_git(
         repo_root,
-        ["ls-remote", "--heads", "origin"],
+        ["ls-remote", "--heads", "origin", *remote_patterns],
     )
     if result.returncode != 0:
         return _placeholder_identity_range(push_ref, repo_root), ()
@@ -6852,7 +6855,9 @@ def _placeholder_identity_scan(
     remote_tips = {
         fields[0]
         for line in result.stdout.splitlines()
-        if len(fields := line.split()) == 2 and len(fields[0]) == 40
+        if len(fields := line.split()) == 2
+        and len(fields[0]) == 40
+        and _commit_ref_exists(repo_root, fields[0])
     }
     if not remote_tips:
         return _placeholder_identity_range(push_ref, repo_root), ()

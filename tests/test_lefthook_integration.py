@@ -7567,14 +7567,24 @@ def test_placeholder_identity_excludes_taint_merged_from_remote_main(
         "refs/heads/feature/test",
         remote_sha,
     )
+    run_git = policy._run_git
+
+    def _authenticated_remote(
+        root: Path,
+        arguments: list[str],
+    ) -> subprocess.CompletedProcess[str]:
+        if arguments[:2] == ["ls-remote", "--heads"]:
+            return _completed(
+                0,
+                f"{remote_sha}\trefs/heads/feature/test\n"
+                f"{main_sha}\trefs/heads/main\n",
+            )
+        return run_git(root, arguments)
+
     monkeypatch.setattr(
         policy,
         "_run_git",
-        lambda *_args: _completed(
-            0,
-            f"{remote_sha}\trefs/heads/feature/test\n"
-            f"{main_sha}\trefs/heads/main\n",
-        ),
+        _authenticated_remote,
     )
 
     push_range, exclude_refs = policy._placeholder_identity_scan(push_ref, repo)
@@ -7610,19 +7620,31 @@ def test_placeholder_identity_ignores_fake_local_remote_tip(
         "refs/heads/feature/test",
         remote_sha,
     )
+    run_git = policy._run_git
+
+    def _authenticated_remote(
+        root: Path,
+        arguments: list[str],
+    ) -> subprocess.CompletedProcess[str]:
+        if arguments[:2] == ["ls-remote", "--heads"]:
+            return _completed(
+                0,
+                f"{remote_sha}\trefs/heads/feature/test\n"
+                f"{'f' * 40}\trefs/heads/main\n",
+            )
+        return run_git(root, arguments)
+
     monkeypatch.setattr(
         policy,
         "_run_git",
-        lambda *_args: _completed(
-            0,
-            f"{remote_sha}\trefs/heads/feature/test\n",
-        ),
+        _authenticated_remote,
     )
 
     push_range, exclude_refs = policy._placeholder_identity_scan(push_ref, repo)
 
     assert push_range == local_sha
     assert local_sha not in exclude_refs
+    assert "f" * 40 not in exclude_refs
     from scripts.validation import check_placeholder_identity
     from scripts.validation.check_placeholder_identity import run_check
 
